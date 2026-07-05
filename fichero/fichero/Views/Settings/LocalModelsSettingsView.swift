@@ -8,8 +8,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Setting
 
 /// Local model management (Whisper, Embeddings)
 struct LocalModelsSettingsView: View {
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var libraryManager: LibraryManager
+    @Environment(AppState.self) var appState
+    @Environment(LibraryManager.self) var libraryManager
 
     @State private var whisperModels: [LocalModelStatus] = []
     @State private var embeddingsModels: [LocalModelStatus] = []

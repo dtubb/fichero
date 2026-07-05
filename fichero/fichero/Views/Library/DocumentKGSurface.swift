@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 
 enum KGGraphRendererFramework: String {
@@ -157,9 +158,9 @@ struct DocumentKGSurface: View {
     @State private var internalActiveTab: KGSurfaceTab = .transcript
     private var activeTab: KGSurfaceTab { externalActiveTab ?? internalActiveTab }
     @Environment(KGFocusState.self) private var kgFocusState
-    @EnvironmentObject private var entityService: EntityServiceGenerated
-    @EnvironmentObject private var artifactService: ArtifactServiceGenerated
-    @EnvironmentObject private var kgCurationService: KGCurationServiceGenerated
+    @Environment(EntityServiceGenerated.self) private var entityService
+    @Environment(ArtifactServiceGenerated.self) private var artifactService
+    @Environment(KGCurationServiceGenerated.self) private var kgCurationService
 
     var body: some View {
         // The representation switcher (Transcript/Digest/Graph/Claims/Timeline/

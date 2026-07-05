@@ -21,19 +21,11 @@ extension SidebarView {
             // tracking and re-arm after each mutation.
             observeDocumentStore(library.documentStore)
 
-            // Observe saved search changes
-            library.savedSearchServiceGenerated.$savedSearches
-                .dropFirst()
-                .receive(on: RunLoop.main)
-                .sink { _ in rebuildCaches() }
-                .store(in: &cancellables)
-
-            // Observe conversation changes
-            library.conversationServiceGenerated.$conversations
-                .dropFirst()
-                .receive(on: RunLoop.main)
-                .sink { _ in rebuildCaches() }
-                .store(in: &cancellables)
+            // Observe saved search + conversation changes. Both services are now
+            // @Observable (#2960), so they have no Combine `$` publishers — use
+            // Observation tracking, re-armed after each mutation.
+            observeSavedSearchService(library.savedSearchServiceGenerated)
+            observeConversationService(library.conversationServiceGenerated)
 
             // Observe workflow changes. WorkflowStore is now @Observable (#1911),
             // so it has no Combine `$workflows` publisher — use Observation
@@ -42,14 +34,47 @@ extension SidebarView {
             observeWorkflowStore(library.workflowStore)
         }
 
-        // Observe chain changes (global ChainService)
-        chainService.$chains
-            .dropFirst()
-            .receive(on: RunLoop.main)
-            .sink { newChains in
-                chains = newChains
+        // Observe chain changes (global ChainService, now @Observable #2960).
+        observeChainService(chainService)
+    }
+
+    /// Observe an @Observable ChainService's `chains` array and mirror it into
+    /// the sidebar's local `chains`. Re-arm after each fire (one-shot tracking).
+    func observeChainService(_ service: ChainService) {
+        withObservationTracking {
+            _ = service.chains
+        } onChange: {
+            Task { @MainActor in
+                chains = service.chains
+                observeChainService(service)
             }
-            .store(in: &cancellables)
+        }
+    }
+
+    /// Observe an @Observable SavedSearchService's `savedSearches` and rebuild
+    /// caches after each mutation. Re-arm after each fire (one-shot tracking).
+    func observeSavedSearchService(_ service: SavedSearchServiceGenerated) {
+        withObservationTracking {
+            _ = service.savedSearches
+        } onChange: {
+            Task { @MainActor in
+                rebuildCaches()
+                observeSavedSearchService(service)
+            }
+        }
+    }
+
+    /// Observe an @Observable ConversationService's `conversations` and rebuild
+    /// caches after each mutation. Re-arm after each fire (one-shot tracking).
+    func observeConversationService(_ service: ConversationServiceGenerated) {
+        withObservationTracking {
+            _ = service.conversations
+        } onChange: {
+            Task { @MainActor in
+                rebuildCaches()
+                observeConversationService(service)
+            }
+        }
     }
 
     /// Observe an @Observable WorkflowStore's `workflows` array and rebuild the

@@ -9,8 +9,8 @@ struct BookmarksView: View {
     /// Opens a resolved target document in the host window.
     var onOpen: (Document) -> Void
 
-    @EnvironmentObject private var bookmarkService: BookmarkServiceGenerated
-    @EnvironmentObject private var documentService: DocumentServiceGenerated
+    @Environment(BookmarkServiceGenerated.self) private var bookmarkService
+    @Environment(DocumentServiceGenerated.self) private var documentService
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = ""

@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Main settings view with tabs for General, AI, and backend/system settings.
 struct SettingsView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @ObservedObject var featureManager = FeatureManager.shared
 
     var body: some View {
@@ -97,8 +97,8 @@ private struct SettingsPreviewHarness: View {
 
     var body: some View {
         SettingsView()
-            .environmentObject(AppState())
-            .environmentObject(EmbeddedBackendService())
-            .environmentObject(LibraryManager.shared)
+            .environment(AppState())
+            .environment(EmbeddedBackendService())
+            .environment(LibraryManager.shared)
     }
 }

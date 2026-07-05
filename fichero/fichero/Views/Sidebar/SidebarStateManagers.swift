@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 
 /// Manages rename state for sidebar items.

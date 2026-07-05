@@ -34,17 +34,17 @@ struct FicheroApp: App {
     @NSApplicationDelegateAdaptor(FicheroAppDelegate.self) private var appDelegate
 
     // Backend service - manages embedded Python backend
-    @StateObject private var backendService = EmbeddedBackendService()
+    @State private var backendService = EmbeddedBackendService()
 
     // Backend connection state
-    @StateObject private var appState = AppState()
-    @StateObject private var viewSettings = ViewSettings()
+    @State private var appState = AppState()
+    @State private var viewSettings = ViewSettings()
     @StateObject private var featureManager = FeatureManager.shared
-    @StateObject private var claimFocusState = ClaimFocusState.shared
+    @State private var claimFocusState = ClaimFocusState.shared
     @State private var kgFocusState = KGFocusState.shared
 
     // Library manager - singleton managing all open libraries
-    @StateObject private var libraryManager = LibraryManager.shared
+    @State private var libraryManager = LibraryManager.shared
 
     // App-level fallback observer injected into secondary scenes (artifact-detail,
     // citation-detail, etc.) that don't go through LibraryWindow. Prevents
@@ -248,13 +248,13 @@ struct FicheroApp: App {
                 LibraryWindow(seed: seed)
             }
         )
-        .environmentObject(backendService)
-        .environmentObject(appState)
-        .environmentObject(viewSettings)
-        .environmentObject(libraryManager)
-        .environmentObject(claimFocusState)
+        .environment(backendService)
+        .environment(appState)
+        .environment(viewSettings)
+        .environment(libraryManager)
+        .environment(claimFocusState)
         .environment(kgFocusState)
-        .environmentObject(appState.mcpService)
+        .environment(appState.mcpService)
         .frame(minWidth: 640, minHeight: 700)
     }
 
@@ -312,7 +312,7 @@ struct FicheroApp: App {
             // File menu - Database/Library management
             CommandGroup(replacing: .newItem) {
                 FileMenuCommands()
-                    .environmentObject(libraryManager)
+                    .environment(libraryManager)
             }
 
             // Edit menu — ⌘Z drives the audited-action undo (#2015), replacing
@@ -335,7 +335,7 @@ struct FicheroApp: App {
             // View menu items
             CommandGroup(after: .toolbar) {
                 ViewMenuCommands()
-                    .environmentObject(viewSettings)
+                    .environment(viewSettings)
             }
 
             CommandGroup(replacing: .sidebar) { }
@@ -484,8 +484,8 @@ struct FicheroApp: App {
 
         WindowGroup("Document", id: "document-detail") {
             DocumentDetailWindow()
-                .environmentObject(libraryManager)
-                .environmentObject(claimFocusState)
+                .environment(libraryManager)
+                .environment(claimFocusState)
                 .environment(kgFocusState)
         }
         .defaultSize(width: 540, height: 720)
@@ -498,7 +498,7 @@ struct FicheroApp: App {
         // separate scene). Opened via `openWindow(id: "activity-monitor")`.
         WindowGroup("Activity", id: "activity-monitor") {
             ActivityMonitorWindow()
-                .environmentObject(libraryManager)
+                .environment(libraryManager)
                 .environment(appExecutionObserver)
         }
         .defaultSize(width: 720, height: 480)
@@ -512,9 +512,9 @@ struct FicheroApp: App {
         // isn't the front segment — hence the crash guard from #2051.
         Settings {
             SettingsView()
-                .environmentObject(appState)
-                .environmentObject(backendService)
-                .environmentObject(libraryManager)
+                .environment(appState)
+                .environment(backendService)
+                .environment(libraryManager)
         }
     }
 }

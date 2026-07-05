@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -13,13 +14,14 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 /// library header is passed explicitly on every call — matching SavedSearch/Chat/Note.
 /// (#1710 will later fold this into middleware and drop the manual header arg.)
 @MainActor
-class WorkflowExecutionService: ObservableObject {
+@Observable
+class WorkflowExecutionService {
     private let client: FicheroClient
 
-    @Published var isExecuting: Bool = false
-    @Published var threads: [ExecutionThread] = []
-    @Published var currentThreadStatus: ExecutionThread?
-    @Published var error: String?
+    var isExecuting: Bool = false
+    var threads: [ExecutionThread] = []
+    var currentThreadStatus: ExecutionThread?
+    var error: String?
 
     init(baseURL: URL = EngineConfig.apiBaseURL, libraryPath: String? = nil) {
         // FicheroClient expects the host root (paths in openapi.json already carry the

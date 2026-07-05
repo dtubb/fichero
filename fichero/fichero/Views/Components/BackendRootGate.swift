@@ -20,7 +20,7 @@ import SwiftUI
 /// Both the macOS (`FicheroApp`) and iOS (`FicheroApp_iOS`) roots use this SAME
 /// gate, replacing the divergent hand-rolled iOS session handling.
 struct BackendRootGate<Content: View, Setup: View>: View {
-    @ObservedObject var appState: AppState
+    @Bindable var appState: AppState
     /// The ONE retry entry point (#3108): re-run the platform's connect
     /// sequence. macOS respawns the embedded engine, iOS re-adopts the paired
     /// remote host — and the launch task calls the SAME function, so the Retry

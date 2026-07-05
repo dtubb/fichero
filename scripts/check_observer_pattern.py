@@ -45,51 +45,28 @@ PATTERN_LABELS: dict[str, str] = {
     "direct-library-manager": "LibraryManager.shared.globalLibrary",
 }
 
-# Keys are repo-relative file paths. The value is a short backlog note.
+# Post-#2960 baseline. The @Observable foundation flip (#2960/#1863) cleared
+# every @EnvironmentObject/.environmentObject/@StateObject-service/ObservableObject
+# offender. These remaining entries are UNRELATED anti-patterns still on the
+# backlog: direct `LibraryManager.shared.globalLibrary` reads, `client.api.`
+# access, and the two views that read the kept-ObservableObject FeatureManager
+# via @EnvironmentObject (FeatureManager stays ObservableObject — it is backed
+# by @AppStorage, which @Observable does not track).
 KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
     [
-        "fichero/fichero/Views/AIProviders/AIModelCatalog.swift",
-        "fichero/fichero/Views/AIProviders/AIModelSelectionView.swift",
-        "fichero/fichero/Views/AIProviders/AIProviderAddModelsSheet.swift",
-        "fichero/fichero/Views/AIProviders/AddProviderSheet.swift",
-        "fichero/fichero/Views/AIProviders/ProvidersView+ProviderDetailView.swift",
-        "fichero/fichero/Views/AIProviders/ProvidersView.swift",
-        "fichero/fichero/Views/Activity/ActivityDetailView.swift",
-        "fichero/fichero/Views/Activity/ActivityLogView.swift",
-        "fichero/fichero/Views/Activity/ActivityProgressView.swift",
-        "fichero/fichero/Views/Activity/ActivityViewHelpers.swift",
-        "fichero/fichero/Views/Agents/AgentConfigurationView.swift",
-        "fichero/fichero/Views/Agents/AgentSettingsView.swift",
-        "fichero/fichero/Views/Automation/ScheduleCreationSheet.swift",
-        "fichero/fichero/Views/Automation/ScheduleDetailView.swift",
-        "fichero/fichero/Views/Automation/ScheduleEditorView.swift",
-        "fichero/fichero/Views/Automation/TriggerCreationSheet.swift",
-        "fichero/fichero/Views/Automation/TriggerDetailView.swift",
-        "fichero/fichero/Views/Automation/TriggerEditorView.swift",
-        "fichero/fichero/Views/Chat/ChatInspector.swift",
-        "fichero/fichero/Views/Chat/ChatView.swift",
         "fichero/fichero/Views/Chat/ComparisonDetailView+Actions.swift",
-        "fichero/fichero/Views/Chat/ComparisonDetailView.swift",
-        "fichero/fichero/Views/Components/BackendConnectionView.swift",
-        "fichero/fichero/Views/Components/LibraryImageView.swift",
         "fichero/fichero/Views/ContentView+Actions.swift",
-        "fichero/fichero/Views/ContentView+Navigation.swift",
-        "fichero/fichero/Views/ContentView+ViewBuilders.swift",
         "fichero/fichero/Views/ContentView.swift",
-        "fichero/fichero/Views/ContentViewModifiers.swift",
         "fichero/fichero/Views/DocumentTabView.swift",
-        "fichero/fichero/Views/Integrations/IntegrationsView.swift",
         "fichero/fichero/Views/KnowledgeGraph/EntityDigestView.swift",
         "fichero/fichero/Views/KnowledgeGraph/KGMapView.swift",
         "fichero/fichero/Views/KnowledgeGraph/KGTimelineView.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/ClaimReviewQueueSheet.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCard+Details.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/ContradictionTriageSheet.swift",
-        "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/EditClaimSheet.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/EntityDetailView+Audit.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/EntityDetailView+Biography.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/EntityDetailView+Metadata.swift",
-        "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/EntityDetailView.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/EntityMergeSheet.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/EntitySourceGroupsView.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/EntitySplitSheet.swift",
@@ -100,108 +77,23 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser+List.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser+Toolbar.swift",
         "fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser.swift",
-        "fichero/fichero/Views/Library/ArtifactEntityViews.swift",
-        "fichero/fichero/Views/Library/DisplayAttributesStrip.swift",
-        "fichero/fichero/Views/Library/DocumentCanvas.swift",
         "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift",
-        "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Previews.swift",
+        "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Interpretations.swift",
         "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab+Bibliography.swift",
         "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab+Citations.swift",
         "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab+Prototype.swift",
         "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab+RelatedClaims.swift",
         "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab+Workflow.swift",
-        "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab.swift",
-        "fichero/fichero/Views/Library/DocumentInspector/SourceOutlineView.swift",
-        "fichero/fichero/Views/Library/DocumentInspector.swift",
-        "fichero/fichero/Views/Library/DocumentInspectorContentV2.swift",
-        "fichero/fichero/Views/Library/DocumentKGSurface.swift",
-        "fichero/fichero/Views/Library/ImageEditor/ImageEditorView.swift",
-        "fichero/fichero/Views/Library/LibraryToolbarState.swift",
-        "fichero/fichero/Views/Library/LibraryView.swift",
+        "fichero/fichero/Views/Library/FocusedDocument.swift",
         "fichero/fichero/Views/Library/NodeClassPicker.swift",
-        "fichero/fichero/Views/Library/PDFLoupeOverlay.swift",
-        "fichero/fichero/Views/Library/PDFPageView.swift",
-        "fichero/fichero/Views/Library/PDFThumbnailView.swift",
-        "fichero/fichero/Views/Library/PageContentPane.swift",
-        "fichero/fichero/Views/Library/QuickLookComponents.swift",
-        "fichero/fichero/Views/Library/WorkspaceItemPicker.swift",
-        "fichero/fichero/Views/MCPServers/AddMCPServerSheet.swift",
-        "fichero/fichero/Views/MCPServers/MCPServerDetailView.swift",
-        "fichero/fichero/Views/MCPServers/MCPServersView.swift",
-        "fichero/fichero/Views/MCPServers/MCPToolsCatalogView.swift",
-        "fichero/fichero/Views/Menu/FileMenuCommands.swift",
-        "fichero/fichero/Views/Menu/ViewMenuCommands.swift",
-        "fichero/fichero/Views/ModelComparison/ModelComparisonView.swift",
-        "fichero/fichero/Views/ModelComparison/NodeComparisonSheet.swift",
-        "fichero/fichero/Views/Onboarding/FirstRunWindow.swift",
-        "fichero/fichero/Views/Research/ResearchBrowserPane.swift",
-        "fichero/fichero/Views/Research/ResearchChatPane.swift",
-        "fichero/fichero/Views/Research/ResearchProjectListView.swift",
-        "fichero/fichero/Views/Search/SearchView.swift",
-        "fichero/fichero/Views/Settings/AISettingsView.swift",
-        "fichero/fichero/Views/Settings/BackendSettingsView.swift",
-        "fichero/fichero/Views/Settings/LocalModelsSettingsView.swift",
-        "fichero/fichero/Views/Settings/SettingsView.swift",
-        # Settings sections exposed by the QR-pairing / sharing work — staged
-        # @EnvironmentObject → @Environment(@Observable) migration (#2378).
-        "fichero/fichero/Views/Settings/AISettingsView+Tabs.swift",
-        "fichero/fichero/Views/Settings/AuditHistoryView.swift",
-        "fichero/fichero/Views/Settings/BackupsView.swift",
-        "fichero/fichero/Views/Settings/CaptureSettingsView.swift",
-        "fichero/fichero/Views/Settings/EngineSettingsView.swift",
-        "fichero/fichero/Views/Settings/ShareSettingsView.swift",
-        "fichero/fichero/Views/Settings/UsersSettingsView.swift",
-        "fichero/fichero/Views/Sheets/DocumentPickerSheet.swift",
-        "fichero/fichero/Views/Sheets/WorkflowPickerSheet.swift",
-        "fichero/fichero/Views/Sidebar/Components/SidebarObservers.swift",
-        "fichero/fichero/Views/Sidebar/SidebarView.swift",
-        "fichero/fichero/Views/Workflow/ChainEditorView.swift",
-        "fichero/fichero/Views/Library/AnnotationsInspectorPane.swift",
-        "fichero/fichero/Views/Library/ArtifactsInspectorPane.swift",
-        "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Interpretations.swift",
         "fichero/fichero/Views/Menu/FocusedCommandButtons.swift",
-        "fichero/fichero/Views/Notes/NotesInspectorPane.swift",
+        "fichero/fichero/Views/Settings/LocalModelsSettingsView.swift",
+        "fichero/fichero/Views/Sidebar/SidebarModeBar.swift",
+        "fichero/fichero/Views/Space/SpaceSceneView.swift",
+        "fichero/fichero/Views/Spatial/SpatialNodeThumbnail.swift",
         "fichero/fichero/Views/Workflow/NodeConfigs/ExtractEntitiesNodeConfig.swift",
-        "fichero/fichero/Views/Workflow/NodeConfigs/SearchNodeConfig.swift",
-        "fichero/fichero/Views/Workflow/NodePopover.swift",
-        "fichero/fichero/Views/Workflow/PromptPreviewPanel.swift",
-        "fichero/fichero/Views/Workflow/WorkflowCanvasView.swift",
-        "fichero/fichero/Views/Workflow/WorkflowEditor.swift",
-        "fichero/fichero/Views/Workflow/WorkflowInspector.swift",
-        "fichero/fichero/Views/Workflow/WorkflowLibraryView.swift",
-        "fichero/fichero/Views/Workflow/WorkflowRunProviderCache.swift",
     ],
-    "#1851/#1875 baseline",
-)
-
-# #2960 wave. These views were added after the #1851/#1875 baseline and reach
-# legacy ObservableObject foundations still injected via `.environmentObject()`
-# at the app root — FeatureManager, AppState, LibraryManager, APIClient, and the
-# generated *Service classes. A consumer cannot adopt `@Environment(Type.self)`
-# until those shared foundations flip to `@Observable` and their injection flips
-# to `.environment()`, which is one coordinated app-wide change (a state-
-# ownership decision), not a per-file mechanical migration. Staged here so the
-# guardrail stays green for unrelated frontend work; unblock with the foundation
-# migration. (Pure view-state controllers migrate independently — see
-# PDFPageControllers, already off the list.)
-KNOWN_VIOLATIONS.update(
-    dict.fromkeys(
-        [
-            "fichero/fichero/Views/Activity/ActivityMonitorView.swift",
-            "fichero/fichero/Views/Activity/ActivityMonitorWindow.swift",
-            "fichero/fichero/Views/Library/BookmarksView.swift",
-            "fichero/fichero/Views/Library/DocumentInspector/DocumentInterpretationsTab.swift",
-            "fichero/fichero/Views/Library/FocusedDocument.swift",
-            "fichero/fichero/Views/Library/ImageViewerComponents.swift",
-            "fichero/fichero/Views/Library/LibraryWorkspaceRoot.swift",
-            "fichero/fichero/Views/Library/iOSLibraryPickerMenu.swift",
-            "fichero/fichero/Views/Settings/LocalInferenceSettingsView.swift",
-            "fichero/fichero/Views/Sidebar/SidebarModeBar.swift",
-            "fichero/fichero/Views/Space/SpaceSceneView.swift",
-            "fichero/fichero/Views/Spatial/SpatialNodeThumbnail.swift",
-        ],
-        "#2960 — blocked on @Observable foundation migration",
-    )
+    "post-#2960 residual (globalLibrary / client.api. / FeatureManager)",
 )
 
 

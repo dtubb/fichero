@@ -3,6 +3,7 @@ import AppKit
 #elseif canImport(UIKit)
 import UIKit
 #endif
+import Observation
 import Foundation
 import OSLog
 import SwiftUI

@@ -19,9 +19,9 @@ struct WorkflowInspector: View {
     @State var isLoadingMCPTools: Bool = false
     @State var mcpToolsGrouped: [String: [MCPToolInfo]] = [:]
 
-    @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
-    @EnvironmentObject var mcpService: MCPService
-    @EnvironmentObject var appState: AppState
+    @Environment(WorkflowServiceGenerated.self) var workflowServiceGenerated
+    @Environment(MCPService.self) var mcpService
+    @Environment(AppState.self) var appState
     @ObservedObject var featureManager = FeatureManager.shared
 
     enum InspectorTab: String, Hashable {

@@ -8,7 +8,7 @@ struct MCPServerDetailView: View {
     let server: MCPServerResponse
     let onUpdate: () async -> Void
 
-    @EnvironmentObject var mcpService: MCPService
+    @Environment(MCPService.self) var mcpService
     @State private var isLoadingTools = false
     @State private var loadedTools: [MCPToolInfo] = []
     @State private var loadError: String?

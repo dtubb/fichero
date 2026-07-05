@@ -15,8 +15,8 @@ struct CapturePolicy: Codable {
 /// Mac decides capture policy: which user maps to which library + workflow.
 /// Mobile devices capture and upload only — they never see this screen.
 struct CaptureSettingsView: View {
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var libraryManager: LibraryManager
+    @Environment(AppState.self) var appState
+    @Environment(LibraryManager.self) var libraryManager
 
     @State private var policies: [String: CapturePolicy] = [:]
     @State private var managingUser: String?
@@ -290,6 +290,6 @@ struct CaptureUserManageView: View {
 
 #Preview("Capture Settings") {
     CaptureSettingsView()
-        .environmentObject(AppState())
-        .environmentObject(LibraryManager.shared)
+        .environment(AppState())
+        .environment(LibraryManager.shared)
 }

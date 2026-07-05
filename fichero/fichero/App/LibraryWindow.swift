@@ -13,11 +13,11 @@ import SwiftUI
 // swiftlint:disable type_body_length
 /// Main window view - simplified to just track one library per window
 struct LibraryWindow: View {
-    @EnvironmentObject var libraryManager: LibraryManager
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var viewSettings: ViewSettings
+    @Environment(LibraryManager.self) var libraryManager
+    @Environment(AppState.self) var appState
+    @Environment(ViewSettings.self) var viewSettings
 
-    @StateObject private var windowState: WindowState
+    @State private var windowState: WindowState
 
     // App-wide workflow execution observer (uses @Observable, not ObservableObject)
     @State private var executionObserver = WorkflowExecutionObserver()
@@ -47,7 +47,7 @@ struct LibraryWindow: View {
 
     init(seed: WindowSeed? = nil) {
         self.seed = seed
-        _windowState = StateObject(wrappedValue: WindowState(libraryId: UUID()))
+        _windowState = State(wrappedValue: WindowState(libraryId: UUID()))
     }
 
     // Extracted from `body` so the ~40-modifier per-library environment chain
@@ -118,15 +118,15 @@ struct LibraryWindow: View {
                 },
                 isFirstLaunch: appState.isFirstLaunchProviderSetup
             )
-            .environmentObject(appState.providerService)
+            .environment(appState.providerService)
         }
         .sheet(isPresented: Binding(
             get: { appState.showMCPServers },
             set: { appState.showMCPServers = $0 }
         )) {
             MCPServersSheet()
-                .environmentObject(appState)
-                .environmentObject(appState.mcpService)
+                .environment(appState)
+                .environment(appState.mcpService)
         }
         // Notes now live per-document in the inspector's Notes tab
         // (DocumentNotesTab, #1500) — the standalone browser sheet is retired.
@@ -169,7 +169,7 @@ struct LibraryWindow: View {
             set: { if !$0 { featureManager.firstRunCompleted = true } }
         )) {
             FirstRunWindow()
-                .environmentObject(appState)
+                .environment(appState)
         }
     }
 

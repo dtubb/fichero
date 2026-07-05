@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import OSLog
 import FicheroAPIClient
@@ -11,8 +12,9 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Provide
 // TODO: Refactor ProviderServiceGenerated - extract catalog vs refs into separate services
 // Type body is 369 lines, target <350
 @MainActor
+@Observable
 // swiftlint:disable:next type_body_length
-class ProviderServiceGenerated: ObservableObject {
+class ProviderServiceGenerated {
     private let client: FicheroClient
 
     /// Initialize with FicheroClient (preferred)

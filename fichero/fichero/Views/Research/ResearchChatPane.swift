@@ -4,8 +4,8 @@ import SwiftUI
 /// Re-uses the existing ChatView, filtering to conversations in /research/{project_id}.
 struct ResearchChatPane: View {
     var project: ResearchProject
-    @EnvironmentObject var conversationServiceGenerated: ConversationServiceGenerated
-    @EnvironmentObject var chatServiceGenerated: ChatServiceGenerated
+    @Environment(ConversationServiceGenerated.self) var conversationServiceGenerated
+    @Environment(ChatServiceGenerated.self) var chatServiceGenerated
 
     @State private var chatSelectedDocuments: Set<String> = []
 

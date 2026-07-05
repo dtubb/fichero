@@ -31,8 +31,8 @@ struct ChatView: View {
     /// Recent conversations backing the header title menu (#2449).
     @State var conversations: [Conversation] = []
 
-    @EnvironmentObject var chatService: ChatServiceGenerated
-    @EnvironmentObject var conversationService: ConversationServiceGenerated
+    @Environment(ChatServiceGenerated.self) var chatService
+    @Environment(ConversationServiceGenerated.self) var conversationService
 
     init(
         conversation: Conversation?,

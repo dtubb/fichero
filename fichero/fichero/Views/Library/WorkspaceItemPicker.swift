@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -10,12 +11,13 @@ import SwiftUI
 /// generated OpenAPI client and the active library path from the window's
 /// `LibraryReference`.
 @MainActor
-final class WorkspacePickerService: ObservableObject {
+@Observable
+final class WorkspacePickerService {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkspacePickerService")
 
-    @Published var folders: [WorkspaceFolderItem] = []
-    @Published var isLoading = false
-    @Published var error: String?
+    var folders: [WorkspaceFolderItem] = []
+    var isLoading = false
+    var error: String?
 
     func loadWorkspaceFolders(documentService: DocumentServiceGenerated) async {
         isLoading = true
@@ -175,8 +177,8 @@ struct WorkspaceItemPicker: View {
     let document: Document
 
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var documentService: DocumentServiceGenerated
-    @StateObject private var service = WorkspacePickerService()
+    @Environment(DocumentServiceGenerated.self) private var documentService
+    @State private var service = WorkspacePickerService()
     @State private var addingFolderId: String?
 
     var body: some View {

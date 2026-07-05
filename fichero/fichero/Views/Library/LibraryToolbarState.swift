@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 
 /// Shared, observable home for the Library view's toolbar-facing controls —
@@ -12,14 +13,15 @@ import SwiftUI
 /// persistence (the `*ByFolder` @SceneStorage stays in `LibraryView` and simply
 /// reads/writes these values).
 @MainActor
-final class LibraryToolbarState: ObservableObject {
+@Observable
+final class LibraryToolbarState {
     /// Raw value of the active `LibrarySortField` (kept as `String` to match the
     /// existing per-folder persistence + FocusedValue plumbing).
-    @Published var sortFieldRaw: String = LibrarySortField.name.rawValue
+    var sortFieldRaw: String = LibrarySortField.name.rawValue
     /// Sort direction — `true` ascending.
-    @Published var sortAscending: Bool = true
+    var sortAscending: Bool = true
     /// Whether the inline ⌘F filter bar is shown inside the library content.
-    @Published var showFilterBar: Bool = false
+    var showFilterBar: Bool = false
 
     /// Convenience typed accessor for the active sort field.
     var sortField: LibrarySortField {

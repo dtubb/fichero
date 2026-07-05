@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -60,12 +61,13 @@ enum NoteScope: Equatable {
 // MARK: - Service
 
 @MainActor
-final class NoteService: ObservableObject {
+@Observable
+final class NoteService {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "NoteService")
 
-    @Published var notes: [NoteItem] = []
-    @Published var isLoading = false
-    @Published var error: String?
+    var notes: [NoteItem] = []
+    var isLoading = false
+    var error: String?
 
     /// Active library path for the owning window. Prefer passing this into
     /// `init(libraryPath:)` so the transport is configured before any `load()`.

@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import SwiftUI
 
@@ -310,15 +311,16 @@ extension View {
 
 /// Observable state for bidirectional claim highlighting across PDF, Content, and Inspector panes.
 @MainActor
-class ClaimFocusState: ObservableObject {
+@Observable
+class ClaimFocusState {
     static let shared = ClaimFocusState()
 
-    @Published var selectedClaimId: String?
-    @Published var selectedClaimText: String?
-    @Published var selectedClaimSourceDocumentId: String?
-    @Published var selectedClaimPageLabel: String?
-    @Published var selectedClaimCharStart: Int?
-    @Published var selectedClaimCharEnd: Int?
+    var selectedClaimId: String?
+    var selectedClaimText: String?
+    var selectedClaimSourceDocumentId: String?
+    var selectedClaimPageLabel: String?
+    var selectedClaimCharStart: Int?
+    var selectedClaimCharEnd: Int?
 
     func selectClaim(
         claimId: String,

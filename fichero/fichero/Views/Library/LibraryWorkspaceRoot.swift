@@ -35,9 +35,9 @@ enum LibraryWorkspaceSelection {
 /// macOS wraps it in `LibraryWindow` for window chrome and commands; iPhone,
 /// iPad, and visionOS embed the same workspace directly.
 struct LibraryWorkspaceRoot: View {
-    @EnvironmentObject private var libraryManager: LibraryManager
+    @Environment(LibraryManager.self) private var libraryManager
     #if canImport(UIKit) && !os(macOS)
-    @EnvironmentObject private var captureQueue: MobileCaptureQueueStore
+    @Environment(MobileCaptureQueueStore.self) private var captureQueue
     @State private var showingCaptureQueue = false
     @State private var capturePickerSource: CaptureSource?
     #if canImport(VisionKit) && !os(visionOS)
@@ -59,24 +59,24 @@ struct LibraryWorkspaceRoot: View {
                 ),
                 documentURL: LibraryWorkspaceSelection.documentURL(for: library.url, libraryManager: libraryManager)
             )
-            .environmentObject(windowState)
-            .environmentObject(library.savedSearchServiceGenerated)
-            .environmentObject(library.bookmarkServiceGenerated)
-            .environmentObject(library.searchService)
-            .environmentObject(library.conversationServiceGenerated)
-            .environmentObject(library.chatServiceGenerated)
+            .environment(windowState)
+            .environment(library.savedSearchServiceGenerated)
+            .environment(library.bookmarkServiceGenerated)
+            .environment(library.searchService)
+            .environment(library.conversationServiceGenerated)
+            .environment(library.chatServiceGenerated)
             .environment(library.workflowStore)
-            .environmentObject(library.workflowServiceGenerated)
-            .environmentObject(library.workflowStreamService)
-            .environmentObject(library.importService)
-            .environmentObject(library.documentServiceGenerated)
-            .environmentObject(library.storageService)
-            .environmentObject(library.providerService)
-            .environmentObject(library.modelService)
-            .environmentObject(library.artifactService)
-            .environmentObject(library.entityService)
-            .environmentObject(library.kgCurationService)
-            .environmentObject(library.researchService)
+            .environment(library.workflowServiceGenerated)
+            .environment(library.workflowStreamService)
+            .environment(library.importService)
+            .environment(library.documentServiceGenerated)
+            .environment(library.storageService)
+            .environment(library.providerService)
+            .environment(library.modelService)
+            .environment(library.artifactService)
+            .environment(library.entityService)
+            .environment(library.kgCurationService)
+            .environment(library.researchService)
             .environment(executionObserver)
             .environment(library.entityStore)
             .environment(library.claimStore)

@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Activit
 // swiftlint:disable:next type_body_length
 struct ActivityLogView: View {
     let selectedRun: SelectedActivityRun
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(APIClient.self) var apiClient
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
     /// Shared live-execution store keyed by threadId (#2546). Optional so the
@@ -336,6 +336,6 @@ struct ActivityLogView: View {
     )
 
     ActivityLogView(selectedRun: selectedRun)
-        .environmentObject(library.apiClient)
+        .environment(library.apiClient)
         .frame(width: 800, height: 600)
 }

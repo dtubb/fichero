@@ -130,7 +130,7 @@ struct KnowledgeGraphPreviewSurface: View {
         }
         .padding()
         .frame(width: 320)
-        .environmentObject(ClaimFocusState.shared)
+        .environment(ClaimFocusState.shared)
         .environment(KGFocusState.shared)
     }
 }

@@ -10,8 +10,8 @@ import SwiftUI
 /// which re-roots the workspace via `currentLibraryId`. No raw networking here — the
 /// registry comes from the already-shared `KnownLibraryRegistryStore`.
 struct IOSLibraryPickerMenu: View {
-    @EnvironmentObject private var libraryManager: LibraryManager
-    @ObservedObject private var registry = KnownLibraryRegistryStore.shared
+    @Environment(LibraryManager.self) private var libraryManager
+    @State private var registry = KnownLibraryRegistryStore.shared
 
     /// Path of the currently active library, so the menu can mark it.
     private var activeLibraryPath: String? {

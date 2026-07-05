@@ -81,8 +81,8 @@ struct SidebarItemRow: View {
     @Binding var selectedItemId: String?
     @Bindable var renameState: RenameStateManager
     @Bindable var deleteState: DeleteStateManager
-    @ObservedObject var sidebarState: SidebarState
-    @ObservedObject var libraryManager: LibraryManager
+    @Bindable var sidebarState: SidebarState
+    @Bindable var libraryManager: LibraryManager
     var onOpenChatWithCurrentScope: (() -> Void)?
 
     @Environment(WorkflowExecutionObserver.self) var executionObserver
@@ -104,7 +104,7 @@ struct SidebarItemRow: View {
     var importService: ImportServiceGenerated? { library?.importService }
 
     @State var isDropTargeted = false
-    @ObservedObject var workflowRunProviderCache = WorkflowRunProviderCache.shared
+    @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
     @FocusState var isRenameFocused: Bool
     @State var isCommittingRename = false
     @State var isPulsing = false

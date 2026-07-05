@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -10,13 +11,14 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImportS
 /// Handles file and folder import operations.
 /// Note: Folder imports are async - they return a task that must be polled for completion.
 @MainActor
-class ImportServiceGenerated: ObservableObject {
+@Observable
+class ImportServiceGenerated {
     // MARK: - Published State
 
-    @Published var isImporting: Bool = false
-    @Published var importProgress: ImportProgress?
-    @Published var lastError: ImportError?
-    @Published var currentTask: IngestTask?
+    var isImporting: Bool = false
+    var importProgress: ImportProgress?
+    var lastError: ImportError?
+    var currentTask: IngestTask?
 
     private let client: FicheroClient
 

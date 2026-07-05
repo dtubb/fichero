@@ -5,7 +5,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Schedul
 
 /// Sheet for creating a new schedule
 struct ScheduleCreationSheet: View {
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(APIClient.self) var apiClient
     @Environment(WorkflowStore.self) var workflowStore
     @Environment(\.dismiss) private var dismiss
 

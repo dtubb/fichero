@@ -4,12 +4,12 @@ import SwiftUI
 
 // Backend connection settings
 struct BackendSettingsView: View {
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var backendService: EmbeddedBackendService
+    @Environment(AppState.self) var appState
+    @Environment(EmbeddedBackendService.self) var backendService
     // storageService is per-LIBRARY, not in the Settings scene environment — reach it
     // optionally via libraryManager (which IS injected here). A required @EnvironmentObject
     // would trap "No ObservableObject of type StorageServiceGenerated" and crash this tab.
-    @EnvironmentObject var libraryManager: LibraryManager
+    @Environment(LibraryManager.self) var libraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 
     @State private var storageStats: StorageStats?

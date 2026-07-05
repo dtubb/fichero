@@ -26,7 +26,7 @@ private struct OutlineNode: Identifiable, Hashable {
 struct SourceOutlineView: View {
     let documentId: String
 
-    @EnvironmentObject private var apiClient: APIClient
+    @Environment(APIClient.self) private var apiClient
     @State private var nodes: [OutlineNode] = []
     @State private var isLoading = false
     @State private var loadError: String?

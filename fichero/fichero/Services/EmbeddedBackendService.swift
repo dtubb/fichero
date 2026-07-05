@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -26,9 +27,10 @@ func isRunningXCTests() -> Bool {
 
 /// Manages the embedded Python backend lifecycle
 @MainActor
-final class EmbeddedBackendService: ObservableObject {
-    @Published var status: BackendStatus = .stopped
-    @Published var errorMessage: String?
+@Observable
+final class EmbeddedBackendService {
+    var status: BackendStatus = .stopped
+    var errorMessage: String?
 
     private var backendPID: pid_t?
     private var isExternalBackend = false  // Track if using external vs embedded backend

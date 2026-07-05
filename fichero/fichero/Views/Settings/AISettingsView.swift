@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Settings for AI providers, defaults, and local model downloads.
 struct AISettingsView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @ObservedObject var featureManager = FeatureManager.shared
 
     @State var defaults = AIDefaults()

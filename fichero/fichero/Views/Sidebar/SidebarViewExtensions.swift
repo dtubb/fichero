@@ -314,7 +314,7 @@ extension View {
     }
 }
 
-// Note: This extension uses a ViewModifier wrapper because it needs @ObservedObject bindings
+// Note: This extension uses a ViewModifier wrapper because it needs @State bindings
 extension View {
     /// Adds delete confirmation and error alerts for sidebar items.
     func sidebarDeleteAlerts(
@@ -339,7 +339,7 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
 
     // `confirmationDialog` is more reliable than `.alert(presenting:)`
     // on macOS inside List(selection:) — the `presenting:`/`isPresented:`
-    // pair can race and skip presentation when both @Published fields
+    // pair can race and skip presentation when both fields
     // update in the same tick (#613). The dialog reads itemToDelete at
     // action-fire time, so we only need a single isPresented binding.
     func body(content: Content) -> some View {
@@ -381,7 +381,7 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
 }
 
 private struct SidebarDropAlertsModifier: ViewModifier {
-    @ObservedObject var sidebarState: SidebarState
+    @Bindable var sidebarState: SidebarState
 
     func body(content: Content) -> some View {
         content
@@ -421,7 +421,7 @@ extension View {
 }
 
 private struct SidebarNewFolderDialogModifier: ViewModifier {
-    @ObservedObject var sidebarState: SidebarState
+    @Bindable var sidebarState: SidebarState
     let createFolder: (String) async -> Void
 
     func body(content: Content) -> some View {

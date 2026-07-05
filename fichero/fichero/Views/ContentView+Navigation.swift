@@ -38,6 +38,9 @@ extension ContentView {
 
     @ViewBuilder
     var contentView: some View {
+        // #2960: ViewSettings is @Observable via @Environment, which has no
+        // projected binding — @Bindable gives `$viewSettings.libraryLayout`.
+        @Bindable var viewSettings = viewSettings
         // Knowledge Graph mode intercepts before normal viewMode routing. (#498)
         if sidebarMode == .knowledgeGraph {
             OntologyBrowser()
@@ -62,15 +65,15 @@ extension ContentView {
                     )
                 ) {
                     ResearchProjectListView()
-                        .environmentObject(researchService)
+                        .environment(researchService)
                 } detail: { project in
                     ResearchWorkspaceView(project: project)
-                        .environmentObject(researchService)
+                        .environment(researchService)
                 }
             } else {
                 HStack(spacing: 0) {
                     ResearchProjectListView()
-                        .environmentObject(researchService)
+                        .environment(researchService)
                         .frame(minWidth: 220, maxWidth: 280)
 
                     Divider()
@@ -78,7 +81,7 @@ extension ContentView {
                     if let project = researchService.projects.first(where: { $0.id == researchService.selectedProjectId })
                         ?? researchService.projects.first {
                         ResearchWorkspaceView(project: project)
-                            .environmentObject(researchService)
+                            .environment(researchService)
                             .frame(maxWidth: .infinity)
                     } else {
                         ContentUnavailableView(

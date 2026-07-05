@@ -1,18 +1,20 @@
+import Observation
 import Foundation
 import os.log
 
 /// Service for centralized error handling and management
 @MainActor
-class ErrorService: ObservableObject {
+@Observable
+class ErrorService {
 
     // Singleton instance
     static let shared = ErrorService()
 
     // Current alert to show (for SwiftUI .alert() modifier)
-    @Published var currentAlert: ErrorModel?
+    var currentAlert: ErrorModel?
 
     // Error history for debugging and analytics
-    @Published private(set) var errorHistory: [ErrorModel] = []
+    private(set) var errorHistory: [ErrorModel] = []
 
     // Maximum number of errors to keep in history
     private let maxErrorHistoryCount = 100

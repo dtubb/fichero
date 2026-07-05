@@ -5,7 +5,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 
 /// View for browsing and managing workflow chains
 struct WorkflowChainListView: View {
-    @StateObject private var chainService: ChainService
+    @State private var chainService: ChainService
     @Environment(WorkflowStore.self) var workflowStore
     @State private var searchText = ""
     @State private var selectedChainId: String?
@@ -16,7 +16,7 @@ struct WorkflowChainListView: View {
     @State private var executingChainId: String?
 
     init(apiClient: APIClient) {
-        _chainService = StateObject(wrappedValue: ChainService(apiClient: apiClient))
+        _chainService = State(wrappedValue: ChainService(apiClient: apiClient))
     }
 
     var body: some View {

@@ -87,15 +87,15 @@ struct SheetModifiers: ViewModifier {
                     },
                     isFirstLaunch: appState.isFirstLaunchProviderSetup
                 )
-                .environmentObject(appState.providerService)
+                .environment(appState.providerService)
             }
             .sheet(isPresented: Binding(
                 get: { appState.showMCPServers },
                 set: { appState.showMCPServers = $0 }
             )) {
                 MCPServersSheet()
-                    .environmentObject(appState)
-                    .environmentObject(appState.mcpService)
+                    .environment(appState)
+                    .environment(appState.mcpService)
             }
     }
 }

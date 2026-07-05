@@ -15,22 +15,22 @@ struct SidebarView: View {
     @Bindable var selectionState: SidebarSelectionState
 
     // LibraryManager - shows all open libraries
-    @ObservedObject var libraryManager: LibraryManager
+    @Bindable var libraryManager: LibraryManager
 
     // Window state - needed to switch libraries when selecting items
-    @EnvironmentObject var windowState: WindowState
+    @Environment(WindowState.self) var windowState
 
     // API client for service calls
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(APIClient.self) var apiClient
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     var onOpenChatWithCurrentScope: (() -> Void)?
 
     // Item type registry for extensible item creation (injected from ContentView)
-    @ObservedObject var itemRegistry: ItemTypeRegistry
+    @Bindable var itemRegistry: ItemTypeRegistry
 
     // SidebarState for expansion persistence (internal for extension access)
-    @StateObject var sidebarState: SidebarState
+    @State var sidebarState: SidebarState
 
     // Rename and delete state (internal for extension access)
     @State var renameState = RenameStateManager()
@@ -41,7 +41,7 @@ struct SidebarView: View {
     @State var sidebarFilterText = ""
 
     // Chain service for workflows sidebar (global - not per-library yet)
-    @StateObject var chainService: ChainService
+    @State var chainService: ChainService
 
     // Chains loaded from ChainService
     @State var chains: [WorkflowChain] = []
@@ -81,11 +81,11 @@ struct SidebarView: View {
         self.libraryManager = libraryManager
         self.itemRegistry = itemRegistry
         self.onOpenChatWithCurrentScope = onOpenChatWithCurrentScope
-        self._sidebarState = StateObject(
+        self._sidebarState = State(
             wrappedValue: SidebarState(windowId: windowPersistenceId)
         )
         // Initialize ChainService with apiClient
-        self._chainService = StateObject(wrappedValue: ChainService(apiClient: apiClient))
+        self._chainService = State(wrappedValue: ChainService(apiClient: apiClient))
     }
 
     var selectedItemId: String? {

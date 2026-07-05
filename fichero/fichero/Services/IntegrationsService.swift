@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -16,13 +17,14 @@ import OSLog
 /// both halves share this `client` and the mapping helpers below, so there is a
 /// single consistent transport for every `/api/integrations/*` call.
 @MainActor
-final class IntegrationsService: ObservableObject {
+@Observable
+final class IntegrationsService {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "IntegrationsService")
     private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
-    @Published var integrations: [AppIntegration] = []
-    @Published var isLoading = false
-    @Published var error: String?
+    var integrations: [AppIntegration] = []
+    var isLoading = false
+    var error: String?
 
     /// App-wide client (auth only, no library scope) — see type doc.
     let client: FicheroClient

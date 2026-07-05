@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import OSLog
 import FicheroAPIClient
@@ -8,11 +9,12 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Documen
 /// DocumentService using the generated OpenAPI client.
 /// Handles document CRUD operations via the Python backend documents API.
 @MainActor
-class DocumentServiceGenerated: ObservableObject {
+@Observable
+class DocumentServiceGenerated {
     // MARK: - Published State
 
-    @Published var isProcessing: Bool = false
-    @Published var lastError: Error?
+    var isProcessing: Bool = false
+    var lastError: Error?
 
     private let client: FicheroClient
 

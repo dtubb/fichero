@@ -5,14 +5,14 @@ import SwiftUI
 let providersViewLogger = Logger(subsystem: "app.fichero.fichero", category: "ProvidersView")
 
 struct ProvidersView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var providers: [Components.Schemas.ProviderResponse] = []
     @State private var catalog: [Components.Schemas.ProviderCatalogResponse] = []
     @State private var isLoading = true
     @State private var showAddProvider = false
     @State private var selectedProvider: Components.Schemas.ProviderResponse?
 
-    @EnvironmentObject var providerService: ProviderServiceGenerated
+    @Environment(ProviderServiceGenerated.self) var providerService
 
     @AppStorage("window.listColumnWidth")
     private var listColumnWidth: Double = 280
@@ -138,8 +138,8 @@ struct ProvidersView: View {
     let appState = AppState()
 
     ProvidersView()
-        .environmentObject(appState)
-        .environmentObject(appState.providerService)
-        .environmentObject(appState.modelService)
+        .environment(appState)
+        .environment(appState.providerService)
+        .environment(appState.modelService)
         .frame(width: 900, height: 600)
 }

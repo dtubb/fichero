@@ -7,9 +7,9 @@ import SwiftUI
 // swiftlint:disable file_length
 // swiftlint:disable:next type_body_length
 struct ShareSettingsView: View {
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var backendService: EmbeddedBackendService
-    @EnvironmentObject var libraryManager: LibraryManager
+    @Environment(AppState.self) var appState
+    @Environment(EmbeddedBackendService.self) var backendService
+    @Environment(LibraryManager.self) var libraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
     // Default OFF to match EngineConfig.multiuserEnabled (absent key ⇒ off). A
     // `true` default here would show "Enabled" while the engine ran single-user.

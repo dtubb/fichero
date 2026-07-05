@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 
 /// Category for grouping item types in menus
@@ -38,7 +39,8 @@ struct ItemTypeDefinition: Identifiable {
 /// Registry of all creatable item types
 /// Provides a single source of truth for what can be created in the app
 @MainActor
-class ItemTypeRegistry: ObservableObject {
+@Observable
+class ItemTypeRegistry {
     // Handlers injected from SidebarView (have access to services)
     var createFolder: (() -> Void)?
     var importFiles: (() -> Void)?

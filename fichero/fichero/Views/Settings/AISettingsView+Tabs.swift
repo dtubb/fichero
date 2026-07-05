@@ -147,8 +147,8 @@ extension AISettingsView {
     @ViewBuilder
     var providersTab: some View {
         ProvidersView()
-            .environmentObject(appState.providerService)
-            .environmentObject(appState.modelService)
+            .environment(appState.providerService)
+            .environment(appState.modelService)
     }
 
     @ViewBuilder

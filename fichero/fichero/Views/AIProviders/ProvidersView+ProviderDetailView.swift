@@ -19,7 +19,7 @@ struct ProviderDetailView: View {
     @State private var userModels: [Components.Schemas.UserModelResponse] = []
     @State private var isLoadingModels = false
 
-    @EnvironmentObject var providerService: ProviderServiceGenerated
+    @Environment(ProviderServiceGenerated.self) var providerService
     private let maskedKeyPlaceholder = "••••••••••••••••"
 
     private var isLocalProvider: Bool {

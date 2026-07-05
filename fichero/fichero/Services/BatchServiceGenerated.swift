@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -8,7 +9,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "BatchSe
 /// Service for batch operations using generated OpenAPI client
 /// Note: Batch endpoints are global (not library-scoped)
 @MainActor
-class BatchServiceGenerated: ObservableObject {
+@Observable
+class BatchServiceGenerated {
     private let client: FicheroClient
 
     /// Initialize with FicheroClient (preferred)

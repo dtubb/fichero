@@ -12,9 +12,9 @@ Bonjour only announces that this Mac is available; the QR code still carries the
 
 // swiftlint:disable:next type_body_length
 struct BackendSettingsRemoteAccessSection: View {
-    @ObservedObject private var appState: AppState
-    @ObservedObject private var backendService: EmbeddedBackendService
-    @ObservedObject private var libraryManager: LibraryManager
+    @Bindable private var appState: AppState
+    @Bindable private var backendService: EmbeddedBackendService
+    @Bindable private var libraryManager: LibraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
@@ -35,9 +35,9 @@ struct BackendSettingsRemoteAccessSection: View {
         backendService: EmbeddedBackendService,
         libraryManager: LibraryManager
     ) {
-        self._appState = ObservedObject(wrappedValue: appState)
-        self._backendService = ObservedObject(wrappedValue: backendService)
-        self._libraryManager = ObservedObject(wrappedValue: libraryManager)
+        self._appState = Bindable(wrappedValue: appState)
+        self._backendService = Bindable(wrappedValue: backendService)
+        self._libraryManager = Bindable(wrappedValue: libraryManager)
     }
 
     private let qrContext = CIContext()

@@ -12,7 +12,7 @@ struct NotesInspectorPane: View {
     let documentName: String?
 
     @Environment(NoteStore.self) private var noteStore
-    @EnvironmentObject private var windowState: WindowState
+    @Environment(WindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 

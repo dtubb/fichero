@@ -9,7 +9,7 @@ let activityProgressLogger = Logger(subsystem: "app.fichero.fichero", category: 
 struct ActivityProgressView: View {
     let selectedRun: SelectedActivityRun
     let liveExecution: WorkflowExecution?
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(APIClient.self) var apiClient
     @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     /// Shared live-execution store (#2546). Optional so the view never crashes

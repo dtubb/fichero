@@ -224,7 +224,7 @@ struct AuditHistoryView: View {
 /// `libraryManager` env object (the only stores the Settings scene injects), so
 /// it never trips the #2051 missing-env-object trap.
 struct AuditHistorySettingsTab: View {
-    @EnvironmentObject var libraryManager: LibraryManager
+    @Environment(LibraryManager.self) var libraryManager
 
     var body: some View {
         Group {

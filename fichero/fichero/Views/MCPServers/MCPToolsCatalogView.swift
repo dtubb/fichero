@@ -5,7 +5,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "MCPTool
 
 /// View showing all MCP tools from all servers
 struct MCPToolsCatalogView: View {
-    @EnvironmentObject var mcpService: MCPService
+    @Environment(MCPService.self) var mcpService
     @State private var tools: [MCPToolInfo] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -237,6 +237,6 @@ struct MCPToolRow: View {
     let appState = AppState()
 
     MCPToolsCatalogView()
-        .environmentObject(appState.mcpService)
+        .environment(appState.mcpService)
         .frame(width: 900, height: 600)
 }

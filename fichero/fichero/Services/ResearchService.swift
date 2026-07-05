@@ -1,4 +1,5 @@
 // swiftlint:disable file_length type_body_length
+import Observation
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -7,13 +8,14 @@ import OSLog
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ResearchService")
 
 @MainActor
-final class ResearchService: ObservableObject {
+@Observable
+final class ResearchService {
     private let client: FicheroClient
 
-    @Published var projects: [ResearchProject] = []
-    @Published var selectedProjectId: String?
-    @Published var isLoading = false
-    @Published var error: String?
+    var projects: [ResearchProject] = []
+    var selectedProjectId: String?
+    var isLoading = false
+    var error: String?
 
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient

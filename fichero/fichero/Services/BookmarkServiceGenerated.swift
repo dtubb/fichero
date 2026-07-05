@@ -1,4 +1,5 @@
 import Combine
+import Observation
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -15,10 +16,11 @@ struct BookmarkItem: Identifiable, Hashable {
 /// through the generated client — no hand-rolled URLSession. Degrades
 /// gracefully: failures set `error` and leave `bookmarks` untouched.
 @MainActor
-final class BookmarkServiceGenerated: ObservableObject {
+@Observable
+final class BookmarkServiceGenerated {
     private let client: FicheroClient
-    @Published private(set) var bookmarks: [BookmarkItem] = []
-    @Published var error: String?
+    private(set) var bookmarks: [BookmarkItem] = []
+    var error: String?
 
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "BookmarkService")
 

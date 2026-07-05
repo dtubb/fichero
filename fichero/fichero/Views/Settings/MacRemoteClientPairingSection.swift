@@ -3,9 +3,9 @@ import FicheroAPIClient
 import SwiftUI
 
 struct MacRemoteClientPairingSection: View {
-    @ObservedObject private var appState: AppState
-    @ObservedObject private var backendService: EmbeddedBackendService
-    @ObservedObject private var libraryManager: LibraryManager
+    @Bindable private var appState: AppState
+    @Bindable private var backendService: EmbeddedBackendService
+    @Bindable private var libraryManager: LibraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 
     @State private var clientInvite = ""
@@ -18,9 +18,9 @@ struct MacRemoteClientPairingSection: View {
         backendService: EmbeddedBackendService,
         libraryManager: LibraryManager
     ) {
-        self._appState = ObservedObject(wrappedValue: appState)
-        self._backendService = ObservedObject(wrappedValue: backendService)
-        self._libraryManager = ObservedObject(wrappedValue: libraryManager)
+        self._appState = Bindable(wrappedValue: appState)
+        self._backendService = Bindable(wrappedValue: backendService)
+        self._libraryManager = Bindable(wrappedValue: libraryManager)
     }
 
     var body: some View {
@@ -158,9 +158,9 @@ struct MacRemoteClientPairingSection: View {
 /// uses explicit file references, so a standalone file would need a project
 /// edit for no behavioural gain).
 struct RemoteConnectionChooserSheet: View {
-    @ObservedObject private var appState: AppState
-    @ObservedObject private var backendService: EmbeddedBackendService
-    @ObservedObject private var libraryManager: LibraryManager
+    @Bindable private var appState: AppState
+    @Bindable private var backendService: EmbeddedBackendService
+    @Bindable private var libraryManager: LibraryManager
     @Environment(\.dismiss) private var dismiss
 
     init(
@@ -168,9 +168,9 @@ struct RemoteConnectionChooserSheet: View {
         backendService: EmbeddedBackendService,
         libraryManager: LibraryManager
     ) {
-        self._appState = ObservedObject(wrappedValue: appState)
-        self._backendService = ObservedObject(wrappedValue: backendService)
-        self._libraryManager = ObservedObject(wrappedValue: libraryManager)
+        self._appState = Bindable(wrappedValue: appState)
+        self._backendService = Bindable(wrappedValue: backendService)
+        self._libraryManager = Bindable(wrappedValue: libraryManager)
     }
 
     var body: some View {

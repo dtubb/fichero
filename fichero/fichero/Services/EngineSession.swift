@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import Foundation
 
@@ -19,7 +20,8 @@ import Foundation
 /// during the migration, so the ~20 call sites reading `appState.isBackendRunning`
 /// keep working while the source of truth moves here.
 @MainActor
-final class EngineSession: ObservableObject {
+@Observable
+final class EngineSession {
     /// The engine's usability, as one value. Only `ready` renders real content;
     /// every other case renders the full-window connection/diagnosis UI (or, for
     /// `setupNeeded` on iOS, the pairing prompt).
@@ -42,7 +44,7 @@ final class EngineSession: ObservableObject {
         case failed(diagnosis: String)
     }
 
-    @Published private(set) var phase: Phase = .starting
+    private(set) var phase: Phase = .starting
 
     /// Which backend this session tracks (#3112). One session per engine root:
     /// the loopback/embedded engine plus one per remote host. Defaults to the
@@ -121,7 +123,8 @@ final class EngineSession: ObservableObject {
 /// app is byte-identical; the registry just makes room for the remotes to come
 /// (fichero-web/#2883, the library picker) without another rewrite.
 @MainActor
-final class EngineSessionRegistry: ObservableObject {
+@Observable
+final class EngineSessionRegistry {
     /// Collapses hosts to sessions: all loopback engines share one session,
     /// each remote host keys on its normalized host string (the same key
     /// `AuthTokenMiddleware` uses for that host's token — so a session and its
@@ -131,10 +134,10 @@ final class EngineSessionRegistry: ObservableObject {
         case remote(String)
     }
 
-    @Published private(set) var sessions: [Key: EngineSession]
+    private(set) var sessions: [Key: EngineSession]
     /// The host the app currently renders. Switching it re-points every view
     /// that observes `activeSession` at a different backend's phase.
-    @Published private(set) var activeHost: BackendHost
+    private(set) var activeHost: BackendHost
 
     /// Seeds the registry with the app's default session (loopback on macOS, the
     /// configured host on iOS) so `activeSession` is that exact instance — the

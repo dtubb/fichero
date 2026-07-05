@@ -17,8 +17,8 @@ struct ArtifactsInspectorPane: View {
     let document: Document
 
     @Environment(ArtifactStore.self) private var store
-    @EnvironmentObject private var artifactService: ArtifactServiceGenerated
-    @EnvironmentObject private var documentService: DocumentServiceGenerated
+    @Environment(ArtifactServiceGenerated.self) private var artifactService
+    @Environment(DocumentServiceGenerated.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows

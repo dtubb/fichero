@@ -3,7 +3,7 @@ import SwiftUI
 /// Reusable "+ Add Item" menu component
 /// Uses focused sidebar actions so toolbar and Data menu stay aligned.
 struct AddItemMenu: View {
-    @ObservedObject var registry: ItemTypeRegistry
+    @Bindable var registry: ItemTypeRegistry
     let style: MenuStyle
 
     // Feature manager to filter menu items

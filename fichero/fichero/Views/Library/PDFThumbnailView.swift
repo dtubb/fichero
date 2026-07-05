@@ -16,7 +16,7 @@ struct PDFThumbnailView: View {
     let size: CGSize
     var pageIndex: Int = 0
 
-    @EnvironmentObject private var storageService: StorageServiceGenerated
+    @Environment(StorageServiceGenerated.self) private var storageService
     @State private var image: PlatformImage?
     @State private var pageCount: Int = 0
 

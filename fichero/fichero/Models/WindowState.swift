@@ -1,14 +1,16 @@
+import Observation
 import SwiftUI
 
 /// Tracks the state for a single window
 /// Each window views one library and can have multiple tabs
 @MainActor
-class WindowState: ObservableObject {
+@Observable
+class WindowState {
     /// ID of the library this window is viewing
-    @Published var libraryId: UUID
+    var libraryId: UUID
 
     /// Currently selected tab
-    @Published var selectedTab: String = "library"
+    var selectedTab: String = "library"
 
     init(libraryId: UUID) {
         self.libraryId = libraryId

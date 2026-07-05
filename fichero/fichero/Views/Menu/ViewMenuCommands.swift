@@ -4,7 +4,7 @@ import SwiftUI
 /// View menu commands - Sidebar modes, library layouts, preview modes, and inspector toggle
 /// Extracted from FicheroApp.swift to maintain consistency with other menu command patterns
 struct ViewMenuCommands: View {
-    @EnvironmentObject var viewSettings: ViewSettings
+    @Environment(ViewSettings.self) var viewSettings
 
     var body: some View {
         SidebarModeSection()
@@ -212,7 +212,7 @@ struct SidebarModeButton: View {
 /// Library layout selection commands (Icons, List, Table, Map)
 /// Only shown for Library and Search modes
 struct LibraryLayoutSection: View {
-    @ObservedObject var viewSettings: ViewSettings
+    @Bindable var viewSettings: ViewSettings
     @ObservedObject var featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarMode) var sidebarMode
 
@@ -392,7 +392,7 @@ struct SortSection: View {
 /// Preview mode selection commands (None, Standard, Widescreen)
 /// Only shown for modes with preview panes (Library, Search, Chat)
 struct PreviewModeSection: View {
-    @ObservedObject var viewSettings: ViewSettings
+    @Bindable var viewSettings: ViewSettings
     @ObservedObject var featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarMode) var sidebarMode
 

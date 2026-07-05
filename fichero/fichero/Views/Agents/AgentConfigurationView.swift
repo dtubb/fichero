@@ -96,7 +96,7 @@ struct AgentConfigurationView: View {
 
 /// View for selecting tools to assign to an agent
 struct ToolSelectionView: View {
-    @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
+    @Environment(WorkflowServiceGenerated.self) var workflowServiceGenerated
     @Binding var selectedTools: Set<String>
     @State private var availableTools: [ToolCategory] = []
     @State private var searchText = ""
@@ -308,5 +308,5 @@ struct ToolItem {
             positionY: 100
         ))
     )
-    .environmentObject(WorkflowServiceGenerated(ficheroClient: ficheroClient))
+    .environment(WorkflowServiceGenerated(ficheroClient: ficheroClient))
 }

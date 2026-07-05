@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import Combine
 import OSLog
@@ -9,7 +10,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChatSer
 /// ChatService using the generated OpenAPI client.
 /// This replaces the manual APIClient with type-safe generated calls.
 @MainActor
-class ChatServiceGenerated: ObservableObject {
+@Observable
+class ChatServiceGenerated {
     private let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {

@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Entity Detail View
 
 struct EntityDetailView: View {
-    @EnvironmentObject var entityService: EntityServiceGenerated
+    @Environment(EntityServiceGenerated.self) var entityService
     @Environment(ClaimStore.self) var claimStore
     /// Entity rename routes through the store (#1862/#1865); the change-stream's
     /// `entity.updated` event fans the refresh, retiring `.ficheroEntityUpdated`.

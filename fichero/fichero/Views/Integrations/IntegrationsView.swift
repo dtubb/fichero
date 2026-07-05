@@ -4,7 +4,7 @@ import SwiftUI
 // Main view for app integrations (DEVONthink, Bookends, Tinderbox)
 // swiftlint:disable:next type_body_length
 struct IntegrationsView: View {
-    @StateObject private var service = IntegrationsService()
+    @State private var service = IntegrationsService()
     @State private var selectedIntegration: AppIntegration?
     @State private var searchText = ""
     @State private var items: [IntegrationItem] = []

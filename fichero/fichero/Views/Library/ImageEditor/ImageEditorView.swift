@@ -31,8 +31,8 @@ struct ImageEditorView: View {
     /// Multi-file selection (image document ids) for batch-apply (#1265).
     var selectedDocumentIDs: Set<String> = []
 
-    @EnvironmentObject private var apiClient: APIClient
-    @EnvironmentObject private var storageService: StorageServiceGenerated
+    @Environment(APIClient.self) private var apiClient
+    @Environment(StorageServiceGenerated.self) private var storageService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @State private var model = ImageEditorModel()
 

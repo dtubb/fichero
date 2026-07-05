@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import Combine
 import OSLog
@@ -9,7 +10,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Convers
 /// ConversationService using the generated OpenAPI client.
 /// This replaces the manual APIClient with type-safe generated calls.
 @MainActor
-class ConversationServiceGenerated: ObservableObject {
+@Observable
+class ConversationServiceGenerated {
     private let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {
@@ -19,7 +21,7 @@ class ConversationServiceGenerated: ObservableObject {
     // MARK: - Published State
 
     /// All conversations loaded from backend
-    @Published var conversations: [Conversation] = []
+    var conversations: [Conversation] = []
 
     // MARK: - API Methods
 
@@ -158,7 +160,7 @@ class ConversationServiceGenerated: ObservableObject {
         }
     }
 
-    /// Load conversations from backend and update @Published property
+    /// Load conversations from backend and update property
     func loadConversations() async throws {
         let summaries = try await listConversations()
         conversations = summaries.map { summary in

@@ -6,7 +6,7 @@ let triggerDetailLogger = Logger(subsystem: "app.fichero.fichero", category: "Tr
 /// Detail view for a file trigger showing configuration and execution history
 struct TriggerDetailView: View {
     let trigger: TriggerInfo
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(APIClient.self) var apiClient
 
     @State var isLoading = false
     @State var error: String?
@@ -138,6 +138,6 @@ struct TriggerDetailView: View {
             errorMessage: nil
         )
     )
-    .environmentObject(APIClient())
+    .environment(APIClient())
     .frame(width: 600, height: 500)
 }

@@ -14,7 +14,7 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     // Artifacts are loaded lazily so the user can opt to surface them as rows
     // (#1229 part 2). The same per-document, non-descendant scope the Artifacts
     // tab uses (#721) — a page shows only its own artifacts.
-    @EnvironmentObject private var artifactService: ArtifactServiceGenerated
+    @Environment(ArtifactServiceGenerated.self) private var artifactService
 
     /// Which fixed attributes the user has *hidden*, comma-joined raw values.
     /// Persisted as a global display preference (not per-window scene state) —
@@ -43,7 +43,7 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     @AppStorage("inspector.attributeStrip.metadata") private var shownMetadataRaw: String = ""
 
     /// Knowledge-graph reads come from the same service the KG tab uses.
-    @EnvironmentObject private var entityService: EntityServiceGenerated
+    @Environment(EntityServiceGenerated.self) private var entityService
 
     @State private var artifacts: [Artifact] = []
     /// KG counts for this document, nil until loaded (or on load failure).

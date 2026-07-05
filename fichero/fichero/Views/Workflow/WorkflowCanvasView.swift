@@ -13,7 +13,7 @@ struct WorkflowCanvasView: View {
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     // App state for accessing AI defaults
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     /// Node execution states for the editor canvas.
     ///

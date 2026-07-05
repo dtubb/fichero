@@ -1,15 +1,17 @@
 import Combine
+import Observation
 import SwiftUI
 
 /// Model for managing drag and drop state
 @MainActor
-class DragDropModel: ObservableObject {
+@Observable
+class DragDropModel {
     // MARK: - State Properties
-    @Published var isProcessingDrop: Bool = false
-    @Published var dropProgress: Double = 0.0
-    @Published var dropError: ErrorModel?
-    @Published var dropSuccessCount: Int = 0
-    @Published var dropFailureCount: Int = 0
+    var isProcessingDrop: Bool = false
+    var dropProgress: Double = 0.0
+    var dropError: ErrorModel?
+    var dropSuccessCount: Int = 0
+    var dropFailureCount: Int = 0
 
     // MARK: - Operation Tracking
     private var activeOperations: Set<UUID> = []

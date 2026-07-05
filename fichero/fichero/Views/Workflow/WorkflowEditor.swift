@@ -35,10 +35,10 @@ struct WorkflowEditor: View {
     @State var showModelComparison: Bool = false
 
     @Environment(WorkflowStore.self) var workflowStore
-    @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
-    @EnvironmentObject var workflowStreamService: WorkflowStreamService
+    @Environment(WorkflowServiceGenerated.self) var workflowServiceGenerated
+    @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(DocumentStore.self) var documentStore: DocumentStore
-    @EnvironmentObject var libraryManager: LibraryManager
+    @Environment(LibraryManager.self) var libraryManager
     @ObservedObject var featureManager = FeatureManager.shared
 
     // Uses @Observable pattern - injected via .environment() from LibraryWindow
@@ -155,7 +155,7 @@ struct WorkflowEditor: View {
                 workflowId: editingWorkflow.id,
                 workflowName: editingWorkflow.name
             )
-            .environmentObject(libraryManager)
+            .environment(libraryManager)
             .environment(documentStore)
             .environment(executionObserver)
         }

@@ -19,7 +19,7 @@ struct ActivityMonitorView: View {
     /// Used by the "Get Log" sheet (`ActivityLogView`) and to seed any live runs
     /// this process already knows about into the store.
     @Environment(WorkflowExecutionObserver.self) private var observer
-    @EnvironmentObject private var apiClient: APIClient
+    @Environment(APIClient.self) private var apiClient
 
     @State private var selection: ActivityMonitorRow.ID?
     @State private var logRun: SelectedActivityRun?

@@ -21,7 +21,7 @@ struct QuickLookDownloadView: View {
     @State private var isLoading = true
     @State private var error: String?
 
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(APIClient.self) var apiClient
 
     var body: some View {
         Group {

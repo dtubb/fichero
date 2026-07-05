@@ -5,10 +5,10 @@ import SwiftUI
 
 // swiftlint:disable type_body_length file_length
 struct FirstRunWindow: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var featureManager = FeatureManager.shared
-    @ObservedObject private var libraryManager = LibraryManager.shared
+    @State private var libraryManager = LibraryManager.shared
 
     @State private var step: FirstRunStep = .welcome
     @State private var selectedLibraryName: String?

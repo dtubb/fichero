@@ -1,3 +1,4 @@
+import Observation
 import FicheroAPIClient
 import OSLog
 import SwiftUI
@@ -7,30 +8,31 @@ let libraryManagerLogger = Logger(subsystem: "app.fichero.fichero", category: "L
 /// Manages multiple open .fichero libraries
 /// Allows multiple windows and tabs to reference the same library instance
 @MainActor
-class LibraryManager: ObservableObject {
+@Observable
+class LibraryManager {
     static let shared = LibraryManager()
 
     /// Fixed UUID for the Global library (cross-library searches, chats, workflows)
     static let globalLibraryId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
 
     /// All currently open libraries (Global is always last)
-    @Published var openLibraries: [LibraryReference] = []
+    var openLibraries: [LibraryReference] = []
 
     /// The currently active library (used for new tabs/windows)
-    @Published var currentLibraryId: UUID?
+    var currentLibraryId: UUID?
 
     /// Cross-window "Open in New Tab / New Window" intent (#1685). Set just
     /// before `openWindow(id: "main")`; the destination LibraryView consumes
     /// and clears it once its documents load, so the freshly opened window
     /// focuses the requested document. Reuses the Safari new-window path —
     /// no parallel tab system.
-    @Published var pendingOpenDocumentId: String?
+    var pendingOpenDocumentId: String?
 
     /// Cross-window library handoff queue for open-in-new-window flows. The
     /// caller appends one library id per `openWindow(id: "main")`; each new
     /// destination scene consumes the oldest pending id during initialization
     /// so batched opens don't clobber one another.
-    @Published var pendingWindowLibraryIds: [UUID] = []
+    var pendingWindowLibraryIds: [UUID] = []
 
     /// Counter for unsaved library numbering (Untitled, Untitled 2, Untitled 3, etc.)
     var untitledCounter: Int = 1
@@ -44,14 +46,15 @@ class LibraryManager: ObservableObject {
     var loadingLibraryIds: Set<UUID> = []
 
     /// Bumped each time a library's data finishes loading. SidebarView observes
-    /// this via @ObservedObject to trigger rebuildCaches() — ensures the sidebar
+    /// this via @State to trigger rebuildCaches() — ensures the sidebar
     /// populates on iPhone even when its .task fires before loadCollections() (#2472).
-    @Published var librariesLoadVersion: Int = 0
+    var librariesLoadVersion: Int = 0
 
     /// Represents an open library with its associated resources
     /// Each library has one instance of each service, shared across all windows/tabs viewing this library
     @MainActor
-    class LibraryReference: Identifiable, ObservableObject {
+    @Observable
+    class LibraryReference: Identifiable {
         let id: UUID
         let url: URL
         /// Which backend this library talks to (#2866). Defaults to the local
@@ -59,8 +62,8 @@ class LibraryManager: ObservableObject {
         /// hold several backends at once. Drives the clients' baseURL, the TLS
         /// pin, and the sidebar location badge.
         let host: BackendHost
-        @Published var displayName: String  // Display name for window title (e.g., "Untitled 2", "MyResearch")
-        @Published var document: FicheroDocument
+        var displayName: String  // Display name for window title (e.g., "Untitled 2", "MyResearch")
+        var document: FicheroDocument
 
         // Core services - one instance per library, shared across all tabs/windows
         let apiClient: APIClient
@@ -96,7 +99,7 @@ class LibraryManager: ObservableObject {
         // mutation in one window reaches every window's views through the shared
         // store. Lazy: built on first use. See
         // docs/architecture/swiftui/observable_data_layer.md.
-        lazy var entityStore: EntityStore = EntityStore(
+        @ObservationIgnored lazy var entityStore: EntityStore = EntityStore(
             entityService: entityService,
             kgCurationService: kgCurationService,
             libraryPath: url.path
@@ -106,7 +109,7 @@ class LibraryManager: ObservableObject {
         /// owns the claim list for the current document/entity scope, and reacts
         /// to `claim.*` change events. Retires the `.ficheroClaim*`
         /// NotificationCenter bus.
-        lazy var claimStore: ClaimStore = ClaimStore(
+        @ObservationIgnored lazy var claimStore: ClaimStore = ClaimStore(
             entityService: entityService,
             kgCurationService: kgCurationService,
             libraryPath: url.path
@@ -114,22 +117,22 @@ class LibraryManager: ObservableObject {
 
         /// Per-library note store (#1882). Wraps `noteService`, owns the note
         /// list for the current scope, and reacts to `note.*` change events.
-        lazy var noteStore: NoteStore = NoteStore(noteService: noteService)
+        @ObservationIgnored lazy var noteStore: NoteStore = NoteStore(noteService: noteService)
 
         /// Per-library annotation store (#1883). Wraps `annotationService`,
         /// owns the annotation list for the current scope, and reacts to
         /// `annotation.*` change events.
-        lazy var annotationStore: AnnotationStore = AnnotationStore(annotationService: annotationService)
+        @ObservationIgnored lazy var annotationStore: AnnotationStore = AnnotationStore(annotationService: annotationService)
 
         /// Per-library action store (#1905). Wraps `actionsService`, owns the
         /// action list + categories, and reacts to `action.*` change events.
-        lazy var actionStore: ActionStore = ActionStore(service: actionsService)
+        @ObservationIgnored lazy var actionStore: ActionStore = ActionStore(service: actionsService)
 
         /// Per-library activity store (#2448). Wraps `activityService`, owns the
         /// run-browser list, and signals `ActivityBrowserView` to refresh on
         /// `workflow.*` SSE events (best-effort until the backend emits dedicated
         /// `activity.*` events).
-        lazy var activityStore: ActivityStore = ActivityStore(service: activityService)
+        @ObservationIgnored lazy var activityStore: ActivityStore = ActivityStore(service: activityService)
 
         /// Per-library live workflow-execution store (#2546). Keyed by `threadId`,
         /// it is the shared home for live execution state feeding the Activity
@@ -137,7 +140,7 @@ class LibraryManager: ObservableObject {
         /// (reusing `WorkflowStreamService`) and reduces events via the shared
         /// `WorkflowExecution.apply(_:)`, so Activity shows live progress for ANY
         /// running workflow regardless of where it was started.
-        lazy var workflowExecutionStore: WorkflowExecutionStore = WorkflowExecutionStore(
+        @ObservationIgnored lazy var workflowExecutionStore: WorkflowExecutionStore = WorkflowExecutionStore(
             ficheroClient: ficheroClient,
             activityService: activityService
         )
@@ -145,58 +148,58 @@ class LibraryManager: ObservableObject {
         /// Per-library audit store (#2085). Reads the global "who changed what"
         /// action-registry log (`GET /api/actions/audit`) and undoes rows
         /// (`POST /api/actions/audit/{id}/undo`) through the generated client.
-        lazy var auditStore: AuditStore = AuditStore(client: ficheroClient)
+        @ObservationIgnored lazy var auditStore: AuditStore = AuditStore(client: ficheroClient)
 
         /// Per-library backup store (#2087). Lists / creates / restores / deletes
         /// point-in-time snapshots (`/api/storage/snapshots`) through the
         /// generated client.
-        lazy var backupStore: BackupStore = BackupStore(client: ficheroClient)
+        @ObservationIgnored lazy var backupStore: BackupStore = BackupStore(client: ficheroClient)
 
         /// Per-library research store (#1904). Wraps `researchService`, owns the
         /// per-project data (plans, tasks, checklists, sources, notes), and
         /// reacts to `research.*` change events.
-        lazy var researchStore: ResearchStore = ResearchStore(researchService: researchService)
+        @ObservationIgnored lazy var researchStore: ResearchStore = ResearchStore(researchService: researchService)
 
         /// Per-library search store (#1903). Wraps `searchService`, owns the
         /// current result set and index stats, and invalidates stale results on
         /// `document.*` change events.
-        lazy var searchStore: SearchStore = SearchStore(searchService: searchService)
+        @ObservationIgnored lazy var searchStore: SearchStore = SearchStore(searchService: searchService)
 
         /// Per-document artifact store (#1997). Wraps `artifactService`, owns the
         /// selected document's artifacts, and reacts to `artifact.*` change
         /// events. Built on the generic `ObservableDomainStore` substrate.
-        lazy var artifactStore: ArtifactStore = ArtifactStore(artifactService: artifactService)
+        @ObservationIgnored lazy var artifactStore: ArtifactStore = ArtifactStore(artifactService: artifactService)
 
         /// Per-document citation store (#1998). Wraps `entityService`, owns the
         /// selected document's inbound/outbound citations + usage rows, and
         /// reacts to `citation.*` change events.
-        lazy var citationStore: CitationStore = CitationStore(entityService: entityService)
+        @ObservationIgnored lazy var citationStore: CitationStore = CitationStore(entityService: entityService)
 
         /// Per-document reference store (#1999). Wraps `entityService`, owns the
         /// selected document's extracted bibliography, and reacts to
         /// `reference.*` change events.
-        lazy var referenceStore: ReferenceStore = ReferenceStore(entityService: entityService)
+        @ObservationIgnored lazy var referenceStore: ReferenceStore = ReferenceStore(entityService: entityService)
 
         /// Per-document interpretation store (#2009). Wraps `entityService`, owns
         /// the selected document's hermeneutic interpretations, and reacts to
         /// `interpretation.*` change events (#2008).
-        lazy var interpretationStore: InterpretationStore = InterpretationStore(entityService: entityService)
+        @ObservationIgnored lazy var interpretationStore: InterpretationStore = InterpretationStore(entityService: entityService)
 
         /// Per-library canvas layout store (#2293 / #3082) — ONE instance shared
         /// across this library's windows and both the 2D and future 3D renderers,
         /// so moving an item in one window moves it in the others. Scope-keyed by
         /// folder id; reacts to `canvas.*` change events for cross-device sync.
-        lazy var canvasLayoutStore: CanvasLayoutStore = CanvasLayoutStore(client: ficheroClient)
+        @ObservationIgnored lazy var canvasLayoutStore: CanvasLayoutStore = CanvasLayoutStore(client: ficheroClient)
 
         /// Per-library canvas item store (#2294 / #3082) — sibling to
         /// `canvasLayoutStore` owning the standalone item CONTENT. Shared instance,
         /// scope-keyed, on the `canvas` change domain.
-        lazy var canvasItemStore: CanvasItemStore = CanvasItemStore(client: ficheroClient)
+        @ObservationIgnored lazy var canvasItemStore: CanvasItemStore = CanvasItemStore(client: ficheroClient)
 
         /// One SSE change-stream per library (#1863), fanning events to the
         /// stores above. `start()` is idempotent — each window kicks it from
         /// its `.task`; only the first connects.
-        lazy var changeStream: LibraryChangeStream = {
+        @ObservationIgnored lazy var changeStream: LibraryChangeStream = {
             let stream = LibraryChangeStream(
                 baseURLProvider: { self.apiClient.baseURL },
                 libraryPath: self.url.path

@@ -5,8 +5,8 @@ import SwiftUI
 struct DocumentInspectorInfoTab: View {
     let document: Document
 
-    @EnvironmentObject var libraryManager: LibraryManager
-    @EnvironmentObject var windowState: WindowState
+    @Environment(LibraryManager.self) var libraryManager
+    @Environment(WindowState.self) var windowState
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @State var isUpdatingExclude = false
     @State var excludeFromProcessingOverride: Bool?
