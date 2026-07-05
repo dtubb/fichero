@@ -12,7 +12,7 @@ These tests use real workflow execution with mocked LLM calls.
 import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -100,44 +100,25 @@ class TestAgentWorkflowExecution:
             model=llm_config.model,
         )
 
-        # Mock both get_langchain_model and create_react_agent to avoid real LLM calls
-        with patch("fichero.workflows.tools.agent.get_langchain_model") as mock_get_model:
-            with patch("fichero.workflows.tools.agent.create_react_agent") as mock_create_agent:
-                # Mock the model
-                mock_model = Mock()
-                mock_get_model.return_value = mock_model
+        with patch(
+            "fichero.workflows.tools.agent.chat_workflow",
+            AsyncMock(return_value="Hello! I'm an AI assistant here to help you."),
+        ):
+            # Build and compile workflow graph
+            app = build_graph(workflow_def)
 
-                # Create a mock agent that returns a simple response
-                mock_agent = Mock()
+            # Execute with checkpointer
+            thread_id = "test_thread_1"
+            config = {"configurable": {"thread_id": thread_id, "checkpointer": checkpointer}}
+            initial_state = {"messages": []}
 
-                async def mock_agent_invoke(state):
-                    # Return proper message structure
-                    from langchain_core.messages import HumanMessage, AIMessage
-                    return {
-                        "messages": [
-                            HumanMessage(content="Say hello"),
-                            AIMessage(content="Hello! I'm an AI assistant here to help you.", tool_calls=[])
-                        ]
-                    }
+            final_state = await app.ainvoke(initial_state, config=config)
 
-                mock_agent.ainvoke = mock_agent_invoke
-                mock_create_agent.return_value = mock_agent
-
-                # Build and compile workflow graph
-                app = build_graph(workflow_def)
-
-                # Execute with checkpointer
-                thread_id = "test_thread_1"
-                config = {"configurable": {"thread_id": thread_id, "checkpointer": checkpointer}}
-                initial_state = {"messages": []}
-
-                final_state = await app.ainvoke(initial_state, config=config)
-
-                # Verify agent executed
-                assert "outputs" in final_state
-                assert "agent1" in final_state["outputs"]
-                assert "result" in final_state["outputs"]["agent1"]
-                assert len(final_state["outputs"]["agent1"]["result"]) > 0
+            # Verify agent executed
+            assert "outputs" in final_state
+            assert "agent1" in final_state["outputs"]
+            assert "result" in final_state["outputs"]["agent1"]
+            assert len(final_state["outputs"]["agent1"]["result"]) > 0
 
 
     @pytest.mark.asyncio
