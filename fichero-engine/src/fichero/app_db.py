@@ -1024,20 +1024,33 @@ class AppDatabase:
 
     def set_password(self, user_id: str, password_hash: str) -> AccountUser | None:
         """Update a user's password hash."""
-        with self._lock:
-            self.conn.execute(
-                "UPDATE users SET password_hash = ? WHERE id = ?",
-                [password_hash, user_id],
-            )
-            self.conn.commit()
+        self._update_user_fk_safe(
+            "password_hash = ?",
+            [password_hash],
+            user_id,
+        )
         return self.get_user(user_id)
 
     def set_active(self, user_id: str, active: bool) -> AccountUser | None:
         """Enable or disable a user."""
+        self._update_user_fk_safe(
+            "active = ?",
+            [active],
+            user_id,
+        )
+        return self.get_user(user_id)
+
+    def _update_user_fk_safe(
+        self,
+        set_clause: str,
+        params: list[object],
+        user_id: str,
+    ) -> None:
+        """Update one user row while preserving ACL references across DuckDB FK limits."""
         with self._lock:
             # DuckDB rejects UPDATEs to referenced user rows even when the
             # primary key stays the same, so temporarily drop ACL references
-            # and restore them around the flag flip.
+            # and restore them around the row update.
             role_rows = self.conn.execute(
                 """
                 SELECT id, user_id, library_path, role, created_at, updated_at
@@ -1065,8 +1078,8 @@ class AppDatabase:
                 [user_id],
             )
             self.conn.execute(
-                "UPDATE users SET active = ? WHERE id = ?",
-                [active, user_id],
+                f"UPDATE users SET {set_clause} WHERE id = ?",
+                [*params, user_id],
             )
             if role_rows:
                 self.conn.executemany(
@@ -1089,7 +1102,6 @@ class AppDatabase:
                     override_rows,
                 )
             self.conn.commit()
-        return self.get_user(user_id)
 
     # =========================================================================
     # Library ACLs
