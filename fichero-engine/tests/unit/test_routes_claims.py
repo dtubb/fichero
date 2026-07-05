@@ -274,8 +274,34 @@ class TestAssignTimePeriod:
         assert payload["matched_count"] == 1
         assert payload["updated_count"] == 1
         assert payload["skipped_existing_count"] == 0
+        assert payload["skipped_unparseable_page_label_count"] == 0
         assert db.get(KnowledgeClaim, claim_p1.id).time_start == "1933-01-01"
         assert db.get(KnowledgeClaim, claim_p5.id).time_start is None
+
+    def test_assign_time_period_surfaces_unparseable_page_labels(self, client, db):
+        doc = _make_document(db, "Book")
+        claim_bad = _make_claim(db, doc, "Bad page label")
+        claim_bad.source_page_label = "frontispiece"
+        db.save(claim_bad)
+
+        claim_p2 = _make_claim(db, doc, "Page 2 claim")
+        claim_p2.source_page_label = "2"
+        db.save(claim_p2)
+
+        r = client.post(
+            "/api/claims/assign-time-period",
+            json={
+                "source_document_id": doc.id,
+                "page_start": 1,
+                "page_end": 3,
+                "time_start": "1933-01-01",
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["matched_count"] == 1
+        assert payload["updated_count"] == 1
+        assert payload["skipped_unparseable_page_label_count"] == 1
 
     def test_assigns_period_including_descendant_pages(self, client, db):
         folder = Document(name="Folder", doc_type=DocType.folder)

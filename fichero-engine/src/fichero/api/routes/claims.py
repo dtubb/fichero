@@ -249,6 +249,7 @@ class ClaimAssignTimePeriodResponse(BaseModel):
     matched_count: int
     updated_count: int
     skipped_existing_count: int
+    skipped_unparseable_page_label_count: int = 0
 
 
 class ClaimAssignTimePeriodFromMetadataRequest(BaseModel):
@@ -580,6 +581,7 @@ def assign_time_period_impl(
     matched = 0
     updated = 0
     skipped_existing = 0
+    skipped_unparseable_page_label = 0
     updated_ids: list[str] = []
 
     for claim in db.all(KnowledgeClaim):
@@ -588,6 +590,7 @@ def assign_time_period_impl(
         if request.page_start is not None or request.page_end is not None:
             page_no = _page_number(claim.source_page_label)
             if page_no is None:
+                skipped_unparseable_page_label += 1
                 continue
             if request.page_start is not None and page_no < request.page_start:
                 continue
@@ -612,6 +615,7 @@ def assign_time_period_impl(
             matched_count=matched,
             updated_count=updated,
             skipped_existing_count=skipped_existing,
+            skipped_unparseable_page_label_count=skipped_unparseable_page_label,
         ),
         updated_ids,
     )
