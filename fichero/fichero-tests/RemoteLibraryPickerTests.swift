@@ -56,4 +56,26 @@ struct RemoteLibraryPickerTests {
         // Same normalized host (default port / trailing path) shares one slot.
         #expect(RemoteLibraryRecents.paths(forHost: hostA + ":443/api") == ["/one", "/two"])
     }
+
+    @Test("recents MRU is capped at 12, evicting the oldest")
+    func recentsMRUCapsAtTwelve() {
+        let host = "https://test-cap-\(#function).example"
+        defer { RemoteLibraryRecents.clear(host: host) }
+
+        for index in 0..<15 { RemoteLibraryRecents.note(path: "/lib\(index)", host: host) }
+        let paths = RemoteLibraryRecents.paths(forHost: host)
+        #expect(paths.count == 12)
+        #expect(paths.first == "/lib14")        // most-recent kept
+        #expect(!paths.contains("/lib2"))        // oldest three evicted
+    }
+
+    @Test("menu-entry display name trims, else falls back to the path's last component")
+    func displayNameTrimsElseFallsBackToPath() {
+        func named(_ name: String?) -> KnownLibraryMenuEntry {
+            KnownLibraryMenuEntry(id: "1", path: "/x/Archive.fichero", name: name, addedAt: nil, lastAccessed: nil)
+        }
+        #expect(named("  My Library  ").displayName == "My Library")
+        #expect(named("   ").displayName == "Archive")   // blank → path stem
+        #expect(named(nil).displayName == "Archive")
+    }
 }
