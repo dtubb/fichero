@@ -179,6 +179,12 @@ struct FicheroApp: App {
             // The heartbeat is the single ongoing poller once ready (#3108); its
             // own guard makes repeated calls idempotent.
             appState.startBackendHeartbeat()
+            // Proactively renew the device token if near expiry (#3096), before it
+            // can lapse into a 401. A Mac can pair as a remote client too, so this
+            // belongs on the macOS connect path as well as iOS — no-op for the
+            // embedded/local host (loopback has no stored expiry); a failed renew
+            // keeps the old token (the expired → re-pair path is the safety net).
+            await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host)
             // The one shared post-ready side-effect block (#3113); adopt is a
             // no-op on an embedded/local host, so no `usesExternal` branch here.
             await libraryManager.refreshAfterBackendBecameReady()
