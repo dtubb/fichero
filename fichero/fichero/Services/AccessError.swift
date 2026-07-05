@@ -115,6 +115,25 @@ enum AccessError: LocalizedError, Equatable {
     }
 }
 
+extension AccessError {
+    /// Best-effort lift of an arbitrary thrown/stored error into the access
+    /// taxonomy, or `nil` when it isn't an access failure (so the caller keeps
+    /// its generic error UI — no regression, just no richer denial view).
+    ///
+    /// Recognizes an already-typed `AccessError` and the `DocumentStore`'s
+    /// collapsed `.unauthorized` bucket (its 401/403 path). The collapsed case
+    /// maps to `.forbidden` with no message; the access-denied view then uses
+    /// identity to decide sign-in vs. request-access.
+    static func from(_ error: Error?) -> AccessError? {
+        guard let error else { return nil }
+        if let access = error as? AccessError { return access }
+        if let storeError = error as? DocumentStoreError, case .unauthorized = storeError {
+            return .forbidden(reason: nil, message: nil)
+        }
+        return nil
+    }
+}
+
 /// Permissive decoder for the engine's structured denial body. FastAPI raises
 /// `HTTPException(403, detail=…)` where `detail` is either a plain string or a
 /// nested object — so we accept `{"detail": "msg"}`, `{"detail": {"reason", …}}`,

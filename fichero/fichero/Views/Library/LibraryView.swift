@@ -90,6 +90,7 @@ struct LibraryView: View {
     /// Non-nil presents the bookmark sheet for this document (#2755).
     @State var bookmarkPickerDocument: Document?
 
+    @Environment(AppState.self) var appState
     @Environment(LibraryManager.self) var libraryManager
     @Environment(WindowState.self) var windowState
     /// Finder-style Open in New Tab / New Window opens a fresh window on the
@@ -233,6 +234,18 @@ struct LibraryView: View {
             connectionErrorState
         } else if isCollectionLoading {
             loadingState
+        } else if !isShowingEntitiesCollection, let denial = AccessError.from(documentStore.error) {
+            // Never a silent 403 / blank pane (F6): a denied library read lands on
+            // the explicit access state — which library, why, who you are, and the
+            // next action — instead of the generic "couldn't load" text.
+            LibraryAccessDeniedView(
+                libraryName: libraryReference?.displayName ?? "this library",
+                error: denial,
+                identity: appState.identityStore,
+                onRetry: { onRetry() },
+                onSignIn: nil,
+                onResetPin: { RemoteCertificatePinning.clearPersistedSPKIPin(hostString: EngineConfig.hostString) }
+            )
         } else if let activeErrorMessage {
             errorState(message: activeErrorMessage)
         } else if isCollectionEmpty {
