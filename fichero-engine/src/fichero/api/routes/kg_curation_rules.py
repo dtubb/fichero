@@ -122,6 +122,14 @@ class ClaimRuleDeleteResponse(BaseModel):
     deleted_rule_id: str
 
 
+def _invert_create_claim_rule(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict]:
+    if not after or "id" not in after:
+        raise ValueError("Cannot undo kg.claim_rule.create without created rule id")
+    return "kg.claim_rule.delete", {"rule_id": after["id"]}
+
+
 def _entity_rule_response(rule: EntityResolutionRule) -> EntityRuleReadResponse:
     return EntityRuleReadResponse(**rule.model_dump())
 
@@ -406,7 +414,8 @@ def _action_restore_entity_rule(
     "kg.claim_rule.create",
     ClaimRuleCreateRequest,
     domains=["claim"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_create_claim_rule,
 )
 def _action_create_claim_rule(
     db: Database, params: ClaimRuleCreateRequest, ctx: ActionContext

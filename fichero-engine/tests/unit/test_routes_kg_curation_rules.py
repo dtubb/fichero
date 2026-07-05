@@ -269,3 +269,28 @@ class TestClaimCurationRules:
         assert len(delete_audits) == 1
         assert delete_audits[0].target_ids == [created_id]
         assert calls[-1][1]["type"] == "claim.updated"
+
+    def test_claim_rule_create_undo_then_delete_inverse(self, db):
+        reg = registry
+        params = {
+            "action": "prune",
+            "match_predicate_verb": "is",
+            "reason": "trivial copula",
+        }
+
+        created = reg.invoke(db, "kg.claim_rule.create", params, _ctx())
+        created_id = created.result["id"]
+
+        create_action = reg.get("kg.claim_rule.create")
+        assert create_action.undoable is True
+        assert db.get(ClaimSuppressionRule, created_id) is not None
+
+        inv = create_action.invert(None, created.result, _ctx())
+        assert inv is not None
+        inv_name, inv_params = inv
+        assert inv_name == "kg.claim_rule.delete"
+        reg.invoke(db, inv_name, inv_params, _ctx())
+        assert db.get(ClaimSuppressionRule, created_id) is None
+
+        delete_action = reg.get(inv_name)
+        assert delete_action.undoable is False
