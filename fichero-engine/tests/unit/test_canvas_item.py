@@ -320,6 +320,35 @@ def test_create_action_undo_deletes_item_and_writes_inverse_audit(db, app_db):
     assert inverse_audit.inverse_of == created.audit_id
 
 
+def test_update_action_undo_restores_prior_snapshot(db, app_db):
+    ctx = _ctx(db, app_db)
+    created = registry.invoke(
+        db,
+        "canvas.item.create",
+        {"folder_id": "f-update-undo", "kind": "note", "text": "v1"},
+        ctx,
+    )
+    item_id = created.result["id"]
+
+    updated = registry.invoke(
+        db,
+        "canvas.item.update",
+        {"folder_id": "f-update-undo", "item_id": item_id, "text": "v2"},
+        ctx,
+    )
+
+    undone = _undo(db, updated.audit_id, ctx.library_path)
+
+    restored = db.get(CanvasItem, item_id)
+    assert restored is not None
+    assert restored.text == "v1"
+    assert db.get(ActionAudit, updated.audit_id).undone is True
+    inverse_audit = db.get(ActionAudit, undone.audit_id)
+    assert inverse_audit is not None
+    assert inverse_audit.action_name == "canvas.item.restore"
+    assert inverse_audit.inverse_of == updated.audit_id
+
+
 def test_create_link_action_round_trips(db, app_db):
     ctx = _ctx(db, app_db)
     result = registry.invoke(
