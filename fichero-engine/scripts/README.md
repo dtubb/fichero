@@ -40,7 +40,6 @@ the supported day-to-day flow:
 | Script | Current status |
 |---|---|
 | `bundle_python_backend.sh` | Alternate packaging path; stale candidate pending follow-up removal review |
-| `run_migration.py` | Docs-only/manual migration helper; stale candidate pending follow-up review |
 | `validate_repo.sh` | Older heavyweight local gate script; stale candidate pending follow-up review |
 
 ## When to run sync

@@ -144,7 +144,6 @@
 | `sync_openapi_schema.sh` | Export Python schema → Swift client | After any API route/model change |
 | `start_backend.sh` | Dev server with validation | Local development |
 | `validate_model_sync.py` | Check Python/Swift model alignment | Before API changes |
-| `run_migration.py` | Knowledge graph migration CLI | Database upgrades |
 | `build_backend_bundle.sh` | Briefcase bundle build | Release packaging |
 | `validate_repo.sh` | Lint + test runner | CI / pre-commit |
 | `export_openapi_schema.py` | Raw schema export | Called by sync script |
