@@ -330,6 +330,30 @@ class TestEntityUpdateUndoRedo:
         assert redo_audit.action_name == "entity.update"
         assert redo_audit.inverse_of == inverse.audit_id
 
+    def test_update_undo_restores_snapshot_after_later_mutation(self, db, spy_emit):
+        """Undo restores the captured pre-update snapshot even if the row was
+        edited again before the undo runs."""
+        entity = KnowledgeEntity(canonical_name="Old Entity")
+        db.save(entity)
+
+        forward = registry.invoke(
+            db,
+            "entity.update",
+            {"entity_id": entity.id, "canonical_name": "Intermediate Entity"},
+            _ctx(),
+        )
+        later = db.get(KnowledgeEntity, entity.id)
+        assert later is not None
+        later.canonical_name = "Later Entity"
+        db.save(later)
+
+        inverse = _undo(db, forward.audit_id)
+
+        restored = db.get(KnowledgeEntity, entity.id)
+        assert restored is not None
+        assert restored.canonical_name == "Old Entity"
+        assert _audit(db, inverse.audit_id).action_name == "entity.restore"
+
 
 # ===========================================================================
 # Domain 6 — entity.delete : delete -> undo(restore entity+claims) -> redo
@@ -386,6 +410,56 @@ class TestEntityDeleteUndoRedo:
         redo_audit = _audit(db, redo.audit_id)
         assert redo_audit.action_name == "entity.delete"
         assert redo_audit.inverse_of == inverse.audit_id
+
+    def test_delete_undo_restores_all_touched_claim_snapshots(self, db, spy_emit):
+        entity = KnowledgeEntity(canonical_name="Delete Entity")
+        db.save(entity)
+        claim_a = _save_claim(db, text="linked-a", entity_ids=[entity.id])
+        claim_b = _save_claim(db, text="linked-b", entity_ids=[entity.id, "other-entity"])
+
+        forward = registry.invoke(
+            db,
+            "entity.delete",
+            {"entity_id": entity.id, "cascade_claims": False},
+            _ctx(),
+        )
+        stripped_b = db.get(KnowledgeClaim, claim_b.id)
+        assert stripped_b is not None
+        assert entity.id not in (stripped_b.entity_ids or [])
+
+        inverse = _undo(db, forward.audit_id)
+
+        restored_a = db.get(KnowledgeClaim, claim_a.id)
+        restored_b = db.get(KnowledgeClaim, claim_b.id)
+        assert restored_a is not None
+        assert restored_b is not None
+        assert restored_a.entity_ids == [entity.id]
+        assert restored_b.entity_ids == [entity.id, "other-entity"]
+        assert _audit(db, inverse.audit_id).action_name == "entity.restore"
+
+    def test_delete_undo_overwrites_later_claim_mutation_with_snapshot(self, db, spy_emit):
+        entity = KnowledgeEntity(canonical_name="Delete Entity")
+        db.save(entity)
+        claim = _save_claim(db, text="linked", entity_ids=[entity.id])
+
+        forward = registry.invoke(
+            db,
+            "entity.delete",
+            {"entity_id": entity.id, "cascade_claims": False},
+            _ctx(),
+        )
+        mutated = db.get(KnowledgeClaim, claim.id)
+        assert mutated is not None
+        mutated.text = "later edit"
+        db.save(mutated)
+
+        inverse = _undo(db, forward.audit_id)
+
+        restored = db.get(KnowledgeClaim, claim.id)
+        assert restored is not None
+        assert restored.text == "linked"
+        assert restored.entity_ids == [entity.id]
+        assert _audit(db, inverse.audit_id).action_name == "entity.restore"
 
 
 # ===========================================================================
