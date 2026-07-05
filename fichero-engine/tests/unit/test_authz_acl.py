@@ -34,7 +34,7 @@ from fichero.api.routes.library_registry import add_known_library
 from fichero.api.routes.schedules import get_library_database as get_schedule_database
 from fichero.api.routes.triggers import get_library_database as get_trigger_database
 from fichero.db import Database
-from fichero.models import AccountUser, Document, DocType
+from fichero.models import AccountUser, ActionAudit, Document, DocType
 from fichero.workflows.tools._workflow_change_emit import emit_workflow_artifact_changes
 
 
@@ -348,6 +348,25 @@ async def test_bootstrap_secret_without_user_fails_closed_for_read_and_write(
             {},
             ActionContext(actor="system", library_path=library_path),
         )
+
+
+def test_bootstrap_registry_write_bypasses_acl_but_keeps_system_actor(
+    db, acl_action, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = _library_path(db)
+
+    result = registry.invoke(
+        db,
+        acl_action,
+        {},
+        ActionContext(actor="system", library_path=library_path, is_bootstrap=True),
+    )
+
+    audit = db.get(ActionAudit, result.audit_id)
+    assert result.ok is True
+    assert audit is not None
+    assert audit.actor == "system"
 
 
 def test_library_entity_types_validate_path_and_acl(db, app_db, users, monkeypatch, tmp_path):
