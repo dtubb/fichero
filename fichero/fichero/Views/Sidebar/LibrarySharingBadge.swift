@@ -13,9 +13,12 @@ import SwiftUI
 struct LibrarySharingBadge: View {
     let library: LibraryManager.LibraryReference
 
+    @Environment(AppState.self) private var appState
+
     @State private var snapshot: Components.Schemas.LibraryAuthzSnapshot?
     @State private var members: [Components.Schemas.LibraryMember] = []
     @State private var showPopover = false
+    @State private var showShareSheet = false
     @State private var isLoadingMembers = false
     @State private var membersError: String?
     @State private var isApplying = false
@@ -38,6 +41,9 @@ struct LibrarySharingBadge: View {
                 .accessibilityLabel(helpText(for: snapshot))
                 .popover(isPresented: $showPopover, arrowEdge: .bottom) {
                     membersPopover
+                }
+                .sheet(isPresented: $showShareSheet) {
+                    ShareLibrarySheet(library: library, usersStore: appState.usersStore)
                 }
                 .task(id: showPopover) {
                     if showPopover { await loadMembers() }
@@ -105,6 +111,19 @@ struct LibrarySharingBadge: View {
                 Text(manageError)
                     .font(.caption)
                     .foregroundStyle(.red)
+            }
+
+            // Owners get the full "Share this library…" flow (#3149): add a
+            // person (existing or new) at a role and get a share link.
+            if canManage {
+                Divider()
+                Button {
+                    showPopover = false
+                    showShareSheet = true
+                } label: {
+                    Label("Share Library…", systemImage: "person.badge.plus")
+                }
+                .buttonStyle(.borderless)
             }
         }
         .padding(12)
