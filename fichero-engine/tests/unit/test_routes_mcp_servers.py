@@ -91,6 +91,28 @@ class TestCreateMCPServer:
         assert data["name"] == "my-server"
         assert data["transport"] == "stdio"
 
+    def test_create_http_server_preserves_null_optionals_and_typed_maps(self, client):
+        payload = {
+            "name": "remote-server",
+            "description": "Remote MCP server",
+            "transport": "http",
+            "command": None,
+            "args": [],
+            "env": {},
+            "url": "https://example.test/mcp",
+            "headers": {"Authorization": "Bearer token"},
+        }
+        r = client.post("/api/mcp-servers", json=payload)
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["transport"] == "http"
+        assert data["command"] is None
+        assert data["url"] == "https://example.test/mcp"
+        assert data["args"] == []
+        assert data["env"] == {}
+        assert data["headers"] == {"Authorization": "Bearer token"}
+
     @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_create_server_appears_in_list(self, client):
         payload = {
@@ -183,3 +205,19 @@ class TestMCPToolLoading:
         # Just verify the route exists and responds.
         r = client.post("/api/mcp-servers/tools/load-into-workflow-registry")
         assert r.status_code in (200, 500)
+
+
+class TestMCPOpenAPISchema:
+    def test_openapi_keeps_typed_mcp_server_response_fields(self, client):
+        schema = client.app.openapi()
+        response = schema["components"]["schemas"]["MCPServerResponse"]
+        response_list = schema["components"]["schemas"]["MCPServerResponseList"]
+
+        assert response["properties"]["args"]["items"]["type"] == "string"
+        assert response["properties"]["env"]["additionalProperties"]["type"] == "string"
+        assert response["properties"]["headers"]["additionalProperties"]["type"] == "string"
+        assert response["properties"]["command"]["anyOf"][1]["type"] == "null"
+        assert response["properties"]["url"]["anyOf"][1]["type"] == "null"
+        assert response_list["properties"]["items"]["items"]["$ref"].endswith(
+            "/MCPServerResponse"
+        )

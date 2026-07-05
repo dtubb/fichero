@@ -92,6 +92,51 @@ class TestListTriggers:
 
 
 class TestCreateTrigger:
+    def test_create_trigger_preserves_typed_response_boundaries(self, client, mock_watcher):
+        trigger = _make_mock_trigger()
+        trigger.config.filter_extensions = []
+        trigger.config.exclude_patterns = []
+        trigger.config.filter_pattern = None
+        trigger.inputs_template = {
+            "file_path": "{file_path}",
+            "library_path": "{library_path}",
+        }
+        trigger.error_message = None
+        mock_watcher.create_trigger.return_value = trigger
+
+        payload = {
+            "name": "Watch Inbox",
+            "workflow_id": "wf-abc",
+            "config": {
+                "watch_path": "/Users/test/inbox",
+                "recursive": True,
+                "events": ["created"],
+                "filter_mode": "glob",
+                "filter_pattern": None,
+                "filter_extensions": [],
+                "exclude_patterns": [],
+                "debounce_seconds": 1.0,
+                "batch_delay_seconds": 5.0,
+            },
+            "inputs_template": {
+                "file_path": "{file_path}",
+                "library_path": "{library_path}",
+            },
+        }
+        r = client.post("/api/triggers", json=payload)
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["filter_pattern"] is None
+        assert data["filter_extensions"] == []
+        assert data["exclude_patterns"] == []
+        assert data["last_triggered_at"] is None
+        assert data["error_message"] is None
+        assert data["inputs_template"] == {
+            "file_path": "{file_path}",
+            "library_path": "{library_path}",
+        }
+
     @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_create_trigger(self, client, mock_watcher):
         payload = {
