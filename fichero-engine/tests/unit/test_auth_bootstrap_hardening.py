@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import importlib
+
 import pytest
+from fastapi.testclient import TestClient
 
 from fichero import accounts
+from fichero.api.auth import initialize_token
 from fichero.models import Conversation
 
 
@@ -67,3 +71,88 @@ def test_multiuser_bootstrap_owner_can_invoke_registry_writes_across_domains(
             response.status_code == 200
         ), f"{action_name} returned {response.status_code}: {response.text}"
 
+
+def test_non_loopback_bootstrap_secret_cannot_invoke_registry_write(
+    test_package, app_db, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+    _ensure_owner(app_db)
+
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    try:
+        with TestClient(
+            api_main.app,
+            client=("192.0.2.10", 5000),
+            headers={"X-Fichero-Library-Path": str(test_package)},
+        ) as client:
+            response = client.post(
+                "/api/actions/invoke",
+                headers={"Authorization": f"Bearer {initialize_token()}"},
+                json={"name": "document.create", "params": {"name": "Remote Bootstrap Doc"}},
+            )
+            assert response.status_code == 401
+            assert response.json() == {"detail": "bootstrap auth is loopback only"}
+    finally:
+        api_main.app.dependency_overrides.clear()
+        monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+        importlib.reload(api_main)
+
+
+def test_non_owner_session_and_device_registry_writes_stay_acl_checked(
+    test_package, app_db, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+    library_path = str(test_package)
+    _ensure_owner(app_db)
+    viewer = app_db.create_user(
+        username="viewer",
+        display_name="Viewer",
+        password_hash=accounts.hash_password("password"),
+        is_owner=False,
+    )
+    raw_device_token = accounts.new_session_token()
+    app_db.create_device(
+        name="Viewer iPad",
+        user_id=viewer.id,
+        token_hash=accounts.hash_token(raw_device_token),
+    )
+
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    try:
+        with TestClient(
+            api_main.app,
+            headers={"X-Fichero-Library-Path": library_path},
+        ) as client:
+            login = client.post(
+                "/api/auth/login",
+                json={"username": "viewer", "password": "password"},
+            )
+            assert login.status_code == 200
+            for auth_kind, token in (
+                ("session", login.json()["session_token"]),
+                ("device", raw_device_token),
+            ):
+                response = client.post(
+                    "/api/actions/invoke",
+                    headers={"Authorization": f"Bearer {token}"},
+                    json={"name": "document.create", "params": {"name": f"Denied {auth_kind} doc"}},
+                )
+                assert response.status_code == 403
+                assert response.json() == {
+                    "detail": "write access denied",
+                    "code": "library_access_denied",
+                    "library_path": library_path,
+                    "auth_kind": auth_kind,
+                    "username": "viewer",
+                    "required": "write",
+                }
+    finally:
+        api_main.app.dependency_overrides.clear()
+        monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+        importlib.reload(api_main)

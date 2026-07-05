@@ -550,6 +550,15 @@ def test_identity_requires_authenticated_credential(client, monkeypatch):
     assert response.json() == {"detail": "missing or invalid Authorization header"}
 
 
+def test_identity_without_credentials_leaks_nothing(client, monkeypatch):
+    _enable_multiuser(monkeypatch)
+
+    response = client.get("/api/auth/identity", headers={"Authorization": ""})
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "missing or invalid Authorization header"}
+
+
 def test_identity_distinguishes_bootstrap_owner_account_user_and_unauthenticated(
     client, app_db, monkeypatch
 ):
