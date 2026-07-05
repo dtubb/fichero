@@ -141,6 +141,7 @@ class EntityDeleteActionParams(BaseModel):
 
 class EntityRestoreActionParams(BaseModel):
     snapshot: dict[str, Any]
+    claim_snapshots: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def _invert_create_entity(
@@ -173,6 +174,20 @@ def _invert_update_entity(
     if not before:
         return None
     return ("entity.restore", {"snapshot": before})
+
+
+def _invert_delete_entity(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return (
+        "entity.restore",
+        {
+            "snapshot": before.get("entity", {}),
+            "claim_snapshots": before.get("claims", []),
+        },
+    )
 
 
 class EntityAliasRequest(BaseModel):
@@ -604,11 +619,20 @@ def delete_entity_impl(
     "entity.delete",
     EntityDeleteActionParams,
     domains=["entity"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_delete_entity,
 )
 def _action_delete_entity(
     db: Database, params: EntityDeleteActionParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
+    entity = db.get(KnowledgeEntity, params.entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {params.entity_id}")
+    claim_snapshots = [
+        claim.model_dump(mode="json")
+        for claim in db.query(KnowledgeClaim)
+        if params.entity_id in (claim.entity_ids or [])
+    ]
     result = delete_entity_impl(
         db,
         params.entity_id,
@@ -617,6 +641,10 @@ def _action_delete_entity(
     spec = ChangeSpec(
         domains=["entity"],
         target_ids=[params.entity_id],
+        before={
+            "entity": entity.model_dump(mode="json"),
+            "claims": claim_snapshots,
+        },
         after=result,
         emit_type="entity.deleted",
         entity_ids=[params.entity_id],
@@ -639,6 +667,8 @@ def _action_restore_entity(
     entity = KnowledgeEntity.model_validate(params.snapshot)
     entity.updated_at = datetime.now()
     db.save(entity)
+    for claim_snapshot in params.claim_snapshots:
+        db.save(KnowledgeClaim.model_validate(claim_snapshot))
     spec = ChangeSpec(
         domains=["entity"],
         target_ids=[entity.id],

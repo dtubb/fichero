@@ -332,6 +332,63 @@ class TestEntityUpdateUndoRedo:
 
 
 # ===========================================================================
+# Domain 6 — entity.delete : delete -> undo(restore entity+claims) -> redo
+# ===========================================================================
+
+
+class TestEntityDeleteUndoRedo:
+    def test_delete_undo_restores_entity_and_claim_links(self, db, spy_emit):
+        entity = KnowledgeEntity(canonical_name="Delete Entity")
+        db.save(entity)
+        claim = _save_claim(db, text="linked", entity_ids=[entity.id])
+
+        forward = registry.invoke(
+            db,
+            "entity.delete",
+            {"entity_id": entity.id, "cascade_claims": False},
+            _ctx(),
+        )
+        assert db.get(KnowledgeEntity, entity.id) is None
+        assert db.get(KnowledgeClaim, claim.id) is not None
+        assert entity.id not in (db.get(KnowledgeClaim, claim.id).entity_ids or [])
+
+        inverse = _undo(db, forward.audit_id)
+
+        restored_entity = db.get(KnowledgeEntity, entity.id)
+        restored_claim = db.get(KnowledgeClaim, claim.id)
+        assert restored_entity is not None
+        assert restored_claim is not None
+        assert entity.id in (restored_claim.entity_ids or [])
+        inverse_audit = _audit(db, inverse.audit_id)
+        assert inverse_audit.action_name == "entity.restore"
+        assert inverse_audit.inverse_of == forward.audit_id
+
+    def test_redo_redeletes_entity(self, db, spy_emit):
+        entity = KnowledgeEntity(canonical_name="Delete Entity")
+        db.save(entity)
+        claim = _save_claim(db, text="linked", entity_ids=[entity.id])
+
+        forward = registry.invoke(
+            db,
+            "entity.delete",
+            {"entity_id": entity.id, "cascade_claims": False},
+            _ctx(),
+        )
+        inverse = _undo(db, forward.audit_id)
+        assert db.get(KnowledgeEntity, entity.id) is not None
+
+        redo = _undo(db, inverse.audit_id)
+
+        assert db.get(KnowledgeEntity, entity.id) is None
+        persisted_claim = db.get(KnowledgeClaim, claim.id)
+        assert persisted_claim is not None
+        assert entity.id not in (persisted_claim.entity_ids or [])
+        redo_audit = _audit(db, redo.audit_id)
+        assert redo_audit.action_name == "entity.delete"
+        assert redo_audit.inverse_of == inverse.audit_id
+
+
+# ===========================================================================
 # Endpoint contract — 404 / 409 guards
 # ===========================================================================
 
