@@ -630,7 +630,13 @@ def _action_update_canvas_item(
     return after, spec
 
 
-@action("canvas.item.delete", CanvasItemDeleteParams, domains=["canvas"])
+@action(
+    "canvas.item.delete",
+    CanvasItemDeleteParams,
+    domains=["canvas"],
+    undoable=True,
+    invert=_invert_to_restore_canvas_item,
+)
 def _action_delete_canvas_item(
     db: Database, params: CanvasItemDeleteParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:

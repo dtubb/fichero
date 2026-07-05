@@ -349,6 +349,37 @@ def test_update_action_undo_restores_prior_snapshot(db, app_db):
     assert inverse_audit.inverse_of == updated.audit_id
 
 
+def test_delete_action_undo_restores_deleted_item(db, app_db):
+    ctx = _ctx(db, app_db)
+    created = registry.invoke(
+        db,
+        "canvas.item.create",
+        {"folder_id": "f-delete-undo", "kind": "quote", "text": "restore me"},
+        ctx,
+    )
+    item_id = created.result["id"]
+
+    deleted = registry.invoke(
+        db,
+        "canvas.item.delete",
+        {"folder_id": "f-delete-undo", "item_id": item_id},
+        ctx,
+    )
+    assert deleted.ok
+    assert db.get(CanvasItem, item_id) is None
+
+    undone = _undo(db, deleted.audit_id, ctx.library_path)
+
+    restored = db.get(CanvasItem, item_id)
+    assert restored is not None
+    assert restored.text == "restore me"
+    assert db.get(ActionAudit, deleted.audit_id).undone is True
+    inverse_audit = db.get(ActionAudit, undone.audit_id)
+    assert inverse_audit is not None
+    assert inverse_audit.action_name == "canvas.item.restore"
+    assert inverse_audit.inverse_of == deleted.audit_id
+
+
 def test_create_link_action_round_trips(db, app_db):
     ctx = _ctx(db, app_db)
     result = registry.invoke(
