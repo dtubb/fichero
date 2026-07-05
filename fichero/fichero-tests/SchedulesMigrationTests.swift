@@ -73,6 +73,39 @@ struct SchedulesMigrationTests {
         #expect(schedule.runCount == 5)
     }
 
+    @Test("automation date round-trips: parseEngineDate ↔ ISO8601FormatStyle re-encode identically")
+    func automationDateRoundTrips() throws {
+        // The mapper formats Date→String with this exact style; parseEngineDate reads
+        // String→Date on the way back in. They're two different parsers, so lock that
+        // a canonical wire string decodes to the right Date and re-encodes identically.
+        let format = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        let wire = "2026-07-04T12:34:56.789Z"
+        let date = try #require(parseEngineDate(wire))
+        #expect(date.formatted(format) == wire)
+    }
+
+    @Test("createSchedule raises on a malformed run_at instead of silently dropping it")
+    func createScheduleRaisesOnMalformedDate() async throws {
+        // The bad date is rejected while building the request body, before any network
+        // call — so the default APIClient session never fires. Guards the fix that
+        // replaced `.flatMap(parseEngineDate)` (silent nil) with a raising parse.
+        let service = AutomationService(
+            apiClient: APIClient(baseURL: URL(string: "https://test.fichero")!)
+        )
+        let config = ScheduleConfigRequest(
+            scheduleType: "once", cronExpression: nil, intervalSeconds: nil,
+            runAt: "not-a-date", timezone: "UTC",
+            startDate: nil, endDate: nil, maxRuns: nil
+        )
+        let request = CreateScheduleRequest(
+            name: "x", workflowId: "wf", config: config,
+            inputs: [:], useBatch: false, batchItems: [], maxConcurrent: 1
+        )
+        await #expect(throws: AutomationServiceError.self) {
+            _ = try await service.createSchedule(request: request)
+        }
+    }
+
     @Test("get_schedule non-.ok surfaces as non-.ok (never a silent empty schedule)")
     func getScheduleNonOk() async throws {
         let client = makeClient { request in

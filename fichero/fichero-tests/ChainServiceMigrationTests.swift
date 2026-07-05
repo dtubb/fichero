@@ -154,6 +154,27 @@ struct ChainServiceMigrationTests {
         #expect(chains.map(\.folderPath) == ["/b", "/a", "/c"])  // paired, not shifted
     }
 
+    @Test("mapChainResponse raises on a malformed timestamp (never a silent nil date)")
+    func mapChainRaisesOnBadDate() async throws {
+        // created_at is a plain String on the wire, so it decodes into ChainResponse
+        // fine — but the app WorkflowChain wants a Date, and makeChainDecoder's custom
+        // strategy must throw (not coerce to nil/today) when parseEngineDate can't read it.
+        let bad = Self.chainJSON(id: "c1", sortOrder: 1, folderPath: "/x")
+            .replacingOccurrences(of: "2026-07-04T12:34:56.789012", with: "not-a-timestamp")
+        let client = makeClient { request in Self.ok(request, bad) }
+
+        let response = try await client.api.getChainApiChainsChainIdGet(
+            .init(path: .init(chainId: "c1"))
+        )
+        guard case .ok(let okResponse) = response else {
+            Issue.record("expected .ok")
+            return
+        }
+        #expect(throws: (any Error).self) {
+            _ = try mapChainResponse(try okResponse.body.json)
+        }
+    }
+
     @Test("get_chain non-.ok surfaces as non-.ok (never a silent empty chain)")
     func getChainNonOk() async throws {
         let client = makeClient { request in
