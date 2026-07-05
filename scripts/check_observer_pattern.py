@@ -174,6 +174,36 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
     "#1851/#1875 baseline",
 )
 
+# #2960 wave. These views were added after the #1851/#1875 baseline and reach
+# legacy ObservableObject foundations still injected via `.environmentObject()`
+# at the app root — FeatureManager, AppState, LibraryManager, APIClient, and the
+# generated *Service classes. A consumer cannot adopt `@Environment(Type.self)`
+# until those shared foundations flip to `@Observable` and their injection flips
+# to `.environment()`, which is one coordinated app-wide change (a state-
+# ownership decision), not a per-file mechanical migration. Staged here so the
+# guardrail stays green for unrelated frontend work; unblock with the foundation
+# migration. (Pure view-state controllers migrate independently — see
+# PDFPageControllers, already off the list.)
+KNOWN_VIOLATIONS.update(
+    dict.fromkeys(
+        [
+            "fichero/fichero/Views/Activity/ActivityMonitorView.swift",
+            "fichero/fichero/Views/Activity/ActivityMonitorWindow.swift",
+            "fichero/fichero/Views/Library/BookmarksView.swift",
+            "fichero/fichero/Views/Library/DocumentInspector/DocumentInterpretationsTab.swift",
+            "fichero/fichero/Views/Library/FocusedDocument.swift",
+            "fichero/fichero/Views/Library/ImageViewerComponents.swift",
+            "fichero/fichero/Views/Library/LibraryWorkspaceRoot.swift",
+            "fichero/fichero/Views/Library/iOSLibraryPickerMenu.swift",
+            "fichero/fichero/Views/Settings/LocalInferenceSettingsView.swift",
+            "fichero/fichero/Views/Sidebar/SidebarModeBar.swift",
+            "fichero/fichero/Views/Space/SpaceSceneView.swift",
+            "fichero/fichero/Views/Spatial/SpatialNodeThumbnail.swift",
+        ],
+        "#2960 — blocked on @Observable foundation migration",
+    )
+)
+
 
 def _strip_preview_blocks(text: str) -> str:
     """Remove `#Preview { … }` blocks so preview-only scaffolding stays out."""

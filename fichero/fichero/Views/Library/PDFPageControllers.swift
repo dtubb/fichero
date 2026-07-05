@@ -1,16 +1,18 @@
+import Observation
 import PDFKit
 
 // PDF toolbar controllers, extracted from PDFPageView.swift (#3041) — standalone
-// @MainActor ObservableObject bridges between the SwiftUI canvas toolbars and
-// PDFKit's PDFView. Moved to their own file to trim PDFPageView.swift; no logic
-// or signature change (pure mechanical split).
+// @MainActor @Observable bridges between the SwiftUI canvas toolbars and
+// PDFKit's PDFView. These hold pure view state (zoom scale / page index), not
+// data-layer endpoints, so they migrate straight to @Observable (#2960).
 
 // MARK: - PDF Zoom Controller
 
 /// Bridges the SwiftUI zoom toolbar with PDFKit's PDFView.
 @MainActor
-final class PDFZoomController: ObservableObject {
-    @Published var scale: CGFloat = 1.0
+@Observable
+final class PDFZoomController {
+    var scale: CGFloat = 1.0
     weak var pdfView: PDFView?
 
     func zoomIn() { pdfView?.zoomIn(nil) }
@@ -35,11 +37,12 @@ final class PDFZoomController: ObservableObject {
 /// page indicator is document-scoped, so it belongs on the canvas toolbar
 /// rather than the window toolbar. (#1531)
 @MainActor
-final class PDFPageController: ObservableObject {
+@Observable
+final class PDFPageController {
     /// 0-based index of the page PDFKit is currently showing.
-    @Published var pageIndex: Int = 0
+    var pageIndex: Int = 0
     /// Total page count of the loaded document (0 until a document loads).
-    @Published var pageCount: Int = 0
+    var pageCount: Int = 0
     weak var pdfView: PDFView?
 
     var canGoPrevious: Bool { pageIndex > 0 }

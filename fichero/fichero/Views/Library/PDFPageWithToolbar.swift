@@ -19,8 +19,8 @@ struct PDFPageWithToolbar: View {
     /// `= nil` is load-bearing: 3 call sites omit this arg.
     var onClose: (() -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
 
-    @StateObject private var zoom = PDFZoomController()
-    @StateObject private var pageNav = PDFPageController()
+    @State private var zoom = PDFZoomController()
+    @State private var pageNav = PDFPageController()
 
     // Each split-pane instance gets its own loupe state so toggling loupe
     // in one pane doesn't affect sibling panes. (@AppStorage would be shared
