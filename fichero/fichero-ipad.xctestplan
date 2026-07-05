@@ -1,0 +1,18 @@
+{
+  "configurations" : [
+    {
+      "id" : "B3A1F0C2-7E4D-4A9B-8C21-1F5E9D6A0C74",
+      "name" : "iPad build/run gate",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+
+  ],
+  "version" : 1
+}
