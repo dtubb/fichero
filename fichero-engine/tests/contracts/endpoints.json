@@ -1019,6 +1019,16 @@
     "authz": [
       {
         "method": "GET",
+        "path": "/authz/libraries",
+        "operation_id": "list_accessible_libraries_api_authz_libraries_get",
+        "summary": "List Accessible Libraries",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[AccessibleLibrary]"
+      },
+      {
+        "method": "GET",
         "path": "/authz/library",
         "operation_id": "get_library_authz_snapshot_api_authz_library_get",
         "summary": "Get Library Authz Snapshot",

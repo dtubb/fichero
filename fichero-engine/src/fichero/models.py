@@ -1480,6 +1480,14 @@ class LibraryMembersResponse(BaseModel):
     count: int
 
 
+class AccessibleLibrary(BaseModel):
+    """One library the current credential may access."""
+
+    library_path: str
+    library_name: str
+    role: str
+
+
 class SetLibraryRoleRequest(BaseModel):
     """Typed body for ``PUT /api/authz/members`` — assign/change a library role.
 
@@ -2130,6 +2138,7 @@ __all__ = [
     "EmbeddingStatsResponse",
     "LibraryStatsResponse",
     "LibraryAuthzSnapshot",
+    "AccessibleLibrary",
     "ReinstallDefaultWorkflowsResponse",
     "AppleIntelligenceProbeResponse",
     "EntityContextResponse",

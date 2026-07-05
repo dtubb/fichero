@@ -1171,6 +1171,33 @@
         }
       }
     },
+    "/api/authz/libraries": {
+      "get": {
+        "tags": [
+          "authz",
+          "authz"
+        ],
+        "summary": "List Accessible Libraries",
+        "description": "Return the known libraries visible to the current credential.",
+        "operationId": "list_accessible_libraries_api_authz_libraries_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AccessibleLibrary"
+                  },
+                  "type": "array",
+                  "title": "Response List Accessible Libraries Api Authz Libraries Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/authz/library": {
       "get": {
         "tags": [
@@ -31817,6 +31844,30 @@
           "audit_id"
         ],
         "title": "AcceptResponse"
+      },
+      "AccessibleLibrary": {
+        "properties": {
+          "library_path": {
+            "type": "string",
+            "title": "Library Path"
+          },
+          "library_name": {
+            "type": "string",
+            "title": "Library Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "library_path",
+          "library_name",
+          "role"
+        ],
+        "title": "AccessibleLibrary",
+        "description": "One library the current credential may access."
       },
       "ActionCategoriesResponse": {
         "properties": {
