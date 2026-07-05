@@ -10,6 +10,12 @@ import Foundation
 enum AccessError: LocalizedError, Equatable {
     /// 401 — the engine did not accept our credentials. Next: sign in.
     case unauthenticated
+    /// 401/403 whose structured body carries `code == "stale_bootstrap_token"`:
+    /// the app holds a loopback bootstrap token the engine has since rotated
+    /// away from — the sandbox-relaunch case (#3052 / auth.py `_is_stale_sandbox_
+    /// bootstrap_token`). Distinct from `.unauthenticated` because *signing in
+    /// cannot fix it* — the engine must re-mint/re-sync the token. Next: restart.
+    case staleBootstrapToken
     /// 403 — authenticated but not permitted for this resource. `reason` is the
     /// engine's machine code (when the structured denial body carries one);
     /// `message` is its human sentence. Next: request access.
@@ -36,6 +42,7 @@ enum AccessError: LocalizedError, Equatable {
     var recovery: Recovery {
         switch self {
         case .unauthenticated: return .signIn
+        case .staleBootstrapToken: return .restartEngine
         case .forbidden: return .requestAccess
         case .tlsPinFailure: return .resetPin
         case .engineUnreachable: return .restartEngine
@@ -47,6 +54,8 @@ enum AccessError: LocalizedError, Equatable {
         switch self {
         case .unauthenticated:
             return "You're not signed in to this engine."
+        case .staleBootstrapToken:
+            return "This app's saved engine token is out of date. Restart the engine to refresh it."
         case .forbidden(_, let message):
             return message ?? "You don't have access to this."
         case .tlsPinFailure:
@@ -64,11 +73,17 @@ enum AccessError: LocalizedError, Equatable {
     /// isn't an access failure (2xx, 404, 5xx handled by callers). Only 401/403
     /// are access-denial statuses.
     static func classify(statusCode: Int, body: Data?) -> AccessError? {
+        let denial = body.flatMap(DenialBody.decode)
+        // The stale-bootstrap-token discriminator is status-agnostic: the engine
+        // returns it as 401 today (auth.py), but keying on the machine `code`
+        // rather than the status keeps it correct if a path 403s it instead.
+        if denial?.code == "stale_bootstrap_token" {
+            return .staleBootstrapToken
+        }
         switch statusCode {
         case 401:
             return .unauthenticated
         case 403:
-            let denial = body.flatMap(DenialBody.decode)
             return .forbidden(reason: denial?.reason, message: denial?.message)
         default:
             return nil
@@ -134,12 +149,15 @@ extension AccessError {
     }
 }
 
-/// Permissive decoder for the engine's structured denial body. FastAPI raises
-/// `HTTPException(403, detail=…)` where `detail` is either a plain string or a
-/// nested object — so we accept `{"detail": "msg"}`, `{"detail": {"reason", …}}`,
-/// and a bare top-level `{"reason", "message"}`. Returns `nil` when nothing
-/// usable is present (the caller then falls back to a generic message).
+/// Permissive decoder for the engine's structured denial body. The engine emits
+/// a top-level machine `code` (e.g. `"stale_bootstrap_token"`, auth.py) alongside
+/// a `detail` that is either a plain string or a nested object — so we accept
+/// `{"detail": "msg", "code": "x"}`, `{"detail": {"reason", "message"}}`, and a
+/// bare top-level `{"reason", "message"}`. Returns `nil` when nothing usable is
+/// present (the caller then falls back to a generic message).
 struct DenialBody: Equatable {
+    /// Top-level machine code, the primary discriminator (e.g. stale token).
+    let code: String?
     let reason: String?
     let message: String?
 
@@ -147,13 +165,15 @@ struct DenialBody: Equatable {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
-        if let detail = object["detail"] as? String {
-            return DenialBody(reason: nil, message: detail)
-        }
+        // Capture `code` first — the string-`detail` early-return used to drop it.
+        let code = object["code"] as? String
+        let detailString = object["detail"] as? String
         let scope = (object["detail"] as? [String: Any]) ?? object
-        let reason = scope["reason"] as? String
-        let message = (scope["message"] as? String) ?? (scope["detail"] as? String)
-        guard reason != nil || message != nil else { return nil }
-        return DenialBody(reason: reason, message: message)
+        // reason prefers an explicit field, else the top-level code (so a 403's
+        // machine reason still reaches `.forbidden(reason:)`).
+        let reason = (scope["reason"] as? String) ?? code
+        let message = detailString ?? (scope["message"] as? String) ?? (scope["detail"] as? String)
+        guard code != nil || reason != nil || message != nil else { return nil }
+        return DenialBody(code: code, reason: reason, message: message)
     }
 }
