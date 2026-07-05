@@ -174,6 +174,20 @@ def _owner_for_pairing(request: Request, app_db: AppDatabase) -> AccountUser:
     raise HTTPException(status_code=403, detail="owner access required")
 
 
+def _pairing_user(request: Request, app_db: AppDatabase) -> AccountUser:
+    if not _use_multiuser_auth():
+        return _owner_for_pairing(request, app_db)
+    user = _current_session_user(request)
+    if user is None or not user.active:
+        raise HTTPException(status_code=401, detail="missing or invalid Authorization header")
+    return user
+
+
+def _can_manage_device(request: Request, device: Device) -> bool:
+    user = _current_session_user(request)
+    return bool(user and (user.is_owner or user.id == device.user_id))
+
+
 def _single_user_pairing_owner(app_db: AppDatabase) -> AccountUser:
     owner = app_db.get_user_by_username(_SINGLE_USER_PAIRING_OWNER)
     if owner is not None:
@@ -350,8 +364,8 @@ def create_pairing_code(
     request: Request,
     app_db: AppDatabase = Depends(get_app_database),
 ) -> PairCodeResponse:
-    """Mint a short-lived one-time pairing code for an owner."""
-    user = _owner_for_pairing(request, app_db)
+    """Mint a short-lived one-time pairing code for the authenticated caller."""
+    user = _pairing_user(request, app_db)
     now = datetime.now()
     _prune_pairing_codes(now)
     code = _new_pairing_code()
@@ -421,9 +435,11 @@ def list_devices(
     request: Request,
     app_db: AppDatabase = Depends(get_app_database),
 ) -> DeviceListResponse:
-    """List paired devices for owners."""
-    _owner_for_pairing(request, app_db)
+    """List paired devices for owners or one caller's own account."""
+    user = _pairing_user(request, app_db)
     devices = app_db.list_devices()
+    if not user.is_owner:
+        devices = [device for device in devices if device.user_id == user.id]
     items = [_to_public_device(device) for device in devices]
     return DeviceListResponse(items=items, count=len(items))
 
@@ -463,7 +479,12 @@ def revoke_device(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> StatusResponse:
     """Revoke one paired device token."""
-    _owner_for_pairing(request, app_db)
+    _pairing_user(request, app_db)
+    device = app_db.get_device(device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    if not _can_manage_device(request, device):
+        raise HTTPException(status_code=403, detail="owner access required")
     device = app_db.revoke_device(device_id)
     if device is None:
         raise HTTPException(status_code=404, detail="device not found")
