@@ -49,6 +49,16 @@ final class SessionStore {
         self.client = client
     }
 
+    /// The engine host this store gates, as the middleware sees it. Session
+    /// tokens are Keychain-scoped per host (#3150) exactly like the device
+    /// token, so this store persists/reads/clears under its OWN client's host —
+    /// never the single global default. That lets the app hold a local-library
+    /// session AND a remote engine's session at once (each store keyed to its
+    /// client's host). `AuthTokenMiddleware.intercept` reads the session token
+    /// off `baseURL.absoluteString`, so keying off the same string here makes
+    /// persist and read resolve to the same account after normalization.
+    private var hostString: String { client.baseURL.absoluteString }
+
     /// True once the gate has resolved and the library should be shown.
     var allowsLibraryAccess: Bool {
         switch phase {
@@ -103,7 +113,7 @@ final class SessionStore {
         switch response {
         case .ok(let ok):
             let payload = try ok.body.json
-            try AuthTokenMiddleware.persistSessionToken(payload.sessionToken)
+            try AuthTokenMiddleware.persistSessionToken(payload.sessionToken, hostString: hostString)
             currentUser = payload.user
             phase = .authenticated
             log.info("Signed in as \(payload.user.username, privacy: .public)")
@@ -138,7 +148,7 @@ final class SessionStore {
     func logout() async {
         // Best-effort server-side revoke; clear local state regardless.
         _ = try? await client.api.logoutApiAuthLogoutPost()
-        AuthTokenMiddleware.clearSessionToken()
+        AuthTokenMiddleware.clearSessionToken(hostString: hostString)
         currentUser = nil
         phase = .needsLogin
     }
@@ -168,7 +178,7 @@ final class SessionStore {
             let response = try await client.api.listUsersApiUsersGet()
             switch response {
             case .ok(let ok):
-                return try ok.body.json.count > 0
+                return try !ok.body.json.isEmpty
             case .undocumented:
                 return nil
             }
