@@ -15,7 +15,9 @@ import json
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Optional
+from uuid import uuid4
 
 from fastapi import (
     APIRouter,
@@ -29,6 +31,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from fichero.api.library_header import require_library_path
+from fichero.api.change_stream import ChangeEvent, _change_hub
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database, db_manager
 from fichero.workflows.activity import (
@@ -43,6 +46,7 @@ from fichero.models import ActivityListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/activity", tags=["activity"])
+_KEEPALIVE_TIMEOUT = 10.0
 
 
 def _parse_iso_to_naive_utc(value: str) -> datetime:
@@ -92,6 +96,27 @@ class ActivityResponse(BaseModel):
             duration_ms=activity.duration_ms,
             error=activity.error,
         )
+
+
+def _change_event_to_activity_response(event: ChangeEvent) -> ActivityResponse:
+    return ActivityResponse(
+        id=f"change-{event.event_id or uuid4().hex}",
+        type=ActivityType.SYSTEM_INFO.value,
+        level=ActivityLevel.INFO.value,
+        timestamp=event.ts,
+        message=f"{event.type} changed",
+        metadata={
+            "change_type": event.type,
+            "actor": event.actor,
+            "document_ids": json.dumps(event.document_ids),
+            "entity_ids": json.dumps(event.entity_ids),
+            "claim_ids": json.dumps(event.claim_ids),
+            "artifact_ids": json.dumps(event.artifact_ids),
+            "citation_ids": json.dumps(event.citation_ids),
+            "reference_ids": json.dumps(event.reference_ids),
+            "interpretation_ids": json.dumps(event.interpretation_ids),
+        },
+    )
 
 
 class CleanupResponse(BaseModel):
@@ -257,6 +282,7 @@ async def stream_activities(
     the provided criteria.
     """
     tracker = get_activity_tracker(str(db.path))
+    library_path = str(Path(db.path).parent)
 
     # Parse filter
     type_list = None
@@ -282,17 +308,51 @@ async def stream_activities(
 
     # Subscribe to activity stream
     sub_id = tracker.subscribe(filter)
+    change_subscription = _change_hub.connect(library_path)
 
     async def event_generator():
+        tracker_stream = tracker.stream(sub_id, filter)
         try:
-            async for activity in tracker.stream(sub_id, filter):
-                response = ActivityResponse.from_activity(activity)
-                yield f"data: {response.model_dump_json()}\n\n"
+            while True:
+                tracker_task = asyncio.create_task(anext(tracker_stream))
+                change_task = asyncio.create_task(change_subscription.queue.get())
+                try:
+                    done, pending = await asyncio.wait(
+                        {tracker_task, change_task},
+                        timeout=_KEEPALIVE_TIMEOUT,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    if not done:
+                        yield ": keepalive\n\n"
+                        continue
+                    if change_task in done:
+                        change_event = change_task.result()
+                        response = _change_event_to_activity_response(change_event)
+                        yield f"data: {response.model_dump_json()}\n\n"
+                    if tracker_task in done:
+                        activity = tracker_task.result()
+                        response = ActivityResponse.from_activity(activity)
+                        yield f"data: {response.model_dump_json()}\n\n"
+                finally:
+                    for task in (tracker_task, change_task):
+                        if not task.done():
+                            task.cancel()
+                    for task in (tracker_task, change_task):
+                        if task.cancelled():
+                            continue
+                        if task.done():
+                            try:
+                                task.result()
+                            except StopAsyncIteration:
+                                return
+                            except asyncio.CancelledError:
+                                pass
         except Exception as e:
             error_event = {"error": str(e)}
             yield f"data: {json.dumps(error_event)}\n\n"
         finally:
             tracker.unsubscribe(sub_id)
+            _change_hub.unsubscribe(library_path, change_subscription.queue)
 
     return StreamingResponse(
         event_generator(),
