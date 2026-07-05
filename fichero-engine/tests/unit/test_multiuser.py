@@ -26,30 +26,35 @@ def test_multiuser_disabled_by_default(monkeypatch):
     assert authz.multiuser_enabled() is False
 
 
-def test_multiuser_enabled_by_public_base_url(monkeypatch):
-    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
-    monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://fichero.tail123.ts.net")
-
-    assert multiuser_enabled() is True
-    assert _use_multiuser_auth() is True
-    assert authz.multiuser_enabled() is True
-
-
-def test_multiuser_enabled_by_bonjour(monkeypatch):
+def test_multiuser_transport_signals_do_not_auto_enable(monkeypatch):
     monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
     monkeypatch.delenv("FICHERO_PUBLIC_BASE_URL", raising=False)
     monkeypatch.setenv("FICHERO_ENABLE_BONJOUR", "1")
+    monkeypatch.setenv("FICHERO_BIND_HOST", "100.64.0.10")
+    monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://fichero.tail123.ts.net")
+
+    assert multiuser_enabled() is False
+    assert _use_multiuser_auth() is False
+    assert authz.multiuser_enabled() is False
+
+
+def test_multiuser_enabled_by_persisted_setting(monkeypatch, app_db):
+    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    app_db.set_setting("multiuser.enabled", "true")
 
     assert multiuser_enabled() is True
     assert _use_multiuser_auth() is True
     assert authz.multiuser_enabled() is True
 
 
-def test_multiuser_enabled_by_non_loopback_bind(monkeypatch):
+def test_multiuser_enabled_by_existing_accounts(monkeypatch, app_db):
     monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
-    monkeypatch.delenv("FICHERO_PUBLIC_BASE_URL", raising=False)
-    monkeypatch.delenv("FICHERO_ENABLE_BONJOUR", raising=False)
-    monkeypatch.setenv("FICHERO_BIND_HOST", "100.64.0.10")
+    app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash="hash",
+        is_owner=True,
+    )
 
     assert multiuser_enabled() is True
     assert _use_multiuser_auth() is True
