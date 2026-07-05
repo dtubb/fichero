@@ -121,6 +121,58 @@ class TestSplitOnImport:
         assert len(pages) == 4, "fitz fallback must split when Kreuzberg fails"
         assert "pdf_page_split_failed" not in (parent.metadata or {})
 
+    def test_kreuzberg_missing_dependency_logs_real_fallback_reason(
+        self, temp_library, tmp_path, monkeypatch, caplog
+    ):
+        import fichero.ingest as ingest
+        from fichero.models import Document, DocType
+
+        library_path, db_manager = temp_library
+        db = db_manager.get_database(library_path)
+        pdf = tmp_path / "scan.pdf"
+        _make_pdf(pdf, 2)
+
+        def _missing(_path):
+            raise ingest._KreuzbergUnavailableError("No module named 'kreuzberg'")
+
+        monkeypatch.setattr(ingest, "_kreuzberg_pdf_pages", _missing)
+
+        parent = Document(name="scan.pdf", doc_type=DocType.file, path=str(pdf))
+        db.save(parent)
+
+        with caplog.at_level("WARNING"):
+            pages = ingest._create_pdf_page_children(parent, pdf, db)
+
+        assert len(pages) == 2
+        assert "dependency missing" in caplog.text
+        assert "No module named 'kreuzberg'" in caplog.text
+
+    def test_kreuzberg_extraction_failure_logs_real_fallback_reason(
+        self, temp_library, tmp_path, monkeypatch, caplog
+    ):
+        import fichero.ingest as ingest
+        from fichero.models import Document, DocType
+
+        library_path, db_manager = temp_library
+        db = db_manager.get_database(library_path)
+        pdf = tmp_path / "scan.pdf"
+        _make_pdf(pdf, 2)
+
+        def _failed(_path):
+            raise ingest._KreuzbergExtractionError("pdfium blew up")
+
+        monkeypatch.setattr(ingest, "_kreuzberg_pdf_pages", _failed)
+
+        parent = Document(name="scan.pdf", doc_type=DocType.file, path=str(pdf))
+        db.save(parent)
+
+        with caplog.at_level("WARNING"):
+            pages = ingest._create_pdf_page_children(parent, pdf, db)
+
+        assert len(pages) == 2
+        assert "extraction failed" in caplog.text
+        assert "pdfium blew up" in caplog.text
+
     def test_both_splitters_fail_stamps_parent_and_logs_loud(
         self, temp_library, tmp_path, monkeypatch, caplog
     ):

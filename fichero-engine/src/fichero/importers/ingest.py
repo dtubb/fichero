@@ -54,6 +54,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class _KreuzbergUnavailableError(RuntimeError):
+    """Kreuzberg is not installed for PDF page extraction."""
+
+
+class _KreuzbergExtractionError(RuntimeError):
+    """Kreuzberg failed while extracting PDF pages."""
+
+
 # File types that support text extraction via loaders
 _TEXT_EXTRACTABLE = {
     FileType.pdf,
@@ -406,22 +414,20 @@ def _kreuzberg_pdf_pages(path: Path) -> list[dict[str, Any]]:
     """Extract per-page records from a PDF via Kreuzberg.
 
     Returns a list of page dicts (``page_number``, ``content``, ``is_blank``,
-    …) or an empty list when Kreuzberg is unavailable or fails. Callers must
-    treat an empty list as a splitter MISS, not as a 0-page PDF — a multi-page
-    PDF that Kreuzberg can't read still has pages (#2430).
+    …). Missing Kreuzberg and extractor failures raise distinct internal
+    errors so callers can surface the real reason instead of collapsing them
+    into "no pages" (#3135).
     """
     try:
         from kreuzberg import ExtractionConfig, PageConfig, extract_file_sync
     except ImportError as exc:
-        logger.debug("Kreuzberg not available for PDF page splitting: %s", exc)
-        return []
+        raise _KreuzbergUnavailableError(str(exc)) from exc
 
     try:
         cfg = ExtractionConfig(pages=PageConfig(extract_pages=True))
         result = extract_file_sync(str(path), None, cfg)
     except Exception as exc:
-        logger.warning("Kreuzberg PDF page extraction failed for %s: %s", path, exc)
-        return []
+        raise _KreuzbergExtractionError(str(exc)) from exc
 
     return result.pages or []
 
@@ -470,15 +476,24 @@ def _create_pdf_page_children(
         except Exception as exc:
             logger.debug("fitz page_count unavailable for %s: %s", path, exc)
 
-    page_records = _kreuzberg_pdf_pages(path)
+    kreuzberg_reason = "returned no pages"
+    try:
+        page_records = _kreuzberg_pdf_pages(path)
+    except _KreuzbergUnavailableError as exc:
+        kreuzberg_reason = f"dependency missing ({exc})"
+        page_records = []
+    except _KreuzbergExtractionError as exc:
+        kreuzberg_reason = f"extraction failed ({exc})"
+        page_records = []
 
     if not page_records and pdf_doc is not None and fitz_page_count >= 1:
         # Kreuzberg produced nothing — fall back to fitz so a silent Kreuzberg
         # failure can't leave a multi-page PDF unsplit (#2430).
         logger.warning(
-            "Kreuzberg produced no pages for %s — falling back to fitz to "
+            "Kreuzberg %s for %s — falling back to fitz to "
             "split %d page(s) (no-silent-fallback, #2430)",
-            path.name,
+            kreuzberg_reason,
+            path,
             fitz_page_count,
         )
         page_records = []
@@ -997,6 +1012,7 @@ def ingest_folder(
     total = len(files)
     documents: list[Document] = []
     existing_hashes: set[tuple[str, str]] = set()
+    library_path = package_path or getattr(db, "path", None)
     try:
         for existing in db.all(Document):
             source_path = (
@@ -1007,7 +1023,11 @@ def ingest_folder(
             if isinstance(source_path, str) and isinstance(checksum, str):
                 existing_hashes.add((source_path, checksum))
     except Exception as exc:
-        logger.debug("Could not pre-index existing checksums for skip logic: %s", exc)
+        logger.warning(
+            "Could not pre-index existing checksums for skip logic in %s: %s",
+            library_path,
+            exc,
+        )
 
     work_items: list[tuple[int, Path, str | None, str, str]] = []
     for i, file_path in enumerate(files):

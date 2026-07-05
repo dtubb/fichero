@@ -1,4 +1,5 @@
 """Unit tests for file ingestion module."""
+import logging
 import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
@@ -602,6 +603,23 @@ class TestIngestFolder:
         ]
         assert len(docs) == 1
         assert len(folder_saves) == 2
+
+    @patch("fichero.bookmarks.create_bookmark", return_value=None)
+    def test_logs_loud_when_checksum_preindex_fails(self, _mock_bookmark, tmp_path, caplog):
+        from fichero.ingest import ingest_folder
+
+        (tmp_path / "file1.txt").write_text("hello")
+
+        mock_db = MagicMock()
+        mock_db.all.side_effect = RuntimeError("duckdb blew up")
+        mock_db.path = tmp_path / "Library.fichero" / "fichero.duckdb"
+
+        with caplog.at_level(logging.WARNING):
+            docs = ingest_folder(tmp_path, db=mock_db)
+
+        assert len(docs) == 1
+        assert "Could not pre-index existing checksums for skip logic" in caplog.text
+        assert str(mock_db.path) in caplog.text
 
     def test_large_folder_keeps_executor_and_ingests_every_file(self, tmp_path, monkeypatch):
         """#1360 + #1554: large folder ingest keeps the ThreadPoolExecutor
