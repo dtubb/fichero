@@ -139,6 +139,17 @@ class EntityDeleteActionParams(BaseModel):
     cascade_claims: bool = False
 
 
+def _invert_create_entity(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    entity_id = after.get("entity_id") or after.get("id")
+    if not entity_id:
+        return None
+    return ("entity.delete", {"entity_id": entity_id, "cascade_claims": False})
+
+
 class EntityAliasRequest(BaseModel):
     """Request to add aliases to an entity."""
 
@@ -451,7 +462,8 @@ def update_entity_impl(
     "entity.create",
     EntityCreateActionParams,
     domains=["entity"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_create_entity,
 )
 def _action_create_entity(
     db: Database, params: EntityCreateActionParams, ctx: ActionContext
