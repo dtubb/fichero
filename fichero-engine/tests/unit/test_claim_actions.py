@@ -735,6 +735,31 @@ class TestClaimMergeActions:
         assert inv == "claim.merge"
         assert db.get(KnowledgeClaim, absorbed.id).merged_into_id == survivor.id
 
+    def test_unmerge_undo_remerges_after_later_absorbed_edit(self, db):
+        survivor, absorbed = self._two_claims(db)
+        ctx = _ctx()
+        merge = registry.invoke(
+            db,
+            "claim.merge",
+            {"surviving_claim_id": survivor.id, "absorbed_claim_ids": [absorbed.id]},
+            ctx,
+        )
+        merge_audit = db.get(ActionAudit, merge.audit_id)
+        merge_audit_id = merge_audit.after["claim_merge_audit_id"]
+
+        unmerge = registry.invoke(db, "claim.unmerge", {"audit_id": merge_audit_id}, ctx)
+        edited = db.get(KnowledgeClaim, absorbed.id)
+        assert edited is not None
+        edited.text = "edited after unmerge"
+        db.save(edited)
+
+        inv = _invoke_inverse(db, unmerge.audit_id, ctx)
+        assert inv == "claim.merge"
+        remerged = db.get(KnowledgeClaim, absorbed.id)
+        assert remerged is not None
+        assert remerged.merged_into_id == survivor.id
+        assert remerged.curation_state == ClaimCurationState.rejected
+
 
 # ===========================================================================
 # claim.prune_trivial
