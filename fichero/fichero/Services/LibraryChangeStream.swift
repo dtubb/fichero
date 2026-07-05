@@ -72,6 +72,36 @@ struct ChangeEvent: Decodable, Sendable {
         originWindow = try container.decodeIfPresent(String.self, forKey: .originWindow)
         timestamp = try container.decodeIfPresent(String.self, forKey: .timestamp)
     }
+
+    /// Reconstruct a change event from a `/api/activity/stream` frame that folds
+    /// a mutation onto the activity stream for REMOTE subscribers (#3159 / #2479).
+    /// The backend wraps each `ChangeEvent` as an activity response whose
+    /// `metadata` carries `change_type` plus JSON-encoded id lists. Returns nil
+    /// for an ordinary activity frame (no `change_type`), so the caller can tell
+    /// a folded change apart from a real run/activity event.
+    init?(activityMetadata metadata: [String: String]) {
+        guard let changeType = metadata["change_type"], !changeType.isEmpty else { return nil }
+        func ids(_ key: String) -> [String] {
+            guard let raw = metadata[key],
+                  let data = raw.data(using: .utf8),
+                  let list = try? JSONDecoder().decode([String].self, from: data)
+            else { return [] }
+            return list
+        }
+        type = changeType
+        entityIds = ids("entity_ids")
+        claimIds = ids("claim_ids")
+        documentIds = ids("document_ids")
+        citationIds = ids("citation_ids")
+        referenceIds = ids("reference_ids")
+        runId = nil
+        actor = metadata["actor"] ?? "system"
+        // The folded activity frame carries no origin-window tag, so window-level
+        // self-echo de-dup (route) is a no-op here; the store-level own-write
+        // guard (#2478) still drops a device's echo of its own writes.
+        originWindow = nil
+        timestamp = metadata["ts"]
+    }
 }
 
 // MARK: - ChangeEventConsumer
@@ -153,10 +183,24 @@ final class LibraryChangeStream {
         task?.cancel()
     }
 
+    /// True after a 403 on connect — the caller has no role on this library.
+    /// Retrying cannot mint authorization, so the run loop stops and the UI
+    /// shows an access-denied state instead of a perpetual reconnect spinner
+    /// (#2479). Cleared on `stop()`.
+    private(set) var accessDenied = false
+
     /// Register a store to receive events for its `changeDomains`. Held weakly —
     /// the store's owner (`LibraryReference`) keeps it alive.
     func register(_ consumer: any ChangeEventConsumer) {
         consumers.append(WeakConsumer(value: consumer))
+    }
+
+    /// Fan a change event that arrived OUT OF BAND — reconstructed from the
+    /// activity stream on a remote host (#3159 / #2479) — through the same
+    /// domain-filtered, self-echo-deduped path as a native `/changes/stream`
+    /// event, so remote and local change delivery share one apply path.
+    func ingest(_ event: ChangeEvent) {
+        route(event)
     }
 
     /// Open the SSE subscription (idempotent — safe to call from every window's
@@ -174,9 +218,14 @@ final class LibraryChangeStream {
         task = nil
         started = false
         isConnected = false
+        accessDenied = false
     }
 
     // MARK: - Internals
+
+    /// Distinguishes an authorization failure (terminal — don't retry) from a
+    /// transient drop (retry with backoff).
+    private enum StreamError: Error { case accessDenied }
 
     private func runLoop() async {
         var backoffNanos: UInt64 = 1_000_000_000  // 1s, doubles to a 30s cap
@@ -186,6 +235,16 @@ final class LibraryChangeStream {
                 try await subscribeOnce(resyncOnConnect: hasConnectedBefore)
                 hasConnectedBefore = true
                 backoffNanos = 1_000_000_000  // clean end → reset backoff
+            } catch StreamError.accessDenied {
+                // 403: no role on this library. Retrying can't fix authorization —
+                // flag it, surface access-denied, and stop the loop (#2479).
+                if !Task.isCancelled {
+                    changeStreamLogger.error("change-stream denied (403) — no role on library; not retrying")
+                    accessDenied = true
+                    liveUpdatesUnavailable = true
+                }
+                isConnected = false
+                return
             } catch {
                 if !Task.isCancelled {
                     // No-silent-fallback (#2518): a failed connect/stream means
@@ -221,11 +280,15 @@ final class LibraryChangeStream {
         guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
+        if http.statusCode == 403 {
+            throw StreamError.accessDenied
+        }
         guard http.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
 
         isConnected = true
+        accessDenied = false
         liveUpdatesUnavailable = false  // (re)connected — live updates flowing (#2518)
         // On a *re*connect we may have missed events while down — resync stores.
         if resyncOnConnect {

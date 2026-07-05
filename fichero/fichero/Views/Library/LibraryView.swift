@@ -352,11 +352,26 @@ struct LibraryView: View {
     /// @Observable) makes the pill appear/disappear reactively.
     @ViewBuilder
     private var liveUpdatesPausedOverlay: some View {
-        if let stream = libraryReference?.changeStream, stream.liveUpdatesUnavailable {
-            LiveUpdatesPausedPill(onReconnect: {
-                stream.stop()
-                stream.start()
-            })
+        if let ref = libraryReference {
+            // Remote change delivery rides the activity stream (#3159/#2479), so
+            // a 403 there means this device has no role on the library — a
+            // terminal state with no reconnect (retrying can't mint access).
+            if ref.changeStream.accessDenied || ref.activityStore.liveUpdatesAccessDenied {
+                LiveUpdatesPausedPill(
+                    message: "No access to live updates",
+                    systemImage: "lock.slash",
+                    onReconnect: nil
+                )
+            } else if ref.changeStream.liveUpdatesUnavailable || ref.activityStore.liveUpdatesPaused {
+                // Either the dedicated change stream (local) or the folded
+                // activity stream (remote) dropped — say so instead of quietly
+                // going stale, and offer a one-tap resubscribe of both.
+                LiveUpdatesPausedPill(onReconnect: {
+                    ref.changeStream.stop()
+                    ref.changeStream.start()
+                    ref.activityStore.reconnectLiveUpdates()
+                })
+            }
         }
     }
 

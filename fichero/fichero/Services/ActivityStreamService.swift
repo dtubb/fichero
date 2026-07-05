@@ -22,6 +22,16 @@ final class ActivityStreamService {
     /// (#2518 no-silent-fallback, F7). Cleared on every successful (re)connect.
     private(set) var liveUpdatesUnavailable = false
 
+    /// True after a 403 on connect — the caller has no role on this library.
+    /// Retrying cannot mint authorization, so the run loop stops and the UI
+    /// shows an access-denied state instead of a perpetual reconnect spinner
+    /// (#2479). Cleared on `stop()` and on any successful (re)connect.
+    private(set) var accessDenied = false
+
+    /// Distinguishes an authorization failure (terminal — don't retry) from a
+    /// transient drop (retry with backoff).
+    private enum StreamError: Error { case accessDenied }
+
     init(activityService: ActivityServiceGenerated) {
         self.activityService = activityService
     }
@@ -43,6 +53,7 @@ final class ActivityStreamService {
         task = nil
         started = false
         liveUpdatesUnavailable = false  // intentional stop is not a paused stream
+        accessDenied = false
     }
 
     private func runLoop(onEvent: @escaping @MainActor (ActivityItem) -> Void) async {
@@ -51,6 +62,15 @@ final class ActivityStreamService {
             do {
                 try await subscribeOnce(onEvent: onEvent)
                 backoffNanos = 1_000_000_000
+            } catch StreamError.accessDenied {
+                // 403: no role on this library. Retrying can't fix authorization —
+                // flag it, surface access-denied, and stop the loop (#2479).
+                if !Task.isCancelled {
+                    log.error("activity stream denied (403) — no role on library; not retrying")
+                    accessDenied = true
+                    liveUpdatesUnavailable = true
+                }
+                return
             } catch {
                 if !Task.isCancelled {
                     log.error("activity stream dropped: \(error.localizedDescription, privacy: .public)")
@@ -72,9 +92,16 @@ final class ActivityStreamService {
             libraryPath: activityService.client.currentLibraryPath
         )
         let (bytes, response) = try await urlSession.bytes(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+        guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
+        if http.statusCode == 403 {
+            throw StreamError.accessDenied
+        }
+        guard http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        accessDenied = false
         liveUpdatesUnavailable = false  // (re)connected — activity events flowing
 
         for try await line in bytes.lines {
