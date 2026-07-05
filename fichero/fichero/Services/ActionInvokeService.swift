@@ -134,6 +134,29 @@ extension ActionLibraryService {
             originWindow: originWindow
         )
     }
+
+    /// Share the current library with a user at a role — `POST /api/authz/share`
+    /// (#3149, the "Share this library…" flow). The engine grants the recipient a
+    /// per-library role through the audited `acl.set` action and returns an engine
+    /// `share_url` for the object. Returns the whole response so the caller can
+    /// surface that link. `object_type` is fixed to `"library"` here (no
+    /// `object_id` needed); entity/document shares are a later slice.
+    func shareLibrary(user: String, role: String) async throws -> Components.Schemas.ShareResponse {
+        let response = try await client.api.shareLibraryObjectApiAuthzSharePost(
+            body: .json(.init(user: user, role: role, objectType: "library"))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let message = (try? error.body.json)?.detail?.description ?? "Share failed"
+            invokeLogger.error("shareLibrary(\(user), \(role)) 422: \(message)")
+            throw APIError.httpError(statusCode: 422, message: message)
+        case .undocumented(let statusCode, _):
+            invokeLogger.error("shareLibrary(\(user), \(role)) HTTP \(statusCode)")
+            throw APIError.httpError(statusCode: statusCode, message: "Share failed")
+        }
+    }
 }
 
 // MARK: - Params bridge
