@@ -56,7 +56,6 @@ GRANDFATHERED_FILES: set[str] = {
     "Services/WorkflowStreamService.swift",     # SSE
     "Services/EmbeddedBackendService.swift",    # engine health / lifecycle
     # MIGRATE (delete when the sub-issue lands)
-    "Services/APIClient.swift",                 # #3030 legacy client
     "Services/ImageEditingServiceGenerated.swift",  # #3028 (binary preview KEEP)
     "Services/ArtifactServiceGenerated.swift",  # #3029 (entity free-form-container KEEP)
     "Services/WorkflowServiceGenerated.swift",  # #3029 (visualization.png binary KEEP; op mis-declares JSON)
