@@ -1035,10 +1035,59 @@ class AppDatabase:
     def set_active(self, user_id: str, active: bool) -> AccountUser | None:
         """Enable or disable a user."""
         with self._lock:
+            # DuckDB rejects UPDATEs to referenced user rows even when the
+            # primary key stays the same, so temporarily drop ACL references
+            # and restore them around the flag flip.
+            role_rows = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, role, created_at, updated_at
+                FROM library_roles
+                WHERE user_id = ?
+                ORDER BY created_at, library_path
+                """,
+                [user_id],
+            ).fetchall()
+            override_rows = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, target_id, effect, created_at, updated_at
+                FROM library_acl_overrides
+                WHERE user_id = ?
+                ORDER BY created_at, library_path, target_id
+                """,
+                [user_id],
+            ).fetchall()
+            self.conn.execute(
+                "DELETE FROM library_acl_overrides WHERE user_id = ?",
+                [user_id],
+            )
+            self.conn.execute(
+                "DELETE FROM library_roles WHERE user_id = ?",
+                [user_id],
+            )
             self.conn.execute(
                 "UPDATE users SET active = ? WHERE id = ?",
                 [active, user_id],
             )
+            if role_rows:
+                self.conn.executemany(
+                    """
+                    INSERT INTO library_roles (
+                        id, user_id, library_path, role, created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    role_rows,
+                )
+            if override_rows:
+                self.conn.executemany(
+                    """
+                    INSERT INTO library_acl_overrides (
+                        id, user_id, library_path, target_id, effect, created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    override_rows,
+                )
             self.conn.commit()
         return self.get_user(user_id)
 
@@ -1388,10 +1437,19 @@ class AppDatabase:
         return self.get_session(session_id)
 
     def revoke_all_for_user(self, user_id: str) -> None:
-        """Revoke all sessions for one user."""
+        """Drop all session rows for one user."""
         with self._lock:
             self.conn.execute(
-                "UPDATE sessions SET revoked = TRUE WHERE user_id = ?",
+                "DELETE FROM sessions WHERE user_id = ?",
+                [user_id],
+            )
+            self.conn.commit()
+
+    def revoke_all_devices_for_user(self, user_id: str) -> None:
+        """Drop all paired-device rows for one user."""
+        with self._lock:
+            self.conn.execute(
+                "DELETE FROM devices WHERE user_id = ?",
                 [user_id],
             )
             self.conn.commit()
