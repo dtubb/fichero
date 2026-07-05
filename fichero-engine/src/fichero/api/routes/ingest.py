@@ -119,6 +119,8 @@ def import_file_impl(
         return doc
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Ingest failed: {path}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

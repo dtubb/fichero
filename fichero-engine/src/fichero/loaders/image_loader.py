@@ -9,6 +9,7 @@ import logging
 import shutil
 import subprocess
 import tempfile
+import warnings
 from pathlib import Path
 
 from PIL import Image
@@ -16,6 +17,7 @@ from PIL import Image
 from fichero.loaders.base import MediaContent, MediaLoader
 
 logger = logging.getLogger(__name__)
+_MAX_IMAGE_PIXELS = 50_000_000
 
 # Standard formats PIL can handle directly
 PIL_FORMATS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".webp"}
@@ -26,6 +28,27 @@ JXL_FORMATS = {".jxl"}
 RAW_FORMATS = {".raw", ".cr2", ".nef", ".arw", ".dng", ".orf", ".rw2"}
 
 ALL_IMAGE_FORMATS = PIL_FORMATS | HEIC_FORMATS | JXL_FORMATS | RAW_FORMATS
+
+
+class UnsafeImageError(ValueError):
+    """Raised when an image exceeds ingest safety limits."""
+
+
+def _ensure_safe_image(image: Image.Image, source: str | Path) -> Image.Image:
+    width = int(getattr(image, "width", 0) or 0)
+    height = int(getattr(image, "height", 0) or 0)
+    if width * height > _MAX_IMAGE_PIXELS:
+        raise UnsafeImageError(
+            f"Image too large for ingest: {source} ({width}x{height} pixels)"
+        )
+    return image
+
+
+def open_image_checked(path: Path) -> Image.Image:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        with Image.open(path) as img:
+            return _ensure_safe_image(img, path).copy()
 
 
 class ImageLoader(MediaLoader):
@@ -88,8 +111,7 @@ class ImageLoader(MediaLoader):
 
     def _load_pil(self, path: Path) -> Image.Image:
         """Load image using PIL."""
-        with Image.open(path) as img:
-            return img.copy()
+        return open_image_checked(path)
 
     def _load_heic(self, path: Path) -> Image.Image:
         """Load HEIC/HEIF image using heif-convert system tool."""
@@ -107,8 +129,7 @@ class ImageLoader(MediaLoader):
                 capture_output=True,
                 check=True,
             )
-            with Image.open(temp_png) as img:
-                return img.copy()
+            return open_image_checked(temp_png)
         finally:
             temp_png.unlink(missing_ok=True)
 
@@ -117,8 +138,7 @@ class ImageLoader(MediaLoader):
         if not shutil.which("djxl"):
             # Try PIL as fallback (may work with pillow-jxl plugin)
             try:
-                with Image.open(path) as img:
-                    return img.copy()
+                return open_image_checked(path)
             except Exception:
                 raise RuntimeError(
                     "JPEG XL support requires djxl. Install with: brew install jpeg-xl"
@@ -133,8 +153,7 @@ class ImageLoader(MediaLoader):
                 capture_output=True,
                 check=True,
             )
-            with Image.open(temp_png) as img:
-                return img.copy()
+            return open_image_checked(temp_png)
         finally:
             temp_png.unlink(missing_ok=True)
 
@@ -154,7 +173,7 @@ class ImageLoader(MediaLoader):
                 no_auto_bright=False,
                 output_bps=8,
             )
-            return Image.fromarray(rgb)
+            return _ensure_safe_image(Image.fromarray(rgb), path)
 
     def _get_mime_type(self, suffix: str) -> str:
         """Get MIME type for image format."""

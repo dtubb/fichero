@@ -20,7 +20,7 @@ from fichero.loaders.docling_loader import (
 )
 from fichero.loaders.document_loader import DocumentLoader
 from fichero.loaders.iiif_loader import IIIFLoader, _get_safe
-from fichero.loaders.image_loader import ImageLoader
+from fichero.loaders.image_loader import ImageLoader, UnsafeImageError
 from fichero.loaders.pdf_loader import PDFLoader, PDFTextLoader
 from fichero.loaders.unified import UnifiedLoader
 from fichero.loaders.xmp_loader import (
@@ -270,6 +270,16 @@ def test_image_loader_load_raises_for_unknown_suffix(tmp_path):
     assert loader.can_handle(unknown) is False
     with pytest.raises(ValueError, match="Unsupported image format"):
         asyncio.run(loader.load(unknown))
+
+
+def test_image_loader_rejects_oversized_image(tmp_path, monkeypatch):
+    image_path = tmp_path / "oversized.png"
+    Image.new("RGB", size=(3, 3), color=(255, 0, 0)).save(image_path)
+
+    monkeypatch.setattr("fichero.loaders.image_loader._MAX_IMAGE_PIXELS", 4)
+
+    with pytest.raises(UnsafeImageError, match="Image too large for ingest"):
+        asyncio.run(ImageLoader().load(image_path))
 
 
 def test_pdf_loader_can_handle_and_is_a_pdf_loader():

@@ -692,6 +692,8 @@ def _extract_file_metadata(doc: Document, path: Path) -> None:
         if doc.file_type == FileType.image:
             _extract_image_metadata(doc, path)
 
+    except ValueError:
+        raise
     except Exception as e:
         logger.warning("Metadata extraction failed for %s: %s", path, e)
 
@@ -714,10 +716,10 @@ def _extract_image_metadata(doc: Document, path: Path) -> None:
     Updates doc.metadata in place.
     """
     try:
-        from PIL import Image
+        from fichero.loaders.image_loader import UnsafeImageError, open_image_checked
         from fichero.loaders.xmp_loader import parse_xmp_sidecar, apply_xmp_to_document
 
-        with Image.open(path) as img:
+        with open_image_checked(path) as img:
             doc.metadata["width"] = img.width
             doc.metadata["height"] = img.height
 
@@ -752,6 +754,8 @@ def _extract_image_metadata(doc: Document, path: Path) -> None:
 
     except ImportError:
         logger.debug("Pillow not available for image metadata")
+    except UnsafeImageError:
+        raise
     except Exception as e:
         logger.debug("Image metadata extraction failed: %s", e)
 
