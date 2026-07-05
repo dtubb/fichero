@@ -58,6 +58,7 @@ from pathlib import Path
 from typing import Sequence
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from fichero.api.library_header import optional_library_path, require_library_path
@@ -77,6 +78,14 @@ from fichero.storage import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class LibraryAccessDeniedError(HTTPException):
+    """Flat 403 payload for library-scoped access denials."""
+
+    def __init__(self, payload: dict[str, str | None]) -> None:
+        super().__init__(status_code=403, detail=payload.get("detail", "library access denied"))
+        self.payload = payload
 
 
 def _install_warning_filters() -> None:
@@ -784,6 +793,14 @@ app = FastAPI(
 )
 
 
+@app.exception_handler(LibraryAccessDeniedError)
+async def _handle_library_access_denied(
+    _request: Request,
+    exc: LibraryAccessDeniedError,
+):
+    return JSONResponse(exc.payload, status_code=403)
+
+
 # Local-host shared-secret authentication (#742). The middleware is attached at
 # import, but the token is resolved LAZILY on the first authenticated request —
 # the token file (~/Library/Application Support/Fichero/.api-key, mode 0600) is
@@ -1080,6 +1097,7 @@ def assert_library_read_authorized(
 ) -> None:
     """Authorize a user-initiated request before touching a library path."""
     from fichero import authz
+    from fichero.api.auth import library_access_denial_payload
 
     if getattr(getattr(request, "state", None), "bootstrap_auth", False):
         return
@@ -1093,7 +1111,14 @@ def assert_library_read_authorized(
             else authz.target_id_from_request(request),
         )
     except authz.AuthorizationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(
+                request,
+                library_path,
+                required="read",
+                detail=str(exc),
+            )
+        ) from exc
 
 
 def assert_library_write_authorized(
@@ -1103,6 +1128,7 @@ def assert_library_write_authorized(
 ) -> None:
     """Authorize a user-initiated mutation before touching a library DB."""
     from fichero import authz
+    from fichero.api.auth import library_access_denial_payload
 
     if getattr(getattr(request, "state", None), "bootstrap_auth", False):
         return
@@ -1116,7 +1142,14 @@ def assert_library_write_authorized(
             else authz.target_id_from_request(request),
         )
     except authz.AuthorizationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(
+                request,
+                library_path,
+                required="write",
+                detail=str(exc),
+            )
+        ) from exc
 
 
 # Health check endpoint

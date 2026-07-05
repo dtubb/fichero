@@ -39,6 +39,10 @@ def _request(user):
     return SimpleNamespace(state=SimpleNamespace(user=user))
 
 
+def _bootstrap_request():
+    return SimpleNamespace(state=SimpleNamespace(user=None, bootstrap_auth=True))
+
+
 def _grant(app_db, user, library_path, role):
     app_db.set_library_role(
         user_id=user.id,
@@ -64,6 +68,7 @@ def seeded(db, app_db, users, monkeypatch):
 
 def test_owner_snapshot_lists_members(db, app_db, users, seeded):
     snap = get_library_authz_snapshot(_request(users.owner), seeded.library_path)
+    assert snap.auth_kind == "unknown"
     assert snap.can_manage_roles is True
     assert snap.current_user_role == authz.ROLE_OWNER
     # Owner may see the roster.
@@ -74,6 +79,7 @@ def test_owner_snapshot_lists_members(db, app_db, users, seeded):
 def test_non_owner_snapshot_hides_roster_but_shows_own_role(db, app_db, users, seeded, who):
     actor = getattr(users, who)
     snap = get_library_authz_snapshot(_request(actor), seeded.library_path)
+    assert snap.auth_kind == "unknown"
     assert snap.can_manage_roles is False
     # You learn YOUR own role and id...
     assert snap.current_user_role == who
@@ -84,6 +90,7 @@ def test_non_owner_snapshot_hides_roster_but_shows_own_role(db, app_db, users, s
 
 def test_stranger_snapshot_leaks_nothing(db, app_db, users, seeded):
     snap = get_library_authz_snapshot(_request(users.stranger), seeded.library_path)
+    assert snap.auth_kind == "unknown"
     assert snap.can_manage_roles is False
     assert snap.current_user_role is None
     assert snap.roles == []
@@ -94,9 +101,22 @@ def test_stranger_snapshot_leaks_nothing(db, app_db, users, seeded):
 
 def test_unauthenticated_snapshot_leaks_nothing(db, app_db, users, seeded):
     snap = get_library_authz_snapshot(_request(None), seeded.library_path)
+    assert snap.auth_kind == "unknown"
     assert snap.can_manage_roles is False
     assert snap.current_user_id is None
     assert snap.current_user_role is None
     assert snap.roles == []
     assert snap.target_can_read is False
     assert snap.target_can_write is False
+
+
+def test_bootstrap_snapshot_reports_owner_access_and_roster(db, app_db, users, seeded):
+    snap = get_library_authz_snapshot(_bootstrap_request(), seeded.library_path)
+
+    assert snap.auth_kind == "bootstrap"
+    assert snap.can_manage_roles is True
+    assert snap.current_user_id is None
+    assert snap.current_user_role == authz.ROLE_OWNER
+    assert snap.target_can_read is True
+    assert snap.target_can_write is True
+    assert {r.user_id for r in snap.roles} == {users.owner.id, users.editor.id, users.viewer.id}

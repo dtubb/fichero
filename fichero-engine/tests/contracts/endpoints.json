@@ -976,6 +976,16 @@
     ],
     "auth": [
       {
+        "method": "GET",
+        "path": "/auth/identity",
+        "operation_id": "identity_api_auth_identity_get",
+        "summary": "Identity",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AuthIdentityResponse"
+      },
+      {
         "method": "POST",
         "path": "/auth/login",
         "operation_id": "login_api_auth_login_post",

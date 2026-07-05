@@ -25,15 +25,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field, ValidationError
 
 from fichero.api.library_header import optional_library_path, require_library_path
 from fichero import authz
 from fichero.actions import ActionContext, ActionNotFoundError, ChangeSpec, action, registry
-from fichero.api.auth import action_context
+from fichero.api.auth import action_context, library_access_denial_payload
 from fichero.app_db import get_app_db
-from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.api.main import (
+    LibraryAccessDeniedError,
+    get_library_database,
+    get_library_database_for_write,
+)
 from fichero.db import Database
 from fichero.models import ActionAudit
 
@@ -103,20 +107,28 @@ class AuditLogResponse(BaseModel):
 
 @router.post("/invoke", response_model=ActionResultResponse)
 async def invoke_action(
-    request: InvokeActionRequest,
+    body: InvokeActionRequest,
+    http_request: Request,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ActionResultResponse:
     """Validate + run a registered action through the audited choke point."""
-    ctx.run_id = request.run_id
+    ctx.run_id = body.run_id
     try:
-        result = registry.invoke(db, request.name, request.params, ctx)
+        result = registry.invoke(db, body.name, body.params, ctx)
     except ActionNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Unknown action: {request.name}")
+        raise HTTPException(status_code=404, detail=f"Unknown action: {body.name}")
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors())
     except authz.AuthorizationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(
+                request=http_request,
+                library_path=ctx.library_path or "",
+                required="write",
+                detail=str(exc),
+            )
+        ) from exc
     return ActionResultResponse(
         ok=result.ok,
         result=result.result,
@@ -195,6 +207,7 @@ async def list_audit_log(
 @router.post("/audit/{audit_id}/undo", response_model=ActionResultResponse)
 async def undo_action(
     audit_id: str,
+    request: Request,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
     x_fichero_library_path: str | None = Depends(optional_library_path),
@@ -271,7 +284,14 @@ async def undo_action(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors())
     except authz.AuthorizationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(
+                request=request,
+                library_path=ctx.library_path or "",
+                required="write",
+                detail=str(exc),
+            )
+        ) from exc
 
     audit.undone = True
     db.save(audit)

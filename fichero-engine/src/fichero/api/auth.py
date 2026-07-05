@@ -305,6 +305,43 @@ def request_actor(request: Request) -> str:
     return actor_from_request(request)
 
 
+def auth_kind_from_request(request: Request) -> str | None:
+    """Return which authenticated credential path resolved this request."""
+    state = getattr(request, "state", None)
+    if state is None:
+        return None
+    if getattr(state, "bootstrap_auth", False):
+        return "bootstrap"
+    if getattr(state, "session", None) is not None:
+        return "session"
+    if getattr(state, "device", None) is not None:
+        return "device"
+    return None
+
+
+def library_access_denial_payload(
+    request: Request,
+    library_path: str,
+    *,
+    required: str,
+    detail: str,
+) -> dict[str, str | None]:
+    """Structured library denial payload for UI-readable 403s."""
+    from fichero import authz
+
+    user = getattr(getattr(request, "state", None), "user", None)
+    username = getattr(user, "username", None) if user is not None else None
+    normalized = authz.normalize_library_path(library_path) or library_path
+    return {
+        "detail": detail,
+        "code": "library_access_denied",
+        "library_path": normalized,
+        "auth_kind": auth_kind_from_request(request),
+        "username": str(username) if username else None,
+        "required": required,
+    }
+
+
 def action_context(
     request: Request,
     x_fichero_library_path: str = Depends(require_library_path),

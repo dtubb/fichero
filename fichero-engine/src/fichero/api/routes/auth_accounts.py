@@ -17,9 +17,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from fichero import accounts
-from fichero.api.auth import _use_multiuser_auth
+from fichero.api.auth import _use_multiuser_auth, auth_kind_from_request
 from fichero.app_db import AppDatabase, get_app_db
-from fichero.models import AccountUser
+from fichero.models import AccountUser, AuthIdentityResponse, AuthIdentityUser
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +240,17 @@ def _require_authenticated_or_bootstrap(request: Request) -> None:
     raise HTTPException(status_code=401, detail="session required")
 
 
+def _identity_user(user: AccountUser | None) -> AuthIdentityUser | None:
+    if user is None:
+        return None
+    return AuthIdentityUser(
+        id=user.id,
+        username=user.username,
+        display_name=user.display_name,
+        is_owner=user.is_owner,
+    )
+
+
 @auth_router.post("/login", response_model=LoginResponse)
 def login(
     request: Request,
@@ -298,6 +309,21 @@ def me(request: Request) -> UserResponse:
     if user is None:
         raise HTTPException(status_code=401, detail="session required")
     return _to_public_user(user)
+
+
+@auth_router.get("/identity", response_model=AuthIdentityResponse)
+def identity(request: Request) -> AuthIdentityResponse:
+    auth_kind = auth_kind_from_request(request)
+    if auth_kind is None:
+        raise HTTPException(status_code=401, detail="missing or invalid Authorization header")
+
+    user = _current_session_user(request)
+    return AuthIdentityResponse(
+        multiuser_enabled=_use_multiuser_auth(),
+        auth_kind=auth_kind,
+        user=_identity_user(user),
+        is_owner_access=auth_kind == "bootstrap" or bool(getattr(user, "is_owner", False)),
+    )
 
 
 @users_router.post("", response_model=UserResponse)

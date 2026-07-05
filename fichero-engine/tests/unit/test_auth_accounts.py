@@ -118,6 +118,20 @@ def test_login_success_returns_session_and_me(client, app_db, monkeypatch):
     assert me.status_code == 200
     assert me.json()["username"] == "alice"
 
+    identity = client.get("/api/auth/identity", headers=_bearer(payload["session_token"]))
+    assert identity.status_code == 200
+    assert identity.json() == {
+        "multiuser_enabled": True,
+        "auth_kind": "session",
+        "user": {
+            "id": app_db.get_user_by_username("alice").id,
+            "username": "alice",
+            "display_name": "Alice",
+            "is_owner": True,
+        },
+        "is_owner_access": True,
+    }
+
 
 def test_login_unknown_user_and_bad_password_both_return_401(
     client, app_db, monkeypatch
@@ -477,6 +491,14 @@ def test_multiuser_flag_off_leaves_shared_secret_behavior_unchanged(
 
     shared_secret = client.get("/api/providers", headers=_bearer(initialize_token()))
     assert shared_secret.status_code == 200
+    identity = client.get("/api/auth/identity", headers=_bearer(initialize_token()))
+    assert identity.status_code == 200
+    assert identity.json() == {
+        "multiuser_enabled": False,
+        "auth_kind": "bootstrap",
+        "user": None,
+        "is_owner_access": True,
+    }
 
 
 def test_pairing_valid_code_returns_device_token_that_authenticates(
@@ -513,6 +535,19 @@ def test_pairing_valid_code_returns_device_token_that_authenticates(
     me = client.get("/api/auth/me", headers=_bearer(device_token))
     assert me.status_code == 200
     assert me.json()["username"] == "owner"
+    identity = client.get("/api/auth/identity", headers=_bearer(device_token))
+    assert identity.status_code == 200
+    assert identity.json()["auth_kind"] == "device"
+    assert identity.json()["user"]["username"] == "owner"
+
+
+def test_identity_requires_authenticated_credential(client, monkeypatch):
+    _enable_multiuser(monkeypatch)
+
+    response = client.get("/api/auth/identity", headers=_bearer("not-a-real-token"))
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "missing or invalid Authorization header"}
 
 
 def test_pairing_flow_works_with_bootstrap_auth_when_multiuser_disabled(
