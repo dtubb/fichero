@@ -179,3 +179,58 @@ def test_initialize_token_rotates_when_file_contains_session_token(
 
     assert rotated != raw_session_token
     assert token_path.read_text() == rotated
+
+
+def test_loopback_stale_sandbox_bootstrap_token_gets_explicit_code(monkeypatch, tmp_path):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_APP_BUNDLE_ID", "app.fichero.tests")
+    host_token_path = tmp_path / "host" / ".api-key"
+    sandbox_token_path = tmp_path / "sandbox" / ".api-key"
+    monkeypatch.setattr("fichero.api.auth._token_file_path", lambda: host_token_path)
+    monkeypatch.setattr(
+        "fichero.api.auth._sandbox_token_file_path",
+        lambda _app_id: sandbox_token_path,
+    )
+
+    host_token_path.parent.mkdir(parents=True, exist_ok=True)
+    host_token_path.write_text("fresh-bootstrap-token")
+    sandbox_token_path.parent.mkdir(parents=True, exist_ok=True)
+    sandbox_token_path.write_text("stale-bootstrap-token")
+
+    client = TestClient(_app_with_auth())
+    response = client.get(
+        "/api/private",
+        headers={"Authorization": "Bearer stale-bootstrap-token"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "local bootstrap token is stale",
+        "code": "stale_bootstrap_token",
+    }
+
+
+def test_loopback_unknown_token_stays_generic_when_not_sandbox_copy(monkeypatch, tmp_path):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_APP_BUNDLE_ID", "app.fichero.tests")
+    host_token_path = tmp_path / "host" / ".api-key"
+    sandbox_token_path = tmp_path / "sandbox" / ".api-key"
+    monkeypatch.setattr("fichero.api.auth._token_file_path", lambda: host_token_path)
+    monkeypatch.setattr(
+        "fichero.api.auth._sandbox_token_file_path",
+        lambda _app_id: sandbox_token_path,
+    )
+
+    host_token_path.parent.mkdir(parents=True, exist_ok=True)
+    host_token_path.write_text("fresh-bootstrap-token")
+    sandbox_token_path.parent.mkdir(parents=True, exist_ok=True)
+    sandbox_token_path.write_text("different-sandbox-token")
+
+    client = TestClient(_app_with_auth())
+    response = client.get(
+        "/api/private",
+        headers={"Authorization": "Bearer not-a-real-token"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "missing or invalid Authorization header"}
