@@ -92,4 +92,68 @@ final class PairedHostEndpointsTests: XCTestCase {
         XCTAssertFalse(reason.lowercased().contains("localhost"))
         XCTAssertFalse(reason.contains("127.0.0.1"))
     }
+
+    // MARK: - Failover candidates (order-independent of current position)
+
+    func testFailoverCandidatesExcludeCurrentInPriorityOrder() {
+        let endpoints = PairedHostEndpoints(ordered: [lan, tailnet])
+        // On the LAN endpoint → only the tailnet endpoint remains to try.
+        XCTAssertEqual(endpoints?.failoverCandidates(excluding: lan), [tailnet])
+    }
+
+    func testFailoverCandidatesCanWalkBackToHigherPriorityEndpoint() {
+        // Client paired over the stable tailnet URL but LAN ranks ahead: dropping
+        // tailnet must still offer the faster LAN endpoint. `next(after:)` alone
+        // (forward-only) would miss it; `failoverCandidates` does not.
+        let endpoints = PairedHostEndpoints(ordered: [lan, tailnet])
+        XCTAssertEqual(endpoints?.failoverCandidates(excluding: tailnet), [lan])
+        XCTAssertNil(endpoints?.next(after: tailnet)) // contrast: forward walk is empty
+    }
+
+    func testFailoverCandidatesMatchCurrentByNormalizedHost() {
+        // A trailing-slash variant of the current endpoint still excludes it.
+        let endpoints = PairedHostEndpoints(ordered: [lan, tailnet])
+        let lanSlash = BackendHost(url: URL(string: "https://192.168.1.42:8765/")!)
+        XCTAssertEqual(endpoints?.failoverCandidates(excluding: lanSlash), [tailnet])
+    }
+
+    // MARK: - Persisted endpoint store
+
+    private let storeKey = "fichero.paired.endpoints"
+
+    override func setUp() {
+        super.setUp()
+        UserDefaults.standard.removeObject(forKey: storeKey)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: storeKey)
+        super.tearDown()
+    }
+
+    func testStoreOrdersLANBeforeTailnetRegardlessOfInsertion() {
+        // Record tailnet first, then LAN — priority sort must put LAN first.
+        PairedHostEndpointStore.record(tailnet.url)
+        PairedHostEndpointStore.record(lan.url)
+        let hosts = PairedHostEndpointStore.endpoints()
+        XCTAssertEqual(hosts.map(\.url.host), ["192.168.1.42", "studio.tailabc123.ts.net"])
+    }
+
+    func testStoreDeduplicatesByURL() {
+        PairedHostEndpointStore.record(lan.url)
+        PairedHostEndpointStore.record(lan.url)
+        XCTAssertEqual(PairedHostEndpointStore.endpoints().count, 1)
+    }
+
+    func testStoreRefusesLoopback() {
+        // A paired host must never resolve to the local engine.
+        PairedHostEndpointStore.record(loopback.url)
+        XCTAssertTrue(PairedHostEndpointStore.endpoints().isEmpty)
+    }
+
+    func testStoreClearForgetsEverything() {
+        PairedHostEndpointStore.record(lan.url)
+        PairedHostEndpointStore.clear()
+        XCTAssertTrue(PairedHostEndpointStore.endpoints().isEmpty)
+    }
 }

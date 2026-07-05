@@ -4,6 +4,12 @@ import Observation
 import OSLog
 import SwiftUI
 
+// AppState is the app-state hub (backend session + providers + heartbeat +
+// endpoint failover); its body exceeds the default limits. Its private state is
+// too coupled to split into a separate-file extension without loosening
+// encapsulation, so the hub is kept whole — same precedent as EngineConfig.
+// swiftlint:disable file_length type_body_length
+
 /// Global app state including backend connection and provider management
 @MainActor
 @Observable
@@ -138,6 +144,7 @@ class AppState {
         switch await EngineReadinessProbe(hostURL: EngineConfig.host).probe() {
         case .ready:
             heartbeatFailureCount = 0
+            recordActiveEndpoint()
             if !isBackendRunning {
                 engine.markReady()
                 logger.info("Backend heartbeat: recovered — back online")
@@ -150,9 +157,9 @@ class AppState {
             engine.markAuthRejected("The engine is running but rejected this app's credentials.")
             logger.warning("Backend heartbeat: auth rejected — flipping authBroken")
         case .notResponding:
-            noteHeartbeatFailure(reason: "engine not responding")
+            await noteHeartbeatFailure(reason: "engine not responding")
         case .identityMismatch:
-            noteHeartbeatFailure(reason: "engine identity mismatch")
+            await noteHeartbeatFailure(reason: "engine identity mismatch")
         }
     }
 
@@ -176,6 +183,7 @@ class AppState {
             _ = await AuthTokenMiddleware.waitForToken()
             await sessionStore.refresh()
             await identityStore.load()
+            recordActiveEndpoint()
             engine.markReady()
             await loadProviders()
         case .authRejected:
@@ -191,9 +199,21 @@ class AppState {
         }
     }
 
-    private func noteHeartbeatFailure(reason: String) {
+    private func noteHeartbeatFailure(reason: String) async {
         heartbeatFailureCount += 1
         guard heartbeatFailureCount >= offlineFlipThreshold else { return }
+        // The active endpoint has stopped answering. Before declaring the paired
+        // host unreachable, walk its OTHER known endpoints (LAN → tailnet), each
+        // over its own per-endpoint trust and never localhost (#3098). Only when
+        // they're all exhausted — or there are none — do we fail closed.
+        switch await attemptEndpointFailover() {
+        case .recovered, .exhausted:
+            // Failover already resolved the phase (ready, or unreachable with a
+            // specific "no other endpoint answered" reason) — nothing to add.
+            return
+        case .noAlternates:
+            break // single-endpoint host: fall through to the generic diagnosis.
+        }
         if isBackendRunning {
             logger.warning(
                 "Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures — flipping offline (\(reason))"
@@ -206,6 +226,93 @@ class AppState {
                 PYTHONPATH=src python -m fichero.api
                 """)
         }
+    }
+
+    /// Outcome of walking a paired host's alternate endpoints (#3098).
+    private enum FailoverOutcome {
+        /// An alternate endpoint answered; the app is rebound and `ready`.
+        case recovered
+        /// Alternates existed but none answered; flipped `unreachable` with a
+        /// specific, surfaced reason (never localhost, never silent).
+        case exhausted
+        /// The active host has no known alternate endpoint — caller fails closed
+        /// with its own generic diagnosis (unchanged single-endpoint behaviour).
+        case noAlternates
+    }
+
+    /// When the active endpoint drops, try the paired host's other known
+    /// endpoints in failover priority order (#3098). Each candidate is probed
+    /// over the shared pinned transport, which resolves trust per endpoint URL —
+    /// the LAN endpoint's SPKI pin, the tailnet endpoint's real cert — so a
+    /// switch never reuses the wrong trust and never lands on the local engine
+    /// (loopback is filtered out of the endpoint set). Surfaces WHY it switched
+    /// (`markStarting` + logged reason) so a failover is never a silent dead
+    /// connection, and fails closed with a specific reason once alternates run
+    /// out.
+    private func attemptEndpointFailover() async -> FailoverOutcome {
+        let current = BackendHost.appDefault
+        // The LOCAL engine dropping means "restart the local engine", not "jump to
+        // some previously-paired remote host" — never fail over off loopback.
+        guard !current.isLocal else { return .noAlternates }
+        guard let paired = PairedHostEndpoints(ordered: PairedHostEndpointStore.endpoints()) else {
+            return .noAlternates
+        }
+        let candidates = paired.failoverCandidates(excluding: current)
+        guard !candidates.isEmpty else { return .noAlternates }
+
+        for candidate in candidates {
+            engine.markStarting()
+            logger.warning(
+                "Endpoint failover: \(PairedHostEndpoints.failoverReason(from: current, to: candidate))"
+            )
+            switch await EngineReadinessProbe(hostURL: candidate.url).probe() {
+            case .ready:
+                commitActiveEndpoint(candidate)
+                heartbeatFailureCount = 0
+                engine.markReady()
+                await loadProviders()
+                logger.info(
+                    "Endpoint failover recovered on \(candidate.url.host ?? candidate.url.absoluteString)"
+                )
+                return .recovered
+            case .authRejected:
+                // Up but rejects this device's token — a per-host auth problem,
+                // not an unreachable one. Bind to it and surface that; the other
+                // endpoints share the same paired identity and would reject too.
+                commitActiveEndpoint(candidate)
+                engine.markAuthRejected(
+                    "\(candidate.url.host ?? "The endpoint") accepted the connection "
+                    + "but rejected this device's token."
+                )
+                return .exhausted
+            case .notResponding, .identityMismatch:
+                continue // this endpoint didn't answer — try the next one.
+            }
+        }
+
+        // Walked every alternate; none answered. Fail closed with a specific,
+        // surfaced reason — never localhost, never a silent dead connection.
+        engine.markUnreachable(
+            PairedHostEndpoints.exhaustedReason(lastTried: candidates[candidates.count - 1])
+        )
+        return .exhausted
+    }
+
+    /// Point the app at `host` and rebind every client to it. The endpoint's
+    /// SPKI pin is persisted per URL, so the rebuilt pinned transport enforces
+    /// the RIGHT trust for wherever we landed (#3098).
+    private func commitActiveEndpoint(_ host: BackendHost) {
+        host.persistPinIfNeeded()
+        UserDefaults.standard.set(host.url.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        reconfigureGeneratedClientsForCurrentHost()
+        PairedHostEndpointStore.record(host.url)
+    }
+
+    /// Remember the endpoint the app is currently connected to so failover can
+    /// walk back to it later (#3098). No-op for the local engine — loopback is
+    /// never a failover target.
+    private func recordActiveEndpoint() {
+        PairedHostEndpointStore.record(EngineConfig.host)
     }
 
     // MARK: - Backend Health
@@ -365,3 +472,4 @@ extension AppState {
         )
     }
 }
+// swiftlint:enable file_length type_body_length

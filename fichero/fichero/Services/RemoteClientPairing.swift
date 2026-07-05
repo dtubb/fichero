@@ -174,6 +174,11 @@ enum RemoteClientPairing {
         // Record the token's expiry so renewal can fire before it lapses (#3096).
         DeviceTokenRenewal.storeExpiry(result.expiresAt, host: result.apiRoot.absoluteString)
         UserDefaults.standard.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        // Reset the failover endpoint set to just this newly paired endpoint
+        // (#3098): a fresh pairing establishes THE paired host, so a previous
+        // Mac's endpoints must not linger and be walked during a later failover.
+        PairedHostEndpointStore.clear()
+        PairedHostEndpointStore.record(result.apiRoot)
         if let libraryPath = normalizedLibraryPath(libraryPath) {
             UserDefaults.standard.set(libraryPath, forKey: RemoteAccessConfig.pairedLibraryPathKey)
         } else {
