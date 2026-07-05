@@ -21,10 +21,12 @@ return ``Any`` for now — they'll get typed in follow-up commits.
 from __future__ import annotations
 
 import json
+import ipaddress
 import os
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
+from urllib.parse import urlparse
 
 import httpx
 
@@ -82,6 +84,20 @@ _TOKEN_PATH = Path.home() / "Library" / "Application Support" / "Fichero" / ".ap
 _CLI_SESSION_PATH = _TOKEN_PATH.with_name("cli-session.json")
 
 
+def _is_loopback_base_url(base_url: str | None) -> bool | None:
+    if not base_url:
+        return None
+    host = urlparse(base_url).hostname
+    if not host:
+        return None
+    if host in {"localhost", "::1", "test", "testserver", "testclient"}:
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 class FicheroError(RuntimeError):
     """The backend was unreachable or returned a non-2xx response.
 
@@ -119,18 +135,33 @@ def _read_cli_session_payload(as_user: str | None = None) -> dict[str, Any]:
     return first_session if isinstance(first_session, dict) else {}
 
 
-def _read_token(as_user: str | None = None) -> str | None:
-    """Read the selected auth token, or None if no usable credential exists."""
+def _read_token(base_url: str | None = None, as_user: str | None = None) -> str | None:
+    """Read the selected auth token, scoped to the actual backend host."""
     env = os.environ.get("FICHERO_SESSION_TOKEN")
     if env:
         return env.strip()
-    payload = _read_cli_session_payload(as_user=as_user)
-    token = payload.get("session_token")
-    if isinstance(token, str) and token.strip():
-        return token.strip()
+
+    loopback = _is_loopback_base_url(base_url)
+    if loopback is False:
+        payload = _read_cli_session_payload(as_user=as_user)
+        token = payload.get("session_token")
+        if isinstance(token, str) and token.strip():
+            return token.strip()
+        env = os.environ.get("FICHERO_API_KEY")
+        if env:
+            return env.strip()
+        return None
+
+    if loopback is None:
+        payload = _read_cli_session_payload(as_user=as_user)
+        token = payload.get("session_token")
+        if isinstance(token, str) and token.strip():
+            return token.strip()
+
     env = os.environ.get("FICHERO_API_KEY")
     if env:
         return env.strip()
+
     try:
         return _TOKEN_PATH.read_text(encoding="utf-8").strip() or None
     except OSError:
@@ -190,7 +221,10 @@ class FicheroClient:
         # from disk on demand so the client can survive startup ordering races.
         self._discover_token = token is None
         self._as_user = as_user.strip() if isinstance(as_user, str) and as_user.strip() else None
-        self.token = token if token is not None else _read_token(as_user=self._as_user)
+        self.token = token if token is not None else _read_token(
+            base_url=self.base_url,
+            as_user=self._as_user,
+        )
         # library_path="" is honoured (explicit "no library"); library_path=None
         # means discover from the environment on demand so a late-bound window
         # can still recover without reconstructing the client.
@@ -223,7 +257,7 @@ class FicheroClient:
         """
         changed = False
         if self._discover_token:
-            refreshed = _read_token(as_user=self._as_user)
+            refreshed = _read_token(base_url=self.base_url, as_user=self._as_user)
             if refreshed and refreshed != self.token:
                 self.token = refreshed
                 changed = True

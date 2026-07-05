@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 
+from fichero import accounts
 from fichero.api.auth import initialize_token
 
 
@@ -37,6 +38,30 @@ def test_app_supplied_token_overrides_existing_file(monkeypatch, tmp_path):
 
     assert initialize_token() == "fresh-app-token"
     assert token_path.read_text() == "fresh-app-token"
+
+
+def test_initialize_token_ignores_app_supplied_device_token(monkeypatch, tmp_path, app_db):
+    token_path = tmp_path / ".api-key"
+    monkeypatch.setattr("fichero.api.auth._token_file_path", lambda: token_path)
+
+    owner = app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    device_token = accounts.new_session_token()
+    app_db.create_device(
+        name="Remote iPad",
+        user_id=owner.id,
+        token_hash=accounts.hash_token(device_token),
+    )
+    monkeypatch.setenv("FICHERO_BOOTSTRAP_TOKEN", device_token)
+
+    resolved = initialize_token()
+
+    assert resolved != device_token
+    assert token_path.read_text() == resolved
 
 
 def test_no_env_token_mints_as_before(monkeypatch, tmp_path):

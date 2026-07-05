@@ -193,9 +193,14 @@ def initialize_token(*, force_rotate: bool = False) -> str:
 
     env_token = os.environ.get("FICHERO_BOOTSTRAP_TOKEN", "").strip()
     if env_token:
-        _write_token_file(path, env_token)
-        logger.info("Auth token adopted from FICHERO_BOOTSTRAP_TOKEN at %s (mode 0600)", path)
-        return env_token
+        if _is_account_or_device_token(env_token):
+            logger.warning(
+                "Ignoring FICHERO_BOOTSTRAP_TOKEN because it matches a session/device credential"
+            )
+        else:
+            _write_token_file(path, env_token)
+            logger.info("Auth token adopted from FICHERO_BOOTSTRAP_TOKEN at %s (mode 0600)", path)
+            return env_token
 
     rotate = force_rotate or os.environ.get(
         "FICHERO_FORCE_ROTATE_AUTH", ""

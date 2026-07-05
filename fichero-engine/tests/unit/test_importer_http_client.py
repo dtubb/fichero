@@ -9,14 +9,26 @@ from fichero.importers import http_client
 
 
 def test_resolve_http_token_uses_session_resolution_for_default_token(monkeypatch):
-    monkeypatch.setattr(cli_client, "_read_token", lambda: "session-token")
-    assert http_client.resolve_http_token() == "session-token"
+    seen = {}
+
+    def _fake_read_token(*, base_url=None, as_user=None):
+        seen["base_url"] = base_url
+        seen["as_user"] = as_user
+        return "session-token"
+
+    monkeypatch.setattr(cli_client, "_read_token", _fake_read_token)
+    assert http_client.resolve_http_token(api_base="https://pairing.example.com/api") == "session-token"
+    assert seen == {"base_url": "https://pairing.example.com", "as_user": None}
 
 
 def test_resolve_http_token_reads_explicit_token_file(monkeypatch, tmp_path):
     token_file = tmp_path / "token.txt"
     token_file.write_text("file-token", encoding="utf-8")
-    monkeypatch.setattr(cli_client, "_read_token", lambda: "session-token")
+    monkeypatch.setattr(
+        cli_client,
+        "_read_token",
+        lambda *, base_url=None, as_user=None: "session-token",
+    )
     assert http_client.resolve_http_token(Path(token_file)) == "file-token"
 
 

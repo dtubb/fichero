@@ -1040,9 +1040,14 @@ def import_manifest_command(
     )
 
     try:
-        token = resolve_http_token(token_file or DEFAULT_TOKEN_FILE) if token_file else ctx.obj["token"]
+        resolved_api = api or ctx.obj["base_url"] or DEFAULT_API_BASE
+        token = (
+            resolve_http_token(token_file or DEFAULT_TOKEN_FILE, api_base=resolved_api)
+            if token_file
+            else ctx.obj["token"]
+        )
         with FicheroClient(
-            base_url=api or ctx.obj["base_url"] or DEFAULT_API_BASE.removesuffix("/api"),
+            base_url=resolved_api.removesuffix("/api"),
             library_path=str(library),
             token=token,
         ) as client:
@@ -1130,9 +1135,14 @@ def import_iiif_command(
     )
 
     try:
-        token = resolve_http_token(token_file or DEFAULT_TOKEN_FILE) if token_file else ctx.obj["token"]
+        resolved_api = api or ctx.obj["base_url"] or DEFAULT_API_BASE
+        token = (
+            resolve_http_token(token_file or DEFAULT_TOKEN_FILE, api_base=resolved_api)
+            if token_file
+            else ctx.obj["token"]
+        )
         with FicheroClient(
-            base_url=api or ctx.obj["base_url"] or DEFAULT_API_BASE.removesuffix("/api"),
+            base_url=resolved_api.removesuffix("/api"),
             library_path=str(library),
             token=token,
         ) as client:

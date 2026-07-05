@@ -59,11 +59,15 @@ class HttpManifestClient:
         return self._client.request(method, f"/api{path}", json=body)
 
 
-def resolve_http_token(token_file: Path = DEFAULT_TOKEN_FILE) -> str:
+def resolve_http_token(
+    token_file: Path = DEFAULT_TOKEN_FILE,
+    *,
+    api_base: str | None = None,
+) -> str:
     if token_file == DEFAULT_TOKEN_FILE:
         from fichero.cli.client import _read_token
 
-        token = _read_token()
+        token = _read_token(base_url=api_base.removesuffix("/api") if api_base else None)
         if token:
             return token
     return token_file.read_text(encoding="utf-8").strip()
