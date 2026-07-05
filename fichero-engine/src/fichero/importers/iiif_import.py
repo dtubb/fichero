@@ -85,6 +85,7 @@ class IIIFImportSummary:
     entities_reused: int = 0
     annotations_created: int = 0
     annotations_skipped: int = 0
+    annotation_skip_reasons: dict[str, list[str]] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
     @classmethod
@@ -159,9 +160,10 @@ def import_iiif(
     )
     summary.artifacts_created = artifacts_created
     summary.artifacts_skipped = artifacts_skipped
-    created, skipped = _import_annotations(client, parsed.annotation_jobs)
+    created, skipped, skip_reasons = _import_annotations(client, parsed.annotation_jobs)
     summary.annotations_created = created
     summary.annotations_skipped = skipped
+    summary.annotation_skip_reasons = skip_reasons
     return summary
 
 
@@ -422,9 +424,9 @@ def _annotation_jobs_from_pages(
 def _import_annotations(
     client: ManifestApiClient,
     jobs: list[dict[str, Any]],
-) -> tuple[int, int]:
+) -> tuple[int, int, dict[str, list[str]]]:
     if not jobs:
-        return 0, 0
+        return 0, 0, {}
     docs = _list_items(client, "/documents?limit=500")
     doc_id_by_external = {
         str(doc.get("metadata", {}).get("canonical_external_id")): str(doc.get("id"))
@@ -444,13 +446,20 @@ def _import_annotations(
     }
     created = 0
     skipped = 0
+    skip_reasons: dict[str, list[str]] = {}
+
+    def _record_skip(canvas_external_id: str, reason: str) -> None:
+        skip_reasons.setdefault(canvas_external_id, []).append(reason)
+
     for job in jobs:
         if job["external_id"] in existing_annotation_ids:
             skipped += 1
+            _record_skip(job["canvas_external_id"], "duplicate_annotation")
             continue
         document_id = doc_id_by_external.get(job["canvas_external_id"])
         if not document_id:
             skipped += 1
+            _record_skip(job["canvas_external_id"], "missing_document")
             continue
         linked_entity_ids = []
         if job.get("entity_name") and job["entity_name"] in entity_id_by_name:
@@ -470,7 +479,7 @@ def _import_annotations(
             },
         )
         created += 1
-    return created, skipped
+    return created, skipped, skip_reasons
 
 
 def _import_transcript_artifacts(
