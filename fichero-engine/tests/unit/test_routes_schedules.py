@@ -117,6 +117,40 @@ class TestCreateSchedule:
         assert data["name"] == "Test Schedule"
         assert data["schedule_id"] == "sched-1"
 
+    def test_create_schedule_preserves_typed_response_boundaries(self, client, mock_scheduler):
+        schedule = _make_mock_schedule()
+        schedule.inputs = {"document_id": "doc-1", "mode": "full"}
+        schedule.use_batch = True
+        schedule.batch_items = [{"document_id": "doc-1"}, {"document_id": "doc-2"}]
+        schedule.error_message = None
+        mock_scheduler.create_schedule.return_value = schedule
+
+        payload = {
+            "name": "Batch Run",
+            "workflow_id": "wf-abc",
+            "config": {
+                "schedule_type": "interval",
+                "interval_seconds": 3600,
+                "timezone": "UTC",
+            },
+            "inputs": {"document_id": "doc-1", "mode": "full"},
+            "use_batch": True,
+            "batch_items": [{"document_id": "doc-1"}, {"document_id": "doc-2"}],
+        }
+        r = client.post("/api/schedules", json=payload)
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["cron_expression"] is None
+        assert data["run_at"] is None
+        assert data["last_run_at"] is None
+        assert data["error_message"] is None
+        assert data["inputs"] == {"document_id": "doc-1", "mode": "full"}
+        assert data["batch_items"] == [
+            {"document_id": "doc-1"},
+            {"document_id": "doc-2"},
+        ]
+
     def test_create_cron_schedule(self, client, mock_scheduler):
         payload = {
             "name": "Daily",
