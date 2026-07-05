@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives import serialization
 
 from fichero.remote_access_tls import (
     prepare_remote_access_tls,
+    validate_spki_pin,
     validate_tailnet_url,
     uvicorn_ssl_kwargs_from_env,
 )
@@ -95,3 +96,13 @@ def test_validate_tailnet_url_accepts_https_ts_net_host() -> None:
 def test_validate_tailnet_url_rejects_non_tailnet_or_insecure_urls(raw: str, message: str) -> None:
     with pytest.raises(ValueError, match=message):
         validate_tailnet_url(raw)
+
+
+def test_validate_spki_pin_normalizes_valid_base64() -> None:
+    assert validate_spki_pin(" c3BraS1waW4= ") == "c3BraS1waW4="
+
+
+@pytest.mark.parametrize("raw", ["", "%%%not-base64%%%"])
+def test_validate_spki_pin_rejects_missing_or_invalid_values(raw: str) -> None:
+    with pytest.raises(ValueError):
+        validate_spki_pin(raw)

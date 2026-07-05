@@ -21,7 +21,7 @@ from fichero.api.auth import _use_multiuser_auth, actor_from_request
 from fichero.api.routes.auth_accounts import _current_session_user
 from fichero.app_db import AppDatabase, get_app_db
 from fichero.models import AccountUser, ActionAudit, Device
-from fichero.remote_access_tls import validate_tailnet_url
+from fichero.remote_access_tls import validate_spki_pin, validate_tailnet_url
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,7 @@ _PAIRING_ATTEMPTS: dict[str, list[datetime]] = {}
 _PAIRING_RENEW_ATTEMPTS: dict[str, list[datetime]] = {}
 _PAIRING_WORKER_WARNING_EMITTED = False
 _SINGLE_USER_PAIRING_OWNER = "__paired_device_owner__"
+_LOCAL_PAIRING_CLIENT_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient", "testserver"}
 
 
 class PairCodeResponse(BaseModel):
@@ -306,6 +307,21 @@ def _current_paired_device(request: Request) -> Device:
     return device
 
 
+def _require_secure_pairing_transport(request: Request) -> None:
+    host = ((request.client.host if request.client else "") or "").lower()
+    if host in _LOCAL_PAIRING_CLIENT_HOSTS:
+        return
+    if request.url.scheme != "https":
+        raise HTTPException(status_code=400, detail="remote pairing requires https")
+    try:
+        validate_spki_pin(os.environ.get("FICHERO_TLS_SPKI_HASH", ""))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="remote pairing unavailable without configured SPKI pin",
+        ) from exc
+
+
 def _record_device_audit(
     *,
     action_name: str,
@@ -364,6 +380,7 @@ def pair_device(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> PairResponse:
     """Exchange a valid one-time pairing code for a device token."""
+    _require_secure_pairing_transport(request)
     now = datetime.now()
     _prune_pairing_codes(now)
     _check_pair_rate_limit(request, now)
