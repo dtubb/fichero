@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
@@ -9,9 +10,9 @@ extension SidebarView {
         library: LibraryManager.LibraryReference,
         totalCount: Int
     ) -> some View {
-        LibrarySectionHeader(
+        LibraryHeaderRow(
             library: library,
-            itemCount: totalCount,
+            totalCount: totalCount,
             isCurrentLibrary: library.id == windowState.libraryId,
             onFileDrop: { [library] urls in handleLibraryHeaderDrop(urls, library: library) },
             onSidebarItemDrop: { [library] droppedIds in
@@ -22,23 +23,15 @@ extension SidebarView {
                 if windowState.libraryId != library.id { windowState.libraryId = library.id }
                 sidebarMode = .library
                 viewMode = .library(nil)
-            }
+            },
+            onRename: {
+                libraryToRenameId = library.id
+                pendingLibraryName = library.displayName
+                showingRenameLibraryPrompt = true
+            },
+            onShare: { libraryToShare = library },
+            onClose: { closeLibraryFromSidebar(library) }
         )
-        .contextMenu {
-            if library.id != LibraryManager.globalLibraryId {
-                Button("Rename Library…") {
-                    libraryToRenameId = library.id
-                    pendingLibraryName = library.displayName
-                    showingRenameLibraryPrompt = true
-                }
-                Divider()
-                // Close removes the library from the sidebar + the global
-                // registry WITHOUT deleting the .fichero package on disk (#1661).
-                Button("Close Library") {
-                    closeLibraryFromSidebar(library)
-                }
-            }
-        }
     }
 
     /// Close a library from the sidebar context menu (#1661): unregister it
@@ -113,6 +106,94 @@ extension SidebarView {
                 }
                 return
             }
+        }
+    }
+}
+
+// MARK: - Library Header Row (access-gated)
+
+/// The library-name header row (#3152): owns this library's authz snapshot so
+/// write affordances — rename, share, and Finder / sidebar-item drops — disable
+/// for viewers and no-access users, with an explanatory tooltip. Single-user
+/// mode and the still-loading state fail OPEN (the engine enforces access
+/// server-side anyway, so we never flash-disable). Self-contained per library —
+/// its own `.task(id:)` means a role change refreshes ONE row, never the whole
+/// sidebar list.
+///
+/// The `.contextMenu` used to live inline in `libraryDisclosureLabel`, but that
+/// is a stateless `@ViewBuilder` func; a small view is the only place to hang
+/// the per-library `@State` the gate needs.
+struct LibraryHeaderRow: View {
+    let library: LibraryManager.LibraryReference
+    let totalCount: Int
+    let isCurrentLibrary: Bool
+    let onFileDrop: ([URL]) -> Bool
+    let onSidebarItemDrop: ([String]) -> Void
+    let onTap: () -> Void
+    let onRename: () -> Void
+    let onShare: () -> Void
+    let onClose: () -> Void
+
+    // ponytail: this row loads its own authz snapshot, the same GET the
+    // LibrarySharingBadge in the header already makes — two cheap authz reads
+    // per visible header. Collapse into one shared load if it shows in profiling.
+    @State private var snapshot: Components.Schemas.LibraryAuthzSnapshot?
+
+    private static let readOnlyHelp =
+        "You have view-only access to this library. Ask an owner for edit access to rename or add files."
+
+    private var isGlobal: Bool { library.id == LibraryManager.globalLibraryId }
+
+    /// True when the signed-in user may mutate this library. Owner / editor (or
+    /// role-manager) can write; a viewer or unresolved role cannot. Fails open
+    /// when multi-user is off, the library is Global, or the snapshot hasn't
+    /// loaded — the engine is the real gate, this only reflects it in the UI.
+    private var canWrite: Bool {
+        guard EngineConfig.multiuserEnabled, !isGlobal,
+              let snapshot, snapshot.multiuserEnabled else { return true }
+        if snapshot.canManageRoles { return true }
+        switch snapshot.currentUserRole {
+        case "owner", "editor": return true
+        default: return false
+        }
+    }
+
+    var body: some View {
+        LibrarySectionHeader(
+            library: library,
+            itemCount: totalCount,
+            isCurrentLibrary: isCurrentLibrary,
+            // Nil callbacks make LibrarySectionHeader reject the drop (its
+            // handlers `guard let` the closure) — viewers can't import/reparent.
+            onFileDrop: canWrite ? onFileDrop : nil,
+            onSidebarItemDrop: canWrite ? onSidebarItemDrop : nil,
+            onTap: onTap
+        )
+        .help(canWrite ? "" : Self.readOnlyHelp)
+        .contextMenu {
+            if !isGlobal {
+                Button("Rename Library…", action: onRename)
+                    .disabled(!canWrite)
+                // Owners share from here — same sheet as the sidebar sharing
+                // badge (#3149). Gated on multi-user mode + write access.
+                if EngineConfig.multiuserEnabled {
+                    Button("Share Library…", action: onShare)
+                        .disabled(!canWrite)
+                }
+                Divider()
+                // Close removes the library from the sidebar + the global
+                // registry WITHOUT deleting the .fichero package on disk (#1661).
+                // Stays enabled for viewers — it's a local sidebar op, not a
+                // library mutation.
+                Button("Close Library", action: onClose)
+            }
+        }
+        .task(id: library.id) {
+            guard EngineConfig.multiuserEnabled, !isGlobal else {
+                snapshot = nil
+                return
+            }
+            snapshot = try? await library.actionsService.loadLibraryAuthzSnapshot()
         }
     }
 }

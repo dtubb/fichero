@@ -18,6 +18,7 @@ struct SidebarView: View {
     @Bindable var libraryManager: LibraryManager
 
     // Window state - needed to switch libraries when selecting items
+    @Environment(AppState.self) var appState
     @Environment(WindowState.self) var windowState
 
     // API client for service calls
@@ -58,6 +59,8 @@ struct SidebarView: View {
     @State var showingRenameLibraryPrompt = false
     @State var libraryToRenameId: UUID?
     @State var pendingLibraryName = ""
+    // Library the "Share Library…" header context-menu entry is presenting (#3149).
+    @State var libraryToShare: LibraryManager.LibraryReference?
 
     // Store Combine subscriptions
     @State var cancellables = Set<AnyCancellable>()
@@ -253,6 +256,11 @@ struct SidebarView: View {
                 }
             } message: {
                 Text("Set a new display name for this library.")
+            }
+            // "Share Library…" (#3149) — same sheet the LibrarySharingBadge popover
+            // presents, reached here from the library-header context menu.
+            .sheet(item: $libraryToShare) { library in
+                ShareLibrarySheet(library: library, usersStore: appState.usersStore)
             }
     }
 }
