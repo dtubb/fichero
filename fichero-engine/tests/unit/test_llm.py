@@ -799,6 +799,19 @@ async def test_vision_refuses_remote_provider_when_local_only_enabled(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_vision_inference_api_refuses_huggingface_when_local_only_enabled(monkeypatch):
+    monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
+
+    with pytest.raises(LocalOnlyViolationError, match="vision call to remote provider huggingface/test/model"):
+        await vision_inference_api(
+            images=["data:image/jpeg;base64,Zm9v"],
+            prompt="Describe",
+            model="test/model",
+            api_key="hf_test",
+        )
+
+
+@pytest.mark.asyncio
 async def test_chat_local_provider_succeeds_when_local_only_enabled(monkeypatch):
     from fichero.llm import chat
 

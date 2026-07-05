@@ -1618,6 +1618,8 @@ async def translate_text(
     config: LLMConfig,
 ) -> str:
     """Unified translation helper for workflow tools and CLI."""
+    _enforce_local_only_provider(config, kind="translation")
+
     if config.provider.lower() == "deepl":
         return await _translate_with_deepl(
             text=text,
@@ -2446,6 +2448,11 @@ async def vision_inference_api(
         ... )
     """
     import aiohttp
+
+    _enforce_local_only_provider(
+        LLMConfig(provider="huggingface", model=model, api_key=api_key),
+        kind="vision",
+    )
 
     url = f"https://api-inference.huggingface.co/models/{model}"
 
