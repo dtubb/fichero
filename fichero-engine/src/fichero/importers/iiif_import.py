@@ -182,7 +182,7 @@ def import_iiif_via_http(
 
     library_str = str(library_path.expanduser())
     if client is None:
-        token = resolve_http_token(token_file)
+        token = resolve_http_token(token_file, api_base=api_base)
         transport: ManifestApiClient = HttpManifestClient(api_base, token, library_str)
         if create_library:
             transport.request("POST", "/library", {"path": library_str})

@@ -480,6 +480,45 @@ def test_token_read_from_cli_session_file(monkeypatch, tmp_path):
     assert client_module._read_token() == "file-token"
 
 
+def test_loopback_base_url_prefers_bootstrap_token_over_cli_session(monkeypatch, tmp_path):
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("FICHERO_API_KEY", raising=False)
+    session_path = tmp_path / "cli-session.json"
+    session_path.write_text('{"session_token": "remote-session-token"}', encoding="utf-8")
+    session_path.chmod(0o600)
+    bootstrap_path = tmp_path / ".api-key"
+    bootstrap_path.write_text("bootstrap-token", encoding="utf-8")
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", session_path)
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", bootstrap_path)
+
+    assert client_module._read_token(base_url="http://127.0.0.1:8765") == "bootstrap-token"
+
+
+def test_remote_base_url_ignores_bootstrap_token_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("FICHERO_API_KEY", raising=False)
+    session_path = tmp_path / "cli-session.json"
+    session_path.write_text('{"session_token": "remote-session-token"}', encoding="utf-8")
+    session_path.chmod(0o600)
+    bootstrap_path = tmp_path / ".api-key"
+    bootstrap_path.write_text("bootstrap-token", encoding="utf-8")
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", session_path)
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", bootstrap_path)
+
+    assert client_module._read_token(base_url="https://pairing.example.com") == "remote-session-token"
+
+
+def test_remote_base_url_without_session_does_not_fall_back_to_bootstrap_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("FICHERO_API_KEY", raising=False)
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", tmp_path / "missing-session.json")
+    bootstrap_path = tmp_path / ".api-key"
+    bootstrap_path.write_text("bootstrap-token", encoding="utf-8")
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", bootstrap_path)
+
+    assert client_module._read_token(base_url="https://pairing.example.com") is None
+
+
 def test_token_read_from_selected_cli_user_session(monkeypatch, tmp_path):
     monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
     monkeypatch.delenv("FICHERO_API_KEY", raising=False)
@@ -607,4 +646,3 @@ def test_context_manager_closes(monkeypatch):
     with _client(handler) as c:
         c.health()
     assert c._client.is_closed
-
