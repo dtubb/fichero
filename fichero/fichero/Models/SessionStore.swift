@@ -178,7 +178,7 @@ final class SessionStore {
             let response = try await client.api.listUsersApiUsersGet()
             switch response {
             case .ok(let ok):
-                return try !ok.body.json.isEmpty
+                return try !ok.body.json.items.isEmpty
             case .undocumented:
                 return nil
             }
