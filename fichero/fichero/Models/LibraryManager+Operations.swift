@@ -98,6 +98,13 @@ extension LibraryManager {
         guard !trimmedPath.isEmpty else { return nil }
         let url = URL(fileURLWithPath: trimmedPath)
 
+        // Per-host recents (#3151): remember this library under the CURRENT
+        // engine host so the remote-library picker can surface recents first,
+        // scoped to the host they belong to (a path on Daniel's Mac must never
+        // leak into Ann's-Mac recents). Recorded on every remote open — reuse
+        // included — so re-opening bumps it to the top.
+        RemoteLibraryRecents.note(path: trimmedPath, host: EngineConfig.host.absoluteString)
+
         // Reuse if already open (compare by standardized path, not URL identity).
         if let existing = openLibraries.first(where: { $0.url.path == url.path }) {
             currentLibraryId = existing.id
@@ -353,5 +360,52 @@ extension LibraryManager {
             libraryManagerLogger.error("Failed to save library: \(error.localizedDescription)")
             throw LibraryError.saveFailed
         }
+    }
+}
+
+/// Per-host MRU of remote library paths the user has opened (#3151). Backs the
+/// remote-library picker's "recents first" ordering. Keyed by NORMALIZED host —
+/// the same normalization the per-host session/device tokens use
+/// (`AuthTokenMiddleware.normalizedRemoteHostString`) — so recents for one
+/// engine never bleed into another's. Local-only (`UserDefaults`); never
+/// carries a secret, just paths that live on that engine host.
+enum RemoteLibraryRecents {
+    private static let storageKey = "fichero.remote.recentLibraries"
+    private static let maxPerHost = 12
+
+    private static func hostKey(_ hostString: String) -> String {
+        AuthTokenMiddleware.normalizedRemoteHostString(hostString: hostString)
+    }
+
+    private static func store() -> [String: [String]] {
+        UserDefaults.standard.dictionary(forKey: storageKey) as? [String: [String]] ?? [:]
+    }
+
+    /// Recently opened library paths for `hostString`, most-recent first.
+    static func paths(forHost hostString: String) -> [String] {
+        store()[hostKey(hostString)] ?? []
+    }
+
+    /// Record `path` as the most-recent open for `hostString`, de-duplicated and
+    /// capped. No-op for a blank path.
+    static func note(path: String, host hostString: String) {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let key = hostKey(hostString)
+        var all = store()
+        var list = all[key] ?? []
+        list.removeAll { $0 == trimmed }
+        list.insert(trimmed, at: 0)
+        if list.count > maxPerHost { list = Array(list.prefix(maxPerHost)) }
+        all[key] = list
+        UserDefaults.standard.set(all, forKey: storageKey)
+    }
+
+    /// Forget all recents for `hostString` — the hook for unpairing / removing a
+    /// remote engine so its libraries stop appearing in the picker.
+    static func clear(host hostString: String) {
+        var all = store()
+        all[hostKey(hostString)] = nil
+        UserDefaults.standard.set(all, forKey: storageKey)
     }
 }
