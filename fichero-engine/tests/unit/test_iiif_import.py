@@ -222,11 +222,55 @@ def test_import_iiif_scopes_entities_to_page_and_preserves_text_annotations(
     assert summary2.documents_skipped == 2
     assert summary2.artifacts_skipped == 1
     assert summary2.annotations_skipped == 2
+    assert summary2.annotation_skip_reasons == {
+        "https__example.org__iiif__canvas__page-001": [
+            "duplicate_annotation",
+            "duplicate_annotation",
+        ]
+    }
     artifacts2 = client.get(
         f"/api/artifacts/document/{page['id']}",
         params={"artifact_type": "transcription", "include_descendants": False},
     ).json()["items"]
     assert len(artifacts2) == 1
+
+
+def test_import_annotations_records_structured_skip_reasons():
+    from fichero.iiif_import import _import_annotations
+
+    class _FakeClient:
+        def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+            assert method == "GET"
+            if path == "/documents?limit=500":
+                return {"items": []}
+            if path == "/entities?limit=500":
+                return {"items": []}
+            if path == "/annotations":
+                return {"items": [{"metadata": {"w3c_annotation_id": "anno-1"}}]}
+            raise AssertionError(path)
+
+    created, skipped, reasons = _import_annotations(
+        _FakeClient(),
+        [
+            {
+                "external_id": "anno-1",
+                "canvas_external_id": "canvas-1",
+                "kind": "quote",
+            },
+            {
+                "external_id": "anno-2",
+                "canvas_external_id": "canvas-2",
+                "kind": "quote",
+            },
+        ],
+    )
+
+    assert created == 0
+    assert skipped == 2
+    assert reasons == {
+        "canvas-1": ["duplicate_annotation"],
+        "canvas-2": ["missing_document"],
+    }
 
 
 def test_cli_import_iiif_invokes_importer(monkeypatch, tmp_path):
