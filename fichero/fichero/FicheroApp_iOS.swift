@@ -247,6 +247,7 @@ private struct RemoteConnectionSetupView: View {
     let onConnected: @MainActor () async -> Void
 
     @State private var showingScanner = false
+    @State private var didAutoPresentScanner = false
     @State private var isPairing = false
     @State private var errorMessage: String?
     @State private var pickerSource: CaptureSource?
@@ -255,6 +256,17 @@ private struct RemoteConnectionSetupView: View {
 
     var body: some View {
         connectView
+        // #2347: on iPhone/iPad the pairing screen opens STRAIGHT into QR
+        // scanning — the whole point is to scan the host Mac's code. Present the
+        // scanner once on first appearance; after a Cancel the landing card's
+        // "Scan QR Code" button (and manual paths) remain as the fallback, so the
+        // user is never trapped in a re-presenting camera. Camera-less platforms
+        // (visionOS/tvOS) skip this and just show the card.
+        .onAppear {
+            guard !didAutoPresentScanner, supportsCameraScanner, !isPairing else { return }
+            didAutoPresentScanner = true
+            showingScanner = true
+        }
         .sheet(isPresented: $showingScanner) {
             QRCodeScannerSheet(
                 onCancel: { showingScanner = false },
