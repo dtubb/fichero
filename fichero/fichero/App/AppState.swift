@@ -45,7 +45,10 @@ class AppState {
     /// banner flips only after the count crosses `offlineFlipThreshold`.
     private var heartbeatFailureCount: Int = 0
     private let offlineFlipThreshold: Int = 2
-    private var heartbeatTask: Task<Void, Never>?
+    // Plumbing, not observed UI state — exclude from @Observable tracking, and
+    // `nonisolated(unsafe)` so `deinit` (nonisolated in Swift 6) can cancel it
+    // (only mutated on the main actor; `Task.cancel()` is safe from anywhere).
+    @ObservationIgnored nonisolated(unsafe) private var heartbeatTask: Task<Void, Never>?
 
     // MARK: - Provider Management
 
