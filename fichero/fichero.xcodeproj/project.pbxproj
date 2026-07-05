@@ -197,6 +197,7 @@
 		37125B13A36AF61C3B5868C3 /* NodeComparisonSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D455270E3396946CF4F1939 /* NodeComparisonSheet.swift */; };
 		37B827A97DAB87AADDC8642A /* CanvasScene3DRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B7A8D1A3FCF024827D89665 /* CanvasScene3DRenderer.swift */; };
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
+		4016BD3CF245BCA932D3D1D5 /* InviteAccountSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6337F0388FCB9CD46ACFEE95 /* InviteAccountSection.swift */; };
 		417694AF6ACC5AEEF6E2E4B9 /* ClaimSummaryCard+Provenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CE0962968DEE7EAB60E454 /* ClaimSummaryCard+Provenance.swift */; };
 		44088B69B036974D72906372 /* ShareSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2FF20EF84262D15A268246D /* ShareSettingsView.swift */; };
 		441627D26C9932352CE1FDF1 /* CanvasItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5921F26A97AF84B80B4DCD29 /* CanvasItemStore.swift */; };
@@ -851,6 +852,7 @@
 		61D7DC57117008EBCFE607A9 /* AnnotationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationService.swift; sourceTree = "<group>"; };
 		626E23DB6F8B778F70AF3B35 /* SpaceTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpaceTheme.swift; sourceTree = "<group>"; };
 		62708E3F674B9F832BF8DB9F /* DocumentInspectorContentV2.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentInspectorContentV2.swift; sourceTree = "<group>"; };
+		6337F0388FCB9CD46ACFEE95 /* InviteAccountSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InviteAccountSection.swift; sourceTree = "<group>"; };
 		63B044A60D5A8C7BA256FF24 /* NavigationHistoryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NavigationHistoryManager.swift; sourceTree = "<group>"; };
 		6538828411C92CBA8CD33DC9 /* AnnotationListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationListView.swift; sourceTree = "<group>"; };
 		6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+ReadingLayout.swift"; sourceTree = "<group>"; };
@@ -1965,6 +1967,7 @@
 				D2FF20EF84262D15A268246D /* ShareSettingsView.swift */,
 				CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */,
 				EAF964748FC3450263DCB1D1 /* CaptureSettingsView.swift */,
+				6337F0388FCB9CD46ACFEE95 /* InviteAccountSection.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -3003,6 +3006,7 @@
 				EFD8B28CC600C4E64EF3EA90 /* DeviceTokenRenewal.swift in Sources */,
 				50667A0C0A15D67B79D303AC /* ShareLibrarySheet.swift in Sources */,
 				4F070C9F83A1E68CBABB98DA /* PairedHostEndpoints.swift in Sources */,
+				4016BD3CF245BCA932D3D1D5 /* InviteAccountSection.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

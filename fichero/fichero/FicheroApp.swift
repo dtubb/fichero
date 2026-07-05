@@ -115,6 +115,13 @@ struct FicheroApp: App {
     private func handleOpenURL(_ url: URL) {
         logger.info("handleOpenURL: \(url.path)")
 
+        // Account invite link (#3157): route to the redeem gate. The token is a
+        // secret query param, so it is never logged.
+        if let token = SessionStore.inviteToken(from: url) {
+            appState.sessionStore.beginInviteRedemption(token: token)
+            return
+        }
+
         // Check if this library is already open
         if let existingLibrary = libraryManager.openLibraries.first(where: { $0.url == url }) {
             logger.info("Library already open: \(existingLibrary.displayName)")

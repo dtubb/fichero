@@ -1,4 +1,5 @@
 @testable import Fichero
+import Foundation
 import Testing
 
 /// Unit tests for the multi-user login gate's pure decision logic (#2021/#2022).
@@ -52,5 +53,37 @@ struct SessionStorePhaseTests {
         // Distinct categories produce distinct guidance.
         #expect(AuthError.login(statusCode: 401).errorDescription != AuthError.login(statusCode: 429).errorDescription)
         #expect(AuthError.createOwner(statusCode: 409).errorDescription != AuthError.login(statusCode: 401).errorDescription)
+        // The invite-redeem category also produces safe, specific guidance (#3157).
+        #expect(AuthError.redeemInvite(statusCode: 401).errorDescription?.isEmpty == false)
+        #expect(AuthError.redeemInvite(statusCode: 401).errorDescription
+            != AuthError.redeemInvite(statusCode: 409).errorDescription)
+    }
+
+    // MARK: - Invite link parsing (#3157)
+
+    @Test("a well-formed invite link yields its token")
+    func inviteLinkYieldsToken() throws {
+        let url = try #require(URL(string: "fichero://invite?token=abc123"))
+        #expect(SessionStore.inviteToken(from: url) == "abc123")
+    }
+
+    @Test("percent-encoded tokens are decoded")
+    func inviteLinkDecodesPercentEncoding() throws {
+        let url = try #require(URL(string: "fichero://invite?token=a%2Fb%3Dc"))
+        #expect(SessionStore.inviteToken(from: url) == "a/b=c")
+    }
+
+    @Test("non-invite links and malformed links yield nil")
+    func nonInviteLinksYieldNil() throws {
+        let cases = [
+            "fichero://pair?token=abc",   // wrong host
+            "https://invite?token=abc",   // wrong scheme
+            "fichero://invite",           // no token
+            "fichero://invite?token="     // empty token
+        ]
+        for string in cases {
+            let url = try #require(URL(string: string))
+            #expect(SessionStore.inviteToken(from: url) == nil)
+        }
     }
 }

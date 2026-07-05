@@ -42,6 +42,13 @@ final class SessionStore {
     private(set) var phase: Phase = .checking
     private(set) var currentUser: Components.Schemas.UserResponse?
 
+    /// Set when the app opens a `fichero://invite?token=…` link (#3157). While
+    /// non-nil the auth gate shows the redeem-invite screen (set-your-password),
+    /// regardless of `phase`, so even a signed-in user can redeem into a new
+    /// account. Cleared on success or cancel. The token is a secret and is never
+    /// logged.
+    private(set) var pendingInviteToken: String?
+
     private let client: FicheroClient
     private let log = Logger(subsystem: "app.fichero.fichero", category: "SessionStore")
 
@@ -145,6 +152,60 @@ final class SessionStore {
         }
     }
 
+    // MARK: - Invite redemption (#3157)
+
+    /// Extract the invite token from a `fichero://invite?token=…` deep link, or
+    /// `nil` if the URL isn't a well-formed invite link. Pure + `nonisolated` so
+    /// both the macOS and iOS `onOpenURL` handlers share one parser and it's
+    /// unit-testable. The token itself is a secret and is never logged.
+    nonisolated static func inviteToken(from url: URL) -> String? {
+        guard url.scheme?.lowercased() == "fichero",
+              url.host?.lowercased() == "invite",
+              let token = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                  .queryItems?.first(where: { $0.name == "token" })?.value,
+              !token.isEmpty
+        else { return nil }
+        return token
+    }
+
+    /// Begin redeeming an invite opened from a `fichero://invite?token=…` link.
+    /// Surfaces the redeem screen through the gate; the token is held only in
+    /// memory until the invitee sets a password.
+    func beginInviteRedemption(token: String) {
+        pendingInviteToken = token
+    }
+
+    /// Dismiss the redeem screen without redeeming (returns to the prior gate).
+    func cancelInviteRedemption() {
+        pendingInviteToken = nil
+    }
+
+    /// Redeem the pending invite with the password the invitee chooses. On
+    /// success the engine returns a session (identical to login), which is
+    /// persisted to the Keychain and drops the invitee straight into a
+    /// signed-in session.
+    func redeemInvite(newPassword: String) async throws {
+        guard let token = pendingInviteToken else { throw AuthError.invalidInput }
+        let request = Components.Schemas.InviteRedeemRequest(
+            inviteToken: token,
+            newPassword: newPassword
+        )
+        let response = try await client.api.redeemInviteApiAuthInvitesRedeemPost(body: .json(request))
+        switch response {
+        case .ok(let ok):
+            let payload = try ok.body.json
+            try AuthTokenMiddleware.persistSessionToken(payload.sessionToken, hostString: hostString)
+            currentUser = payload.user
+            pendingInviteToken = nil
+            phase = .authenticated
+            log.info("Redeemed invite, signed in as \(payload.user.username, privacy: .public)")
+        case .unprocessableContent:
+            throw AuthError.invalidInput
+        case .undocumented(let statusCode, _):
+            throw AuthError.redeemInvite(statusCode: statusCode)
+        }
+    }
+
     func logout() async {
         // Best-effort server-side revoke; clear local state regardless.
         _ = try? await client.api.logoutApiAuthLogoutPost()
@@ -199,6 +260,7 @@ enum AuthError: LocalizedError, Equatable {
     case invalidInput
     case login(statusCode: Int)
     case createOwner(statusCode: Int)
+    case redeemInvite(statusCode: Int)
 
     var errorDescription: String? {
         switch self {
@@ -218,6 +280,14 @@ enum AuthError: LocalizedError, Equatable {
             case 409: return "That username is already taken."
             case 404: return "Multi-user login is not enabled on this server."
             default: return "Could not create the owner account (error \(statusCode))."
+            }
+        case .redeemInvite(let statusCode):
+            switch statusCode {
+            case 401: return "This invite has expired or was already used. Ask for a new one."
+            case 409: return "That account already exists. Sign in instead."
+            case 404: return "Multi-user login is not enabled on this server."
+            case 429: return "Too many attempts. Wait a moment and try again."
+            default: return "Could not redeem the invite (error \(statusCode))."
             }
         }
     }
