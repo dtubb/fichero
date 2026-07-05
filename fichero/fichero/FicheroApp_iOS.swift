@@ -135,6 +135,23 @@ private struct FicheroSharedPlatformRoot: View {
         // Launch connects through the SAME entry point as the Retry button and
         // pairing (#3108) — one iOS connect path, no divergent launch task.
         .task { await reconnectToConfiguredHost() }
+        // #2389: reconnectToConfiguredHost covers launch/Retry/pairing, but a
+        // capture taken offline in the field must also flush when the connection
+        // recovers on its own while the app stays foregrounded — the 5s heartbeat
+        // or an endpoint failover (#3098) flipping the engine back to ready. That
+        // path doesn't run reconnectToConfiguredHost, so observe the readiness
+        // shim and flush the queue on the false→true edge. resumePendingUploads
+        // reserves items synchronously before its first await, so overlapping this
+        // with the launch flush uploads each capture exactly once (never dropped,
+        // never doubled).
+        .onChange(of: appState.isBackendRunning) { _, isRunning in
+            guard isRunning else { return }
+            Task {
+                _ = await captureQueue.resumePendingUploads(
+                    using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
+                )
+            }
+        }
     }
 
     /// The ONE iOS connect entry point (#3108): launch, the connection view's

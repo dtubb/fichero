@@ -144,6 +144,39 @@ final class MobileCaptureQueueTests: XCTestCase {
         XCTAssertEqual(store.items.first?.lastError, "boom")
     }
 
+    func testConcurrentResumeUploadsUploadEachCaptureExactlyOnce() async throws {
+        // #2389: the launch flush (reconnectToConfiguredHost) and the recovery
+        // flush (heartbeat / endpoint-failover flipping ready, wired via the iOS
+        // root's onChange) can overlap. resumePendingUploads reserves items as
+        // `.uploading` synchronously before its first await, so two concurrent
+        // flushes must upload each capture exactly once — never dropped, never
+        // doubled. If the reservation ever stops being synchronous this fails.
+        markDevicePairedWithLibrary()
+        let storageDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: storageDirectory) }
+
+        let store = MobileCaptureQueueStore(storageDirectory: storageDirectory)
+        for index in 0..<3 {
+            _ = try store.enqueueCapturedImage(
+                Data([UInt8(index)]),
+                catalog: MobileCaptureCatalogFields(title: "Capture \(index)")
+            )
+        }
+
+        let uploader = FakeCaptureUploader(
+            backendHost: URL(string: "https://pairing.example.com"),
+            result: .success("doc")
+        )
+        async let first = store.resumePendingUploads(using: uploader)
+        async let second = store.resumePendingUploads(using: uploader)
+        let uploadedTotal = await first.uploadedCount + second.uploadedCount
+
+        XCTAssertEqual(uploader.uploads.count, 3, "each capture uploads exactly once across overlapping flushes")
+        XCTAssertEqual(uploadedTotal, 3)
+        XCTAssertEqual(store.items.filter { $0.uploadState == .uploaded }.count, 3)
+    }
+
     // MARK: — Active-library wiring (#2401)
 
     func testUploadClientWithTargetLibraryIdFailsWhenLibraryNotOpen() async throws {
@@ -286,6 +319,10 @@ private final class FakeCaptureUploader: MobileCaptureQueueUploading {
     }
 
     func upload(fileURL: URL, catalog: MobileCaptureCatalogFields) async throws -> String {
+        // Suspend once so overlapping resumePendingUploads calls actually
+        // interleave in tests (#2389 concurrency guard). Harmless to the
+        // single-flush tests, which await the result regardless.
+        await Task.yield()
         uploads.append((fileURL, catalog))
         return try result.get()
     }
