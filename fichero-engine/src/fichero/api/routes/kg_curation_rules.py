@@ -62,6 +62,14 @@ class EntityRuleDeleteResponse(BaseModel):
     deleted_rule_id: str
 
 
+def _invert_create_entity_rule(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict]:
+    if not after or "id" not in after:
+        raise ValueError("Cannot undo kg.entity_rule.create without created rule id")
+    return "kg.entity_rule.delete", {"rule_id": after["id"]}
+
+
 class ClaimRuleCreateRequest(BaseModel):
     action: ClaimSuppressionRuleAction
     match_predicate_verb: str | None = None
@@ -292,7 +300,8 @@ async def delete_claim_rule(
     "kg.entity_rule.create",
     EntityRuleCreateRequest,
     domains=["entity"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_create_entity_rule,
 )
 def _action_create_entity_rule(
     db: Database, params: EntityRuleCreateRequest, ctx: ActionContext

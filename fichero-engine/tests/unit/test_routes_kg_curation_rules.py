@@ -1,7 +1,14 @@
 """Tests for persistent KG curation-rule routes."""
 
+from fichero.actions.registry import ActionContext, registry
 from fichero.knowledge_models import ClaimSuppressionRule, EntityResolutionRule
 from fichero.models import ActionAudit
+
+LIB = "/lib/test.fichero"
+
+
+def _ctx() -> ActionContext:
+    return ActionContext(actor="ui", library_path=LIB)
 
 
 class TestEntityCurationRules:
@@ -100,6 +107,32 @@ class TestEntityCurationRules:
         assert len(delete_audits) == 1
         assert delete_audits[0].target_ids == [created_id]
         assert calls[-1][1]["type"] == "entity.updated"
+
+    def test_entity_rule_create_undo_then_redo(self, db):
+        reg = registry
+        params = {
+            "rule_type": "merge_into",
+            "match_canonical_name": "J. Davidson",
+            "target_canonical_name": "John Davidson",
+            "reason": "same person",
+        }
+
+        created = reg.invoke(db, "kg.entity_rule.create", params, _ctx())
+        created_id = created.result["id"]
+
+        create_action = reg.get("kg.entity_rule.create")
+        assert create_action.undoable is True
+        assert db.get(EntityResolutionRule, created_id) is not None
+
+        inv = create_action.invert(created.result, created.result, _ctx())
+        assert inv is not None
+        inv_name, inv_params = inv
+        assert inv_name == "kg.entity_rule.delete"
+        reg.invoke(db, inv_name, inv_params, _ctx())
+        assert db.get(EntityResolutionRule, created_id) is None
+
+        delete_action = reg.get(inv_name)
+        assert delete_action.undoable is False
 
 
 class TestClaimCurationRules:
