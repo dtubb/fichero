@@ -1,6 +1,6 @@
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OSLog
 import SwiftUI
 
@@ -152,14 +152,27 @@ class AppState {
         }
     }
 
-    /// After a health-200, confirm the engine accepts our token and load
-    /// providers, or flip authBroken/unreachable with a diagnosis (#2864). Uses
-    /// the one shared readiness probe (#3106).
+    /// After a health-200, confirm the engine accepts our token, resolve the full
+    /// auth context (token + session + identity), and only THEN flip ready and load
+    /// providers — or flip authBroken/unreachable with a diagnosis (#2864). Uses
+    /// the one shared readiness probe (#3106). Owning the whole ordering here is
+    /// what keeps the first library fetch authorized (#2407): nothing that a
+    /// library-scoped request depends on is resolved after `markReady`.
     private func confirmAuthAndLoad() async {
         switch await EngineReadinessProbe(hostURL: EngineConfig.host).probe() {
         case .ready:
-            engine.markReady()
+            // #2407: warm the ENTIRE auth context BEFORE flipping ready. The
+            // instant `isBackendRunning` becomes true, `DocumentTabView` mounts the
+            // library content and every sub-view `.task` fires a library-scoped
+            // fetch (chains/documents/workflows/conversations/saved-search). If the
+            // bearer token, restored session, and resolved identity aren't ALL in
+            // place first, that first burst races the warm-up and 403s (then 200s
+            // on retry). So resolve them here and make `markReady()` the LAST step —
+            // the readiness gate the first data call awaits, not a blind retry.
             _ = await AuthTokenMiddleware.waitForToken()
+            await sessionStore.refresh()
+            await identityStore.load()
+            engine.markReady()
             await loadProviders()
         case .authRejected:
             engine.markAuthRejected(
@@ -209,20 +222,13 @@ class AppState {
                 let health = try okResponse.body.json
                 documentCount = health.activeLibraries ?? 0
                 logger.info("Backend connected: v\(health.backendVersion ?? "unknown"), \(health.activeLibraries ?? 0) active libraries")
-                // Health 200 is necessary but NOT sufficient (#2864): confirm
-                // the engine accepts our token before declaring it usable.
+                // Health 200 is necessary but NOT sufficient (#2864): confirm the
+                // engine accepts our token, then — on the ready path —
+                // resolve the login gate (#2021/#2022) and identity (F5) BEFORE
+                // flipping ready, so the first library fetch is authorized (#2407).
+                // `confirmAuthAndLoad` owns that full ordering; the login gate and
+                // identity are no longer raced after `markReady`.
                 await confirmAuthAndLoad()
-
-                // Resolve the multi-user login gate (#2021/#2022): restores a
-                // stored session, or flips ContentView to the login / owner-setup
-                // screen. A no-op (phase → .disabled) when multi-user is off.
-                await sessionStore.refresh()
-
-                // Probe "who am I on this engine?" (F5) so the access UX can
-                // phrase denials in terms of the current identity (owner / user /
-                // bootstrap). Non-fatal: a failed probe records a typed error but
-                // never blocks the ready engine.
-                await identityStore.load()
 
             default:
                 engine.markUnreachable("API returned error status")
