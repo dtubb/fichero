@@ -1,24 +1,13 @@
-"""Shared feature-gate helpers for multi-user auth and pairing.
-
-Remote pairing should not depend on one fragile env variable when the engine is
-already explicitly configured for remote presence or transport. This module
-centralizes the "is multi-user mode on?" decision so auth middleware, ACLs, and
-pairing routes all agree.
-"""
+"""Shared feature-gate helpers for multi-user auth and pairing."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 import os
 
-from fichero.bind_host import _is_loopback_host
-
 TRUE_VALUES = {"1", "true", "yes", "on"}
 FALSE_VALUES = {"0", "false", "no", "off"}
-
-
-def _truthy(value: str | None) -> bool:
-    return (value or "").strip().lower() in TRUE_VALUES
+MULTIUSER_SETTING_KEY = "multiuser.enabled"
 
 
 def multiuser_enabled(env: Mapping[str, str] | None = None) -> bool:
@@ -31,14 +20,10 @@ def multiuser_enabled(env: Mapping[str, str] | None = None) -> bool:
     keeps the loopback + bootstrap-token trust model (#742); the ACL layer
     only matters once real accounts exist.
 
-    It turns ON when explicitly requested (`FICHERO_MULTIUSER=1`) or when a
-    genuinely network-facing deployment signal is present:
-    - Bonjour advertisement
-    - a configured public/private reachable URL for clients
-    - a deliberate non-loopback bind host
-
-    Explicit `FICHERO_MULTIUSER=0` forces it off even under those signals
-    (development/tests).
+    It turns ON only when explicitly requested (`FICHERO_MULTIUSER=1`),
+    when the persisted app setting says it is enabled, or when real account
+    rows already exist in the app database and the install must stay in
+    multi-user mode. Transport signals are not auth signals.
     """
 
     source = env if env is not None else os.environ
@@ -47,14 +32,33 @@ def multiuser_enabled(env: Mapping[str, str] | None = None) -> bool:
         return False
     if configured in TRUE_VALUES:
         return True
-    if _truthy(source.get("FICHERO_ENABLE_BONJOUR")):
-        return True
-    if (source.get("FICHERO_PUBLIC_BASE_URL") or "").strip():
-        return True
+    persisted = _persisted_multiuser_enabled()
+    if persisted is not None:
+        return persisted
+    return _has_account_rows()
 
-    for name in ("FICHERO_BIND_HOST", "FICHERO_REMOTE_BACKEND_BIND_HOST"):
-        host = (source.get(name) or "").strip()
-        if host and not _is_loopback_host(host):
-            return True
 
-    return False
+def _persisted_multiuser_enabled() -> bool | None:
+    try:
+        from fichero.app_db import get_app_db
+
+        value = get_app_db().get_setting(MULTIUSER_SETTING_KEY)
+    except Exception:
+        return None
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized in TRUE_VALUES:
+        return True
+    if normalized in FALSE_VALUES:
+        return False
+    return None
+
+
+def _has_account_rows() -> bool:
+    try:
+        from fichero.app_db import get_app_db
+
+        return bool(get_app_db().list_users())
+    except Exception:
+        return False

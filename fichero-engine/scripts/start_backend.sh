@@ -44,6 +44,7 @@ DEFAULTS_REMOTE_ENABLED=false
 DEFAULTS_PUBLIC_BASE_URL=""
 DEFAULTS_TAILNET_URL=""
 DEFAULTS_BONJOUR_ENABLED=false
+DEFAULTS_MULTIUSER_ENABLED=""
 if command -v defaults >/dev/null 2>&1; then
   if [ "$(defaults read app.fichero.fichero fichero.remote_access.enabled 2>/dev/null || echo 0)" = "1" ]; then
     DEFAULTS_REMOTE_ENABLED=true
@@ -53,6 +54,14 @@ if command -v defaults >/dev/null 2>&1; then
   if [ "$(defaults read app.fichero.fichero fichero.remote_access.bonjour_enabled 2>/dev/null || echo 0)" = "1" ]; then
     DEFAULTS_BONJOUR_ENABLED=true
   fi
+  DEFAULTS_MULTIUSER_ENABLED="$(defaults read app.fichero.fichero fichero.multiuser.enabled 2>/dev/null || true)"
+fi
+
+if [ -z "${FICHERO_MULTIUSER:-}" ] && [ -n "$DEFAULTS_MULTIUSER_ENABLED" ]; then
+  case "$(printf '%s' "$DEFAULTS_MULTIUSER_ENABLED" | tr '[:upper:]' '[:lower:]')" in
+    1|true|yes|on) FICHERO_MULTIUSER=1 ;;
+    0|false|no|off) FICHERO_MULTIUSER=0 ;;
+  esac
 fi
 
 if [ -z "${FICHERO_TLS_CERTFILE:-}" ] && [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
@@ -103,7 +112,6 @@ PY
   )"
   export FICHERO_TLS_CERTFILE FICHERO_TLS_KEYFILE FICHERO_TLS_SPKI_HASH
   if [ -n "${FICHERO_PUBLIC_BASE_URL:-}" ]; then
-    FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-1}"
     FICHERO_ALLOW_NON_LOOPBACK_BIND="${FICHERO_ALLOW_NON_LOOPBACK_BIND:-I_UNDERSTAND_SHARED_SECRET_RISK}"
     FICHERO_BIND_HOST="$(
       "$PYTHON_BIN" -c 'import json, sys; print(json.loads(sys.stdin.read())["bind_host"])' <<<"$TLS_MANIFEST"
