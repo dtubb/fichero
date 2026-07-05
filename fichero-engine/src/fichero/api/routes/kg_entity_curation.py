@@ -683,6 +683,24 @@ def _invert_merge(
     return ("entity.unmerge", {"audit_id": merge_audit_id})
 
 
+def _invert_unmerge(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    target_entity_id = after.get("target_entity_id")
+    source_entity_ids = after.get("source_entity_ids")
+    if not target_entity_id or not source_entity_ids:
+        return None
+    return (
+        "entity.merge",
+        {
+            "absorbing_entity_id": target_entity_id,
+            "absorbed_entity_ids": source_entity_ids,
+        },
+    )
+
+
 @action(
     "entity.merge",
     EntityMergeRequest,
@@ -717,7 +735,8 @@ def _action_merge_entities(
     "entity.unmerge",
     UnmergeEntitiesParams,
     domains=["entity", "claim"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_unmerge,
 )
 def _action_unmerge_entities(
     db: Database, params: UnmergeEntitiesParams, ctx: ActionContext
@@ -727,7 +746,11 @@ def _action_unmerge_entities(
     spec = ChangeSpec(
         domains=["entity", "claim"],
         target_ids=entity_ids,
-        after={"entity_merge_audit_id": undo_audit.id},
+        after={
+            "entity_merge_audit_id": undo_audit.id,
+            "target_entity_id": undo_audit.target_entity_id,
+            "source_entity_ids": undo_audit.source_entity_ids,
+        },
         emit_type="entity.split",
         entity_ids=entity_ids,
     )

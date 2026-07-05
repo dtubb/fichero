@@ -200,6 +200,41 @@ class TestEntityMergeAction:
         # merge reversed: merged_into_id cleared
         assert db.get(KnowledgeEntity, absorbed.id).merged_into_id is None
 
+    def test_unmerge_undo_remerges_same_entities(self, db):
+        absorber, absorbed = self._two_entities(db)
+        ctx = ActionContext(actor="ui", library_path="/lib/test.fichero")
+
+        merge_result = registry.invoke(
+            db,
+            "entity.merge",
+            {
+                "absorbing_entity_id": absorber.id,
+                "absorbed_entity_ids": [absorbed.id],
+            },
+            ctx,
+        )
+        merge_audit = db.get(ActionAudit, merge_result.audit_id)
+        unmerge_name, unmerge_params = registry.get("entity.merge").invert(
+            merge_audit.before,
+            merge_audit.after,
+            ctx,
+        )
+        assert unmerge_name == "entity.unmerge"
+
+        unmerge_result = registry.invoke(db, unmerge_name, unmerge_params, ctx)
+        assert db.get(KnowledgeEntity, absorbed.id).merged_into_id is None
+
+        unmerge_audit = db.get(ActionAudit, unmerge_result.audit_id)
+        reg = registry.get(unmerge_audit.action_name)
+        assert reg.undoable and reg.invert is not None
+        inverse = reg.invert(unmerge_audit.before, unmerge_audit.after, ctx)
+        assert inverse is not None
+        inv_name, inv_params = inverse
+        assert inv_name == "entity.merge"
+
+        registry.invoke(db, inv_name, inv_params, ctx)
+        assert db.get(KnowledgeEntity, absorbed.id).merged_into_id == absorber.id
+
 
 # ---------------------------------------------------------------------------
 # Generic listing endpoint
