@@ -75,6 +75,20 @@ class LoginResponse(BaseModel):
     user: UserResponse
 
 
+class SessionUserResponse(BaseModel):
+    id: str
+    username: str
+    display_name: str
+
+
+class SessionResponse(BaseModel):
+    id: str
+    user: SessionUserResponse
+    device_label: str
+    created: datetime
+    last_seen: datetime
+
+
 class CreateUserRequest(BaseModel):
     username: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
@@ -251,6 +265,14 @@ def _identity_user(user: AccountUser | None) -> AuthIdentityUser | None:
     )
 
 
+def _session_user(user: AccountUser) -> SessionUserResponse:
+    return SessionUserResponse(
+        id=user.id,
+        username=user.username,
+        display_name=user.display_name,
+    )
+
+
 @auth_router.post("/login", response_model=LoginResponse)
 def login(
     request: Request,
@@ -324,6 +346,62 @@ def identity(request: Request) -> AuthIdentityResponse:
         user=_identity_user(user),
         is_owner_access=auth_kind == "bootstrap" or bool(getattr(user, "is_owner", False)),
     )
+
+
+@auth_router.get("/sessions", response_model=list[SessionResponse])
+def list_sessions(
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> list[SessionResponse]:
+    _multiuser_disabled()
+
+    session_user = _current_session_user(request)
+    if getattr(request.state, "bootstrap_auth", False) or bool(
+        getattr(session_user, "is_owner", False)
+    ):
+        users_by_id = {user.id: user for user in app_db.list_users()}
+        sessions = app_db.list_sessions()
+    elif session_user is not None:
+        users_by_id = {session_user.id: session_user}
+        sessions = app_db.list_sessions(user_id=session_user.id)
+    else:
+        raise HTTPException(status_code=401, detail="session required")
+
+    return [
+        SessionResponse(
+            id=session.id,
+            user=_session_user(users_by_id[session.user_id]),
+            device_label=session.device_label,
+            created=session.created_at,
+            last_seen=session.last_seen_at,
+        )
+        for session in sessions
+        if session.user_id in users_by_id
+    ]
+
+
+@auth_router.post("/sessions/{session_id}/revoke", response_model=StatusResponse)
+def revoke_session(
+    session_id: str,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> StatusResponse:
+    _multiuser_disabled()
+
+    target = app_db.get_session(session_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="session not found")
+
+    session_user = _current_session_user(request)
+    is_bootstrap = bool(getattr(request.state, "bootstrap_auth", False))
+    is_owner = bool(getattr(session_user, "is_owner", False))
+    if not is_bootstrap and not is_owner and (
+        session_user is None or session_user.id != target.user_id
+    ):
+        raise HTTPException(status_code=403, detail="owner or matching session required")
+
+    app_db.revoke_session_by_id(session_id)
+    return StatusResponse(status="ok")
 
 
 @users_router.post("", response_model=UserResponse)

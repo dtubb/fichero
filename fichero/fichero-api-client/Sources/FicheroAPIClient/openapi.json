@@ -1534,6 +1534,75 @@
         }
       }
     },
+    "/api/auth/sessions": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "List Sessions",
+        "operationId": "list_sessions_api_auth_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Sessions Api Auth Sessions Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sessions/{session_id}/revoke": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Revoke Session",
+        "operationId": "revoke_session_api_auth_sessions__session_id__revoke_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users": {
       "get": {
         "tags": [
@@ -55094,6 +55163,63 @@
         },
         "type": "object",
         "title": "SegmentOperationRequest"
+      },
+      "SessionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user": {
+            "$ref": "#/components/schemas/SessionUserResponse"
+          },
+          "device_label": {
+            "type": "string",
+            "title": "Device Label"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created"
+          },
+          "last_seen": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user",
+          "device_label",
+          "created",
+          "last_seen"
+        ],
+        "title": "SessionResponse"
+      },
+      "SessionUserResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "display_name"
+        ],
+        "title": "SessionUserResponse"
       },
       "SetAttributesRequest": {
         "properties": {

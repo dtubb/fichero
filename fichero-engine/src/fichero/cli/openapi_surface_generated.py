@@ -1400,6 +1400,29 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-sessions")
+    def auth_list_sessions_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Sessions (GET /api/auth/sessions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/sessions"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("revoke-session")
+    def auth_revoke_session_post(
+        ctx: typer.Context,
+        session_id: str = typer.Argument(..., help="Path parameter: session_id."),
+    ) -> None:
+        """Revoke Session (POST /api/auth/sessions/{session_id}/revoke)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/auth/sessions/{session_id}/revoke"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('authz')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for authz endpoints.', no_args_is_help=True)
