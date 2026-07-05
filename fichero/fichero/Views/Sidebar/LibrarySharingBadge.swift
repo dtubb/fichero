@@ -31,7 +31,7 @@ struct LibrarySharingBadge: View {
                 } label: {
                     Image(systemName: iconName(for: snapshot))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(iconTint(for: snapshot))
                 }
                 .buttonStyle(.plain)
                 .help(helpText(for: snapshot))
@@ -49,8 +49,24 @@ struct LibrarySharingBadge: View {
         }
     }
 
+    /// Role-distinct glyph (F7): the badge shows *your* access on this library,
+    /// not just "shared". Owner → crown, editor → pencil, viewer → eye; a shared
+    /// library where your role isn't resolved falls back to the two-person glyph.
     private func iconName(for snapshot: Components.Schemas.LibraryAuthzSnapshot) -> String {
-        snapshot.currentUserRole == "owner" ? "crown" : "person.2"
+        switch snapshot.currentUserRole {
+        case "owner": return "crown"
+        case "editor": return "pencil"
+        case "viewer": return "eye"
+        default: return "person.2"
+        }
+    }
+
+    /// Tint the glyph so read-only access reads at a glance: a viewer is
+    /// de-emphasised, owner/editor (can write) use the accent. Keyed on
+    /// `currentUserRole` — unambiguously the signed-in user — not the target
+    /// fields, which describe whichever member is being inspected.
+    private func iconTint(for snapshot: Components.Schemas.LibraryAuthzSnapshot) -> Color {
+        snapshot.currentUserRole == "viewer" ? .secondary : .accentColor
     }
 
     private func helpText(for snapshot: Components.Schemas.LibraryAuthzSnapshot) -> String {

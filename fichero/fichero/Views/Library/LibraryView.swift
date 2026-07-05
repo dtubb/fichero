@@ -347,11 +347,28 @@ struct LibraryView: View {
         }
     }
 
+    /// "Live updates paused" pill (F7), shown only when this library's change
+    /// stream has dropped. Reading `stream.liveUpdatesUnavailable` (a nested
+    /// @Observable) makes the pill appear/disappear reactively.
+    @ViewBuilder
+    private var liveUpdatesPausedOverlay: some View {
+        if let stream = libraryReference?.changeStream, stream.liveUpdatesUnavailable {
+            LiveUpdatesPausedPill(onReconnect: {
+                stream.stop()
+                stream.start()
+            })
+        }
+    }
+
     var body: some View {
         withKeyboardShortcuts(
             VStack(spacing: 0) {
                 libraryContent
             }
+            // No-silent-fallback (F7): if this library's change stream drops, say
+            // so with a pill over the content instead of quietly showing stale
+            // rows. Tapping Reconnect forces an immediate resubscribe.
+            .overlay(alignment: .top) { liveUpdatesPausedOverlay }
             // Xcode-navigator-style quick filter, pinned to the BOTTOM of the
             // library list pane. Narrows the rows currently shown client-side
             // (binds `searchText`, which drives `filteredDocuments`) — distinct

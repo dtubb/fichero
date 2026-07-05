@@ -107,6 +107,15 @@ struct WorkflowEditor: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // No-silent-fallback (F7): if a running workflow's event stream drops,
+            // the canvas would otherwise look stalled — surface it. Informational
+            // (no reconnect button): the run may still be completing server-side,
+            // and re-subscribing is driven by re-opening / re-running the run.
+            .overlay(alignment: .top) {
+                if workflowStreamService.liveUpdatesUnavailable {
+                    LiveUpdatesPausedPill(onReconnect: nil)
+                }
+            }
 
             WorkflowToolbar(
                 isRunning: $isRunning,
