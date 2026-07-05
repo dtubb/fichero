@@ -688,9 +688,10 @@ def update_user(
         app_db.revoke_all_for_user(user_id)
 
     if body.active is not None:
-        app_db.set_active(user_id, body.active)
         if not body.active:
             app_db.revoke_all_for_user(user_id)
+            app_db.revoke_all_devices_for_user(user_id)
+        app_db.set_active(user_id, body.active)
 
     updated = app_db.get_user(user_id)
     if updated is None:
