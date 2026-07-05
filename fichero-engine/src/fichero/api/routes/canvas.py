@@ -321,7 +321,44 @@ class CanvasLayoutSaveParams(CanvasLayoutSaveRequest):
     folder_id: str
 
 
-@action("canvas.layout.save", CanvasLayoutSaveParams, domains=["canvas"])
+class CanvasLayoutRestoreParams(BaseModel):
+    folder_id: str
+    rows: list[dict[str, Any]] = Field(default_factory=list)
+    current_item_ids: list[str] = Field(default_factory=list)
+
+
+def _invert_canvas_layout_to_restore(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    scope_id = after.get("scope_id") if isinstance(after, dict) else None
+    rows_after = after.get("rows") if isinstance(after, dict) else None
+    if not scope_id or not isinstance(rows_after, list):
+        return None
+    rows_before = before.get("rows") if isinstance(before, dict) else []
+    if not isinstance(rows_before, list):
+        rows_before = []
+    current_item_ids = [
+        row.get("item_id") for row in rows_after if isinstance(row, dict) and row.get("item_id")
+    ]
+    return (
+        "canvas.layout.restore",
+        {
+            "folder_id": scope_id,
+            "rows": rows_before,
+            "current_item_ids": current_item_ids,
+        },
+    )
+
+
+@action(
+    "canvas.layout.save",
+    CanvasLayoutSaveParams,
+    domains=["canvas"],
+    undoable=True,
+    invert=_invert_canvas_layout_to_restore,
+)
 def _action_save_canvas_layout(
     db: Database, params: CanvasLayoutSaveParams, ctx: ActionContext
 ) -> tuple[dict[str, Any], ChangeSpec]:
@@ -346,6 +383,50 @@ def _action_save_canvas_layout(
     return {
         "items": [row.model_dump(mode="json") for row in rows],
         "skipped": [item.model_dump(mode="json") for item in skipped],
+    }, spec
+
+
+@action(
+    "canvas.layout.restore",
+    CanvasLayoutRestoreParams,
+    domains=["canvas"],
+    undoable=False,
+)
+def _action_restore_canvas_layout(
+    db: Database, params: CanvasLayoutRestoreParams, ctx: ActionContext
+) -> tuple[dict[str, Any], ChangeSpec]:
+    before = [
+        row.model_dump(mode="json")
+        for row in _load_canvas_layout(db, params.folder_id)
+        if row.item_id in set(params.current_item_ids)
+    ]
+
+    restored_item_ids = {
+        row.get("item_id") for row in params.rows if isinstance(row, dict) and row.get("item_id")
+    }
+    for item_id in params.current_item_ids:
+        if item_id in restored_item_ids:
+            continue
+        existing = db.get(CanvasLayout, CanvasLayout.make_id(params.folder_id, item_id))
+        if existing is not None:
+            db.delete(existing)
+
+    restored_rows: list[CanvasLayout] = []
+    for snapshot in params.rows:
+        row = CanvasLayout.model_validate(snapshot)
+        db.save(row)
+        restored_rows.append(row)
+
+    spec = _canvas_layout_change_spec(
+        emit_type="canvas.layout.saved",
+        scope_id=params.folder_id,
+        rows=restored_rows,
+        before=before,
+        skipped=[],
+    )
+    return {
+        "items": [row.model_dump(mode="json") for row in restored_rows],
+        "skipped": [],
     }, spec
 
 

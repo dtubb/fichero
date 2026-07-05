@@ -1,8 +1,13 @@
 """Unit tests for canvas layout table persistence (#3078)."""
 
+import asyncio
+
+from fichero.api.routes.actions_registry import undo_action
 from fichero.db import Database
 from fichero.db_migrations import migrate_canvas_layout_table
 from fichero.knowledge.knowledge_models import KnowledgeEntity
+from fichero import accounts, authz
+from fichero.actions.registry import ActionContext, registry
 from fichero.models import DocType, Document
 from fichero.models import ActionAudit
 from fichero.canvas_models import CanvasItem, CanvasItemKind, CanvasLayout
@@ -14,6 +19,32 @@ def _make_doc(db, folder_id: str, doc_id: str) -> Document:
     doc = Document(id=doc_id, name=doc_id, parent_id=folder_id, doc_type=DocType.file)
     db.save(doc)
     return doc
+
+
+def _ctx(db, app_db) -> ActionContext:
+    library_path = str(db.path.parent)
+    user = app_db.create_user(
+        username="canvas-layout-editor",
+        display_name="Canvas Layout Editor",
+        password_hash=accounts.hash_password("password"),
+    )
+    app_db.set_library_role(
+        user_id=user.id,
+        library_path=authz.normalize_library_path(library_path),
+        role="editor",
+    )
+    return ActionContext(actor=user.username, library_path=library_path)
+
+
+def _undo(db, audit_id: str, library_path: str):
+    return asyncio.run(
+        undo_action(
+            audit_id,
+            db=db,
+            x_fichero_library_path=library_path,
+            x_fichero_origin_window=None,
+        )
+    )
 
 
 def test_round_trip_upsert_then_load(client, db):
@@ -191,6 +222,52 @@ def test_save_canvas_layout_route_writes_action_audit(client, db):
     assert audit.action_name == "canvas.layout.save"
     assert len(audit.target_ids) == 1
     assert audit.target_ids[0].endswith("::doc-audit")
+
+
+def test_canvas_layout_save_undo_restores_previous_rows(db, app_db):
+    folder = "folder-layout-undo"
+    _make_doc(db, folder, "doc-a")
+    _make_doc(db, folder, "doc-b")
+    db.save(
+        CanvasLayout(
+            id=CanvasLayout.make_id(folder, "doc-a"),
+            folder_id=folder,
+            item_id="doc-a",
+            x=1.0,
+            y=2.0,
+        )
+    )
+
+    ctx = _ctx(db, app_db)
+    saved = registry.invoke(
+        db,
+        "canvas.layout.save",
+        {
+            "folder_id": folder,
+            "items": [
+                {"item_id": "doc-a", "x": 10.0, "y": 20.0},
+                {"item_id": "doc-b", "x": 30.0, "y": 40.0},
+            ],
+        },
+        ctx,
+    )
+
+    assert db.get(CanvasLayout, CanvasLayout.make_id(folder, "doc-a")).x == 10.0
+    assert db.get(CanvasLayout, CanvasLayout.make_id(folder, "doc-b")) is not None
+
+    undone = _undo(db, saved.audit_id, ctx.library_path)
+
+    restored_a = db.get(CanvasLayout, CanvasLayout.make_id(folder, "doc-a"))
+    restored_b = db.get(CanvasLayout, CanvasLayout.make_id(folder, "doc-b"))
+    assert restored_a is not None
+    assert restored_a.x == 1.0
+    assert restored_a.y == 2.0
+    assert restored_b is None
+    assert db.get(ActionAudit, saved.audit_id).undone is True
+    inverse_audit = db.get(ActionAudit, undone.audit_id)
+    assert inverse_audit is not None
+    assert inverse_audit.action_name == "canvas.layout.restore"
+    assert inverse_audit.inverse_of == saved.audit_id
 
 
 def test_canvas_layout_migration_backfills_legacy_document_positions_and_is_idempotent(tmp_path):
