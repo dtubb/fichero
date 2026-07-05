@@ -130,23 +130,32 @@ final class ImageEditingServiceGenerated {
     var lastError: Error?
 
     private let libraryPath: String
-    private let engineURL: URL
     private let client: FicheroClient
     private let session = RemoteCertificatePinning.configuredSession()
+
+    /// Engine root without `/api`, read live off the wrapped client so a pairing /
+    /// Settings host change (#2349) rebinds the raw-bytes `previewURL` path too —
+    /// not just the generated `client.api` operations. A stored snapshot here would
+    /// strand image previews on the host that was current when the editor opened.
+    private var engineURL: URL { client.baseURL }
 
     /// - Parameter engineURL: Engine root without `/api` (e.g. `http://127.0.0.1:8765`).
     init(libraryPath: String, engineURL: URL = EngineConfig.host, client: FicheroClient? = nil) {
         self.libraryPath = libraryPath
-        self.engineURL = engineURL
         self.client = client ?? FicheroClient(baseURL: engineURL, libraryPath: libraryPath)
     }
 
     convenience init(apiClient: APIClient) {
         // Strip /api from apiClient.baseURL to get the engine root; the generated
         // client's operation templates already carry the /api prefix.
+        // Share the apiClient's wrapped FicheroClient (a reference type) rather
+        // than snapshotting a fresh one, so a pairing / Settings host change
+        // rebinds this service too (#2349) instead of stranding it on the host
+        // that was current when the image editor opened.
         self.init(
             libraryPath: apiClient.currentLibraryPath ?? "",
-            engineURL: apiClient.baseURL.deletingLastPathComponent()
+            engineURL: apiClient.baseURL.deletingLastPathComponent(),
+            client: apiClient.client
         )
     }
 
