@@ -124,6 +124,10 @@ class AppState {
 
     func reconfigureGeneratedClientsForCurrentHost() {
         ficheroClient.reconfigure(baseURL: EngineConfig.host)
+        // The app-wide legacy APIClient (MCPService and other apiClient-based
+        // services) holds a SEPARATE FicheroClient — rebind it too (#2349) or it
+        // silently keeps talking to the old (localhost) host after a host change.
+        apiClient.reconfigure(baseURL: EngineConfig.host)
         NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
     }
 
