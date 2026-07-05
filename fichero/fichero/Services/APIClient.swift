@@ -62,6 +62,14 @@ class APIClient: ObservableObject {
         self.currentLibraryPath = libraryPath
     }
 
+    /// Test seam: wrap an already-configured `FicheroClient` (e.g. one bound to a
+    /// MockURLProtocol session) so service unit tests can drive the real
+    /// response-mapping switch without a live engine. Not used in production.
+    init(client: FicheroClient) {
+        self.client = client
+        self.currentLibraryPath = client.currentLibraryPath
+    }
+
     // MARK: - Generated Operations
 
     /// Health check using the generated OpenAPI operation.

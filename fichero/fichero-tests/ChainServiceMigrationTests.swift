@@ -193,6 +193,42 @@ struct ChainServiceMigrationTests {
         }
     }
 
+    private static func unprocessable(_ request: URLRequest) -> (HTTPURLResponse, Data) {
+        let response = HTTPURLResponse(
+            url: request.url!, statusCode: 422, httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        let body = #"{"detail":[{"loc":["body","name"],"msg":"field required","type":"missing"}]}"#
+        return (response, Data(body.utf8))
+    }
+
+    @Test("ChainService surfaces a 422's detail as validationError (never a generic swallow)")
+    func getChainValidationErrorPreservesDetail() async throws {
+        let service = ChainService(apiClient: APIClient(client: makeClient { Self.unprocessable($0) }))
+        do {
+            _ = try await service.getChain("c1")
+            Issue.record("expected a throw on 422")
+        } catch let ChainServiceError.validationError(message) {
+            #expect(message.contains("field required"))
+        } catch {
+            Issue.record("expected .validationError, got \(error)")
+        }
+    }
+
+    @Test("ChainService.listChains throws on a 500 (never a silently empty list)")
+    func listChainsThrowsOn500() async throws {
+        let service = ChainService(apiClient: APIClient(client: makeClient { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 500, httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"detail":"boom"}"#.utf8))
+        }))
+        await #expect(throws: ChainServiceError.self) {
+            _ = try await service.listChains()
+        }
+    }
+
     @Test("execution status defaults the app-only step-result fields the backend omits")
     func executionStatusMaps() async throws {
         // Backend ChainStepResultInfo carries only id/workflow_id/status/error/
