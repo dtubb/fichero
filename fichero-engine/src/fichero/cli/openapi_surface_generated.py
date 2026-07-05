@@ -1355,6 +1355,69 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-invites")
+    def auth_list_invites_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Invites (GET /api/auth/invites)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/invites"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-invite")
+    def auth_create_invite_post(
+        ctx: typer.Context,
+        display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
+        username: str = typer.Option(..., "--username", help="Request field: username."),
+    ) -> None:
+        """Create Invite (POST /api/auth/invites)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/invites"
+            params = None
+            payload = _build_json_payload({
+                "display_name": display_name,
+                "username": username,
+            }, {
+                "display_name": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
+                "username": {'type': 'string', 'minLength': 1, 'title': 'Username', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("redeem-invite")
+    def auth_redeem_invite_post(
+        ctx: typer.Context,
+        invite_token: str = typer.Option(..., "--invite-token", help="Request field: invite_token."),
+        new_password: str = typer.Option(..., "--new-password", help="Request field: new_password."),
+    ) -> None:
+        """Redeem Invite (POST /api/auth/invites/redeem)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/invites/redeem"
+            params = None
+            payload = _build_json_payload({
+                "invite_token": invite_token,
+                "new_password": new_password,
+            }, {
+                "invite_token": {'type': 'string', 'minLength': 1, 'title': 'Invite Token', 'x-cli-required': True},
+                "new_password": {'type': 'string', 'minLength': 1, 'title': 'New Password', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("revoke-invite")
+    def auth_revoke_invite_post(
+        ctx: typer.Context,
+        invite_id: str = typer.Argument(..., help="Path parameter: invite_id."),
+    ) -> None:
+        """Revoke Invite (POST /api/auth/invites/{invite_id}/revoke)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/auth/invites/{invite_id}/revoke"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("login")
     def auth_login_post(
         ctx: typer.Context,

@@ -1534,6 +1534,157 @@
         }
       }
     },
+    "/api/auth/invites": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "List Invites",
+        "operationId": "list_invites_api_auth_invites_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InviteResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Invites Api Auth Invites Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Create Invite",
+        "operationId": "create_invite_api_auth_invites_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteMintResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/invites/redeem": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Redeem Invite",
+        "operationId": "redeem_invite_api_auth_invites_redeem_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteRedeemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/invites/{invite_id}/revoke": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Revoke Invite",
+        "operationId": "revoke_invite_api_auth_invites__invite_id__revoke_post",
+        "parameters": [
+          {
+            "name": "invite_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Invite Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/sessions": {
       "get": {
         "tags": [
@@ -43871,6 +44022,103 @@
         ],
         "title": "InterpretiveFramework",
         "description": "An interpretive lens applied to claims and evidence.\n\nFrameworks are reusable lenses that shape how evidence is interpreted.\nExample: \"Marxist historical materialism\" as a framework for analyzing\nlabor relations in historical documents."
+      },
+      "InviteMintResponse": {
+        "properties": {
+          "invite": {
+            "$ref": "#/components/schemas/InviteResponse"
+          },
+          "invite_token": {
+            "type": "string",
+            "title": "Invite Token"
+          },
+          "redemption_url": {
+            "type": "string",
+            "title": "Redemption Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "invite",
+          "invite_token",
+          "redemption_url"
+        ],
+        "title": "InviteMintResponse"
+      },
+      "InviteRedeemRequest": {
+        "properties": {
+          "invite_token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Invite Token"
+          },
+          "new_password": {
+            "type": "string",
+            "minLength": 1,
+            "title": "New Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "invite_token",
+          "new_password"
+        ],
+        "title": "InviteRedeemRequest"
+      },
+      "InviteRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": true,
+            "title": "Display Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "title": "InviteRequest"
+      },
+      "InviteResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "created_at",
+          "expires_at"
+        ],
+        "title": "InviteResponse"
       },
       "InvokeActionRequest": {
         "properties": {

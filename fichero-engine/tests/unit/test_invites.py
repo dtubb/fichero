@@ -1,0 +1,238 @@
+from __future__ import annotations
+
+from contextlib import contextmanager
+from datetime import datetime, timedelta
+import importlib
+
+import pytest
+from fastapi.testclient import TestClient
+
+from fichero import accounts
+from fichero.api.auth import initialize_token
+from fichero.api.routes import auth_accounts, pairing
+
+
+def _bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _enable_multiuser(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+
+
+@pytest.fixture(autouse=True)
+def clear_auth_invite_state():
+    auth_accounts._LOGIN_ATTEMPTS_BY_IP.clear()
+    auth_accounts._LOGIN_ATTEMPTS_BY_ACCOUNT.clear()
+    auth_accounts._INVITE_MINT_ATTEMPTS_BY_IP.clear()
+    auth_accounts._INVITE_REDEEM_ATTEMPTS_BY_IP.clear()
+    pairing._PAIRING_CODES.clear()
+    pairing._PAIRING_ATTEMPTS.clear()
+    yield
+    auth_accounts._LOGIN_ATTEMPTS_BY_IP.clear()
+    auth_accounts._LOGIN_ATTEMPTS_BY_ACCOUNT.clear()
+    auth_accounts._INVITE_MINT_ATTEMPTS_BY_IP.clear()
+    auth_accounts._INVITE_REDEEM_ATTEMPTS_BY_IP.clear()
+    pairing._PAIRING_CODES.clear()
+    pairing._PAIRING_ATTEMPTS.clear()
+
+
+@contextmanager
+def _client(app_db, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    from fichero.api.routes.providers import get_app_database
+
+    api_main.app.dependency_overrides[get_app_database] = lambda: app_db
+    with TestClient(api_main.app) as client:
+        yield client
+    api_main.app.dependency_overrides.clear()
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+    importlib.reload(api_main)
+
+
+def _login(client: TestClient, username: str, password: str) -> str:
+    response = client.post(
+        "/api/auth/login",
+        json={"username": username, "password": password},
+    )
+    assert response.status_code == 200
+    return response.json()["session_token"]
+
+
+def test_invite_mint_is_owner_only(app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    app_db.create_user(
+        username="member",
+        display_name="Member",
+        password_hash=accounts.hash_password("password"),
+        is_owner=False,
+    )
+
+    with _client(app_db, monkeypatch) as client:
+        member_token = _login(client, "member", "password")
+        denied = client.post(
+            "/api/auth/invites",
+            headers=_bearer(member_token),
+            json={"username": "invitee", "display_name": "Invitee"},
+        )
+        allowed = client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={"username": "invitee", "display_name": "Invitee"},
+        )
+
+    assert denied.status_code == 403
+    assert allowed.status_code == 200
+    assert allowed.json()["invite"]["username"] == "invitee"
+    assert allowed.json()["redemption_url"].startswith("fichero://invite?token=")
+
+
+def test_invite_redeem_creates_account_sets_password_and_issues_session(
+    app_db, monkeypatch
+):
+    _enable_multiuser(monkeypatch)
+
+    with _client(app_db, monkeypatch) as client:
+        invite = client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={"username": "invitee", "display_name": "Invitee"},
+        )
+        assert invite.status_code == 200
+
+        redeemed = client.post(
+            "/api/auth/invites/redeem",
+            json={
+                "invite_token": invite.json()["invite_token"],
+                "new_password": "correct horse battery staple",
+            },
+        )
+        assert redeemed.status_code == 200
+
+        me = client.get(
+            "/api/auth/me",
+            headers=_bearer(redeemed.json()["session_token"]),
+        )
+
+    user = app_db.get_user_by_username("invitee")
+    assert user is not None
+    assert user.active is True
+    assert accounts.verify_password("correct horse battery staple", user.password_hash) is True
+    assert me.status_code == 200
+    assert me.json()["username"] == "invitee"
+
+
+def test_invite_is_one_time_only(app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+
+    with _client(app_db, monkeypatch) as client:
+        invite = client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={"username": "invitee", "display_name": "Invitee"},
+        )
+        token = invite.json()["invite_token"]
+
+        first = client.post(
+            "/api/auth/invites/redeem",
+            json={"invite_token": token, "new_password": "password-1"},
+        )
+        second = client.post(
+            "/api/auth/invites/redeem",
+            json={"invite_token": token, "new_password": "password-2"},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 401
+    assert second.json()["code"] == "invite_consumed"
+
+
+def test_expired_invite_fails(app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    base_now = datetime(2026, 7, 5, 12, 0, 0)
+
+    class FrozenDateTime(datetime):
+        current = base_now
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.current if tz is None else tz.fromutc(cls.current.replace(tzinfo=tz))
+
+    monkeypatch.setattr(auth_accounts, "datetime", FrozenDateTime)
+    monkeypatch.setattr("fichero.app_db.datetime", FrozenDateTime)
+
+    with _client(app_db, monkeypatch) as client:
+        invite = client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={"username": "invitee", "display_name": "Invitee"},
+        )
+        token = invite.json()["invite_token"]
+        FrozenDateTime.current = base_now + auth_accounts.INVITE_TTL + timedelta(seconds=1)
+        expired = client.post(
+            "/api/auth/invites/redeem",
+            json={"invite_token": token, "new_password": "password-1"},
+        )
+
+    assert expired.status_code == 401
+    assert expired.json()["code"] == "invite_expired"
+
+
+def test_invalid_invite_fails(app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+
+    with _client(app_db, monkeypatch) as client:
+        response = client.post(
+            "/api/auth/invites/redeem",
+            json={"invite_token": "not-a-real-token", "new_password": "password-1"},
+        )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "invalid_invite"
+
+
+def test_owner_can_list_and_revoke_pending_invites(app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+
+    with _client(app_db, monkeypatch) as client:
+        invite = client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={"username": "invitee", "display_name": "Invitee"},
+        )
+        invite_id = invite.json()["invite"]["id"]
+        token = invite.json()["invite_token"]
+
+        listed = client.get(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+        )
+        revoked = client.post(
+            f"/api/auth/invites/{invite_id}/revoke",
+            headers=_bearer(initialize_token()),
+        )
+        after = client.get(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+        )
+        redeem = client.post(
+            "/api/auth/invites/redeem",
+            json={"invite_token": token, "new_password": "password-1"},
+        )
+
+    assert listed.status_code == 200
+    assert [item["username"] for item in listed.json()] == ["invitee"]
+    assert revoked.status_code == 200
+    assert after.status_code == 200
+    assert after.json() == []
+    assert redeem.status_code == 401
+    assert redeem.json()["code"] == "invite_revoked"

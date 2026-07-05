@@ -12,20 +12,25 @@ import os
 from datetime import datetime, timedelta
 from functools import cache
 import sys
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from fichero import accounts
 from fichero.api.auth import _use_multiuser_auth, auth_kind_from_request
 from fichero.app_db import AppDatabase, get_app_db
-from fichero.models import AccountUser, AuthIdentityResponse, AuthIdentityUser
+from fichero.models import AccountInvite, AccountUser, AuthIdentityResponse, AuthIdentityUser
 
 logger = logging.getLogger(__name__)
 
 SESSION_TTL = timedelta(days=30)
 LOGIN_RATE_LIMIT = 5
 LOGIN_RATE_WINDOW = timedelta(minutes=1)
+INVITE_TTL = timedelta(minutes=15)
+INVITE_RATE_LIMIT = 5
+INVITE_RATE_WINDOW = timedelta(minutes=1)
 
 # Login failure trackers are intentionally process-local.
 # The engine manager clamps uvicorn to one worker, so one in-memory table is
@@ -34,6 +39,8 @@ LOGIN_RATE_WINDOW = timedelta(minutes=1)
 _LOGIN_ATTEMPTS_BY_IP: dict[str, list[datetime]] = {}
 _LOGIN_ATTEMPTS_BY_ACCOUNT: dict[str, list[datetime]] = {}
 _LOGIN_WORKER_WARNING_EMITTED = False
+_INVITE_MINT_ATTEMPTS_BY_IP: dict[str, list[datetime]] = {}
+_INVITE_REDEEM_ATTEMPTS_BY_IP: dict[str, list[datetime]] = {}
 
 
 # Constant-time fallback for "username not found" so login latency does not
@@ -89,6 +96,30 @@ class SessionResponse(BaseModel):
     last_seen: datetime
 
 
+class InviteRequest(BaseModel):
+    username: str = Field(min_length=1)
+    display_name: str | None = Field(default=None, min_length=1)
+
+
+class InviteRedeemRequest(BaseModel):
+    invite_token: str = Field(min_length=1)
+    new_password: str = Field(min_length=1)
+
+
+class InviteResponse(BaseModel):
+    id: str
+    username: str
+    display_name: str
+    created_at: datetime
+    expires_at: datetime
+
+
+class InviteMintResponse(BaseModel):
+    invite: InviteResponse
+    invite_token: str
+    redemption_url: str
+
+
 class CreateUserRequest(BaseModel):
     username: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
@@ -138,6 +169,24 @@ def _prune_login_attempts(now: datetime) -> None:
                 stale_scopes.append(scope)
         for scope in stale_scopes:
             attempts_by_scope.pop(scope, None)
+
+
+def _prune_attempt_table(
+    attempts_by_scope: dict[str, list[datetime]],
+    *,
+    now: datetime,
+    window: timedelta,
+) -> None:
+    window_start = now - window
+    stale_scopes: list[str] = []
+    for scope, attempts in attempts_by_scope.items():
+        current = [attempt for attempt in attempts if attempt >= window_start]
+        if current:
+            attempts_by_scope[scope] = current
+        else:
+            stale_scopes.append(scope)
+    for scope in stale_scopes:
+        attempts_by_scope.pop(scope, None)
 
 
 def _detect_configured_worker_count() -> int | None:
@@ -201,6 +250,15 @@ def _raise_login_rate_limit(now: datetime, attempts: list[datetime]) -> None:
     )
 
 
+def _raise_invite_rate_limit(now: datetime, attempts: list[datetime]) -> None:
+    retry_after = _retry_after_seconds(attempts, now)
+    raise HTTPException(
+        status_code=429,
+        detail="too many invite attempts; try again later",
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
 def _check_login_rate_limit(request: Request, username: str, now: datetime) -> None:
     warn_login_single_process_invariant()
     _prune_login_attempts(now)
@@ -214,6 +272,26 @@ def _check_login_rate_limit(request: Request, username: str, now: datetime) -> N
     if len(account_attempts) >= LOGIN_RATE_LIMIT:
         _LOGIN_ATTEMPTS_BY_ACCOUNT[account_scope] = account_attempts
         _raise_login_rate_limit(now, account_attempts)
+
+
+def _check_invite_rate_limit(
+    attempts_by_scope: dict[str, list[datetime]],
+    request: Request,
+    now: datetime,
+) -> None:
+    warn_login_single_process_invariant()
+    _prune_attempt_table(
+        attempts_by_scope,
+        now=now,
+        window=INVITE_RATE_WINDOW,
+    )
+    host = _login_host(request)
+    attempts = attempts_by_scope.get(host, [])
+    if len(attempts) >= INVITE_RATE_LIMIT:
+        attempts_by_scope[host] = attempts
+        _raise_invite_rate_limit(now, attempts)
+    attempts.append(now)
+    attempts_by_scope[host] = attempts
 
 
 def _record_login_failure(request: Request, username: str, now: datetime) -> None:
@@ -270,6 +348,30 @@ def _session_user(user: AccountUser) -> SessionUserResponse:
         id=user.id,
         username=user.username,
         display_name=user.display_name,
+    )
+
+
+def _invite_response(invite: AccountInvite) -> InviteResponse:
+    return InviteResponse(
+        id=invite.id,
+        username=invite.username,
+        display_name=invite.display_name,
+        created_at=invite.created_at,
+        expires_at=invite.expires_at,
+    )
+
+
+def _invite_redemption_url(raw_token: str) -> str:
+    return f"fichero://invite?token={quote(raw_token, safe='')}"
+
+
+def _invite_invalid_response(*, code: str) -> JSONResponse:
+    return JSONResponse(
+        {
+            "detail": "invalid or expired invite",
+            "code": code,
+        },
+        status_code=401,
     )
 
 
@@ -346,6 +448,118 @@ def identity(request: Request) -> AuthIdentityResponse:
         user=_identity_user(user),
         is_owner_access=auth_kind == "bootstrap" or bool(getattr(user, "is_owner", False)),
     )
+
+
+@auth_router.get("/invites", response_model=list[InviteResponse])
+def list_invites(
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> list[InviteResponse]:
+    _multiuser_disabled()
+    _require_owner_or_bootstrap(request)
+    return [_invite_response(invite) for invite in app_db.list_pending_invites()]
+
+
+@auth_router.post("/invites", response_model=InviteMintResponse)
+def create_invite(
+    body: InviteRequest,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> InviteMintResponse:
+    _multiuser_disabled()
+    _require_owner_or_bootstrap(request)
+
+    now = datetime.now()
+    _check_invite_rate_limit(_INVITE_MINT_ATTEMPTS_BY_IP, request, now)
+
+    username = body.username.strip()
+    display_name = (body.display_name or username).strip()
+    if not username or not display_name:
+        raise HTTPException(status_code=422, detail="username and display_name are required")
+
+    existing = app_db.get_user_by_username(username)
+    if existing is not None and existing.active:
+        raise HTTPException(status_code=409, detail="username already exists")
+    if app_db.get_pending_invite_for_username(username) is not None:
+        raise HTTPException(status_code=409, detail="pending invite already exists")
+
+    raw_token = accounts.new_session_token()
+    invite = app_db.create_invite(
+        username=username,
+        display_name=display_name,
+        token_hash=accounts.hash_token(raw_token),
+        ttl=INVITE_TTL,
+    )
+    return InviteMintResponse(
+        invite=_invite_response(invite),
+        invite_token=raw_token,
+        redemption_url=_invite_redemption_url(raw_token),
+    )
+
+
+@auth_router.post("/invites/redeem", response_model=LoginResponse)
+def redeem_invite(
+    body: InviteRedeemRequest,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> LoginResponse | JSONResponse:
+    _multiuser_disabled()
+
+    now = datetime.now()
+    _check_invite_rate_limit(_INVITE_REDEEM_ATTEMPTS_BY_IP, request, now)
+
+    invite = app_db.get_invite_by_token_hash(accounts.hash_token(body.invite_token.strip()))
+    if invite is None:
+        return _invite_invalid_response(code="invalid_invite")
+    if invite.revoked:
+        return _invite_invalid_response(code="invite_revoked")
+    if invite.consumed_at is not None:
+        return _invite_invalid_response(code="invite_consumed")
+    if invite.expires_at <= now:
+        return _invite_invalid_response(code="invite_expired")
+
+    user = app_db.get_user_by_username(invite.username)
+    if user is not None and user.active:
+        raise HTTPException(status_code=409, detail="username already exists")
+
+    password_hash = accounts.hash_password(body.new_password)
+    if user is None:
+        user = app_db.create_user(
+            username=invite.username,
+            display_name=invite.display_name,
+            password_hash=password_hash,
+            is_owner=False,
+            active=True,
+        )
+    else:
+        app_db.set_password(user.id, password_hash)
+        user = app_db.set_active(user.id, True) or user
+
+    raw_session_token = accounts.new_session_token()
+    app_db.create_session(
+        user_id=user.id,
+        token_hash=accounts.hash_token(raw_session_token),
+        device_label="Invite redemption",
+        ttl=SESSION_TTL,
+    )
+    app_db.consume_invite(invite.id, when=now)
+    return LoginResponse(session_token=raw_session_token, user=_to_public_user(user))
+
+
+@auth_router.post("/invites/{invite_id}/revoke", response_model=StatusResponse)
+def revoke_invite(
+    invite_id: str,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> StatusResponse:
+    _multiuser_disabled()
+    _require_owner_or_bootstrap(request)
+
+    invite = app_db.get_invite(invite_id)
+    if invite is None:
+        raise HTTPException(status_code=404, detail="invite not found")
+    app_db.revoke_invite(invite_id)
+    return StatusResponse(status="ok")
 
 
 @auth_router.get("/sessions", response_model=list[SessionResponse])
