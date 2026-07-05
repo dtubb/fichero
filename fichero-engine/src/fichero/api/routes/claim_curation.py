@@ -1301,6 +1301,24 @@ def _invert_merge_claims(
     return ("claim.unmerge", {"audit_id": audit_id})
 
 
+def _invert_unmerge_claims(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    target_claim_id = after.get("target_claim_id")
+    source_claim_ids = after.get("source_claim_ids")
+    if not target_claim_id or not source_claim_ids:
+        return None
+    return (
+        "claim.merge",
+        {
+            "surviving_claim_id": target_claim_id,
+            "absorbed_claim_ids": source_claim_ids,
+        },
+    )
+
+
 @action(
     "claim.transition",
     ClaimTransitionActionParams,
@@ -1399,7 +1417,8 @@ def _action_merge_claims(
     "claim.unmerge",
     ClaimUnmergeRequest,
     domains=["claim"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_unmerge_claims,
 )
 def _action_unmerge_claims(
     db: Database, params: ClaimUnmergeRequest, ctx: ActionContext
@@ -1409,7 +1428,11 @@ def _action_unmerge_claims(
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=claim_ids,
-        after={"claim_merge_audit_id": undo.id},
+        after={
+            "claim_merge_audit_id": undo.id,
+            "target_claim_id": undo.target_claim_id,
+            "source_claim_ids": undo.source_claim_ids,
+        },
         emit_type="claim.merged",
         claim_ids=claim_ids,
     )
