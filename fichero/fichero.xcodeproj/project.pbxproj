@@ -343,7 +343,6 @@
 		A1A3A9F42F1028E70021909D /* MCPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F32F1028E70021909D /* MCPService.swift */; };
 		A1A3A9F72F110CFD0021909D /* WorkflowExecutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */; };
 		A1A3A9FA2F110D170021909D /* ContentViewModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */; };
-		A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9FC2F110D260021909D /* AgentSettingsView.swift */; };
 		A1A3AA112F110D520021909D /* WorkflowCanvasView+DropHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA052F110D520021909D /* WorkflowCanvasView+DropHandling.swift */; };
 		A1A3AA122F110D520021909D /* WorkflowCanvasView+Gestures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA072F110D520021909D /* WorkflowCanvasView+Gestures.swift */; };
 		A1A3AA132F110D520021909D /* NodePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA022F110D520021909D /* NodePopover.swift */; };
@@ -363,7 +362,6 @@
 		A1A3AA212F110D520021909D /* WorkflowToolBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */; };
 		A1A3AA282F113E6F0021909D /* AutomationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA272F113E6F0021909D /* AutomationService.swift */; };
 		A1A3AA292F113E6F0021909D /* AutomationServiceMappers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA2A2F113E6F0021909D /* AutomationServiceMappers.swift */; };
-		A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA342F11665B0021909D /* IntegrationsView.swift */; };
 		A1A3AA382F1166660021909D /* IntegrationsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA372F1166660021909D /* IntegrationsService.swift */; };
 		A1A3AB242F11CCC70021909D /* Artifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB162F11CCC70021909D /* Artifact.swift */; };
 		A1A3AB252F11CCC70021909D /* Event.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB172F11CCC70021909D /* Event.swift */; };
@@ -959,7 +957,6 @@
 		A1A3A9F32F1028E70021909D /* MCPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPService.swift; sourceTree = "<group>"; };
 		A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionService.swift; sourceTree = "<group>"; };
 		A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewModifiers.swift; sourceTree = "<group>"; };
-		A1A3A9FC2F110D260021909D /* AgentSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsView.swift; sourceTree = "<group>"; };
 		A1A3AA002F110D520021909D /* AgentNodeBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentNodeBlockView.swift; sourceTree = "<group>"; };
 		A1A3AA012F110D520021909D /* CanvasHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasHelpers.swift; sourceTree = "<group>"; };
 		A1A3AA022F110D520021909D /* NodePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodePopover.swift; sourceTree = "<group>"; };
@@ -979,7 +976,6 @@
 		A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowToolBlocks.swift; sourceTree = "<group>"; };
 		A1A3AA272F113E6F0021909D /* AutomationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationService.swift; sourceTree = "<group>"; };
 		A1A3AA2A2F113E6F0021909D /* AutomationServiceMappers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationServiceMappers.swift; sourceTree = "<group>"; };
-		A1A3AA342F11665B0021909D /* IntegrationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsView.swift; sourceTree = "<group>"; };
 		A1A3AA372F1166660021909D /* IntegrationsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsService.swift; sourceTree = "<group>"; };
 		A1A3AB162F11CCC70021909D /* Artifact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artifact.swift; sourceTree = "<group>"; };
 		A1A3AB172F11CCC70021909D /* Event.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Event.swift; sourceTree = "<group>"; };
@@ -1844,7 +1840,6 @@
 		A1A3A9FD2F110D260021909D /* Agents */ = {
 			isa = PBXGroup;
 			children = (
-				A1A3A9FC2F110D260021909D /* AgentSettingsView.swift */,
 			);
 			path = Agents;
 			sourceTree = "<group>";
@@ -1891,7 +1886,6 @@
 		A1A3AA352F11665B0021909D /* Integrations */ = {
 			isa = PBXGroup;
 			children = (
-				A1A3AA342F11665B0021909D /* IntegrationsView.swift */,
 			);
 			path = Integrations;
 			sourceTree = "<group>";
@@ -2507,7 +2501,6 @@
 				B3A002020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift in Sources */,
 				B3A002030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift in Sources */,
 				A1BFB2D32F042C4100EAA55A /* AddProviderSheet.swift in Sources */,
-				A1A3AA362F11665B0021909D /* IntegrationsView.swift in Sources */,
 				A1A3A9C02F1028480021909D /* MCPToolsCatalogView.swift in Sources */,
 				202674C72F4788E0008EAB5D /* WorkflowMiniPreview.swift in Sources */,
 				A1A3A9C12F1028480021909D /* AddMCPServerSheet.swift in Sources */,
@@ -2649,7 +2642,6 @@
 				20D8EE452F4BE260006950A3 /* ActionLibraryView.swift in Sources */,
 				20D8EE222F4BBFB8006950A3 /* AutomationServiceTypes.swift in Sources */,
 				A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */,
-				A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */,
 				20D8EE4B2F4BED57006950A3 /* ActionDetailView.swift in Sources */,
 				023 /* ChatService.swift in Sources */,
 				025 /* SavedSearchService.swift in Sources */,
