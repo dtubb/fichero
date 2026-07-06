@@ -180,6 +180,15 @@ struct MainContentModifiers: ViewModifier {
     // Same SceneStorage key as ContentView, so they share state. (#779)
     @SceneStorage("currentLayoutMode") private var currentLayoutMode: LayoutMode = .widescreen
 
+    /// Last workflow definition this window loaded or the server confirmed — the
+    /// baseline that lets cross-window re-sync tell "no unsaved edits" (safe to
+    /// overwrite) from "local edits pending" (must not clobber). See #2278 /
+    /// `WorkflowSync`.
+    @State private var lastSyncedWorkflow: Workflow?
+    /// Coalesces the active workflow's graph re-fetch on change-stream bursts
+    /// (#2278), independent of the sidebar-list reload task in ContentView.
+    @State private var workflowGraphResyncTask: Task<Void, Never>?
+
     let handleDocumentChange: (DocumentChange) -> Void
     let handleFileDrop: ([URL]) -> Void
 
@@ -213,6 +222,44 @@ struct MainContentModifiers: ViewModifier {
             .onChange(of: workflowStore.workflows) { _, updatedWorkflows in
                 syncActiveWorkflowMetadata(with: updatedWorkflows)
             }
+            // Cross-window / cross-device node-config sync (#2278). A `workflow.*`
+            // change bumps the store's `changeToken`; re-fetch the active
+            // workflow's full graph through the store (single accessor) and adopt
+            // it — guarded so unsaved local edits are never clobbered.
+            .onChange(of: workflowStore.changeToken) { _, _ in
+                resyncActiveWorkflowGraph()
+            }
+    }
+
+    /// Re-fetch the currently-edited workflow after a change-stream event and
+    /// reconcile it with any local edits (#2278). Coalesced via
+    /// `workflowGraphResyncTask` so a burst of `workflow.*` events triggers one
+    /// fetch.
+    private func resyncActiveWorkflowGraph() {
+        guard case .workflow(let item) = viewMode, let item,
+              editingWorkflow.id == item.id else { return }
+        workflowGraphResyncTask?.cancel()
+        workflowGraphResyncTask = Task { @MainActor in
+            // Short debounce coalesces an event storm into a single re-fetch.
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            guard let remote = try? await workflowStore.getWorkflow(item.id) else { return }
+            guard !Task.isCancelled else { return }
+            let remoteWorkflow = Workflow(from: remote)
+            switch WorkflowSync.decide(
+                remote: remoteWorkflow,
+                local: editingWorkflow,
+                baseline: lastSyncedWorkflow
+            ) {
+            case .apply(let workflow):
+                editingWorkflow = workflow
+                lastSyncedWorkflow = workflow
+            case .advanceBaseline(let workflow):
+                lastSyncedWorkflow = workflow
+            case .skip:
+                break
+            }
+        }
     }
 
     private func handleViewModeChange(_ newMode: AppViewMode) {
@@ -232,9 +279,13 @@ struct MainContentModifiers: ViewModifier {
                     let fullWorkflow = try await workflowStore.getWorkflow(item.id)
                     // Use the initializer that copies ALL fields (nodes, edges, provider, model, etc.)
                     editingWorkflow = Workflow(from: fullWorkflow)
+                    // Freshly loaded from the server → this IS the baseline for
+                    // cross-window re-sync (#2278): no local edits yet.
+                    lastSyncedWorkflow = editingWorkflow
                 } catch {
                     logger.error("Failed to load workflow: \(error.localizedDescription)")
                     editingWorkflow = Workflow(id: item.id, name: item.name, description: item.description ?? "")
+                    lastSyncedWorkflow = nil
                 }
             }
         }
