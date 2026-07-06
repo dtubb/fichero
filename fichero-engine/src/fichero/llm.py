@@ -1217,6 +1217,7 @@ async def _call_model_abatch(
     inputs: list[Any],
     config: LLMConfig,
 ) -> list[Any]:
+    budget = _compute_timeout(config, "langchain")
     batch_config = None
     max_concurrency = _batch_max_concurrency(config)
     if max_concurrency is not None:
@@ -1227,11 +1228,28 @@ async def _call_model_abatch(
         kwargs["config"] = batch_config
 
     try:
-        return await model.abatch(inputs, return_exceptions=True, **kwargs)
+        return await asyncio.wait_for(
+            model.abatch(inputs, return_exceptions=True, **kwargs),
+            timeout=budget,
+        )
     except TypeError as exc:
         if "return_exceptions" not in str(exc):
             raise
-        return await model.abatch(inputs, **kwargs)
+        try:
+            return await asyncio.wait_for(
+                model.abatch(inputs, **kwargs),
+                timeout=budget,
+            )
+        except asyncio.TimeoutError as timeout_exc:
+            raise RuntimeError(
+                f"LangChain {config.provider}/{config.model} batch call "
+                f"exceeded {budget}s — provider hang"
+            ) from timeout_exc
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError(
+            f"LangChain {config.provider}/{config.model} batch call "
+            f"exceeded {budget}s — provider hang"
+        ) from exc
 
 
 async def _run_abatch_chunks(
@@ -1247,7 +1265,10 @@ async def _run_abatch_chunks(
     for start in range(0, len(inputs), max_concurrency):
         chunk = inputs[start:start + max_concurrency]
         async with _remote_llm_batch_slots(config, len(chunk)):
-            chunk_results = await _call_model_abatch(model, chunk, config)
+            try:
+                chunk_results = await _call_model_abatch(model, chunk, config)
+            except Exception as exc:
+                chunk_results = [exc] * len(chunk)
         results.extend(chunk_results)
     return results
 
