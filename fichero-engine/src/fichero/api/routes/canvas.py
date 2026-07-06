@@ -57,11 +57,11 @@ class CanvasLayoutBatchResponse(BaseModel):
     skipped: list[CanvasLayoutSkippedItem] = Field(default_factory=list)
 
 
-def _canvas_layout_row_from_document(scope_id: str, doc: Document) -> CanvasLayout:
+def _canvas_layout_row_from_document(folder_id: str, doc: Document) -> CanvasLayout:
     metadata = doc.metadata if isinstance(doc.metadata, dict) else {}
     return CanvasLayout(
-        id=CanvasLayout.make_id(scope_id, doc.id),
-        folder_id=scope_id,
+        id=CanvasLayout.make_id(folder_id, doc.id),
+        folder_id=folder_id,
         item_id=doc.id,
         x=doc.position_x or 0.0,
         y=doc.position_y or 0.0,
@@ -76,8 +76,8 @@ def _canvas_layout_row_from_document(scope_id: str, doc: Document) -> CanvasLayo
     )
 
 
-def _legacy_canvas_documents(db: Database, scope_id: str) -> list[Document]:
-    rows = db.query(Document, parent_id=scope_id)
+def _legacy_canvas_documents(db: Database, folder_id: str) -> list[Document]:
+    rows = db.query(Document, parent_id=folder_id)
     return [
         doc
         for doc in rows
@@ -96,10 +96,10 @@ def _legacy_canvas_documents(db: Database, scope_id: str) -> list[Document]:
     ]
 
 
-def _load_canvas_layout(db: Database, scope_id: str) -> list[CanvasLayout]:
-    rows = {row.item_id: row for row in db.query(CanvasLayout, folder_id=scope_id)}
-    for doc in _legacy_canvas_documents(db, scope_id):
-        rows.setdefault(doc.id, _canvas_layout_row_from_document(scope_id, doc))
+def _load_canvas_layout(db: Database, folder_id: str) -> list[CanvasLayout]:
+    rows = {row.item_id: row for row in db.query(CanvasLayout, folder_id=folder_id)}
+    for doc in _legacy_canvas_documents(db, folder_id):
+        rows.setdefault(doc.id, _canvas_layout_row_from_document(folder_id, doc))
     return list(rows.values())
 
 
@@ -113,13 +113,13 @@ def _canvas_placeable_exists(db: Database, item_id: str) -> bool:
 
 
 def _save_canvas_layout_row(
-    db: Database, scope_id: str, item: CanvasLayoutItem
+    db: Database, folder_id: str, item: CanvasLayoutItem
 ) -> CanvasLayout:
-    existing = db.get(CanvasLayout, CanvasLayout.make_id(scope_id, item.item_id))
+    existing = db.get(CanvasLayout, CanvasLayout.make_id(folder_id, item.item_id))
     field_set = item.model_fields_set
     row = CanvasLayout(
-        id=CanvasLayout.make_id(scope_id, item.item_id),
-        folder_id=scope_id,
+        id=CanvasLayout.make_id(folder_id, item.item_id),
+        folder_id=folder_id,
         item_id=item.item_id,
         x=item.x,
         y=item.y,
@@ -144,7 +144,7 @@ def _canvas_skip(item_id: str, detail: str) -> CanvasLayoutSkippedItem:
 def _canvas_layout_change_spec(
     *,
     emit_type: str,
-    scope_id: str,
+    folder_id: str,
     rows: list[CanvasLayout],
     before: list[dict[str, Any]],
     skipped: list[CanvasLayoutSkippedItem],
@@ -160,7 +160,7 @@ def _canvas_layout_change_spec(
             ctx.library_path,
             type=spec.emit_type,
             entity_ids=item_ids,
-            document_ids=[scope_id],
+            document_ids=[folder_id],
             run_id=ctx.run_id,
             actor=ctx.actor,
             origin_window=ctx.origin_window,
@@ -170,30 +170,30 @@ def _canvas_layout_change_spec(
     return ChangeSpec(
         domains=["canvas"],
         target_ids=[row.id for row in rows],
-        before={"scope_id": scope_id, "rows": before},
+        before={"folder_id": folder_id, "rows": before},
         after={
-            "scope_id": scope_id,
+            "folder_id": folder_id,
             "rows": [row.model_dump(mode="json") for row in rows],
             "skipped": [item.model_dump(mode="json") for item in skipped],
         },
         emit_type=emit_type,
         entity_ids=item_ids,
-        document_ids=[scope_id],
+        document_ids=[folder_id],
         emit_fn=_emit,
     )
 
 
-@router.get("/folders/{scope_id}/layout", response_model=CanvasListResponse)
-async def get_canvas_layout(
-    scope_id: str,
+@router.get("/folders/{folder_id}/canvas-layout", response_model=CanvasListResponse)
+async def get_folder_canvas_layout(
+    folder_id: str,
     db: Database = Depends(get_library_database),
 ) -> CanvasListResponse:
-    rows = _load_canvas_layout(db, scope_id)
+    rows = _load_canvas_layout(db, folder_id)
     return CanvasListResponse(items=rows, count=len(rows))
 
 
 def save_canvas_layout_impl(
-    scope_id: str,
+    folder_id: str,
     request: CanvasLayoutSaveRequest,
     db: Database,
 ) -> tuple[list[CanvasLayout], list[CanvasLayoutSkippedItem]]:
@@ -203,13 +203,13 @@ def save_canvas_layout_impl(
         if not _canvas_placeable_exists(db, item.item_id):
             skipped.append(_canvas_skip(item.item_id, "unknown canvas item id"))
             continue
-        saved.append(_save_canvas_layout_row(db, scope_id, item))
+        saved.append(_save_canvas_layout_row(db, folder_id, item))
     return saved, skipped
 
 
-@router.put("/folders/{scope_id}/layout", response_model=CanvasLayoutBatchResponse)
-async def save_canvas_layout(
-    scope_id: str,
+@router.put("/folders/{folder_id}/canvas-layout", response_model=CanvasLayoutBatchResponse)
+async def save_folder_canvas_layout(
+    folder_id: str,
     request: CanvasLayoutSaveRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -218,7 +218,7 @@ async def save_canvas_layout(
         db,
         "canvas.layout.save",
         {
-            "folder_id": scope_id,
+            "folder_id": folder_id,
             "items": [item.model_dump(mode="json") for item in request.items],
         },
         ctx,
@@ -246,7 +246,7 @@ class ArrangeNodesRequest(BaseModel):
 
 def arrange_impl(
     db: Database,
-    scope_id: str,
+    folder_id: str,
     node_ids: list[str],
     strategy: ArrangeStrategy | str,
     *,
@@ -269,7 +269,7 @@ def arrange_impl(
         saved.append(
             _save_canvas_layout_row(
                 db,
-                scope_id,
+                folder_id,
                 CanvasLayoutItem(
                     item_id=pos["item_id"],
                     x=pos["x"],
@@ -282,9 +282,9 @@ def arrange_impl(
     return saved, skipped
 
 
-@router.post("/folders/{scope_id}/arrange", response_model=CanvasLayoutBatchResponse)
-async def arrange_folder_canvas(
-    scope_id: str,
+@router.post("/folders/{folder_id}/arrange", response_model=CanvasLayoutBatchResponse)
+async def arrange_folder_canvas_layout(
+    folder_id: str,
     request: ArrangeNodesRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -294,7 +294,7 @@ async def arrange_folder_canvas(
             db,
             "canvas.arrange",
             {
-                "folder_id": scope_id,
+                "folder_id": folder_id,
                 "node_ids": request.node_ids,
                 "strategy": request.strategy,
                 "spacing": request.spacing,
@@ -332,9 +332,9 @@ def _invert_canvas_layout_to_restore(
 ) -> tuple[str, dict] | None:
     if not after:
         return None
-    scope_id = after.get("scope_id") if isinstance(after, dict) else None
+    folder_id = after.get("folder_id") if isinstance(after, dict) else None
     rows_after = after.get("rows") if isinstance(after, dict) else None
-    if not scope_id or not isinstance(rows_after, list):
+    if not folder_id or not isinstance(rows_after, list):
         return None
     rows_before = before.get("rows") if isinstance(before, dict) else []
     if not isinstance(rows_before, list):
@@ -345,7 +345,7 @@ def _invert_canvas_layout_to_restore(
     return (
         "canvas.layout.restore",
         {
-            "folder_id": scope_id,
+            "folder_id": folder_id,
             "rows": rows_before,
             "current_item_ids": current_item_ids,
         },
@@ -375,7 +375,7 @@ def _action_save_canvas_layout(
     )
     spec = _canvas_layout_change_spec(
         emit_type="canvas.layout.saved",
-        scope_id=params.folder_id,
+        folder_id=params.folder_id,
         rows=rows,
         before=before,
         skipped=skipped,
@@ -419,7 +419,7 @@ def _action_restore_canvas_layout(
 
     spec = _canvas_layout_change_spec(
         emit_type="canvas.layout.saved",
-        scope_id=params.folder_id,
+        folder_id=params.folder_id,
         rows=restored_rows,
         before=before,
         skipped=[],
@@ -457,7 +457,7 @@ def _action_arrange_canvas(
     )
     spec = _canvas_layout_change_spec(
         emit_type="canvas.arranged",
-        scope_id=params.folder_id,
+        folder_id=params.folder_id,
         rows=rows,
         before=before,
         skipped=skipped,
@@ -529,22 +529,22 @@ def delete_canvas_item_impl(db: Database, folder_id: str, item_id: str) -> Canva
     return item
 
 
-@router.get("/folders/{scope_id}/items", response_model=CanvasListResponse)
-async def list_canvas_items(
-    scope_id: str,
+@router.get("/folders/{folder_id}/canvas-items", response_model=CanvasListResponse)
+async def list_folder_canvas_items(
+    folder_id: str,
     kind: CanvasItemKind | None = None,
     db: Database = Depends(get_library_database),
 ) -> CanvasListResponse:
-    filters: dict[str, Any] = {"folder_id": scope_id}
+    filters: dict[str, Any] = {"folder_id": folder_id}
     if kind is not None:
         filters["kind"] = kind
     rows = db.query(CanvasItem, **filters)
     return CanvasListResponse(items=rows, count=len(rows))
 
 
-@router.post("/folders/{scope_id}/items", response_model=CanvasItem)
-async def create_canvas_item(
-    scope_id: str,
+@router.post("/folders/{folder_id}/canvas-items", response_model=CanvasItem)
+async def create_folder_canvas_item(
+    folder_id: str,
     request: CanvasItemCreateRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -553,7 +553,7 @@ async def create_canvas_item(
         db,
         "canvas.item.create",
         {
-            "folder_id": scope_id,
+            "folder_id": folder_id,
             **request.model_dump(mode="json"),
         },
         ctx,
@@ -561,9 +561,9 @@ async def create_canvas_item(
     return CanvasItem.model_validate(result.result)
 
 
-@router.patch("/folders/{scope_id}/items/{item_id}", response_model=CanvasItem)
-async def update_canvas_item(
-    scope_id: str,
+@router.patch("/folders/{folder_id}/canvas-items/{item_id}", response_model=CanvasItem)
+async def update_folder_canvas_item(
+    folder_id: str,
     item_id: str,
     request: CanvasItemUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -574,7 +574,7 @@ async def update_canvas_item(
             db,
             "canvas.item.update",
             {
-                "folder_id": scope_id,
+                "folder_id": folder_id,
                 "item_id": item_id,
                 **request.model_dump(mode="json", exclude_unset=True),
             },
@@ -586,11 +586,11 @@ async def update_canvas_item(
 
 
 @router.delete(
-    "/folders/{scope_id}/items/{item_id}",
+    "/folders/{folder_id}/canvas-items/{item_id}",
     response_model=CanvasDeletedResponse,
 )
-async def delete_canvas_item(
-    scope_id: str,
+async def delete_folder_canvas_item(
+    folder_id: str,
     item_id: str,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -599,7 +599,7 @@ async def delete_canvas_item(
         registry.invoke(
             db,
             "canvas.item.delete",
-            {"folder_id": scope_id, "item_id": item_id},
+            {"folder_id": folder_id, "item_id": item_id},
             ctx,
         )
     except KeyError as exc:
