@@ -549,6 +549,68 @@ class TestExecuteWorkflow:
         assert r.status_code == 400
         assert "Edge references unknown target node: missing-node" in r.json()["detail"]
 
+    def test_execute_rejects_edge_with_missing_source_node(self, client, db):
+        wf = _make_workflow(db, "Dangling Source Workflow")
+        wf.nodes = [{"id": "target", "tool": "summarize"}]
+        wf.edges = [
+            {
+                "source": "missing-source",
+                "target": "target",
+                "source_port": "files",
+                "target_port": "files",
+            }
+        ]
+        db.save(wf)
+
+        r = client.post("/api/workflow-execution/execute", json={"workflow_id": wf.id, "inputs": {}})
+
+        assert r.status_code == 400
+        assert "Edge references unknown source node: missing-source" in r.json()["detail"]
+
+    def test_execute_rejects_edge_with_unknown_source_port(self, client, db):
+        wf = _make_workflow(db, "Bad Source Port Workflow")
+        wf.nodes = [
+            {"id": "source", "tool": "files"},
+            {"id": "target", "tool": "summarize"},
+        ]
+        wf.edges = [
+            {
+                "source": "source",
+                "target": "target",
+                "source_port": "not-a-port",
+                "target_port": "files",
+            }
+        ]
+        db.save(wf)
+
+        r = client.post("/api/workflow-execution/execute", json={"workflow_id": wf.id, "inputs": {}})
+
+        assert r.status_code == 400
+        assert "Edge references unknown source port 'not-a-port' on node 'source'" in r.json()["detail"]
+
+    def test_execute_rejects_subworkflow_self_cycle(self, client, db):
+        wf = Workflow(
+            name="Self Cycle Workflow",
+            description="sub_workflow points at itself",
+            format="nodes",
+            nodes=[
+                {
+                    "id": "sub",
+                    "tool": "sub_workflow",
+                    "config": {"workflow_ref": "wf-self-cycle"},
+                }
+            ],
+            edges=[],
+            steps=[],
+        )
+        wf.id = "wf-self-cycle"
+        db.save(wf)
+
+        r = client.post("/api/workflow-execution/execute", json={"workflow_id": wf.id, "inputs": {}})
+
+        assert r.status_code == 400
+        assert "workflow reference cycle detected: wf-self-cycle -> wf-self-cycle" in r.json()["detail"]
+
 
 class TestGetWorkflowRun:
     def test_get_workflow_run_returns_saved_execution_data(self, client, db):
