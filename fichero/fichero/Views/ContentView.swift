@@ -627,7 +627,7 @@ struct ContentView: View {
                 // — same mechanism as the sidebar-section buttons (#2309).
                 .toolbar {
                     if showInspectorToggle {
-                        ToolbarItem(placement: .primaryAction) {
+                        ToolbarItem(id: "fichero.inspectorToggle", placement: .primaryAction) {
                             inspectorToggleButton
                         }
                     }
@@ -644,7 +644,7 @@ struct ContentView: View {
                 // — same mechanism as the sidebar-section buttons (#2309).
                 .toolbar {
                     if showInspectorToggle {
-                        ToolbarItem(placement: .primaryAction) {
+                        ToolbarItem(id: "fichero.inspectorToggle", placement: .primaryAction) {
                             inspectorToggleButton
                         }
                     }
@@ -731,14 +731,14 @@ extension ContentView {
     private var trailingToolbarContent: some ToolbarContent {
         #if !os(macOS)
         if showInspectorToggle && !usesDockedInspector {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(id: "fichero.inspectorToggle.compact", placement: .topBarTrailing) {
                 inspectorToggleButton
             }
         }
         #endif
 
         // Activity / error status — sits between the title and the inspector section.
-        ToolbarItem(placement: .automatic) {
+        ToolbarItem(id: "fichero.activityStatus", placement: .automatic) {
             HStack(spacing: 6) {
                 if isImporting {
                     ProgressView()
@@ -755,7 +755,7 @@ extension ContentView {
         }
 
         #if !os(macOS)
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarItem(id: "fichero.viewMenu", placement: .primaryAction) {
             platformViewMenuButton
         }
         #endif
@@ -845,7 +845,7 @@ extension ContentView {
         // dropped — the nav title carries the context and search moves to the
         // native `.searchable` field instead (#2814).
         if horizontalSizeClass != .compact {
-            ToolbarItem(placement: .principal) {
+            ToolbarItem(id: "fichero.breadcrumb", placement: .principal) {
                 let libraryName: String? = {
                 guard case .library(let doc) = viewMode, doc != nil else { return nil }
                 return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName

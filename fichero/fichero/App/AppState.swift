@@ -364,10 +364,14 @@ class AppState {
         do {
             providers = try await providerService.listProviders()
 
-            // On first check, if no providers configured, show Add Provider as first launch
+            // On first check, if no providers configured, remember it's a
+            // first-launch setup — but do NOT auto-present the sheet here.
+            // loadProviders() runs during launch; presenting a sheet while the
+            // main window's NSToolbar is still doing its first layout re-enters
+            // the toolbar update and double-inserts an item, crashing at launch
+            // on macOS 27 (#3163). Users add a provider from Settings ▸ Providers.
             if !hasCheckedProviders && providers.isEmpty {
                 isFirstLaunchProviderSetup = true
-                showAddProvider = true
             }
 
             hasCheckedProviders = true
