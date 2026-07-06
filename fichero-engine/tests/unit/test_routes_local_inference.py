@@ -104,6 +104,39 @@ def test_local_inference_catalog_exposes_configured_model(client) -> None:
     assert entry["supported"] is True
 
 
+def test_local_inference_catalog_surfaces_hardware_unsupported_reason(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class StubStore:
+        def list_catalog_entries(self):
+            return [
+                {
+                    "provider_type": "omlx",
+                    "model_id": routes.DEFAULT_OMLX_MODEL_ID,
+                    "display_name": "Qwen3-VL 8B",
+                    "capabilities": ["text", "vision"],
+                    "installed": False,
+                    "download_size_bytes": 123,
+                    "disk_usage_bytes": 0,
+                    "min_memory_bytes": 17179869184,
+                    "memory_class": "needs 16 GB unified memory",
+                    "supported": False,
+                    "unsupported_reason": "Qwen3-VL 8B needs 16 GB unified memory; this Mac has 8 GB",
+                    "license_label": "user-managed",
+                    "source": "app_cache",
+                }
+            ]
+
+    monkeypatch.setattr(routes, "get_mlx_model_store", lambda: StubStore())
+
+    response = client.get("/api/local-inference/catalog")
+
+    assert response.status_code == 200
+    entry = response.json()["items"][0]
+    assert entry["supported"] is False
+    assert "16 GB unified memory" in entry["unsupported_reason"]
+
+
 def test_local_inference_capabilities_exposes_machine_probe(client, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         routes,
