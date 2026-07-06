@@ -682,6 +682,30 @@ class TestLoadPresetFiles:
             )
             assert inputs["files"] == "$.nodes.files-source.files"
 
+    def test_auto_detect_branch_nodes_have_documents_input(self):
+        """Branch transcribe/review nodes must carry per-page documents too,
+        or page-content/artifact writes fall back to the parent PDF."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        ad = presets["Transcribe (Auto-Detect)"]
+
+        route_edges = [e for e in ad["edges"] if e.get("route_map")]
+        routed_ids = set(route_edges[0]["route_map"].values())
+        review_ids = {
+            e["target"]
+            for e in ad["edges"]
+            if e.get("target_port") == "context"
+        }
+
+        for node in ad["nodes"]:
+            if node["id"] not in routed_ids | review_ids:
+                continue
+            inputs = node.get("inputs", {})
+            assert "documents" in inputs, (
+                f"branch node {node['id']!r} must declare inputs.documents "
+                f"for per-page document attribution"
+            )
+            assert inputs["documents"] == "$.nodes.files-source.documents"
+
     def test_rotate_auto_orient_images_preset_wiring(self):
         """Rotate / Auto-Orient Images should expose the non-destructive
         rotate_images tool as a stageable default workflow (#1387)."""
@@ -1034,6 +1058,31 @@ class TestLoadPresetFiles:
         assert transcribe_node["config"].get("language") == "auto"
         assert transcribe_node["config"].get("update_page_content") is True
         assert transcribe_node["config"].get("save_to_db") is True
+
+    def test_describe_visual_preset_wires_documents(self):
+        """Describe (visual) must wire per-page documents so descriptions land
+        on page children, never the parent PDF."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Describe (visual)" in presets, "describe visual preset must ship"
+        preset = presets["Describe (visual)"]
+
+        files_id = _node_id(preset, "files")
+        describe_id = _node_id(preset, "describe")
+
+        assert any(
+            e["source"] == files_id
+            and e["target"] == describe_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into describe"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == describe_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "documents must flow into describe for per-page attribution"
 
     def test_clean_up_text_preset_wiring(self):
         """Clean Up Text preset: files → transcribe → clean_text.
