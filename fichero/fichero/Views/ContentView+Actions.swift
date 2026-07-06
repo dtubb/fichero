@@ -348,11 +348,11 @@ extension ContentView {
         viewSettings.previewMode = normalizedPreviewMode(previewMode)
         currentLayoutMode = requestedMode
 
-        if requestedMode == .widescreen,
-           !showDocumentGrid,
-           !showDocumentCanvas,
-           !showReadingPane {
-            showDocumentCanvas = true
+        // Legacy-recovery net: a window persisted with all panes hidden (before
+        // the #1696 invariant existed) gets a pane back on entering widescreen.
+        // The invariant makes all-hidden unreachable for new state.
+        if requestedMode == .widescreen, !paneVisibility.isAnyVisible {
+            setPaneVisible(.canvas, true)
         }
     }
 
@@ -361,7 +361,9 @@ extension ContentView {
             currentLayoutMode = .widescreen
             viewSettings.previewMode = .widescreen
         }
-        showDocumentCanvas = isVisible
+        // Route through the invariant (#1696): hiding the last visible pane is
+        // refused, so the content area is never left empty.
+        setPaneVisible(.canvas, isVisible)
     }
 
     func setReadingPaneVisible(_ isVisible: Bool) {
@@ -369,7 +371,7 @@ extension ContentView {
             currentLayoutMode = .widescreen
             viewSettings.previewMode = .widescreen
         }
-        showReadingPane = isVisible
+        setPaneVisible(.reading, isVisible)
     }
 
     func openChatWithCurrentScope() {

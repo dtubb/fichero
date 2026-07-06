@@ -641,7 +641,7 @@ extension ContentView {
                     syncGridSelectionToPDFPage(index: index)
                 },
                 documentTitle: detailDocument?.name,
-                onClose: { showDocumentCanvas = false }
+                onClose: { setPaneVisible(.canvas, false) }
             )
             .overlay { paneFocusIndicator(for: .preview) }
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
@@ -683,7 +683,7 @@ extension ContentView {
                 livePageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
                 scrollSync: documentScrollSync,
                 onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
-                onClose: { showReadingPane = false }
+                onClose: { setPaneVisible(.reading, false) }
             )
         }
         .overlay { paneFocusIndicator(for: .reading) }
