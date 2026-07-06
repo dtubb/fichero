@@ -181,6 +181,43 @@ class TestWorkflowExecutor:
         # Note: Calling execute() resets the flag, so pre-execution cancellation
         # doesn't raise CancelledError. The cancellation is checked during execution.
 
+    @pytest.mark.asyncio
+    async def test_execute_emits_cancelled_not_completed_when_pregel_stops_on_cancel(
+        self, simple_workflow, test_tool
+    ):
+        """Mid-run cancellation must surface as cancelled, not a false success."""
+        executor = WorkflowExecutor(simple_workflow)
+        events_received: list[ProgressEvent] = []
+
+        class MockListener(ProgressEventListener):
+            async def on_progress_event(self, event: ProgressEvent) -> None:
+                events_received.append(event)
+
+        executor.add_progress_listener(MockListener())
+        cancelled_state = {
+            "task_id": "test_task",
+            "workflow_id": "test_workflow",
+            "inputs": {"test": "input"},
+            "outputs": {},
+            "current_node": "node1",
+            "completed_nodes": ["node1"],
+            "error": None,
+            "cancelled": True,
+            "input_files": [],
+            "output_files": [],
+        }
+
+        with patch.object(executor, "_execute_with_pregel", new_callable=AsyncMock) as mock_execute:
+            mock_execute.return_value = cancelled_state
+
+            result = await executor.execute({"test": "input"})
+
+        assert result["cancelled"] is True
+        assert [event.event_type for event in events_received] == [
+            ProgressEventType.WORKFLOW_STARTED,
+            ProgressEventType.WORKFLOW_CANCELLED,
+        ]
+
 
 # =============================================================================
 # Progress Event Tests

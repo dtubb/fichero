@@ -244,7 +244,17 @@ class WorkflowExecutor:
             # Pregel provides better control over execution and state management
             final_state = await self._execute_with_pregel(initial_state)
 
-            if final_state.get("error"):
+            if final_state.get("cancelled"):
+                logger.info(f"Workflow cancelled: {self.workflow.name}")
+                await self._emit_event(
+                    ProgressEvent(
+                        event_type=ProgressEventType.WORKFLOW_CANCELLED,
+                        task_id=task_id,
+                        workflow_id=self.workflow.id,
+                        message="Workflow execution was cancelled",
+                    )
+                )
+            elif final_state.get("error"):
                 logger.error(f"Workflow failed: {final_state['error']}")
                 await self._emit_event(
                     ProgressEvent(
