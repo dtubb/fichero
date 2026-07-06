@@ -89,6 +89,9 @@ struct ReaderToolbar: View {
     // ─── Page navigation (nil ⇒ greyed) ───
     var pageNav: ReaderPageNav?
 
+    // ─── Page layout (#2090; nil ⇒ picker hidden — nothing to arrange) ───
+    var pageLayout: Binding<PageLayoutMode>?
+
     // ─── Zoom (always available for both image + PDF) ───
     var scalePercent: Int
     var zoomIn: () -> Void
@@ -127,6 +130,7 @@ struct ReaderToolbar: View {
         MiniToolbar(content: {
             chromeSection
             pageNavCluster
+            pageLayoutSection
             Spacer(minLength: 0)
             // Zoom/fit are desktop-centric; on compact width pinch-zoom handles
             // scaling, so we drop them to de-clutter the bar (#2549).
@@ -499,6 +503,38 @@ private struct ReaderToolbarCluster<Expanded: View>: View {
 // MARK: - Overflow ('…') collapse (#2488)
 
 extension ReaderToolbar {
+    /// A pull-down for the reading layout (#2090). Offers the PDFKit-native
+    /// (Tier 1) modes — single / single-continuous / two-up / two-up-continuous;
+    /// the 3-up / 4-up grid modes join once the custom N-up renderer lands
+    /// (Tier 2). Hidden when the host passes no `pageLayout` binding.
+    @ViewBuilder
+    var pageLayoutSection: some View {
+        if let pageLayout {
+            Menu {
+                ForEach(PageLayoutMode.allCases.filter(\.isPDFKitNative)) { mode in
+                    Button {
+                        pageLayout.wrappedValue = mode
+                    } label: {
+                        Label(
+                            mode.label,
+                            systemImage: pageLayout.wrappedValue == mode ? "checkmark" : mode.systemImage
+                        )
+                    }
+                }
+            } label: {
+                Image(systemName: pageLayout.wrappedValue.systemImage)
+                    .foregroundStyle(.secondary)
+            }
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Page layout — single page, continuous scroll, or two-up spread")
+            .accessibilityLabel("Page layout")
+            .accessibilityIdentifier("readerPageLayout")
+
+            sectionDivider
+        }
+    }
+
     /// The secondary tools rendered inline, in priority order. This is the
     /// preferred `ViewThatFits` candidate; when it doesn't fit, the overflow
     /// menu is used instead.

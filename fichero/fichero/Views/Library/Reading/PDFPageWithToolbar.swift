@@ -33,6 +33,18 @@ struct PDFPageWithToolbar: View {
     @State private var loupePosition: CGPoint = .init(x: 0.5, y: 0.5)
     @State private var loupeLockedPosition: CGPoint = .init(x: 0.5, y: 0.5)
 
+    // Per-window reading layout (#2090). @SceneStorage keeps each window's PDF
+    // page arrangement independent; stored as the PageLayoutMode rawValue so the
+    // saved value stays stable across launches.
+    @SceneStorage("reader.pageLayout") private var pageLayoutRaw = PageLayoutMode.singlePage.rawValue
+    private var pageLayout: PageLayoutMode { PageLayoutMode(rawValue: pageLayoutRaw) ?? .singlePage }
+    private var pageLayoutBinding: Binding<PageLayoutMode> {
+        Binding(
+            get: { PageLayoutMode(rawValue: pageLayoutRaw) ?? .singlePage },
+            set: { pageLayoutRaw = $0.rawValue }
+        )
+    }
+
     @Environment(\.splitAxisActions) private var splitAxisActions
     // Secondary split panes manage their own page index so navigating in one
     // pane doesn't force all other panes to the same page.
@@ -169,6 +181,7 @@ struct PDFPageWithToolbar: View {
             PDFPageView(
                 documentId: effectiveDocumentId,
                 pageIndex: effectivePageIndex,
+                displayMode: pageLayout.pdfDisplayMode ?? .singlePage,
                 onPageIndexChange: { newIndex in
                     if isSecondarySplitPane || isPinned {
                         localPageIndex = newIndex
@@ -253,6 +266,7 @@ struct PDFPageWithToolbar: View {
             onClose: closeHandler,
             isInSplit: isInSplit,
             pageNav: pdfPageNav,
+            pageLayout: pageLayoutBinding,
             scalePercent: Int(zoom.scale * 100),
             zoomIn: { zoom.zoomIn() },
             zoomOut: { zoom.zoomOut() },

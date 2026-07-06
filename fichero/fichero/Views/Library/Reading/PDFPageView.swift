@@ -43,6 +43,9 @@ struct PDFPageView: NSViewRepresentable {
     var isDrawingRegion = false
     /// Fires with a normalized `[x,y,w,h]` when a region drag completes.
     var onCreateRegion: (([Double]) -> Void)?
+    /// PDF page-arrangement mode (#2090). Default preserves the single-page
+    /// behavior for callers that don't opt into layout switching.
+    var displayMode: PDFDisplayMode = .singlePage
 
     // MARK: - Loupe State
 
@@ -67,7 +70,7 @@ struct PDFPageView: NSViewRepresentable {
     func makeNSView(context: Context) -> PDFView {
         let view = PDFView()
         view.setAccessibilityIdentifier("pdfPreview")  // XCUITest hook (#1230)
-        view.displayMode = .singlePage
+        view.displayMode = displayMode
         view.displaysPageBreaks = false
         // #588: autoScales re-fits the document to the pane on every layout
         // pass, which silently undoes user pinch-zoom. We keep autoScales=true
@@ -135,6 +138,9 @@ struct PDFPageView: NSViewRepresentable {
 
     func updateNSView(_ view: PDFView, context: Context) {
         context.coordinator.owner = self
+        // Apply the page-layout mode (#2090); idempotent-guarded so switching
+        // modes updates the live view without churning PDFKit every pass.
+        if view.displayMode != displayMode { view.displayMode = displayMode }
         context.coordinator.zoomController = zoomController
         context.coordinator.pageController = pageController
         zoomController?.pdfView = view
@@ -536,6 +542,9 @@ struct PDFPageView: UIViewRepresentable {
     var regionBoxes: [[Double]] = []
     var isDrawingRegion = false
     var onCreateRegion: (([Double]) -> Void)?
+    /// PDF page-arrangement mode (#2090). Default preserves the single-page
+    /// behavior for callers that don't opt into layout switching.
+    var displayMode: PDFDisplayMode = .singlePage
 
     @AppStorage("pdfPreview.loupeEnabled") private var loupeEnabled = false
     @AppStorage("pdfPreview.loupeMagnification") private var loupeMagnification: Double = 3.0
@@ -550,7 +559,7 @@ struct PDFPageView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> PDFView {
         let view = PDFView()
-        view.displayMode = .singlePage
+        view.displayMode = displayMode
         view.displaysPageBreaks = false
         view.autoScales = true
         view.backgroundColor = UIColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
@@ -598,6 +607,9 @@ struct PDFPageView: UIViewRepresentable {
 
     func updateUIView(_ view: PDFView, context: Context) {
         context.coordinator.owner = self
+        // Apply the page-layout mode (#2090); idempotent-guarded so switching
+        // modes updates the live view without churning PDFKit every pass.
+        if view.displayMode != displayMode { view.displayMode = displayMode }
         context.coordinator.zoomController = zoomController
         context.coordinator.pageController = pageController
         zoomController?.pdfView = view
