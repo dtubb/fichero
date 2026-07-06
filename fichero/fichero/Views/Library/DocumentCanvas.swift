@@ -104,24 +104,33 @@ private struct StorageDisplayImageCanvas: View {
                     onNavigateToDocument: onNavigateToDocument,
                     isEditing: isEditing
                 )
-            } else if loadError != nil {
-                Image(systemName: "photo")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
+            } else if let loadError {
+                // Surface the failure with a message + Retry instead of a mute
+                // icon (#3210), matching QuickLookDownloadView in the same pane
+                // (raise-not-silent).
+                ContentUnavailableView {
+                    Label("Couldn't load image", systemImage: "photo")
+                } description: {
+                    Text(loadError.localizedDescription)
+                } actions: {
+                    Button("Retry") { Task { await loadImage() } }
+                }
             } else {
                 ProgressView()
                     .controlSize(.small)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: documentId) {
-            image = nil
-            loadError = nil
-            do {
-                image = try await storageService.getDisplayPlatformImage(documentId)
-            } catch {
-                loadError = error
-            }
+        .task(id: documentId) { await loadImage() }
+    }
+
+    private func loadImage() async {
+        image = nil
+        loadError = nil
+        do {
+            image = try await storageService.getDisplayPlatformImage(documentId)
+        } catch {
+            loadError = error
         }
     }
 }
