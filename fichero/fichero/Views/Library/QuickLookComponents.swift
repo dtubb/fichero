@@ -102,6 +102,23 @@ struct QuickLookDownloadView: View {
             let session = RemoteCertificatePinning.configuredSession()
             let (tempURL, response) = try await session.download(for: request)
 
+            // Branch on the HTTP status (#3206): a non-2xx body is the engine's
+            // JSON error, not the document. Surface its `detail` instead of
+            // handing an error page to Quick Look or guessing from byte size.
+            if let httpResponse = response as? HTTPURLResponse,
+               !(200..<300).contains(httpResponse.statusCode) {
+                let message = Self.downloadErrorMessage(
+                    statusCode: httpResponse.statusCode,
+                    body: try? Data(contentsOf: tempURL),
+                    documentPath: document.path
+                )
+                await MainActor.run {
+                    self.error = message
+                    self.isLoading = false
+                }
+                return
+            }
+
             // Try to get filename from Content-Disposition header
             var fileName = fileNameWithExtension()
             if let httpResponse = response as? HTTPURLResponse,
@@ -130,39 +147,7 @@ struct QuickLookDownloadView: View {
             }
             try FileManager.default.moveItem(at: tempURL, to: destURL)
 
-            // Verify file exists and has size
-            let attrs = try FileManager.default.attributesOfItem(atPath: destURL.path)
-            let fileSize = attrs[.size] as? Int64 ?? 0
-            logger.info("Downloaded to: \(destURL.path) (size: \(fileSize) bytes, extension: \(destURL.pathExtension))")
-
-            // Verify it's actually valid, not an error response
-            if fileSize < 1000 {
-                logger.warning("Downloaded file is very small (\(fileSize) bytes), likely an error response")
-                // Try to read as JSON error
-                if let content = try? String(contentsOf: destURL, encoding: .utf8) {
-                    logger.error("Error response: \(content)")
-
-                    // Parse error message if possible
-                    var errorMessage = "Source file not available"
-                    if content.contains("Source file not available") {
-                        errorMessage = "External file not accessible"
-                    } else if content.contains("Field required") {
-                        errorMessage = "API error: Missing required field"
-                    }
-
-                    // Check if this is a linked file
-                    if let path = document.path, path.starts(with: "/Volumes/") {
-                        errorMessage += "\n\nThis file is linked to an external drive:\n\(path)"
-                        errorMessage += "\n\nMount the drive to view the full resolution file."
-                    }
-
-                    await MainActor.run {
-                        self.error = errorMessage
-                        self.isLoading = false
-                    }
-                    return
-                }
-            }
+            logger.info("Downloaded to: \(destURL.path) (extension: \(destURL.pathExtension))")
 
             await MainActor.run {
                 self.fileURL = destURL
@@ -175,6 +160,24 @@ struct QuickLookDownloadView: View {
                 self.isLoading = false
             }
         }
+    }
+
+    /// Human message for a non-2xx source download (#3206): the engine's JSON
+    /// `detail` when present (get_source_file returns proper 404 detail), else a
+    /// status-coded fallback, plus the linked-external-drive hint that helps a
+    /// user mount an unplugged volume. Pure + static so it is unit-testable.
+    static func downloadErrorMessage(statusCode: Int, body: Data?, documentPath: String?) -> String {
+        var message = "Preview unavailable (HTTP \(statusCode))"
+        if let body,
+           let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+           let detail = object["detail"] as? String, !detail.isEmpty {
+            message = detail
+        }
+        if let documentPath, documentPath.hasPrefix("/Volumes/") {
+            message += "\n\nThis file is linked to an external drive:\n\(documentPath)"
+            message += "\n\nMount the drive to view the full resolution file."
+        }
+        return message
     }
 
     private func cleanupTemporaryFile() {
