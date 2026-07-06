@@ -266,6 +266,49 @@ class TestImportWorkflow:
         assert r.status_code == 400
         assert "missing nodes or edges" in r.json()["detail"]
 
+    def test_import_rejects_malformed_node_payload(self, client):
+        r = client.post(
+            "/api/workflows/import",
+            json={
+                "name": "Bad Import",
+                "nodes": [{"id": "n1", "tool": "files", "input_mappings": "nope"}],
+                "edges": [],
+            },
+        )
+        assert r.status_code == 400
+        assert "node[0] failed validation" in r.json()["detail"]
+
+    def test_list_skips_preexisting_poisoned_workflow_row(self, client, db, caplog):
+        good = Workflow(
+            name="Good Workflow",
+            description="",
+            format="nodes",
+            nodes=[],
+            edges=[],
+            steps=[],
+            sort_order=0,
+        )
+        bad = Workflow.model_construct(
+            name="Poisoned Workflow",
+            description="",
+            format="nodes",
+            nodes=[{"id": "n1", "tool": "files", "input_mappings": "nope"}],
+            edges=[],
+            steps=[],
+            sort_order=1,
+        )
+        db.save(good)
+        db.save(bad)
+
+        with caplog.at_level("WARNING"):
+            r = client.get("/api/workflows")
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] == 1
+        assert [item["name"] for item in data["items"]] == ["Good Workflow"]
+        assert "Skipping invalid workflow" in caplog.text
+
 
 class TestEstimateWorkflowCost:
     def test_estimate_cost_uses_workflow_model_pricing(self, client, db, monkeypatch):

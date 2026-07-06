@@ -9,7 +9,7 @@ import logging
 from typing import Any, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.app_db import get_app_db
@@ -514,6 +514,56 @@ def create_workflow_impl(db: Database, workflow: WorkflowDef) -> "Workflow":  # 
     return db_workflow
 
 
+def _workflow_to_response(workflow: "Workflow") -> WorkflowResponse:  # noqa: F821
+    return WorkflowResponse(
+        id=workflow.id,
+        name=workflow.name,
+        description=workflow.description,
+        provider=workflow.provider,
+        model=workflow.model,
+        format=workflow.format,
+        nodes=[_dict_to_node_def(n) for n in workflow.nodes],
+        edges=[_dict_to_edge_def(e) for e in workflow.edges],
+        folder_path=workflow.folder_path,
+        sort_order=workflow.sort_order,
+        untested=_workflow_untested(workflow),
+    )
+
+
+def _workflow_rows_for_list(
+    db: Database,
+    folder_path: str | None,
+) -> list["Workflow"]:  # noqa: F821
+    from fichero.models import Workflow
+
+    sql_table = db._sql_table_name(Workflow)
+    db._ensure_table(Workflow)
+
+    if folder_path is None:
+        rows, columns = db._execute_fetch_with_columns(f"SELECT * FROM {sql_table}")
+    else:
+        rows, columns = db._execute_fetch_with_columns(
+            f"SELECT * FROM {sql_table} WHERE folder_path = ?",
+            (folder_path,),
+        )
+
+    workflows: list[Workflow] = []
+    for row in rows:
+        raw = dict(zip(columns, row))
+        if raw.get("id") is None:
+            logger.warning("Skipping invalid workflow row with NULL id during list")
+            continue
+        try:
+            workflows.append(Workflow(**db._parse_json_fields(Workflow, raw)))
+        except Exception as exc:
+            logger.warning(
+                "Skipping invalid workflow %s during list: %s",
+                raw.get("id", "<unknown>"),
+                exc,
+            )
+    return workflows
+
+
 @router.post("")
 async def create_workflow(
     workflow: WorkflowDef,
@@ -629,7 +679,7 @@ def import_workflow_impl(
 async def import_workflow(
     name: str = "",
     description: str = "",
-    workflow_data: dict = {},
+    workflow_data: dict = Body(default_factory=dict),
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
@@ -755,25 +805,9 @@ async def list_workflows(
     try:
         from fichero.models import Workflow
 
-        if folder_path is None:
-            workflows = db.all(Workflow)
-        else:
-            workflows = db.query(Workflow, folder_path=folder_path)
-
+        workflows = _workflow_rows_for_list(db, folder_path)
         items = [
-            WorkflowResponse(
-                id=workflow.id,
-                name=workflow.name,
-                description=workflow.description,
-                provider=workflow.provider,
-                model=workflow.model,
-                format=workflow.format,
-                nodes=[_dict_to_node_def(n) for n in workflow.nodes],
-                edges=[_dict_to_edge_def(e) for e in workflow.edges],
-                folder_path=workflow.folder_path,
-                sort_order=workflow.sort_order,
-                untested=_workflow_untested(workflow),
-            )
+            _workflow_to_response(workflow)
             for workflow in sorted(workflows, key=lambda w: w.sort_order)
         ]
         return WorkflowListResponse(items=items, count=len(items))
@@ -797,19 +831,7 @@ async def get_workflow(
                 status_code=404, detail=f"Workflow not found: {workflow_id}"
             )
 
-        return WorkflowResponse(
-            id=workflow.id,
-            name=workflow.name,
-            description=workflow.description,
-            provider=workflow.provider,
-            model=workflow.model,
-            format=workflow.format,
-            nodes=[_dict_to_node_def(n) for n in workflow.nodes],
-            edges=[_dict_to_edge_def(e) for e in workflow.edges],
-            folder_path=workflow.folder_path,
-            sort_order=workflow.sort_order,
-            untested=_workflow_untested(workflow),
-        )
+        return _workflow_to_response(workflow)
     except HTTPException:
         raise
     except Exception as e:
