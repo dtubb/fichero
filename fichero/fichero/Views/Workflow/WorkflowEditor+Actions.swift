@@ -103,21 +103,12 @@ extension WorkflowEditor {
                         executionThreadId = threadId
                     },
                     onEvent: { [weak documentStore] event in
-                        // Debug: Log every event (using info level for visibility)
-                        let eventDesc = String(String(describing: event).prefix(100))
-                        actionsLogger.info("[SSE] Event: \(eventDesc)")
+                        // (#3191) Dropped the per-event info logs ("[SSE] Event",
+                        // "[SSE] Document count") — they fired for every token /
+                        // progress frame, flooding the log for the whole run.
 
                         // Update global observer (single source of truth for all UI)
                         executionObserver.handleEvent(event, forThreadId: executionThreadId)
-
-                        // Debug: Log document progress count
-                        if let exec = executionObserver.activeExecutions[executionThreadId] {
-                            let docCount = exec.documentProgress.count
-                            let nodeStateCount = exec.nodeStates.count
-                            actionsLogger.info(
-                                "[SSE] Document count: \(docCount), nodeStates: \(nodeStateCount)"
-                            )
-                        }
 
                         // Update document processing status in library view
                         updateDocumentStatus(for: event, documentStore: documentStore)
