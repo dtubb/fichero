@@ -156,4 +156,44 @@ final class PairedHostEndpointsTests: XCTestCase {
         PairedHostEndpointStore.clear()
         XCTAssertTrue(PairedHostEndpointStore.endpoints().isEmpty)
     }
+
+    // MARK: - Endpoint-correct trust (pin-store seam)
+
+    func testEachEndpointGetsItsOwnPinFromTheStore() {
+        // A paired host reachable at both its LAN and tailnet URL: the LAN one is
+        // self-signed and SPKI-pinned, the tailnet one has a real cert (no pin).
+        // `endpoints(pinFor:)` must attach each URL's OWN pin — never share the
+        // LAN pin onto the tailnet endpoint (that would defeat pinning).
+        PairedHostEndpointStore.record(lan.url)
+        PairedHostEndpointStore.record(tailnet.url)
+
+        let pins = [lan.url.absoluteString: "sha256/LAN-PIN="]
+        let hosts = PairedHostEndpointStore.endpoints(pinFor: { pins[$0] })
+
+        XCTAssertEqual(hosts.map(\.url.host), ["192.168.1.42", "studio.tailabc123.ts.net"])
+        XCTAssertEqual(hosts[0].spkiPin, "sha256/LAN-PIN=")
+        XCTAssertNil(hosts[1].spkiPin) // tailnet real cert — pin never inherited
+    }
+
+    func testPinLookupIsKeyedByEndpointURLNotHost() {
+        // The pin is resolved by the full URL string the store persisted, so the
+        // right trust travels with the exact endpoint the reconnect loop dials.
+        PairedHostEndpointStore.record(lan.url)
+
+        var requestedKeys: [String] = []
+        _ = PairedHostEndpointStore.endpoints(pinFor: { key in
+            requestedKeys.append(key)
+            return nil
+        })
+
+        XCTAssertEqual(requestedKeys, [lan.url.absoluteString])
+    }
+
+    func testAbsentPinYieldsNilTrustNotAFallback() {
+        // No pin recorded for the endpoint → nil, never a substituted/other pin.
+        PairedHostEndpointStore.record(lan.url)
+        let hosts = PairedHostEndpointStore.endpoints(pinFor: { _ in nil })
+        XCTAssertEqual(hosts.count, 1)
+        XCTAssertNil(hosts[0].spkiPin)
+    }
 }

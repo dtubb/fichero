@@ -162,21 +162,36 @@ final class LibraryChangeStream {
     /// Observed (not `@ObservationIgnored`) so views react to it.
     private(set) var liveUpdatesUnavailable = false
 
-    /// Certificate-pinned URLSession reused across reconnects.
-    /// `URLSession.bytes(for:)` only invokes the delegate challenge handler
-    /// when the session is retained at the class level, not as a per-call local.
-    private let urlSession: URLSession = RemoteCertificatePinning.configuredSession()
+    /// The SSE transport (default: certificate-pinned `URLSession.bytes`). Held
+    /// at the class level so its session outlives each `bytes(for:)` call — the
+    /// delegate challenge handler only fires for a retained session. Injected in
+    /// tests so canned frames can drive the classify loop without a socket.
+    private let transport: any ChangeStreamTransport
 
-    init(baseURL: URL, libraryPath: String, windowId: String = UUID().uuidString) {
+    init(
+        baseURL: URL,
+        libraryPath: String,
+        windowId: String = UUID().uuidString,
+        transport: any ChangeStreamTransport =
+            URLSessionChangeStreamTransport(session: RemoteCertificatePinning.configuredSession())
+    ) {
         self.baseURLProvider = { baseURL }
         self.libraryPath = libraryPath
         self.windowId = windowId
+        self.transport = transport
     }
 
-    init(baseURLProvider: @escaping @MainActor () -> URL, libraryPath: String, windowId: String = UUID().uuidString) {
+    init(
+        baseURLProvider: @escaping @MainActor () -> URL,
+        libraryPath: String,
+        windowId: String = UUID().uuidString,
+        transport: any ChangeStreamTransport =
+            URLSessionChangeStreamTransport(session: RemoteCertificatePinning.configuredSession())
+    ) {
         self.baseURLProvider = baseURLProvider
         self.libraryPath = libraryPath
         self.windowId = windowId
+        self.transport = transport
     }
 
     deinit {
@@ -221,6 +236,16 @@ final class LibraryChangeStream {
         accessDenied = false
     }
 
+    // MARK: - Backoff (pure — unit-testable without timing)
+
+    /// First reconnect delay, reset after every clean connect.
+    static let initialBackoffNanos: UInt64 = 1_000_000_000  // 1s
+
+    /// Next reconnect delay: double, capped at 30s.
+    static func nextBackoffNanos(after current: UInt64) -> UInt64 {
+        min(current * 2, 30_000_000_000)
+    }
+
     // MARK: - Internals
 
     /// Distinguishes an authorization failure (terminal — don't retry) from a
@@ -228,13 +253,13 @@ final class LibraryChangeStream {
     private enum StreamError: Error { case accessDenied }
 
     private func runLoop() async {
-        var backoffNanos: UInt64 = 1_000_000_000  // 1s, doubles to a 30s cap
+        var backoffNanos = Self.initialBackoffNanos
         var hasConnectedBefore = false
         while !Task.isCancelled {
             do {
                 try await subscribeOnce(resyncOnConnect: hasConnectedBefore)
                 hasConnectedBefore = true
-                backoffNanos = 1_000_000_000  // clean end → reset backoff
+                backoffNanos = Self.initialBackoffNanos  // clean end → reset backoff
             } catch StreamError.accessDenied {
                 // 403: no role on this library. Retrying can't fix authorization —
                 // flag it, surface access-denied, and stop the loop (#2479).
@@ -265,25 +290,26 @@ final class LibraryChangeStream {
             }
             if Task.isCancelled { break }
             try? await Task.sleep(nanoseconds: backoffNanos)
-            backoffNanos = min(backoffNanos * 2, 30_000_000_000)
+            backoffNanos = Self.nextBackoffNanos(after: backoffNanos)
         }
     }
 
-    private func subscribeOnce(resyncOnConnect: Bool) async throws {
+    /// Open one SSE subscription and classify frames until it ends. `internal`
+    /// (not `private`) so `@testable` tests can drive it directly with a stub
+    /// transport, skipping the reconnect loop.
+    func subscribeOnce(resyncOnConnect: Bool) async throws {
         let request = engineEventStreamRequest(
             baseURL: baseURL,
             pathComponents: ["changes", "stream"],
             libraryPath: libraryPath
         )
 
-        let (bytes, response) = try await urlSession.bytes(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
-        if http.statusCode == 403 {
+        let (status, lines) = try await transport.connect(request)
+        if status == 403 {
+            // 403: no role on this library — terminal, don't retry (#2479).
             throw StreamError.accessDenied
         }
-        guard http.statusCode == 200 else {
+        guard status == 200 else {
             throw URLError(.badServerResponse)
         }
 
@@ -295,7 +321,7 @@ final class LibraryChangeStream {
             await resyncConsumers()
         }
 
-        for try await line in bytes.lines {
+        for try await line in lines {
             guard !Task.isCancelled else { break }
             if line.isEmpty || line.hasPrefix(":") || line.hasPrefix("event:") {
                 continue  // keepalive comment / blank / event-type line
