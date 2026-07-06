@@ -89,8 +89,6 @@
     "/api/model-comparison/compare-workflow": "#2195 CLI-only model-comparison bake-off; SwiftUI comparison UI is #1753/#1739",
     "/api/model-comparison/language-fit": "#1820 backend LOOVE language-fit API; Settings/model-picker UI wiring tracked by #2116",
     "/api/model-comparison/recommend-models": "#2204 backend model recommendation API; Settings/model-picker UI wiring tracked by #2116",
-    "/api/notes/{note_id}/backlinks": "baseline: not yet wired",
-    "/api/notes/{note_id}/forward-links": "baseline: not yet wired",
     "/api/notes/{note_id}/links": "baseline: not yet wired",
     "/api/notes/{note_id}/links/{link_id}": "baseline: not yet wired",
     "/api/pair/devices/renew": "paired-device token renewal backend shipped before the app-side renewal loop; SwiftUI remote pairing follow-up still needed",
