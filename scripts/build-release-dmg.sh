@@ -81,6 +81,47 @@ echo "[2b/6] Re-sign staged app with Developer ID Application (inside-out + --ti
 APP="$STAGE_DIR/$APP_NAME"
 DEV_IDENTITY="${FICHERO_DEV_IDENTITY:-Developer ID Application: DANIEL GAVIN LIVINGSTONE TUBB (QAPB6CWYR6)}"
 
+# Hardened runtime is mandatory for notarization but blocks several things the
+# embedded CPython engine needs (executable memory, DYLD vars, loading non-
+# Team-signed wheels). Sign the engine bundle + its main executable WITH the
+# engine entitlements so it survives on a clean Mac (#3163); keep the outer app
+# on its own release entitlements (else this re-sign strips user-selected file
+# access); everything else signs plain-hardened.
+ENGINE_APP="$APP/Contents/Resources/Fichero Engine.app"
+ENGINE_ENTITLEMENTS="$ROOT_DIR/fichero/fichero/FicheroEngine.entitlements"
+APP_ENTITLEMENTS="$ROOT_DIR/fichero/fichero/FicheroRelease.entitlements"
+
+# entitlements_for PATH → echo the entitlements file to sign PATH with, or ""
+# for a plain hardened-runtime sign. Only the two bundles' main executables (and
+# the bundles themselves) carry entitlements; loose dylibs/.so sign plain.
+entitlements_for() {
+  case "$1" in
+    "$ENGINE_APP"|"$ENGINE_APP/Contents/MacOS/"*) printf '%s' "$ENGINE_ENTITLEMENTS" ;;
+    "$APP"|"$APP/Contents/MacOS/"*)               printf '%s' "$APP_ENTITLEMENTS" ;;
+    *)                                            printf '' ;;
+  esac
+}
+
+# sign_hardened PATH → Developer ID + hardened runtime + timestamp, adding
+# --entitlements when entitlements_for selects one. Returns codesign's status.
+sign_hardened() {
+  local target="$1" ent
+  ent="$(entitlements_for "$target")"
+  if [ -n "$ent" ]; then
+    codesign --force --sign "$DEV_IDENTITY" --options runtime --timestamp \
+      --entitlements "$ent" "$target" >/dev/null 2>&1
+  else
+    codesign --force --sign "$DEV_IDENTITY" --options runtime --timestamp \
+      "$target" >/dev/null 2>&1
+  fi
+}
+
+if [ ! -f "$ENGINE_ENTITLEMENTS" ]; then
+  echo "error: engine entitlements not found at $ENGINE_ENTITLEMENTS" >&2
+  echo "  (embedded CPython needs these under hardened runtime — see #3163)" >&2
+  exit 1
+fi
+
 # 2b.1 — collect every Mach-O in the app. `file {} +` batches one invocation per
 # many files; grep Mach-O; drop the per-architecture lines `file` emits for
 # universal binaries ("path (for architecture x86_64): ...") so only real paths
@@ -97,7 +138,7 @@ echo "  $macho_count Mach-O binaries to sign (Developer ID + hardened runtime + 
 # that xargs cannot assemble even one command.
 sign_fails=0
 while IFS= read -r macho; do
-  if ! codesign --force --sign "$DEV_IDENTITY" --options runtime --timestamp "$macho" >/dev/null 2>&1; then
+  if ! sign_hardened "$macho"; then
     echo "  error: failed to re-sign Mach-O: $macho" >&2
     sign_fails=$((sign_fails + 1))
   fi
@@ -119,7 +160,7 @@ find "$APP" -type d \( -name '*.app' -o -name '*.framework' -o -name '*.xpc' \) 
   | awk '{print length, $0}' | sort -rn | cut -d' ' -f2- > "$bundle_list"
 bundle_fails=0
 while IFS= read -r bundle; do
-  if ! codesign --force --sign "$DEV_IDENTITY" --options runtime --timestamp "$bundle" >/dev/null 2>&1; then
+  if ! sign_hardened "$bundle"; then
     echo "  error: failed to re-seal bundle: $bundle" >&2
     bundle_fails=$((bundle_fails + 1))
   fi

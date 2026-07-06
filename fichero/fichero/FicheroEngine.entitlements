@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Entitlements for the embedded Briefcase Python engine, applied when the
+	  release DMG re-signs "Fichero Engine.app" with Developer ID + hardened
+	  runtime. Notarization REQUIRES hardened runtime, but hardened runtime
+	  blocks several things embedded CPython needs — without these, the engine
+	  launches fine on the build machine (already-trusted) but is KILLED on a
+	  clean Mac. Each key maps to a real failure mode:
+	-->
+
+	<!-- Load the 800+ third-party native wheels (duckdb, numpy, PyMuPDF, …)
+	     even though they aren't all signed with our Team ID. -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+
+	<!-- CPython + cffi/ctypes create writable-executable memory (trampolines);
+	     hardened runtime kills that without this entitlement. -->
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+
+	<!-- Briefcase's launcher sets DYLD_* so the bundled interpreter finds its
+	     libs; hardened runtime ignores DYLD vars unless this is granted. -->
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+
+	<!-- Some native deps JIT (allowed defensively; harmless if unused). -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+</dict>
+</plist>
