@@ -154,6 +154,16 @@ final class NoteStore: ObservableDomainStore {
         await reload()
     }
 
+    // MARK: - Links (#1433 — note↔note relations, read-through to the service)
+
+    /// Backlinks + forward links for one note. The store is the single accessor;
+    /// views observe/dispatch here rather than calling `NoteService` directly.
+    func links(for noteId: String) async throws -> NoteLinks {
+        async let backlinks = noteService.backlinks(noteId: noteId)
+        async let forward = noteService.forwardLinks(noteId: noteId)
+        return NoteLinks(backlinks: try await backlinks, forward: try await forward)
+    }
+
     // MARK: - ChangeEventConsumer (called by LibraryChangeStream, NOT by views)
 
     nonisolated var changeDomain: String { "note" }

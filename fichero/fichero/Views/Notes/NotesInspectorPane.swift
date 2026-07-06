@@ -42,6 +42,9 @@ struct NotesInspectorPane: View {
                     },
                     onDelete: { item in
                         try await deleteNote(item)
+                    },
+                    onLoadLinks: { noteId in
+                        try? await noteStore.links(for: noteId)
                     }
                 )
                 .frame(minHeight: 160)

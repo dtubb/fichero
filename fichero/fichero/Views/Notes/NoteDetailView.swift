@@ -25,11 +25,16 @@ struct NoteDetailView: View {
 
     var onSave: ((NoteSelectionItem, String) async throws -> Void)?
     var onDelete: ((NoteSelectionItem) async throws -> Void)?
+    /// Loads a note's backlinks + forward links (#1433). Nil hides the Links
+    /// section — used by the torn-off note window, which has no store scope.
+    var onLoadLinks: ((String) async -> NoteLinks?)?
 
     @State private var draftBody = ""
     @State private var draftId: String?
     @State private var isSaving = false
     @State private var errorText: String?
+    @State private var links: NoteLinks = .empty
+    @State private var isLoadingLinks = false
 
     var body: some View {
         Group {
@@ -42,6 +47,7 @@ struct NoteDetailView: View {
                         headerSection(item)
                         editorSection(item)
                         metadataSection(item)
+                        linksSection(item)
                         actionsSection(item)
                     }
                     .padding(.horizontal, 12)
@@ -50,6 +56,7 @@ struct NoteDetailView: View {
                 }
                 .onAppear { syncDraft(for: item) }
                 .onChange(of: item.id) { _, _ in syncDraft(for: item) }
+                .task(id: item.id) { await loadLinks(for: item) }
             } else {
                 emptyState
             }
@@ -223,5 +230,75 @@ struct NoteDetailView: View {
             errorText = error.localizedDescription
         }
         isSaving = false
+    }
+}
+
+// MARK: - Links (#1433 — Tinderbox-style backlinks + forward links)
+
+private extension NoteDetailView {
+
+    @ViewBuilder
+    func linksSection(_ item: NoteSelectionItem) -> some View {
+        // Only shown where a loader is provided (the inspector pane, which has the
+        // NoteStore). The torn-off note window has no store scope, so it passes
+        // nil and this section is hidden.
+        if onLoadLinks != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Links")
+                    .font(.subheadline.weight(.semibold))
+                if isLoadingLinks {
+                    ProgressView().controlSize(.small)
+                } else if links.isEmpty {
+                    Text("No linked notes")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    linkGroup("Backlinks", notes: links.backlinks)
+                    linkGroup("Forward links", notes: links.forward)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    func linkGroup(_ title: String, notes: [NoteItem]) -> some View {
+        if !notes.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                ForEach(notes) { note in
+                    HStack(spacing: 6) {
+                        Image(systemName: "note.text")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(linkedNoteTitle(note))
+                            .font(.caption)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+    }
+
+    /// A linked note's display title: its `title`, else the first line of its
+    /// body, else a short id — never blank.
+    func linkedNoteTitle(_ note: NoteItem) -> String {
+        if let title = note.title, !title.isEmpty { return title }
+        if let body = note.body, !body.isEmpty {
+            return String(body.prefix(while: { !$0.isNewline }).prefix(80))
+        }
+        return note.id.map { "Note \($0.prefix(8))" } ?? "Untitled note"
+    }
+
+    func loadLinks(for item: NoteSelectionItem) async {
+        guard let onLoadLinks, let noteId = item.note.id else {
+            links = .empty
+            return
+        }
+        isLoadingLinks = true
+        links = await onLoadLinks(noteId) ?? .empty
+        isLoadingLinks = false
     }
 }

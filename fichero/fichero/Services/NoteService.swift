@@ -1,6 +1,6 @@
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OpenAPIRuntime
 import OSLog
 
@@ -13,6 +13,16 @@ extension Components.Schemas.Note: @retroactive Identifiable {}
 struct NoteListResponse: Codable {
     let items: [NoteItem]
     let count: Int
+}
+
+/// A note's relations (#1433): notes that link to it (`backlinks`) and notes it
+/// links to (`forward`). Tinderbox-style bidirectional linking.
+struct NoteLinks: Equatable {
+    let backlinks: [NoteItem]
+    let forward: [NoteItem]
+
+    static let empty = NoteLinks(backlinks: [], forward: [])
+    var isEmpty: Bool { backlinks.isEmpty && forward.isEmpty }
 }
 
 struct NoteCreateBody: Encodable {
@@ -262,6 +272,28 @@ final class NoteService {
         ))
         guard case .noContent = response else { throw NoteServiceError.unexpectedResponse }
         notes.removeAll { $0.id == noteId }
+    }
+
+    // MARK: - Links (#1433 — Tinderbox-style note↔note relations)
+
+    /// Notes that link TO this note (its backlinks).
+    func backlinks(noteId: String) async throws -> [NoteItem] {
+        syncLibraryPath()
+        let response = try await client.api.backlinksApiNotesNoteIdBacklinksGet(.init(
+            path: .init(noteId: noteId)
+        ))
+        guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
+        return try okResponse.body.json.items.map { try note(from: $0) }
+    }
+
+    /// Notes that this note links TO (its forward links).
+    func forwardLinks(noteId: String) async throws -> [NoteItem] {
+        syncLibraryPath()
+        let response = try await client.api.forwardLinksApiNotesNoteIdForwardLinksGet(.init(
+            path: .init(noteId: noteId)
+        ))
+        guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
+        return try okResponse.body.json.items.map { try note(from: $0) }
     }
 }
 

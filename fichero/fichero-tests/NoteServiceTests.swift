@@ -24,6 +24,34 @@ final class NoteServiceTests: XCTestCase {
         XCTAssertFalse(source.contains("URL(string:"))
     }
 
+    func testNoteServiceWiresBacklinksAndForwardLinks() throws {
+        // #1433: the two note-relation endpoints must be called through the typed
+        // client (a hand-written service consumer = "wired" per check_ui_wiring).
+        let source = try Self.appSource("Services/NoteService.swift")
+        XCTAssertTrue(source.contains("client.api.backlinksApiNotesNoteIdBacklinksGet"))
+        XCTAssertTrue(source.contains("client.api.forwardLinksApiNotesNoteIdForwardLinksGet"))
+        XCTAssertTrue(source.contains("func backlinks(noteId: String)"))
+        XCTAssertTrue(source.contains("func forwardLinks(noteId: String)"))
+    }
+
+    func testNoteStoreExposesLinksAndDetailViewSurfacesThem() throws {
+        // The store is the single accessor; the detail view renders the section.
+        let storeSource = try Self.appSource("Models/NoteStore.swift")
+        XCTAssertTrue(storeSource.contains("func links(for noteId: String)"))
+        XCTAssertTrue(storeSource.contains("noteService.backlinks(noteId: noteId)"))
+        XCTAssertTrue(storeSource.contains("noteService.forwardLinks(noteId: noteId)"))
+
+        let detailSource = try Self.appSource("Views/Notes/NoteDetailView.swift")
+        XCTAssertTrue(detailSource.contains("linksSection(item)"))
+        XCTAssertTrue(detailSource.contains("Backlinks"))
+        XCTAssertTrue(detailSource.contains("Forward links"))
+
+        // The inspector pane must feed the loader (otherwise the section is dead).
+        let paneSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
+        XCTAssertTrue(paneSource.contains("onLoadLinks:"))
+        XCTAssertTrue(paneSource.contains("noteStore.links(for: noteId)"))
+    }
+
     func testNoteServicePreservesPageAndFolderFieldsAndCreatesScopedNotes() throws {
         let source = try Self.appSource("Services/NoteService.swift")
 
