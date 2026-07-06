@@ -30,6 +30,8 @@ def _make_workflow(db, name: str = "Test Workflow") -> Workflow:
         name=name,
         description="A test workflow",
         format="nodes",
+        nodes=[{"id": "source", "tool": "files"}],
+        edges=[],
         steps=[],
     )
     db.save(wf)
@@ -479,6 +481,73 @@ class TestExecuteWorkflow:
         ):
             r = client.post("/api/workflow-execution/execute", json=payload)
         assert r.status_code == 404
+
+    def test_execute_rejects_empty_workflow(self, client, db):
+        wf = Workflow(
+            name="Empty Workflow",
+            description="No nodes",
+            format="nodes",
+            nodes=[],
+            edges=[],
+            steps=[],
+        )
+        db.save(wf)
+        payload = {"workflow_id": wf.id, "inputs": {}}
+
+        r = client.post("/api/workflow-execution/execute", json=payload)
+
+        assert r.status_code == 400
+        assert "Workflow validation failed" in r.json()["detail"]
+        assert "Workflow has no nodes" in r.json()["detail"]
+
+    def test_execute_rejects_unknown_tool(self, client, db):
+        wf = _make_workflow(db, "Bad Tool Workflow")
+        wf.nodes = [{"id": "node-1", "tool": "does_not_exist"}]
+        db.save(wf)
+
+        r = client.post("/api/workflow-execution/execute", json={"workflow_id": wf.id, "inputs": {}})
+
+        assert r.status_code == 400
+        assert "Unknown tool: does_not_exist" in r.json()["detail"]
+
+    def test_execute_rejects_type_mismatch(self, client, db):
+        wf = _make_workflow(db, "Type Mismatch Workflow")
+        wf.nodes = [
+            {"id": "source", "tool": "files"},
+            {"id": "target", "tool": "summarize"},
+        ]
+        wf.edges = [
+            {
+                "source": "source",
+                "target": "target",
+                "source_port": "files",
+                "target_port": "text",
+            }
+        ]
+        db.save(wf)
+
+        r = client.post("/api/workflow-execution/execute", json={"workflow_id": wf.id, "inputs": {}})
+
+        assert r.status_code == 400
+        assert "Invalid connection from source.files to target.text" in r.json()["detail"]
+
+    def test_execute_rejects_edge_with_missing_target_node(self, client, db):
+        wf = _make_workflow(db, "Dangling Edge Workflow")
+        wf.nodes = [{"id": "source", "tool": "files"}]
+        wf.edges = [
+            {
+                "source": "source",
+                "target": "missing-node",
+                "source_port": "files",
+                "target_port": "files",
+            }
+        ]
+        db.save(wf)
+
+        r = client.post("/api/workflow-execution/execute", json={"workflow_id": wf.id, "inputs": {}})
+
+        assert r.status_code == 400
+        assert "Edge references unknown target node: missing-node" in r.json()["detail"]
 
 
 class TestGetWorkflowRun:

@@ -32,6 +32,11 @@ from fichero.workflows.runtime import (
     create_compiled_app_with_checkpointer,
     to_workflow_def,
 )
+from fichero.workflows.builder import build_graph
+from fichero.workflows.validation import (
+    validate_workflow_connections,
+    validate_workflow_preflight,
+)
 
 from .schemas import (
     ExecuteAcceptedResponse,
@@ -91,6 +96,30 @@ def _build_workflow_with_checkpointer(
         interrupt_before=interrupt_before,
         interrupt_after=interrupt_after,
     )
+
+
+def _validate_workflow_for_execution(workflow: Workflow) -> None:
+    """Fail fast on malformed workflows before spawning a background run."""
+    workflow_def = to_workflow_def(workflow)
+    errors = [
+        *validate_workflow_connections(workflow_def),
+        *validate_workflow_preflight(workflow_def),
+    ]
+
+    if not workflow_def.nodes:
+        errors.append("Workflow has no nodes")
+
+    if not errors:
+        try:
+            build_graph(workflow_def, enable_parallel=True)
+        except ValueError as exc:
+            errors.append(str(exc))
+
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Workflow validation failed: {'; '.join(errors)}",
+        )
 
 
 # =============================================================================
@@ -214,6 +243,8 @@ async def execute_workflow(
             raise HTTPException(
                 status_code=404, detail=f"Workflow not found: {request.workflow_id}"
             )
+
+        _validate_workflow_for_execution(workflow)
 
         # Debug: log workflow data being executed
         print(f"[EXECUTE] Workflow '{workflow.name}' (id={workflow.id})")
