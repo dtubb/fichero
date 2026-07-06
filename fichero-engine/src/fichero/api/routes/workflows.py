@@ -921,13 +921,18 @@ async def update_workflow(
 ) -> WorkflowResponse:
     """Update an existing workflow."""
     try:
-        # Debug: log what's being received and saved
-        print(f"[UPDATE] workflow: id={workflow_id}")
-        print(
-            f"[UPDATE]   received nodes: {len(workflow.nodes)}, edges: {len(workflow.edges)}"
+        logger.debug(
+            "[UPDATE] workflow=%s received nodes=%s edges=%s",
+            workflow_id,
+            len(workflow.nodes),
+            len(workflow.edges),
         )
         for node in workflow.nodes[:3]:  # Log first 3 nodes
-            print(f"[UPDATE]   node: tool={node.tool}, id={node.id[:8]}...")
+            logger.debug(
+                "[UPDATE] node tool=%s id=%s",
+                node.tool,
+                node.id[:8],
+            )
 
         existing = update_workflow_impl(db, workflow_id, workflow)
 
@@ -940,9 +945,10 @@ async def update_workflow(
             origin_user=actor,
         )
 
-        # Debug: verify what was saved
-        print(
-            f"[UPDATE]   saved nodes: {len(existing.nodes)}, edges: {len(existing.edges)}"
+        logger.debug(
+            "[UPDATE] saved nodes=%s edges=%s",
+            len(existing.nodes),
+            len(existing.edges),
         )
 
         return WorkflowResponse(

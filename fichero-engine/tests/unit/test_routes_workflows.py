@@ -6,6 +6,8 @@ Tests use real in-memory DB fixtures; no LLM or graph execution.
 """
 
 import pytest
+from unittest.mock import patch
+
 from fichero.models import Workflow
 
 
@@ -146,6 +148,35 @@ class TestPatchWorkflow:
     def test_patch_missing_returns_404(self, client):
         r = client.patch("/api/workflows/no-such-id", json={"name": "X"})
         assert r.status_code == 404
+
+
+class TestUpdateWorkflow:
+    def test_put_updates_without_stdout_debug_prints(self, client, db):
+        wf = Workflow(
+            name="Old Workflow",
+            description="Before",
+            format="nodes",
+            nodes=[{"id": "source", "tool": "files"}],
+            edges=[],
+            steps=[],
+        )
+        db.save(wf)
+
+        payload = {
+            "id": wf.id,
+            "name": "Updated Workflow",
+            "description": "After",
+            "format": "nodes",
+            "nodes": [{"id": "source", "tool": "files"}],
+            "edges": [],
+        }
+
+        with patch("builtins.print") as print_spy:
+            r = client.put(f"/api/workflows/{wf.id}", json=payload)
+
+        assert r.status_code == 200
+        assert r.json()["name"] == "Updated Workflow"
+        print_spy.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

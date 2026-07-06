@@ -247,17 +247,22 @@ async def execute_workflow(
 
         _validate_workflow_for_execution(workflow)
 
-        # Debug: log workflow data being executed
-        print(f"[EXECUTE] Workflow '{workflow.name}' (id={workflow.id})")
-        print(f"[EXECUTE]   nodes: {len(workflow.nodes)}, edges: {len(workflow.edges)}")
+        logger.debug(
+            "[EXECUTE] workflow=%s id=%s nodes=%s edges=%s",
+            workflow.name,
+            workflow.id,
+            len(workflow.nodes),
+            len(workflow.edges),
+        )
         for i, node in enumerate(workflow.nodes[:3]):  # Log first 3 nodes
-            print(
-                f"[EXECUTE]   node[{i}]: tool={node.get('tool', '?')}, id={node.get('id', '?')[:8]}..."
+            logger.debug(
+                "[EXECUTE] node[%s] tool=%s id=%s",
+                i,
+                node.get("tool", "?"),
+                str(node.get("id", "?"))[:8],
             )
         if not workflow.nodes:
-            print(
-                "[EXECUTE]   WARNING: Workflow has no nodes! Execution will complete instantly."
-            )
+            logger.debug("[EXECUTE] workflow has no nodes; execution would complete instantly")
 
         # Generate thread ID if not provided or if force_new is True
         if request.force_new or not request.thread_id:
@@ -334,7 +339,7 @@ async def execute_workflow(
         base_url = str(http_request.base_url).rstrip("/")
         stream_url = f"{base_url}/api/workflow-execution/stream/{thread_id}"
 
-        print(f"[EXECUTE] Started background execution, stream at: {stream_url}")
+        logger.debug("[EXECUTE] started background execution stream_url=%s", stream_url)
 
         return ExecuteAcceptedResponse(
             thread_id=thread_id,

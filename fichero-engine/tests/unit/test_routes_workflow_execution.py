@@ -6,14 +6,15 @@ mocking for LangGraph-dependent paths.
 """
 
 import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from langgraph.types import Send
 
 from fichero.api.routes.workflow_execution.core import get_thread_status
+from fichero.api.routes.workflow_execution.schemas import SSEEvent, format_sse
 from fichero.api.routes.workflow_execution.runner import _missing_exit_nodes
 from fichero.models import Artifact, Document, DocType, FileType, Status, Workflow
 from fichero.workflows.activity import get_activity_tracker
@@ -480,6 +481,29 @@ class TestExecuteWorkflow:
             t.name.startswith("workflow-") for t in created_threads
         ), "execute route did not start a workflow worker thread"
 
+    def test_execute_does_not_write_stdout_debug_logs(self, client, db):
+        wf = _make_workflow(db, "Quiet Workflow")
+        payload = {"workflow_id": wf.id, "inputs": {}}
+
+        import threading as _threading
+
+        real_thread_cls = _threading.Thread
+
+        def _spy_thread(*args, **kwargs):
+            return real_thread_cls(*args, **kwargs)
+
+        with patch("builtins.print") as print_spy, patch(
+            "fichero.api.routes.workflow_execution.core.threading.Thread",
+            side_effect=_spy_thread,
+        ), patch(
+            "fichero.api.routes.workflow_execution.core._run_workflow_in_background",
+            new=AsyncMock(return_value=None),
+        ):
+            r = client.post("/api/workflow-execution/execute", json=payload)
+
+        assert r.status_code == 202
+        print_spy.assert_not_called()
+
     def test_missing_workflow_returns_404(self, client):
         payload = {
             "workflow_id": "no-such-workflow",
@@ -597,6 +621,22 @@ class TestExecuteWorkflow:
 
         assert r.status_code == 400
         assert "Edge references unknown source port 'not-a-port' on node 'source'" in r.json()["detail"]
+
+
+class TestWorkflowExecutionSchemas:
+    def test_format_sse_does_not_write_stdout_debug_logs(self):
+        event = SSEEvent(
+            event="node_end",
+            thread_id="thread-1",
+            workflow_id="wf-1",
+            data={"result": "ok"},
+        )
+
+        with patch("builtins.print") as print_spy:
+            payload = format_sse(event)
+
+        assert payload.startswith("event: node_end\n")
+        print_spy.assert_not_called()
 
     def test_execute_rejects_subworkflow_self_cycle(self, client, db):
         wf = Workflow(

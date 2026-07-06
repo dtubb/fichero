@@ -1,10 +1,13 @@
 """Request/response models and SSE event types for workflow execution."""
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class ExecuteWorkflowRequest(BaseModel):
@@ -101,8 +104,7 @@ def format_sse(event: SSEEvent) -> str:
     """Format an SSE event for streaming."""
     data = event.model_dump_json()
     formatted = f"event: {event.event}\ndata: {data}\n\n"
-    # Debug: log every SSE event being sent
-    print(f"[SSE-YIELD] {event.event}: {str(event.data)[:80]}...")
+    logger.debug("[SSE-YIELD] %s: %s", event.event, str(event.data)[:80])
     return formatted
 
 
