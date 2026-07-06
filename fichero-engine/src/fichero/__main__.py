@@ -1149,7 +1149,7 @@ def import_iiif_command(
             summary = import_iiif_via_http(
                 iiif_path=iiif,
                 library_path=library,
-                api_base=api or DEFAULT_API_BASE,
+                api_base=resolved_api,
                 token_file=token_file or DEFAULT_TOKEN_FILE,
                 create_library=not no_create_library,
                 copy_images=copy_images,

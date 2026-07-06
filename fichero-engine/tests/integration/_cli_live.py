@@ -79,6 +79,10 @@ def cli_live_engine(tmp_path_factory):
     base_url = f"http://127.0.0.1:{port}"
     env = {
         **os.environ,
+        # Keep startup library discovery/recovery inside the temp harness.
+        # Otherwise live CLI contracts can walk real ~/Documents libraries and
+        # stall on external volumes before /api/health ever responds.
+        "HOME": str(workdir),
         "PYTHONPATH": str(REPO_ROOT / "fichero-engine" / "src"),
         "FICHERO_DISABLE_AUTH": "1",
         "FICHERO_FEATURE_TIER": "dev",
