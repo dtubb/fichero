@@ -412,7 +412,7 @@ class TestWorkflowCreateNodeAction:
         assert tools, "expected at least one registered workflow tool"
         return tools[0].name
 
-    def test_create_node_effect_audit_emit(self, db, emit_spy):
+    def test_create_node_effect_audit_without_emit(self, db, emit_spy):
         tool_name = self._a_tool_name()
         result = registry.invoke(
             db,
@@ -434,7 +434,7 @@ class TestWorkflowCreateNodeAction:
         # not undoable (no persisted state to reverse)
         assert registry.get("workflow.create_node").undoable is False
 
-        assert emit_spy[-1][1]["type"] == "workflow.updated"
+        assert emit_spy == []
 
     def test_create_node_unknown_tool_404(self, db):
         with pytest.raises(HTTPException) as exc:

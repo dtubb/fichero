@@ -332,7 +332,13 @@ class TestListWorkflowTools:
         assert "items" in data
         assert isinstance(data["items"], list)
 
-    def test_create_node_from_tool(self, client):
+    def test_create_node_from_tool(self, client, monkeypatch):
+        calls: list[tuple] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.workflows.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+
         r = client.post(
             "/api/workflows/tools/transcribe/create-node",
             params={"position_x": 40, "position_y": 80},
@@ -344,6 +350,7 @@ class TestListWorkflowTools:
         assert data["position_y"] == 80
         assert isinstance(data["input_ports"], list)
         assert isinstance(data["output_ports"], list)
+        assert calls == []
 
     def test_generate_tool_prompt(self, client):
         r = client.post(

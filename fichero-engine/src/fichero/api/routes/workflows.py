@@ -474,15 +474,6 @@ async def create_node(
     if not node:
         raise HTTPException(status_code=404, detail=f"Tool not found: {tool_name}")
 
-    emit_change(
-        x_fichero_library_path,
-        type="workflow.updated",
-        actor=actor,
-        run_id=None,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
-
     return NodeResponse(
         id=node.id,
         tool=node.tool,
@@ -1645,6 +1636,6 @@ def _action_create_node(
         target_ids=[node.id],
         before=None,
         after=node_dict,
-        emit_type="workflow.updated",
+        emit_type=None,
     )
     return node_dict, spec
