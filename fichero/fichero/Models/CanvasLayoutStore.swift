@@ -163,8 +163,8 @@ final class CanvasLayoutStore {
         }
         do {
             let response = try await client.api
-                .getCanvasLayoutApiCanvasFoldersScopeIdLayoutGet(
-                    path: .init(scopeId: folderId)
+                .getFolderCanvasLayoutApiCanvasFoldersFolderIdCanvasLayoutGet(
+                    path: .init(folderId: folderId)
                 )
             switch response {
             case .ok(let okResponse):
@@ -196,8 +196,8 @@ final class CanvasLayoutStore {
         let body = Components.Schemas.CanvasLayoutSaveRequest(items: items.map(\.asSaveItem))
         do {
             let response = try await client.api
-                .saveCanvasLayoutApiCanvasFoldersScopeIdLayoutPut(
-                    path: .init(scopeId: folderId),
+                .saveFolderCanvasLayoutApiCanvasFoldersFolderIdCanvasLayoutPut(
+                    path: .init(folderId: folderId),
                     body: .json(body)
                 )
             switch response {

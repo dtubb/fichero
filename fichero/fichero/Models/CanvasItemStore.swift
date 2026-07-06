@@ -129,8 +129,8 @@ final class CanvasItemStore {
         }
         do {
             let response = try await client.api
-                .listCanvasItemsApiCanvasFoldersScopeIdItemsGet(
-                    path: .init(scopeId: folderId)
+                .listFolderCanvasItemsApiCanvasFoldersFolderIdCanvasItemsGet(
+                    path: .init(folderId: folderId)
                 )
             switch response {
             case .ok(let okResponse):
@@ -170,8 +170,8 @@ final class CanvasItemStore {
         )
         do {
             let response = try await client.api
-                .createCanvasItemApiCanvasFoldersScopeIdItemsPost(
-                    path: .init(scopeId: folderId),
+                .createFolderCanvasItemApiCanvasFoldersFolderIdCanvasItemsPost(
+                    path: .init(folderId: folderId),
                     body: .json(body)
                 )
             switch response {
@@ -216,8 +216,8 @@ final class CanvasItemStore {
         )
         do {
             let response = try await client.api
-                .updateCanvasItemApiCanvasFoldersScopeIdItemsItemIdPatch(
-                    path: .init(scopeId: folderId, itemId: itemId),
+                .updateFolderCanvasItemApiCanvasFoldersFolderIdCanvasItemsItemIdPatch(
+                    path: .init(folderId: folderId, itemId: itemId),
                     body: .json(body)
                 )
             switch response {
@@ -251,8 +251,8 @@ final class CanvasItemStore {
     func deleteItem(folderId: String, itemId: String) async -> Bool {
         do {
             let response = try await client.api
-                .deleteCanvasItemApiCanvasFoldersScopeIdItemsItemIdDelete(
-                    path: .init(scopeId: folderId, itemId: itemId)
+                .deleteFolderCanvasItemApiCanvasFoldersFolderIdCanvasItemsItemIdDelete(
+                    path: .init(folderId: folderId, itemId: itemId)
                 )
             switch response {
             case .ok:
