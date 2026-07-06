@@ -19,6 +19,11 @@ final class UsersStore {
     private(set) var isLoading = false
     private(set) var loadError: String?
 
+    /// True when `GET /api/users` came back 401/403 — the caller is signed in but
+    /// isn't the library owner (the list is owner-only). Lets the view say "you
+    /// don't manage accounts" instead of the misleading "No accounts" (#3287).
+    private(set) var listAccessDenied = false
+
     /// Pending (unredeemed, unexpired) account invites, owner-only (#3157).
     private(set) var invites: [Components.Schemas.InviteResponse] = []
 
@@ -46,10 +51,16 @@ final class UsersStore {
 
         do {
             let listResp = try await listTask
-            if case .ok(let listOk) = listResp {
+            switch listResp {
+            case .ok(let listOk):
                 users = try listOk.body.json.items
+                listAccessDenied = false
+            case .undocumented(let statusCode, _):
+                // Owner-only endpoint: 401/403 for a signed-in non-owner is
+                // "not permitted", not "no accounts" (#3287). Other non-2xx codes
+                // are genuine load failures.
+                listAccessDenied = (statusCode == 401 || statusCode == 403)
             }
-            // Non-200 (e.g. 401 for non-owners) leaves users empty — expected
         } catch {
             loadError = error.localizedDescription
             log.error("Failed to load users: \(error.localizedDescription)")

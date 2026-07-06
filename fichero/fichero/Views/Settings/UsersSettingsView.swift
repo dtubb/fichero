@@ -59,6 +59,16 @@ private struct UsersContent: View {
                     systemImage: "person.2.slash",
                     description: Text(error)
                 )
+            } else if store.listAccessDenied && store.users.isEmpty {
+                // Non-owner: the account list is owner-only, so 'No accounts'
+                // would be misleading — say the accounts are owner-managed (#3287).
+                ContentUnavailableView(
+                    "Managed by the library owner",
+                    systemImage: "person.badge.key",
+                    description: Text(
+                        "You’re signed in but don’t manage accounts. Ask the library owner to add or change users."
+                    )
+                )
             } else if store.users.isEmpty && store.currentUser == nil && authzSnapshot == nil {
                 ContentUnavailableView(
                     "No accounts",
