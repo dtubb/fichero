@@ -317,8 +317,11 @@ class ImportServiceGenerated {
                 logger.error("Folder import failed: \(errorMessage)")
                 throw ImportServiceGeneratedError.taskFailed(errorMessage)
 
-            case "pending", "processing":
-                // Continue polling
+            case "pending", "processing", "running":
+                // Continue polling. "running" is the backend's active status
+                // (pending → running → completed/failed, #3283); "processing" is
+                // kept for any legacy responses. Previously "running" fell to the
+                // default and log-spammed "Unknown task status" every poll.
                 try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
 
             default:
