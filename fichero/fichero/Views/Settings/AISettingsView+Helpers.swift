@@ -235,7 +235,18 @@ extension AISettingsView {
             let beforeSeed = defaults
             defaults.seedAppleDefaultsIfNeeded(appleAvailable: appleAvailable)
             if defaults != beforeSeed {
-                try? await appState.saveAIDefaults(defaults)
+                // Surface a seed-persist failure instead of showing values that
+                // silently evaporate on next launch (#3222 / prefer-raise-over-
+                // silent-fallback). Scoped catch so a save failure doesn't abort
+                // loading the model-picker lists below.
+                do {
+                    try await appState.saveAIDefaults(defaults)
+                } catch {
+                    settingsLogger.error(
+                        "Failed to persist seeded Apple defaults: \(error.localizedDescription)"
+                    )
+                    errorMessage = "Couldn't save the default AI models: \(error.localizedDescription)"
+                }
             }
 
             if !defaults.textProvider.isEmpty {
