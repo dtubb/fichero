@@ -1380,10 +1380,15 @@ final class EntityServiceGenerated {
         }
     }
 
-    /// Patch bibliographic metadata for a document. The backend merges
-    /// the patch into existing metadata (so unspecified keys are
-    /// preserved). Pass any key/value pairs the bibliography editor
-    /// supports — title, authors, year, container_title, etc.
+    /// Set bibliographic metadata for a document. ⚠️ The backend **replaces**
+    /// `source_metadata` wholesale — unspecified keys (including extractor-
+    /// emitted fields like canonical BibTeX / identifiers) are DROPPED, not
+    /// merged. To preserve them, GET the current metadata and merge client-side
+    /// before calling. (#3253: this documents today's behavior so a metadata
+    /// editor built on this wrapper doesn't silently destroy fields; the
+    /// eventual merge-vs-replace semantics are a pending product decision.)
+    /// Pass the full key/value set the bibliography editor supports — title,
+    /// authors, year, container_title, etc.
     /// Backed by `PATCH /api/bibliography/document/{document_id}`.
     func patchBibliographyMetadata(
         forDocumentId documentId: String,
