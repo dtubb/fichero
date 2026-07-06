@@ -89,5 +89,26 @@ struct CreateActionRequest: Encodable {
         try container.encode(tags, forKey: .tags)
         try container.encode(icon, forKey: .icon)
         try container.encode(author, forKey: .author)
+
+        // The graph fields are loosely-typed JSON, so they route through
+        // AnyCodable (JSONSerialization → typed container → encode). Encode only
+        // when non-empty: the sole current caller leaves them empty, so its wire
+        // form is unchanged, but a future caller that populates a node graph is
+        // no longer silently dropped (the CodingKeys promised these fields).
+        if !nodeTemplate.isEmpty {
+            let data = try JSONSerialization.data(withJSONObject: nodeTemplate)
+            try container.encode(JSONDecoder().decode([String: AnyCodable].self, from: data),
+                                 forKey: .nodeTemplate)
+        }
+        if !nodes.isEmpty {
+            let data = try JSONSerialization.data(withJSONObject: nodes)
+            try container.encode(JSONDecoder().decode([[String: AnyCodable]].self, from: data),
+                                 forKey: .nodes)
+        }
+        if !edges.isEmpty {
+            let data = try JSONSerialization.data(withJSONObject: edges)
+            try container.encode(JSONDecoder().decode([[String: AnyCodable]].self, from: data),
+                                 forKey: .edges)
+        }
     }
 }
