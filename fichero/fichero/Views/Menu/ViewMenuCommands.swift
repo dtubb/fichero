@@ -235,7 +235,7 @@ struct LibraryLayoutSection: View {
         if mode == .search && !featureManager.isSearchAdvancedViewsEnabled {
             return [.list]
         }
-        return [.icons, .list, .table, .map, .space]
+        return [.icons, .list, .table, .canvas, .space]
     }
 
     var body: some View {
@@ -277,15 +277,15 @@ struct LibraryLayoutSection: View {
                     }
                 }
 
-                if availableLayouts.contains(.map) {
+                if availableLayouts.contains(.canvas) {
                     LibraryLayoutButton(
-                        layout: .map,
+                        layout: .canvas,
                         label: "as Canvas",
                         icon: "rectangle.3.group",
                         shortcut: "4",
                         current: viewSettings.libraryLayout
                     ) {
-                        viewSettings.libraryLayout = .map
+                        viewSettings.libraryLayout = .canvas
                     }
                 }
 

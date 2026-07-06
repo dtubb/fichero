@@ -38,14 +38,14 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     /// The `LibraryLayout` (View-menu twin) this display mode maps to. The single
     /// source of truth for the ViewDisplayMode → LibraryLayout bridge (#3088),
     /// replacing three hand-copied switches. `.canvas`/`.workspace` both surface
-    /// as `.map`; `.space` is its own case so ⌘5 Space doesn't collapse to Canvas.
+    /// as `.canvas`; `.space` is its own case so ⌘5 Space doesn't collapse to it.
     var libraryLayout: LibraryLayout {
         switch self {
         case .icon: .icons
         case .list: .list
         case .table: .table
         case .space: .space
-        case .canvas, .workspace: .map
+        case .canvas, .workspace: .canvas
         }
     }
 

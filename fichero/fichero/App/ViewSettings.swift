@@ -100,10 +100,10 @@ enum LibraryLayout: String, CaseIterable, Codable {
     case icons = "Icons"
     case list = "List"
     case table = "Table"
-    case map = "Map"
+    case canvas = "Canvas"
     /// The RealityKit 3D "Space" view (#3088). Mirrors `ViewDisplayMode.space`
     /// so the View-menu ⌘5 ↔ toolbar picker bridge stays bijective — without
-    /// this case Space would collapse onto `.map` (Canvas) and revert on select.
+    /// this case Space would collapse onto `.canvas` and revert on select.
     case space = "Space"
 
     var icon: String {
@@ -111,7 +111,7 @@ enum LibraryLayout: String, CaseIterable, Codable {
         case .icons: "square.grid.2x2"
         case .list: "list.bullet"
         case .table: "tablecells"
-        case .map: "rectangle.3.group"
+        case .canvas: "rectangle.3.group"
         case .space: "cube.transparent"
         }
     }
@@ -124,7 +124,7 @@ enum LibraryLayout: String, CaseIterable, Codable {
         case .icons: .icon
         case .list: .list
         case .table: .table
-        case .map: .canvas
+        case .canvas: .canvas
         case .space: .space
         }
     }

@@ -15,7 +15,7 @@ final class ViewSettingsEnumsTests: XCTestCase {
         XCTAssertEqual(LibraryLayout.icons.rawValue, "Icons")
         XCTAssertEqual(LibraryLayout.list.rawValue, "List")
         XCTAssertEqual(LibraryLayout.table.rawValue, "Table")
-        XCTAssertEqual(LibraryLayout.map.rawValue, "Map")
+        XCTAssertEqual(LibraryLayout.canvas.rawValue, "Canvas")
         for layout in LibraryLayout.allCases {
             XCTAssertFalse(layout.icon.isEmpty, "\(layout) icon")
         }

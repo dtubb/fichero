@@ -738,7 +738,7 @@ extension ContentView {
         case .icon: .icons
         case .list: .list
         case .table: .table
-        case .canvas, .space, .workspace: .map
+        case .canvas, .space, .workspace: .canvas
         }
 
         let effectivePreviewMode = normalizedPreviewMode(viewSettings.previewMode)
