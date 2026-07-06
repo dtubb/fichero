@@ -79,7 +79,10 @@ struct ImportProgress {
     let currentFile: String
 
     var percentage: Double {
-        Double(current) / Double(total) * 100
+        // Guard against total==0 (empty import) — an unguarded divide yields
+        // NaN and corrupts the progress bar.
+        guard total > 0 else { return 0 }
+        return Double(current) / Double(total) * 100
     }
 
     var description: String {
