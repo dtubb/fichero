@@ -173,6 +173,15 @@ struct SearchView: View {
                     performSearch()
                 }
             }
+            // A document.* change on this (or another window's) library bumps
+            // SearchStore.changeToken (#3249) — re-run the active query so
+            // renamed / deleted / re-OCR'd docs don't linger stale in the
+            // results. Wires the last hop the sibling stores already observe.
+            .onChange(of: searchStore.changeToken) { _, _ in
+                if !queryText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    performSearch()
+                }
+            }
             .onChange(of: selection) { _, newSelection in
                 // Load document when selection changes (single click)
                 if let selectedId = newSelection.first {
