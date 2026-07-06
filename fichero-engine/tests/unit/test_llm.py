@@ -1358,6 +1358,33 @@ async def test_vision_batch_uses_model_abatch_and_preserves_order(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_vision_batch_retries_without_config_for_legacy_abatch_models(monkeypatch):
+    model = _BatchNoConfigModel()
+    config = LLMConfig(provider="openai", model="gpt-5")
+    monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "4")
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _config: model)
+
+    results = await llm.vision_batch(
+        [
+            ["data:image/png;base64,AAAA"],
+            ["data:image/png;base64,BBBB"],
+            ["data:image/png;base64,CCCC"],
+        ],
+        "describe",
+        config,
+    )
+
+    assert results == ["result-0", "result-1", "result-2"]
+    assert len(model.calls) == 1
+    assert model.calls[0]["return_exceptions"] is True
+    assert [message[0].content[0]["text"] for message in model.calls[0]["inputs"]] == [
+        "describe",
+        "describe",
+        "describe",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_chat_batch_reuses_one_cached_model_lookup(monkeypatch):
     config = LLMConfig(provider="openai", model="gpt-5")
     model = _BatchCountingModel()
