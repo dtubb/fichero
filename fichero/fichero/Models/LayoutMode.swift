@@ -1,4 +1,5 @@
 import Foundation
+import PDFKit
 
 /// Layout modes for the main content area
 /// Inspired by DevonThink's view menu
@@ -33,6 +34,79 @@ enum LayoutMode: String, CaseIterable, Identifiable {
         case .none: "0"
         case .standard: "1"
         case .widescreen: "2"
+        }
+    }
+}
+
+/// Page-arrangement modes for the reading surface (#2090) — how the pages of a
+/// PDF or image-sequence document are laid out: 1-up · 2-up (facing spread) ·
+/// 3-up · 4-up, each optionally continuous-scrolling.
+///
+/// Unifies PDFKit's native display modes (Tier 1: single / single-continuous /
+/// two-up / two-up-continuous — PDFKit's ceiling is two-up) with the custom
+/// N-up image grid (Tier 2: three-up / four-up, and *all* modes for image
+/// documents, which have no `PDFView`). The reader toolbar, View menu, and
+/// per-window `@SceneStorage` all key off this one value type, so a host branches
+/// PDFKit-native vs custom-grid on `pdfDisplayMode`/`isPDFKitNative` and drives
+/// the shared `LazyVGrid` off `columns`.
+enum PageLayoutMode: String, CaseIterable, Identifiable {
+    case singlePage = "Single Page"
+    case singleContinuous = "Single Page Continuous"
+    case twoUp = "Two Up"
+    case twoUpContinuous = "Two Up Continuous"
+    case threeUp = "Three Up"
+    case fourUp = "Four Up"
+
+    var id: String { rawValue }
+
+    /// Menu / tooltip label.
+    var label: String { rawValue }
+
+    /// Number of page columns rendered side-by-side. Drives the shared grid for
+    /// the custom (image / 3-4-up) renderer.
+    var columns: Int {
+        switch self {
+        case .singlePage, .singleContinuous: 1
+        case .twoUp, .twoUpContinuous: 2
+        case .threeUp: 3
+        case .fourUp: 4
+        }
+    }
+
+    /// Whether pages scroll continuously (vs one paged spread at a time). The
+    /// multi-column grid modes (3/4-up) always scroll.
+    var isContinuous: Bool {
+        switch self {
+        case .singleContinuous, .twoUpContinuous, .threeUp, .fourUp: true
+        case .singlePage, .twoUp: false
+        }
+    }
+
+    /// The PDFKit display mode for this layout, or `nil` when it exceeds
+    /// PDFKit's two-up ceiling and must render through the custom page-image
+    /// grid (Tier 2). Image documents ignore this — they always use the grid.
+    var pdfDisplayMode: PDFDisplayMode? {
+        switch self {
+        case .singlePage: .singlePage
+        case .singleContinuous: .singlePageContinuous
+        case .twoUp: .twoUp
+        case .twoUpContinuous: .twoUpContinuous
+        case .threeUp, .fourUp: nil
+        }
+    }
+
+    /// True when PDFKit renders this natively; false ⇒ the shared image grid.
+    var isPDFKitNative: Bool { pdfDisplayMode != nil }
+
+    /// SF Symbol for the toolbar / menu.
+    var systemImage: String {
+        switch self {
+        case .singlePage: "rectangle.portrait"
+        case .singleContinuous: "scroll"
+        case .twoUp: "book"
+        case .twoUpContinuous: "book.pages"
+        case .threeUp: "rectangle.split.3x1"
+        case .fourUp: "square.grid.2x2"
         }
     }
 }
