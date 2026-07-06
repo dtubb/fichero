@@ -344,7 +344,6 @@
 		A1A3A9F72F110CFD0021909D /* WorkflowExecutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */; };
 		A1A3A9FA2F110D170021909D /* ContentViewModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */; };
 		A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9FC2F110D260021909D /* AgentSettingsView.swift */; };
-		A1A3A9FF2F110D260021909D /* AgentConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9FB2F110D260021909D /* AgentConfigurationView.swift */; };
 		A1A3AA112F110D520021909D /* WorkflowCanvasView+DropHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA052F110D520021909D /* WorkflowCanvasView+DropHandling.swift */; };
 		A1A3AA122F110D520021909D /* WorkflowCanvasView+Gestures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA072F110D520021909D /* WorkflowCanvasView+Gestures.swift */; };
 		A1A3AA132F110D520021909D /* NodePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA022F110D520021909D /* NodePopover.swift */; };
@@ -960,7 +959,6 @@
 		A1A3A9F32F1028E70021909D /* MCPService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPService.swift; sourceTree = "<group>"; };
 		A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowExecutionService.swift; sourceTree = "<group>"; };
 		A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewModifiers.swift; sourceTree = "<group>"; };
-		A1A3A9FB2F110D260021909D /* AgentConfigurationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfigurationView.swift; sourceTree = "<group>"; };
 		A1A3A9FC2F110D260021909D /* AgentSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsView.swift; sourceTree = "<group>"; };
 		A1A3AA002F110D520021909D /* AgentNodeBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentNodeBlockView.swift; sourceTree = "<group>"; };
 		A1A3AA012F110D520021909D /* CanvasHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasHelpers.swift; sourceTree = "<group>"; };
@@ -1846,7 +1844,6 @@
 		A1A3A9FD2F110D260021909D /* Agents */ = {
 			isa = PBXGroup;
 			children = (
-				A1A3A9FB2F110D260021909D /* AgentConfigurationView.swift */,
 				A1A3A9FC2F110D260021909D /* AgentSettingsView.swift */,
 			);
 			path = Agents;
@@ -2653,7 +2650,6 @@
 				20D8EE222F4BBFB8006950A3 /* AutomationServiceTypes.swift in Sources */,
 				A1BFB2E42F0439FE00EAA55A /* ImportService.swift in Sources */,
 				A1A3A9FE2F110D260021909D /* AgentSettingsView.swift in Sources */,
-				A1A3A9FF2F110D260021909D /* AgentConfigurationView.swift in Sources */,
 				20D8EE4B2F4BED57006950A3 /* ActionDetailView.swift in Sources */,
 				023 /* ChatService.swift in Sources */,
 				025 /* SavedSearchService.swift in Sources */,
