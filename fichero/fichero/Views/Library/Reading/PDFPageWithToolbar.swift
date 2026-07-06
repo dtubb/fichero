@@ -181,7 +181,6 @@ struct PDFPageWithToolbar: View {
             PDFPageView(
                 documentId: effectiveDocumentId,
                 pageIndex: effectivePageIndex,
-                displayMode: pageLayout.pdfDisplayMode ?? .singlePage,
                 onPageIndexChange: { newIndex in
                     if isSecondarySplitPane || isPinned {
                         localPageIndex = newIndex
@@ -194,7 +193,8 @@ struct PDFPageWithToolbar: View {
                 onCursorMoved: { pos in loupePosition = pos },
                 regionBoxes: pageRegionBoxes,
                 isDrawingRegion: isDrawingRegion,
-                onCreateRegion: { box in persistRegion(box, tool: pendingTool) }
+                onCreateRegion: { box in persistRegion(box, tool: pendingTool) },
+                displayMode: pageLayout.pdfDisplayMode ?? .singlePage
             )
             .onAppear {
                 localPageIndex = pageIndex
