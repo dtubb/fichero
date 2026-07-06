@@ -52,5 +52,31 @@ final class QuickLookDownloadErrorTests: XCTestCase {
         let result = msg(404, #"{"detail": "gone"}"#, path: "/library/docs/x.pdf")
         XCTAssertEqual(result, "gone")
     }
+
+    // MARK: - sanitizedFileName (#3207 path-injection guard)
+
+    func testSanitizePassesCleanNames() {
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("report.pdf"), "report.pdf")
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("My Scan 2.tiff"), "My Scan 2.tiff")
+    }
+
+    func testSanitizeStripsPathTraversalToLeaf() {
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("../../etc/passwd"), "passwd")
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("/a/b/c.pdf"), "c.pdf")
+        // Backslash (Windows) separators are stripped too.
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("..\\..\\secret.txt"), "secret.txt")
+    }
+
+    func testSanitizeRejectsEmptyAndDotOnly() {
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName(""), "")
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName(".."), "")
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("/"), "")
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("   "), "")
+    }
+
+    func testSanitizeStripsControlCharsAndCapsLength() {
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("a\nb\tc.pdf"), "abc.pdf")
+        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName(String(repeating: "x", count: 500)).count, 200)
+    }
 }
 #endif

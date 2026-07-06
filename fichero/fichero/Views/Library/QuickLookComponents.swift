@@ -128,7 +128,12 @@ struct QuickLookDownloadView: View {
                 of: "\"",
                 range: range.upperBound..<contentDisposition.endIndex
                ) {
-                let serverFileName = String(contentDisposition[range.upperBound..<endRange.lowerBound])
+                // Sanitize the server-controlled filename before it becomes a
+                // path component — a value with `/`, `\`, or `..` would corrupt
+                // or escape the cache path (#3207).
+                let serverFileName = Self.sanitizedFileName(
+                    String(contentDisposition[range.upperBound..<endRange.lowerBound])
+                )
                 if !serverFileName.isEmpty {
                     fileName = serverFileName
                 }
@@ -178,6 +183,24 @@ struct QuickLookDownloadView: View {
             message += "\n\nMount the drive to view the full resolution file."
         }
         return message
+    }
+
+    /// Reduce a server-supplied Content-Disposition filename to a safe leaf
+    /// before it is spliced into a cache path (#3207): keep only the last path
+    /// component, drop path separators + control chars, reject empty / `.` /
+    /// `..`, and cap the length. Returns "" when nothing safe remains (the
+    /// caller then keeps its document-derived name). Pure + static → testable.
+    static func sanitizedFileName(_ raw: String) -> String {
+        // Normalize Windows separators so lastPathComponent (splits on "/" only)
+        // reduces "..\\..\\x" to its leaf too, then drop any residual separator +
+        // control chars.
+        let leaf = (raw.replacingOccurrences(of: "\\", with: "/") as NSString).lastPathComponent
+        let kept = leaf.unicodeScalars.filter { scalar in
+            scalar != "/" && !CharacterSet.controlCharacters.contains(scalar)
+        }
+        let cleaned = String(String.UnicodeScalarView(kept)).trimmingCharacters(in: .whitespaces)
+        guard !cleaned.isEmpty, cleaned != ".", cleaned != ".." else { return "" }
+        return String(cleaned.prefix(200))
     }
 
     private func cleanupTemporaryFile() {
