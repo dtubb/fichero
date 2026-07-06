@@ -2,6 +2,10 @@
 import OSLog
 import SwiftUI
 
+#if canImport(AppKit)
+import AppKit
+#endif
+
 // MARK: - Focused Values for Menu Commands
 
 /// Actions for image preview zoom controls
@@ -399,6 +403,7 @@ struct UndoLastActionButton: View {
         }
         guard let auditId = lastAction.auditId,
               let service = LibraryManager.shared.globalLibrary?.actionsService else { return }
+        let previousActionName = lastAction.actionName
         // Clear up front so a second ⌘Z can't replay the inverse of the same row
         // (single-level undo). Re-records nothing: redo is a follow-up.
         lastAction.auditId = nil
@@ -408,9 +413,25 @@ struct UndoLastActionButton: View {
                 _ = try await service.undoAction(auditId: auditId)
                 logger.info("⌘Z undo of audit \(auditId) succeeded")
             } catch {
+                // A failed undo must not leave the user with nothing undone AND
+                // Undo silently disabled (#3302 / raise-not-silent). Restore the
+                // holder so ⌘Z can retry, and surface the failure.
+                lastAction.auditId = auditId
+                lastAction.actionName = previousActionName
                 logger.error("⌘Z undo of audit \(auditId) failed: \(error.localizedDescription)")
+                presentUndoError(error)
             }
         }
+    }
+
+    private func presentUndoError(_ error: Error) {
+        #if canImport(AppKit)
+        let alert = NSAlert()
+        alert.messageText = "Couldn’t Undo"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.runModal()
+        #endif
     }
 }
 
