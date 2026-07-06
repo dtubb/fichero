@@ -1116,12 +1116,27 @@ def _make_route_map_fan_out_function(
         if first_is_parallel and first_target_id in node_names
         else node_names.get(first_target_id, "")
     )
+    parts = route_key.rsplit(".", 1)
+    needs_human_key = parts[0] + ".needs_human_selection" if len(parts) == 2 else ""
 
     def route_and_fan_out(state: State):
         from fichero.workflows.resolver import resolve_value  # noqa: PLC0415
 
         val = resolve_value(route_key, state, None)
         val_str = str(val) if val is not None else ""
+        needs_human = bool(
+            needs_human_key and resolve_value(needs_human_key, state, False)
+        )
+        if needs_human and "needs_human_selection" in route_map:
+            human_target = route_map["needs_human_selection"]
+            if human_target in node_names:
+                logger.info(
+                    "route_map_fan_out: %r → needs_human_selection=True; routing to %s",
+                    route_key,
+                    node_names[human_target],
+                )
+                return node_names[human_target]
+
         target_id = route_map.get(val_str)
 
         if not target_id or target_id not in node_names:
