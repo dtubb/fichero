@@ -77,13 +77,33 @@ struct AboutView: View {
             .resizable()
             .aspectRatio(contentMode: .fit)
         #else
-        // ponytail: iOS reads its icon from the bundle differently; an SF Symbol
-        // placeholder is fine until an iOS About surface (Settings) is wired.
-        Image(systemName: "books.vertical.fill")
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .foregroundStyle(.tint)
+        // The real bundled app icon (#3236): the highest-resolution
+        // CFBundleIconFiles entry. Falls back to a symbol only if resolution fails.
+        if let name = Self.appIconAssetName(from: Bundle.main.infoDictionary),
+           let uiImage = UIImage(named: name) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+        } else {
+            Image(systemName: "books.vertical.fill")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .foregroundStyle(.tint)
+        }
         #endif
+    }
+
+    /// The largest bundled app-icon asset name from an Info.plist `CFBundleIcons`
+    /// dictionary — the last `CFBundleIconFiles` entry is the highest resolution
+    /// (#3236). Pure + static so it is testable without a live bundle.
+    static func appIconAssetName(from infoDictionary: [String: Any]?) -> String? {
+        guard let icons = infoDictionary?["CFBundleIcons"] as? [String: Any],
+              let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+              let files = primary["CFBundleIconFiles"] as? [String],
+              let name = files.last, !name.isEmpty else {
+            return nil
+        }
+        return name
     }
 }
 
