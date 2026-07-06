@@ -237,18 +237,23 @@ class TestActivityStream:
         try:
             emit_change(
                 library_path,
-                type="document.updated",
-                document_ids=["doc-1"],
-                actor="remote-device",
+                type="backend.work.progress",
+                run_id="task-1",
+                actor="system",
+                metadata={"task_type": "metrics", "percent": "40.0"},
             )
             chunk = await anext(response.body_iterator)
         finally:
             await response.body_iterator.aclose()
 
         assert '"type":"system_info"' in chunk
-        assert '"message":"document.updated changed"' in chunk
-        assert '"change_type":"document.updated"' in chunk
-        assert '"actor":"remote-device"' in chunk
+        assert '"message":"backend.work.progress changed"' in chunk
+        assert '"change_type":"backend.work.progress"' in chunk
+        assert '"actor":"system"' in chunk
+        assert '"run_id":"task-1"' in chunk
+        assert '"change_metadata":"' in chunk
+        assert 'task_type' in chunk
+        assert 'metrics' in chunk
 
     @pytest.mark.asyncio
     async def test_stream_ignores_other_library_change_events(self, monkeypatch):

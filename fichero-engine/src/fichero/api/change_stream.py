@@ -65,6 +65,7 @@ class ChangeEvent(BaseModel):
     interpretation_ids: list[str] = Field(default_factory=list)
     run_id: str | None = None
     actor: str = "system"  # ui | chat | workflow | import | system
+    metadata: dict[str, str] = Field(default_factory=dict)
     origin_window: str | None = None  # self-echo de-dup seam (spec §3.5)
     origin_user: str | None = None  # user-level self-echo de-dup seam (#2023)
     event_id: int | None = None
@@ -423,6 +424,7 @@ def emit_change(
     interpretation_ids: Iterable[str] = (),
     run_id: str | None = None,
     actor: str = "system",
+    metadata: dict[str, str] | None = None,
     origin_window: str | None = None,
     origin_user: str | None = None,
 ) -> None:
@@ -445,6 +447,7 @@ def emit_change(
             interpretation_ids=list(interpretation_ids),
             run_id=run_id,
             actor=actor,
+            metadata=dict(metadata or {}),
             origin_window=origin_window,
             origin_user=origin_user,
         )
@@ -466,6 +469,7 @@ def emit_request_change(
     reference_ids: Iterable[str] = (),
     interpretation_ids: Iterable[str] = (),
     run_id: str | None = None,
+    metadata: dict[str, str] | None = None,
     origin_window: str | None = None,
 ) -> None:
     """Emit a user-initiated change with a request-state-derived actor."""
@@ -484,6 +488,7 @@ def emit_request_change(
         interpretation_ids=interpretation_ids,
         run_id=run_id,
         actor=actor,
+        metadata=metadata,
         origin_window=origin_window,
         origin_user=actor,
     )

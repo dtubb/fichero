@@ -56,22 +56,42 @@ class TaskWorkersMixin:
         db = db_manager.get_database(package_path)
         return getattr(db, method_name)(*args)
 
+    async def _mark_task_started(self, task: BackgroundTask) -> None:
+        await self._save_task(task)
+        self._emit_task_change(task, "backend.work.started")
+
+    async def _save_task_progress(self, task: BackgroundTask) -> None:
+        task.progress.updated_at = datetime.now()
+        await self._save_task(task)
+        self._emit_task_change(task, "backend.work.progress")
+
+    async def _finalize_task_execution(self, task: BackgroundTask) -> None:
+        task.completed_at = datetime.now()
+        await self._save_task(task)
+        terminal_type = (
+            "backend.work.completed"
+            if task.status == TaskStatus.COMPLETED
+            else "backend.work.cancelled"
+            if task.status == TaskStatus.CANCELLED
+            else "backend.work.failed"
+        )
+        self._emit_task_change(task, terminal_type)
+
     async def _execute_reindex(self, task: BackgroundTask) -> TaskResult:
         """Public entry point for reindex — claims task, runs, finalizes."""
         claimed = await self._claim_for_direct_execution(task)
         if not claimed:
             return task.result or TaskResult(success=True, message="Already executing")
         try:
+            await self._mark_task_started(task)
             result = await self._do_reindex(task)
-            task.completed_at = datetime.now()
-            await self._save_task(task)
+            await self._finalize_task_execution(task)
             return result
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.error_message = str(e)
             task.result = TaskResult(success=False, message="Task failed", error=str(e))
-            task.completed_at = datetime.now()
-            await self._save_task(task)
+            await self._finalize_task_execution(task)
             return task.result
         finally:
             self._executing.discard(task.task_id)
@@ -94,7 +114,7 @@ class TaskWorkersMixin:
 
         task.progress.total = total
         task.progress.message = f"Reindexing {total} documents..."
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         indexed = 0
         for i, doc in enumerate(docs):
@@ -113,8 +133,7 @@ class TaskWorkersMixin:
                     task.progress.current = i + 1
                     task.progress.percent = ((i + 1) / total) * 100
                     task.progress.message = f"Indexed {indexed}/{i + 1} documents"
-                    task.progress.updated_at = datetime.now()
-                    await self._save_task(task)
+                    await self._save_task_progress(task)
 
             except Exception as e:
                 logger.warning(f"Failed to index document {doc.id}: {e}")
@@ -134,16 +153,15 @@ class TaskWorkersMixin:
         if not claimed:
             return task.result or TaskResult(success=True, message="Already executing")
         try:
+            await self._mark_task_started(task)
             result = await self._do_metrics(task)
-            task.completed_at = datetime.now()
-            await self._save_task(task)
+            await self._finalize_task_execution(task)
             return result
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.error_message = str(e)
             task.result = TaskResult(success=False, message="Task failed", error=str(e))
-            task.completed_at = datetime.now()
-            await self._save_task(task)
+            await self._finalize_task_execution(task)
             return task.result
         finally:
             self._executing.discard(task.task_id)
@@ -162,13 +180,13 @@ class TaskWorkersMixin:
 
         task.progress.total = 5  # Steps in metrics computation
         task.progress.message = "Computing library metrics..."
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         # Step 1: Document counts
         task.progress.current = 1
         task.progress.message = "Counting documents..."
         task.progress.percent = 20.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         docs = await asyncio.to_thread(self._db_call, "all", Document)
         doc_count = len(docs)
@@ -177,7 +195,7 @@ class TaskWorkersMixin:
         task.progress.current = 2
         task.progress.message = "Getting embedding stats..."
         task.progress.percent = 40.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         stats = await asyncio.to_thread(self._db_call, "embedding_stats")
 
@@ -185,7 +203,7 @@ class TaskWorkersMixin:
         task.progress.current = 3
         task.progress.message = "Analyzing file types..."
         task.progress.percent = 60.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         file_types: dict[str, int] = {}
         for doc in docs:
@@ -196,7 +214,7 @@ class TaskWorkersMixin:
         task.progress.current = 4
         task.progress.message = "Analyzing document status..."
         task.progress.percent = 80.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         status_counts: dict[str, int] = {}
         for doc in docs:
@@ -207,7 +225,7 @@ class TaskWorkersMixin:
         task.progress.current = 5
         task.progress.message = "Metrics computed"
         task.progress.percent = 100.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         result = TaskResult(
             success=True,
@@ -229,16 +247,15 @@ class TaskWorkersMixin:
         if not claimed:
             return task.result or TaskResult(success=True, message="Already executing")
         try:
+            await self._mark_task_started(task)
             result = await self._do_repair(task)
-            task.completed_at = datetime.now()
-            await self._save_task(task)
+            await self._finalize_task_execution(task)
             return result
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.error_message = str(e)
             task.result = TaskResult(success=False, message="Task failed", error=str(e))
-            task.completed_at = datetime.now()
-            await self._save_task(task)
+            await self._finalize_task_execution(task)
             return task.result
         finally:
             self._executing.discard(task.task_id)
@@ -263,7 +280,7 @@ class TaskWorkersMixin:
 
         task.progress.total = 3
         task.progress.message = "Repairing database inconsistencies..."
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         repaired = {"embeddings": 0, "artifacts": 0, "docs": 0}
 
@@ -271,7 +288,7 @@ class TaskWorkersMixin:
         task.progress.current = 1
         task.progress.message = "Checking document embeddings..."
         task.progress.percent = 33.3
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         docs = await asyncio.to_thread(self._db_call, "all", Document)
         for doc in docs:
@@ -286,7 +303,7 @@ class TaskWorkersMixin:
         task.progress.current = 2
         task.progress.message = "Checking for orphaned artifacts..."
         task.progress.percent = 66.6
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         artifacts = await asyncio.to_thread(self._db_call, "all", Artifact)
         doc_ids = {d.id for d in docs}
@@ -301,7 +318,7 @@ class TaskWorkersMixin:
         task.progress.current = 3
         task.progress.message = "Validating document metadata..."
         task.progress.percent = 100.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         for doc in docs:
             needs_save = False
@@ -331,16 +348,15 @@ class TaskWorkersMixin:
         if not claimed:
             return task.result or TaskResult(success=True, message="Already executing")
         try:
+            await self._mark_task_started(task)
             result = await self._do_vector_repair(task)
-            task.completed_at = datetime.now()
-            await self._save_task(task)
+            await self._finalize_task_execution(task)
             return result
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.error_message = str(e)
             task.result = TaskResult(success=False, message="Task failed", error=str(e))
-            task.completed_at = datetime.now()
-            await self._save_task(task)
+            await self._finalize_task_execution(task)
             return task.result
         finally:
             self._executing.discard(task.task_id)
@@ -365,7 +381,7 @@ class TaskWorkersMixin:
 
         task.progress.total = 4
         task.progress.message = "Repairing vector index..."
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         repaired = {"added": 0, "removed": 0, "checked": 0}
 
@@ -373,7 +389,7 @@ class TaskWorkersMixin:
         task.progress.current = 1
         task.progress.message = "Scanning documents..."
         task.progress.percent = 25.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         docs = await asyncio.to_thread(self._db_call, "all", Document)
 
@@ -381,7 +397,7 @@ class TaskWorkersMixin:
         task.progress.current = 2
         task.progress.message = "Checking embeddings..."
         task.progress.percent = 50.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         for doc in docs:
             if doc.page_content and not getattr(doc, "embedding", None):
@@ -397,7 +413,7 @@ class TaskWorkersMixin:
         task.progress.current = 3
         task.progress.message = "Validating LanceDB table..."
         task.progress.percent = 75.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         vector_count = 0
         try:
@@ -410,7 +426,7 @@ class TaskWorkersMixin:
         task.progress.current = 4
         task.progress.message = "Vector repair complete"
         task.progress.percent = 100.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         result = TaskResult(
             success=True,
@@ -431,16 +447,15 @@ class TaskWorkersMixin:
         if not claimed:
             return task.result or TaskResult(success=True, message="Already executing")
         try:
+            await self._mark_task_started(task)
             result = await self._do_kg_metrics(task)
-            task.completed_at = datetime.now()
-            await self._save_task(task)
+            await self._finalize_task_execution(task)
             return result
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.error_message = str(e)
             task.result = TaskResult(success=False, message="Task failed", error=str(e))
-            task.completed_at = datetime.now()
-            await self._save_task(task)
+            await self._finalize_task_execution(task)
             return task.result
         finally:
             self._executing.discard(task.task_id)
@@ -466,13 +481,13 @@ class TaskWorkersMixin:
 
         task.progress.total = 4
         task.progress.message = "Computing knowledge graph metrics..."
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         # Step 1: Entity metrics
         task.progress.current = 1
         task.progress.message = "Computing entity metrics..."
         task.progress.percent = 25.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         entities = await asyncio.to_thread(self._db_call, "all", KnowledgeEntity)
         entity_by_type: dict[str, int] = {}
@@ -484,7 +499,7 @@ class TaskWorkersMixin:
         task.progress.current = 2
         task.progress.message = "Computing claim metrics..."
         task.progress.percent = 50.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         claims = await asyncio.to_thread(self._db_call, "all", KnowledgeClaim)
         claims_by_status: dict[str, int] = {}
@@ -505,7 +520,7 @@ class TaskWorkersMixin:
         task.progress.current = 3
         task.progress.message = "Computing link metrics..."
         task.progress.percent = 75.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         links = await asyncio.to_thread(self._db_call, "all", KnowledgeClaimLink)
         links_by_relation: dict[str, int] = {}
@@ -517,7 +532,7 @@ class TaskWorkersMixin:
         task.progress.current = 4
         task.progress.message = "Knowledge graph metrics computed"
         task.progress.percent = 100.0
-        await self._save_task(task)
+        await self._save_task_progress(task)
 
         result = TaskResult(
             success=True,

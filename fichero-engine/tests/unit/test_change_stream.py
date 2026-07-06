@@ -24,6 +24,7 @@ from fichero.api.change_stream import (
     emit_change,
     format_change_sse,
 )
+from fichero.db import db_manager
 from fichero.knowledge_models import (
     Annotation,
     AnnotationKind,
@@ -192,6 +193,7 @@ class TestEmitChange:
             entity_ids=["e1", "e2"],
             claim_ids=["c1"],
             actor="ui",
+            metadata={"task_type": "metrics"},
             origin_window="win-7",
             origin_user="alice",
         )
@@ -203,9 +205,37 @@ class TestEmitChange:
         assert event.entity_ids == ["e1", "e2"]
         assert event.claim_ids == ["c1"]
         assert event.actor == "ui"
+        assert event.metadata == {"task_type": "metrics"}
         assert event.origin_window == "win-7"
         assert event.origin_user == "alice"
         assert event.ts  # default timestamp populated
+
+    def test_db_manager_first_open_emits_library_opened(self, monkeypatch, tmp_path):
+        captured: list[tuple[str, ChangeEvent]] = []
+        monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
+        monkeypatch.setattr(
+            change_stream._change_hub,
+            "emit",
+            lambda lib, event: captured.append((lib, event)) or 1,
+        )
+
+        package = tmp_path / "Opened.fichero"
+        package.mkdir()
+
+        try:
+            db_manager.get_database(package)
+        finally:
+            db_manager.close_database(package)
+
+        assert captured
+        library_path, event = captured[-1]
+        assert library_path == str(package)
+        assert event.type == "library.opened"
+        assert event.actor == "system"
+        assert event.metadata == {
+            "library_name": "Opened.fichero",
+            "source": "db_manager",
+        }
 
     def test_emit_change_blank_library_is_noop(self, monkeypatch):
         called = []
@@ -261,8 +291,7 @@ class TestMergeEmitsChange:
         def _spy(library_path, **kwargs):
             captured.append({"library_path": library_path, **kwargs})
 
-        # Patch the name as imported into the route module.
-        monkeypatch.setattr("fichero.api.routes.kg_entity_curation.emit_change", _spy)
+        monkeypatch.setattr("fichero.api.change_stream.emit_change", _spy)
 
         absorber = _make_entity(db, "Alice")
         absorbed = _make_entity(db, "Alicia")
@@ -1178,7 +1207,7 @@ class TestObservableMutationEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.artifacts.emit_change",
+            "fichero.api.change_stream.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -1207,7 +1236,7 @@ class TestObservableMutationEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.citations.emit_change",
+            "fichero.api.change_stream.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -1237,7 +1266,7 @@ class TestObservableMutationEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.references.emit_change",
+            "fichero.api.change_stream.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),

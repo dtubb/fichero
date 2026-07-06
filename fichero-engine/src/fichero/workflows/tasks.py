@@ -13,6 +13,7 @@ import threading
 import logging
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional
 
 import duckdb
@@ -21,6 +22,7 @@ from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor
 
 from fichero.db import Database
+from fichero.api.change_stream import emit_change
 
 from .task_types import (
     BackgroundTask,
@@ -47,6 +49,8 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+_TASK_LIBRARY_PATH_OPTION = "_library_path"
 
 
 class TaskQueue(TaskWorkersMixin):
@@ -251,6 +255,34 @@ class TaskQueue(TaskWorkersMixin):
         logger.info(f"Created {task_type.value} task {task_id}: {name}")
         return task
 
+    def _task_library_path(self, task: BackgroundTask) -> str | None:
+        library_path = task.config.options.get(_TASK_LIBRARY_PATH_OPTION)
+        if isinstance(library_path, str) and library_path:
+            return library_path
+        if self.database is not None and getattr(self.database, "path", None) is not None:
+            return str(Path(self.database.path).parent)
+        return None
+
+    def _emit_task_change(self, task: BackgroundTask, change_type: str) -> None:
+        library_path = self._task_library_path(task)
+        if not library_path:
+            return
+        emit_change(
+            library_path,
+            type=change_type,
+            run_id=task.task_id,
+            actor="system",
+            metadata={
+                "task_type": task.task_type.value,
+                "task_name": task.name,
+                "status": task.status.value,
+                "message": task.progress.message,
+                "current": str(task.progress.current),
+                "total": str(task.progress.total),
+                "percent": str(task.progress.percent),
+            },
+        )
+
     async def _save_task(self, task: BackgroundTask) -> None:
         """Save task to database."""
 
@@ -357,6 +389,7 @@ class TaskQueue(TaskWorkersMixin):
             await self._save_task(task)
 
         logger.info(f"Starting task {task_id}: {task.name}")
+        self._emit_task_change(task, "backend.work.started")
 
         try:
             # Execute based on task type (call _do_* directly — task is already claimed)
@@ -392,6 +425,14 @@ class TaskQueue(TaskWorkersMixin):
             task.completed_at = datetime.now()
             self._executing.discard(task_id)
             await self._save_task(task)
+            terminal_type = (
+                "backend.work.completed"
+                if task.status == TaskStatus.COMPLETED
+                else "backend.work.cancelled"
+                if task.status == TaskStatus.CANCELLED
+                else "backend.work.failed"
+            )
+            self._emit_task_change(task, terminal_type)
 
             # Schedule next task
             self._schedule_next_task()
@@ -463,6 +504,7 @@ class TaskQueue(TaskWorkersMixin):
         task.status = TaskStatus.CANCELLED
         task.completed_at = datetime.now()
         await self._save_task(task)
+        self._emit_task_change(task, "backend.work.cancelled")
 
         logger.info(f"Cancelled task {task_id}")
         return task
