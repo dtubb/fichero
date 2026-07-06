@@ -490,6 +490,7 @@ class WorkflowExecutor:
                 else:
                     # Regular node processing
                     node_id = node_name
+                    previously_completed = set(current_state.get("completed_nodes", []))
 
                     # Check if node started
                     if step.get("current_node") and step[
@@ -526,9 +527,7 @@ class WorkflowExecutor:
                     # Check if node completed
                     if step.get("completed_nodes"):
                         for completed_node_id in step["completed_nodes"]:
-                            if completed_node_id not in current_state.get(
-                                "completed_nodes", []
-                            ):
+                            if completed_node_id not in previously_completed:
                                 completed_nodes += 1
                                 await self._emit_event(
                                     ProgressEvent(
