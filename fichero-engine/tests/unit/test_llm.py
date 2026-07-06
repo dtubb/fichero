@@ -1208,6 +1208,21 @@ class _BatchRaiseModel:
         raise RuntimeError("provider exploded")
 
 
+class _BatchNoConfigModel:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def abatch(self, inputs, *, return_exceptions=False):
+        self.calls.append(
+            {
+                "inputs": list(inputs),
+                "return_exceptions": return_exceptions,
+            }
+        )
+        assert return_exceptions is True
+        return [_BatchResponse(f"result-{idx}") for idx, _ in enumerate(inputs)]
+
+
 class _BatchHangingModel:
     async def abatch(self, inputs, *, config=None, return_exceptions=False):
         await asyncio.sleep(1)
@@ -1360,6 +1375,29 @@ async def test_chat_batch_reuses_one_cached_model_lookup(monkeypatch):
 
     assert results == ["result-0", "result-1", "result-2", "result-3"]
     assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_chat_batch_retries_without_config_for_legacy_abatch_models(monkeypatch):
+    model = _BatchNoConfigModel()
+    config = LLMConfig(provider="openai", model="gpt-5")
+    monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "4")
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _config: model)
+
+    results = await llm.chat_batch(["one", "two", "three"], config)
+
+    assert results == ["result-0", "result-1", "result-2"]
+    assert [message[0].content for message in model.calls[0]["inputs"]] == [
+        "one",
+        "two",
+        "three",
+    ]
+    assert model.calls == [
+        {
+            "inputs": model.calls[0]["inputs"],
+            "return_exceptions": True,
+        }
+    ]
 
 
 @pytest.mark.asyncio

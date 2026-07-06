@@ -1233,11 +1233,37 @@ async def _call_model_abatch(
             timeout=budget,
         )
     except TypeError as exc:
-        if "return_exceptions" not in str(exc):
+        message = str(exc)
+        if "config" in message and "unexpected keyword argument" in message:
+            try:
+                return await asyncio.wait_for(
+                    model.abatch(inputs, return_exceptions=True),
+                    timeout=budget,
+                )
+            except TypeError as retry_exc:
+                if "return_exceptions" not in str(retry_exc):
+                    raise
+                return await asyncio.wait_for(
+                    model.abatch(inputs),
+                    timeout=budget,
+                )
+            except asyncio.TimeoutError as timeout_exc:
+                raise RuntimeError(
+                    f"LangChain {config.provider}/{config.model} batch call "
+                    f"exceeded {budget}s — provider hang"
+                ) from timeout_exc
+        elif "return_exceptions" not in message:
             raise
         try:
             return await asyncio.wait_for(
                 model.abatch(inputs, **kwargs),
+                timeout=budget,
+            )
+        except TypeError as retry_exc:
+            if "return_exceptions" not in str(retry_exc):
+                raise
+            return await asyncio.wait_for(
+                model.abatch(inputs),
                 timeout=budget,
             )
         except asyncio.TimeoutError as timeout_exc:
