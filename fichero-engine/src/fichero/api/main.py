@@ -20,6 +20,7 @@ import hmac
 import os
 import sys
 import warnings
+from importlib.metadata import PackageNotFoundError, version as package_version
 
 # Disable tokenizers parallelism so the Rust tokenizer's thread pool
 # doesn't deadlock across a fork (subprocess spawns count). Must be set
@@ -78,6 +79,11 @@ from fichero.storage import (
 )
 
 logger = logging.getLogger(__name__)
+
+try:
+    _ENGINE_VERSION = package_version("fichero")
+except PackageNotFoundError:
+    _ENGINE_VERSION = "dev"
 
 
 class LibraryAccessDeniedError(HTTPException):
@@ -788,7 +794,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Fichero API",
     description="Document processing and search API",
-    version="0.1.0",
+    version=_ENGINE_VERSION,
     lifespan=lifespan,
 )
 
@@ -1190,6 +1196,7 @@ async def health_check(
                     library_path=x_fichero_library_path,
                     database=str(db.path),
                     document_count=doc_count,
+                    backend_version=_ENGINE_VERSION,
                 ),
                 nonce or x_fichero_client_nonce,
             )
@@ -1199,6 +1206,7 @@ async def health_check(
                     status="unhealthy",
                     library_path=x_fichero_library_path,
                     error=str(e),
+                    backend_version=_ENGINE_VERSION,
                 ),
                 nonce or x_fichero_client_nonce,
             )
@@ -1207,7 +1215,7 @@ async def health_check(
         return _with_server_proof(
             HealthResponse(
                 status="healthy",
-                backend_version="0.1.0",
+                backend_version=_ENGINE_VERSION,
                 active_libraries=db_manager.active_count,
                 remote_backend=build_remote_backend_status().as_dict(),
                 engine_pid=os.getpid(),

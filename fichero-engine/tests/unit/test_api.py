@@ -4,10 +4,12 @@ Tests for Fichero REST API
 Uses pytest and httpx for async testing of FastAPI endpoints.
 """
 
-import pytest
+import tempfile
+from importlib.metadata import version as package_version
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-import tempfile
+
+import pytest
 
 from fichero.models import ActionAudit
 from fichero.models import Document, DocType, FileType, Status, Artifact
@@ -47,6 +49,17 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
+        assert data["backend_version"] == package_version("fichero")
+
+    def test_library_health_includes_backend_version(self, client, test_package):
+        """Library-scoped health keeps the same version reporting."""
+        response = client.get(
+            "/api/health",
+            headers={"X-Fichero-Library-Path": str(test_package)},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["backend_version"] == package_version("fichero")
 
 
 class TestStatsEndpoint:
