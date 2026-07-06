@@ -148,6 +148,10 @@ struct ActivityBrowserView: View {
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
     @State private var runs: [ActivityRun] = []
+    // Per-library history read failures (#3231): surfaced as a warning row so a
+    // library that can't be queried reads as "couldn't ask" rather than silently
+    // dropping to "no runs" — mirrors the SSE LiveUpdatesPausedPill honesty (F7).
+    @State private var loadFailures: [String] = []
     @State private var isLoading = false
     @State private var listSelection: String?
 
@@ -223,6 +227,22 @@ struct ActivityBrowserView: View {
                 if let work = activityStore.backendWork {
                     BackendWorkPill(status: work)
                 }
+                // Per-library history read failures (#3231): honest warning +
+                // Retry instead of silently dropping that library's runs.
+                ForEach(loadFailures, id: \.self) { message in
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(message)
+                            .font(.caption)
+                        Button("Retry") { Task { await loadRuns() } }
+                            .font(.caption)
+                            .buttonStyle(.borderless)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.regularMaterial, in: Capsule())
+                }
             }
         }
     }
@@ -232,9 +252,10 @@ struct ActivityBrowserView: View {
         defer { isLoading = false }
 
         var result = executionObserver.activeExecutions.values.map { liveRunFromExecution($0) }
-        let historical = await loadHistoricalRuns(excluding: Set(result.map { $0.runId }))
+        let (historical, failures) = await loadHistoricalRuns(excluding: Set(result.map { $0.runId }))
         result.append(contentsOf: historical)
         runs = result.sorted { $0.timestamp > $1.timestamp }
+        loadFailures = failures
     }
 
     private func liveRunFromExecution(_ execution: WorkflowExecution) -> ActivityRun {
@@ -254,10 +275,13 @@ struct ActivityBrowserView: View {
         )
     }
 
-    private func loadHistoricalRuns(excluding seenThreadIds: Set<String>) async -> [ActivityRun] {
+    private func loadHistoricalRuns(
+        excluding seenThreadIds: Set<String>
+    ) async -> (runs: [ActivityRun], failures: [String]) {
         let types = ["workflow_started", "workflow_completed", "workflow_failed", "workflow_cancelled"]
         let since = Date().addingTimeInterval(-7 * 24 * 3600)
         var result: [ActivityRun] = []
+        var failures: [String] = []
         var emittedThreadIds = seenThreadIds
         for library in libraryManager.openLibraries {
             guard !Task.isCancelled else { break }
@@ -287,10 +311,12 @@ struct ActivityBrowserView: View {
                     emittedThreadIds.insert(threadId)
                 }
             } catch {
-                // Individual library failure is non-fatal
+                // Non-fatal for the OTHER libraries, but not silent (#3231):
+                // record it so the view can surface a per-library warning row.
+                failures.append("Couldn't load activity from \(library.displayName)")
             }
         }
-        return result
+        return (result, failures)
     }
 }
 
