@@ -71,3 +71,103 @@ def test_reset_local_library_if_loopback_deletes_only_loopback_clients(tmp_path)
     remote_client = type("Client", (), {"base_url": "http://remote-engine.test"})()
     http_client.reset_local_library_if_loopback(remote_client, library, reset=True)
     assert library.exists()
+
+
+def test_ensure_remote_document_updates_matching_existing_document():
+    existing = type(
+        "ExistingDocument",
+        (),
+        {
+            "id": "doc-123",
+            "path": "folder/page-001.jpg",
+            "doc_type": "file",
+        },
+    )()
+    calls: list[tuple[str, str, dict]] = []
+
+    class _Client:
+        base_url = "http://engine.test"
+
+        def list_documents(self, *, parent_id=None, **kwargs):
+            assert parent_id == "parent-1"
+            return [existing]
+
+        def request(self, method, path, **kwargs):
+            calls.append((method, path, kwargs["json"]))
+            return {"id": "doc-123", **kwargs["json"]}
+
+    result = http_client.ensure_remote_document(
+        _Client(),
+        name="page-001.jpg",
+        path="folder/page-001.jpg",
+        doc_type="file",
+        parent_id="parent-1",
+        metadata={"source": "manifest"},
+    )
+
+    assert result["id"] == "doc-123"
+    assert calls == [
+        (
+            "PUT",
+            "/api/documents/doc-123",
+            {
+                "name": "page-001.jpg",
+                "path": "folder/page-001.jpg",
+                "doc_type": "file",
+                "parent_id": "parent-1",
+                "status": "completed",
+                "metadata": {"source": "manifest"},
+            },
+        )
+    ]
+
+
+def test_ensure_remote_document_creates_when_no_matching_document_exists():
+    calls: list[tuple[str, str, dict]] = []
+
+    class _Client:
+        base_url = "http://engine.test"
+
+        def list_documents(self, *, parent_id=None, **kwargs):
+            return [
+                type(
+                    "ExistingDocument",
+                    (),
+                    {
+                        "id": "doc-other",
+                        "path": "folder/other.jpg",
+                        "doc_type": "file",
+                    },
+                )()
+            ]
+
+        def request(self, method, path, **kwargs):
+            calls.append((method, path, kwargs["json"]))
+            return {"id": "doc-new", **kwargs["json"]}
+
+    result = http_client.ensure_remote_document(
+        _Client(),
+        name="page-001.jpg",
+        path="folder/page-001.jpg",
+        doc_type="file",
+        parent_id="parent-1",
+        file_type="image",
+        page_content="manifest transcript",
+    )
+
+    assert result["id"] == "doc-new"
+    assert calls == [
+        (
+            "POST",
+            "/api/documents",
+            {
+                "name": "page-001.jpg",
+                "path": "folder/page-001.jpg",
+                "doc_type": "file",
+                "parent_id": "parent-1",
+                "status": "completed",
+                "file_type": "image",
+                "page_content": "manifest transcript",
+            },
+        )
+    ]
