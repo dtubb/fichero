@@ -16,11 +16,23 @@ struct AIDefaults: Codable, Equatable {
     var embeddingsProvider: String = ""
     var embeddingsModel: String = ""
     // Capability-tier defaults referenced by workflow nodes via the
-    // $small / $large model aliases (#810/#813).
+    // $small / $medium / $large model aliases (#810/#813).
     var smallProvider: String = ""
     var smallModel: String = ""
+    var mediumProvider: String = ""
+    var mediumModel: String = ""
     var largeProvider: String = ""
     var largeModel: String = ""
+    // Vision-capability tier aliases ($vision_small / $vision_medium /
+    // $vision_large, #2200) — the fallback targets vision workflow nodes
+    // reference. Mirrors the backend's vision_* tier surface so `$vision_medium`
+    // resolves to a user-set model instead of a silent dead end (#3220).
+    var visionSmallProvider: String = ""
+    var visionSmallModel: String = ""
+    var visionMediumProvider: String = ""
+    var visionMediumModel: String = ""
+    var visionLargeProvider: String = ""
+    var visionLargeModel: String = ""
     var temperature: String = ""
     var maxTokens: String = ""
     var promptPrefix: String = ""
@@ -43,8 +55,16 @@ struct AIDefaults: Codable, Equatable {
         case embeddingsModel = "embeddings_model"
         case smallProvider = "small_provider"
         case smallModel = "small_model"
+        case mediumProvider = "medium_provider"
+        case mediumModel = "medium_model"
         case largeProvider = "large_provider"
         case largeModel = "large_model"
+        case visionSmallProvider = "vision_small_provider"
+        case visionSmallModel = "vision_small_model"
+        case visionMediumProvider = "vision_medium_provider"
+        case visionMediumModel = "vision_medium_model"
+        case visionLargeProvider = "vision_large_provider"
+        case visionLargeModel = "vision_large_model"
         case temperature
         case maxTokens = "max_tokens"
         case promptPrefix = "prompt_prefix"
