@@ -40,6 +40,8 @@ struct ActionMiniToolbar: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .help(actionTitle)
+            .accessibilityLabel(actionTitle)
         }
     }
 }
@@ -100,6 +102,8 @@ struct StatusMiniToolbar: View {
                 )
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .help(action.title)
+                .accessibilityLabel(action.title)
             }
         }
     }
