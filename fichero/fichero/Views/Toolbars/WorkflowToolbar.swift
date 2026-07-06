@@ -16,7 +16,14 @@ struct WorkflowToolbar: View {
     var onPreviewDiagram: (() -> Void)?
     var onRunOnDocuments: (() -> Void)?
     var onCompareModels: (() -> Void)?
-    @ObservedObject var featureManager = FeatureManager.shared
+
+    // Feature flags gate which buttons the bar composes (#3205). Injected as
+    // plain values — default to the shared FeatureManager, but visible at the
+    // call site and overridable in previews/tests — instead of an `@ObservedObject`
+    // that binds the legacy singleton ad hoc inside an `@Observable`-Environment view.
+    var showImportExport = FeatureManager.shared.isWorkflowImportExportEnabled
+    var showLangGraphPreview = FeatureManager.shared.isWorkflowLangGraphPreviewEnabled
+    var showFilesToolbarButton = FeatureManager.shared.isWorkflowFilesToolbarButtonEnabled
 
     var body: some View {
         MiniToolbar {
@@ -48,7 +55,7 @@ struct WorkflowToolbar: View {
 
     private var actionButtons: some View {
         HStack(spacing: 8) {
-            if featureManager.isWorkflowImportExportEnabled {
+            if showImportExport {
                 Button(action: onImport) {
                     Image(systemName: "square.and.arrow.down")
                 }
@@ -64,7 +71,7 @@ struct WorkflowToolbar: View {
                 .accessibilityLabel("Export Workflow")
             }
 
-            if featureManager.isWorkflowLangGraphPreviewEnabled, let onPreview = onPreviewDiagram {
+            if showLangGraphPreview, let onPreview = onPreviewDiagram {
                 Button(action: onPreview) {
                     Image(systemName: "flowchart")
                 }
@@ -73,7 +80,7 @@ struct WorkflowToolbar: View {
                 .accessibilityLabel("Preview LangGraph Diagram")
             }
 
-            if featureManager.isWorkflowFilesToolbarButtonEnabled, let onRunDocs = onRunOnDocuments {
+            if showFilesToolbarButton, let onRunDocs = onRunOnDocuments {
                 Button(action: onRunDocs) {
                     Image(systemName: "doc.on.doc")
                 }
@@ -112,7 +119,7 @@ struct WorkflowToolbar: View {
 
     private var overflowMenu: some View {
         Menu {
-            if featureManager.isWorkflowImportExportEnabled {
+            if showImportExport {
                 Button(action: onImport) {
                     Label("Import Workflow", systemImage: "square.and.arrow.down")
                 }
@@ -120,12 +127,12 @@ struct WorkflowToolbar: View {
                     Label("Export Workflow", systemImage: "square.and.arrow.up")
                 }
             }
-            if featureManager.isWorkflowLangGraphPreviewEnabled, let onPreview = onPreviewDiagram {
+            if showLangGraphPreview, let onPreview = onPreviewDiagram {
                 Button(action: onPreview) {
                     Label("Preview Diagram", systemImage: "flowchart")
                 }
             }
-            if featureManager.isWorkflowFilesToolbarButtonEnabled, let onRunDocs = onRunOnDocuments {
+            if showFilesToolbarButton, let onRunDocs = onRunOnDocuments {
                 Button(action: onRunDocs) {
                     Label("Run on Documents", systemImage: "doc.on.doc")
                 }

@@ -218,10 +218,12 @@ struct WorkflowMiniToolbarButton: View {
     let isEnabled: Bool
     let action: () -> Void
 
-    @ObservedObject private var featureManager = FeatureManager.shared
+    // Plain injectable flag (#3205) — defaults to the shared FeatureManager but
+    // is visible/overridable, replacing an `@ObservedObject` singleton binding.
+    var showRunOnSelection = FeatureManager.shared.isWorkflowRunOnSelectionEnabled
 
     var body: some View {
-        if featureManager.isWorkflowRunOnSelectionEnabled {
+        if showRunOnSelection {
             Button(action: action) {
                 Image(systemName: "bolt")
                     .accessibilityLabel("Run Workflow")
