@@ -45,6 +45,21 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - Toolbar search registration policy (#1447/#2309)
+
+/// Single source of truth for "may this pane register the toolbar search item?".
+/// Only the *primary* pane may register `.searchable(placement: .toolbar)`; a
+/// secondary split-pane copy registering the same fixed NSToolbar identifier
+/// crashes the toolbar subsystem with a duplicate-identifier error. Every
+/// mode-specific view that owns the toolbar search slot (LibraryView, SearchView)
+/// gates its `.searchable` and search `.onSubmit` through this predicate so the
+/// invariant lives in one testable place instead of being re-inlined per view.
+enum ToolbarSearchRegistration {
+    static func shouldRegister(isSecondarySplitPane: Bool) -> Bool {
+        !isSecondarySplitPane
+    }
+}
+
 struct SplitPaneState {
     var verticalPaneCount: Int = 1
     var horizontalPaneCount: Int = 1

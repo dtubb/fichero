@@ -50,6 +50,11 @@ struct SearchView: View {
     @Environment(LibraryManager.self) var libraryManager
     @Environment(WindowState.self) var windowState
 
+    /// True for non-primary split-pane copies. A secondary copy must NOT register
+    /// its own `.searchable(placement: .toolbar)` — two copies in one window's
+    /// toolbar crash NSToolbar with a duplicate-identifier error (#1447/#2309).
+    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
+
     var body: some View {
         VStack(spacing: 0) {
             scopeSelectorBar
@@ -60,8 +65,19 @@ struct SearchView: View {
             // (#481). Each mode-specific view in this app owns the toolbar
             // search slot for that mode; SwiftUI/AppKit only allows one
             // search item per toolbar at a time, so we never stack them.
-            .searchable(text: $queryText, placement: .toolbar, prompt: "Search documents…")
-            .onSubmit(of: .search) { performSearch() }
+            // A secondary split-pane copy must skip this registration or two
+            // copies collide → NSToolbar duplicate-identifier crash (#1447/#2309),
+            // mirroring LibraryView's guard.
+            .conditionalSearchable(
+                text: $queryText,
+                placement: .toolbar,
+                prompt: "Search documents…",
+                isActive: ToolbarSearchRegistration.shouldRegister(isSecondarySplitPane: isSecondarySplitPane)
+            )
+            .onSubmit(of: .search) {
+                guard !isSecondarySplitPane else { return }
+                performSearch()
+            }
             // Save-Search action only when results exist and we're not
             // already viewing a saved search (#481). The button persists
             // the current query as a SavedSearch and routes the sidebar

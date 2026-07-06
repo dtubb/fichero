@@ -523,7 +523,7 @@ struct LibraryView: View {
             text: $toolbarQuery,
             placement: .toolbar,
             prompt: "Search documents…",
-            isActive: !isSecondarySplitPane
+            isActive: ToolbarSearchRegistration.shouldRegister(isSecondarySplitPane: isSecondarySplitPane)
         )
         .onSubmit(of: .search) {
             guard !isSecondarySplitPane else { return }
