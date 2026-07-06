@@ -1173,6 +1173,17 @@ class _BatchExceptionModel:
         ][:len(inputs)]
 
 
+class _BatchRaiseModel:
+    async def abatch(self, inputs, *, config=None, return_exceptions=False):
+        raise RuntimeError("provider exploded")
+
+
+class _BatchHangingModel:
+    async def abatch(self, inputs, *, config=None, return_exceptions=False):
+        await asyncio.sleep(1)
+        return [_BatchResponse("late") for _ in inputs]
+
+
 class _CountingModel:
     def __init__(self) -> None:
         self.current = 0
@@ -1354,6 +1365,41 @@ async def test_chat_batch_returns_typed_per_item_errors(monkeypatch):
     assert results[1].kind == "chat"
     assert isinstance(results[1].cause, RuntimeError)
     assert "boom" in str(results[1].cause)
+
+
+@pytest.mark.asyncio
+async def test_chat_batch_fans_out_chunk_failure_as_typed_item_errors(monkeypatch):
+    config = LLMConfig(provider="openai", model="gpt-5")
+    monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "8")
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _config: _BatchRaiseModel())
+
+    results = await llm.chat_batch(["one", "two"], config)
+
+    assert len(results) == 2
+    for index, result in enumerate(results):
+        assert isinstance(result, LLMBatchItemError)
+        assert result.index == index
+        assert result.kind == "chat"
+        assert isinstance(result.cause, RuntimeError)
+        assert "provider exploded" in str(result.cause)
+
+
+@pytest.mark.asyncio
+async def test_chat_batch_times_out_hung_abatch_as_typed_item_errors(monkeypatch):
+    config = LLMConfig(provider="openai", model="gpt-5", timeout=1)
+    monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "8")
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _config: _BatchHangingModel())
+    monkeypatch.setattr(llm, "_compute_timeout", lambda _config, _kind: 0.01)
+
+    results = await llm.chat_batch(["one", "two"], config)
+
+    assert len(results) == 2
+    for index, result in enumerate(results):
+        assert isinstance(result, LLMBatchItemError)
+        assert result.index == index
+        assert result.kind == "chat"
+        assert isinstance(result.cause, RuntimeError)
+        assert "provider hang" in str(result.cause)
 
 
 @pytest.mark.asyncio
