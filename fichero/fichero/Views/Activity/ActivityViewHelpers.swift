@@ -147,12 +147,8 @@ struct ActivityBrowserView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
-    @State private var runs: [ActivityRun] = []
-    // Per-library history read failures (#3231): surfaced as a warning row so a
-    // library that can't be queried reads as "couldn't ask" rather than silently
-    // dropping to "no runs" — mirrors the SSE LiveUpdatesPausedPill honesty (F7).
-    @State private var loadFailures: [String] = []
-    @State private var isLoading = false
+    // Run list + per-library failures now live on ActivityStore (#3231 p2); the
+    // view observes them and calls rebuildRuns with its @Environment deps.
     @State private var listSelection: String?
 
     var body: some View {
@@ -162,7 +158,7 @@ struct ActivityBrowserView: View {
                 Text("Activity")
                     .font(.headline)
                 Spacer()
-                if isLoading {
+                if activityStore.isRebuildingRuns {
                     ProgressView().scaleEffect(0.6)
                 }
                 // Pop the live monitor into its own window (#2546 / B2). The
@@ -184,7 +180,7 @@ struct ActivityBrowserView: View {
 
             Divider()
 
-            if runs.isEmpty && !isLoading {
+            if activityStore.runs.isEmpty && !activityStore.isRebuildingRuns {
                 ContentUnavailableView(
                     "No Runs Yet",
                     systemImage: "clock",
@@ -192,7 +188,7 @@ struct ActivityBrowserView: View {
                 )
             } else {
                 List(selection: $listSelection) {
-                    ForEach(runs) { run in
+                    ForEach(activityStore.runs) { run in
                         ActivityBrowserRow(run: run)
                             .tag(run.runId)
                             .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
@@ -201,15 +197,16 @@ struct ActivityBrowserView: View {
                 }
                 .listStyle(.plain)
                 .onChange(of: listSelection) { _, newId in
-                    guard let newId, let run = runs.first(where: { $0.runId == newId }) else { return }
+                    guard let newId,
+                          let run = activityStore.runs.first(where: { $0.runId == newId }) else { return }
                     onSelectRun(run.toSelectedRun())
                 }
             }
         }
-        .task { await loadRuns() }
+        .task { await reloadRuns() }
         // SSE-driven refresh: bumped by ActivityStore when activity events arrive
         .onChange(of: activityStore.refreshToken) { _, _ in
-            Task { await loadRuns() }
+            Task { await reloadRuns() }
         }
         .onChange(of: selectedRunId) { _, newId in
             listSelection = newId
@@ -229,13 +226,13 @@ struct ActivityBrowserView: View {
                 }
                 // Per-library history read failures (#3231): honest warning +
                 // Retry instead of silently dropping that library's runs.
-                ForEach(loadFailures, id: \.self) { message in
+                ForEach(activityStore.runLoadFailures, id: \.self) { message in
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                         Text(message)
                             .font(.caption)
-                        Button("Retry") { Task { await loadRuns() } }
+                        Button("Retry") { Task { await reloadRuns() } }
                             .font(.caption)
                             .buttonStyle(.borderless)
                     }
@@ -247,76 +244,14 @@ struct ActivityBrowserView: View {
         }
     }
 
-    private func loadRuns() async {
-        isLoading = true
-        defer { isLoading = false }
-
-        var result = executionObserver.activeExecutions.values.map { liveRunFromExecution($0) }
-        let (historical, failures) = await loadHistoricalRuns(excluding: Set(result.map { $0.runId }))
-        result.append(contentsOf: historical)
-        runs = result.sorted { $0.timestamp > $1.timestamp }
-        loadFailures = failures
-    }
-
-    private func liveRunFromExecution(_ execution: WorkflowExecution) -> ActivityRun {
-        ActivityRun(
-            id: execution.threadId,
-            runId: execution.threadId,
-            workflowId: execution.id,
-            threadId: execution.threadId,
-            workflowName: activityCleanWorkflowName(execution.name),
-            timestamp: execution.startTime,
-            status: activityMapExecutionStatus(execution.status),
-            progress: execution.overallProgress,
-            currentStep: execution.currentNodeName,
-            errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
-            fileCount: execution.totalFiles,
-            isLive: true
+    /// Rebuild the run list on the store from this window's live executions +
+    /// the open libraries' history (#3231 p2). The store owns the merge; the view
+    /// just feeds it the @Environment deps the store can't reach.
+    private func reloadRuns() async {
+        await activityStore.rebuildRuns(
+            activeExecutions: Array(executionObserver.activeExecutions.values),
+            openLibraries: libraryManager.openLibraries
         )
-    }
-
-    private func loadHistoricalRuns(
-        excluding seenThreadIds: Set<String>
-    ) async -> (runs: [ActivityRun], failures: [String]) {
-        let types = ["workflow_started", "workflow_completed", "workflow_failed", "workflow_cancelled"]
-        let since = Date().addingTimeInterval(-7 * 24 * 3600)
-        var result: [ActivityRun] = []
-        var failures: [String] = []
-        var emittedThreadIds = seenThreadIds
-        for library in libraryManager.openLibraries {
-            guard !Task.isCancelled else { break }
-            do {
-                let items = try await library.activityService.queryActivities(
-                    types: types,
-                    since: since,
-                    limit: 100
-                )
-                for item in items.sorted(by: { ($0.parsedTimestamp ?? .distantPast) > ($1.parsedTimestamp ?? .distantPast) }) {
-                    let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
-                    guard let threadId, !emittedThreadIds.contains(threadId) else { continue }
-                    result.append(ActivityRun(
-                        id: threadId,
-                        runId: threadId,
-                        workflowId: item.workflowId,
-                        threadId: threadId,
-                        workflowName: activityCleanWorkflowName(activityExtractWorkflowName(from: item)),
-                        timestamp: item.parsedTimestamp ?? Date(),
-                        status: activityMapActivityType(item.type),
-                        progress: nil,
-                        currentStep: nil,
-                        errorCount: 0,
-                        fileCount: 0,
-                        isLive: false
-                    ))
-                    emittedThreadIds.insert(threadId)
-                }
-            } catch {
-                // Non-fatal for the OTHER libraries, but not silent (#3231):
-                // record it so the view can surface a per-library warning row.
-                failures.append("Couldn't load activity from \(library.displayName)")
-            }
-        }
-        return (result, failures)
     }
 }
 
