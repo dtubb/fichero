@@ -81,7 +81,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     item = _cli_json(
         cli_live_engine,
         "canvas",
-        "create-canvas-item",
+        "create-folder-canvas-item",
         folder_id,
         "--kind",
         "text",
@@ -95,7 +95,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     listed_items = _cli_json(
         cli_live_engine,
         "canvas",
-        "list-canvas-items",
+        "list-folder-canvas-items",
         folder_id,
     )
     assert any(row["id"] == item_id for row in listed_items["items"])
@@ -103,7 +103,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     updated_item = _cli_json(
         cli_live_engine,
         "canvas",
-        "update-canvas-item",
+        "update-folder-canvas-item",
         folder_id,
         item_id,
         "--text",
@@ -114,7 +114,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     saved_layout = _cli_json(
         cli_live_engine,
         "canvas",
-        "save-canvas-layout",
+        "save-folder-canvas-layout",
         folder_id,
         "--items",
         json.dumps(
@@ -140,7 +140,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     fetched_layout = _cli_json(
         cli_live_engine,
         "canvas",
-        "get-canvas-layout",
+        "get-folder-canvas-layout",
         folder_id,
     )
     saved_row = next(
@@ -152,7 +152,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     arranged = _cli_json(
         cli_live_engine,
         "canvas",
-        "arrange-folder-canvas",
+        "arrange-folder-canvas-layout",
         folder_id,
         "--node-ids",
         json.dumps([summary["keys"]["doc_letter"], summary["keys"]["doc_photo"]]),
@@ -168,7 +168,7 @@ def test_generated_mind_palace_folder_write_contracts_current_main(
     deleted_item = _cli_json(
         cli_live_engine,
         "canvas",
-        "delete-canvas-item",
+        "delete-folder-canvas-item",
         folder_id,
         item_id,
         "--yes",

@@ -1,6 +1,7 @@
 """Unit tests for canvas layout table persistence (#3078)."""
 
 import asyncio
+from types import SimpleNamespace
 
 from fichero.api.routes.actions_registry import undo_action
 from fichero.db import Database
@@ -40,6 +41,7 @@ def _undo(db, audit_id: str, library_path: str):
     return asyncio.run(
         undo_action(
             audit_id,
+            request=SimpleNamespace(state=SimpleNamespace(user=None), base_url="https://engine.local/"),
             db=db,
             x_fichero_library_path=library_path,
             x_fichero_origin_window=None,
@@ -53,7 +55,7 @@ def test_round_trip_upsert_then_load(client, db):
     _make_doc(db, folder, "doc-1")
     _make_doc(db, folder, "doc-2")
     resp = client.put(
-        f"{BASE}/{folder}/layout",
+        f"{BASE}/{folder}/canvas-layout",
         json={
             "items": [
                 {"item_id": "doc-1", "x": 10.0, "y": 20.0, "z_index": 3},
@@ -66,7 +68,7 @@ def test_round_trip_upsert_then_load(client, db):
     assert saved["count"] == 2
     assert saved["skipped"] == []
 
-    load = client.get(f"{BASE}/{folder}/layout")
+    load = client.get(f"{BASE}/{folder}/canvas-layout")
     assert load.status_code == 200
     rows = {r["item_id"]: r for r in load.json()["items"]}
     assert rows["doc-1"]["x"] == 10.0
@@ -81,11 +83,11 @@ def test_defaults_for_omitted_fields(client, db):
     folder = "folder-defaults"
     _make_doc(db, folder, "only-id")
     resp = client.put(
-        f"{BASE}/{folder}/layout",
+        f"{BASE}/{folder}/canvas-layout",
         json={"items": [{"item_id": "only-id"}]},
     )
     assert resp.status_code == 200
-    row = client.get(f"{BASE}/{folder}/layout").json()["items"][0]
+    row = client.get(f"{BASE}/{folder}/canvas-layout").json()["items"][0]
     assert row["x"] == 0.0
     assert row["y"] == 0.0
     assert row["z"] == 0.0
@@ -103,15 +105,15 @@ def test_upsert_is_idempotent_no_duplicate_rows(client, db):
     folder = "folder-idem"
     _make_doc(db, folder, "node")
     client.put(
-        f"{BASE}/{folder}/layout",
+        f"{BASE}/{folder}/canvas-layout",
         json={"items": [{"item_id": "node", "x": 1.0, "y": 1.0}]},
     )
     # move the same item
     client.put(
-        f"{BASE}/{folder}/layout",
+        f"{BASE}/{folder}/canvas-layout",
         json={"items": [{"item_id": "node", "x": 99.0, "y": 88.0}]},
     )
-    rows = client.get(f"{BASE}/{folder}/layout").json()["items"]
+    rows = client.get(f"{BASE}/{folder}/canvas-layout").json()["items"]
     assert len(rows) == 1, "duplicate row created for same (folder_id, item_id)"
     assert rows[0]["x"] == 99.0
     assert rows[0]["y"] == 88.0
@@ -122,22 +124,22 @@ def test_layout_is_folder_scoped(client, db):
     _make_doc(db, "folder-x", "shared-id")
     _make_doc(db, "folder-y", "shared-id-y")
     client.put(
-        f"{BASE}/folder-x/layout",
+        f"{BASE}/folder-x/canvas-layout",
         json={"items": [{"item_id": "shared-id", "x": 1.0}]},
     )
     client.put(
-        f"{BASE}/folder-y/layout",
+        f"{BASE}/folder-y/canvas-layout",
         json={"items": [{"item_id": "shared-id-y", "x": 2.0}]},
     )
-    x_rows = client.get(f"{BASE}/folder-x/layout").json()["items"]
-    y_rows = client.get(f"{BASE}/folder-y/layout").json()["items"]
+    x_rows = client.get(f"{BASE}/folder-x/canvas-layout").json()["items"]
+    y_rows = client.get(f"{BASE}/folder-y/canvas-layout").json()["items"]
     assert len(x_rows) == 1 and x_rows[0]["x"] == 1.0
     assert len(y_rows) == 1 and y_rows[0]["x"] == 2.0
 
 
 def test_load_empty_folder_returns_empty_list(client):
     """A scope that was never arranged loads as an empty list."""
-    resp = client.get(f"{BASE}/never-touched/layout")
+    resp = client.get(f"{BASE}/never-touched/canvas-layout")
     assert resp.status_code == 200
     assert resp.json()["items"] == []
 
@@ -148,7 +150,7 @@ def test_mixed_document_canvas_item_entity_batch_and_library_scope_save(client, 
     db.save(KnowledgeEntity(id="entity-1", canonical_name="Entity One"))
 
     resp = client.put(
-        f"{BASE}/__library__/layout",
+        f"{BASE}/__library__/canvas-layout",
         json={
             "items": [
                 {"item_id": "doc-1", "x": 10.0},
@@ -162,7 +164,7 @@ def test_mixed_document_canvas_item_entity_batch_and_library_scope_save(client, 
     assert body["count"] == 3
     assert body["skipped"] == []
 
-    loaded = client.get(f"{BASE}/__library__/layout").json()["items"]
+    loaded = client.get(f"{BASE}/__library__/canvas-layout").json()["items"]
     by_id = {row["item_id"]: row for row in loaded}
     assert by_id["doc-1"]["x"] == 10.0
     assert by_id["canvas-1"]["x"] == 20.0
@@ -173,7 +175,7 @@ def test_unknown_item_is_reported_but_other_rows_persist(client, db):
     _make_doc(db, "folder-partial", "doc-ok")
 
     resp = client.put(
-        f"{BASE}/folder-partial/layout",
+        f"{BASE}/folder-partial/canvas-layout",
         json={
             "items": [
                 {"item_id": "doc-ok", "x": 10.0},
@@ -187,12 +189,12 @@ def test_unknown_item_is_reported_but_other_rows_persist(client, db):
     assert body["skipped"] == [
         {"item_id": "missing-item", "detail": "unknown canvas item id"}
     ]
-    loaded = client.get(f"{BASE}/folder-partial/layout").json()["items"]
+    loaded = client.get(f"{BASE}/folder-partial/canvas-layout").json()["items"]
     assert loaded == [body["items"][0]]
 
 
 def test_empty_save_batch_returns_empty_success(client):
-    resp = client.put(f"{BASE}/empty-scope/layout", json={"items": []})
+    resp = client.put(f"{BASE}/empty-scope/canvas-layout", json={"items": []})
     assert resp.status_code == 200
     assert resp.json() == {"items": [], "count": 0, "skipped": []}
 
@@ -213,7 +215,7 @@ def test_save_canvas_layout_route_writes_action_audit(client, db):
     _make_doc(db, folder, "doc-audit")
 
     resp = client.put(
-        f"{BASE}/{folder}/layout",
+        f"{BASE}/{folder}/canvas-layout",
         json={"items": [{"item_id": "doc-audit", "x": 11.0, "y": 22.0}]},
     )
     assert resp.status_code == 200, resp.text

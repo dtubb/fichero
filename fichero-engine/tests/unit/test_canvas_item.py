@@ -3,13 +3,14 @@
 A ``CanvasItem`` is the CONTENT for non-document placeables — notes, quotes,
 work-notes, links/connectors, free text. Its POSITION lives separately in
 ``canvas_layout`` (#2293). Covered here:
-  * CRUD endpoints under ``/folders/{scope_id}/items`` (envelope on list)
+  * CRUD endpoints under ``/folders/{folder_id}/canvas-items`` (envelope on list)
   * the ``canvas.item.create|update|delete`` registry actions (audited + emit)
   * adversarial paths: each kind round-trips, link endpoints, cross-folder
     isolation, 404s, idempotent table creation, empty list.
 """
 
 import asyncio
+from types import SimpleNamespace
 import pytest
 
 # Importing the route module registers the ``canvas.item.*`` actions.
@@ -43,6 +44,7 @@ def _undo(db, audit_id: str, library_path: str):
     return asyncio.run(
         undo_action(
             audit_id,
+            request=SimpleNamespace(state=SimpleNamespace(user=None), base_url="https://engine.local/"),
             db=db,
             x_fichero_library_path=library_path,
             x_fichero_origin_window=None,
@@ -56,7 +58,7 @@ def _undo(db, audit_id: str, library_path: str):
 
 
 def test_empty_list_is_envelope_not_bare_array(client):
-    resp = client.get(f"{BASE}/folder-empty/items")
+    resp = client.get(f"{BASE}/folder-empty/canvas-items")
     assert resp.status_code == 200, resp.text
     body = resp.json()
     # {items, count} envelope (contract walker #1147), not a bare [].
@@ -67,7 +69,7 @@ def test_empty_list_is_envelope_not_bare_array(client):
 def test_each_kind_round_trips(client, kind):
     folder = f"folder-{kind}"
     resp = client.post(
-        f"{BASE}/{folder}/items",
+        f"{BASE}/{folder}/canvas-items",
         json={"kind": kind, "text": f"hello {kind}"},
     )
     assert resp.status_code == 200, resp.text
@@ -78,14 +80,14 @@ def test_each_kind_round_trips(client, kind):
     assert created["id"]
     assert created["created_at"] and created["updated_at"]
 
-    loaded = client.get(f"{BASE}/{folder}/items").json()
+    loaded = client.get(f"{BASE}/{folder}/canvas-items").json()
     assert loaded["count"] == 1
     assert loaded["items"][0]["id"] == created["id"]
 
 
 def test_unknown_kind_is_422(client):
     resp = client.post(
-        f"{BASE}/folder-bad/items",
+        f"{BASE}/folder-bad/canvas-items",
         json={"kind": "doodle", "text": "x"},
     )
     assert resp.status_code == 422, resp.text
@@ -94,7 +96,7 @@ def test_unknown_kind_is_422(client):
 def test_link_carries_source_and_target(client):
     folder = "folder-link"
     resp = client.post(
-        f"{BASE}/{folder}/items",
+        f"{BASE}/{folder}/canvas-items",
         json={
             "kind": "link",
             "text": "connects",
@@ -109,28 +111,28 @@ def test_link_carries_source_and_target(client):
     assert body["target_item_id"] == "entity-7"
     assert body["payload"] == {"style": "arrow"}
 
-    loaded = client.get(f"{BASE}/{folder}/items").json()["items"][0]
+    loaded = client.get(f"{BASE}/{folder}/canvas-items").json()["items"][0]
     assert loaded["source_item_id"] == "doc-1"
     assert loaded["target_item_id"] == "entity-7"
     assert loaded["payload"] == {"style": "arrow"}
 
 
 def test_default_kind_is_note(client):
-    resp = client.post(f"{BASE}/folder-def/items", json={"text": "untyped"})
+    resp = client.post(f"{BASE}/folder-def/canvas-items", json={"text": "untyped"})
     assert resp.status_code == 200, resp.text
     assert resp.json()["kind"] == "note"
 
 
 def test_list_filters_by_kind(client):
     folder = "folder-mixed"
-    client.post(f"{BASE}/{folder}/items", json={"kind": "note", "text": "n"})
-    client.post(f"{BASE}/{folder}/items", json={"kind": "quote", "text": "q"})
-    client.post(f"{BASE}/{folder}/items", json={"kind": "quote", "text": "q2"})
+    client.post(f"{BASE}/{folder}/canvas-items", json={"kind": "note", "text": "n"})
+    client.post(f"{BASE}/{folder}/canvas-items", json={"kind": "quote", "text": "q"})
+    client.post(f"{BASE}/{folder}/canvas-items", json={"kind": "quote", "text": "q2"})
 
-    all_items = client.get(f"{BASE}/{folder}/items").json()
+    all_items = client.get(f"{BASE}/{folder}/canvas-items").json()
     assert all_items["count"] == 3
 
-    quotes = client.get(f"{BASE}/{folder}/items?kind=quote").json()
+    quotes = client.get(f"{BASE}/{folder}/canvas-items?kind=quote").json()
     assert quotes["count"] == 2
     assert all(i["kind"] == "quote" for i in quotes["items"])
 
@@ -138,12 +140,12 @@ def test_list_filters_by_kind(client):
 def test_patch_edits_text_and_payload(client):
     folder = "folder-edit"
     item_id = client.post(
-        f"{BASE}/{folder}/items",
+        f"{BASE}/{folder}/canvas-items",
         json={"kind": "note", "text": "before", "payload": {"a": 1}},
     ).json()["id"]
 
     resp = client.patch(
-        f"{BASE}/{folder}/items/{item_id}",
+        f"{BASE}/{folder}/canvas-items/{item_id}",
         json={"text": "after", "payload": {"b": 2}},
     )
     assert resp.status_code == 200, resp.text
@@ -157,14 +159,14 @@ def test_patch_edits_text_and_payload(client):
 def test_patch_unset_fields_are_preserved(client):
     folder = "folder-partial"
     created = client.post(
-        f"{BASE}/{folder}/items",
+        f"{BASE}/{folder}/canvas-items",
         json={"kind": "quote", "text": "keep me", "source_item_id": "s1"},
     ).json()
     item_id = created["id"]
 
     # Patch only the kind; text + source_item_id must survive.
     resp = client.patch(
-        f"{BASE}/{folder}/items/{item_id}",
+        f"{BASE}/{folder}/canvas-items/{item_id}",
         json={"kind": "work_note"},
     )
     assert resp.status_code == 200, resp.text
@@ -176,7 +178,7 @@ def test_patch_unset_fields_are_preserved(client):
 
 def test_patch_missing_item_is_404(client):
     resp = client.patch(
-        f"{BASE}/folder-x/items/does-not-exist",
+        f"{BASE}/folder-x/canvas-items/does-not-exist",
         json={"text": "nope"},
     )
     assert resp.status_code == 404, resp.text
@@ -184,49 +186,49 @@ def test_patch_missing_item_is_404(client):
 
 def test_patch_cross_folder_is_404(client):
     item_id = client.post(
-        f"{BASE}/owner/items", json={"kind": "note", "text": "mine"}
+        f"{BASE}/owner/canvas-items", json={"kind": "note", "text": "mine"}
     ).json()["id"]
     # Same id, wrong folder in the path — must not edit.
     resp = client.patch(
-        f"{BASE}/intruder/items/{item_id}", json={"text": "stolen"}
+        f"{BASE}/intruder/canvas-items/{item_id}", json={"text": "stolen"}
     )
     assert resp.status_code == 404, resp.text
     # Original is unchanged.
-    still = client.get(f"{BASE}/owner/items").json()["items"][0]
+    still = client.get(f"{BASE}/owner/canvas-items").json()["items"][0]
     assert still["text"] == "mine"
 
 
 def test_delete_removes_item(client):
     folder = "folder-del"
     item_id = client.post(
-        f"{BASE}/{folder}/items", json={"kind": "text", "text": "bye"}
+        f"{BASE}/{folder}/canvas-items", json={"kind": "text", "text": "bye"}
     ).json()["id"]
 
-    resp = client.delete(f"{BASE}/{folder}/items/{item_id}")
+    resp = client.delete(f"{BASE}/{folder}/canvas-items/{item_id}")
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "deleted"
-    assert client.get(f"{BASE}/{folder}/items").json()["count"] == 0
+    assert client.get(f"{BASE}/{folder}/canvas-items").json()["count"] == 0
 
 
 def test_delete_missing_item_is_404(client):
-    resp = client.delete(f"{BASE}/folder-x/items/ghost")
+    resp = client.delete(f"{BASE}/folder-x/canvas-items/ghost")
     assert resp.status_code == 404, resp.text
 
 
 def test_delete_cross_folder_is_404(client):
     item_id = client.post(
-        f"{BASE}/keep/items", json={"kind": "note", "text": "safe"}
+        f"{BASE}/keep/canvas-items", json={"kind": "note", "text": "safe"}
     ).json()["id"]
-    resp = client.delete(f"{BASE}/other/items/{item_id}")
+    resp = client.delete(f"{BASE}/other/canvas-items/{item_id}")
     assert resp.status_code == 404, resp.text
-    assert client.get(f"{BASE}/keep/items").json()["count"] == 1
+    assert client.get(f"{BASE}/keep/canvas-items").json()["count"] == 1
 
 
 def test_items_are_folder_scoped(client):
-    client.post(f"{BASE}/f1/items", json={"kind": "note", "text": "one"})
-    client.post(f"{BASE}/f2/items", json={"kind": "note", "text": "two"})
-    f1 = client.get(f"{BASE}/f1/items").json()
-    f2 = client.get(f"{BASE}/f2/items").json()
+    client.post(f"{BASE}/f1/canvas-items", json={"kind": "note", "text": "one"})
+    client.post(f"{BASE}/f2/canvas-items", json={"kind": "note", "text": "two"})
+    f1 = client.get(f"{BASE}/f1/canvas-items").json()
+    f2 = client.get(f"{BASE}/f2/canvas-items").json()
     assert f1["count"] == 1 and f2["count"] == 1
     assert f1["items"][0]["text"] == "one"
     assert f2["items"][0]["text"] == "two"
@@ -235,7 +237,7 @@ def test_items_are_folder_scoped(client):
 def test_canvas_item_routes_write_action_audit(client, db):
     folder = "folder-route-audit"
     created = client.post(
-        f"{BASE}/{folder}/items",
+        f"{BASE}/{folder}/canvas-items",
         json={"kind": "note", "text": "created"},
     )
     assert created.status_code == 200, created.text
@@ -243,13 +245,13 @@ def test_canvas_item_routes_write_action_audit(client, db):
     assert db.all(ActionAudit)[-1].action_name == "canvas.item.create"
 
     updated = client.patch(
-        f"{BASE}/{folder}/items/{item_id}",
+        f"{BASE}/{folder}/canvas-items/{item_id}",
         json={"text": "updated"},
     )
     assert updated.status_code == 200, updated.text
     assert db.all(ActionAudit)[-1].action_name == "canvas.item.update"
 
-    deleted = client.delete(f"{BASE}/{folder}/items/{item_id}")
+    deleted = client.delete(f"{BASE}/{folder}/canvas-items/{item_id}")
     assert deleted.status_code == 200, deleted.text
     assert db.all(ActionAudit)[-1].action_name == "canvas.item.delete"
 

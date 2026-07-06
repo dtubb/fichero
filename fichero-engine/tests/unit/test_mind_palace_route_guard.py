@@ -25,10 +25,10 @@ _REMOVED_PATHS = {
 }
 
 _CANVAS_PATHS = {
-    "/api/canvas/folders/{scope_id}/layout",
-    "/api/canvas/folders/{scope_id}/arrange",
-    "/api/canvas/folders/{scope_id}/items",
-    "/api/canvas/folders/{scope_id}/items/{item_id}",
+    "/api/canvas/folders/{folder_id}/canvas-layout",
+    "/api/canvas/folders/{folder_id}/arrange",
+    "/api/canvas/folders/{folder_id}/canvas-items",
+    "/api/canvas/folders/{folder_id}/canvas-items/{item_id}",
 }
 
 

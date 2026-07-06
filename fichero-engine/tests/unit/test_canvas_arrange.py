@@ -8,6 +8,7 @@ Two layers:
 
 import asyncio
 import math
+from types import SimpleNamespace
 
 import pytest
 
@@ -53,6 +54,7 @@ def _undo(db, audit_id: str, library_path: str):
     return asyncio.run(
         undo_action(
             audit_id,
+            request=SimpleNamespace(state=SimpleNamespace(user=None), base_url="https://engine.local/"),
             db=db,
             x_fichero_library_path=library_path,
             x_fichero_origin_window=None,
@@ -172,7 +174,7 @@ def test_arrange_persists_document_positions(client, db):
     assert len(body["items"]) == 5
     assert body["skipped"] == []
 
-    loaded = client.get(f"{BASE}/{folder}/layout").json()
+    loaded = client.get(f"{BASE}/{folder}/canvas-layout").json()
     assert loaded["count"] == 5
     by_id = {r["item_id"]: r for r in loaded["items"]}
     assert by_id["a"]["x"] == 0.0
@@ -209,7 +211,7 @@ def test_arrange_is_idempotent_overwrites(client, db):
         f"{BASE}/{folder}/arrange",
         json={"node_ids": ["a", "b"], "strategy": "column", "spacing": 10.0},
     )
-    rows = client.get(f"{BASE}/{folder}/layout").json()["items"]
+    rows = client.get(f"{BASE}/{folder}/canvas-layout").json()["items"]
     assert len(rows) == 2, "re-arrange must overwrite, not duplicate"
     by_id = {r["item_id"]: r for r in rows}
     # column: x collapses to 0, y spreads
@@ -228,8 +230,8 @@ def test_arrange_is_folder_scoped(client, db):
         f"{BASE}/f2/arrange",
         json={"node_ids": ["shared-2"], "strategy": "row"},
     )
-    f1 = client.get(f"{BASE}/f1/layout").json()["items"]
-    f2 = client.get(f"{BASE}/f2/layout").json()["items"]
+    f1 = client.get(f"{BASE}/f1/canvas-layout").json()["items"]
+    f2 = client.get(f"{BASE}/f2/canvas-layout").json()["items"]
     assert len(f1) == 1 and len(f2) == 1
 
 
@@ -246,7 +248,7 @@ def test_arrange_skips_unknown_ids_but_persists_known_ones(client, db):
     assert body["skipped"] == [
         {"item_id": "missing", "detail": "unknown canvas item id"}
     ]
-    loaded = client.get(f"{BASE}/{folder}/layout").json()["items"]
+    loaded = client.get(f"{BASE}/{folder}/canvas-layout").json()["items"]
     assert len(loaded) == 1
     assert loaded[0]["item_id"] == "known"
 

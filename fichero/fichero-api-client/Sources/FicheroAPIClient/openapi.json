@@ -25512,21 +25512,21 @@
         }
       }
     },
-    "/api/canvas/folders/{scope_id}/layout": {
+    "/api/canvas/folders/{folder_id}/canvas-layout": {
       "get": {
         "tags": [
           "canvas"
         ],
-        "summary": "Get Canvas Layout",
-        "operationId": "get_canvas_layout_api_canvas_folders__scope_id__layout_get",
+        "summary": "Get Folder Canvas Layout",
+        "operationId": "get_folder_canvas_layout_api_canvas_folders__folder_id__canvas_layout_get",
         "parameters": [
           {
-            "name": "scope_id",
+            "name": "folder_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Scope Id"
+              "title": "Folder Id"
             }
           }
         ],
@@ -25557,16 +25557,16 @@
         "tags": [
           "canvas"
         ],
-        "summary": "Save Canvas Layout",
-        "operationId": "save_canvas_layout_api_canvas_folders__scope_id__layout_put",
+        "summary": "Save Folder Canvas Layout",
+        "operationId": "save_folder_canvas_layout_api_canvas_folders__folder_id__canvas_layout_put",
         "parameters": [
           {
-            "name": "scope_id",
+            "name": "folder_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Scope Id"
+              "title": "Folder Id"
             }
           },
           {
@@ -25614,21 +25614,21 @@
         }
       }
     },
-    "/api/canvas/folders/{scope_id}/arrange": {
+    "/api/canvas/folders/{folder_id}/arrange": {
       "post": {
         "tags": [
           "canvas"
         ],
-        "summary": "Arrange Folder Canvas",
-        "operationId": "arrange_folder_canvas_api_canvas_folders__scope_id__arrange_post",
+        "summary": "Arrange Folder Canvas Layout",
+        "operationId": "arrange_folder_canvas_layout_api_canvas_folders__folder_id__arrange_post",
         "parameters": [
           {
-            "name": "scope_id",
+            "name": "folder_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Scope Id"
+              "title": "Folder Id"
             }
           },
           {
@@ -25676,21 +25676,21 @@
         }
       }
     },
-    "/api/canvas/folders/{scope_id}/items": {
+    "/api/canvas/folders/{folder_id}/canvas-items": {
       "get": {
         "tags": [
           "canvas"
         ],
-        "summary": "List Canvas Items",
-        "operationId": "list_canvas_items_api_canvas_folders__scope_id__items_get",
+        "summary": "List Folder Canvas Items",
+        "operationId": "list_folder_canvas_items_api_canvas_folders__folder_id__canvas_items_get",
         "parameters": [
           {
-            "name": "scope_id",
+            "name": "folder_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Scope Id"
+              "title": "Folder Id"
             }
           },
           {
@@ -25731,16 +25731,16 @@
         "tags": [
           "canvas"
         ],
-        "summary": "Create Canvas Item",
-        "operationId": "create_canvas_item_api_canvas_folders__scope_id__items_post",
+        "summary": "Create Folder Canvas Item",
+        "operationId": "create_folder_canvas_item_api_canvas_folders__folder_id__canvas_items_post",
         "parameters": [
           {
-            "name": "scope_id",
+            "name": "folder_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Scope Id"
+              "title": "Folder Id"
             }
           },
           {
@@ -25788,21 +25788,21 @@
         }
       }
     },
-    "/api/canvas/folders/{scope_id}/items/{item_id}": {
+    "/api/canvas/folders/{folder_id}/canvas-items/{item_id}": {
       "patch": {
         "tags": [
           "canvas"
         ],
-        "summary": "Update Canvas Item",
-        "operationId": "update_canvas_item_api_canvas_folders__scope_id__items__item_id__patch",
+        "summary": "Update Folder Canvas Item",
+        "operationId": "update_folder_canvas_item_api_canvas_folders__folder_id__canvas_items__item_id__patch",
         "parameters": [
           {
-            "name": "scope_id",
+            "name": "folder_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Scope Id"
+              "title": "Folder Id"
             }
           },
           {
@@ -25862,16 +25862,16 @@
         "tags": [
           "canvas"
         ],
-        "summary": "Delete Canvas Item",
-        "operationId": "delete_canvas_item_api_canvas_folders__scope_id__items__item_id__delete",
+        "summary": "Delete Folder Canvas Item",
+        "operationId": "delete_folder_canvas_item_api_canvas_folders__folder_id__canvas_items__item_id__delete",
         "parameters": [
           {
-            "name": "scope_id",
+            "name": "folder_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Scope Id"
+              "title": "Folder Id"
             }
           },
           {

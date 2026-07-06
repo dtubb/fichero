@@ -1933,19 +1933,19 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='canvas')
         existing_apps['canvas'] = target_app
 
-    @target_app.command("arrange-folder")
-    def canvas_arrange_folder_post(
+    @target_app.command("arrange-folder-layout")
+    def canvas_arrange_folder_layout_post(
         ctx: typer.Context,
-        scope_id: str = typer.Argument(..., help="Path parameter: scope_id."),
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
         columns: Optional[int] = typer.Option(None, "--columns", help="Request field: columns."),
         node_ids: str = typer.Option(..., "--node-ids", help="Request field: node_ids."),
         radius: Optional[float] = typer.Option(None, "--radius", help="Request field: radius."),
         spacing: Optional[float] = typer.Option(None, "--spacing", help="Request field: spacing."),
         strategy: Optional[str] = typer.Option(None, "--strategy", help="Request field: strategy."),
     ) -> None:
-        """Arrange Folder Canvas (POST /api/canvas/folders/{scope_id}/arrange)."""
+        """Arrange Folder Canvas Layout (POST /api/canvas/folders/{folder_id}/arrange)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/canvas/folders/{scope_id}/arrange"
+            endpoint_path = f"/api/canvas/folders/{folder_id}/arrange"
             params = None
             payload = _build_json_payload({
                 "columns": columns,
@@ -1963,34 +1963,34 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("list-items")
-    def canvas_list_items_get(
+    @target_app.command("list-folder-items")
+    def canvas_list_folder_items_get(
         ctx: typer.Context,
-        scope_id: str = typer.Argument(..., help="Path parameter: scope_id."),
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
         kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
     ) -> None:
-        """List Canvas Items (GET /api/canvas/folders/{scope_id}/items)."""
+        """List Folder Canvas Items (GET /api/canvas/folders/{folder_id}/canvas-items)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/canvas/folders/{scope_id}/items"
+            endpoint_path = f"/api/canvas/folders/{folder_id}/canvas-items"
             params = {
                 "kind": kind,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("create-item")
-    def canvas_create_item_post(
+    @target_app.command("create-folder-item")
+    def canvas_create_folder_item_post(
         ctx: typer.Context,
-        scope_id: str = typer.Argument(..., help="Path parameter: scope_id."),
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
         kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
         payload_2: Optional[str] = typer.Option(None, "--payload", help="Request field: payload."),
         source_item_id: Optional[str] = typer.Option(None, "--source-item-id", help="Request field: source_item_id."),
         target_item_id: Optional[str] = typer.Option(None, "--target-item-id", help="Request field: target_item_id."),
         text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
     ) -> None:
-        """Create Canvas Item (POST /api/canvas/folders/{scope_id}/items)."""
+        """Create Folder Canvas Item (POST /api/canvas/folders/{folder_id}/canvas-items)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/canvas/folders/{scope_id}/items"
+            endpoint_path = f"/api/canvas/folders/{folder_id}/canvas-items"
             params = None
             payload = _build_json_payload({
                 "kind": kind,
@@ -2008,26 +2008,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("delete-item")
-    def canvas_delete_item_delete(
+    @target_app.command("delete-folder-item")
+    def canvas_delete_folder_item_delete(
         ctx: typer.Context,
-        scope_id: str = typer.Argument(..., help="Path parameter: scope_id."),
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
         item_id: str = typer.Argument(..., help="Path parameter: item_id."),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
-        """Delete Canvas Item (DELETE /api/canvas/folders/{scope_id}/items/{item_id})."""
+        """Delete Folder Canvas Item (DELETE /api/canvas/folders/{folder_id}/canvas-items/{item_id})."""
         if not yes:
             typer.confirm("Delete canvas?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/canvas/folders/{scope_id}/items/{item_id}"
+            endpoint_path = f"/api/canvas/folders/{folder_id}/canvas-items/{item_id}"
             params = None
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("update-item")
-    def canvas_update_item_patch(
+    @target_app.command("update-folder-item")
+    def canvas_update_folder_item_patch(
         ctx: typer.Context,
-        scope_id: str = typer.Argument(..., help="Path parameter: scope_id."),
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
         item_id: str = typer.Argument(..., help="Path parameter: item_id."),
         kind: Optional[str] = typer.Option(None, "--kind", help="Request field: kind."),
         payload_2: Optional[str] = typer.Option(None, "--payload", help="Request field: payload."),
@@ -2035,9 +2035,9 @@ def register_generated_openapi_commands(
         target_item_id: Optional[str] = typer.Option(None, "--target-item-id", help="Request field: target_item_id."),
         text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
     ) -> None:
-        """Update Canvas Item (PATCH /api/canvas/folders/{scope_id}/items/{item_id})."""
+        """Update Folder Canvas Item (PATCH /api/canvas/folders/{folder_id}/canvas-items/{item_id})."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/canvas/folders/{scope_id}/items/{item_id}"
+            endpoint_path = f"/api/canvas/folders/{folder_id}/canvas-items/{item_id}"
             params = None
             payload = _build_json_payload({
                 "kind": kind,
@@ -2055,27 +2055,27 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("get-layout")
-    def canvas_get_layout_get(
+    @target_app.command("get-folder-layout")
+    def canvas_get_folder_layout_get(
         ctx: typer.Context,
-        scope_id: str = typer.Argument(..., help="Path parameter: scope_id."),
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
     ) -> None:
-        """Get Canvas Layout (GET /api/canvas/folders/{scope_id}/layout)."""
+        """Get Folder Canvas Layout (GET /api/canvas/folders/{folder_id}/canvas-layout)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/canvas/folders/{scope_id}/layout"
+            endpoint_path = f"/api/canvas/folders/{folder_id}/canvas-layout"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("save-layout")
-    def canvas_save_layout_put(
+    @target_app.command("save-folder-layout")
+    def canvas_save_folder_layout_put(
         ctx: typer.Context,
-        scope_id: str = typer.Argument(..., help="Path parameter: scope_id."),
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
         items: str = typer.Option(..., "--items", help="Request field: items."),
     ) -> None:
-        """Save Canvas Layout (PUT /api/canvas/folders/{scope_id}/layout)."""
+        """Save Folder Canvas Layout (PUT /api/canvas/folders/{folder_id}/canvas-layout)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/canvas/folders/{scope_id}/layout"
+            endpoint_path = f"/api/canvas/folders/{folder_id}/canvas-layout"
             params = None
             payload = _build_json_payload({
                 "items": items,
