@@ -103,6 +103,23 @@ final class ArtifactStore: ObservableDomainStore {
         return failed
     }
 
+    /// Update an artifact's content, then splice the fresh value into `items` in
+    /// place — stable identity, no wholesale reload (the no-wholesale-list-re-
+    /// render rule). The store, not the view, owns the endpoint (#3186 / #1863).
+    /// Returns the updated artifact.
+    @discardableResult
+    func update(id: String, documentId: String, content: String) async throws -> Artifact {
+        let updated = try await artifactService.updateArtifact(
+            id: id,
+            documentId: documentId,
+            content: content
+        )
+        if let index = items.firstIndex(where: { $0.id == updated.id }) {
+            items[index] = updated
+        }
+        return updated
+    }
+
     // MARK: - ObservableDomainStore
 
     nonisolated var changeDomain: String { "artifact" }
