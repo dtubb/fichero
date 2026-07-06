@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from fichero.api.change_stream import emit_change
 from fichero.library_paths import nfc_path
 
 if TYPE_CHECKING:
@@ -108,6 +109,15 @@ class DatabaseManager:
 
                 self._databases[cache_key] = db
                 logger.info(f"Database connection created: {db_path}")
+                emit_change(
+                    package_str,
+                    type="library.opened",
+                    actor="system",
+                    metadata={
+                        "library_name": package_path.name,
+                        "source": "db_manager",
+                    },
+                )
 
             return self._databases[cache_key]
 

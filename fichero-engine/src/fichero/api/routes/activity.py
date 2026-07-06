@@ -108,6 +108,11 @@ def _change_event_to_activity_response(event: ChangeEvent) -> ActivityResponse:
         metadata={
             "change_type": event.type,
             "actor": event.actor,
+            "run_id": event.run_id,
+            "origin_window": event.origin_window,
+            "origin_user": event.origin_user,
+            "ts": event.ts,
+            "change_metadata": json.dumps(event.metadata),
             "document_ids": json.dumps(event.document_ids),
             "entity_ids": json.dumps(event.entity_ids),
             "claim_ids": json.dumps(event.claim_ids),

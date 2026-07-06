@@ -19,6 +19,7 @@ from fichero.workflows.tasks import (
     TaskType,
     TaskStatus,
     BackgroundTask,
+    _TASK_LIBRARY_PATH_OPTION,
     get_task_queue,
 )
 
@@ -162,7 +163,8 @@ async def create_reindex_task(
         )
 
     name = request.name if request and request.name else "Reindex Documents"
-    options = request.options if request else {}
+    options = dict(request.options) if request else {}
+    options[_TASK_LIBRARY_PATH_OPTION] = x_fichero_library_path
     priority = request.priority if request else 0
 
     task = await queue.create_task(
@@ -194,7 +196,8 @@ async def create_metrics_task(
         )
 
     name = request.name if request and request.name else "Recompute Metrics"
-    options = request.options if request else {}
+    options = dict(request.options) if request else {}
+    options[_TASK_LIBRARY_PATH_OPTION] = x_fichero_library_path
     priority = request.priority if request else 0
 
     task = await queue.create_task(

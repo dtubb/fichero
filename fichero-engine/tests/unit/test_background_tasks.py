@@ -22,6 +22,7 @@ from fichero.workflows.tasks import (
     TaskResult,
     TaskStatus,
     TaskType,
+    _TASK_LIBRARY_PATH_OPTION,
 )
 
 
@@ -200,6 +201,43 @@ class TestTaskQueue:
         # Just verify all tasks are returned
         priorities = [t.config.priority for t in tasks]
         assert sorted(priorities) == [1, 5, 10]
+
+    @pytest.mark.asyncio
+    async def test_direct_task_execution_emits_backend_work_lifecycle(
+        self, temp_db_path, mock_db, monkeypatch
+    ):
+        captured: list[dict[str, object]] = []
+        monkeypatch.setattr(
+            "fichero.workflows.tasks.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+        queue = TaskQueue(temp_db_path, database=mock_db)
+        library_path = str(mock_db.path.parent)
+        task = await queue.create_task(
+            TaskType.METRICS,
+            "Metrics Test",
+            options={_TASK_LIBRARY_PATH_OPTION: library_path},
+        )
+
+        await queue._execute_metrics(task)
+
+        assert [call["type"] for call in captured].count("backend.work.started") == 1
+        assert any(call["type"] == "backend.work.progress" for call in captured)
+        assert [call["type"] for call in captured].count("backend.work.completed") == 1
+        assert {call["library_path"] for call in captured} == {library_path}
+        assert all(call["run_id"] == task.task_id for call in captured)
+        final = captured[-1]
+        assert final["metadata"] == {
+            "task_type": "metrics",
+            "task_name": "Metrics Test",
+            "status": "completed",
+            "message": "Metrics computed",
+            "current": "5",
+            "total": "5",
+            "percent": "100.0",
+        }
 
 
 class TestTaskRecovery:
