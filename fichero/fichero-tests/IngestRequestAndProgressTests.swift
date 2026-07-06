@@ -3,9 +3,8 @@ import XCTest
 
 /// Tests for the import request bodies (snake_case Encodable), HFModelSearchResponse
 /// decode, and ImportProgress display helpers. Pure value logic, no live engine.
-/// NOTE: ImportProgress.percentage divides by `total` without a zero guard —
-/// total==0 yields NaN. Not asserted here (would lock in the bug); flagged to
-/// the manager instead.
+/// Includes the regression test for the ImportProgress.percentage total==0 NaN
+/// guard fixed alongside these tests.
 final class IngestRequestAndProgressTests: XCTestCase {
 
     private func encodeToDict<T: Encodable>(_ value: T) throws -> [String: Any] {
@@ -72,6 +71,13 @@ final class IngestRequestAndProgressTests: XCTestCase {
         XCTAssertEqual(ImportProgress(current: 50, total: 100, currentFile: "f").percentage, 50, accuracy: 1e-9)
         XCTAssertEqual(ImportProgress(current: 1, total: 4, currentFile: "f").percentage, 25, accuracy: 1e-9)
         XCTAssertEqual(ImportProgress(current: 0, total: 10, currentFile: "f").percentage, 0, accuracy: 1e-9)
+    }
+
+    /// total==0 (empty import) must yield 0, not NaN — the divide-by-zero guard.
+    func testImportProgressPercentageZeroTotalIsZeroNotNaN() {
+        let percent = ImportProgress(current: 0, total: 0, currentFile: "f").percentage
+        XCTAssertEqual(percent, 0)
+        XCTAssertFalse(percent.isNaN)
     }
 
     func testImportProgressDescription() {
