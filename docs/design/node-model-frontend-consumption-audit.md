@@ -77,6 +77,29 @@ rule, no client-side migration shims — the schema changes directly and reimpor
   after codex lands its backend half + the P1/P2 foundation. Until then there is
   no frontend implementation work in #107; this audit is the frontend plan.
 
+## Frontend-verified deletion safety (2026-07-05)
+
+Independent grep of the hand-written Swift surface (`Models`/`Services`/`Views`,
+excluding the generated `FicheroAPIClient` package) for every REDUNDANT/collapse
+candidate, to confirm the audit's "no caller found" from the frontend side:
+
+| Candidate | Functional Swift caller? | Note |
+|---|---|---|
+| `research_agents` | **none** | empty module; safe |
+| `kg_pykeen` / `kg_predictions` / `kg_triangulation` | **none** | audit's `ArtifactServiceGenerated` hit was a "predictions" *comment*, not a call |
+| `kg_sparql` | **none** | but **KEEP** per standing Daniel directive (W3C/rdflib layer) — do NOT delete |
+| `orchestration` | **none** | safe |
+| `tasks` / `projects` (standalone) | **none** | app uses `…ApiResearch…`, not `/api/tasks|projects` |
+| `views` (standalone) | **none** | app reads `/folders/{id}/views` |
+| `agent_memory` | **none** | confirm vs in-app Agent EPIC #2067 before removal |
+| `iiif` | **none** | matches were a code comment + a stub's descriptive label, not calls |
+| **`multilingual`** | **YES — real methods** | ⚠️ **audit correction:** `ArtifactServiceGenerated.multilingualClaims/Entities`, `searchMultilingualEntities`, `normalizeMultilingualText` call `/api/multilingual/*`. **NOT safe to delete** as the audit implied. |
+
+**Frontend-safe deletion set** (no functional Swift caller): `research_agents`,
+`kg_pykeen`, `kg_predictions`, `kg_triangulation`, `orchestration`, standalone
+`tasks`/`projects`/`views`, `agent_memory`, `iiif`. Excludes `kg_sparql` (Daniel
+keeps it) and `multilingual` (has live Swift service methods).
+
 ## Cross-references
 
 - `docs/architecture/node_model_fold_staging.md` — the fold path + P1–P6 gates.
