@@ -232,6 +232,34 @@ class TestProgressEvents:
         assert len(events_received) == 1
         assert events_received[0] == test_event
 
+    @pytest.mark.asyncio
+    async def test_execute_with_pregel_emits_node_completed_for_regular_nodes(self, simple_workflow, test_tool, monkeypatch):
+        executor = WorkflowExecutor(simple_workflow)
+
+        class FakeGraph:
+            async def astream(self, current_state, stream_mode=None, subgraphs=False):
+                yield (
+                    (),
+                    {
+                        "node1": {
+                            "current_node": "node1",
+                            "completed_nodes": ["node1"],
+                        }
+                    },
+                )
+
+        monkeypatch.setattr(executor, "_graph", FakeGraph())
+        state = executor._create_initial_state({})
+
+        final_state = await executor._execute_with_pregel(state)
+
+        assert final_state["completed_nodes"] == ["node1"]
+        started = await executor._event_queue.get()
+        completed = await executor._event_queue.get()
+        assert started.event_type == ProgressEventType.NODE_STARTED
+        assert completed.event_type == ProgressEventType.NODE_COMPLETED
+        assert completed.node_id == "node1"
+
 
 # =============================================================================
 # Resource Pool Tests
