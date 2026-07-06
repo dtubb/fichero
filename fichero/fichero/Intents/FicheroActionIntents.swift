@@ -80,7 +80,9 @@ private struct WorkflowRunItemPayload: Encodable {
 private struct WorkflowRunActionPayload: Encodable {
     let workflowId: String
     let items: [WorkflowRunItemPayload]
-    let maxConcurrent: Int
+    // Optional so an unspecified value is omitted (encodeIfPresent) and the
+    // backend applies its own default — the FE shouldn't re-decide it (#3304).
+    let maxConcurrent: Int?
 
     enum CodingKeys: String, CodingKey {
         case workflowId = "workflow_id"
@@ -227,7 +229,7 @@ struct RunWorkflowIntent: AppIntent {
         let payload = WorkflowRunActionPayload(
             workflowId: workflowId,
             items: selectedDocumentIds.map { WorkflowRunItemPayload(documentId: $0) },
-            maxConcurrent: maxConcurrent ?? 5
+            maxConcurrent: maxConcurrent
         )
         _ = try await invokeAuditedAction("workflow.run", params: payload)
         return .result(dialog: "Started workflow on \(selectedDocumentIds.count) documents.")
