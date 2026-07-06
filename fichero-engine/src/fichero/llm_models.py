@@ -121,6 +121,12 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
 
     models = []
 
+    def per_million(value: Any) -> float | None:
+        """Convert per-token pricing to per-million, preserving unknowns."""
+        if value is None:
+            return None
+        return value * 1_000_000
+
     def safe_int(val) -> int | None:
         """Safely convert value to int, return None if not possible."""
         if val is None:
@@ -213,19 +219,15 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
                     "full_name": model_name,
                     "description": None,  # Will be filled by curated list if available
                     # Pricing
-                    "input_cost_per_million": info.get("input_cost_per_token", 0)
-                    * 1_000_000,
-                    "output_cost_per_million": info.get("output_cost_per_token", 0)
-                    * 1_000_000,
-                    "batch_input_cost_per_million": batch_input * 1_000_000
-                    if batch_input
-                    else None,
-                    "batch_output_cost_per_million": batch_output * 1_000_000
-                    if batch_output
-                    else None,
-                    "cache_read_cost_per_million": cache_read * 1_000_000
-                    if cache_read
-                    else None,
+                    "input_cost_per_million": per_million(
+                        info.get("input_cost_per_token")
+                    ),
+                    "output_cost_per_million": per_million(
+                        info.get("output_cost_per_token")
+                    ),
+                    "batch_input_cost_per_million": per_million(batch_input),
+                    "batch_output_cost_per_million": per_million(batch_output),
+                    "cache_read_cost_per_million": per_million(cache_read),
                     # Context windows
                     "max_input_tokens": safe_int(info.get("max_input_tokens")),
                     "max_output_tokens": safe_int(info.get("max_output_tokens"))

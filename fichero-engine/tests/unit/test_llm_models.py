@@ -91,3 +91,22 @@ def test_get_model_info_raises_on_lookup_failure_and_logs() -> None:
             get_model_info("openai/gpt-5")
 
     mock_exception.assert_called_once()
+
+
+def test_list_models_for_provider_preserves_unknown_pricing() -> None:
+    fake_litellm = SimpleNamespace(
+        model_cost={
+            "openai/gpt-5": {
+                "input_cost_per_token": None,
+                "output_cost_per_token": 0.00001,
+                "max_tokens": 128000,
+            }
+        }
+    )
+
+    with patch("fichero.llm_models._get_litellm", return_value=fake_litellm):
+        models = llm_models.list_models_for_provider("openai")
+
+    assert len(models) == 1
+    assert models[0]["input_cost_per_million"] is None
+    assert models[0]["output_cost_per_million"] == pytest.approx(10.0)
