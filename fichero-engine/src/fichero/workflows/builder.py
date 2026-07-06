@@ -1684,6 +1684,19 @@ def _make_aggregation_function(node_id: str):
                 errors=errors[:10],
             )
 
+        if success_count == 0 and error_count > 0:
+            error_msg = (
+                f"All parallel branches failed for {node_id}. "
+                f"First error: {errors[0]['error'] if errors else 'unknown'}"
+            )
+            logger.error(error_msg)
+            raise SystemicErrorDetected(
+                message=error_msg,
+                error_count=error_count,
+                total_count=total,
+                errors=errors[:10],
+            )
+
         # Build aggregated output. `records` carries per-page provenance
         # for the records port (extract_all, page_cleanup) — flat list of
         # {doc_id, text} across all parallel files, in the same parallel-
