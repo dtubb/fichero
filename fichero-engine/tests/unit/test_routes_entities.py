@@ -439,6 +439,47 @@ class TestDeleteEntity:
         r = client.delete("/api/entities/no-such-id")
         assert r.status_code == 404
 
+    def test_delete_does_not_full_scan_claim_table(self, client, db, monkeypatch):
+        """Regression for #3192: entity delete should not call db.query(KnowledgeClaim)."""
+        from fichero.knowledge_models import KnowledgeClaim
+
+        entity = _make_entity(db, "Alice")
+        claim = KnowledgeClaim(
+            text="Alice signed the deed.",
+            source_document_id="doc-1",
+            entity_ids=[entity.id],
+        )
+        db.save(claim)
+
+        real_query = db.query
+
+        def _guarded_query(model, **filters):
+            if model is KnowledgeClaim and not filters:
+                raise AssertionError("full KnowledgeClaim scan used")
+            return real_query(model, **filters)
+
+        monkeypatch.setattr(db, "query", _guarded_query)
+
+        r = client.delete(f"/api/entities/{entity.id}")
+        assert r.status_code == 204
+
+    def test_claim_lookup_for_multiple_entity_ids_returns_shared_claim_once(self, db):
+        """Shared-claim lookup should return a claim once even if it matches two ids."""
+        from fichero.api.routes.entities import _claims_referencing_entity_ids
+        from fichero.knowledge_models import KnowledgeClaim
+
+        entity_a = _make_entity(db, "Alice")
+        entity_b = _make_entity(db, "Bob")
+        claim = KnowledgeClaim(
+            text="Alice and Bob signed the deed.",
+            source_document_id="doc-1",
+            entity_ids=[entity_a.id, entity_b.id, "other-id"],
+        )
+        db.save(claim)
+
+        matches = _claims_referencing_entity_ids(db, [entity_a.id, entity_b.id])
+        assert [row.id for row in matches] == [claim.id]
+
 
 # ---------------------------------------------------------------------------
 # POST /api/entities/{entity_id}/aliases

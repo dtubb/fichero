@@ -570,8 +570,7 @@ def delete_entity_impl(
 
     before_state = entity.model_dump(mode="json")
 
-    all_claims = db.query(KnowledgeClaim)
-    dependent = [c for c in all_claims if entity_id in (c.entity_ids or [])]
+    dependent = _claims_referencing_entity_ids(db, [entity_id])
 
     if cascade_claims:
         for claim in dependent:
@@ -615,6 +614,39 @@ def delete_entity_impl(
     return {"entity_id": entity_id}
 
 
+def _claims_referencing_entity_ids(
+    db: Database,
+    entity_ids: list[str],
+) -> list[KnowledgeClaim]:
+    """Load only claims that reference one of the requested entity ids.
+
+    entity_ids is stored as JSON/list text depending on migration vintage, so
+    we use the same SQL-side LIKE narrowing already used elsewhere in the data
+    layer, then defensively re-check membership in Python to avoid substring
+    false positives.
+    """
+    ids = [entity_id for entity_id in entity_ids if entity_id]
+    if not ids:
+        return []
+
+    sql_table = db._sql_table_name(KnowledgeClaim)
+    where = " OR ".join("entity_ids LIKE ?" for _ in ids)
+    rows, columns = db._execute_fetch_with_columns(
+        f"SELECT * FROM {sql_table} WHERE {where}",
+        tuple(f'%"{entity_id}"%' for entity_id in ids),
+    )
+
+    wanted = set(ids)
+    claims: list[KnowledgeClaim] = []
+    for row in rows:
+        hydrated = db._hydrate_row(KnowledgeClaim, columns, row)
+        if hydrated is None:
+            continue
+        if wanted.intersection(hydrated.entity_ids or []):
+            claims.append(hydrated)
+    return claims
+
+
 @action(
     "entity.delete",
     EntityDeleteActionParams,
@@ -630,8 +662,7 @@ def _action_delete_entity(
         raise HTTPException(status_code=404, detail=f"Entity not found: {params.entity_id}")
     claim_snapshots = [
         claim.model_dump(mode="json")
-        for claim in db.query(KnowledgeClaim)
-        if params.entity_id in (claim.entity_ids or [])
+        for claim in _claims_referencing_entity_ids(db, [params.entity_id])
     ]
     result = delete_entity_impl(
         db,
