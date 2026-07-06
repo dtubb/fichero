@@ -432,9 +432,11 @@ struct ContentView: View {
             .focusedSceneValue(\.showInspector, $showInspectorSidebar)
             // Publish the reading-surface pane toggles so the View menu can
             // mirror the toolbar buttons for each pane (#1215).
-            .focusedSceneValue(\.showDocumentGrid, $showDocumentGrid)
-            .focusedSceneValue(\.showDocumentCanvas, $showDocumentCanvas)
-            .focusedSceneValue(\.showReadingPane, $showReadingPane)
+            // Route every pane toggle through the invariant (#1696) so the View
+            // menu can't hide the last visible pane. Storage stays @SceneStorage.
+            .focusedSceneValue(\.showDocumentGrid, paneBinding(.grid))
+            .focusedSceneValue(\.showDocumentCanvas, paneBinding(.canvas))
+            .focusedSceneValue(\.showReadingPane, paneBinding(.reading))
             .focusedSceneValue(
                 \.navigationUndoAction,
                 FocusedLibraryAction(isEnabled: navigationHistory.canGoBack, run: navigateBack)
