@@ -59,6 +59,13 @@ extension ActionLibraryService {
                 auditId: json.auditId,
                 changedDomains: json.changedDomains
             )
+            // Central undo seam (#3302 part 1): record EVERY audited mutation so
+            // ⌘Z reaches all ~109 registry actions — not just the handful of call
+            // sites that recorded explicitly. Single-level (overwrites the prior
+            // entry); guarded on success so a reported failure never seeds undo.
+            if result.succeeded {
+                LastAction.shared.record(auditId: result.auditId, actionName: name)
+            }
             invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
             return result
         case .unprocessableContent(let error):
