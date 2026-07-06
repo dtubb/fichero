@@ -26,6 +26,17 @@ class TestLoadPresetFiles:
         assert "Transcribe" in names
         assert "Catalogue" in names
 
+    def test_shipped_preset_names_are_unique(self):
+        """Two preset JSON files must never ship the same name.
+
+        Seed/install code keys workflows by name, so a duplicate would shadow
+        one preset at load time and make force-reinstall/delete semantics
+        unpredictable.
+        """
+        names = [preset["name"] for preset in _load_preset_files()]
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        assert not duplicates, f"duplicate preset names in resources/: {duplicates}"
+
     def test_every_preset_has_minimal_required_fields(self):
         for preset in _load_preset_files():
             assert preset.get("name"), f"preset missing name: {preset}"
