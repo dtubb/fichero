@@ -777,6 +777,36 @@ async def test_chat_with_fallback_routes_around_unsupported_locale():
 
 
 @pytest.mark.asyncio
+async def test_chat_with_fallback_preserves_permissive_guardrails_on_fallback():
+    """Fallback retries must preserve the caller's permissive guardrail intent."""
+    from fichero.llm import chat_with_fallback, LLMConfig, GuardrailViolationError
+
+    primary_config = LLMConfig(provider="apple", model="apple-intelligence")
+    call_log: list[tuple[str, bool]] = []
+
+    async def fake_chat(prompt, config, system=None, permissive_guardrails=False, **_kwargs):
+        call_log.append((config.provider, permissive_guardrails))
+        if config.provider == "apple":
+            raise GuardrailViolationError("guardrailViolation: blocked")
+        return "fallback response"
+
+    with patch("fichero.llm.chat", new=fake_chat), \
+         patch(
+             "fichero.llm.resolve_model_alias",
+             return_value=("anthropic", "claude-sonnet-4"),
+         ), \
+         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
+        result = await chat_with_fallback(
+            "hi",
+            config=primary_config,
+            permissive_guardrails=True,
+        )
+
+    assert result == "fallback response"
+    assert call_log == [("apple", True), ("anthropic", True)]
+
+
+@pytest.mark.asyncio
 async def test_chat_refuses_remote_provider_when_local_only_enabled(monkeypatch):
     from fichero.llm import chat
 

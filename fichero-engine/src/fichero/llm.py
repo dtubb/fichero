@@ -1568,7 +1568,12 @@ async def chat_with_fallback(
                 fallback_config.model,
             )
             try:
-                result = await chat(prompt, fallback_config, system=system)
+                result = await chat(
+                    prompt,
+                    fallback_config,
+                    system=system,
+                    permissive_guardrails=permissive_guardrails,
+                )
             except (AppleUnavailableError, ProviderQuotaError) as exc:
                 last_failure = exc
                 continue
@@ -3009,7 +3014,12 @@ async def chat_structured_with_fallback(
             # include_schema_in_prompt parameter is ignored on that path.
             try:
                 result = await chat_structured(
-                    prompt, schema, fallback_config, system=system
+                    prompt,
+                    schema,
+                    fallback_config,
+                    system=system,
+                    use_case=use_case,
+                    permissive_guardrails=permissive_guardrails,
                 )
             except (ProviderQuotaError, AppleUnavailableError) as exc:
                 last_failure = exc
