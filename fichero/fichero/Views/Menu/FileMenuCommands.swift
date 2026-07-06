@@ -340,9 +340,10 @@ struct FileMenuCommands: View {
 
             try bibData.write(to: saveURL, options: .atomic)
             logger.info("Exported BibTeX to \(saveURL.path)")
+            revealInFinder(saveURL)
         } catch {
             logger.error("Failed to export BibTeX: \(error.localizedDescription)")
-            presentExportError(error)
+            presentExportError(error, title: "BibTeX Export Failed")
         }
         #endif
     }
@@ -365,9 +366,10 @@ struct FileMenuCommands: View {
             logger.info(
                 "Exported \(result.documentCount) document(s) to static site at \(result.outputPath)"
             )
+            revealInFinder(URL(fileURLWithPath: result.outputPath))
         } catch {
             logger.error("Failed to export static site: \(error.localizedDescription)")
-            presentExportError(error)
+            presentExportError(error, title: "Static Site Export Failed")
         }
         #endif
     }
@@ -438,12 +440,18 @@ struct FileMenuCommands: View {
         }
     }
 
-    private func presentExportError(_ error: Error) {
+    private func presentExportError(_ error: Error, title: String) {
         let alert = NSAlert()
-        alert.messageText = "BibTeX Export Failed"
+        alert.messageText = title
         alert.informativeText = error.localizedDescription
         alert.alertStyle = .warning
         alert.runModal()
+    }
+
+    /// Reveal the exported file/folder in Finder so a successful export isn't
+    /// silent (#3305). macOS-only — the callers live in os(macOS) branches.
+    private func revealInFinder(_ url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
     #endif
 }
