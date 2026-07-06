@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
+import fitz
 import pytest
 
 from fichero.models import DocType, Document
@@ -19,6 +20,16 @@ from fichero.models import DocType, Document
 class _FakeResp:
     text = "<title>Example</title><body>hi</body>"
     headers = {"content-type": "text/html"}
+
+
+def _pdf_bytes(pages: list[str]) -> bytes:
+    pdf = fitz.open()
+    for text in pages:
+        page = pdf.new_page()
+        page.insert_text((72, 72), text)
+    data = pdf.tobytes()
+    pdf.close()
+    return data
 
 
 def _patch_fetch_ok():
@@ -89,6 +100,53 @@ def test_successful_save_has_no_error(client, db):
     assert data["success"] is True
     assert data["source_id"]  # a real id
     assert data["error"] is None
+
+
+def test_browser_save_pdf_imports_document_and_page_children(client, db):
+    pdf_bytes = _pdf_bytes(["Marshall went to Istmina.", "Page two."])
+
+    class _PdfResp:
+        content = pdf_bytes
+        headers = {"content-type": "application/pdf"}
+
+    ctxs = [
+        patch(
+            "fichero.api.routes.research_tools._is_sandbox_violation",
+            AsyncMock(return_value=False),
+        ),
+        patch(
+            "fichero.api.routes.research_tools._is_safe_url",
+            AsyncMock(return_value=(True, "")),
+        ),
+        patch(
+            "fichero.api.routes.research_tools._safe_http_get",
+            AsyncMock(return_value=_PdfResp()),
+        ),
+    ]
+    for c in ctxs:
+        c.start()
+    try:
+        r = client.post(
+            "/api/research/tools/browser-save",
+            json={
+                "url": "https://example.com/archive/book.pdf",
+                "project_id": "project-1",
+            },
+        )
+    finally:
+        for c in ctxs:
+            c.stop()
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["success"] is True
+    assert data["document_name"] == "book.pdf"
+    parent = db.get(Document, data["document_id"])
+    assert parent is not None
+    assert parent.file_type.value == "pdf"
+    assert parent.metadata["source_url"] == "https://example.com/archive/book.pdf"
+    children = db.query(Document, parent_id=parent.id, doc_type=DocType.page)
+    assert [child.sequence for child in children] == [1, 2]
 
 
 if __name__ == "__main__":

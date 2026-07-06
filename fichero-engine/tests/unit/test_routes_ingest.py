@@ -8,7 +8,9 @@ the real filesystem or storage layer.
 
 from unittest.mock import MagicMock, patch
 
-from fichero.models import Document
+import fitz
+
+from fichero.models import DocType, Document
 
 
 # ---------------------------------------------------------------------------
@@ -18,6 +20,15 @@ from fichero.models import Document
 
 def _make_document(doc_id: str = "doc-1", name: str = "test.pdf") -> Document:
     return Document(id=doc_id, name=name)
+
+
+def _write_pdf(path, pages: list[str]) -> None:
+    pdf = fitz.open()
+    for text in pages:
+        page = pdf.new_page()
+        page.insert_text((72, 72), text)
+    pdf.save(str(path))
+    pdf.close()
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +82,25 @@ class TestIngestFile:
                 "copy_mode": True,
             })
         assert r.status_code == 200
+
+    def test_ingest_pdf_link_mode_creates_page_children(self, client, db, tmp_path):
+        pdf = tmp_path / "book.pdf"
+        _write_pdf(pdf, ["Page one", "Page two"])
+
+        r = client.post(
+            "/api/ingest/file",
+            json={
+                "path": str(pdf),
+                "extract_text": True,
+                "auto_embed": False,
+            },
+        )
+
+        assert r.status_code == 200
+        parent_id = r.json()["id"]
+        children = db.query(Document, parent_id=parent_id, doc_type=DocType.page)
+        assert [child.sequence for child in children] == [1, 2]
+        assert [child.page_content for child in children] == ["Page one", "Page two"]
 
 
 # ---------------------------------------------------------------------------
