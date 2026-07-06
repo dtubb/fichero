@@ -33,6 +33,7 @@ from datetime import datetime
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 # Importing the route modules registers the relevant @action decorators AND the
 # generic undo / audit-log endpoint handlers under test.
@@ -70,9 +71,21 @@ def spy_emit(monkeypatch):
 
 
 def _undo(db, audit_id: str):
+    request = Request(
+        {
+            "type": "http",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+            "scheme": "https",
+            "server": ("testserver", 443),
+            "path": f"/api/actions/audit/{audit_id}/undo",
+            "query_string": b"",
+        }
+    )
     return asyncio.run(
         undo_action(
             audit_id,
+            request=request,
             db=db,
             x_fichero_library_path=LIB,
             x_fichero_origin_window=None,
