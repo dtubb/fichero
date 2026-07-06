@@ -2,35 +2,21 @@ import XCTest
 
 @testable import Fichero
 
-/// Coverage for the Canvas & Space view-mode enum (#3081): the rename
-/// `.map`→`.canvas`, the new `.space` case, and the legacy-rawValue migration
-/// baked into `init?(rawValue:)`. This is the P1 foundation contract — the
-/// enum must stay coherent and keep migrating old persisted values before any
-/// renderer is wired.
+/// Coverage for the Canvas & Space view-mode enum (#3081): the settled `.canvas`
+/// / `.space` vocabulary and the deliberate absence of legacy-rawValue migration.
+/// The library data isn't in production use, so the enum starts fresh — old
+/// persisted strings decode to nil rather than being folded (Daniel, 2026-07-05).
 final class ViewDisplayModeTests: XCTestCase {
 
-    // MARK: - Legacy rawValue migration (the persistence seam)
+    // MARK: - No back-compat migration (clean start, no real data)
 
-    func testLegacyMapMigratesToCanvas() {
-        XCTAssertEqual(ViewDisplayMode(rawValue: "Map"), .canvas)
-    }
-
-    func testLegacySpatialMigratesToCanvas() {
-        // "Spatial (2D)" was merged into Canvas (#2667).
-        XCTAssertEqual(ViewDisplayMode(rawValue: "Spatial"), .canvas)
-    }
-
-    func testLegacyRealityKitMigratesToCanvasDuringRendererGap() {
-        // Old 3D RealityKit folds to the working 2D .canvas (not .space) while
-        // the .space renderer is unbuilt (P3 of #3070) — Daniel 2026-07-04.
-        XCTAssertEqual(ViewDisplayMode(rawValue: "RealityKit"), .canvas)
-    }
-
-    func testMigratedValueRoundTripsToCanonicalRawValue() {
-        // A migrated value must persist back as the canonical rawValue so the
-        // legacy string is rewritten on next save, not carried forever.
-        XCTAssertEqual(ViewDisplayMode(rawValue: "Map")?.rawValue, "Canvas")
-        XCTAssertEqual(ViewDisplayMode(rawValue: "RealityKit")?.rawValue, "Canvas")
+    func testLegacyRawValuesNoLongerDecode() {
+        // "Map"/"Spatial"/"RealityKit" were the old view-mode strings. With the
+        // back-compat shim removed they are unknown rawValues → nil (reset to
+        // default), NOT silently folded onto .canvas.
+        XCTAssertNil(ViewDisplayMode(rawValue: "Map"))
+        XCTAssertNil(ViewDisplayMode(rawValue: "Spatial"))
+        XCTAssertNil(ViewDisplayMode(rawValue: "RealityKit"))
     }
 
     // MARK: - Canonical decode
