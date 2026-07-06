@@ -1124,22 +1124,29 @@ def _make_route_map_fan_out_function(
 
         val = resolve_value(route_key, state, None)
         val_str = str(val) if val is not None else ""
+        human_target = route_map.get("needs_human_selection")
         needs_human = bool(
             needs_human_key and resolve_value(needs_human_key, state, False)
         )
-        if needs_human and "needs_human_selection" in route_map:
-            human_target = route_map["needs_human_selection"]
-            if human_target in node_names:
-                logger.info(
-                    "route_map_fan_out: %r → needs_human_selection=True; routing to %s",
-                    route_key,
-                    node_names[human_target],
-                )
-                return node_names[human_target]
+        if needs_human and human_target in node_names:
+            logger.info(
+                "route_map_fan_out: %r → needs_human_selection=True; routing to %s",
+                route_key,
+                node_names[human_target],
+            )
+            return node_names[human_target]
 
         target_id = route_map.get(val_str)
 
         if not target_id or target_id not in node_names:
+            if human_target in node_names:
+                logger.info(
+                    "route_map_fan_out: key %r resolved to unknown value %r; routing to %s",
+                    route_key,
+                    val_str,
+                    node_names[human_target],
+                )
+                return node_names[human_target]
             logger.warning(
                 "route_map_fan_out: key %r resolved to unknown value %r; "
                 "falling back to %s", route_key, val_str, first_fallback,
@@ -1783,25 +1790,32 @@ def _make_route_function(
     def route(state: State):
         val = resolve_value(route_key, state, None)
         val_str = str(val) if val is not None else ""
+        human_target = route_map.get("needs_human_selection")
 
         # Honour the needs_human_selection signal from the source node (#2238).
         # Prefer a dedicated "needs_human_selection" branch when available.
         needs_human = bool(
             needs_human_key and resolve_value(needs_human_key, state, False)
         )
-        if needs_human and "needs_human_selection" in route_map:
-            human_target = route_map["needs_human_selection"]
-            if human_target in node_names:
-                logger.info(
-                    "route_map: %r → needs_human_selection=True; routing to %s",
-                    route_key,
-                    node_names[human_target],
-                )
-                return node_names[human_target]
+        if needs_human and human_target in node_names:
+            logger.info(
+                "route_map: %r → needs_human_selection=True; routing to %s",
+                route_key,
+                node_names[human_target],
+            )
+            return node_names[human_target]
 
         target_id = route_map.get(val_str)
         if target_id and target_id in node_names:
             return node_names[target_id]
+        if human_target in node_names:
+            logger.info(
+                "route_map: key %r resolved to unknown value %r; routing to %s",
+                route_key,
+                val_str,
+                node_names[human_target],
+            )
+            return node_names[human_target]
 
         logger.error(
             "route_map: key %r resolved to unknown value %r "
