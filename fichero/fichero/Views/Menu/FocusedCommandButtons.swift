@@ -260,94 +260,6 @@ struct FocusedDeleteButton: View {
     }
 }
 
-/// Button that triggers the focused window's open library file picker
-struct FocusedOpenLibraryButton: View {
-    @FocusedValue(\.openLibraryAction) private var openLibraryAction
-
-    var body: some View {
-        Button("Open Library...") {
-            openLibraryAction?.run()
-        }
-        .keyboardShortcut("o", modifiers: [.command])
-    }
-}
-
-/// Button that triggers the focused window's open library file picker (alias for Database terminology)
-struct FocusedOpenDatabaseButton: View {
-    @FocusedValue(\.openLibraryAction) private var openLibraryAction
-
-    var body: some View {
-        Button("Open Database...") {
-            openLibraryAction?.run()
-        }
-        .keyboardShortcut("o", modifiers: [.command])
-    }
-}
-
-/// Button that opens a new window viewing the current library
-struct FocusedNewWindowButton: View {
-    @FocusedValue(\.newWindowAction) private var newWindowAction
-
-    var body: some View {
-        Button("New Window") {
-            newWindowAction?.run()
-        }
-        .keyboardShortcut("t", modifiers: [.command])
-        .disabled(newWindowAction == nil)
-    }
-}
-
-/// Button that creates a new library and opens it in a new window
-struct FocusedNewLibraryButton: View {
-    @FocusedValue(\.newLibraryAction) private var newLibraryAction
-
-    var body: some View {
-        Button("New Library") {
-            newLibraryAction?.run()
-        }
-        .keyboardShortcut("n", modifiers: [.command])
-    }
-}
-
-/// Button that creates a new database in the focused window (alias for Database terminology)
-struct FocusedNewDatabaseButton: View {
-    @FocusedValue(\.newLibraryAction) private var newLibraryAction
-
-    var body: some View {
-        Button("New Database") {
-            newLibraryAction?.run()
-        }
-        .keyboardShortcut("n", modifiers: [.command])
-        .disabled(newLibraryAction == nil)
-    }
-}
-
-/// Button that saves the current library (Save As for Untitled libraries)
-struct FocusedSaveLibraryButton: View {
-    @FocusedValue(\.saveLibraryAction) private var saveLibraryAction
-
-    var body: some View {
-        Button("Save As...") {
-            saveLibraryAction?.run()
-        }
-        .keyboardShortcut("s", modifiers: [.command, .shift])
-        .disabled(saveLibraryAction == nil)
-    }
-}
-
-/// Button that saves the current database (alias for Database terminology)
-struct FocusedSaveDatabaseButton: View {
-    @FocusedValue(\.saveLibraryAction) private var saveLibraryAction
-
-    var body: some View {
-        Button("Save Database As...") {
-            saveLibraryAction?.run()
-        }
-        .keyboardShortcut("s", modifiers: [.command, .shift])
-        .disabled(saveLibraryAction == nil)
-    }
-}
-
 // MARK: - Creation Buttons
 
 /// Button that creates a new search
@@ -423,18 +335,6 @@ struct FocusedNewScheduleButton: View {
     var body: some View {
         Button("New Schedule") {
             sidebarActions?.createSchedule()
-        }
-        .disabled(sidebarActions == nil)
-    }
-}
-
-/// Button that creates a new trigger
-struct FocusedNewTriggerButton: View {
-    @FocusedValue(\.sidebarActions) private var sidebarActions
-
-    var body: some View {
-        Button("New Trigger") {
-            sidebarActions?.createTrigger()
         }
         .disabled(sidebarActions == nil)
     }
