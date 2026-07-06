@@ -1018,6 +1018,38 @@ async def test_aggregator_emits_when_all_results_arrive():
     assert out["outputs"]["transcribe"]["success_count"] == 2
 
 
+@pytest.mark.asyncio
+async def test_aggregator_aborts_when_every_parallel_branch_failed():
+    """A completed fan-out with zero successes must fail loud, not emit empty text."""
+    from fichero.workflows.builder import _make_aggregation_function, SystemicErrorDetected
+
+    agg = _make_aggregation_function("transcribe")
+
+    state = {
+        "parallel_results": {
+            "transcribe": [
+                {
+                    "file": "page1.jpeg",
+                    "index": 0,
+                    "total": 2,
+                    "error": "provider refused",
+                    "success": False,
+                },
+                {
+                    "file": "page2.jpeg",
+                    "index": 1,
+                    "total": 2,
+                    "error": "provider refused",
+                    "success": False,
+                },
+            ],
+        },
+    }
+
+    with pytest.raises(SystemicErrorDetected, match="All parallel branches failed"):
+        await agg(state)
+
+
 # =============================================================================
 # Node-error abort behaviour (#839)
 # =============================================================================
