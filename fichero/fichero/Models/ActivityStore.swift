@@ -33,6 +33,18 @@ final class ActivityStore: ChangeEventConsumer {
     /// mutations already arrive on the dedicated change stream (no double-apply).
     var changeRouter: (@MainActor (ChangeEvent) -> Void)?
 
+    // ─── Backend-work surface (#2279) ──────────────────────────────────────────
+    /// The most recent in-flight backend task (e.g. an import or batch the engine
+    /// or CLI kicked off), or `nil` when nothing is running. Views observe this
+    /// for a live progress indicator. Updated in place — a backend-work frame
+    /// never bumps `refreshToken`, so it can't trigger a run-list reload.
+    private(set) var backendWork: BackendWorkStatus?
+
+    /// The most recent "library opened" signal — e.g. the CLI opened a library
+    /// out of band (#2279). Views surface it subtly so the user knows the backend
+    /// touched a library they didn't open in this window.
+    private(set) var lastLibraryOpened: LibraryOpenedSignal?
+
     init(service: ActivityServiceGenerated) {
         self.activityService = service
         self.streamService = ActivityStreamService(activityService: service)
@@ -82,6 +94,15 @@ final class ActivityStore: ChangeEventConsumer {
     }
 
     func applyActivityEvent(_ activity: ActivityItem) {
+        // Backend-work / library-opened signals (#2279) ride the same folded
+        // frames but are informational, not domain mutations — intercept them
+        // first and update the observable indicator IN PLACE (no run-list
+        // reload, no domain-store fan-out).
+        if let metadata = activity.metadataStrings,
+           let signal = BackendActivityEvent(activityMetadata: metadata) {
+            applyBackendSignal(signal)
+            return
+        }
         // #3159 folds per-library mutations onto the activity stream so REMOTE
         // subscribers see them (the dedicated /changes/stream can drop over the
         // tailnet, #2479). Such a frame carries `change_type` in its metadata:
@@ -98,5 +119,28 @@ final class ActivityStore: ChangeEventConsumer {
         }
         refreshToken += 1
         log.debug("ActivityStore: activity event \(activity.type, privacy: .public), refreshToken → \(self.refreshToken, privacy: .public)")
+    }
+
+    /// Drive the live backend-work indicator from a decoded signal (#2279).
+    /// Single-task model: `backendWork` tracks the latest running task and clears
+    /// when THAT task reaches a terminal phase. (Concurrent backend tasks show
+    /// the most recent; a multi-task queue view is a follow-up.)
+    private func applyBackendSignal(_ signal: BackendActivityEvent) {
+        switch signal {
+        case .libraryOpened(let opened):
+            lastLibraryOpened = opened
+            log.debug("ActivityStore: library.opened \(opened.libraryName, privacy: .public) via \(opened.source, privacy: .public)")
+        case .work(let status):
+            if status.isTerminal {
+                // Only clear if the finishing task is the one we're showing —
+                // don't wipe a still-running task's indicator.
+                if backendWork?.runId == status.runId {
+                    backendWork = nil
+                }
+            } else {
+                backendWork = status
+            }
+            log.debug("ActivityStore: backend.work \(status.phase.rawValue, privacy: .public) \(status.taskName, privacy: .public)")
+        }
     }
 }

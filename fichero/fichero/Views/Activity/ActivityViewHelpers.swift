@@ -214,8 +214,15 @@ struct ActivityBrowserView: View {
         // No-silent-fallback (F7): if the activity SSE stream drops, the run list
         // stops refreshing — say so instead of showing a stale list silently.
         .overlay(alignment: .top) {
-            if activityStore.liveUpdatesPaused {
-                LiveUpdatesPausedPill(onReconnect: { activityStore.reconnectLiveUpdates() })
+            VStack(spacing: 6) {
+                if activityStore.liveUpdatesPaused {
+                    LiveUpdatesPausedPill(onReconnect: { activityStore.reconnectLiveUpdates() })
+                }
+                // Live backend-work indicator (#2279): imports/batches/indexing
+                // the engine or CLI kicked off out of band show here.
+                if let work = activityStore.backendWork {
+                    BackendWorkPill(status: work)
+                }
             }
         }
     }
