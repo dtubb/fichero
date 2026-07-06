@@ -62,8 +62,34 @@ struct WorkflowCanvasView: View {
     let nodeWidth: CGFloat = 140
     let nodeHeight: CGFloat = 100
 
-    // Canvas size (large enough to scroll around)
-    private let canvasSize: CGSize = CGSize(width: 2000, height: 1500)
+    // Canvas grows to fit the placed nodes (+ scroll margin), floored at a
+    // comfortable minimum — large workflows no longer hit a fixed 2000×1500
+    // wall (#3191). Recomputed as nodes move/add.
+    private var canvasSize: CGSize {
+        Self.fittedCanvasSize(
+            for: workflow.nodes,
+            nodeSize: CGSize(width: nodeWidth, height: nodeHeight)
+        )
+    }
+
+    /// The scrollable canvas extent that contains every node plus a margin,
+    /// never smaller than `minimum`. Node positions are centers, so a node's
+    /// right/bottom extent is its position plus half the node size. Pure +
+    /// static so it is unit-testable. (#3191)
+    static func fittedCanvasSize(
+        for nodes: [WorkflowNode],
+        nodeSize: CGSize,
+        margin: CGFloat = 400,
+        minimum: CGSize = CGSize(width: 2000, height: 1500)
+    ) -> CGSize {
+        guard !nodes.isEmpty else { return minimum }
+        let maxX = nodes.map(\.positionX).max() ?? 0
+        let maxY = nodes.map(\.positionY).max() ?? 0
+        return CGSize(
+            width: max(minimum.width, CGFloat(maxX) + nodeSize.width / 2 + margin),
+            height: max(minimum.height, CGFloat(maxY) + nodeSize.height / 2 + margin)
+        )
+    }
 
     // Pan state
     @State var offset: CGSize = .zero
