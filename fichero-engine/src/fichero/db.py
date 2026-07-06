@@ -3750,6 +3750,11 @@ class Database(DatabaseEmbeddingMixin):
                         if doc_id in merged:
                             prior = merged[doc_id]
                             prior["_rrf"] += contribution
+                            if source == "fulltext":
+                                prior["_lexical_score"] = max(
+                                    prior.get("_lexical_score", 0.0),
+                                    item.get("score", 0.0),
+                                )
                             prior["match_sources"] = sorted(
                                 set(prior["match_sources"]) | {source}
                             )
@@ -3760,6 +3765,9 @@ class Database(DatabaseEmbeddingMixin):
                         else:
                             enriched = dict(item)
                             enriched["_rrf"] = contribution
+                            enriched["_lexical_score"] = (
+                                item.get("score", 0.0) if source == "fulltext" else 0.0
+                            )
                             enriched["match_sources"] = [source]
                             merged[doc_id] = enriched
 
@@ -3773,6 +3781,12 @@ class Database(DatabaseEmbeddingMixin):
                 for item in merged.values():
                     item["score"] = min(1.0, item["_rrf"] / rrf_max)
                     item.pop("_rrf", None)
+                    # ponytail: exact/keyword matches need a small edge over
+                    # semantic-only neighbours when RRF ties them at 0.5.
+                    item["score"] = min(
+                        1.0,
+                        item["score"] + (0.1 * item.pop("_lexical_score", 0.0)),
+                    )
                 # Apply min_score to the normalised RRF projection.
                 # Docs that appear only in semantic results and rank poorly
                 # get RRF scores of ~0.40-0.44 in a 15-doc corpus — the

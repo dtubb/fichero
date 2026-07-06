@@ -15,8 +15,13 @@ test_routes_search.py (integration-shaped, hits a real Database).
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
+
+import pandas as pd
 
 from fichero.db import (
+    EMBEDDINGS_TABLE,
+    Database,
     _bm25_scores,
     _build_transcript_excerpts,
     _fold_for_search,
@@ -189,6 +194,59 @@ class TestBM25LexicalScoring:
 
     def test_empty_query_terms_returns_zeroes(self) -> None:
         assert _bm25_scores(["a b c"], []) == [0.0]
+
+
+class TestHybridRanking:
+    def test_exact_fulltext_hit_beats_semantic_only_neighbor(self, db, monkeypatch) -> None:
+        class FakeTable:
+            def to_pandas(self):
+                return pd.DataFrame(
+                    [
+                        {
+                            "document_id": "doc-exact",
+                            "id": "doc-exact",
+                            "text": "Andagueda river ledger",
+                            "name": "Exact hit",
+                            "doc_type": "file",
+                            "file_type": "text",
+                        }
+                    ]
+                )
+
+        fake_lance = SimpleNamespace(open_table=lambda _name: FakeTable())
+        monkeypatch.setattr(type(db), "lance", property(lambda self: fake_lance))
+        monkeypatch.setattr(type(db), "_lance_tables", lambda self: [EMBEDDINGS_TABLE])
+        monkeypatch.setattr(type(db), "_embed_text", lambda self, _query: [0.0])
+        monkeypatch.setattr(
+            type(db),
+            "search_vectors",
+            lambda self, _table, _query_vector, _limit: [
+                {
+                    "document_id": "doc-semantic",
+                    "id": "doc-semantic",
+                    "text": "Andagoya river report",
+                    "name": "Semantic neighbor",
+                    "doc_type": "file",
+                    "file_type": "text",
+                    "_distance": 0.2,
+                }
+            ],
+        )
+        monkeypatch.setattr(type(db), "_is_active_document_id", lambda self, _doc_id: True)
+        monkeypatch.setattr(
+            type(db), "_has_indexed_page_children", lambda self, _doc_id: False
+        )
+        monkeypatch.setattr(
+            type(db),
+            "enrich_search_results_with_kg",
+            lambda self, results, _query: results,
+        )
+
+        results, total, _stats = Database.search(db, "andagueda", search_type="hybrid")
+
+        assert total == 2
+        assert results[0].document_id == "doc-exact"
+        assert results[0].score > results[1].score
 
 
 class TestMarkerOnlyDetection:
