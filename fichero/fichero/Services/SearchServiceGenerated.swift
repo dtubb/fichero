@@ -1,7 +1,6 @@
-// swiftlint:disable file_length
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OpenAPIRuntime
 import OSLog
 
@@ -17,7 +16,6 @@ struct KeywordCloudEntryDTO: Decodable, Identifiable {
 
 @MainActor
 @Observable
-// swiftlint:disable:next type_body_length
 class SearchServiceGenerated {
     struct SearchRequestOptions {
         let query: String
@@ -139,169 +137,6 @@ class SearchServiceGenerated {
         case .ok(let okResponse):
             let result = try okResponse.body.json
             return EmbedStatus(documentId: result.documentId, embedded: result.embedded)
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
-        }
-    }
-
-    // MARK: - Saved Searches
-
-    /// List all saved searches.  GET /api/search/saved
-    func listSavedSearches() async throws -> [Components.Schemas.SavedSearchResponse] {
-        let response = try await client.api.listSavedSearchesApiSearchSavedGet(
-            .init()
-        )
-
-        switch response {
-        case .ok(let okResponse):
-            return try okResponse.body.json.items
-        case .undocumented(let statusCode, _):
-            throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
-        }
-    }
-
-    /// Save a search.  POST /api/search/saved
-    func saveSearch(
-        query: String,
-        isSmartSearch: Bool = true,
-        filters: [String: any Sendable]? = nil,
-        searchType: String = "hybrid",
-        sortBy: String = "relevance",
-        sortDirection: String = "desc",
-        folderPath: String = "/",
-        sortOrder: Int = 0
-    ) async throws -> Components.Schemas.SavedSearchResponse {
-        let filtersPayload: Components.Schemas.SavedSearchCreate.FiltersPayload? = try filters.map { dict in
-            let container = try OpenAPIObjectContainer(unvalidatedValue: dict)
-            return Components.Schemas.SavedSearchCreate.FiltersPayload(additionalProperties: container)
-        }
-
-        let createRequest = Components.Schemas.SavedSearchCreate(
-            query: query,
-            isSmartSearch: isSmartSearch,
-            filters: filtersPayload,
-            searchType: searchType,
-            sortBy: sortBy,
-            sortDirection: sortDirection,
-            folderPath: folderPath,
-            sortOrder: sortOrder
-        )
-
-        let response = try await client.api.saveSearchApiSearchSavedPost(
-            .init(
-                body: .json(createRequest)
-            )
-        )
-
-        switch response {
-        case .ok(let okResponse):
-            return try okResponse.body.json
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
-        }
-    }
-
-    /// Update a saved search.  PUT /api/search/saved/{search_id}
-    func updateSavedSearch(
-        searchId: String,
-        query: String? = nil,
-        isSmartSearch: Bool? = nil,
-        filters: [String: any Sendable]? = nil,
-        searchType: String? = nil,
-        sortBy: String? = nil,
-        sortDirection: String? = nil,
-        folderPath: String? = nil
-    ) async throws -> Components.Schemas.SavedSearchResponse {
-        let filtersPayload: Components.Schemas.SavedSearchUpdate.FiltersPayload? = try filters.map { dict in
-            let container = try OpenAPIObjectContainer(unvalidatedValue: dict)
-            return Components.Schemas.SavedSearchUpdate.FiltersPayload(additionalProperties: container)
-        }
-
-        let updateRequest = Components.Schemas.SavedSearchUpdate(
-            query: query,
-            isSmartSearch: isSmartSearch,
-            filters: filtersPayload,
-            searchType: searchType,
-            sortBy: sortBy,
-            sortDirection: sortDirection,
-            folderPath: folderPath
-        )
-
-        let response = try await client.api.updateSavedSearchApiSearchSavedSearchIdPut(
-            .init(
-                path: .init(searchId: searchId),
-                body: .json(updateRequest)
-            )
-        )
-
-        switch response {
-        case .ok(let okResponse):
-            return try okResponse.body.json
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
-        }
-    }
-
-    /// Delete a saved search.  DELETE /api/search/saved/{search_id}
-    func deleteSavedSearch(searchId: String) async throws {
-        let response = try await client.api.deleteSavedSearchApiSearchSavedSearchIdDelete(
-            .init(
-                path: .init(searchId: searchId),
-            )
-        )
-
-        switch response {
-        case .ok:
-            return
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
-        }
-    }
-
-    /// Duplicate a saved search.  POST /api/search/saved/{search_id}/duplicate
-    func duplicateSavedSearch(searchId: String) async throws -> Components.Schemas.SavedSearchResponse {
-        let response = try await client.api.duplicateSavedSearchApiSearchSavedSearchIdDuplicatePost(
-            .init(
-                path: .init(searchId: searchId),
-            )
-        )
-
-        switch response {
-        case .ok(let okResponse):
-            return try okResponse.body.json
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
-        }
-    }
-
-    /// Reorder saved searches.  POST /api/search/saved/reorder
-    /// Note: The backend returns an untyped object response, so we re-fetch the list after reordering
-    func reorderSavedSearches(ids: [String]) async throws -> [Components.Schemas.SavedSearchResponse] {
-        let response = try await client.api.reorderSavedSearchesApiSearchSavedReorderPost(
-            .init(
-                body: .json(ids)
-            )
-        )
-
-        switch response {
-        case .ok:
-            // The response is an untyped object; re-fetch the saved searches to get typed response
-            return try await listSavedSearches()
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
