@@ -145,5 +145,6 @@ struct WorkflowToolbar: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .help("Workflow Actions")
+        .accessibilityLabel("Workflow Actions")
     }
 }
