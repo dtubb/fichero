@@ -56,8 +56,9 @@ def generate_model_description(model_data: dict) -> str:
     if caps:
         parts.append(", ".join(caps))
 
-    input_cost = model_data.get("input_cost_per_million", 0)
-    if input_cost == 0:
+    input_cost = model_data.get("input_cost_per_million")
+    output_cost = model_data.get("output_cost_per_million")
+    if input_cost == 0 and output_cost == 0:
         parts.append("free")
 
     if not parts:
@@ -281,8 +282,8 @@ class ModelResponse(BaseModel):
     is_local: bool = False  # True for Ollama/LM Studio/Apple - shows "Free" in UI
 
     # Pricing (per million tokens)
-    input_cost_per_million: float = 0
-    output_cost_per_million: float = 0
+    input_cost_per_million: Optional[float] = None
+    output_cost_per_million: Optional[float] = None
     batch_input_cost_per_million: Optional[float] = None  # Batch API pricing
     batch_output_cost_per_million: Optional[float] = None
     cache_read_cost_per_million: Optional[float] = None  # Prompt caching

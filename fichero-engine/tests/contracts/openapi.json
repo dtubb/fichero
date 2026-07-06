@@ -48497,13 +48497,13 @@
           },
           "input_cost_per_million": {
             "type": "number",
-            "title": "Input Cost Per Million",
-            "default": 0
+            "nullable": true,
+            "title": "Input Cost Per Million"
           },
           "output_cost_per_million": {
             "type": "number",
-            "title": "Output Cost Per Million",
-            "default": 0
+            "nullable": true,
+            "title": "Output Cost Per Million"
           },
           "batch_input_cost_per_million": {
             "type": "number",

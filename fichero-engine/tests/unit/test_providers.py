@@ -389,6 +389,41 @@ class TestProviderAPIRoutes:
         assert qwen3["supports_vision"] is True
         assert qwen3["supports_pdf_input"] is True
 
+    def test_list_models_preserves_unknown_pricing_without_marking_free(self, client):
+        from fichero.api.routes.provider_models import generate_model_description
+
+        fake_models = [{
+            "model_id": "gpt-opaque",
+            "full_name": "openai/gpt-opaque",
+            "description": None,
+            "input_cost_per_million": None,
+            "output_cost_per_million": 10.0,
+            "supports_vision": False,
+            "supports_function_calling": False,
+            "supports_audio_input": False,
+            "supports_audio_output": False,
+            "supports_pdf_input": False,
+            "supports_prompt_caching": False,
+            "supports_reasoning": False,
+            "supports_web_search": False,
+            "supports_streaming": True,
+            "supports_batch_api": False,
+            "provider": "openai",
+            "mode": "chat",
+        }]
+
+        with patch("fichero.llm.list_models_for_provider", return_value=fake_models):
+            response = client.get("/api/providers/models/openai")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["count"] >= 1
+        opaque = next(item for item in payload["items"] if item["model_id"] == "gpt-opaque")
+        assert opaque["input_cost_per_million"] is None
+        assert opaque["output_cost_per_million"] == 10.0
+        assert opaque["description"] is None
+        assert generate_model_description(opaque) is None
+
     def test_api_key_status(self, client):
         """Test GET /api/providers/{provider_type}/api-key/status"""
         with patch("fichero.api.routes.provider_keys.has_api_key") as mock_has:
