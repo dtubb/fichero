@@ -1934,5 +1934,6 @@ def save_claim(
     canonical = _find_cross_source_canonical_claim(db, claim)
     if canonical is not None:
         _merge_corroborating_claim(db, canonical, claim)
+        return canonical.id
     db.save(claim)
     return claim.id
