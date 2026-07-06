@@ -264,3 +264,129 @@ async def test_parallel_route_map_honours_needs_human_branch(monkeypatch):
     assert branch_calls == ["human"]
     assert "branch-human" in final_state["completed_nodes"]
     assert "branch-parallel" not in final_state.get("completed_nodes", set())
+
+
+@pytest.mark.asyncio
+async def test_unknown_value_routes_to_dedicated_human_branch(monkeypatch):
+    """Unknown route values should surface to human review when that branch exists."""
+    branch_calls: list[str] = []
+
+    async def files_tool(inputs, state, llm_config):
+        return {"files": ["/tmp/doc.pdf"], "documents": []}
+
+    async def classify_tool(inputs, state, llm_config):
+        return {"script_type": "totally-unknown", "needs_human_selection": False}
+
+    async def transcribe_branch(inputs, state, llm_config):
+        branch_calls.append("transcribe")
+        return {"text": "transcribe branch"}
+
+    async def human_review_branch(inputs, state, llm_config):
+        branch_calls.append("human")
+        return {"text": "human review required"}
+
+    tools = {
+        "files": files_tool,
+        "classify_script": classify_tool,
+        "transcribe": transcribe_branch,
+        "human_review": human_review_branch,
+    }
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool",
+        lambda tool_name: tools.get(tool_name),
+    )
+
+    workflow = WorkflowDef(
+        name="UnknownValueNeedsHumanRoute",
+        nodes=[
+            NodeDef(id="files", tool="files", config={}),
+            NodeDef(id="classify", tool="classify_script", config={}),
+            NodeDef(id="branch-transcribe", tool="transcribe", config={}),
+            NodeDef(id="branch-human", tool="human_review", config={}),
+        ],
+        edges=[
+            EdgeDef(source="files", target="classify", source_port="files", target_port="files"),
+            EdgeDef(
+                source="classify",
+                target="",
+                route_key="$.nodes.classify.script_type",
+                route_map={
+                    "typescript": "branch-transcribe",
+                    "needs_human_selection": "branch-human",
+                },
+            ),
+        ],
+    )
+
+    from fichero.workflows.builder import build_graph
+
+    final_state = await build_graph(workflow, enable_parallel=False).ainvoke(
+        {"workflow_id": "wf-2238-unknown-human", "library_path": ""}
+    )
+
+    assert branch_calls == ["human"]
+    assert "branch-human" in final_state["completed_nodes"]
+    assert "branch-transcribe" not in final_state.get("completed_nodes", set())
+
+
+@pytest.mark.asyncio
+async def test_parallel_unknown_value_routes_to_dedicated_human_branch(monkeypatch):
+    """Parallel route_map should not fan out on unknown values when a human branch exists."""
+    branch_calls: list[str] = []
+
+    async def files_tool(inputs, state, llm_config):
+        return {"files": ["/tmp/doc-1.pdf", "/tmp/doc-2.pdf"], "documents": []}
+
+    async def classify_tool(inputs, state, llm_config):
+        return {"script_type": "totally-unknown", "needs_human_selection": False}
+
+    async def transcribe_branch(inputs, state, llm_config):
+        branch_calls.append(f"parallel:{inputs.get('file')}")
+        return {"text": "parallel branch"}
+
+    async def human_review_branch(inputs, state, llm_config):
+        branch_calls.append("human")
+        return {"text": "human review required"}
+
+    tools = {
+        "files": files_tool,
+        "classify_script": classify_tool,
+        "transcribe": transcribe_branch,
+        "human_review": human_review_branch,
+    }
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool",
+        lambda tool_name: tools.get(tool_name),
+    )
+
+    workflow = WorkflowDef(
+        name="ParallelUnknownValueNeedsHumanRoute",
+        nodes=[
+            NodeDef(id="files", tool="files", config={}),
+            NodeDef(id="classify", tool="classify_script", config={}),
+            NodeDef(id="branch-parallel", tool="transcribe", config={}),
+            NodeDef(id="branch-human", tool="human_review", config={}),
+        ],
+        edges=[
+            EdgeDef(source="files", target="classify", source_port="files", target_port="files"),
+            EdgeDef(
+                source="classify",
+                target="",
+                route_key="$.nodes.classify.script_type",
+                route_map={
+                    "typescript": "branch-parallel",
+                    "needs_human_selection": "branch-human",
+                },
+            ),
+        ],
+    )
+
+    from fichero.workflows.builder import build_graph
+
+    final_state = await build_graph(workflow, enable_parallel=True).ainvoke(
+        {"workflow_id": "wf-2238-parallel-unknown-human", "library_path": ""}
+    )
+
+    assert branch_calls == ["human"]
+    assert "branch-human" in final_state["completed_nodes"]
+    assert "branch-parallel" not in final_state.get("completed_nodes", set())
