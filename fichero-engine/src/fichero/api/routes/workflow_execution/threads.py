@@ -27,7 +27,7 @@ from fichero.workflows.run_status import (
 # `threads.AsyncDuckDBCheckpointer.from_db_path`.
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 
-from .schemas import ThreadListResponse
+from .schemas import ThreadListResponse, workflow_internal_error
 from .core import get_thread_status
 
 logger = logging.getLogger(__name__)
@@ -502,7 +502,7 @@ async def get_thread_history(
         raise
     except Exception as e:
         logger.exception(f"Failed to get history for thread {thread_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to get workflow history")
 
 
 @router.get("/threads")
@@ -540,7 +540,7 @@ async def list_threads(
 
     except Exception as e:
         logger.exception("Failed to list threads")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to list workflow threads")
 
 
 @router.delete("/threads/{thread_id}")
@@ -610,7 +610,7 @@ async def delete_thread(
         raise
     except Exception as e:
         logger.exception(f"Failed to delete thread {thread_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to delete workflow thread")
 
 
 class CancelResponse(BaseModel):
@@ -797,7 +797,7 @@ async def get_workflow_run(
         raise
     except Exception as e:
         logger.exception(f"Failed to get workflow run for thread {thread_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to get workflow run")
 
 
 @router.get("/threads/{thread_id}/diagram.png")
@@ -849,7 +849,7 @@ async def get_thread_diagram_png(
         raise
     except Exception as e:
         logger.exception(f"Failed to generate diagram for thread {thread_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to generate workflow diagram")
 
 
 @router.get("/threads/{thread_id}/diagram.svg")
@@ -881,4 +881,4 @@ async def get_thread_diagram_svg(
         raise
     except Exception as e:
         logger.exception(f"Failed to generate SVG diagram for thread {thread_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to generate workflow diagram")

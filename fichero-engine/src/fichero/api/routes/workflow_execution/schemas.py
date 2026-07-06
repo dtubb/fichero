@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from typing import Any
 
+from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 
@@ -103,3 +104,12 @@ def format_sse(event: SSEEvent) -> str:
     # Debug: log every SSE event being sent
     print(f"[SSE-YIELD] {event.event}: {str(event.data)[:80]}...")
     return formatted
+
+
+def workflow_internal_error(message: str) -> HTTPException:
+    """Shared 500 shape for workflow-execution routes.
+
+    ponytail: keep the client-visible body stable and generic; the route logger
+    already has the real exception text.
+    """
+    return HTTPException(status_code=500, detail=message)

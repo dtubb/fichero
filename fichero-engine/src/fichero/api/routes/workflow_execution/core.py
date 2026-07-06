@@ -44,6 +44,7 @@ from .schemas import (
     ExecutionStatusResponse,
     ResumeWorkflowRequest,
     format_sse,
+    workflow_internal_error,
 )
 from .runner import (
     WorkflowEventHub,
@@ -347,7 +348,7 @@ async def execute_workflow(
         raise
     except Exception as e:
         logger.exception(f"Failed to start workflow {request.workflow_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to start workflow")
 
 
 def _resume_argument(request: "ResumeWorkflowRequest | None") -> Any:
@@ -495,7 +496,7 @@ async def resume_workflow(
         raise
     except Exception as e:
         logger.exception(f"Failed to resume workflow thread {thread_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to resume workflow")
 
 
 @router.get("/threads/{thread_id}/status")
@@ -589,4 +590,4 @@ async def get_thread_status(
         raise
     except Exception as e:
         logger.exception(f"Failed to get status for thread {thread_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to get workflow status")

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from fichero.db import Database
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.workflows.cache import get_node_cache
+from .schemas import workflow_internal_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -65,7 +66,7 @@ async def get_workflow_cache_stats(
 
     except Exception as e:
         logger.exception(f"Failed to get cache stats for workflow {workflow_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to get workflow cache stats")
 
 
 @router.delete("/workflows/{workflow_id}/cache")
@@ -95,7 +96,7 @@ async def clear_workflow_cache(
 
     except Exception as e:
         logger.exception(f"Failed to clear cache for workflow {workflow_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to clear workflow cache")
 
 
 @router.delete("/cache")
@@ -120,7 +121,7 @@ async def clear_all_cache(
 
     except Exception as e:
         logger.exception("Failed to clear cache")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to clear workflow cache")
 
 
 @router.get("/cache/stats")
@@ -143,4 +144,4 @@ async def get_all_cache_stats(
 
     except Exception as e:
         logger.exception("Failed to get cache stats")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to get workflow cache stats")

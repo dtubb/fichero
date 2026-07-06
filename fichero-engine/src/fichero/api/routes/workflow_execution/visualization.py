@@ -11,6 +11,7 @@ from fichero.workflows.workflow_store import WorkflowStore
 from fichero.workflows.runtime import to_workflow_def
 
 from .runner import _generate_workflow_python_code
+from .schemas import workflow_internal_error
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -94,7 +95,7 @@ async def get_workflow_visualization(
         raise
     except Exception as e:
         logger.exception(f"Failed to generate visualization for workflow {workflow_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to generate workflow visualization")
 
 
 @router.get("/workflows/{workflow_id}/visualization.png")
@@ -157,4 +158,4 @@ async def get_workflow_code(
         raise
     except Exception as e:
         logger.exception(f"Failed to export code for workflow {workflow_id}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise workflow_internal_error("Failed to export workflow code")

@@ -343,6 +343,16 @@ class TestCacheStats:
             r = client.get(f"/api/workflow-execution/workflows/{wf.id}/cache/stats")
         assert r.status_code == 200
 
+    def test_cache_stats_hides_internal_exception_details(self, client, db):
+        wf = _make_workflow(db)
+        with patch(
+            "fichero.api.routes.workflow_execution.cache.get_node_cache",
+            side_effect=RuntimeError("cache exploded with secret details"),
+        ):
+            r = client.get(f"/api/workflow-execution/workflows/{wf.id}/cache/stats")
+        assert r.status_code == 500
+        assert r.json() == {"detail": "Failed to get workflow cache stats"}
+
 
 # ---------------------------------------------------------------------------
 # DELETE /api/workflow-execution/workflows/{workflow_id}/cache
@@ -611,6 +621,15 @@ class TestExecuteWorkflow:
         assert r.status_code == 400
         assert "workflow reference cycle detected: wf-self-cycle -> wf-self-cycle" in r.json()["detail"]
 
+    def test_get_status_hides_internal_exception_details(self, client):
+        with patch(
+            "fichero.api.routes.workflow_execution.core.AsyncDuckDBCheckpointer.from_db_path",
+            side_effect=RuntimeError("checkpoint secret details"),
+        ):
+            r = client.get("/api/workflow-execution/threads/thread-secret/status")
+        assert r.status_code == 500
+        assert r.json() == {"detail": "Failed to get workflow status"}
+
 
 class TestGetWorkflowRun:
     def test_get_workflow_run_returns_saved_execution_data(self, client, db):
@@ -728,6 +747,18 @@ class TestThreadDiagramSvg:
         assert r.status_code == 200
         assert r.headers["content-type"].startswith("image/svg+xml")
         assert "data:image/png;base64," in r.text
+
+
+class TestWorkflowVisualizationHardening:
+    def test_visualization_hides_internal_exception_details(self, client, db):
+        wf = _make_workflow(db, "Visualize Me")
+        with patch(
+            "fichero.api.routes.workflow_execution.visualization.to_workflow_def",
+            side_effect=RuntimeError("mermaid secret details"),
+        ):
+            r = client.get(f"/api/workflow-execution/workflows/{wf.id}/visualization")
+        assert r.status_code == 500
+        assert r.json() == {"detail": "Failed to generate workflow visualization"}
 
 
 # ---------------------------------------------------------------------------
