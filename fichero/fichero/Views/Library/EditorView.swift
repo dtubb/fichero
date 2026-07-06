@@ -212,63 +212,6 @@ struct EditorView: View {
     // threaded through `DocumentCanvas`. This removed the overlap with the split
     // control (#2421). See `previewContent(_:)` `.storageDisplay`.
 
-    // MARK: - Text Preview
-
-    private func textPreview(_ doc: Document) -> some View {
-        ScrollView {
-            if let content = doc.pageContent {
-                Text(content)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-            } else {
-                Text("No content available")
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .background(Color(platformColor: .textBackgroundColor))
-    }
-
-    // MARK: - Generic Preview
-
-    private func genericPreview(_ doc: Document) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: doc.fileType?.icon ?? "doc")
-                .font(.system(size: 64))
-                .foregroundColor(.secondary)
-
-            Text(doc.name)
-                .font(.headline)
-
-            if let fileType = doc.fileType {
-                Text(fileType.rawValue.uppercased())
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.2))
-                    .cornerRadius(4)
-            }
-
-            // Show content if available
-            if let content = doc.pageContent {
-                ScrollView {
-                    Text(content)
-                        .font(.body)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 200)
-                .background(Color(platformColor: .textBackgroundColor))
-                .cornerRadius(8)
-                .padding(.horizontal)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-
     // MARK: - Empty State
 
     private var emptyState: some View {
