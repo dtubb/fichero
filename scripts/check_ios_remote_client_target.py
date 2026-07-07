@@ -28,7 +28,14 @@ def collect_violations(root: Path = ROOT) -> list[str]:
         ),
         "shared OpenAPI client package supports iOS": ".iOS(" in package,
         "iOS app entry is platform-gated": "#if os(iOS)" in ios_app,
-        "iOS startup requires a configured engine host": "guard EngineConfig.hasConfiguredHost" in ios_app,
+        # iOS without a configured host must route to the paired companion,
+        # NEVER a local engine. #3109 centralized this in EngineConfig's
+        # provisioning strategy (was a `guard EngineConfig.hasConfiguredHost`
+        # in FicheroApp_iOS.swift, removed in the refactor); verify the strategy
+        # itself so the guardrail tracks the real enforcement, not a moved detail.
+        "iOS without a configured host routes to the companion, never localhost": (
+            "hasExplicitConfiguredHost ? .configuredRemote : .iosCompanion" in engine_config
+        ),
         "non-macOS backend start does not launch embedded Python": (
             "#if os(macOS)" in embedded_backend
             and 'errorMessage = "No remote engine host configured. Set a custom host in Settings."' in embedded_backend

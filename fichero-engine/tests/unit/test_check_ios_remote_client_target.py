@@ -26,13 +26,15 @@ def _write_minimal_repo(root: Path) -> None:
     )
     (root / "fichero/fichero-api-client/Package.swift").write_text(".iOS(.v17)\n", encoding="utf-8")
     (root / "fichero/fichero/FicheroApp_iOS.swift").write_text(
-        "#if os(iOS)\n"
-        "guard EngineConfig.hasConfiguredHost else { return }\n",
+        "#if os(iOS)\n",
         encoding="utf-8",
     )
     (root / "fichero/fichero/Services/EngineConfig.swift").write_text(
         "allowsImplicitEmbeddedLocalDefault: false\n"
-        "iOS/iPadOS never runs a local engine\n",
+        "iOS/iPadOS never runs a local engine\n"
+        # The provisioning strategy is the real enforcement (#3109): iOS with
+        # no configured host resolves to the paired companion, never localhost.
+        "return inputs.hasExplicitConfiguredHost ? .configuredRemote : .iosCompanion\n",
         encoding="utf-8",
     )
     (root / "fichero/fichero/Services/EmbeddedBackendService.swift").write_text(
