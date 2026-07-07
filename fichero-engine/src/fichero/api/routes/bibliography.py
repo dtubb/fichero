@@ -501,6 +501,8 @@ def _bulk_import_impl(
 
     Returns ``(created_document_ids, entries)``.
     """
+    from fichero.models import DocType
+
     entries = _parse_bibliography(text, fmt)
     if not entries:
         raise HTTPException(400, "No parsable bibliography records found")
@@ -513,7 +515,6 @@ def _bulk_import_impl(
         parent_id = parent.id
     else:
         # Create a new collection to hold the imported entries
-        from fichero.models import DocType
         parent = Document(
             name=f"Bibliography Import {datetime.now().strftime('%Y-%m-%d %H:%M')}",
             doc_type=DocType.folder,
