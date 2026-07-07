@@ -301,7 +301,12 @@ struct SearchResultRowFromAPI: View {
 
     private static func cleanedExcerptText(_ text: String?) -> String? {
         guard let text else { return nil }
-        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Stored transcript/excerpt text can be RTF ({\rtf…}); a raw List row
+        // would show the escape sequences (#2502). Decode to plain text first —
+        // the codec passes non-RTF through unchanged, so this is a no-op for the
+        // common plain-text case.
+        let decoded = ArtifactRichTextCodec.decode(text).string
+        let cleaned = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
         return cleaned.isEmpty ? nil : cleaned
     }
 }
