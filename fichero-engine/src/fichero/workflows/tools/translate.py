@@ -22,7 +22,8 @@ from fichero.workflows.types import DataType, PortDef, State
 TOOL_CONFIG = LLMToolConfig(
     artifact_type="translation",
     update_page_content=False,
-    trigger_embedding=False,
+    trigger_embedding=True,
+    embedding_scope="translation",
     metadata_field="translation",
 )
 

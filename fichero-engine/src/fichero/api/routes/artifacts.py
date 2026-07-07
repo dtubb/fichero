@@ -11,10 +11,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.library_header import optional_library_path
 from fichero.api.auth import request_actor
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
+from fichero.llm import LLMConfig, translate_text
 from fichero.models import Artifact, ArtifactTypeListResponse, Document
 
 logger = logging.getLogger(__name__)
@@ -165,6 +166,18 @@ def _delete_artifact_impl(db: Database, artifact_id: str) -> dict[str, Any]:
             status_code=404, detail=f"Artifact not found: {artifact_id}"
         )
     before = artifact.model_dump(mode="json")
+    # Translation and other artifact-scope embeddings must be removed when the
+    # artifact is deleted so stale vectors don't linger in search results.
+    if artifact.artifact_type == "translation":
+        try:
+            db.delete_artifact_embeddings(artifact_id, embedding_scope="translation")
+        except Exception:
+            logger.debug("No translation embedding rows for %s (expected on first delete)", artifact_id)
+    elif artifact.artifact_type == "translation_review":
+        try:
+            db.delete_artifact_embeddings(artifact_id, embedding_scope="translation")
+        except Exception:
+            logger.debug("No translation embedding rows for %s (expected on first delete)", artifact_id)
     db.delete(artifact)
     logger.info(f"Deleted artifact {artifact_id}")
     return before
@@ -515,5 +528,116 @@ def _action_restore_artifact(
         emit_type="artifact.created",
         artifact_ids=[artifact.id],
         document_ids=[artifact.document_id],
+    )
+    return _artifact_response(artifact).model_dump(mode="json"), spec
+
+
+# =============================================================================
+# artifact.translate action (#3325)
+# =============================================================================
+
+
+class ArtifactTranslateParams(BaseModel):
+    """Request to translate a document and persist the result as a searchable artifact.
+
+    Wraps the engine's translation path (DeepL when configured, LLM fallback)
+    in an audited action so SwiftUI, chat, and App Intents can trigger a
+    translation without authoring a workflow.  The resulting artifact is
+    embedded with ``embedding_scope='translation'`` so it is discoverable by
+    semantic and fulltext search alongside the original.
+    """
+
+    document_id: str = Field(description="Document to translate")
+    target_lang: str = Field(description="Target language (e.g. 'en', 'es', 'fr')")
+    source_lang: str = Field(default="auto", description="Source language ('auto' to detect)")
+    provider: str | None = Field(default=None, description="LLM provider override (optional)")
+
+
+class ArtifactTranslateUndoParams(BaseModel):
+    artifact_id: str
+
+
+def _invert_translate(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a translation by deleting the artifact (and its vectors)."""
+    if not after or "artifact_id" not in after:
+        return None
+    return ("artifact.delete", {"artifact_id": after["artifact_id"]})
+
+
+@action(
+    "artifact.translate",
+    ArtifactTranslateParams,
+    domains=["artifact", "document"],
+    undoable=True,
+    invert=_invert_translate,
+)
+def _action_translate(
+    db: Database, params: ArtifactTranslateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Translate a document and persist the result as a searchable artifact."""
+    import asyncio
+
+
+    doc = db.get(Document, params.document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {params.document_id}")
+
+    text = getattr(doc, "page_content", None) or ""
+    if not text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail=f"Document {params.document_id} has no text content to translate",
+        )
+
+    # Build an LLMConfig — explicit provider wins, else default
+    llm_config = LLMConfig(
+        provider=params.provider or "openai",
+        model="gpt-4o-mini",
+    )
+
+    # Run the translation (async, off the sync action handler)
+    translated = asyncio.get_event_loop().run_until_complete(
+        translate_text(
+            text,
+            source_lang=params.source_lang,
+            target_lang=params.target_lang,
+            config=llm_config,
+        )
+    )
+
+    # Save the translation artifact
+    from fichero.models import Artifact as ArtifactModel
+
+    artifact = ArtifactModel(
+        document_id=params.document_id,
+        source_document_id=params.document_id,
+        artifact_type="translation",
+        content=translated,
+        provider=llm_config.provider,
+        model=llm_config.model,
+    )
+    db.save(artifact)
+
+    # Embed the translation content with the translation scope
+    try:
+        db.embed_artifact_content(
+            doc, translated, artifact_id=artifact.id,
+            embedding_scope="translation",
+        )
+    except Exception as embed_exc:
+        logger.error(
+            "Translation embedding failed for artifact %s on doc %s: %s",
+            artifact.id, params.document_id, embed_exc,
+        )
+
+    spec = ChangeSpec(
+        domains=["artifact", "document"],
+        target_ids=[artifact.id],
+        after={"artifact_id": artifact.id, "document_id": params.document_id},
+        emit_type="artifact.created",
+        artifact_ids=[artifact.id],
+        document_ids=[params.document_id],
     )
     return _artifact_response(artifact).model_dump(mode="json"), spec

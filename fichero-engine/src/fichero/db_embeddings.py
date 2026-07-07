@@ -17,6 +17,8 @@ import re
 import threading
 from typing import Any, Callable, Literal
 
+from fichero.errors import ErrorCategory, handle_error
+
 logger = logging.getLogger(__name__)
 
 # Default embedding model (FastEmbed - no scikit-learn dependency).
@@ -930,6 +932,158 @@ class DatabaseEmbeddingMixin:
                 }
             )
         return records
+
+    def embed_artifact_content(
+        self,
+        doc,
+        text: str,
+        *,
+        artifact_id: str,
+        embedding_scope: str = "translation",
+        max_chars: int = 512,
+        overlap_chars: int = 80,
+    ) -> int:
+        """Embed an artifact's content with a scoped label.
+
+        Translations and other derived representations are stored in the same
+        LanceDB embeddings table but with ``embedding_scope`` set to the
+        artifact type (e.g. ``"translation"``).  This makes them searchable
+        alongside the original document while keeping the passage-scope
+        vectors untouched.  Previous artifact-scope vectors for the same
+        *artifact_id* are removed before inserting new ones (re-translation
+        idempotency).
+
+        Args:
+            doc: The source Document the artifact belongs to.
+            text: The artifact content to embed (e.g. translated text).
+            artifact_id: The Artifact.id — used to scope deletion so
+                re-translations replace, not accumulate.
+            embedding_scope: Scope label for the vectors (default
+                ``"translation"``).
+            max_chars: Passage chunk size.
+            overlap_chars: Overlap between chunks.
+
+        Returns:
+            Number of passage records inserted.
+        """
+        if not text or len(text.strip()) < 10:
+            return 0
+
+        document_id = getattr(doc, "id", None)
+        if not document_id:
+            return 0
+
+        # Build passage units from the artifact text, keyed to the source
+        # document so search finds the document when querying by translation.
+        units = split_text_passages(
+            text,
+            document_id=document_id,
+            page_id=document_id,
+            max_chars=max_chars,
+            overlap_chars=overlap_chars,
+        )
+        # Override the default "passage" kind with the artifact scope.
+        units = [
+            EmbeddableUnit(
+                id=f"{u.id}:{embedding_scope}",
+                text=u.text,
+                anchor=u.anchor,
+                kind=embedding_scope,
+            )
+            for u in units
+        ]
+        if not units:
+            return 0
+
+        # Embed all passages in one forward pass.
+        if len(units) == 1:
+            vectors = [self._embed_text(units[0].text, role="passage")]
+        else:
+            vectors = self._embed_texts([u.text for u in units], role="passage")
+
+        records = []
+        for unit, vector in zip(units, vectors):
+            stored_vector = vector
+            quantized_vector: list[int] | None = None
+            quantized_scale: float | None = None
+            if self._use_int8_embeddings():
+                quantized_vector, quantized_scale = _quantize_int8(vector)
+                stored_vector = _dequantize_int8(quantized_vector, quantized_scale)
+
+            records.append(
+                {
+                    "id": unit.id,
+                    "document_id": document_id,
+                    "text": unit.text,
+                    "vector": stored_vector,
+                    "embedding_scope": embedding_scope,
+                    "passage_id": unit.id,
+                    "page_id": document_id,
+                    "char_start": unit.anchor.char_start,
+                    "char_end": unit.anchor.char_end,
+                    "artifact_id": artifact_id,
+                    "name": getattr(doc, "name", None),
+                    "doc_type": (
+                        getattr(doc, "doc_type", None).value
+                        if hasattr(doc, "doc_type") and doc.doc_type
+                        else None
+                    ),
+                    "file_type": (
+                        getattr(doc, "file_type", None).value
+                        if hasattr(doc, "file_type") and doc.file_type
+                        else None
+                    ),
+                    "vector_int8": quantized_vector,
+                    "vector_scale": quantized_scale,
+                    **self._vector_model_metadata(),
+                }
+            )
+
+        # Delete previous vectors for this artifact (re-translation replaces).
+        with self._lock:
+            self._delete_artifact_embedding_rows(artifact_id, embedding_scope)
+            self.save_vectors(EMBEDDINGS_TABLE, records)
+        return len(records)
+
+    def _delete_artifact_embedding_rows(
+        self, artifact_id: str, embedding_scope: str
+    ) -> None:
+        """Delete embedding rows scoped to one artifact (re-translation replaces).
+
+        Uses a compound filter on ``embedding_scope`` + ``artifact_id`` so the
+        document's own passage vectors are never touched.
+        """
+        if EMBEDDINGS_TABLE not in self._lance_tables():
+            return
+        safe_id = artifact_id.replace("'", "''")
+        safe_scope = embedding_scope.replace("'", "''")
+        table = self.lance.open_table(EMBEDDINGS_TABLE)
+        table.delete(f"artifact_id = '{safe_id}' AND embedding_scope = '{safe_scope}'")
+
+    def delete_artifact_embeddings(
+        self, artifact_id: str, embedding_scope: str = "translation"
+    ) -> bool:
+        """Public API: remove all embedding vectors for a given artifact.
+
+        Called when a translation artifact is deleted (undo / cleanup) so
+        stale vectors don't linger in search results.  Returns True if the
+        table existed (even if no rows matched).
+        """
+        try:
+            if EMBEDDINGS_TABLE not in self._lance_tables():
+                return False
+            with self._lock:
+                self._delete_artifact_embedding_rows(artifact_id, embedding_scope)
+            return True
+        except Exception as e:
+            error = handle_error(
+                e,
+                default_message=f"Failed to delete artifact embeddings for {artifact_id}",
+                category=ErrorCategory.DATABASE,
+                context={"artifact_id": artifact_id},
+            )
+            logger.warning("Artifact embedding deletion failed: %s", error.message)
+            return False
 
     def entity_embedding_text(self, entity) -> str:
         """Compose the canonical text stored/searched for one entity."""

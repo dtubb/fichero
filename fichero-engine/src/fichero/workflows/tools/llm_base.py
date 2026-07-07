@@ -362,6 +362,10 @@ class LLMToolConfig:
     # Whether to trigger re-embedding after update
     trigger_embedding: bool = False
 
+    # Embedding scope for vector records ("passage" for document content,
+    # "translation" for translation artifacts, etc.)
+    embedding_scope: str = "passage"
+
     # Default metadata field to update (None = don't update metadata)
     metadata_field: str | None = None
 
@@ -650,6 +654,27 @@ def _save_artifact_sync(
                             doc.id,
                             embed_exc,
                         )
+            elif tool_config.trigger_embedding and not tool_config.update_page_content:
+                # Artifact-content embedding (e.g. translations): embed the
+                # artifact text with a scoped label so it's searchable alongside
+                # the original document but distinguishable in results.  The
+                # document's own passage embeddings are untouched — only the
+                # artifact-scope vectors are added/deleted.
+                try:
+                    db.embed_artifact_content(
+                        doc, content, artifact_id=artifact_id,
+                        embedding_scope=tool_config.embedding_scope,
+                    )
+                    logger.info(
+                        "Embedded artifact %s content for %s (scope=%s)",
+                        artifact_id, doc.id, tool_config.embedding_scope,
+                    )
+                except Exception as embed_exc:
+                    logger.error(
+                        "Artifact embedding FAILED for %s — "
+                        "artifact saved but not searchable: %s",
+                        artifact_id, embed_exc,
+                    )
             elif tool_config.update_page_content and user_edited:
                 logger.info(
                     f"Preserved user-edited page_content on {doc.id}; "
