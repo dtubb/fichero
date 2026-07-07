@@ -218,6 +218,11 @@ struct DocumentInspectorContentV2: View {
     }
 
     private func loadArtifacts() async {
+        // The page-content-only tab never renders artifacts (the artifact list
+        // is gated by `mode != .pageContentOnly`), so fetching them on every
+        // document selection is wasted work — and it flashed a stray "Loading
+        // artifacts…" spinner over the page editor (#3186).
+        guard mode != .pageContentOnly else { return }
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }

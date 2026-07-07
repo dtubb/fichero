@@ -27,6 +27,13 @@ final class ArtifactStore: ObservableDomainStore {
     /// calls `setScope`. The granular `apply(_:)` filters events against it.
     private(set) var currentDocumentId: String?
 
+    /// Whether the current scope includes descendant (page-child) artifacts. A
+    /// parent PDF's extractor workflows write per-page outputs to its page
+    /// children, so the Content tab loads with this true; the Artifacts tab
+    /// loads strict per-document (false). Part of the scope so `reload()` and the
+    /// idempotence check honor it (#3186).
+    private(set) var currentIncludeDescendants = false
+
     // ─── Transport: the EXISTING generated wrapper, unchanged ───
     private let artifactService: ArtifactServiceGenerated
     private let log = Logger(subsystem: "app.fichero.fichero", category: "ArtifactStore")
@@ -44,9 +51,13 @@ final class ArtifactStore: ObservableDomainStore {
     /// Point the store at `documentId` and load its artifacts. Idempotent: a
     /// repeated set of the same already-populated scope is a no-op unless
     /// `force` is set (reload button / post-mutation refresh).
-    func setScope(documentId: String, force: Bool = false) async {
-        if !force, currentDocumentId == documentId, !items.isEmpty { return }
+    func setScope(documentId: String, includeDescendants: Bool = false, force: Bool = false) async {
+        if !force,
+           currentDocumentId == documentId,
+           currentIncludeDescendants == includeDescendants,
+           !items.isEmpty { return }
         currentDocumentId = documentId
+        currentIncludeDescendants = includeDescendants
         await reload()
     }
 
@@ -59,7 +70,8 @@ final class ArtifactStore: ObservableDomainStore {
         do {
             items = try await artifactService.getArtifacts(
                 forDocumentId: documentId,
-                forceRefresh: true
+                forceRefresh: true,
+                includeDescendants: currentIncludeDescendants
             )
             log.debug(
                 "Loaded \(self.items.count, privacy: .public) artifacts for \(documentId, privacy: .public)"
