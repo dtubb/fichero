@@ -104,6 +104,12 @@ struct EntityDetailView: View {
     @State var showContradictionTriageSheet = false
     @State var showClaimReviewQueueSheet = false
 
+    /// Possible-duplicate candidates for this entity (#3317) from embedding
+    /// similarity. Review-only: a merge is always an explicit user action.
+    @State var duplicateCandidates: [DuplicateCandidate] = []
+    @State var isLoadingDuplicates = false
+    @State var duplicateActionMessage: String?
+
     /// Native multi-select for the claims (source-annotation SVO) List. (#1864)
     @State var selectedClaimIds: Set<String> = []
     @State var claimsToDelete: [Components.Schemas.KnowledgeClaim] = []
@@ -134,6 +140,7 @@ struct EntityDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     headerSection
                     aliasesSection
+                    possibleDuplicatesSection
                     mentionsSection
                     metadataSection
                     claimsSection
@@ -145,6 +152,7 @@ struct EntityDetailView: View {
             .task(id: entity.id) {
                 metadataJSON = Self.prettyMetadataJSON(entity)
                 await loadAudits()
+                await loadDuplicateCandidates()
             }
         }
     }

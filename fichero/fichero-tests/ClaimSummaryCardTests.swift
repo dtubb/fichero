@@ -324,6 +324,26 @@ final class ClaimSummaryCardTests: XCTestCase {
         )
     }
 
+    func testParseDuplicateCandidatesExcludesSelfAndWeakMatches() {
+        // #3317: the /semantic response includes the entity itself (score ~1.0)
+        // and weak matches; both must be dropped, cross-script variants kept.
+        let json = """
+        {"items":[
+          {"id":"self","canonical_name":"Andagoya","entity_type":"location","similarity_score":1.0},
+          {"id":"e2","canonical_name":"Andagóya","entity_type":"location","similarity_score":0.91},
+          {"id":"e3","name":"Andagoia","entity_type":"location","similarity_score":0.55},
+          {"id":"e4","canonical_name":"Weak","entity_type":"location","similarity_score":0.2}
+        ],"count":4}
+        """
+        let candidates = EntityDetailView.parseDuplicateCandidates(Data(json.utf8), excluding: "self")
+
+        XCTAssertEqual(candidates.map(\.id), ["e2", "e3"])   // self + weak(<0.4) dropped
+        XCTAssertEqual(candidates.first?.name, "Andagóya")   // cross-script variant kept
+        XCTAssertEqual(candidates.first?.score, 0.91)
+        XCTAssertEqual(candidates.last?.name, "Andagoia")    // "name" fallback when no canonical_name
+        XCTAssertTrue(EntityDetailView.parseDuplicateCandidates(Data(), excluding: "x").isEmpty)
+    }
+
     private func decodeClaim(_ json: String) throws -> Components.Schemas.KnowledgeClaim {
         let data = Data(json.utf8)
         let decoder = JSONDecoder()

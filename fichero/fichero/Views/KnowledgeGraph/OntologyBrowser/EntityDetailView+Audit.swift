@@ -137,3 +137,128 @@ extension EntityDetailView {
         }
     }
 }
+
+// MARK: - Possible Duplicates / Related Entities (#3317)
+
+/// A candidate duplicate/variant of the inspected entity, surfaced by embedding
+/// similarity (catches spelling/accent/cross-script variants that structural
+/// co-occurrence misses).
+struct DuplicateCandidate: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let entityType: String?
+    /// Similarity confidence in [0, 1].
+    let score: Double
+}
+
+extension EntityDetailView {
+    /// Review-only surface: lists likely duplicate entities with a confidence
+    /// indicator and a one-click, audited (undoable) merge in either direction.
+    /// The system never merges automatically (#3317).
+    @ViewBuilder
+    var possibleDuplicatesSection: some View {
+        if isLoadingDuplicates || !duplicateCandidates.isEmpty || duplicateActionMessage != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Label("Possible Duplicates", systemImage: "square.on.square")
+                        .font(.headline)
+                    if isLoadingDuplicates {
+                        ProgressView().controlSize(.small)
+                    }
+                    Spacer()
+                }
+                if let message = duplicateActionMessage {
+                    Text(message).font(.caption).foregroundStyle(.secondary)
+                }
+                if duplicateCandidates.isEmpty && !isLoadingDuplicates {
+                    Text("No likely duplicates found.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    ForEach(duplicateCandidates) { candidate in
+                        duplicateRow(candidate)
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    @ViewBuilder
+    private func duplicateRow(_ candidate: DuplicateCandidate) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(candidate.name).font(.body).lineLimit(1)
+                if let type = candidate.entityType {
+                    Text(type.capitalized).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 8)
+            Text("\(Int((candidate.score * 100).rounded()))%")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(candidate.score >= 0.85 ? Color.orange : .secondary)
+                .help("Similarity confidence")
+            Menu {
+                // One click per direction — the survivor is the user's choice
+                // (the #2499 destination pick, for a pair).
+                Button("Keep \"\(displayName)\"") { mergeDuplicate(candidate, keepThis: true) }
+                Button("Keep \"\(candidate.name)\"") { mergeDuplicate(candidate, keepThis: false) }
+            } label: {
+                Label("Merge", systemImage: "arrow.triangle.merge").font(.caption)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+        .padding(.vertical, 2)
+    }
+
+    func loadDuplicateCandidates() async {
+        guard let entityId = entity.id else { return }
+        isLoadingDuplicates = true
+        defer { isLoadingDuplicates = false }
+        do {
+            let data = try await entityService.searchEntitiesSemantic(
+                query: entity.canonicalName,
+                entityType: entity.entityType?.rawValue,
+                limit: 12
+            )
+            duplicateCandidates = Self.parseDuplicateCandidates(data, excluding: entityId)
+        } catch {
+            duplicateCandidates = []
+        }
+    }
+
+    /// Parse the `/semantic` response into candidates, dropping the entity
+    /// itself and weak matches. Exposed for tests.
+    static func parseDuplicateCandidates(_ data: Data, excluding entityId: String) -> [DuplicateCandidate] {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let items = obj["items"] as? [[String: Any]] else { return [] }
+        return items.compactMap { item -> DuplicateCandidate? in
+            guard let id = item["id"] as? String, id != entityId else { return nil }
+            let name = (item["canonical_name"] as? String) ?? (item["name"] as? String) ?? "Unknown"
+            let type = item["entity_type"] as? String
+            let score = (item["similarity_score"] as? Double) ?? (item["score"] as? Double) ?? 0
+            guard score >= 0.4 else { return nil }
+            return DuplicateCandidate(id: id, name: name, entityType: type, score: score)
+        }
+    }
+
+    func mergeDuplicate(_ candidate: DuplicateCandidate, keepThis: Bool) {
+        guard let entityId = entity.id else { return }
+        let survivorId = keepThis ? entityId : candidate.id
+        let absorbedId = keepThis ? candidate.id : entityId
+        Task {
+            do {
+                try await entityStore.merge(absorbedIds: [absorbedId], into: survivorId)
+                duplicateActionMessage = keepThis
+                    ? "Merged \"\(candidate.name)\" into \"\(displayName)\"."
+                    : "Merged \"\(displayName)\" into \"\(candidate.name)\"."
+                await loadDuplicateCandidates()
+            } catch {
+                duplicateActionMessage = "Couldn't merge: \(error.localizedDescription)"
+            }
+        }
+    }
+}

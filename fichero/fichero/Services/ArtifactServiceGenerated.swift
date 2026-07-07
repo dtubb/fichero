@@ -2048,6 +2048,28 @@ final class EntityServiceGenerated {
         )
     }
 
+    /// Semantic (embedding) entity search — returns entities similar to `q`
+    /// with a `similarity_score`, catching name variants + cross-script
+    /// duplicates that structural co-occurrence misses (#3317). `entityType`
+    /// constrains to the same kind.
+    func searchEntitiesSemantic(
+        query: String,
+        entityType: String? = nil,
+        limit: Int = 20
+    ) async throws -> Data {
+        var items = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: "\(limit)")
+        ]
+        if let entityType {
+            items.append(URLQueryItem(name: "entity_type", value: entityType))
+        }
+        return try await endpointData(
+            path: "/api/kg/entity-curation/semantic",
+            queryItems: items
+        )
+    }
+
     func kgGraphCentrality(limit: Int = 25) async throws -> Data {
         try await endpointData(
             path: "/api/kg/graph/centrality",
