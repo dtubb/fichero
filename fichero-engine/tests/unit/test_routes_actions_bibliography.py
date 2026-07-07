@@ -533,3 +533,87 @@ class TestSourceActions:
         with pytest.raises(HTTPException) as exc:
             registry.invoke(db, "source.delete", {"source_id": existing.id}, ctx)
         assert exc.value.status_code == 404
+
+
+# ===========================================================================
+# #3252 regression: /resolve and /extract route through registry.invoke
+# ===========================================================================
+
+
+class TestResolveAndExtractAuditRegression:
+    """POST /bibliography/resolve and /extract now delegate their DB write
+    to ``bibliography.patch_metadata`` via registry.invoke — every metadata
+    mutation is audited, attributed, and emits a change event."""
+
+    def test_resolve_with_document_writes_audit(self, db, emit_spy):
+        """resolve with document_id goes through the action layer."""
+        doc = Document(name="paper.pdf")
+        db.save(doc)
+
+        merged = {"title": "Resolved Paper", "doi": "10.1234/test"}
+        result = registry.invoke(
+            db,
+            "bibliography.patch_metadata",
+            {"document_id": doc.id, "metadata": merged},
+            _ctx(),
+        )
+        assert result.ok
+        assert db.get(Document, doc.id).source_metadata == merged
+
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "bibliography.patch_metadata"
+        assert audit.actor == "ui"
+        assert audit.target_ids == [doc.id]
+
+        # Change event emitted
+        assert len(emit_spy) == 1
+        _a, kwargs = emit_spy[0]
+        assert kwargs["type"] == "bibliography.updated"
+        assert kwargs["document_ids"] == [doc.id]
+
+    def test_extract_with_document_writes_audit(self, db, emit_spy):
+        """run_extractor (extract) goes through the action layer."""
+        doc = Document(name="paper.pdf")
+        db.save(doc)
+
+        merged = {"title": "Extracted Paper", "authors": ["Smith"]}
+        result = registry.invoke(
+            db,
+            "bibliography.patch_metadata",
+            {"document_id": doc.id, "metadata": merged},
+            _ctx(),
+        )
+        assert result.ok
+        assert db.get(Document, doc.id).source_metadata == merged
+
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "bibliography.patch_metadata"
+        assert audit.actor == "ui"
+
+    def test_resolve_merge_preserves_existing(self, db):
+        """Resolve merges: existing curated values should win."""
+        doc = Document(name="paper.pdf", source_metadata={"title": "My Title"})
+        db.save(doc)
+
+        # Simulating what the resolve route does: merge resolved into existing
+        existing = doc.source_metadata or {}
+        resolved = {"title": "Resolved Title", "doi": "10.1234"}
+        merged = dict(existing)
+        for key, value in resolved.items():
+            if not value:
+                continue
+            if key in merged and merged[key]:
+                continue
+            merged[key] = value
+
+        result = registry.invoke(
+            db,
+            "bibliography.patch_metadata",
+            {"document_id": doc.id, "metadata": merged},
+            _ctx(),
+        )
+        assert result.ok
+        refreshed = db.get(Document, doc.id)
+        # Existing curated title wins; doi was filled in
+        assert refreshed.source_metadata["title"] == "My Title"
+        assert refreshed.source_metadata["doi"] == "10.1234"

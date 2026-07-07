@@ -230,6 +230,7 @@ async def resolve(
     request: ResolveRequest,
     document_id: str | None = Query(default=None),
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> MetadataResponse:
     from fichero.bibliography.doi_lookup import resolve_doi, resolve_isbn
 
@@ -254,10 +255,15 @@ async def resolve(
             if key in merged and merged[key]:
                 continue
             merged[key] = value
-        doc.source_metadata = merged
-        doc.updated_at = datetime.now()
-        db.save(doc)
-        return MetadataResponse(document_id=document_id, metadata=merged)
+        # Route through the audited action layer so every mutation
+        # gets an ActionAudit row, actor attribution, and change event (#3252).
+        result = registry.invoke(
+            db,
+            "bibliography.patch_metadata",
+            {"document_id": document_id, "metadata": merged},
+            ctx,
+        )
+        return MetadataResponse.model_validate(result.result)
 
     return MetadataResponse(document_id="", metadata=resolved)
 
@@ -317,6 +323,7 @@ async def run_extractor(
         ),
     ),
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> MetadataResponse:
     doc = db.get(Document, document_id)
     if doc is None:
@@ -336,10 +343,15 @@ async def run_extractor(
         )
 
     merged = await extract_full(doc, llm_config=llm_config)
-    doc.source_metadata = merged
-    doc.updated_at = datetime.now()
-    db.save(doc)
-    return MetadataResponse(document_id=document_id, metadata=merged)
+    # Route through the audited action layer so every mutation
+    # gets an ActionAudit row, actor attribution, and change event (#3252).
+    result = registry.invoke(
+        db,
+        "bibliography.patch_metadata",
+        {"document_id": document_id, "metadata": merged},
+        ctx,
+    )
+    return MetadataResponse.model_validate(result.result)
 
 
 # ---------------------------------------------------------------------------
@@ -353,10 +365,11 @@ async def run_extractor(
 # restores the prior `source_metadata` via `bibliography.patch_metadata` itself —
 # the before/after snapshots in the ChangeSpec ARE the undo payload.
 #
-# NOT wrapped (noted for the manager): `import_bibliography` parses only and
-# persists nothing (pure transform — no audit needed); `resolve` and
-# `run_extractor` perform async network / LLM I/O, which the sync `execute(db,
-# params, ctx)` contract can't host — they need an async-action variant (future).
+# `import_bibliography` parses only and persists nothing (pure transform —
+# no audit needed). `resolve` and `run_extractor` perform async network/LLM I/O
+# in the route, then delegate the DB write to `bibliography.patch_metadata` via
+# registry.invoke — so every metadata mutation is audited, attributed, and
+# emits a change event (#3252).
 
 from fichero.actions.registry import action, ChangeSpec  # noqa: E402
 
