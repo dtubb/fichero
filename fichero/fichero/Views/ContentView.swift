@@ -754,11 +754,11 @@ extension ContentView {
             }
         }
 
-        #if !os(macOS)
+        // Show/hide-panes + view-mode control on every platform's toolbar,
+        // including Mac (previously menu-bar only) so it matches iPad/iOS (#2493).
         ToolbarItem(id: "fichero.viewMenu", placement: .primaryAction) {
             platformViewMenuButton
         }
-        #endif
     }
 
     @ToolbarContentBuilder
@@ -806,7 +806,6 @@ extension ContentView {
         .help("Choose how library items are shown")
     }
 
-    #if !os(macOS)
     @ViewBuilder
     private var platformViewMenuButton: some View {
         Menu {
@@ -817,7 +816,6 @@ extension ContentView {
         }
         .help("Choose visible panes and document views")
     }
-    #endif
 
     private var inspectorToggleButton: some View {
         Button {
