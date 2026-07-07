@@ -480,3 +480,122 @@ class TestEphemeralCrop:
         )
         after = client.get("/api/annotations", params={"document_id": doc.id}).json()["count"]
         assert before == after == 0
+
+
+# ---------------------------------------------------------------------------
+# #3263 regression: created_by is set from the acting user
+# ---------------------------------------------------------------------------
+
+
+class TestAnnotationCreatedByAttribution:
+    """Annotation.created_by must reflect the acting user, not the model default."""
+
+    def test_create_action_sets_created_by_from_actor(self, db):
+        from fichero.actions.registry import ActionContext, registry
+        from fichero.knowledge_models import Annotation
+
+        doc = Document(name="doc.pdf")
+        db.save(doc)
+
+        ctx = ActionContext(actor="alice", library_path="/lib/test.fichero")
+        result = registry.invoke(
+            db,
+            "annotation.create",
+            {
+                "document_id": doc.id,
+                "kind": "highlight",
+                "text": "important",
+            },
+            ctx,
+        )
+        ann = db.get(Annotation, result.result["id"])
+        assert ann is not None
+        assert ann.created_by == "alice"
+
+    def test_create_action_default_actor_is_human(self, db):
+        from fichero.actions.registry import ActionContext, registry
+        from fichero.knowledge_models import Annotation
+
+        doc = Document(name="doc.pdf")
+        db.save(doc)
+
+        ctx = ActionContext(actor="system", library_path="/lib/test.fichero")
+        result = registry.invoke(
+            db,
+            "annotation.create",
+            {
+                "document_id": doc.id,
+                "kind": "note",
+                "text": "a note",
+            },
+            ctx,
+        )
+        ann = db.get(Annotation, result.result["id"])
+        assert ann is not None
+        assert ann.created_by == "system"
+
+    def test_duplicate_action_sets_created_by_from_actor(self, db):
+        from fichero.actions.registry import ActionContext, registry
+        from fichero.knowledge_models import Annotation
+
+        doc = Document(name="doc.pdf")
+        db.save(doc)
+
+        # Create as "bob"
+        ctx_bob = ActionContext(actor="bob", library_path="/lib/test.fichero")
+        create_result = registry.invoke(
+            db,
+            "annotation.create",
+            {
+                "document_id": doc.id,
+                "kind": "highlight",
+                "text": "original",
+            },
+            ctx_bob,
+        )
+        ann_id = create_result.result["id"]
+
+        # Duplicate as "carol"
+        ctx_carol = ActionContext(actor="carol", library_path="/lib/test.fichero")
+        dup_result = registry.invoke(
+            db,
+            "annotation.duplicate",
+            {"annotation_id": ann_id},
+            ctx_carol,
+        )
+        dup_ann = db.get(Annotation, dup_result.result["id"])
+        assert dup_ann is not None
+        assert dup_ann.created_by == "carol"
+
+    def test_promote_to_claim_action_inherits_actor(self, db):
+        from fichero.actions.registry import ActionContext, registry
+        from fichero.knowledge_models import KnowledgeClaim
+
+        # Create an annotation with actor "dave"
+        doc = Document(name="doc.pdf")
+        db.save(doc)
+
+        ctx = ActionContext(actor="dave", library_path="/lib/test.fichero")
+        create_result = registry.invoke(
+            db,
+            "annotation.create",
+            {
+                "document_id": doc.id,
+                "kind": "highlight",
+                "text": "key insight",
+            },
+            ctx,
+        )
+        ann_id = create_result.result["id"]
+
+        # Promote as "dave" (same actor)
+        promote_result = registry.invoke(
+            db,
+            "annotation.promote_to_claim",
+            {"annotation_id": ann_id},
+            ctx,
+        )
+        claim_id = promote_result.result["claim_id"]
+        claim = db.get(KnowledgeClaim, claim_id)
+        assert claim is not None
+        assert claim.created_by == "dave"

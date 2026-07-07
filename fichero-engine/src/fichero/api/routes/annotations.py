@@ -131,7 +131,7 @@ def _annotation_scope_document_ids(ann: Annotation) -> list[str]:
 
 
 def create_annotation_impl(
-    db: Database, request: AnnotationCreateRequest
+    db: Database, request: AnnotationCreateRequest, *, actor: str = "human"
 ) -> Annotation:
     """Normalize the annotation's scope, build, and persist it.
 
@@ -139,6 +139,10 @@ def create_annotation_impl(
     ``annotation.create`` action (EPIC #1848) drive the SAME scope-resolution +
     save logic (iterate-not-replace). Emission stays with the caller. Raises
     ``HTTPException`` on bad scope exactly as before.
+
+    ``actor`` is the ctx.actor from the action layer — the server-side,
+    forgery-proof attribution source (#3263). It overrides the model default
+    ``"human"`` so every annotation carries the real creating user.
     """
     scope = _normalize_annotation_scope(
         db,
@@ -148,6 +152,7 @@ def create_annotation_impl(
     )
     payload = request.model_dump()
     payload.update(scope.model_dump())
+    payload["created_by"] = actor
     ann = Annotation(**payload)
     db.save(ann)
     return ann
@@ -431,7 +436,7 @@ class PromoteResponse(BaseModel):
 
 
 def promote_to_claim_impl(
-    db: Database, annotation_id: str
+    db: Database, annotation_id: str, *, actor: str | None = None
 ) -> tuple[Annotation, KnowledgeClaim, dict]:
     """Promote an annotation to a KnowledgeClaim. Returns ``(ann, claim, before)``.
 
@@ -440,6 +445,10 @@ def promote_to_claim_impl(
     claim-creation + back-link logic (iterate-not-replace). ``before`` is the
     annotation's pre-mutation snapshot (the link it gains is the only change).
     Emission stays with the caller. Raises ``HTTPException`` exactly as before.
+
+    ``actor`` is the ctx.actor from the action layer (#3263). If provided it
+    overrides the annotation's created_by; otherwise the annotation's own
+    created_by is inherited (backwards-compatible default).
     """
     ann = db.get(Annotation, annotation_id)
     if ann is None:
@@ -473,7 +482,7 @@ def promote_to_claim_impl(
         source_char_end=ann.char_end,
         source_bbox=ann.bbox,
         source_excerpt=excerpt,
-        created_by=ann.created_by,
+        created_by=actor or ann.created_by,
     )
     db.save(claim)
 
@@ -508,7 +517,7 @@ async def promote_to_claim(
     ),
     actor: str = Depends(request_actor),
 ) -> PromoteResponse:
-    ann, claim, _before = promote_to_claim_impl(db, annotation_id)
+    ann, claim, _before = promote_to_claim_impl(db, annotation_id, actor=actor)
     claim_text = claim.text
     emit_change(
         x_fichero_library_path,
@@ -646,7 +655,7 @@ def _invert_restore_annotation(
 def _action_create_annotation(
     db: Database, params: AnnotationCreateRequest, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    ann = create_annotation_impl(db, params)
+    ann = create_annotation_impl(db, params, actor=ctx.actor)
     after = ann.model_dump(mode="json")
     spec = ChangeSpec(
         domains=["annotation"],
@@ -743,7 +752,7 @@ def _action_promote_to_claim(
 ) -> tuple[dict, ChangeSpec]:
     """Promote an annotation to a KnowledgeClaim. NOT undoable (see module note):
     auto-reversing would orphan the created claim, so we audit but don't invert."""
-    ann, claim, before = promote_to_claim_impl(db, params.annotation_id)
+    ann, claim, before = promote_to_claim_impl(db, params.annotation_id, actor=ctx.actor)
     after = {
         "annotation": ann.model_dump(mode="json"),
         "claim_id": claim.id,
@@ -786,12 +795,15 @@ def _action_promote_to_claim(
 #     snapshots back, so merge<->unmerge is a clean undo/redo pair.
 
 
-def duplicate_annotation_impl(db: Database, annotation_id: str) -> Annotation:
+def duplicate_annotation_impl(db: Database, annotation_id: str, *, actor: str = "human") -> Annotation:
     """Copy an annotation: a fresh id + timestamps, every other field/link cloned.
 
     Strips identity/time fields from the source snapshot so the model mints new
     ones; ``db.save`` then inserts the copy. Raises ``HTTPException`` 404 on a
     missing source exactly as the other annotation verbs do.
+
+    ``actor`` is the ctx.actor from the action layer (#3263). The duplicate
+    carries the duplicating user, not the original creator.
     """
     ann = db.get(Annotation, annotation_id)
     if ann is None:
@@ -799,6 +811,7 @@ def duplicate_annotation_impl(db: Database, annotation_id: str) -> Annotation:
     snapshot = ann.model_dump()
     for identity_field in ("id", "created_at", "updated_at"):
         snapshot.pop(identity_field, None)
+    snapshot["created_by"] = actor
     copy = Annotation(**snapshot)
     db.save(copy)
     return copy
@@ -934,7 +947,7 @@ def _invert_merge_annotation(
 def _action_duplicate_annotation(
     db: Database, params: AnnotationDuplicateParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    copy = duplicate_annotation_impl(db, params.annotation_id)
+    copy = duplicate_annotation_impl(db, params.annotation_id, actor=ctx.actor)
     after = copy.model_dump(mode="json")
     spec = ChangeSpec(
         domains=["annotation"],
