@@ -32,8 +32,19 @@ ENDPOINTS_FILE = CONTRACTS_DIR / "endpoints.json"
 
 @pytest.fixture
 def client():
-    """Create a test client for the FastAPI app."""
-    return TestClient(app)
+    """Create a test client for the CURRENT FastAPI app.
+
+    Re-fetch ``fichero.api.main.app`` instead of the module-import binding at
+    the top of this file. The authz suites ``importlib.reload(api.main)`` while
+    toggling ``FICHERO_DISABLE_AUTH`` (test_mutation_authz.multiuser_client),
+    which rebinds ``api_main.app`` to a new instance with auth middleware
+    attached. A stale import-time ``app`` reference otherwise carries a
+    different auth state into a cross-file run and 401s these unauthenticated
+    endpoint-existence checks (#3333 — pass in isolation, fail in batch).
+    """
+    import fichero.api.main as api_main
+
+    return TestClient(api_main.app)
 
 
 @pytest.fixture
