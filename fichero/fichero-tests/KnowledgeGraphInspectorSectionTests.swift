@@ -233,6 +233,35 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertNil(InspectorEntityBulkSelection.mergePlan(for: [person, place]))
     }
 
+    func testInspectorEntityMergePlanHonorsChosenSurvivor() {
+        // The user can override the heuristic and merge INTO a chosen entity (#2499).
+        var recommended = makeKnowledgeEntity(id: "entity-1", name: "Andagóya", type: .location)
+        recommended.corroborationCount = 9  // would win the heuristic
+
+        var chosen = makeKnowledgeEntity(id: "entity-2", name: "Andagoya", type: .location)
+        chosen.corroborationCount = 1
+
+        // Sanity: heuristic prefers entity-1.
+        XCTAssertEqual(
+            InspectorEntityBulkSelection.mergePlan(for: [recommended, chosen])?.survivorId,
+            "entity-1"
+        )
+
+        // Chosen-survivor plan folds the (higher-corroborated) recommended INTO the pick.
+        let plan = InspectorEntityBulkSelection.mergePlan(
+            for: [recommended, chosen], survivorId: "entity-2"
+        )
+        XCTAssertEqual(plan?.survivorId, "entity-2")
+        XCTAssertEqual(plan?.survivorName, "Andagoya")
+        XCTAssertEqual(plan?.absorbedEntityIds, ["entity-1"])
+        XCTAssertEqual(plan?.entityCount, 2)
+
+        // A survivorId not in the set yields no plan.
+        XCTAssertNil(InspectorEntityBulkSelection.mergePlan(
+            for: [recommended, chosen], survivorId: "entity-404"
+        ))
+    }
+
     func testInspectorEntitiesTabUsesGeneratedBulkCurationOnly() throws {
         let source = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
@@ -339,6 +368,38 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertEqual(plan?.claimCount, 3)
     }
 
+    func testInspectorClaimMergePlanHonorsChosenSurvivor() {
+        // The user can override the heuristic and merge INTO a chosen claim (#2499).
+        var recommended = makeKnowledgeClaim(
+            id: "claim-1", subject: "Andagóya", predicate: "served as", object: "alcalde mayor"
+        )
+        recommended.corroborationCount = 9  // would win the heuristic
+
+        var chosen = makeKnowledgeClaim(
+            id: "claim-2", subject: "Andagoya", predicate: "served as", object: "alcalde"
+        )
+        chosen.corroborationCount = 1
+
+        // Sanity: heuristic prefers claim-1.
+        XCTAssertEqual(
+            InspectorClaimBulkSelection.mergePlan(for: [recommended, chosen])?.survivorId,
+            "claim-1"
+        )
+
+        let plan = InspectorClaimBulkSelection.mergePlan(
+            for: [recommended, chosen], survivorId: "claim-2"
+        )
+        XCTAssertEqual(plan?.survivorId, "claim-2")
+        XCTAssertEqual(plan?.survivorName, "Andagoya served as alcalde")
+        XCTAssertEqual(plan?.absorbedClaimIds, ["claim-1"])
+        XCTAssertEqual(plan?.claimCount, 2)
+
+        // A survivorId not in the set yields no plan.
+        XCTAssertNil(InspectorClaimBulkSelection.mergePlan(
+            for: [recommended, chosen], survivorId: "claim-404"
+        ))
+    }
+
     func testInspectorClaimMergePlanBreaksTiesByWeightedSupportThenLexical() {
         var lowerWeighted = makeKnowledgeClaim(
             id: "claim-1",
@@ -423,7 +484,10 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(source.contains("kgCurationService.pruneTrivialClaims"))
         XCTAssertTrue(source.contains("// TODO(#1689): claim unmerge UI"))
         XCTAssertTrue(rowSource.contains("Menu(\"Suppress\")"))
-        XCTAssertTrue(rowSource.contains("Button(\"Merge into \\\"\\(mergePlan.survivorName)\\\"\")"))
+        // #2499: the merge context action is now a destination-picker submenu
+        // (one "Into …" button per candidate) instead of a single button.
+        XCTAssertTrue(rowSource.contains("Menu(\"Merge\")"))
+        XCTAssertTrue(rowSource.contains("(Recommended)"))
         XCTAssertTrue(rowSource.contains("Menu(\"Prune trivial\")"))
         XCTAssertFalse(source.contains("URLSession"))
         XCTAssertFalse(source.contains("URLRequest"))

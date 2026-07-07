@@ -19,7 +19,8 @@ struct EntityKindBlock: View {
         InspectorEntityBulkActionScope,
         [Components.Schemas.KnowledgeClaim]
     ) async -> Void)?
-    var requestClaimMergeAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
+    // Chosen merge plan (survivor picked in the menu), threaded to the row (#2499).
+    var requestClaimMergeAction: ((InspectorClaimBulkSelection.MergePlan) -> Void)?
     var requestClaimDeleteAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
     var requestPruneTrivialAction: ((InspectorEntityBulkActionScope) -> Void)?
     var onNavigateToSource: ((String) -> Void)?

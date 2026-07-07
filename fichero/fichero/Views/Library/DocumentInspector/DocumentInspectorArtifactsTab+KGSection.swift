@@ -276,7 +276,7 @@ struct KnowledgeGraphInspectorSection: View {
                         claimContextMenuTarget: contextMenuTargetClaims(for:),
                         onClaimTap: handleClaimTap(_:),
                         applyClaimBulkAction: applyBulkAction,
-                        requestClaimMergeAction: requestMergeAction(for:),
+                        requestClaimMergeAction: requestMergeAction(plan:),
                         requestClaimDeleteAction: requestDeleteAction(for:),
                         requestPruneTrivialAction: requestPruneTrivialAction,
                         onNavigateToSource: onNavigateToSource,
@@ -492,11 +492,23 @@ struct KnowledgeGraphInspectorSection: View {
         targetClaims: [Components.Schemas.KnowledgeClaim],
         menuTitle: String
     ) -> some View {
-        let mergePlan = InspectorClaimBulkSelection.mergePlan(for: targetClaims)
+        // One destination choice per candidate so the user picks which claim
+        // the others fold INTO (#2499). Heuristic survivor marked Recommended.
+        let recommendedId = InspectorClaimBulkSelection.mergeSurvivor(in: targetClaims)?.id
+        let canMerge = InspectorClaimBulkSelection.mergePlan(for: targetClaims) != nil
         return Menu {
-            if let mergePlan {
-                Button("Into \"\(mergePlan.survivorName)\"") {
-                    pendingMergePlan = mergePlan
+            if canMerge {
+                ForEach(targetClaims.filter { $0.id != nil }, id: \.id) { claim in
+                    if let id = claim.id,
+                       let plan = InspectorClaimBulkSelection.mergePlan(
+                            for: targetClaims, survivorId: id) {
+                        Button(mergeDestinationLabel(
+                            name: claim.displayMergeName,
+                            isRecommended: id == recommendedId
+                        )) {
+                            pendingMergePlan = plan
+                        }
+                    }
                 }
             } else {
                 Button("Requires 2+ live claims") {}
@@ -506,7 +518,13 @@ struct KnowledgeGraphInspectorSection: View {
             Label(menuTitle, systemImage: "arrow.triangle.merge")
         }
         .menuStyle(.borderlessButton)
-        .disabled(isMutatingClaims || mergePlan == nil)
+        .disabled(isMutatingClaims || !canMerge)
+    }
+
+    /// Menu-button title for a merge destination (#2499). Marks the heuristic
+    /// survivor as "(Recommended)" so the sensible default is one click away.
+    private func mergeDestinationLabel(name: String, isRecommended: Bool) -> String {
+        isRecommended ? "Into \"\(name)\" (Recommended)" : "Into \"\(name)\""
     }
 
     private func deleteActionButton(
@@ -705,8 +723,8 @@ struct KnowledgeGraphInspectorSection: View {
         }
     }
 
-    private func requestMergeAction(for targetClaims: [Components.Schemas.KnowledgeClaim]) {
-        pendingMergePlan = InspectorClaimBulkSelection.mergePlan(for: targetClaims)
+    private func requestMergeAction(plan: InspectorClaimBulkSelection.MergePlan) {
+        pendingMergePlan = plan
     }
 
     private func applyDelete(_ pending: PendingClaimDeleteConfirmation) async {
@@ -983,13 +1001,26 @@ struct InspectorClaimBulkSelection {
         }
     }
 
+    /// Merge plan using the heuristic survivor (`mergeSurvivor`) as the
+    /// destination — the default/recommended choice.
     static func mergePlan(
         for claims: [Components.Schemas.KnowledgeClaim]
     ) -> MergePlan? {
+        guard let survivorId = mergeSurvivor(in: claims)?.id else { return nil }
+        return mergePlan(for: claims, survivorId: survivorId)
+    }
+
+    /// Merge plan with a caller-chosen survivor so the user can pick which
+    /// claim is the merge DESTINATION (#2499). `survivorId` must be one of
+    /// `claims`; the rest fold into it. Same validity gates as the heuristic
+    /// path (2+ claims, none already merged, all have IDs).
+    static func mergePlan(
+        for claims: [Components.Schemas.KnowledgeClaim],
+        survivorId: String
+    ) -> MergePlan? {
         guard claims.count > 1,
               claims.allSatisfy({ $0.mergedIntoId == nil }),
-              let survivor = mergeSurvivor(in: claims),
-              let survivorId = survivor.id
+              let survivor = claims.first(where: { $0.id == survivorId })
         else {
             return nil
         }

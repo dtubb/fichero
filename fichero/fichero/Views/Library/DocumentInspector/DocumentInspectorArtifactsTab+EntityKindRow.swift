@@ -23,7 +23,9 @@ struct EntityKindRow: View {
         InspectorEntityBulkActionScope,
         [Components.Schemas.KnowledgeClaim]
     ) async -> Void)?
-    var requestClaimMergeAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
+    // Takes the caller-chosen merge plan (survivor picked in the menu) so the
+    // user controls the merge destination (#2499).
+    var requestClaimMergeAction: ((InspectorClaimBulkSelection.MergePlan) -> Void)?
     var requestClaimDeleteAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
     var requestPruneTrivialAction: ((InspectorEntityBulkActionScope) -> Void)?
     var onNavigateToSource: ((String) -> Void)?
@@ -370,10 +372,21 @@ struct EntityKindRow: View {
         if let claimContextMenuTarget {
             let targetClaims = claimContextMenuTarget(claim)
             if let requestClaimMergeAction {
-                let mergePlan = InspectorClaimBulkSelection.mergePlan(for: targetClaims)
-                if let mergePlan {
-                    Button("Merge into \"\(mergePlan.survivorName)\"") {
-                        requestClaimMergeAction(targetClaims)
+                if InspectorClaimBulkSelection.mergePlan(for: targetClaims) != nil {
+                    let recommendedId = InspectorClaimBulkSelection.mergeSurvivor(in: targetClaims)?.id
+                    Menu("Merge") {
+                        // One destination per candidate — user picks the survivor (#2499).
+                        ForEach(targetClaims.filter { $0.id != nil }, id: \.id) { candidate in
+                            if let id = candidate.id,
+                               let plan = InspectorClaimBulkSelection.mergePlan(
+                                    for: targetClaims, survivorId: id) {
+                                Button(id == recommendedId
+                                    ? "Into \"\(candidate.displayMergeName)\" (Recommended)"
+                                    : "Into \"\(candidate.displayMergeName)\"") {
+                                    requestClaimMergeAction(plan)
+                                }
+                            }
+                        }
                     }
                 } else {
                     Button("Merge requires 2+ live claims") {}

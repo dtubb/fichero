@@ -473,11 +473,24 @@ struct DocumentInspectorEntitiesTab: View {
         targetEntities: [Components.Schemas.KnowledgeEntity],
         menuTitle: String
     ) -> some View {
-        let mergePlan = InspectorEntityBulkSelection.mergePlan(for: targetEntities)
+        // One destination choice per candidate so the user picks which entity
+        // the others fold INTO (#2499). The heuristic survivor is marked
+        // Recommended; picking any sets the confirmation plan.
+        let recommendedId = InspectorEntityBulkSelection.mergeSurvivor(in: targetEntities)?.id
+        let canMerge = InspectorEntityBulkSelection.mergePlan(for: targetEntities) != nil
         return Menu {
-            if let mergePlan {
-                Button("Into \"\(mergePlan.survivorName)\"") {
-                    pendingMergePlan = mergePlan
+            if canMerge {
+                ForEach(targetEntities, id: \.stableInspectorId) { entity in
+                    if let id = entity.id,
+                       let plan = InspectorEntityBulkSelection.mergePlan(
+                            for: targetEntities, survivorId: id) {
+                        Button(mergeDestinationLabel(
+                            name: entity.canonicalName,
+                            isRecommended: id == recommendedId
+                        )) {
+                            pendingMergePlan = plan
+                        }
+                    }
                 }
             } else {
                 Button("Requires 2+ same-kind saved entities") {}
@@ -487,7 +500,13 @@ struct DocumentInspectorEntitiesTab: View {
             Label(menuTitle, systemImage: "arrow.triangle.merge")
         }
         .menuStyle(.borderlessButton)
-        .disabled(isApplyingBulkAction || mergePlan == nil)
+        .disabled(isApplyingBulkAction || !canMerge)
+    }
+
+    /// Menu-button title for a merge destination (#2499). Marks the heuristic
+    /// survivor as "(Recommended)" so the sensible default is one click away.
+    private func mergeDestinationLabel(name: String, isRecommended: Bool) -> String {
+        isRecommended ? "Into \"\(name)\" (Recommended)" : "Into \"\(name)\""
     }
 
     private func deleteActionButton(
@@ -728,15 +747,28 @@ struct InspectorEntityBulkSelection {
         }
     }
 
+    /// Merge plan using the heuristic survivor (`mergeSurvivor`) as the
+    /// destination — the default/recommended choice.
     static func mergePlan(
         for entities: [Components.Schemas.KnowledgeEntity]
+    ) -> MergePlan? {
+        guard let survivorId = mergeSurvivor(in: entities)?.id else { return nil }
+        return mergePlan(for: entities, survivorId: survivorId)
+    }
+
+    /// Merge plan with a caller-chosen survivor so the user can pick which
+    /// entity is the merge DESTINATION (#2499). `survivorId` must be one of
+    /// `entities`; the rest fold into it. Same validity gates as the heuristic
+    /// path (2+ entities, single kind, all have IDs).
+    static func mergePlan(
+        for entities: [Components.Schemas.KnowledgeEntity],
+        survivorId: String
     ) -> MergePlan? {
         guard entities.count > 1 else { return nil }
 
         let kinds = Set(entities.map { EntityKind(apiType: $0.entityType) ?? .other })
         guard kinds.count == 1,
-              let survivor = mergeSurvivor(in: entities),
-              let survivorId = survivor.id
+              let survivor = entities.first(where: { $0.id == survivorId })
         else {
             return nil
         }
