@@ -1076,7 +1076,7 @@ struct InspectorClaimBulkSelection {
     }
 }
 
-private extension Components.Schemas.KnowledgeClaim {
+extension Components.Schemas.KnowledgeClaim {
     var displayMergeName: String {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !text.isEmpty {
