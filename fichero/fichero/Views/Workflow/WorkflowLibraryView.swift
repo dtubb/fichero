@@ -51,6 +51,8 @@ struct WorkflowLibraryView: View {
 struct WorkflowListView: View {
     @Environment(WorkflowStore.self) var workflowStore
     @Environment(WorkflowServiceGenerated.self) var workflowServiceGenerated
+    /// A secondary split-pane copy defers its toolbar search to the primary (#3163).
+    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
     @State private var searchText = ""
     @State private var selectedWorkflowId: String?
     @State private var selectedWorkflowIds: Set<String> = []
@@ -78,7 +80,16 @@ struct WorkflowListView: View {
 
     var body: some View {
         workflowContent
-            .searchable(text: $searchText, prompt: "Search workflows...")
+            // Gated like LibraryView/SearchView so a secondary split-pane copy
+            // doesn't register a second toolbar search (duplicate
+            // com.apple.SwiftUI.search → launch crash, #3163). Filtering still
+            // runs via `searchText`.
+            .conditionalSearchable(
+                text: $searchText,
+                placement: .toolbar,
+                prompt: "Search workflows...",
+                isActive: ToolbarSearchRegistration.shouldRegister(isSecondarySplitPane: isSecondarySplitPane)
+            )
             .task {
                 guard !Task.isCancelled else { return }
                 await loadWorkflows()
