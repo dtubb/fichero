@@ -228,6 +228,16 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
+            if isAIUnreviewed {
+                // Consistent with the artifact-row badge (#3325 step 4): AI
+                // output that a human hasn't vetted is flagged, not passed off
+                // as fact (#2151/#2152).
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.purple.opacity(0.7))
+                    .help("AI-generated · not yet reviewed")
+                    .accessibilityLabel("AI-generated, not reviewed")
+            }
             Spacer()
             // Save indicator (subtle): spinner while saving, green check when
             // idle and saved. No mode toggle — V2 panels are always editable
@@ -447,6 +457,15 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             if let model = artifact.model, !model.isEmpty { parts.append(model) }
             return parts.isEmpty ? nil : parts.joined(separator: " · ")
         }
+    }
+
+    /// AI-generated (provider-stamped) and not yet human-reviewed (#3325 step 4).
+    private var isAIUnreviewed: Bool {
+        if case .artifact(let artifact) = kind,
+           let provider = artifact.provider, !provider.isEmpty {
+            return !artifact.reviewed
+        }
+        return false
     }
 
     private var timestamp: String? {
