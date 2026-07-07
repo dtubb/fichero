@@ -169,15 +169,21 @@ struct FicheroApp: App {
                 logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
             }
 
-            // One health probe after the engine is up, so startup state and
-            // window state converge without overlapping probes.
-            await appState.checkBackendHealth()
+            // Health probe after the engine is up — re-probing with backoff
+            // before parking, so a transient miss while the engine finishes
+            // startup (it's often serving 200s a beat later) doesn't wall a
+            // healthy engine (#3162).
+            await appState.checkBackendHealthUntilReady()
             guard appState.isBackendRunning else {
                 backendService.status = .failed
                 backendService.errorMessage = appState.backendError
                 logger.error(
                     "Backend not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
                 )
+                // Keep re-probing in the background so we recover to the workspace
+                // the moment the engine answers — never park forever on a healthy
+                // engine (#3162). The heartbeat's own guard makes this idempotent.
+                appState.startBackendHeartbeat()
                 return
             }
 

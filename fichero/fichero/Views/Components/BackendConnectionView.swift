@@ -369,6 +369,16 @@ struct BackendConnectionView: View {
                 }
             }
         }
+        .onChange(of: appState.isBackendRunning) { _, running in
+            // The background heartbeat re-probes even while we're parked on a
+            // startup failure (#3162). The moment it recovers readiness, clear
+            // the failed status so the workspace shows instead of a stale
+            // "Not Running" screen on a healthy engine.
+            if running, backendService.status == .failed {
+                backendService.status = .running
+                backendService.errorMessage = nil
+            }
+        }
     }
 }
 

@@ -318,6 +318,22 @@ class AppState {
     // MARK: - Backend Health
 
     /// Check if the Python API is running
+    /// Health-probe with backoff until the engine is ready or the retries run
+    /// out — a transient miss while a healthy engine is still finishing startup
+    /// must not permanently park the app on "Not Running" (#3162). Backoff is
+    /// 1, 2, 3, 4, 5, 5 s (~20 s total): long enough for a slow boot, short
+    /// enough to stay responsive.
+    func checkBackendHealthUntilReady(maxRetries: Int = 6) async {
+        await checkBackendHealth()
+        var attempt = 0
+        while !isBackendRunning && attempt < maxRetries {
+            attempt += 1
+            try? await Task.sleep(for: .seconds(Double(min(attempt, 5))))
+            if Task.isCancelled { return }
+            await checkBackendHealth()
+        }
+    }
+
     func checkBackendHealth() async {
         reconfigureGeneratedClientsForCurrentHost()
         logger.info("⏱ checkBackendHealth entry")
