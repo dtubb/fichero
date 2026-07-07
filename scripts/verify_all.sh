@@ -249,6 +249,10 @@ PY
     # Minimal fallback so the path always exists and is valid JSON.
     printf '{"tier":"%s","failed":%d,"checks":[]}\n' "$tier" "$REPORT_COUNT" >"$REPORT_JSON"
   fi
+  # Render a scannable HTML dashboard next to the JSON so failures are visible
+  # ("a place you can see what is failing", #3163). Best-effort — a render
+  # hiccup must never fail the verify run itself.
+  "${PYTHON_BIN}" scripts/render_verify_report.py "$REPORT_JSON" "${REPORT_JSON%.json}.html" >/dev/null 2>&1 || true
 }
 
 XCODE_PROJECT="fichero/fichero.xcodeproj"
