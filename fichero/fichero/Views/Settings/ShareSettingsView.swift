@@ -11,9 +11,9 @@ struct ShareSettingsView: View {
     @Environment(EmbeddedBackendService.self) var backendService
     @Environment(LibraryManager.self) var libraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
-    // Default OFF to match EngineConfig.multiuserEnabled (absent key ⇒ off). A
-    // `true` default here would show "Enabled" while the engine ran single-user.
-    @AppStorage(EngineConfig.multiuserEnabledKey) private var multiuserEnabled = false
+    // Multi-user status is read from the backend (IdentityStore) via
+    // `backendMultiuser`, not a local flag, so this tab agrees with Users +
+    // Engine (#3331).
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
     @AppStorage(RemoteAccessConfig.publicBaseURLKey) private var publicBaseURL = ""
@@ -89,6 +89,9 @@ struct ShareSettingsView: View {
         .formStyle(.grouped)
         .task {
             loadSPKIPin()
+            // Refresh the backend's real multi-user state so this tab's status
+            // matches Users + Engine (#3331).
+            await appState.identityStore.load()
             if hostingEnabled && publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 publicBaseURL = Self.autoLocalBaseURL
                 await applySharing()
@@ -200,8 +203,8 @@ struct ShareSettingsView: View {
             // (owns fichero.multiuser.enabled, restart-applied). Show it here
             // read-only so the sharing surface reflects the current mode.
             LabeledContent("Multi-user mode") {
-                Text(multiuserEnabled ? "Enabled" : "Disabled")
-                    .foregroundStyle(multiuserEnabled ? .primary : .secondary)
+                Text(backendMultiuser ? "Enabled" : "Disabled")
+                    .foregroundStyle(backendMultiuser ? .primary : .secondary)
             }
 
             LabeledContent("Backend authz") {
@@ -241,17 +244,22 @@ struct ShareSettingsView: View {
         }
     }
 
+    /// The engine's real multi-user state — the single source of truth (#3331),
+    /// shared with the Users + Engine tabs so all three agree. Reads
+    /// `GET /api/auth/identity` via IdentityStore, never the local desired flag.
+    private var backendMultiuser: Bool { appState.identityStore.multiuserEnabled }
+
     private var backendAuthzStatus: String {
         if !appState.isBackendRunning {
             return "Unavailable"
         }
-        return multiuserEnabled ? "Enabled" : "Disabled"
+        return backendMultiuser ? "Enabled" : "Disabled"
     }
 
     private var securityRefreshKey: String {
         [
             appState.isBackendRunning.description,
-            multiuserEnabled.description,
+            backendMultiuser.description,
             hostingEnabled.description,
             libraryManager.globalLibrary?.id.uuidString ?? "none"
         ].joined(separator: "|")

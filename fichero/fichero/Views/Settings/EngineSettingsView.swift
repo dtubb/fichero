@@ -67,7 +67,14 @@ struct EngineSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .task { await loadStorageStats() }
+        .task {
+            // Refresh the engine's real multi-user state (single source of truth,
+            // #3331) and align the desired toggle to it so the control reflects
+            // reality on open; an explicit toggle afterward is a pending change.
+            await appState.identityStore.load()
+            multiuserEnabled = appState.identityStore.multiuserEnabled
+            await loadStorageStats()
+        }
     }
 
     private var libraryDescription: String {
@@ -76,16 +83,25 @@ struct EngineSettingsView: View {
             : "Local engine for this Mac."
     }
 
-    private var multiuserStatusDescription: String {
-        if appState.isBackendRunning {
-            return multiuserEnabled
-                ? "Backend is enforcing per-library authz."
-                : "Backend is not enforcing per-library authz."
-        }
+    /// The engine's ACTUAL multi-user state — the single source of truth
+    /// (`GET /api/auth/identity` via IdentityStore), shared with the Users and
+    /// Connect tabs so all three agree (#3331). The @AppStorage flag is only the
+    /// desired setting the toggle writes, applied on the next engine restart.
+    private var backendMultiuser: Bool { appState.identityStore.multiuserEnabled }
 
-        return multiuserEnabled
-            ? "Backend will enforce per-library authz the next time it starts."
-            : "Backend will run without per-library authz until you turn this back on."
+    private var multiuserStatusDescription: String {
+        guard appState.isBackendRunning else {
+            return multiuserEnabled
+                ? "Multi-user will be enforced the next time the engine starts."
+                : "The engine will run without multi-user until you enable it."
+        }
+        let actual = backendMultiuser
+            ? "The engine is enforcing per-library access."
+            : "The engine is not enforcing per-library access."
+        guard multiuserEnabled != backendMultiuser else { return actual }
+        return actual + (multiuserEnabled
+            ? " Restart the engine to turn multi-user on."
+            : " Restart the engine to turn multi-user off.")
     }
 
     private func restartEngine() async {
