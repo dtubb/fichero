@@ -2414,3 +2414,68 @@ class TestEmbeddingsModelLoading:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ---------------------------------------------------------------------------
+# use_fuzzy_match — typo-tolerant full-text search
+# ---------------------------------------------------------------------------
+
+class TestFuzzyMatch:
+    """_fuzzy_contains_any_term matches terms with 1-2 char differences."""
+
+    def test_exact_match_still_works(self):
+        import pandas as pd
+        from fichero.db import _fuzzy_contains_any_term, _fold_for_search
+
+        series = pd.Series(["hello world", "foo bar", "baz"])
+        terms = [_fold_for_search("hello")]
+        mask = _fuzzy_contains_any_term(series, terms)
+        assert mask.tolist() == [True, False, False]
+
+    def test_typo_matches_with_cutoff(self):
+        import pandas as pd
+        from fichero.db import _fuzzy_contains_any_term, _fold_for_search
+
+        series = pd.Series(["quibdo choco", "medellin", "bogota"])
+        # "quibdo" vs "quibdó" — after folding both are "quibdo"
+        terms = [_fold_for_search("quibdo")]
+        mask = _fuzzy_contains_any_term(series, terms)
+        assert mask.tolist() == [True, False, False]
+
+    def test_near_miss_catches_typo(self):
+        import pandas as pd
+        from fichero.db import _fuzzy_contains_any_term, _fold_for_search
+
+        # "asprilla" is a typo for "asprilla" (one character different)
+        series = pd.Series(["jose antonio asprilla garcia"])
+        terms = [_fold_for_search("asprilla")]
+        # SequenceMatcher("asprilla", "asprilla").ratio() = 0.9375 >= 0.6
+        mask = _fuzzy_contains_any_term(series, terms)
+        assert mask.tolist() == [True]
+
+    def test_substring_fallback(self):
+        import pandas as pd
+        from fichero.db import _fuzzy_contains_any_term
+
+        # Multi-word term present as substring
+        series = pd.Series(["the colombian coffee federation"])
+        terms = ["colombian coffee"]
+        mask = _fuzzy_contains_any_term(series, terms)
+        assert mask.tolist() == [True]
+
+    def test_empty_terms_returns_false_mask(self):
+        import pandas as pd
+        from fichero.db import _fuzzy_contains_any_term
+
+        series = pd.Series(["hello", "world"])
+        mask = _fuzzy_contains_any_term(series, [])
+        assert mask.tolist() == [False, False]
+
+    def test_no_match_returns_false(self):
+        import pandas as pd
+        from fichero.db import _fuzzy_contains_any_term
+
+        series = pd.Series(["hello world", "foo bar"])
+        terms = ["xyzzy"]
+        mask = _fuzzy_contains_any_term(series, terms, cutoff=0.6)
+        assert mask.tolist() == [False, False]

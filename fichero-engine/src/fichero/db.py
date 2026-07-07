@@ -45,6 +45,7 @@ from types import UnionType
 from typing import TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
 from dataclasses import dataclass, field
 from datetime import datetime
+import difflib
 import math
 import json
 import logging
@@ -385,6 +386,41 @@ def _contains_any_term(text_series, terms: list[str]):
     for term in terms[1:]:
         mask |= text_series.str.contains(term, case=False, regex=False, na=False)
     return mask
+
+
+def _fuzzy_contains_any_term(text_series, terms: list[str], cutoff: float = 0.6):
+    """Fuzzy-match each query term against words in the corpus.
+
+    For each term, split every document's text into words and check whether
+    any word is a close match using difflib's SequenceMatcher ratio. This
+    catches typos like 'Aspriya' → 'Asprilla', 'Quibdo' → 'Quibdó', etc.
+    The ratio threshold (``cutoff``) controls how permissive the match is:
+    0.6 is a good default — strict enough to avoid false positives, loose
+    enough to catch 1-2 character transpositions or deletions.
+
+    Returns a boolean mask (same length as text_series).
+    """
+    if not terms:
+        return text_series.str.contains("", regex=False, na=False) & False
+
+    # Build a word→index map from the entire corpus so each term scans once.
+    # Each cell is True if ANY of its words matches ANY term above cutoff.
+
+    def _row_matches(text: str) -> bool:
+        if not isinstance(text, str) or not text:
+            return False
+        words = text.split()
+        for term in terms:
+            for word in words:
+                if difflib.SequenceMatcher(None, word, term).ratio() >= cutoff:
+                    return True
+        # Also check exact substring as a fallback (handles multi-word terms)
+        for term in terms:
+            if term in text:
+                return True
+        return False
+
+    return text_series.apply(_row_matches)
 
 
 def _bm25_scores(corpus: list[str], query_terms: list[str]) -> list[float]:
@@ -3673,7 +3709,11 @@ class Database(DatabaseEmbeddingMixin):
                         # See _fold_for_search.
                         folded_terms = expanded_terms or [_fold_for_search(query)]
                         normalised_text = all_docs["text"].astype(str).map(_fold_for_search)
-                        mask = _contains_any_term(normalised_text, folded_terms)
+                        mask = (
+                            _fuzzy_contains_any_term(normalised_text, folded_terms)
+                            if use_fuzzy_match
+                            else _contains_any_term(normalised_text, folded_terms)
+                        )
 
                         fulltext_docs = all_docs[mask].copy()
                         fulltext_docs["folded_text"] = (
