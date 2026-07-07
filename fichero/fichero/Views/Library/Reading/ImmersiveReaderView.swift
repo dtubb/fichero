@@ -13,11 +13,20 @@ import SwiftUI
 struct TranslationRep: Identifiable {
     let lang: String
     let content: String
+    /// Provenance (#3325 step 4): the model that produced it, and whether a
+    /// human has reviewed it.
+    let provider: String?
+    let model: String?
+    let reviewed: Bool
     var id: String { lang }
     /// Human name, e.g. "Spanish" for "es"; falls back to the raw code.
     var displayName: String {
         Locale.current.localizedString(forLanguageCode: lang)?.capitalized
             ?? lang.uppercased()
+    }
+    /// One-line provenance: "provider · model", omitting blanks.
+    var provenance: String {
+        [provider, model].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }
 
@@ -119,6 +128,8 @@ struct ImmersiveReaderView: View {
                 .fixedSize()
                 .help("Switch the reader between the page image, transcript, and translations")
 
+                provenanceCaption
+
                 Spacer()
                 Button(action: exit) {
                     Image(systemName: "xmark")
@@ -174,6 +185,36 @@ struct ImmersiveReaderView: View {
         siblings.firstIndex { $0.id == document.id }
     }
 
+    /// The translation currently being viewed, if the selection is a language.
+    private var currentTranslation: TranslationRep? {
+        guard representationKey.hasPrefix("lang:") else { return nil }
+        let lang = String(representationKey.dropFirst("lang:".count))
+        return translations.first { $0.lang == lang }
+    }
+
+    /// Provenance + AI badge for the shown representation (#3325 step 4). Only a
+    /// translation is a derived AI representation here — Source/Diplomatic aren't.
+    @ViewBuilder
+    private var provenanceCaption: some View {
+        if let translation = currentTranslation {
+            HStack(spacing: 6) {
+                if !translation.reviewed {
+                    Image(systemName: "sparkles").foregroundStyle(.purple)
+                }
+                Text(translation.reviewed ? "Translation" : "AI translation · unreviewed")
+                if !translation.provenance.isEmpty {
+                    Text("· \(translation.provenance)").foregroundStyle(.white.opacity(0.7))
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.ultraThinMaterial, in: Capsule())
+            .help("This representation is an AI-generated translation; review before citing.")
+        }
+    }
+
     private var currentRepresentationLabel: String {
         if representationKey == "diplomatic" { return "Diplomatic" }
         if representationKey.hasPrefix("lang:") {
@@ -202,7 +243,13 @@ struct ImmersiveReaderView: View {
                       let lang = data["target_lang"]?.value as? String,
                       let content = artifact.content,
                       seen.insert(lang).inserted else { return nil }
-                return TranslationRep(lang: lang, content: content)
+                return TranslationRep(
+                    lang: lang,
+                    content: content,
+                    provider: artifact.provider,
+                    model: artifact.model,
+                    reviewed: artifact.reviewed
+                )
             }
         } catch {
             translations = []
