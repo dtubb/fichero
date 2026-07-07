@@ -49,12 +49,6 @@ struct LibraryView: View {
     @State var searchText: String = ""
     /// Bottom-bar file import presenter (#2313).
     @State var showingFileImporter = false
-    /// Text for the toolbar's `.searchable` field. Distinct from
-    /// `searchText` (which drives the inline ⌘F filter bar inside the
-    /// view) — `toolbarQuery` lives on the window toolbar so users can
-    /// fire a *global* search from any folder context, while the
-    /// inline filter stays as a quick local-narrow.
-    @State var toolbarQuery: String = ""
     @FocusState var filterFieldFocused: Bool
     @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
     @SceneStorage("library.sortFieldsByFolder") var sortFieldsByFolderJSON: String = "{}"
@@ -102,7 +96,6 @@ struct LibraryView: View {
     @Environment(ArtifactServiceGenerated.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
-    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
     @ObservedObject var featureManager = FeatureManager.shared
     @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
 
@@ -513,24 +506,10 @@ struct LibraryView: View {
             // instantly, not slide in cascading from the top.
             .transaction(value: folderId) { $0.animation = nil }
         )
-        // Toolbar search field — Finder-style magnifying-glass that
-        // expands when clicked, always visible while in library mode.
-        // Submit fires onToolbarSearchSubmit (wired to runToolbarSearch
-        // by ContentView), which switches the sidebar to .search mode.
-        // Each mode owns its own .searchable to avoid the NSToolbar
-        // duplicate-identifier crash we hit when stacking them.
-        .conditionalSearchable(
-            text: $toolbarQuery,
-            placement: .toolbar,
-            prompt: "Search documents…",
-            isActive: ToolbarSearchRegistration.shouldRegister(isSecondarySplitPane: isSecondarySplitPane)
-        )
-        .onSubmit(of: .search) {
-            guard !isSecondarySplitPane else { return }
-            let trimmed = toolbarQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
-            onToolbarSearchSubmit(trimmed)
-        }
+        // No toolbar .searchable here — ContentView owns the single GLOBAL
+        // toolbar search (files), which already routes to runToolbarSearch. A
+        // second .searchable in this window is a duplicate com.apple.SwiftUI.search
+        // and can crash the macOS toolbar (#3163). The inline ⌘F filter stays.
     }
 }
 
