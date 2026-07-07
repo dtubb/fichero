@@ -101,7 +101,7 @@ class DocumentSource(BaseModel):
 class ChatRequest(BaseModel):
     """Request model for chat."""
 
-    message: str
+    message: str = Field(..., min_length=1, max_length=32000)
     conversation_id: Optional[str] = None
     document_ids: Optional[list[str]] = None  # Scope to specific documents
     include_sources: bool = True
@@ -306,6 +306,53 @@ def _effective_scope(
     return None, None
 
 
+# Maximum number of prior conversation turns to include in the LLM prompt (#3238).
+# Each turn is one human + one assistant message. Conservative default: keep the
+# last 10 turns (20 messages). Older turns are dropped to stay within context.
+MAX_HISTORY_TURNS = 10
+
+
+def _build_history_messages(
+    messages: list[dict],
+    max_turns: int = MAX_HISTORY_TURNS,
+) -> list:
+    """Convert stored conversation messages into LangChain message objects.
+
+    Takes the most recent ``max_turns`` turns (one turn = one human + one
+    assistant pair) from the stored history and returns them as alternating
+    HumanMessage/AIMessage objects. Older turns are dropped to stay within
+    the context budget — the system prompt and current user query are always
+    included regardless.
+
+    The stored ``conv.messages`` list contains dicts with ``role`` and ``content``.
+    """
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    if not messages:
+        return []
+
+    # Take only human+assistant pairs (skip system/tool messages).
+    # Each "turn" is one human followed by one assistant.
+    pairs: list[tuple[dict, dict]] = []
+    i = 0
+    while i < len(messages) - 1:
+        if messages[i].get("role") == "user" and messages[i + 1].get("role") == "assistant":
+            pairs.append((messages[i], messages[i + 1]))
+            i += 2
+        else:
+            i += 1
+
+    # Keep only the most recent max_turns pairs.
+    recent_pairs = pairs[-max_turns:]
+
+    result: list = []
+    for human_msg, assistant_msg in recent_pairs:
+        result.append(HumanMessage(content=human_msg.get("content", "")))
+        result.append(AIMessage(content=assistant_msg.get("content", "")))
+
+    return result
+
+
 @router.post("")
 async def chat(
     request: ChatRequest,
@@ -406,8 +453,15 @@ async def chat(
     else:
         user_prompt = f"Question: {request.message}"
 
+    # Build conversation history from prior turns (amnesia fix, #3238).
+    # Reserve ~50% of context for RAG docs; cap history at N turns.
+    history_messages = _build_history_messages(
+        conv.messages,
+        max_turns=MAX_HISTORY_TURNS,
+    )
     messages = [
         SystemMessage(content=_build_chat_system_prompt(bool(context_docs))),
+        *history_messages,
         HumanMessage(content=user_prompt),
     ]
 
