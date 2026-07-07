@@ -7,13 +7,18 @@ import SwiftUI
 /// zoom / pan / loupe and storage-HTTP image loading come for free (no parallel
 /// viewer, never a local path). Presented as a top-level overlay over the whole
 /// window, so the sidebar, inspector, and toolbar are all hidden behind it.
-/// Which representation of the current document the reader shows (#3325 step 4,
-/// reader slice). Normalized + Translations are deferred pending target_lang
-/// (#3329).
-enum ReaderRepresentation: String, CaseIterable, Identifiable {
-    case source = "Source"
-    case diplomatic = "Diplomatic"
-    var id: String { rawValue }
+/// A loaded translation representation of the current page (#3329): the target
+/// language code + the translated text (from a `translation` artifact whose
+/// `data.target_lang` records the language).
+struct TranslationRep: Identifiable {
+    let lang: String
+    let content: String
+    var id: String { lang }
+    /// Human name, e.g. "Spanish" for "es"; falls back to the raw code.
+    var displayName: String {
+        Locale.current.localizedString(forLanguageCode: lang)?.capitalized
+            ?? lang.uppercased()
+    }
 }
 
 struct ImmersiveReaderView: View {
@@ -23,21 +28,31 @@ struct ImmersiveReaderView: View {
     var siblings: [Document] = []
     var onNavigate: ((Document) -> Void)?
 
+    @Environment(WindowState.self) private var windowState
+
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
-    /// Per-window: which representation the reader shows (#3325 reader slice).
-    @SceneStorage("reader.representation") private var representation: ReaderRepresentation = .source
+    /// Loaded translations for the current page, one per language (#3329).
+    @State private var translations: [TranslationRep] = []
+    /// Per-window: which representation the reader shows — "source",
+    /// "diplomatic", or "lang:<code>" (#3325 reader slice / #3329).
+    @SceneStorage("reader.representation") private var representationKey: String = "source"
 
-    /// The canvas content for the chosen representation — Source is the storage
-    /// page image, Diplomatic is the raw page_content rendered as text. Reuses
-    /// the existing DocumentCanvas cases; no parallel view.
+    /// The canvas content for the chosen representation. Source is the storage
+    /// page image; Diplomatic is the raw page_content; a `lang:xx` key shows that
+    /// language's translation. All reuse existing DocumentCanvas cases — no
+    /// parallel view. Falls back to Source if a selected translation is gone.
     private var canvasContent: DocumentCanvas.Content {
-        switch representation {
-        case .source:
-            return .imageStorageDisplay(documentId: document.id)
-        case .diplomatic:
+        if representationKey == "diplomatic" {
             return .markdown(text: document.pageContent ?? "")
         }
+        if representationKey.hasPrefix("lang:") {
+            let lang = String(representationKey.dropFirst("lang:".count))
+            if let translation = translations.first(where: { $0.lang == lang }) {
+                return .markdown(text: translation.content)
+            }
+        }
+        return .imageStorageDisplay(documentId: document.id)
     }
 
     var body: some View {
@@ -53,6 +68,7 @@ struct ImmersiveReaderView: View {
             }
         }
         .background(KeyboardExitCatcher { exit() })
+        .task(id: document.id) { await loadTranslations() }
         .onContinuousHover { phase in
             switch phase {
             case .active:
@@ -69,17 +85,39 @@ struct ImmersiveReaderView: View {
     private var controlsOverlay: some View {
         VStack {
             HStack {
-                // Source (page image) / Diplomatic (page_content) selector
-                // (#3325 reader slice). Reuses the existing canvas views.
-                Picker("Representation", selection: $representation) {
-                    ForEach(ReaderRepresentation.allCases) { rep in
-                        Text(rep.rawValue).tag(rep)
+                // Source (page image) / Diplomatic (page_content) / one per
+                // translated language (#3325 reader slice, #3329). Dynamic, so a
+                // Menu rather than a fixed segmented control.
+                Menu {
+                    Button { representationKey = "source" } label: {
+                        Label("Source", systemImage: "photo")
                     }
+                    Button { representationKey = "diplomatic" } label: {
+                        Label("Diplomatic", systemImage: "text.alignleft")
+                    }
+                    if !translations.isEmpty {
+                        Divider()
+                        Section("Translations") {
+                            ForEach(translations) { translation in
+                                Button(translation.displayName) {
+                                    representationKey = "lang:\(translation.lang)"
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "character.book.closed")
+                        Text(currentRepresentationLabel)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 220)
-                .help("Switch between the page image and its transcribed text")
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Switch the reader between the page image, transcript, and translations")
 
                 Spacer()
                 Button(action: exit) {
@@ -134,6 +172,47 @@ struct ImmersiveReaderView: View {
 
     private var siblingIndex: Int? {
         siblings.firstIndex { $0.id == document.id }
+    }
+
+    private var currentRepresentationLabel: String {
+        if representationKey == "diplomatic" { return "Diplomatic" }
+        if representationKey.hasPrefix("lang:") {
+            let lang = String(representationKey.dropFirst("lang:".count))
+            return translations.first(where: { $0.lang == lang })?.displayName
+                ?? (Locale.current.localizedString(forLanguageCode: lang)?.capitalized ?? lang.uppercased())
+        }
+        return "Source"
+    }
+
+    /// Fetch the current page's `translation` artifacts and index them by
+    /// language (#3329). One entry per language (first wins). Reaches the service
+    /// via the window's library (the reader isn't in the artifact-service
+    /// environment). If the persisted selection points at a language that's no
+    /// longer present, fall back to Source.
+    private func loadTranslations() async {
+        guard let service = LibraryManager.shared.getLibrary(id: windowState.libraryId)?.artifactService else {
+            translations = []
+            return
+        }
+        do {
+            let artifacts = try await service.getArtifacts(forDocumentId: document.id, type: "translation")
+            var seen = Set<String>()
+            translations = artifacts.compactMap { artifact -> TranslationRep? in
+                guard let data = artifact.data,
+                      let lang = data["target_lang"]?.value as? String,
+                      let content = artifact.content,
+                      seen.insert(lang).inserted else { return nil }
+                return TranslationRep(lang: lang, content: content)
+            }
+        } catch {
+            translations = []
+        }
+        if representationKey.hasPrefix("lang:") {
+            let lang = String(representationKey.dropFirst("lang:".count))
+            if !translations.contains(where: { $0.lang == lang }) {
+                representationKey = "source"
+            }
+        }
     }
 
     private func navigate(by offset: Int) {
