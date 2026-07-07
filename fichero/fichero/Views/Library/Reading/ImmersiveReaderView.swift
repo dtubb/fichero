@@ -7,6 +7,15 @@ import SwiftUI
 /// zoom / pan / loupe and storage-HTTP image loading come for free (no parallel
 /// viewer, never a local path). Presented as a top-level overlay over the whole
 /// window, so the sidebar, inspector, and toolbar are all hidden behind it.
+/// Which representation of the current document the reader shows (#3325 step 4,
+/// reader slice). Normalized + Translations are deferred pending target_lang
+/// (#3329).
+enum ReaderRepresentation: String, CaseIterable, Identifiable {
+    case source = "Source"
+    case diplomatic = "Diplomatic"
+    var id: String { rawValue }
+}
+
 struct ImmersiveReaderView: View {
     let document: Document
     @Binding var isPresented: Bool
@@ -16,12 +25,26 @@ struct ImmersiveReaderView: View {
 
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
+    /// Per-window: which representation the reader shows (#3325 reader slice).
+    @SceneStorage("reader.representation") private var representation: ReaderRepresentation = .source
+
+    /// The canvas content for the chosen representation — Source is the storage
+    /// page image, Diplomatic is the raw page_content rendered as text. Reuses
+    /// the existing DocumentCanvas cases; no parallel view.
+    private var canvasContent: DocumentCanvas.Content {
+        switch representation {
+        case .source:
+            return .imageStorageDisplay(documentId: document.id)
+        case .diplomatic:
+            return .markdown(text: document.pageContent ?? "")
+        }
+    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            DocumentCanvas(content: .imageStorageDisplay(documentId: document.id))
+            DocumentCanvas(content: canvasContent)
                 .ignoresSafeArea()
 
             if controlsVisible {
@@ -46,6 +69,18 @@ struct ImmersiveReaderView: View {
     private var controlsOverlay: some View {
         VStack {
             HStack {
+                // Source (page image) / Diplomatic (page_content) selector
+                // (#3325 reader slice). Reuses the existing canvas views.
+                Picker("Representation", selection: $representation) {
+                    ForEach(ReaderRepresentation.allCases) { rep in
+                        Text(rep.rawValue).tag(rep)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 220)
+                .help("Switch between the page image and its transcribed text")
+
                 Spacer()
                 Button(action: exit) {
                     Image(systemName: "xmark")
