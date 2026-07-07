@@ -86,6 +86,15 @@ final class ReferenceStore: ObservableDomainStore {
         if selfRef?.id == referenceId { selfRef = nil }
     }
 
+    /// Run the bibliography extractor over the current document, then re-fetch.
+    /// The extractor writes `reference.*` rows; `reference.created` events also
+    /// refresh the scope via `apply`, so this is a belt-and-suspenders reload.
+    func runExtractor() async throws {
+        guard let documentId = currentDocumentId else { return }
+        _ = try await entityService.runBibliographyExtractor(forDocumentId: documentId)
+        await reload()
+    }
+
     // MARK: - ObservableDomainStore
 
     nonisolated var changeDomain: String { "reference" }

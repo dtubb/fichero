@@ -23,6 +23,9 @@ struct DocumentBibliographyPanel: View {
     // reference delete the action layer already backs).
     @State private var pendingDelete: Components.Schemas.Reference?
     @State private var deleteError: String?
+    // Bibliography extractor trigger (#3258) — the endpoint existed unused.
+    @State private var isExtracting = false
+    @State private var extractError: String?
 
     private var allBibtex: String {
         let parts = ([selfRef].compactMap { $0 } + references)
@@ -51,9 +54,27 @@ struct DocumentBibliographyPanel: View {
                         .font(.caption2).buttonStyle(.borderless)
                 }
             } else if references.isEmpty && selfRef == nil {
-                Text("No bibliography extracted yet — run a workflow that includes citation extraction to populate this section.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("No bibliography extracted yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        runExtractor()
+                    } label: {
+                        if isExtracting {
+                            HStack(spacing: 6) {
+                                ProgressView().scaleEffect(0.6)
+                                Text("Extracting…")
+                            }
+                            .font(.caption)
+                        } else {
+                            Label("Extract bibliography", systemImage: "text.book.closed")
+                                .font(.caption)
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(isExtracting)
+                }
             } else {
                 if !allBibtex.isEmpty {
                     HStack {
@@ -125,11 +146,34 @@ struct DocumentBibliographyPanel: View {
         } message: {
             Text(deleteError ?? "")
         }
+        .alert(
+            "Couldn't extract bibliography",
+            isPresented: Binding(
+                get: { extractError != nil },
+                set: { if !$0 { extractError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(extractError ?? "")
+        }
     }
 
     private func referenceTitle(_ ref: Components.Schemas.Reference) -> String {
         if let title = ref.title, !title.isEmpty { return title }
         return "reference"
+    }
+
+    private func runExtractor() {
+        isExtracting = true
+        Task { @MainActor in
+            defer { isExtracting = false }
+            do {
+                try await store?.runExtractor()
+            } catch {
+                extractError = error.localizedDescription
+            }
+        }
     }
 
     @ViewBuilder
