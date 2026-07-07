@@ -4,6 +4,7 @@ Chat Routes
 RAG-style chat using LangChain for semantic search and LLM generation.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -409,7 +410,8 @@ async def chat(
     kg_entities_used = 0
 
     try:
-        retrieval = GraphAwareRetriever(db, file_reader=_read_file_content).retrieve(
+        retrieval = await asyncio.to_thread(
+            GraphAwareRetriever(db, file_reader=_read_file_content).retrieve,
             query=request.message,
             max_sources=request.max_sources,
             include_sources=request.include_sources,
@@ -465,7 +467,7 @@ async def chat(
         HumanMessage(content=user_prompt),
     ]
 
-    response = llm.invoke(messages)
+    response = await llm.ainvoke(messages)
     response_text = response.content
 
     # Add assistant message

@@ -43,6 +43,14 @@ class _FakeLLM:
 
         return _Response()
 
+    async def ainvoke(self, messages):
+        self.messages = messages
+
+        class _Response:
+            content = "Ada Lovelace appears in the archive."
+
+        return _Response()
+
 
 class _FakeRetrievalPayload:
     def __init__(self):
@@ -379,6 +387,9 @@ class TestChatWithSources:
             def invoke(self, _messages):
                 raise RuntimeError("provider misconfigured")
 
+            async def ainvoke(self, _messages):
+                raise RuntimeError("provider misconfigured")
+
         monkeypatch.setattr(
             "fichero.api.routes.chat._get_langchain_llm",
             lambda *_args, **_kwargs: _BrokenLLM(),
@@ -489,8 +500,10 @@ class TestGetLangchainLlm:
         """The function must not attempt to import the removed ChatLiteLLM."""
         from unittest.mock import MagicMock
 
+        from unittest.mock import AsyncMock
         fake_model = MagicMock()
         fake_model.invoke.return_value = MagicMock(content="ok")
+        fake_model.ainvoke = AsyncMock(return_value=MagicMock(content="ok"))
 
         captured_config = {}
 
@@ -523,8 +536,10 @@ class TestGetLangchainLlm:
         """POST /api/chat succeeds when get_langchain_model returns a stub."""
         from unittest.mock import MagicMock
 
+        from unittest.mock import AsyncMock
         fake_model = MagicMock()
         fake_model.invoke.return_value = MagicMock(content="Hello from stub")
+        fake_model.ainvoke = AsyncMock(return_value=MagicMock(content="Hello from stub"))
 
         monkeypatch.setattr(
             "fichero.api.routes.chat.get_langchain_model",
