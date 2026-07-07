@@ -142,7 +142,10 @@ extension ContentView {
                 savedSearch: savedSearch,
                 selection: $browserSelection,
                 detailDocument: $detailDocument,
-                displayMode: $viewDisplayMode
+                displayMode: $viewDisplayMode,
+                // Drive live search from ContentView's SINGLE global toolbar
+                // search — SearchView no longer owns its own .searchable (#3163).
+                queryText: $toolbarSearchText
             )
 
         case .chat(let conversation):

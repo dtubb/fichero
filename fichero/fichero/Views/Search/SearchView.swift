@@ -9,7 +9,10 @@ struct SearchView: View {
     @Binding var displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     // ─── View-local state (UI scaffolding, debounce, persistence) ───
-    @State var queryText: String = ""
+    /// Bound to ContentView's single global toolbar search text (#3163), so the
+    /// global search field drives this view's live search — SearchView no longer
+    /// owns a second `.searchable`.
+    @Binding var queryText: String
     @State var searchScopeSelection: SearchScopeSelection = .all
 
     /// Token used to debounce live-as-you-type search. Each keystroke
@@ -50,34 +53,19 @@ struct SearchView: View {
     @Environment(LibraryManager.self) var libraryManager
     @Environment(WindowState.self) var windowState
 
-    /// True for non-primary split-pane copies. A secondary copy must NOT register
-    /// its own `.searchable(placement: .toolbar)` — two copies in one window's
-    /// toolbar crash NSToolbar with a duplicate-identifier error (#1447/#2309).
-    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
-
     var body: some View {
         VStack(spacing: 0) {
             scopeSelectorBar
             Divider()
             resultsPanel
         }
-            // SearchView owns its own toolbar search field via .searchable
-            // (#481). Each mode-specific view in this app owns the toolbar
-            // search slot for that mode; SwiftUI/AppKit only allows one
-            // search item per toolbar at a time, so we never stack them.
-            // A secondary split-pane copy must skip this registration or two
-            // copies collide → NSToolbar duplicate-identifier crash (#1447/#2309),
-            // mirroring LibraryView's guard.
-            .conditionalSearchable(
-                text: $queryText,
-                placement: .toolbar,
-                prompt: "Search documents…",
-                isActive: ToolbarSearchRegistration.shouldRegister(isSecondarySplitPane: isSecondarySplitPane)
-            )
-            .onSubmit(of: .search) {
-                guard !isSecondarySplitPane else { return }
-                performSearch()
-            }
+            // No .searchable here (#3163): ContentView owns the SINGLE global
+            // toolbar search for the whole window; a second one in this mode
+            // collided with it → duplicate com.apple.SwiftUI.search NSToolbar
+            // crash. `queryText` is now bound to ContentView's toolbarSearchText,
+            // and `.onChange(of: queryText)` below runs performSearch() live as
+            // the user types in that global field — same live-as-you-type UX,
+            // one search item.
             // Save-Search action only when results exist and we're not
             // already viewing a saved search (#481). The button persists
             // the current query as a SavedSearch and routes the sidebar
@@ -294,7 +282,8 @@ extension SearchView {
         savedSearch: nil,
         selection: .constant([]),
         detailDocument: .constant(nil),
-        displayMode: .constant(.icon)
+        displayMode: .constant(.icon),
+        queryText: .constant("")
     )
     .environment(SearchStore(searchService: SearchServiceGenerated(ficheroClient: FicheroClient(libraryPath: ""))))
     .frame(width: 800, height: 600)
