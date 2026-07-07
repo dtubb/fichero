@@ -103,6 +103,15 @@ final class ReferenceStore: ObservableDomainStore {
         await reload()
     }
 
+    /// Resolve a reference's metadata from its DOI/ISBN against the external
+    /// bibliographic sources (CrossRef/etc.). The backend persists the resolved
+    /// fields onto the document's bibliography; we reload to show them.
+    func resolveReference(doi: String?, isbn: String?) async throws {
+        guard let documentId = currentDocumentId else { return }
+        _ = try await entityService.resolveBibliography(doi: doi, isbn: isbn, documentId: documentId)
+        await reload()
+    }
+
     // MARK: - ObservableDomainStore
 
     nonisolated var changeDomain: String { "reference" }

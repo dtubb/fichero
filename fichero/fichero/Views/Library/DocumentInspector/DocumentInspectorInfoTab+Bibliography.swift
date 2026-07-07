@@ -33,6 +33,9 @@ struct DocumentBibliographyPanel: View {
     @State private var extractError: String?
     // Reference being edited (#3258) — surfaces the undoable metadata PATCH.
     @State private var editing: EditingReference?
+    // References whose DOI/ISBN resolve is in flight (#3258), + last error.
+    @State private var resolvingIds: Set<String> = []
+    @State private var resolveError: String?
 
     private var allBibtex: String {
         let parts = ([selfRef].compactMap { $0 } + references)
@@ -164,6 +167,17 @@ struct DocumentBibliographyPanel: View {
         } message: {
             Text(extractError ?? "")
         }
+        .alert(
+            "Couldn't resolve reference",
+            isPresented: Binding(
+                get: { resolveError != nil },
+                set: { if !$0 { resolveError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(resolveError ?? "")
+        }
         .sheet(item: $editing) { editing in
             ReferenceEditSheet(reference: editing.ref) { patch in
                 try await store?.patchReference(editing.id, patch: patch)
@@ -188,15 +202,31 @@ struct DocumentBibliographyPanel: View {
         }
     }
 
+    private func resolve(_ ref: Components.Schemas.Reference) {
+        guard let id = ref.id, !resolvingIds.contains(id) else { return }
+        resolvingIds.insert(id)
+        Task { @MainActor in
+            defer { resolvingIds.remove(id) }
+            do {
+                try await store?.resolveReference(doi: ref.doi, isbn: ref.isbn)
+            } catch {
+                resolveError = error.localizedDescription
+            }
+        }
+    }
+
     @ViewBuilder
     private func referenceRow(_ ref: Components.Schemas.Reference, isSelf: Bool) -> some View {
         // Only the cited references are deletable; the document's own entry
         // (isSelf) is not a bibliography row to remove.
         let editable = !isSelf && ref.id != nil
+        let hasIdentifier = !(ref.doi ?? "").isEmpty || !(ref.isbn ?? "").isEmpty
         ReferenceRowView(
             ref: ref,
             isSelf: isSelf,
+            isResolving: ref.id.map { resolvingIds.contains($0) } ?? false,
             onEdit: editable ? { if let id = ref.id { editing = EditingReference(id: id, ref: ref) } } : nil,
+            onResolve: (editable && hasIdentifier) ? { resolve(ref) } : nil,
             onDelete: editable ? { pendingDelete = ref } : nil
         )
     }
@@ -212,8 +242,12 @@ private struct EditingReference: Identifiable {
 private struct ReferenceRowView: View {
     let ref: Components.Schemas.Reference
     let isSelf: Bool
+    /// A DOI/ISBN resolve is in flight for this row (#3258).
+    var isResolving = false
     /// Present only for editable rows (#3258); nil disables the edit action.
     var onEdit: (() -> Void)?
+    /// Present only when the row has a DOI/ISBN to resolve (#3258).
+    var onResolve: (() -> Void)?
     /// Present only for deletable rows (#3258); nil disables the delete action.
     var onDelete: (() -> Void)?
 
@@ -225,6 +259,10 @@ private struct ReferenceRowView: View {
             .contextMenu {
                 if let onEdit {
                     Button("Edit…", systemImage: "pencil", action: onEdit)
+                }
+                if let onResolve {
+                    Button("Resolve Metadata", systemImage: "sparkle.magnifyingglass", action: onResolve)
+                        .disabled(isResolving)
                 }
                 if let onDelete {
                     Button("Delete Reference…", role: .destructive, action: onDelete)
@@ -245,6 +283,11 @@ private struct ReferenceRowView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                if isResolving {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .help("Resolving metadata…")
+                }
                 Spacer(minLength: 4)
                 if let bibtex = ref.bibtex, !bibtex.isEmpty {
                     Button {
