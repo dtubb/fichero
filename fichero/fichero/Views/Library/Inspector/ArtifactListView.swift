@@ -235,6 +235,14 @@ private struct ArtifactRow: View {
                     .foregroundStyle(.green.opacity(0.7))
                     .help("Reviewed")
                     .accessibilityLabel("Reviewed")
+            } else if let provider = artifact.provider, !provider.isEmpty {
+                // AI-generated and not yet human-reviewed — mark it as an
+                // instrument output, not vetted fact (#2151/#2152, #3325 step 4).
+                Image(systemName: "sparkles")
+                    .font(.caption2)
+                    .foregroundStyle(.purple.opacity(0.7))
+                    .help("AI-generated · not yet reviewed")
+                    .accessibilityLabel("AI-generated, not reviewed")
             }
             if artifact.version > 1 {
                 Text("v\(artifact.version)")
