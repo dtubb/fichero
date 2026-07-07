@@ -21,8 +21,14 @@ final class ResearchService {
         self.client = ficheroClient
     }
 
-    private enum ServiceError: Error {
+    private enum ServiceError: Error, LocalizedError {
         case unexpectedResponse
+
+        // Shown to users via researchService.error; conform to LocalizedError so
+        // it's not the generic "operation couldn't be completed" message (#2500).
+        var errorDescription: String? {
+            "Unexpected response from the research service."
+        }
     }
 
     private static let decoder: JSONDecoder = {
