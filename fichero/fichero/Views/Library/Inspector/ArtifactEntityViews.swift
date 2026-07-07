@@ -122,7 +122,11 @@ struct ArtifactEntitiesView: View {
                     .foregroundStyle(.secondary)
                     .frame(minWidth: 90, alignment: .leading)
                 FlowLayout(spacing: 4) {
-                    ForEach(names, id: \.self) { name in
+                    // Dedup: the same name can appear twice in one artifact's
+                    // extracted list; `id: \.self` on a raw [String] would then
+                    // emit duplicate ForEach IDs (the #1966 warning) and render
+                    // the lozenge twice. Order-preserving unique fixes both.
+                    ForEach(names.uniqued(), id: \.self) { name in
                         // Pass entityType so the tap fires a scoped query
                         // (e.g. `places:"Quibdó"` instead of free-text).
                         EntityLozenge(name: name, entityType: Self.entityTypeId(for: label))
@@ -250,7 +254,8 @@ struct ArtifactEntityCell: View {
                 Text("—").font(.caption2).foregroundStyle(.secondary)
             } else {
                 FlowLayout(spacing: 4) {
-                    ForEach(names, id: \.self) { name in
+                    // Same #1966 dedup as lozengeRow — unique IDs, no double render.
+                    ForEach(names.uniqued(), id: \.self) { name in
                         EntityLozenge(name: name, entityType: entityType)
                     }
                 }
@@ -321,5 +326,15 @@ struct ArtifactEntityCell: View {
         return items.compactMap { item in
             (item["date_normalized"] as? String) ?? (item["date"] as? String)
         }
+    }
+}
+
+fileprivate extension Sequence where Element: Hashable {
+    /// Order-preserving unique — the stdlib has none. Used so `ForEach(_, id: \.self)`
+    /// over an entity-name list can't emit duplicate IDs (#1966). fileprivate: only
+    /// this file needs it; promote to a shared extension if a second caller appears.
+    func uniqued() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
     }
 }
