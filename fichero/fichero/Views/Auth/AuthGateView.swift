@@ -1,3 +1,8 @@
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import SwiftUI
 
 /// The login gate shown instead of the library when multi-user auth is on and
@@ -7,6 +12,9 @@ import SwiftUI
 /// are held only in local `@State` and never logged.
 struct AuthGateView: View {
     @Bindable var session: SessionStore
+    /// User chose "Set up an owner account" from the sign-in form (#3331) — show
+    /// owner setup even though accounts exist (they just can't sign in).
+    @State private var showOwnerSetup = false
 
     var body: some View {
         Group {
@@ -17,9 +25,14 @@ struct AuthGateView: View {
             } else {
                 switch session.phase {
                 case .needsOwnerSetup:
-                    OwnerSetupFormView(session: session)
+                    // First run — no accounts exist; owner setup is the only path.
+                    OwnerSetupFormView(session: session, onBackToSignIn: nil)
                 default:
-                    LoginFormView(session: session)
+                    if showOwnerSetup {
+                        OwnerSetupFormView(session: session, onBackToSignIn: { showOwnerSetup = false })
+                    } else {
+                        LoginFormView(session: session, onCreateOwner: { showOwnerSetup = true })
+                    }
                 }
             }
         }
@@ -34,12 +47,30 @@ private struct AuthCard<Content: View>: View {
     let subtitle: String
     @ViewBuilder var content: Content
 
+    /// The app's flat icon, loaded from AppIcon.icns at the bundle root so it
+    /// shows the real Fichero mark without the system squircle
+    /// NSApp.applicationIconImage applies (mirrors BackendConnectionView, #3331).
+    static var ficheroIconImage: PlatformImage {
+        if let resourcePath = Bundle.main.resourcePath,
+           let image = PlatformImage(contentsOfFile: "\(resourcePath)/AppIcon.icns") {
+            return image
+        }
+        #if canImport(AppKit)
+        return NSApp.applicationIconImage ?? PlatformImage()
+        #elseif canImport(UIKit)
+        return PlatformImage(systemName: "books.vertical") ?? PlatformImage()
+        #else
+        return PlatformImage()
+        #endif
+    }
+
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 8) {
-                Image(systemName: "lock.shield")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
+                Image(platformImage: Self.ficheroIconImage)
+                    .resizable()
+                    .frame(width: 64, height: 64)
+                    .accessibilityHidden(true)
                 Text(title)
                     .font(.title2)
                     .fontWeight(.semibold)
@@ -57,6 +88,10 @@ private struct AuthCard<Content: View>: View {
 
 private struct LoginFormView: View {
     @Bindable var session: SessionStore
+    /// Switch to the owner-setup form so a user who can't sign in (no usable
+    /// owner credential) can create/claim the owner account instead of being
+    /// walled (#3331).
+    var onCreateOwner: () -> Void
 
     @State private var username = ""
     @State private var password = ""
@@ -104,6 +139,12 @@ private struct LoginFormView: View {
                 .controlSize(.large)
                 .disabled(!canSubmit)
                 .keyboardShortcut(.defaultAction)
+
+                Button("Set up an owner account", action: onCreateOwner)
+                    .buttonStyle(.plain)
+                    .font(.callout)
+                    .foregroundStyle(Color.accentColor)
+                    .disabled(isSubmitting)
             }
         }
     }
@@ -222,6 +263,9 @@ private struct RedeemInviteFormView: View {
 
 private struct OwnerSetupFormView: View {
     @Bindable var session: SessionStore
+    /// Present when reached from the sign-in form (#3331); nil on first-run where
+    /// there's nothing to sign in to.
+    var onBackToSignIn: (() -> Void)?
 
     @State private var username = ""
     @State private var displayName = ""
@@ -245,7 +289,9 @@ private struct OwnerSetupFormView: View {
     var body: some View {
         AuthCard(
             title: "Create Owner Account",
-            subtitle: "This is the first account on this server. It has owner access."
+            subtitle: onBackToSignIn == nil
+                ? "This is the first account on this server. It has owner access."
+                : "Set up an owner account with owner access to this server."
         ) {
             VStack(spacing: 12) {
                 TextField("Username", text: $username)
@@ -287,6 +333,14 @@ private struct OwnerSetupFormView: View {
                 .controlSize(.large)
                 .disabled(!canSubmit)
                 .keyboardShortcut(.defaultAction)
+
+                if let onBackToSignIn {
+                    Button("Back to Sign In", action: onBackToSignIn)
+                        .buttonStyle(.plain)
+                        .font(.callout)
+                        .foregroundStyle(Color.accentColor)
+                        .disabled(isSubmitting)
+                }
             }
         }
     }
