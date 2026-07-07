@@ -431,6 +431,10 @@ def _resolve_single_user_owner():
         # Multiple owners — return the first active one
         return owners[0]
     except Exception:
+        # Degrade to bootstrap-only (user=None) — the same trust as before
+        # #3331 — but never silently: a failure here means audit attribution
+        # is missing, which we want to see in the logs (#3331 follow-up).
+        logger.warning("single-user owner resolution failed", exc_info=True)
         return None
 
 
