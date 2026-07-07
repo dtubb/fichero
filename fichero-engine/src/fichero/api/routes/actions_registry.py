@@ -26,7 +26,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from fichero.api.library_header import optional_library_path, require_library_path
 from fichero import authz
@@ -52,13 +52,36 @@ router = APIRouter(prefix="/actions", tags=["actions"])
 class InvokeActionRequest(BaseModel):
     name: str = Field(description="Registered action name, '<domain>.<verb>'")
     params: dict = Field(default_factory=dict, description="Raw action params")
-    origin_window: str | None = Field(
-        default=None, description="Self-echo de-dup seam for the change stream"
-    )
-    actor: str | None = Field(
-        default=None, description="Override actor; defaults to 'ui'"
-    )
     run_id: str | None = Field(default=None, description="AI run id, if any (#1832)")
+
+    # SECURITY: actor and origin_window are NOT accepted from the request body.
+    # The actor is derived from the authenticated session (action_context dependency)
+    # and cannot be forged. Reject any request that tries to set them (#3285).
+    actor: str | None = Field(
+        default=None,
+        description="DEPRECATED — rejected if set. Actor comes from the authenticated session.",
+        exclude=True,
+    )
+    origin_window: str | None = Field(
+        default=None,
+        description="DEPRECATED — rejected if set. Use X-Fichero-Origin-Window header.",
+        exclude=True,
+    )
+
+    @model_validator(mode="after")
+    def reject_deprecated_fields(self) -> "InvokeActionRequest":
+        """Reject actor/origin_window in the body — they must come from auth headers."""
+        if self.actor is not None:
+            raise ValueError(
+                "actor must not be set in the request body; "
+                "it is derived from the authenticated session"
+            )
+        if self.origin_window is not None:
+            raise ValueError(
+                "origin_window must not be set in the request body; "
+                "use the X-Fichero-Origin-Window header instead"
+            )
+        return self
 
 
 class ActionResultResponse(BaseModel):
