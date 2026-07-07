@@ -1,5 +1,41 @@
 import SwiftUI
 
+/// Params for the audited `artifact.translate` action (#3325). Snake-case keys
+/// match the backend `ArtifactTranslateParams` pydantic model.
+struct ArtifactTranslateActionParams: Encodable {
+    let documentId: String
+    let targetLang: String
+    let sourceLang: String
+    let provider: String?
+
+    enum CodingKeys: String, CodingKey {
+        case documentId = "document_id"
+        case targetLang = "target_lang"
+        case sourceLang = "source_lang"
+        case provider
+    }
+}
+
+/// A target language the user can translate a document into (#3325). Codes are
+/// ISO-639-1; the list leans toward the archival corpora (Spanish colonial,
+/// Latin, Portuguese) but stays short — the backend accepts any code.
+struct TranslationLanguage: Identifiable, Hashable {
+    let code: String
+    let name: String
+    var id: String { code }
+
+    static let common: [TranslationLanguage] = [
+        .init(code: "en", name: "English"),
+        .init(code: "es", name: "Spanish"),
+        .init(code: "pt", name: "Portuguese"),
+        .init(code: "fr", name: "French"),
+        .init(code: "la", name: "Latin"),
+        .init(code: "de", name: "German"),
+        .init(code: "it", name: "Italian"),
+        .init(code: "nl", name: "Dutch")
+    ]
+}
+
 /// The Artifacts inspector tab, rebuilt as List + detail (#2003, EPIC #2002).
 ///
 /// Replaces the old `DocumentInspectorContentV2(mode: .artifactsOnly)` stacked
@@ -26,6 +62,8 @@ struct ArtifactsInspectorPane: View {
     /// Shared selection — the same instance the detached window observes.
     @State private var focused = FocusedArtifact.shared
     @State private var actionError: String?
+    /// A translate action is in flight (#3325).
+    @State private var isTranslating = false
 
     /// The artifact currently selected, resolved live from the store so inline
     /// edits and workflow re-runs flow through immediately.
@@ -59,6 +97,24 @@ struct ArtifactsInspectorPane: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                // Translate the document into a chosen language (#3325). The
+                // result is persisted as a searchable `translation` artifact and
+                // shows up in the list via the store's change stream.
+                Menu {
+                    ForEach(TranslationLanguage.common) { lang in
+                        Button(lang.name) { translate(to: lang) }
+                    }
+                } label: {
+                    if isTranslating {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Translate", systemImage: "character.book.closed")
+                    }
+                }
+                .disabled(isTranslating)
+                .help("Translate this document into another language")
+            }
             ToolbarItem(placement: .automatic) {
                 // #2254 §E: the gated, reusable detach affordance. Absent where a
                 // second window can't exist (iPhone), so the floating placement is
@@ -127,6 +183,35 @@ struct ArtifactsInspectorPane: View {
             await store.reload()
         } catch {
             actionError = "Couldn't delete: \(error.localizedDescription)"
+        }
+    }
+
+    private func translate(to language: TranslationLanguage) {
+        guard let actionsService = LibraryManager.shared.globalLibrary?.actionsService else {
+            actionError = "No library available to translate."
+            return
+        }
+        isTranslating = true
+        Task { @MainActor in
+            defer { isTranslating = false }
+            do {
+                let result = try await actionsService.invokeAction(
+                    name: "artifact.translate",
+                    params: ArtifactTranslateActionParams(
+                        documentId: document.id,
+                        targetLang: language.code,
+                        sourceLang: "auto",
+                        provider: nil
+                    )
+                )
+                LastAction.shared.record(auditId: result.auditId, actionName: "artifact.translate")
+                actionError = nil
+                // The new translation artifact also arrives via the change stream;
+                // reload so it shows immediately in the list.
+                await store.reload()
+            } catch {
+                actionError = "Couldn't translate: \(error.localizedDescription)"
+            }
         }
     }
 
