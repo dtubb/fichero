@@ -7,8 +7,6 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 struct WorkflowChainListView: View {
     @State private var chainService: ChainService
     @Environment(WorkflowStore.self) var workflowStore
-    /// A secondary split-pane copy defers its toolbar search to the primary (#3163).
-    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
     @State private var searchText = ""
     @State private var selectedChainId: String?
     @State private var selectedChainIds: Set<String> = []
@@ -47,16 +45,10 @@ struct WorkflowChainListView: View {
         .onChange(of: selectedChainIds) { _, newValue in
             selectedChainId = newValue.first
         }
-        // Gated like LibraryView/SearchView so a secondary split-pane copy does
-        // NOT register a second toolbar search — two would collide on one
-        // window's NSToolbar (duplicate com.apple.SwiftUI.search) and crash at
-        // launch (#3163). Per-view filtering still runs via `searchText`.
-        .conditionalSearchable(
-            text: $searchText,
-            placement: .toolbar,
-            prompt: "Search chains...",
-            isActive: ToolbarSearchRegistration.shouldRegister(isSecondarySplitPane: isSecondarySplitPane)
-        )
+        // No per-view toolbar search: the toolbar search is global and always
+        // searches files/documents (ContentView owns the single .searchable).
+        // A second .searchable here is a duplicate com.apple.SwiftUI.search on
+        // the same NSToolbar and crashes at launch (#3163). The list shows all.
         .task {
             guard !Task.isCancelled else { return }
             guard FeatureManager.shared.isWorkflowChainsEnabled else {

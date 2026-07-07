@@ -4,8 +4,6 @@ import SwiftUI
 /// Action Library view for browsing and using reusable workflow actions
 struct ActionLibraryView: View {
     @Environment(ActionStore.self) private var actionStore
-    /// A secondary split-pane copy defers its toolbar search to the primary (#3163).
-    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
     @State private var searchText = ""
     @State private var selectedCategory: String?
     @State private var selectedAction: ActionItem?
@@ -47,16 +45,10 @@ struct ActionLibraryView: View {
                 )
             }
         }
-        // Gated like LibraryView/SearchView so a secondary split-pane copy
-        // doesn't register a second toolbar search (duplicate
-        // com.apple.SwiftUI.search → launch crash, #3163). Filtering still runs
-        // via `searchText`.
-        .conditionalSearchable(
-            text: $searchText,
-            placement: .toolbar,
-            prompt: "Search actions...",
-            isActive: ToolbarSearchRegistration.shouldRegister(isSecondarySplitPane: isSecondarySplitPane)
-        )
+        // No per-view toolbar search: the toolbar search is global and always
+        // searches files/documents (ContentView owns the single .searchable).
+        // A second .searchable here is a duplicate com.apple.SwiftUI.search on
+        // the same NSToolbar and crashes at launch (#3163). The list shows all.
         .task {
             await actionStore.loadActions()
             await actionStore.loadCategories()
