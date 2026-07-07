@@ -97,8 +97,12 @@ struct LibraryWindow: View {
         .focusedSceneValue(\.newLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleNewLibrary() }))
         .focusedSceneValue(\.saveLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleSaveLibrary() }))
         .focusedSceneValue(\.closeLibraryAction, closeLibraryAction)
-        // Keep titlebar chrome minimal; ContentView manages in-window context.
-        .navigationTitle("")
+        // Titlebar tracks the open library so the window title matches its
+        // proxy icon (representedURL, set in syncHostWindowMetadata) — macOS
+        // convention (#2489). Empty when no library is open. Folder/document
+        // selection in the subtitle is a follow-up; ContentView still owns the
+        // in-window breadcrumb context.
+        .navigationTitle(windowState.library?.displayName ?? "")
         .navigationSubtitle("")
     }
 
