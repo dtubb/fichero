@@ -32,19 +32,27 @@ ENDPOINTS_FILE = CONTRACTS_DIR / "endpoints.json"
 
 @pytest.fixture
 def client():
-    """Create a test client for the CURRENT FastAPI app.
+    """Create a test client for the CURRENT FastAPI app, authenticated.
 
-    Re-fetch ``fichero.api.main.app`` instead of the module-import binding at
-    the top of this file. The authz suites ``importlib.reload(api.main)`` while
-    toggling ``FICHERO_DISABLE_AUTH`` (test_mutation_authz.multiuser_client),
-    which rebinds ``api_main.app`` to a new instance with auth middleware
-    attached. A stale import-time ``app`` reference otherwise carries a
-    different auth state into a cross-file run and 401s these unauthenticated
-    endpoint-existence checks (#3333 — pass in isolation, fail in batch).
+    Two isolation hazards make these endpoint-existence checks flaky in a
+    cross-file batch (pass alone, 401 in batch — #3333):
+
+    1. The authz suites ``importlib.reload(api.main)`` while toggling
+       ``FICHERO_DISABLE_AUTH``, rebinding ``api_main.app`` to a new instance
+       whose auth middleware may be attached — so we re-fetch the CURRENT
+       ``api_main.app`` rather than a stale import-time binding.
+    2. Whether that current app enforces auth is order-dependent, so we also
+       send the loopback bootstrap token. It's ignored when auth is disabled
+       and accepted (as the same-Mac superuser) when it's on — making the check
+       auth-state-agnostic instead of relying on the ambient config.
     """
     import fichero.api.main as api_main
+    from fichero.api.auth import initialize_token
 
-    return TestClient(api_main.app)
+    return TestClient(
+        api_main.app,
+        headers={"Authorization": f"Bearer {initialize_token()}"},
+    )
 
 
 @pytest.fixture
