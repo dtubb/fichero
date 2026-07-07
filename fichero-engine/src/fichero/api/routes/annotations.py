@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from fichero.api.auth import action_context
 from fichero.api.change_stream import emit_change
@@ -46,13 +46,44 @@ class AnnotationCreateRequest(BaseModel):
     anchor_kind: str | None = None
     paragraph_index: int | None = None
     text: str | None = None
-    rating: int | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
     color: str | None = None
     tags: list[str] = []
     linked_claim_ids: list[str] = []
     linked_entity_ids: list[str] = []
     linked_note_ids: list[str] = []
     metadata: dict[str, Any] = {}
+
+    @field_validator("bbox")
+    @classmethod
+    def validate_bbox(cls, v: list[float] | None) -> list[float] | None:
+        """Validate bbox: must be [x, y, width, height], all in [0, 1], w/h > 0."""
+        if v is None:
+            return v
+        if len(v) != 4:
+            raise ValueError(f"bbox must have exactly 4 elements [x, y, width, height], got {len(v)}")
+        import math
+        for i, val in enumerate(v):
+            if math.isnan(val) or math.isinf(val):
+                raise ValueError(f"bbox[{i}] must be finite, got {val}")
+            if val < 0 or val > 1:
+                raise ValueError(f"bbox[{i}] must be in [0, 1], got {val}")
+        if v[2] <= 0:
+            raise ValueError(f"bbox width must be > 0, got {v[2]}")
+        if v[3] <= 0:
+            raise ValueError(f"bbox height must be > 0, got {v[3]}")
+        return v
+
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, v: str | None) -> str | None:
+        """Validate color: must be a hex string like #RRGGBB or #RRGGBBAA."""
+        if v is None:
+            return v
+        import re
+        if not re.match(r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$", v):
+            raise ValueError(f"color must be a hex colour like #RRGGBB or #RRGGBBAA, got {v!r}")
+        return v
 
 
 class AnnotationScopePayload(BaseModel):
@@ -226,7 +257,7 @@ class AnnotationPatchRequest(BaseModel):
     page_id: str | None = None
     folder_id: str | None = None
     text: str | None = None
-    rating: int | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
     color: str | None = None
     tags: list[str] | None = None
     linked_claim_ids: list[str] | None = None
@@ -238,6 +269,37 @@ class AnnotationPatchRequest(BaseModel):
     anchor_kind: str | None = None
     paragraph_index: int | None = None
     metadata: dict[str, Any] | None = None
+
+    @field_validator("bbox")
+    @classmethod
+    def validate_bbox(cls, v: list[float] | None) -> list[float] | None:
+        """Validate bbox: must be [x, y, width, height], all in [0, 1], w/h > 0."""
+        if v is None:
+            return v
+        if len(v) != 4:
+            raise ValueError(f"bbox must have exactly 4 elements [x, y, width, height], got {len(v)}")
+        import math
+        for i, val in enumerate(v):
+            if math.isnan(val) or math.isinf(val):
+                raise ValueError(f"bbox[{i}] must be finite, got {val}")
+            if val < 0 or val > 1:
+                raise ValueError(f"bbox[{i}] must be in [0, 1], got {val}")
+        if v[2] <= 0:
+            raise ValueError(f"bbox width must be > 0, got {v[2]}")
+        if v[3] <= 0:
+            raise ValueError(f"bbox height must be > 0, got {v[3]}")
+        return v
+
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, v: str | None) -> str | None:
+        """Validate color: must be a hex string like #RRGGBB or #RRGGBBAA."""
+        if v is None:
+            return v
+        import re
+        if not re.match(r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$", v):
+            raise ValueError(f"color must be a hex colour like #RRGGBB or #RRGGBBAA, got {v!r}")
+        return v
 
 
 def patch_annotation_impl(
