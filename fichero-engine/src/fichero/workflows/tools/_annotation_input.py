@@ -29,6 +29,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from fichero.knowledge_models import Annotation
     from fichero.models import Document
 
+from fichero.utf16_offsets import utf16_range_to_codepoint_range
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,6 +40,9 @@ def crop_text(
 ) -> str | None:
     """Return the substring of document.page_content for this annotation.
 
+    Converts UTF-16 offsets (sent by the Swift frontend) to Python
+    code-point offsets before slicing (#3262).
+
     Returns the annotation.text itself if char offsets aren't set —
     a free-floating note has its own body. Returns None when there's
     nothing to extract.
@@ -45,7 +50,12 @@ def crop_text(
     if annotation.char_start is not None and annotation.char_end is not None:
         body = document.page_content or ""
         if body:
-            return body[annotation.char_start : annotation.char_end]
+            # Convert UTF-16 offsets (from Swift frontend) to Python
+            # code-point offsets before slicing (#3262).
+            cp_start, cp_end = utf16_range_to_codepoint_range(
+                body, annotation.char_start, annotation.char_end
+            )
+            return body[cp_start:cp_end]
     return annotation.text or None
 
 

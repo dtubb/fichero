@@ -25,6 +25,7 @@ from fichero.knowledge_models import (
     AnnotationKind,
     KnowledgeClaim,
 )
+from fichero.utf16_offsets import utf16_range_to_codepoint_range
 from fichero.models import AnnotationListResponse, DocType, Document
 from fichero.storage import resolve_source
 
@@ -468,7 +469,12 @@ def promote_to_claim_impl(
         and ann.char_start is not None
         and ann.char_end is not None
     ):
-        excerpt = doc.page_content[ann.char_start : ann.char_end]
+        # Convert UTF-16 offsets (from Swift frontend) to Python code-point
+        # offsets before slicing page_content (#3262).
+        cp_start, cp_end = utf16_range_to_codepoint_range(
+            doc.page_content, ann.char_start, ann.char_end
+        )
+        excerpt = doc.page_content[cp_start:cp_end]
     if not excerpt:
         excerpt = ann.text
 
