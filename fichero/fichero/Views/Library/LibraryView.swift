@@ -735,25 +735,14 @@ extension LibraryView {
         guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
 
         do {
-            let request = Components.Schemas.FicheroApiRoutesBibliographyExportRequest(documentIds: documentIds)
-            let response = try await library.ficheroClient.api.exportBibtexApiBibliographyExportBibPost(
-                .init(body: .json(request))
-            )
-            guard case .ok(let success) = response else {
-                throw ExportError.unexpectedResponse
-            }
-            let body = try success.body.plainText
-            let data = try await Data(collecting: body, upTo: 10 * 1024 * 1024)
-            let saveURL = await presentBibtexSavePanel()
-            guard let saveURL else { return }
-            try data.write(to: saveURL, options: .atomic)
+            // Route through the service wrapper instead of raw ficheroClient.api
+            // (observable-data-layer, #3258); it owns the response handling.
+            let bib = try await library.entityService.exportBibliographyBib(documentIds: documentIds)
+            guard let saveURL = await presentBibtexSavePanel() else { return }
+            try Data(bib.utf8).write(to: saveURL, options: .atomic)
         } catch {
             bottomBarLogger.error("Failed to export selected BibTeX: \(error.localizedDescription)")
         }
-    }
-
-    private enum ExportError: Error {
-        case unexpectedResponse
     }
 
     private func presentBibtexSavePanel() async -> URL? {

@@ -407,20 +407,10 @@ struct FileMenuCommands: View {
         using library: LibraryManager.LibraryReference,
         documentIds: [String]
     ) async throws -> Data {
-        let request = Components.Schemas.FicheroApiRoutesBibliographyExportRequest(documentIds: documentIds)
-        let response = try await library.ficheroClient.api.exportBibtexApiBibliographyExportBibPost(
-            .init(body: .json(request))
-        )
-        switch response {
-        case .ok(let success):
-            let body = try success.body.plainText
-            return try await Data(collecting: body, upTo: 10 * 1024 * 1024)
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw ExportError.serverError(detail?.detail?.description ?? "Validation error")
-        default:
-            throw ExportError.unexpectedResponse
-        }
+        // Route through the service wrapper instead of raw ficheroClient.api
+        // (observable-data-layer, #3258); it owns the response handling.
+        let bib = try await library.entityService.exportBibliographyBib(documentIds: documentIds)
+        return Data(bib.utf8)
     }
 
     #if os(macOS)
