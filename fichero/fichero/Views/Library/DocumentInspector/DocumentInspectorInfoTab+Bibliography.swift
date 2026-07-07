@@ -372,7 +372,7 @@ private struct ReferenceRowView: View {
 private struct ReferenceEditSheet: View {
     let reference: Components.Schemas.Reference
     /// Async save; throwing surfaces an inline error and keeps the sheet open.
-    let onSave: ([String: Any]) async throws -> Void
+    let onSave: @MainActor ([String: Any]) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
@@ -385,7 +385,7 @@ private struct ReferenceEditSheet: View {
 
     init(
         reference: Components.Schemas.Reference,
-        onSave: @escaping ([String: Any]) async throws -> Void
+        onSave: @escaping @MainActor ([String: Any]) async throws -> Void
     ) {
         self.reference = reference
         self.onSave = onSave
@@ -414,7 +414,7 @@ private struct ReferenceEditSheet: View {
                     TextField("Title", text: $title, axis: .vertical)
                     TextField("Authors (comma-separated)", text: $authors, axis: .vertical)
                     TextField("Year", text: $yearText)
-                        .foregroundStyle(yearIsValid ? .primary : .red)
+                        .foregroundStyle(yearIsValid ? Color.primary : Color.red)
                     TextField("Journal or book", text: $journal)
                     TextField("DOI", text: $doi)
                 }
