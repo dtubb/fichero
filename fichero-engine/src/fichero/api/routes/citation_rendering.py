@@ -46,16 +46,27 @@ class CitationResponse(BaseModel):
 def _metadata_for_document(db: Database, document_id: str):
     """Pull SourceMetadata for a document.
 
-    Today this lives either as Document.metadata['source_metadata']
-    or attached to claims via KnowledgeClaim.source_metadata. We
-    check the document side first; fall back to the most-recent
-    claim from that document.
+    SourceMetadata now lives on the top-level Document.source_metadata
+    field (added #908). Older libraries may still have it nested inside
+    Document.metadata['source_metadata'], so we check the primary field
+    first and fall back to the legacy dict location. If neither works,
+    fall back to the most-recent claim from that document.
     """
     from fichero.knowledge_models import KnowledgeClaim, SourceMetadata
     from fichero.models import Document
 
     doc = db.get(Document, document_id)
     if doc is not None:
+        # Primary: top-level source_metadata field (#908)
+        if doc.source_metadata is not None:
+            if isinstance(doc.source_metadata, SourceMetadata):
+                return doc.source_metadata
+            # Stored as a dict — construct from it
+            try:
+                return SourceMetadata(**doc.source_metadata)
+            except Exception:
+                pass
+        # Legacy fallback: nested inside metadata dict
         meta_dict = (doc.metadata or {}).get("source_metadata")
         if meta_dict:
             try:

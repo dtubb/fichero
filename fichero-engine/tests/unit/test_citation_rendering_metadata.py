@@ -73,3 +73,69 @@ def test_first_claim_with_source_metadata_wins() -> None:
 def test_returns_none_when_no_metadata_anywhere() -> None:
     db = _StubDB(doc=Document(id="d1", name="d1"), claims=[])
     assert _metadata_for_document(db, "d1") is None
+
+
+# ---------------------------------------------------------------------------
+# #3251 regression: source_metadata on Document.source_metadata (top-level)
+# ---------------------------------------------------------------------------
+
+
+def test_prefers_document_source_metadata_field_over_metadata_dict() -> None:
+    """When both doc.source_metadata and doc.metadata['source_metadata'] exist,
+    the top-level field wins (it's the authoritative writer location)."""
+    from fichero.knowledge_models import SourceMetadata
+
+    doc = Document(
+        id="d1",
+        name="d1",
+        source_metadata={"title": "Top-Level"},
+        metadata={"source_metadata": {"title": "Nested Dict"}},
+    )
+    db = _StubDB(doc=doc)
+    meta = _metadata_for_document(db, "d1")
+    assert isinstance(meta, SourceMetadata)
+    assert meta.title == "Top-Level"
+
+
+def test_reads_document_source_metadata_when_dict_stored() -> None:
+    """doc.source_metadata may be stored as a plain dict in DuckDB;
+    _metadata_for_document should construct SourceMetadata from it."""
+    doc = Document(
+        id="d1",
+        name="d1",
+        source_metadata={"title": "Dict As Field", "authors": ["Author A"]},
+    )
+    db = _StubDB(doc=doc)
+    meta = _metadata_for_document(db, "d1")
+    assert isinstance(meta, SourceMetadata)
+    assert meta.title == "Dict As Field"
+
+
+def test_source_metadata_field_with_invalid_dict_falls_through() -> None:
+    """If doc.source_metadata is a dict that can't construct a valid
+    SourceMetadata, fall through to legacy dict or claims."""
+    claim_meta = SourceMetadata(title="From Claim")
+    claim = KnowledgeClaim(text="c", source_metadata=claim_meta)
+    doc = Document(
+        id="d1",
+        name="d1",
+        source_metadata={"authors": 123},  # invalid: authors should be list
+    )
+    db = _StubDB(doc=doc, claims=[claim])
+    meta = _metadata_for_document(db, "d1")
+    assert meta is claim_meta
+
+
+def test_legacy_metadata_dict_still_works_when_no_top_level_field() -> None:
+    """Older libraries that only wrote to doc.metadata['source_metadata']
+    should still be read correctly."""
+    doc = Document(
+        id="d1",
+        name="d1",
+        source_metadata=None,
+        metadata={"source_metadata": {"title": "Legacy Path"}},
+    )
+    db = _StubDB(doc=doc)
+    meta = _metadata_for_document(db, "d1")
+    assert isinstance(meta, SourceMetadata)
+    assert meta.title == "Legacy Path"
