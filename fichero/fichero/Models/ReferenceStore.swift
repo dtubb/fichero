@@ -95,6 +95,14 @@ final class ReferenceStore: ObservableDomainStore {
         await reload()
     }
 
+    /// Patch a reference's metadata (undoable, 409-guarded server-side). Reloads
+    /// to pick up server-normalized values; the `reference.updated` event also
+    /// refreshes the scope.
+    func patchReference(_ referenceId: String, patch: [String: Any]) async throws {
+        _ = try await entityService.patchReference(referenceId, patch: patch)
+        await reload()
+    }
+
     // MARK: - ObservableDomainStore
 
     nonisolated var changeDomain: String { "reference" }
