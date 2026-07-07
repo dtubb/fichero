@@ -339,10 +339,21 @@ final class EntityServiceGenerated {
         self.client = ficheroClient
     }
 
-    enum ServiceError: Error {
+    enum ServiceError: Error, LocalizedError {
         case validationError(String)
         case unexpectedResponse(Int)
         case noLibrary
+
+        // Surface the real cause instead of the generic "The operation couldn't
+        // be completed" Cocoa message (#2500) — a non-LocalizedError Swift error
+        // stringifies to that generic text.
+        var errorDescription: String? {
+            switch self {
+            case .validationError(let message): return message
+            case .unexpectedResponse(let code): return "Unexpected response from the server (status \(code))."
+            case .noLibrary: return "No library is selected."
+            }
+        }
     }
 
     /// List all knowledge entities, optionally filtered by type or query.
@@ -2434,9 +2445,19 @@ final class KGCurationServiceGenerated {
         self.client = ficheroClient
     }
 
-    enum ServiceError: Error {
+    enum ServiceError: Error, LocalizedError {
         case validationError(String)
         case unexpectedResponse(Int)
+
+        // Surface the real cause instead of the generic "The operation couldn't
+        // be completed" Cocoa message (#2500). The claim/entity merge throws this,
+        // so on iPhone the masked failure now shows its actual detail/status.
+        var errorDescription: String? {
+            switch self {
+            case .validationError(let message): return message
+            case .unexpectedResponse(let code): return "Unexpected response from the server (status \(code))."
+            }
+        }
     }
 
     enum PruneTrivialScope: Equatable {
