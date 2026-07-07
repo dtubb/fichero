@@ -299,10 +299,71 @@ class TestActivityStream:
 class TestActivityCleanup:
     def test_cleanup_returns_deleted_count(self, client):
         tracker = _make_mock_tracker()
-        tracker.cleanup = AsyncMock(return_value=42)
+        tracker.store.delete_old_sync = MagicMock(return_value=42)
         with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
             r = client.delete("/api/activity/cleanup")
         assert r.status_code == 200
+        data = r.json()
+        assert data["deleted"] == 42
+        assert "older_than" in data
+
+    def test_cleanup_writes_audit_row(self, client, db):
+        """Cleanup route goes through registry.invoke and writes an ActionAudit row."""
+        tracker = _make_mock_tracker()
+        tracker.store.delete_old_sync = MagicMock(return_value=10)
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            r = client.delete("/api/activity/cleanup?days=7")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["deleted"] == 10
+        # Verify the audit row was written
+        from fichero.models import ActionAudit
+        audits = db.query(ActionAudit)
+        activity_audits = [a for a in audits if a.action_name == "activity.cleanup"]
+        assert len(activity_audits) == 1
+        audit = activity_audits[0]
+        assert audit.params["days"] == 7
+
+    def test_cleanup_default_days(self, client, db):
+        """Default days=30 when not specified."""
+        tracker = _make_mock_tracker()
+        tracker.store.delete_old_sync = MagicMock(return_value=5)
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            r = client.delete("/api/activity/cleanup")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["deleted"] == 5
+        from fichero.models import ActionAudit
+        audits = db.query(ActionAudit)
+        activity_audits = [a for a in audits if a.action_name == "activity.cleanup"]
+        assert len(activity_audits) == 1
+        assert activity_audits[0].params["days"] == 30
+
+    def test_cleanup_emits_change_event(self, client, db, monkeypatch):
+        """Cleanup route emits activity.updated change event."""
+        calls = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+        tracker = _make_mock_tracker()
+        tracker.store.delete_old_sync = MagicMock(return_value=3)
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            r = client.delete("/api/activity/cleanup?days=14")
+        assert r.status_code == 200
+        # Verify change event was emitted
+        assert len(calls) == 1
+        _args, kwargs = calls[0]
+        assert kwargs["type"] == "activity.updated"
+
+    def test_cleanup_days_bounds(self, client):
+        """Days parameter must be 1-365."""
+        tracker = _make_mock_tracker()
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            r0 = client.delete("/api/activity/cleanup?days=0")
+            assert r0.status_code in (400, 422)
+            r366 = client.delete("/api/activity/cleanup?days=366")
+            assert r366.status_code in (400, 422)
 
 
 # ---------------------------------------------------------------------------

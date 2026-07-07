@@ -31,8 +31,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from fichero.api.library_header import require_library_path
+from fichero.api.auth import action_context
 from fichero.api.change_stream import ChangeEvent, _change_hub
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.db import Database, db_manager
 from fichero.workflows.activity import (
     Activity,
@@ -127,6 +129,10 @@ def _change_event_to_activity_response(event: ChangeEvent) -> ActivityResponse:
 class CleanupResponse(BaseModel):
     deleted: int
     older_than: str
+
+
+class ActivityCleanupParams(BaseModel):
+    days: int = Field(ge=1, le=365)
 
 
 class ActivityStatsResponse(BaseModel):
@@ -473,16 +479,45 @@ async def cleanup_old_activities(
     days: int = Query(
         30, ge=1, le=365, description="Delete activities older than N days"
     ),
+    ctx: ActionContext = Depends(action_context),
 ) -> CleanupResponse:
     """
     Delete old activities to manage database size.
 
     Returns the number of deleted activities.
     """
+    result = registry.invoke(
+        db,
+        "activity.cleanup",
+        {"days": days},
+        ctx,
+    )
+    return CleanupResponse.model_validate(result.result)
+
+
+@action(
+    "activity.cleanup",
+    ActivityCleanupParams,
+    domains=["activity"],
+    undoable=False,
+)
+def _action_cleanup_old_activities(
+    db: Database,
+    params: ActivityCleanupParams,
+    ctx: ActionContext,
+) -> tuple[dict[str, Any], ChangeSpec]:
     tracker = get_activity_tracker(str(db.path))
-    older_than = datetime.now() - timedelta(days=days)
-    deleted = await tracker.store.delete_old(older_than)
-    return CleanupResponse(deleted=deleted, older_than=older_than.isoformat())
+    older_than = datetime.now() - timedelta(days=params.days)
+    deleted = tracker.store.delete_old_sync(older_than)
+    result = {"deleted": deleted, "older_than": older_than.isoformat()}
+    spec = ChangeSpec(
+        domains=["activity"],
+        target_ids=[],
+        before={"days": params.days},
+        after=result,
+        emit_type="activity.updated",
+    )
+    return result, spec
 
 
 # =============================================================================

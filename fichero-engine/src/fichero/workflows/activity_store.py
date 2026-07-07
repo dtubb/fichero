@@ -860,24 +860,24 @@ class ActivityStore:
 
         return await asyncio.to_thread(_get_stats)
 
+    def delete_old_sync(self, older_than: datetime) -> int:
+        """Delete activities older than specified date (sync, for use inside registry.invoke)."""
+        conn = duckdb.connect(self.db_path)
+        try:
+            result = conn.execute(
+                """
+                DELETE FROM activities
+                WHERE timestamp < ?
+            """,
+                [older_than],
+            )
+            return result.fetchone()[0] if result else 0
+        finally:
+            conn.close()
+
     async def delete_old(self, older_than: datetime) -> int:
         """Delete activities older than specified date."""
-
-        def _delete():
-            conn = duckdb.connect(self.db_path)
-            try:
-                result = conn.execute(
-                    """
-                    DELETE FROM activities
-                    WHERE timestamp < ?
-                """,
-                    [older_than],
-                )
-                return result.fetchone()[0] if result else 0
-            finally:
-                conn.close()
-
-        return await asyncio.to_thread(_delete)
+        return await asyncio.to_thread(self.delete_old_sync, older_than)
 
     # =========================================================================
     # Workflow Run Methods
