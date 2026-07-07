@@ -404,6 +404,36 @@ def action_context(
     )
 
 
+def _resolve_single_user_owner():
+    """Return the single-user owner account, creating it if needed.
+
+    When multi-user is OFF, the loopback bootstrap token IS the owner
+    credential. Resolve (or create) the owner account so request.state.user
+    is populated — no login wall for the single-user local owner (#3331).
+    """
+    try:
+        from fichero.app_db import get_app_db
+        app_db = get_app_db()
+        owners = [u for u in app_db.list_users() if u.is_owner and u.active]
+        if len(owners) == 1:
+            return owners[0]
+        if len(owners) == 0:
+            # ponytail: deterministic owner account keyed to the bootstrap
+            # token so the owner CAN sign in if multi-user is later enabled.
+            bootstrap_token = initialize_token()
+            return app_db.create_user(
+                username="owner",
+                display_name="Owner",
+                password_hash=accounts.hash_password(bootstrap_token),
+                is_owner=True,
+                active=True,
+            )
+        # Multiple owners — return the first active one
+        return owners[0]
+    except Exception:
+        return None
+
+
 def attach_auth_middleware(
     app: FastAPI,
     token: str | None = None,
@@ -483,7 +513,7 @@ def attach_auth_middleware(
                     status_code=401,
                 )
             request.state.bootstrap_auth = True
-            request.state.user = None
+            request.state.user = _resolve_single_user_owner()
             return await call_next(request)
 
         provided = request.headers.get("authorization", "")

@@ -493,12 +493,13 @@ def test_multiuser_flag_off_leaves_shared_secret_behavior_unchanged(
     assert shared_secret.status_code == 200
     identity = client.get("/api/auth/identity", headers=_bearer(initialize_token()))
     assert identity.status_code == 200
-    assert identity.json() == {
-        "multiuser_enabled": False,
-        "auth_kind": "bootstrap",
-        "user": None,
-        "is_owner_access": True,
-    }
+    identity_data = identity.json()
+    assert identity_data["multiuser_enabled"] is False
+    assert identity_data["auth_kind"] == "bootstrap"
+    # ponytail: single-user bootstrap now resolves the owner account (#3331)
+    assert identity_data["user"] is not None
+    assert identity_data["user"]["username"] == "alice"
+    assert identity_data["is_owner_access"] is True
 
 
 def test_pairing_valid_code_returns_device_token_that_authenticates(

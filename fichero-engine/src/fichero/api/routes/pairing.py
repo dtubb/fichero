@@ -194,10 +194,16 @@ def _single_user_pairing_owner(app_db: AppDatabase) -> AccountUser:
         if not owner.active:
             owner = app_db.set_active(owner.id, True) or owner
         return owner
+    # ponytail: deterministic password from the bootstrap token so the owner
+    # CAN actually sign in (the old random-password __paired_device_owner__
+    # was un-signin-able and its mere existence flipped multi-user on via
+    # _has_account_rows — #3331).
+    from fichero.api.auth import initialize_token
+    bootstrap_token = initialize_token()
     return app_db.create_user(
         username=_SINGLE_USER_PAIRING_OWNER,
-        display_name="Paired Device Owner",
-        password_hash=accounts.hash_password(secrets.token_urlsafe(16)),
+        display_name="Owner",
+        password_hash=accounts.hash_password(bootstrap_token),
         is_owner=True,
         active=True,
     )

@@ -47,7 +47,8 @@ def test_multiuser_enabled_by_persisted_setting(monkeypatch, app_db):
     assert authz.multiuser_enabled() is True
 
 
-def test_multiuser_enabled_by_existing_accounts(monkeypatch, app_db):
+def test_multiuser_not_enabled_by_existing_accounts(monkeypatch, app_db):
+    """Account rows alone do NOT enable multi-user — explicit opt-in only (#3331)."""
     monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
     app_db.create_user(
         username="owner",
@@ -56,9 +57,9 @@ def test_multiuser_enabled_by_existing_accounts(monkeypatch, app_db):
         is_owner=True,
     )
 
-    assert multiuser_enabled() is True
-    assert _use_multiuser_auth() is True
-    assert authz.multiuser_enabled() is True
+    assert multiuser_enabled() is False
+    assert _use_multiuser_auth() is False
+    assert authz.multiuser_enabled() is False
 
 
 def test_multiuser_disabled_with_explicit_off(monkeypatch):
