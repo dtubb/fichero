@@ -36,15 +36,26 @@ async def list_citation_usages(
     db: Database = Depends(get_library_database),
 ) -> CitationUsageListResponse:
     """List body-pass citation usages extracted by ``citation_usage_extract``."""
-    rows = [
-        citation
-        for citation in db.query(DocumentCitation)
-        if citation.detector == "llm-usage"
-    ]
+    # Push equality and detector filters into the DB query to avoid whole-table scans (#3256).
+    filters: dict[str, Any] = {"detector": "llm-usage"}
     if source_document_id is not None:
-        rows = [c for c in rows if c.source_document_id == source_document_id]
+        filters["source_document_id"] = source_document_id
     if target_document_id is not None:
-        rows = [c for c in rows if c.target_document_id == target_document_id]
+        filters["target_document_id"] = target_document_id
+    rows = db.query(DocumentCitation, **filters)
+
+    # Batch-lookup claims: collect all claim_ids, then query_in once instead of N+1 gets.
+    claim_ids = set()
+    for citation in rows:
+        metadata = citation.metadata if isinstance(citation.metadata, dict) else {}
+        claim_id = metadata.get("claim_id")
+        if isinstance(claim_id, str):
+            claim_ids.add(claim_id)
+
+    claim_map: dict[str, KnowledgeClaim] = {}
+    if claim_ids:
+        for claim in db.query_in(KnowledgeClaim, "id", list(claim_ids)):
+            claim_map[claim.id] = claim
 
     items: list[CitationUsageItem] = []
     for citation in rows:
@@ -54,7 +65,7 @@ async def list_citation_usages(
         if stance is not None and metadata.get("stance") != stance:
             continue
         claim_id = metadata.get("claim_id")
-        claim = db.get(KnowledgeClaim, claim_id) if isinstance(claim_id, str) else None
+        claim = claim_map.get(claim_id) if isinstance(claim_id, str) else None
         items.append(
             CitationUsageItem(
                 citation=citation,

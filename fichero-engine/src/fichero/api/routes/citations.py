@@ -167,13 +167,16 @@ async def list_citations(
     min_confidence: float | None = Query(default=None, ge=0.0, le=1.0),
     db: Database = Depends(get_library_database),
 ) -> CitationListResponse:
-    rows = db.query(DocumentCitation)
+    # Push equality filters into the DB query; confidence filter is a
+    # range predicate so stays in Python (but on a much smaller result set).
+    filters: dict[str, Any] = {}
     if source_document_id is not None:
-        rows = [r for r in rows if r.source_document_id == source_document_id]
+        filters["source_document_id"] = source_document_id
     if target_document_id is not None:
-        rows = [r for r in rows if r.target_document_id == target_document_id]
+        filters["target_document_id"] = target_document_id
     if detector is not None:
-        rows = [r for r in rows if r.detector == detector]
+        filters["detector"] = detector
+    rows = db.query(DocumentCitation, **filters) if filters else db.query(DocumentCitation)
     if min_confidence is not None:
         rows = [r for r in rows if r.confidence >= min_confidence]
     rows.sort(key=lambda r: r.created_at, reverse=True)
@@ -189,9 +192,7 @@ async def outbound(
     document_id: str,
     db: Database = Depends(get_library_database),
 ) -> CitationListResponse:
-    items = [
-        c for c in db.query(DocumentCitation) if c.source_document_id == document_id
-    ]
+    items = db.query(DocumentCitation, source_document_id=document_id)
 
     return CitationListResponse(items=items, count=len(items))
 
@@ -205,9 +206,7 @@ async def inbound(
     document_id: str,
     db: Database = Depends(get_library_database),
 ) -> CitationListResponse:
-    items = [
-        c for c in db.query(DocumentCitation) if c.target_document_id == document_id
-    ]
+    items = db.query(DocumentCitation, target_document_id=document_id)
 
     return CitationListResponse(items=items, count=len(items))
 

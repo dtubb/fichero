@@ -164,18 +164,24 @@ def _reference_query(
     year_from: int | None = None,
     year_to: int | None = None,
 ) -> list[Reference]:
+    # Push equality filters into the DB query to avoid whole-table scans (#3256).
+    # Range predicates (year_from/year_to, verified, unbacked) and the free-text
+    # search (q) stay in Python but operate on a much smaller result set.
+    filters: dict[str, Any] = {}
+    if status is not None:
+        filters["status"] = status
+    if kind is not None:
+        filters["kind"] = kind
+    refs = db.query(Reference, **filters) if filters else db.all(Reference)
+    # Sort after filter push-down (same order as before).
     refs = sorted(
-        db.all(Reference),
+        refs,
         key=lambda ref: (ref.updated_at or ref.created_at, ref.id),
         reverse=True,
     )
     filtered: list[Reference] = []
     for reference in refs:
         if q and not _matches_query(reference, q):
-            continue
-        if status and reference.status != status:
-            continue
-        if kind and reference.kind != kind:
             continue
         if verified is not None:
             is_verified = reference.verification_score is not None
@@ -214,12 +220,18 @@ def _document_citations(
         db.query(ReferenceProvenance, document_id=document_id),
         key=lambda item: (item.created_at, item.id),
     )
+    # Batch-lookup references instead of N+1 db.get calls (#3256).
+    unique_ids = list({link.reference_id for link in links})
+    if unique_ids:
+        ref_map = {ref.id: ref for ref in db.query_in(Reference, "id", unique_ids)}
+    else:
+        ref_map: dict[str, Reference] = {}
     references: list[Reference] = []
     seen: set[str] = set()
     for link in links:
         if link.reference_id in seen:
             continue
-        reference = db.get(Reference, link.reference_id)
+        reference = ref_map.get(link.reference_id)
         if reference is None:
             continue
         seen.add(link.reference_id)
