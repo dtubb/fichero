@@ -617,6 +617,7 @@ def _action_translate(
         content=translated,
         provider=llm_config.provider,
         model=llm_config.model,
+        data={"target_lang": params.target_lang, "source_lang": params.source_lang},
     )
     db.save(artifact)
 
