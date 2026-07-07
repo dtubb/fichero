@@ -549,7 +549,11 @@ def prefetch_library_caches(package_path: Path) -> dict:
 def _discover_known_library_paths() -> list[str]:
     """Return known .fichero library roots for startup maintenance."""
     try:
-        from fichero.__main__ import _discover_libraries
+        # Import from library_discovery, NOT __main__ — __main__ imports `typer`
+        # (a CLI-only dep) at module load, which the Briefcase engine bundle
+        # doesn't ship, so importing it here raised ModuleNotFoundError and
+        # silently broke startup library-discovery recovery (#3163).
+        from fichero.library_discovery import _discover_libraries
 
         return list(_discover_libraries())
     except Exception:

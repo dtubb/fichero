@@ -2363,49 +2363,10 @@ def kg_reset(
 # sync if you change the allowlist there. /var/folders is intentionally
 # omitted from listing (it's a temp-dir escape hatch for tests, not a place
 # users keep real libraries).
-_LIBRARY_LIST_ROOTS = (
-    Path.home() / "Documents",
-    Path.home() / "Dropbox",
-    Path.home() / "code",
-    Path.home() / "Library" / "Application Support",
-)
-
-
-def _discover_libraries(roots: tuple[Path, ...] | None = None) -> list[str]:
-    """Walk the allowlist roots up to depth 2 and collect ``*.fichero`` paths.
-
-    Depth cap is small on purpose — Daniel's libraries live one or two levels
-    below ``~/Documents`` (or ``~/Dropbox``), and an unbounded walk over
-    ``~/Library/Application Support`` is slow and pulls in noise we don't
-    care about.
-
-    ``roots`` defaults to ``_LIBRARY_LIST_ROOTS`` resolved at call time (not
-    at function definition) so tests can ``monkeypatch.setattr(cli,
-    "_LIBRARY_LIST_ROOTS", ...)`` and have it take effect.
-    """
-    if roots is None:
-        roots = _LIBRARY_LIST_ROOTS
-    found: list[str] = []
-    for root in roots:
-        if not root.exists():
-            continue
-        # Depth 0: the root itself never matches (no .fichero suffix).
-        # Depth 1: ~/Documents/Foo.fichero
-        # Depth 2: ~/Documents/SomeFolder/Foo.fichero
-        for entry in root.iterdir():
-            try:
-                if entry.is_dir() and entry.suffix == ".fichero":
-                    found.append(str(entry.resolve()))
-                elif entry.is_dir():
-                    for sub in entry.iterdir():
-                        if sub.is_dir() and sub.suffix == ".fichero":
-                            found.append(str(sub.resolve()))
-            except OSError:
-                # Permission denied / broken symlink — skip and keep going.
-                continue
-    # De-dup (resolved paths can collide across roots via symlinks) and sort
-    # for deterministic output.
-    return sorted(set(found))
+# _LIBRARY_LIST_ROOTS + _discover_libraries moved to fichero.library_discovery
+# (#3163) so the API server can import them without pulling in `typer` (a
+# CLI-only dep the Briefcase engine bundle doesn't ship). Nothing in this CLI
+# module references them, so there is no re-export here.
 
 
 @library_app.command("list")
