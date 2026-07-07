@@ -16,6 +16,12 @@ enum AppInstaller {
         return false
         #else
         let bundlePath = Bundle.main.bundleURL.resolvingSymlinksInPath().path
+        // A dev build run from Xcode lives under DerivedData / Build/Products even
+        // in a Release configuration (so #if DEBUG doesn't catch it). Never prompt
+        // — and never try the move, which fails with a permissions error (#2860).
+        if bundlePath.contains("/DerivedData/") || bundlePath.contains("/Build/Products/") {
+            return false
+        }
         let homeApplications = URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent("Applications").path
         return !bundlePath.hasPrefix("/Applications/") &&
