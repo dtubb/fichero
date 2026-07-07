@@ -71,6 +71,7 @@
     "/api/bibliography/document/{document_id}/extract": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/bibliography/export.bib": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/bibliography/import": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/bibliography/import/persist": "#3328 bulk-persist parsed bibliography entries as child documents; documented via the bibliography route family / committed schema render, no per-path markdown callout yet.",
     "/api/bibliography/resolve": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/chains": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/chains/executions/{execution_id}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",

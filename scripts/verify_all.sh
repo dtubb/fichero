@@ -376,6 +376,12 @@ run_standard() {
   # JSON report can list failing test node IDs (parsed in record_failure).
   run_check "backend pytest unit tests" env PYTHONPATH=fichero-engine/src \
     "${PYTEST_CMD[@]}" -rf fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
+
+  # Contract tests (OpenAPI surface, UI-wiring coverage, docs coverage) — these
+  # guard against exactly the kind of drift unit-only gating missed (#3163): a
+  # new endpoint added without a SwiftUI caller / docs / allowlist entry.
+  run_check "backend pytest contract tests" env PYTHONPATH=fichero-engine/src \
+    "${PYTEST_CMD[@]}" -rf fichero-engine/tests/contracts/
 }
 
 run_platform_checks() {
