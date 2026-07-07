@@ -12,11 +12,10 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.api.library_header import require_library_path
-from fichero.api.auth import action_context, request_actor
+from fichero.api.auth import action_context
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.actions.registry import registry
@@ -511,35 +510,39 @@ def promote_to_claim_impl(
 async def promote_to_claim(
     annotation_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+    ctx: ActionContext = Depends(action_context),
 ) -> PromoteResponse:
-    ann, claim, _before = promote_to_claim_impl(db, annotation_id, actor=actor)
-    claim_text = claim.text
-    emit_change(
-        x_fichero_library_path,
-        type="annotation.updated",
-        document_ids=[i for i in [ann.document_id, ann.page_id, ann.folder_id] if i],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
-    emit_change(
-        x_fichero_library_path,
-        type="claim.created",
-        claim_ids=[claim.id],
-        actor=actor,
-        origin_window=x_fichero_origin_window,
-        origin_user=actor,
-    )
+    """Route through the audited action layer (#3261).
 
+    The REST endpoint now delegates to registry.invoke so every
+    promote gets an ActionAudit row, actor attribution, and the
+    ChangeSpec's claim.created event (plus annotation.updated via
+    a second emit in the action). The previous hand-rolled emit_change
+    calls are replaced by the registry's built-in audit+emit pipeline.
+    """
+    result = registry.invoke(
+        db,
+        "annotation.promote_to_claim",
+        {"annotation_id": annotation_id},
+        ctx,
+    )
+    after = result.result
+    # The action emits claim.created; also emit annotation.updated
+    # for the scope documents the annotation hangs off.
+    ann = db.get(Annotation, annotation_id)
+    if ann is not None:
+        emit_change(
+            ctx.library_path or "",
+            type="annotation.updated",
+            document_ids=_annotation_scope_document_ids(ann),
+            actor=ctx.actor,
+            origin_window=ctx.origin_window,
+            origin_user=ctx.actor,
+        )
     return PromoteResponse(
-        annotation_id=ann.id,
-        claim_id=claim.id,
-        claim_text=claim_text,
+        annotation_id=after["annotation"]["id"],
+        claim_id=after["claim_id"],
+        claim_text=after["claim_text"],
     )
 
 
