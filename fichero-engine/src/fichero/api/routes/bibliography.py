@@ -446,3 +446,115 @@ def _action_attach_record(
         document_ids=[doc.id],
     )
     return {"document_id": doc.id, "metadata": doc.source_metadata or {}}, spec
+
+
+# =============================================================================
+# Bulk import + persist (#3328)
+# =============================================================================
+
+class BulkImportRequest(BaseModel):
+    """Parse bibliography text and persist every entry as a child document."""
+    text: str
+    format: str | None = None
+    target_document_id: str | None = None
+
+
+class BulkImportResponse(BaseModel):
+    count: int
+    document_ids: list[str]
+    entries: list[dict[str, Any]]
+
+
+@router.post(
+    "/import/persist",
+    response_model=BulkImportResponse,
+    summary="Parse + persist bibliography entries as child documents (#3328)",
+)
+async def bulk_import_persist(
+    request: BulkImportRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    ctx: ActionContext | object = Depends(action_context),
+) -> BulkImportResponse:
+    ctx = _resolve_action_ctx(ctx, library_path=x_fichero_library_path)
+    result = registry.invoke(
+        db,
+        "bibliography.bulk_import",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return BulkImportResponse.model_validate(result.result)
+
+
+class BibliographyBulkImportParams(BaseModel):
+    """Params for bibliography.bulk_import — parse + persist many records."""
+    text: str = Field(description="BibTeX / RIS / CSL-JSON content")
+    format: str | None = Field(default=None, description="Format hint; auto-detected when None")
+    target_document_id: str | None = Field(default=None, description="Parent document/collection id")
+
+
+
+def _bulk_import_impl(
+    db: Database, text: str, fmt: str | None, target_document_id: str | None
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Parse bibliography text and persist each entry as a child document.
+
+    Returns ``(created_document_ids, entries)``.
+    """
+    entries = _parse_bibliography(text, fmt)
+    if not entries:
+        raise HTTPException(400, "No parsable bibliography records found")
+
+    # Resolve or create the target parent
+    if target_document_id:
+        parent = db.get(Document, target_document_id)
+        if parent is None:
+            raise HTTPException(404, f"Target document not found: {target_document_id}")
+        parent_id = parent.id
+    else:
+        # Create a new collection to hold the imported entries
+        from fichero.models import DocType
+        parent = Document(
+            name=f"Bibliography Import {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            doc_type=DocType.folder,
+            parent_id=None,
+        )
+        db.save(parent)
+        parent_id = parent.id
+
+    created_ids: list[str] = []
+    for entry in entries:
+        title = entry.get("title") or entry.get("TITLE") or "Untitled"
+        child = Document(
+            name=str(title)[:200],
+            doc_type=DocType.file,
+            parent_id=parent_id,
+            source_metadata=entry,
+        )
+        db.save(child)
+        created_ids.append(child.id)
+
+    return created_ids, entries
+
+
+@action(
+    "bibliography.bulk_import",
+    BibliographyBulkImportParams,
+    domains=["bibliography", "document"],
+    # ponytail: undoable=False for now; add document.bulk_delete when undo needed
+    undoable=False,
+)
+def _action_bulk_import(
+    db: Database, params: BibliographyBulkImportParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    doc_ids, entries = _bulk_import_impl(
+        db, params.text, params.format, params.target_document_id,
+    )
+    spec = ChangeSpec(
+        domains=["bibliography", "document"],
+        target_ids=doc_ids,
+        after={"document_ids": doc_ids, "entries": entries},
+        emit_type="bibliography.bulk_imported",
+        document_ids=doc_ids,
+    )
+    return {"count": len(entries), "document_ids": doc_ids, "entries": entries}, spec
