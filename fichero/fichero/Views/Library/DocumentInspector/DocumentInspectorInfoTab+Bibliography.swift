@@ -19,6 +19,10 @@ struct DocumentBibliographyPanel: View {
     private var isLoading: Bool { store?.isLoading ?? false }
     private var loadError: String? { store?.loadError }
     @State private var copiedAll = false
+    // Reference pending a confirmed delete (#3258 — surfaces the undoable
+    // reference delete the action layer already backs).
+    @State private var pendingDelete: Components.Schemas.Reference?
+    @State private var deleteError: String?
 
     private var allBibtex: String {
         let parts = ([selfRef].compactMap { $0 } + references)
@@ -88,22 +92,77 @@ struct DocumentBibliographyPanel: View {
             }
         }
         .task(id: documentId) { await store?.setScope(documentId: documentId) }
+        .confirmationDialog(
+            pendingDelete.map { "Delete \"\(referenceTitle($0))\"?" } ?? "Delete reference?",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            presenting: pendingDelete
+        ) { ref in
+            Button("Delete Reference", role: .destructive) {
+                guard let id = ref.id else { return }
+                Task {
+                    do {
+                        try await store?.deleteReference(id)
+                    } catch {
+                        deleteError = error.localizedDescription
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("Removes this reference from the library bibliography. This can be undone.")
+        }
+        .alert(
+            "Couldn't delete reference",
+            isPresented: Binding(
+                get: { deleteError != nil },
+                set: { if !$0 { deleteError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteError ?? "")
+        }
+    }
+
+    private func referenceTitle(_ ref: Components.Schemas.Reference) -> String {
+        if let title = ref.title, !title.isEmpty { return title }
+        return "reference"
     }
 
     @ViewBuilder
     private func referenceRow(_ ref: Components.Schemas.Reference, isSelf: Bool) -> some View {
-        ReferenceRowView(ref: ref, isSelf: isSelf)
+        // Only the cited references are deletable; the document's own entry
+        // (isSelf) is not a bibliography row to remove.
+        ReferenceRowView(
+            ref: ref,
+            isSelf: isSelf,
+            onDelete: (isSelf || ref.id == nil) ? nil : { pendingDelete = ref }
+        )
     }
 }
 
 private struct ReferenceRowView: View {
     let ref: Components.Schemas.Reference
     let isSelf: Bool
+    /// Present only for deletable rows (#3258); nil disables the delete action.
+    var onDelete: (() -> Void)?
 
     @State private var isExpanded = false
     @State private var copied = false
 
     var body: some View {
+        rowContent
+            .contextMenu {
+                if let onDelete {
+                    Button("Delete Reference…", role: .destructive, action: onDelete)
+                }
+            }
+    }
+
+    private var rowContent: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 if isSelf {

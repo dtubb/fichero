@@ -73,6 +73,19 @@ final class ReferenceStore: ObservableDomainStore {
         }
     }
 
+    // MARK: - Mutations (#3258)
+
+    /// Delete a bibliography reference. The backend delete is undoable and
+    /// 409-guarded; the `reference.deleted` change event removes the row via
+    /// `apply`, but we also drop it locally so the UI updates immediately even
+    /// before the event round-trips. Throws on transport/permission failure so
+    /// the caller can surface it.
+    func deleteReference(_ referenceId: String) async throws {
+        try await entityService.deleteReference(referenceId)
+        references.removeAll { $0.id == referenceId }
+        if selfRef?.id == referenceId { selfRef = nil }
+    }
+
     // MARK: - ObservableDomainStore
 
     nonisolated var changeDomain: String { "reference" }
