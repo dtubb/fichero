@@ -2,12 +2,15 @@
 
 # Release Lane Runbook
 
-This is the current release path for Fichero. It covers two separate outputs:
+This is the current release path for Fichero. It covers three separate outputs:
 
 - **DMG/Sparkle/GitHub**: Developer ID signed app in a DMG, notarized by Apple,
   Sparkle-signed, then attached to a GitHub release.
 - **Mac TestFlight**: macOS archive uploaded to App Store Connect for internal
   TestFlight. This is not the DMG path.
+- **iPhone/iPad TestFlight**: one universal iOS archive uploaded to App Store
+  Connect for internal TestFlight. iOS is remote-only; it does not embed the
+  Python engine and does not use Sparkle.
 
 Do not run `xcodebuild test` or `scripts/verify_all.sh` on Daniel's desktop for
 this lane. Build/archive only.
@@ -23,11 +26,17 @@ scripts/release-all.sh --skip-backend
 Useful partial lanes:
 
 ```bash
-# Mac TestFlight only
+# Mac + iOS TestFlight only
 scripts/release-all.sh --skip-dmg --skip-notarize
 
 # DMG build + notarize only
 scripts/release-all.sh --skip-backend --skip-testflight
+
+# Mac TestFlight only
+scripts/release-all.sh --skip-dmg --skip-notarize --mac-only
+
+# iPhone/iPad TestFlight only
+scripts/release-all.sh --skip-dmg --skip-notarize --ios-only
 
 # GitHub/Sparkle only, after the DMG is already notarized
 scripts/release-all.sh --skip-dmg --skip-notarize --skip-testflight --github --draft
@@ -79,6 +88,28 @@ The matching Apple Distribution identity SHA-1 is:
 `~/Library/MobileDevice/Provisioning Profiles/` on every TestFlight run. Xcode's
 Signing & Capabilities pane may still show `Provisioning Profile: None Required`
 for local `My Mac` builds; that is not the TestFlight export path.
+
+iPhone/iPad TestFlight:
+
+- Apple Distribution certificate for team `QAPB6CWYR6`.
+- iOS App Store Connect provisioning profile for bundle id
+  `app.fichero.fichero`.
+- Current profile path expected by `scripts/release-all.sh`:
+  `$IOS_APP_STORE_PROFILE_PATH` (default
+  `$HOME/Downloads/App_Store_Connect.mobileprovision`)
+
+That profile currently decodes as:
+
+```text
+Name: App Store Connect
+UUID: 601c4e9f-9315-456c-a55a-0dd538c6e564
+App ID: QAPB6CWYR6.app.fichero.fichero
+Team: QAPB6CWYR6
+```
+
+The iOS upload uses manual signing on export. Do not add
+`-allowProvisioningUpdates` to the export step; that forces the cloud-signing
+path the App Store Connect API key cannot use.
 
 ## DMG Details
 
@@ -147,7 +178,7 @@ scripts/release-all.sh --skip-dmg --skip-notarize --skip-testflight --github --d
 If it hangs at Sparkle signing, unlock/approve Keychain access for the Sparkle
 private key. Do not print or export the private key.
 
-## Mac TestFlight
+## TestFlight
 
 Run:
 
@@ -177,6 +208,19 @@ SWIFT_OPTIMIZATION_LEVEL=-Onone
 
 This is for internal TestFlight builds. Revisit before a public Mac App Store
 submission.
+
+The iOS leg archives with `-destination generic/platform=iOS` and uses the same
+integer-only App Store version conversion. It does not pass Sparkle settings
+into the iOS archive/export path.
+
+If codesign hangs waiting for a Keychain approval dialog, pre-authorize the
+private key once in Terminal:
+
+```bash
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k <login-pw> ~/Library/Keychains/login.keychain-db
+```
+
+Do not run that command in the script; it needs the local login password.
 
 ## Troubleshooting
 

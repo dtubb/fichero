@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# One command for the two release tracks:
+# One command for the three release tracks:
 #   1. Developer ID DMG for direct/Sparkle distribution.
 #   2. Optional Mac TestFlight upload via App Store Connect.
+#   3. Optional universal iPhone/iPad TestFlight upload via App Store Connect.
 #
 # Usage:
-#   scripts/release-all.sh [--skip-backend] [--skip-dmg] [--skip-notarize] [--skip-testflight] [--github] [--draft]
+#   scripts/release-all.sh [--skip-backend] [--skip-dmg] [--skip-notarize]
+#                          [--skip-testflight | --skip-mac-testflight | --skip-ios-testflight]
+#                          [--mac-only | --ios-only] [--github] [--draft]
 #
 # See docs/contributor/release/release-lane.md for required certificates/profiles and the
 # repeatable DMG, Sparkle/GitHub, and Mac TestFlight release cycle.
@@ -14,9 +17,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_DIR="$ROOT_DIR/build/releases"
 DMG_PATH="$RELEASE_DIR/Fichero.dmg"
-ARCHIVE_PATH="$RELEASE_DIR/Fichero-macOS.xcarchive"
-EXPORT_DIR="$RELEASE_DIR/testflight-export"
-EXPORT_OPTIONS="$RELEASE_DIR/ExportOptions-mac-testflight.plist"
+MAC_ARCHIVE_PATH="$RELEASE_DIR/Fichero-macOS.xcarchive"
+MAC_EXPORT_DIR="$RELEASE_DIR/testflight-export-macos"
+MAC_EXPORT_OPTIONS="$RELEASE_DIR/ExportOptions-mac-testflight.plist"
+IOS_ARCHIVE_PATH="$RELEASE_DIR/Fichero-iOS.xcarchive"
+IOS_EXPORT_DIR="$RELEASE_DIR/testflight-export-ios"
+IOS_EXPORT_OPTIONS="$RELEASE_DIR/ExportOptions-ios-testflight.plist"
 SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml}"
 APP_STORE_CONNECT_KEY_PATH="${APP_STORE_CONNECT_KEY_PATH:-$HOME/Documents/Developer/Certificates/2026-07-5 App Store Connect/AuthKey_2MGYUR786H.p8}"
 APP_STORE_CONNECT_KEY_ID="${APP_STORE_CONNECT_KEY_ID:-2MGYUR786H}"
@@ -29,6 +35,10 @@ MAC_APP_STORE_SIGNING_CERT="${MAC_APP_STORE_SIGNING_CERT:-7CD87BA09F2DA8A7965271
 # be named explicitly or xcodebuild tries (and fails) to resolve it via the profile.
 MAC_APP_STORE_INSTALLER_CERT="${MAC_APP_STORE_INSTALLER_CERT:-3rd Party Mac Developer Installer}"
 MAC_APP_STORE_PROFILE_UUID=""
+IOS_APP_STORE_PROFILE_PATH="${IOS_APP_STORE_PROFILE_PATH:-$HOME/Downloads/App_Store_Connect.mobileprovision}"
+IOS_APP_STORE_PROFILE_NAME="${IOS_APP_STORE_PROFILE_NAME:-App Store Connect}"
+IOS_APP_STORE_SIGNING_CERT="${IOS_APP_STORE_SIGNING_CERT:-7CD87BA09F2DA8A79652710DE0F5E3C5DCD2CC35}"
+IOS_APP_STORE_PROFILE_UUID=""
 
 project_setting() {
   local name="$1"
@@ -56,24 +66,41 @@ app_store_version() {
   fi
 }
 
-install_mac_app_store_profile() {
-  [ -f "$MAC_APP_STORE_PROFILE_PATH" ] || return 0
+install_provisioning_profile() {
+  local source_path="$1"
+  local default_name="$2"
+  local uuid_var="$3"
+  [ -f "$source_path" ] || return 0
 
   local plist
   plist="$(mktemp)"
-  security cms -D -i "$MAC_APP_STORE_PROFILE_PATH" > "$plist"
-  MAC_APP_STORE_PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$plist")"
+  security cms -D -i "$source_path" > "$plist"
+  local profile_uuid profile_name
+  profile_uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$plist")"
+  profile_name="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$plist" 2>/dev/null || printf '%s' "$default_name")"
+  local profile_ext
+  profile_ext="${source_path##*.}"
   mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-  cp "$MAC_APP_STORE_PROFILE_PATH" \
-    "$HOME/Library/MobileDevice/Provisioning Profiles/$MAC_APP_STORE_PROFILE_UUID.provisionprofile"
+  cp "$source_path" \
+    "$HOME/Library/MobileDevice/Provisioning Profiles/$profile_uuid.$profile_ext"
   rm -f "$plist"
-  echo "  Installed Mac App Store profile: $MAC_APP_STORE_PROFILE_NAME ($MAC_APP_STORE_PROFILE_UUID)"
+  printf -v "$uuid_var" '%s' "$profile_uuid"
+  echo "  Installed provisioning profile: $profile_name ($profile_uuid)"
+}
+
+install_mac_app_store_profile() {
+  install_provisioning_profile "$MAC_APP_STORE_PROFILE_PATH" "$MAC_APP_STORE_PROFILE_NAME" MAC_APP_STORE_PROFILE_UUID
+}
+
+install_ios_app_store_profile() {
+  install_provisioning_profile "$IOS_APP_STORE_PROFILE_PATH" "$IOS_APP_STORE_PROFILE_NAME" IOS_APP_STORE_PROFILE_UUID
 }
 
 SKIP_BACKEND=false
 SKIP_DMG=false
 SKIP_NOTARIZE=false
-SKIP_TESTFLIGHT=false
+RUN_MAC_TESTFLIGHT=true
+RUN_IOS_TESTFLIGHT=true
 RUN_GITHUB=false
 GITHUB_ARGS=()
 
@@ -82,11 +109,18 @@ for arg in "$@"; do
     --skip-backend) SKIP_BACKEND=true ;;
     --skip-dmg) SKIP_DMG=true ;;
     --skip-notarize) SKIP_NOTARIZE=true ;;
-    --skip-testflight) SKIP_TESTFLIGHT=true ;;
+    --skip-testflight)
+      RUN_MAC_TESTFLIGHT=false
+      RUN_IOS_TESTFLIGHT=false
+      ;;
+    --skip-mac-testflight) RUN_MAC_TESTFLIGHT=false ;;
+    --skip-ios-testflight) RUN_IOS_TESTFLIGHT=false ;;
+    --mac-only) RUN_IOS_TESTFLIGHT=false ;;
+    --ios-only) RUN_MAC_TESTFLIGHT=false ;;
     --github) RUN_GITHUB=true ;;
     --draft) GITHUB_ARGS+=("--draft") ;;
     --help|-h)
-      sed -n '2,12p' "$0"
+      sed -n '2,15p' "$0"
       exit 0
       ;;
     *)
@@ -135,26 +169,33 @@ if [ "$SKIP_NOTARIZE" = false ]; then
   "$ROOT_DIR/scripts/notarize.sh" "$DMG_PATH"
 fi
 
-if [ "$SKIP_TESTFLIGHT" = false ]; then
+if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
+  echo
+  echo "── TestFlight note ──"
+  echo "  If codesign prompts hang in a headless session, run once in Terminal:"
+  echo "  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k <login-pw> ~/Library/Keychains/login.keychain-db"
+fi
+
+AUTH_ARGS=()
+if [ -f "$APP_STORE_CONNECT_KEY_PATH" ]; then
+  echo "  Using App Store Connect API key: $APP_STORE_CONNECT_KEY_ID"
+  AUTH_ARGS=(
+    -authenticationKeyPath "$APP_STORE_CONNECT_KEY_PATH"
+    -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID"
+    -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+  )
+else
+  echo "  App Store Connect API key not found; falling back to Xcode account credentials"
+fi
+
+PROJECT_MARKETING_VERSION="$(project_setting MARKETING_VERSION)"
+PROJECT_BUILD_VERSION="$(project_setting CURRENT_PROJECT_VERSION)"
+TESTFLIGHT_MARKETING_VERSION="${TESTFLIGHT_MARKETING_VERSION:-$(app_store_version "$PROJECT_MARKETING_VERSION")}"
+TESTFLIGHT_BUILD_VERSION="${TESTFLIGHT_BUILD_VERSION:-${PROJECT_BUILD_VERSION:-$(date +%Y%m%d)}}"
+
+if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
   echo
   echo "── Mac TestFlight: archive + upload ──"
-
-  AUTH_ARGS=()
-  if [ -f "$APP_STORE_CONNECT_KEY_PATH" ]; then
-    echo "  Using App Store Connect API key: $APP_STORE_CONNECT_KEY_ID"
-    AUTH_ARGS=(
-      -authenticationKeyPath "$APP_STORE_CONNECT_KEY_PATH"
-      -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID"
-      -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
-    )
-  else
-    echo "  App Store Connect API key not found; falling back to Xcode account credentials"
-  fi
-
-  PROJECT_MARKETING_VERSION="$(project_setting MARKETING_VERSION)"
-  PROJECT_BUILD_VERSION="$(project_setting CURRENT_PROJECT_VERSION)"
-  TESTFLIGHT_MARKETING_VERSION="${TESTFLIGHT_MARKETING_VERSION:-$(app_store_version "$PROJECT_MARKETING_VERSION")}"
-  TESTFLIGHT_BUILD_VERSION="${TESTFLIGHT_BUILD_VERSION:-${PROJECT_BUILD_VERSION:-$(date +%Y%m%d)}}"
 
   echo "  TestFlight version: $TESTFLIGHT_MARKETING_VERSION ($TESTFLIGHT_BUILD_VERSION)"
   install_mac_app_store_profile
@@ -163,7 +204,7 @@ if [ "$SKIP_TESTFLIGHT" = false ]; then
     -scheme Fichero \
     -configuration Release \
     -destination "platform=macOS,arch=arm64" \
-    -archivePath "$ARCHIVE_PATH" \
+    -archivePath "$MAC_ARCHIVE_PATH" \
     -skipPackagePluginValidation \
     -allowProvisioningUpdates \
     "${AUTH_ARGS[@]}" \
@@ -180,7 +221,7 @@ if [ "$SKIP_TESTFLIGHT" = false ]; then
     exit 1
   fi
 
-  cat > "$EXPORT_OPTIONS" <<PLIST
+  cat > "$MAC_EXPORT_OPTIONS" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -217,15 +258,77 @@ if [ "$SKIP_TESTFLIGHT" = false ]; then
 </plist>
 PLIST
 
-  rm -rf "$EXPORT_DIR"
+  rm -rf "$MAC_EXPORT_DIR"
   if ! xcodebuild -exportArchive \
-    -archivePath "$ARCHIVE_PATH" \
-    -exportPath "$EXPORT_DIR" \
-    -exportOptionsPlist "$EXPORT_OPTIONS" \
+    -archivePath "$MAC_ARCHIVE_PATH" \
+    -exportPath "$MAC_EXPORT_DIR" \
+    -exportOptionsPlist "$MAC_EXPORT_OPTIONS" \
     -allowProvisioningUpdates \
     "${AUTH_ARGS[@]}"; then
     echo "error: Mac TestFlight export/upload failed" >&2
     echo "       Check App Store Connect permissions and Mac App Distribution/Mac Installer Distribution signing assets." >&2
+    exit 1
+  fi
+fi
+
+if [ "$RUN_IOS_TESTFLIGHT" = true ]; then
+  echo
+  echo "── iPhone/iPad TestFlight: archive + upload ──"
+  echo "  TestFlight version: $TESTFLIGHT_MARKETING_VERSION ($TESTFLIGHT_BUILD_VERSION)"
+  install_ios_app_store_profile
+
+  rm -rf "$IOS_ARCHIVE_PATH"
+  if ! xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj" \
+    -scheme Fichero \
+    -configuration Release \
+    -destination "generic/platform=iOS" \
+    -archivePath "$IOS_ARCHIVE_PATH" \
+    -skipPackagePluginValidation \
+    -allowProvisioningUpdates \
+    "${AUTH_ARGS[@]}" \
+    MARKETING_VERSION="$TESTFLIGHT_MARKETING_VERSION" \
+    CURRENT_PROJECT_VERSION="$TESTFLIGHT_BUILD_VERSION" \
+    archive; then
+    echo "error: iOS archive failed; check Xcode signing and remote-client release settings" >&2
+    exit 1
+  fi
+
+  cat > "$IOS_EXPORT_OPTIONS" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key>
+  <string>app-store-connect</string>
+  <key>destination</key>
+  <string>upload</string>
+  <key>teamID</key>
+  <string>QAPB6CWYR6</string>
+  <key>signingStyle</key>
+  <string>manual</string>
+  <key>signingCertificate</key>
+  <string>$IOS_APP_STORE_SIGNING_CERT</string>
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>app.fichero.fichero</key>
+    <string>${IOS_APP_STORE_PROFILE_UUID:-$IOS_APP_STORE_PROFILE_NAME}</string>
+  </dict>
+  <key>uploadSymbols</key>
+  <true/>
+  <key>manageAppVersionAndBuildNumber</key>
+  <false/>
+</dict>
+</plist>
+PLIST
+
+  rm -rf "$IOS_EXPORT_DIR"
+  if ! xcodebuild -exportArchive \
+    -archivePath "$IOS_ARCHIVE_PATH" \
+    -exportPath "$IOS_EXPORT_DIR" \
+    -exportOptionsPlist "$IOS_EXPORT_OPTIONS" \
+    "${AUTH_ARGS[@]}"; then
+    echo "error: iOS TestFlight export/upload failed" >&2
+    echo "       Check the installed iOS App Store profile, Apple Distribution identity, and keychain access for codesign." >&2
     exit 1
   fi
 fi
@@ -239,4 +342,5 @@ fi
 echo
 echo "Done."
 echo "DMG:      $DMG_PATH"
-echo "Archive:  $ARCHIVE_PATH"
+echo "Mac archive: $MAC_ARCHIVE_PATH"
+echo "iOS archive: $IOS_ARCHIVE_PATH"
