@@ -1,7 +1,6 @@
 # fichero — SwiftUI app
 
-This subtree is the native client. It renders UI, owns window state, and talks to the
-engine over pinned HTTPS loopback. Engine logic stays in `fichero-engine/`.
+This subtree is the SwiftUI mac, iPad, and iOS app. The app renders UI, owns window state, and talks to the engine over pinned HTTPS loopback. Engine logic stays in `fichero-engine/`.
 
 ## What lives here
 
@@ -12,7 +11,7 @@ engine over pinned HTTPS loopback. Engine logic stays in `fichero-engine/`.
 
 ## Hard rules for this subtree
 
-- Start the backend with `bash fichero-engine/scripts/start_backend.sh`. The app pins `https://127.0.0.1:8765` fail-closed, so plain HTTP is not a valid dev setup.
+- **Debug (Xcode ⌘R):** start the engine yourself — `bash fichero-engine/scripts/start_backend.sh` (an external local server on `:8765`). **Release:** the engine is embedded in the app bundle (Briefcase) and spawned on launch; no manual start. Either way the app talks **HTTPS only** — the default local engine is `https://127.0.0.1:8765`, and paired remote hosts (own devices / Tailscale) use per-host SPKI certificate pinning. Plain HTTP is never a valid setup.
 - Lint touched Swift with `swiftlint lint fichero/fichero/`. The manager owns the full Xcode build and test gate.
 - `fichero-api-client/` is generated. Do not hand-edit it. If backend routes or schema change, run `fichero-engine/scripts/sync_openapi_schema.sh`.
 - `fichero/fichero/Services/*Generated.swift` files are hand-written wrappers despite the name. When building request bodies there, use the typed `Components.Schemas.*` fields, not `additionalProperties`.

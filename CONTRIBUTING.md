@@ -88,6 +88,17 @@ fichero workflow list
 swiftlint lint fichero/fichero/
 ```
 
+## Conventions
+
+A few rules the codebase relies on:
+
+- **OpenAPI is the contract.** The generated Swift client (`fichero/fichero-api-client/`) is never hand-edited — regenerate it from the engine schema after backend route/schema changes.
+- **Observable data layer.** SwiftUI views observe `@Observable` domain stores; the store is the only thing that touches endpoints. Views render and collect input — they never call the API directly.
+- **`verify_all` is the merge gate.** Lint + backend pytest + platform build/test legs. The manager runs `--full`; merge only on 0 failed.
+- **Native, not web.** SwiftUI first, AppKit/UIKit bridges only where needed. Semantic system fonts and standard controls — no hardcoded `.system(size:)`.
+- **Iterate, never replace.** Build on the existing code; no wholesale rewrites.
+- **Per-agent commit attribution.** The author is the agent that wrote the code; the human directs and reviews.
+
 ## Releases
 
 The release lane is documented in [docs/release/release-lane.md](docs/release/release-lane.md).

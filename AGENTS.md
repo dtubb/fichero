@@ -124,6 +124,29 @@ MCP/build notes live in `docs/CLAUDE.md` (`## MCP Tools`, `## Development Comman
 
 ---
 
+## Verification (`verify_all`)
+
+One gate, tiered. Run from the repo root:
+
+- `bash scripts/verify_all.sh --fast` — swiftlint + ruff + `scripts/check_*.py` guardrails + version-date + OpenAPI model sync. Cheap; workers can run it.
+- `--standard` — fast + backend pytest unit tests.
+- `--full` — standard + platform legs (macOS Xcode build/test + the launch-stress UX tests; `--macos` / `--ios` to select). The manager owns `--full`.
+
+Backend pytest needs `PYTHONPATH=fichero-engine/src`; write-suites need their `FICHERO_RUN_*` flag. Parse the summary — merge only on **0 failed**. The macOS/UI leg needs a live window server (screen unlocked + `caffeinate -d`); a locked screen makes XCUITest time out.
+
+## Releasing
+
+The app ships as a notarized DMG (Sparkle/GitHub) and, separately, to TestFlight. Wrapper: `scripts/release-all.sh --help`; lane doc: `docs/release/release-lane.md`.
+
+1. **Gate:** `verify_all.sh --full` green.
+2. **Build + package the Mac DMG:** `scripts/build-release-dmg.sh` — stamps today's dated version (`YYYY.MM.DD-beta`; opt out with `FICHERO_RELEASE_VERSION`), builds the Release app with the **embedded** engine (Briefcase), re-signs inside-out with Developer ID, and styles the DMG. (Reuse an already-built app with `--skip-app-build`, but note that **skips the date re-stamp**.)
+3. **Notarize + staple:** `scripts/notarize.sh build/releases/Fichero.dmg` (needs the `notarytool` keychain profile or an App Store Connect API key). Verify with `spctl -a -t exec` / `stapler validate`.
+4. **iOS/iPhone/iPad → TestFlight:** archive + upload separately (build in a worktree per the iOS-build-gate rule).
+
+The version date is stamped **at build time** — it does not auto-update when you open the DMG later.
+
+---
+
 ## Pydantic + OpenAPI Discipline
 
 Three failure modes that bite *silently*, with no exception and no test failure, just data that vanishes or rows that hide. Load-bearing, not style:

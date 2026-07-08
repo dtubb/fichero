@@ -1,7 +1,6 @@
 # fichero — SwiftUI app
 
-The native Apple front end for Fichero (macOS primary; an iOS/iPad target lives
-in the same project and is in progress). It is a **thin client**: it renders and
+The native Apple front end for Fichero (macOS, with iOS/iPad as clients that connect to Fichero running on a macOS). The app is a **thin client**: it renders and
 accepts input, and talks to the FastAPI engine over pinned HTTPS loopback. The
 logic — ingest, search, knowledge graph, workflows — lives in the engine, not
 here. See the [top-level README](../README.md) for the whole-system picture, the
@@ -47,9 +46,11 @@ Intents/        App Intents / Shortcuts
 - **Surfaces, not silos.** Library, Reader, Search, Chat, Workflows, and the
   Knowledge Graph are all views onto the same engine-owned data model. The KG is
   backend-owned; the app renders it.
-- **Pinned loopback transport.** The app pins `https://127.0.0.1:8765`
-  fail-closed (certificate pinning). A plain-HTTP engine is unreachable — the
-  backend must be started with `start_backend.sh` (see engine README).
+- **HTTPS-only transport.** The app never talks plain HTTP. The default engine
+  is `https://127.0.0.1:8765` (the local engine); paired remote hosts (own
+  devices / Tailscale) are reached over HTTPS with per-host SPKI certificate
+  pinning. In Debug you start the engine yourself (`start_backend.sh`); a Release
+  build embeds and spawns it.
 
 ## Build & run
 
@@ -81,8 +82,12 @@ swiftlint lint fichero/fichero/
 
 The repo-wide rules (registering new `.swift` files with `add-swift-file.rb`, syncing
 the OpenAPI schema after backend changes, the three-leg Swift check) live in the root
-[AGENTS.md](../AGENTS.md). Component-specific references:
+[AGENTS.md](../AGENTS.md).
 
-- Swift conventions: [docs/contributor/swiftui-development-standards.md](../docs/contributor/swiftui-development-standards.md).
-- OpenAPI round-trip contract: [docs/architecture/swiftui/api_client.md](../docs/architecture/swiftui/api_client.md).
-- Sparkle updater release setup: [docs/release/sparkle-release.md](../docs/release/sparkle-release.md).
+## Read next
+
+- Repo-wide workflow and verification: [../AGENTS.md](../AGENTS.md)
+- SwiftUI conventions: [../docs/contributor/swiftui-development-standards.md](../docs/contributor/swiftui-development-standards.md)
+- OpenAPI round-trip contract: [../docs/contributor/openapi-and-clients.md](../docs/contributor/openapi-and-clients.md)
+- Observable data layer: [../docs/architecture/swiftui/observable_data_layer.md](../docs/architecture/swiftui/observable_data_layer.md)
+- Sparkle updater release setup: [../docs/release/sparkle-release.md](../docs/release/sparkle-release.md)
