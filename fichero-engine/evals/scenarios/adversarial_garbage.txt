@@ -1,5 +1,0 @@
-qwx7l3 ;'@#$ ##@@!! 0xff zzzzz aaaaa bbbbb 12345 zzzzz aaaaa
-%%%%% ;;;;; ::::: <<<<< >>>>> ?????
-nullbyte\x00\x00\x00 binary garbage line one
-\x00\x00 line two with control bytes
-NoActualLanguageHereJustNoise NoActualLanguageHereJustNoise
