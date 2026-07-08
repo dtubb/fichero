@@ -214,22 +214,37 @@ The git log shows which agent produced which work, and Daniel is credited as the
 ## Docs Placement
 
 ONE docs folder, `docs/` (the MkDocs `docs_dir`). It is BOTH the published site AND
-the reference contributors read on GitHub. Only the pages listed in `mkdocs.yml`
-`nav` are surfaced as site navigation; the deeper architecture and runbook material
-lives alongside them and stays buildable reference. So:
+the reference contributors read on GitHub. It holds three guides:
 
-- **`docs/`** — all durable documentation: the curated user manual (`docs/user/`),
-  contributor docs (`docs/contributor/`), API reference, How It's Built, and the
-  architecture/runbook reference (`docs/contributor/architecture/`, `docs/contributor/release/`, etc.). Put
-  public-worthy pages in `nav`; leave internal reference out of `nav` but in `docs/`.
+- **`docs/user/`** — the User Guide: using Fichero. Entry point `docs/user/README.md`.
+- **`docs/contributor/`** — the Developer Guide: building it. Architecture, API
+  reference, release runbooks, QA, design notes. Entry point
+  `docs/contributor/README.md`.
+- **`docs/ai/`** — the AI Guide: the agents that write most of the code.
+  Entry point `docs/ai/README.md`.
+
+**`nav` does not gate publication.** MkDocs builds EVERY `.md` under `docs_dir` into
+a live public page. `mkdocs.yml` `nav` controls only what appears in the site
+navigation — a page left out of `nav` is still public at its URL, just unlinked.
+`/ROADMAP/`, `/CLAUDE/` and `/archive/` all shipped publicly this way before anyone
+noticed. So:
+
+- **`docs/`** — durable documentation you are content to publish. Anything you add
+  here is public.
 - **`agent-work/`** — AGENT scratch, never part of `docs/` or the build: session
   notes, handoffs, QA logs, reviews, validation reports, audits, triage, design
   explorations, proposals.
+- **`agents/`** — the harness: skills, prompts, and `agents/ROADMAP.md` (the priority
+  spine). Operational planning, not documentation.
 - **delete** — pure crud or superseded material: `git rm` it.
 
+`scripts/check_docs_publication.py` enforces this: every built page must be reachable
+from `nav` or listed in `scripts/check_docs_publication_allowlist.json`. Adding an
+allowlist entry is a decision to publish an unlinked page — make it deliberately.
+
 When unsure between `docs/` and `agent-work/`: point-in-time, dated, "what I found"
-material is agent-work; durable "how the system works" reference is `docs/`. Keep raw
-internal design docs out of `nav` rather than out of `docs/`.
+material is agent-work; durable "how the system works" reference is `docs/`. Material
+that must never be public goes outside `docs/` entirely — not merely out of `nav`.
 
 ---
 
