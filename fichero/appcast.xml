@@ -1,12 +1,149 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss
-    version="2.0"
-    xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
     <channel>
         <title>Fichero Updates</title>
         <link>https://github.com/dtubb/fichero/releases</link>
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
+        <item>
+            <title>Fichero 2026.07.08-beta</title>
+            <pubDate>Wed, 08 Jul 2026 12:46:16 -0300</pubDate>
+            <sparkle:version>2026070801</sparkle:version>
+            <sparkle:shortVersionString>2026.07.08-beta</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<p>The first notarized, auto-updating build.</p>
+<h3>New</h3>
+<p><strong>Local models, managed for you.</strong> Fichero can now download, store, and run
+local models itself — a supervised MLX sidecar with its own isolated runtime,
+gated on hardware that can actually run it. No terminal, no separate server.
+Apple Intelligence and Apple Vision remain fully on-device options.</p>
+<p><strong>Knowledge Graph, grown up.</strong> Claims and entities now carry attribution —
+speaker, quotation kind, language, audience, genre, and the source of the
+confidence score. Claims link to other claims. Everything scopes to a page, a
+document, or a folder, and keeps the passage it came from. Entities
+de-duplicate; conflicting types get flagged rather than silently merged.</p>
+<p><strong>Document Inspector V2.</strong> Tabbed Info / Metadata / Content / Artifacts /
+Knowledge Graph, alongside a multi-pane reading layout with a PDF page view and
+per-page artifacts. Content is editable in place.</p>
+<p><strong>Canvas and Space.</strong> Library contents arrange on a 2D canvas or in a 3D space,
+with layouts that persist per library.</p>
+<p><strong>Translation.</strong> Translate a document into a language you choose. The
+translation is stored as its own artifact, embedded so it turns up in search,
+and listed by language in the reader alongside the source. The immersive reader
+gains a Source / Diplomatic selector, and every machine-made representation
+carries its provenance and an <strong>AI unreviewed</strong> badge until a person says
+otherwise.</p>
+<p><strong>Bibliography.</strong> A reference panel that extracts citations from a document,
+resolves their metadata from a DOI or ISBN, lets you edit it in a native form,
+imports references in bulk, and exports BibTeX. Deletes are undoable.</p>
+<p><strong>Search.</strong> Results show the matched excerpt in context, not just a filename.
+Typos are tolerated, and exact matches rank above semantic neighbours.</p>
+<p><strong>Users and sharing.</strong> Fichero now has real user accounts. Libraries can be
+shared, access granted and revoked per folder, and every mutation is recorded
+with the account that made it. Off by default — a single-user library behaves
+exactly as before.</p>
+<p><strong>Device pairing.</strong> Pair your own Macs and iPads over the local network with a
+QR code and per-device tokens.</p>
+<p><strong>Static export.</strong> Export a library as a browsable, offline-searchable static
+site with per-entity knowledge pages.</p>
+<p><strong><code>fichero</code> command line.</strong> A typed command surface mirroring the engine's HTTP
+API — engine lifecycle, library management, import, and a persisted registry of
+known libraries.</p>
+<p><strong>Primary Language setting</strong>, and NFC path normalization so accented filenames
+round-trip correctly between Finder, the database, and disk.</p>
+<h3>Improved</h3>
+<p><strong>Chat</strong> has a cleaner header, conversation-scoped attachments, and a compact
+layout for iPhone and iPad.</p>
+<p><strong>Cancellation.</strong> Workflows can be cancelled mid-run, and workflow execution
+moved off the main event loop — a slow node no longer freezes the engine.</p>
+<p><strong>Multilingual catalogue reliability.</strong> When Apple Intelligence refuses a
+locale or trips a safety filter, the run falls back to your configured cloud
+model instead of returning an empty catalogue.</p>
+<p><strong>Undo</strong> reaches the surfaces that promised it: documents, images, knowledge
+graph and artifacts, claim links, annotations, classifications, snapshots,
+bookmarks. Every audited action is recorded centrally, so ⌘Z works across the
+app rather than in a handful of places — and when an undo fails it says so
+instead of quietly doing nothing.</p>
+<p><strong>Reading layouts.</strong> Multi-page PDFs can be read one page at a time or several
+up, with a layout picker in the reader.</p>
+<p><strong>Knowledge graph housekeeping.</strong> A possible-duplicates surface merges entities
+in one click, with a picker for which record survives. Repeated claims from
+different sources fold into a single canonical row.</p>
+<p><strong>Errors say what happened.</strong> Service, research, and per-library history
+failures now surface the real message instead of a generic Cocoa error, and the
+engine re-probes with backoff to recover a healthy connection rather than
+failing the launch outright.</p>
+<h3>Security</h3>
+<p><strong>Per-launch API token.</strong> The engine binds loopback-only (<code>127.0.0.1</code>) and
+requires a startup-generated bearer token
+(<code>~/Library/Application Support/Fichero/.api-key</code>, mode <code>0600</code>). Fichero is not
+reachable from the internet or your local network; the token closes the
+remaining gap of other apps running as you on the same Mac.</p>
+<p><strong>Audited writes.</strong> Every backend mutation routes through one audited action
+layer that records what changed and which account changed it.</p>
+<p><strong>Path confinement.</strong> A lexical <code>..</code> traversal in the library path allowlist is
+closed, and the QuickLook preview sanitizes a server-supplied filename before
+using it as a path. Annotation geometry and colour are validated on the way in.</p>
+<p><strong>Fail loud, not quiet.</strong> Export provenance gaps, importer degradation, and
+startup misconfiguration now surface as errors instead of silently substituting
+a default. A workflow fan-out that fails completely reports the failure rather
+than returning an empty result, and values the pipeline cannot interpret are
+routed to human review instead of guessed at.</p>
+<h3>Fixed</h3>
+<ul>
+<li><strong>Launch crash.</strong> Opening a library window could crash the app: SwiftUI was
+  registering the search field twice, once globally and again in individual
+  mode views. Per-view search now defers to the single toolbar search, and the
+  first-run provider sheet waits until the toolbar has laid itself out.</li>
+<li><strong>The app could not open its own library.</strong> A sandboxed build was denied
+  access to its container path, and a stale API token produced an
+  authorization failure on a freshly started engine.</li>
+<li><strong>Activity progress and log</strong> stream correctly. The workflow event stream was
+  a single-consumer queue that starved a second subscriber, leaving 0% progress
+  and an empty log; it is now a fan-out broadcaster with a replay buffer.</li>
+<li><strong>Chat</strong> no longer blocks while the model is thinking, and it remembers the
+  conversation — earlier turns are included in the prompt, and context survives
+  a retry.</li>
+<li><strong>Knowledge Graph and the document reader</strong> render again over the pinned
+  engine connection.</li>
+<li><strong>Per-page transcription</strong> applies across every Transcribe and Catalogue
+  preset.</li>
+<li><strong>Shell</strong>: iPhone inspector opens full-height; the macOS sidebar selection
+  updates the view; the iOS reader hides desktop zoom on compact widths.</li>
+<li>Backend 500s on list endpoints, knowledge-graph cascade deletes, LanceDB
+  fork-safety, a DuckDB upsert crash, re-OCR of already-digital PDFs, keyword
+  over-extraction, and an assortment of inspector, thumbnail, and activity bugs.</li>
+</ul>
+<h3>Under the hood</h3>
+<ul>
+<li>Every list endpoint speaks one OpenAPI envelope contract, guarded by a
+  permanent endpoint-walker test.</li>
+<li>The Swift app talks to the engine through generated, typed operations rather
+  than hand-written requests.</li>
+<li><code>scripts/verify_all.sh</code> (SwiftLint + Xcode test suite + backend contract
+  tests) is the single answer to "is it green", wired to ⌘U, and renders its
+  failures to an HTML dashboard.</li>
+<li>In Debug the engine runs externally; a Release build embeds and launches it,
+  signed with hardened-runtime entitlements.</li>
+<li>A launch-crash smoke test boots the built <code>.app</code> and asserts it survives.</li>
+<li>Graph retrieval no longer scans the whole table; citation and reference
+  filters run in the database.</li>
+</ul>
+<h3>Known issues</h3>
+<ul>
+<li>The live-updates event stream (<code>/api/changes/stream</code>) fails TLS on a
+  self-signed <code>.local</code> certificate.</li>
+<li>IIIF endpoints are staged behind <code>FICHERO_FEATURE_TIER=dev</code> and are off in a
+  release build.</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.07.08-beta/Fichero.dmg"
+                length="431820011"
+                type="application/octet-stream"
+                sparkle:edSignature="bdB6sougFpn6W3K/Drr1V32fd1vvfP/6Hl61E+GP761St4cuqk4cWiCxTkJJg8uLKzl85Zyl1eFCZhCCPdP5CQ=="
+            />
+        </item>
     </channel>
 </rss>
