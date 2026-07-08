@@ -1,12 +1,15 @@
 # Fichero documentation + marketing site (MkDocs + Material).
 #
 # ONE folder: `docs/`. It is BOTH what mkdocs publishes AND what contributors and
-# agents read — browsing `docs/` on GitHub shows the real source. The curated
-# public pages (user manual, developer/contributor docs, api-reference,
-# how-its-built, faq, index) and the deeper architecture/runbook material live
-# side by side; only the pages listed in `nav` are surfaced as site navigation,
-# the rest remain buildable reference. Agent working scratch lives in
-# `agent-work/` and is never part of this folder or the build.
+# agents read — browsing `docs/` on GitHub shows the real source. Three manuals:
+# `user/` (using Fichero), `contributor/` (building it), `ai/` (the agents that
+# write most of the code).
+#
+# CAUTION: mkdocs builds EVERY .md under `docs_dir` into a public page. `nav` only
+# controls what appears in the site navigation — it does not gate publication. A
+# page left out of `nav` is still live at its URL, just unlinked. Anything that
+# must not be public belongs outside `docs/` (agent scratch -> `agent-work/`,
+# the priority spine -> `agents/ROADMAP.md`), not merely out of `nav`.
 #
 # --- How to use ------------------------------------------------------------
 #   pip install -r requirements-docs.txt
@@ -32,15 +35,6 @@ edit_uri: edit/main/docs/
 
 docs_dir: docs
 site_dir: _site_build
-
-# docs/README.md is the GitHub folder landing for `docs/`; the published home is
-# index.md. Exclude the README from the build so it does not conflict with
-# index.md (mkdocs would otherwise warn, failing --strict).
-exclude_docs: |
-  /README.md
-  # Dated internal audits. Kept in-repo for provenance (MEMORY.md cites them) but
-  # not published: every .md under docs_dir otherwise becomes a public page.
-  /archive/
 
 theme:
   name: material
@@ -101,9 +95,9 @@ validation:
 
 nav:
   - Home: index.md
-  - FAQ: faq.md
   - User Guide:
       - Overview: user/README.md
+      - FAQ: user/faq.md
       - What Fichero Is: user/what-fichero-is.md
       - Feature Matrix: user/features.md
       - Installing Fichero: user/install.md
@@ -115,6 +109,7 @@ nav:
       - Curation, Notes & Workflows: user/curation-notes-workflows.md
       - AI & Privacy: user/ai-and-privacy.md
       - Supported File Types: user/supported-file-types.md
+      - How It's Built: user/how-its-built.md
   - Contributor:
       - Overview: contributor/README.md
       - How Fichero Works: contributor/how-fichero-works.md
@@ -156,4 +151,3 @@ nav:
       - Overview: ai/README.md
       - Architecture & Development Guide: ai/CLAUDE.md
   - API Reference: contributor/api-reference/index.md
-  - How It's Built: how-its-built.md

@@ -2,7 +2,7 @@
 
 Fichero is built by AI agents working under Daniel Tubb's direction. This manual is
 what those agents read. It is published rather than hidden because how the software
-is made is part of what the software is — see [How It's Built](../how-its-built.md).
+is made is part of what the software is — see [How It's Built](../user/how-its-built.md).
 
 There are three manuals: the [user manual](../user/README.md) for people using
 Fichero, the [contributor manual](../contributor/README.md) for people building it,

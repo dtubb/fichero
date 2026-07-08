@@ -17,7 +17,7 @@ sources — on your own Mac, with the AI models you choose.**
 
 [Download for macOS :material-download:](#download){ .md-button .md-button--primary }
 [Get started :material-rocket-launch:](user/getting-started.md){ .md-button }
-[Read the FAQ :material-help-circle:](faq.md){ .md-button }
+[Read the FAQ :material-help-circle:](user/faq.md){ .md-button }
 
 *Fichero* is Spanish for a filing cabinet or card index. It is for researchers
 working with scanned archives, historical documents, handwritten field notes,
@@ -70,6 +70,17 @@ Not everything is finished. The [feature matrix](user/features.md) lists every
 capability with its real status — Live, Beta, In progress, or Planned — derived
 from the code rather than from a roadmap.
 
+## Documentation
+
+Three manuals, for three readers:
+
+- **[User manual](user/README.md)** — using Fichero. Install, import, read, search,
+  run workflows. Start with [What Fichero Is](user/what-fichero-is.md).
+- **[Contributor manual](contributor/README.md)** — building Fichero. Architecture,
+  the OpenAPI contract, the action registry, the security model, the release lane.
+- **[AI manual](ai/README.md)** — the agents that write most of the code, and the
+  rules they work under.
+
 ## Why it exists
 
 AI tools are powerful and opaque. Fichero exists to make them navigable: every
@@ -88,7 +99,7 @@ Fichero is **model-agnostic**. Run models locally through Apple Foundation
 Models, MLX, Ollama, or LM Studio; or bring your own API key for OpenAI,
 Anthropic, Google, OpenRouter, and others. Keys live in the macOS Keychain.
 
-See [How It's Built](how-its-built.md) for the whole picture.
+See [How It's Built](user/how-its-built.md) for the whole picture.
 
 ## System requirements
 
@@ -122,6 +133,6 @@ out of his own work with historical and archival material.
 
 It is open source under the [MIT license](https://github.com/dtubb/fichero/blob/main/LICENSE),
 and has been coded almost entirely by frontier AI models under Daniel's
-direction — see [How It's Built](how-its-built.md). Issues and pull requests are
+direction — see [How It's Built](user/how-its-built.md). Issues and pull requests are
 welcome on [GitHub](https://github.com/dtubb/fichero); start with the
 [contributor docs](contributor/README.md).
