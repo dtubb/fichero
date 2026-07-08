@@ -33,14 +33,14 @@ swiftlint lint fichero/fichero/
 
 ## Worker Orchestration
 
-Fichero is built by AI coding agents that Daniel directs. The work runs through a
+Fichero is built by AI coding agents. The work runs through a
 manager-with-workers loop:
 
 - The **manager** (`session-start-manager`) holds the control lane. It does not
   write source code. It triages issues, picks the next batch, and dispatches it.
 - Each **worker** runs in its OWN git worktree under
   `~/code/fichero-worktrees/<name>`, in a separate tmux window, as an interactive
-  agent (`claude --dangerously-skip-permissions` or `codex`). A worker grinds one
+  agent (`claude --dangerously-skip-permissions` or `codex --dangerously-bypass-approvals-and-sandbox` or `ollama launch codex -- --dangerously-bypass-approvals-and-sandbox`). A worker grinds one
   milestone's GitHub issues and commits as itself (see Commit Attribution below).
 - The manager **reviews** each worker's output (ponytail lens plus `/code-review`),
   **build-gates** it, runs `verify_all`, then **merges via PR**, closes the issues,
@@ -51,11 +51,9 @@ Workers never push to shared branches for the manager; the manager owns the merg
 This keeps one Xcode and one full-suite run as the gate while many workers grind in
 parallel, isolated worktrees.
 
-### Manager loop — use the scripts, don't improvise (2026-07-03)
+### Manager loop — use the scripts, don't improvise
 
-The board organizer owns issue/milestone structure; the manager drives work
-through three scripts. **Do not hand-pick issues, hand-edit ROADMAP order, or
-`gh issue create` by hand** — that is how duplicate/mis-placed milestones crept in.
+The manager drives work through three scripts. **Do not hand-pick issues, hand-edit ROADMAP order, or `gh issue create` by hand** — that is how duplicate/mis-placed milestones crept in.
 
 1. **Pick next work** — `python3 scripts/choose_next.py [--json]`. It walks the
    `## Tier` PRIORITY SPINE in `docs/ROADMAP.md` (foundations-first, milestone
@@ -173,7 +171,7 @@ Conventional commits — `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:
 ## Commit Attribution
 
 Each agent commits as ITSELF. The author is the agent doing the work; the
-committer stays the human; credit Daniel with a `Co-Authored-By` trailer.
+committer stays the human.
 
 - Claude writing → author `Claude <noreply@anthropic.com>`
 - Codex writing → author `Codex <noreply@anthropic.com>`
@@ -183,11 +181,10 @@ committer stays the human; credit Daniel with a `Co-Authored-By` trailer.
 git -c user.name="Claude" -c user.email="noreply@anthropic.com" \
   commit -m "docs: fix faq models (#1234)
 
-Co-Authored-By: Daniel Tubb <dtubb@me.com>"
+Directed-By: Daniel Tubb <dtubb@me.com>"
 ```
 
-This keeps authorship honest: the git log shows which agent produced which work,
-and Daniel is credited as the human who directed and reviewed it.
+The git log shows which agent produced which work, and Daniel is credited as the human who directed it.
 
 ---
 
@@ -222,8 +219,8 @@ internal design docs out of `nav` rather than out of `docs/`.
 | `docs/CLAUDE.md` | Full architecture & development guide (canonical, detailed) |
 | `docs/architecture/` | Architecture docs |
 | `USER.md` | About Daniel — who he is, constraints |
-| `STATE.md` | Current branch, focus, next session |
-| `MEMORY.md` | Persistent lessons and decisions |
+| `STATE.md` | Local working notes (gitignored, not in the repo) — current branch, focus, next session |
+| `MEMORY.md` | Local working notes (gitignored, not in the repo) — persistent lessons and decisions |
 | `agents/skills/` | Session-start / manager / worker skills + shared principles |
 | `fichero/fichero/` | Swift/SwiftUI frontend (Xcode project: `fichero/fichero.xcodeproj`) |
 | `fichero/fichero-api-client/` | Generated Swift OpenAPI client package |
