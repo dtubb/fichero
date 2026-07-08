@@ -140,6 +140,33 @@ def test_resolve_lan_bind_host_refuses_wildcard() -> None:
         )
 
 
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1", "localhost"])
+def test_resolve_lan_bind_host_refuses_loopback_addresses(host: str) -> None:
+    """The LAN listener is the *second* socket; loopback is already the first.
+
+    Pointing it back at loopback would silently give you one socket where the
+    operator asked for two, so it must raise rather than quietly collapse.
+    """
+    with pytest.raises(ValueError, match="must be a non-loopback address"):
+        resolve_lan_bind_host(
+            {
+                LAN_BIND_HOST_ENV: host,
+                NON_LOOPBACK_BIND_ACK_ENV: NON_LOOPBACK_BIND_ACK_VALUE,
+            }
+        )
+
+
+def test_resolve_bind_host_treats_unresolvable_names_as_non_loopback() -> None:
+    """A DNS name is not an IP literal, so the loopback check must fall through.
+
+    `_is_loopback_host` swallows the ValueError from `ip_address()` and answers
+    False, which is what forces a hostname down the ack-required path instead of
+    being mistaken for a safe loopback bind.
+    """
+    with pytest.raises(ValueError, match="non-loopback"):
+        resolve_bind_host({"FICHERO_BIND_HOST": "pairing.example.com"})
+
+
 def test_start_uses_resolved_bind_host_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, list[str]] = {}
 
