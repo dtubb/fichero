@@ -23,13 +23,13 @@ Manager-only session start. This lane coordinates; it does not implement product
    [ -f AGENTS.md ] && sed -n '1,40p' AGENTS.md
    [ -f CLAUDE.md ] && sed -n '1,60p' CLAUDE.md
    [ -f BLOCK.md ] && sed -n '1,80p' BLOCK.md
-   [ -f docs/ROADMAP.md ] && sed -n '1,120p' docs/ROADMAP.md   # priority tiers — what's next
+   [ -f agents/ROADMAP.md ] && sed -n '1,120p' agents/ROADMAP.md   # priority tiers — what's next
    [ -f STATE.md ] && sed -n '1,80p' STATE.md
    [ -f MEMORY.md ] && sed -n '1,80p' MEMORY.md
    git log --oneline -20
    find .ai/inbox ~/.claude/inbox -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort
    ```
-   **`docs/ROADMAP.md` is the source of truth for priority order.** The loop is
+   **`agents/ROADMAP.md` is the source of truth for priority order.** The loop is
    two skills — use them, don't improvise:
    - **`/choose-next`** — reads ROADMAP + GH milestones, returns the next batch
      (1 big issue OR 3–10 small same-milestone issues) from the highest-incomplete tier.

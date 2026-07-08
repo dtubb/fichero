@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Swift visual-language guardrail.
 
-Rule: Swift source must use SF Symbols and system text styles; see docs/ROADMAP.md.
+Rule: Swift source must use SF Symbols and system text styles; see agents/ROADMAP.md.
 
 Flags emoji codepoints in Swift code and hardcoded custom fonts such as
 `.font(.custom(...))` or `Font(name: ...)`. The current backlog lives in
@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
-RULE_DOC = "docs/ROADMAP.md"
+RULE_DOC = "agents/ROADMAP.md"
 
 KNOWN_VIOLATIONS: dict[str, str] = {
     "fichero/fichero/Models/LibraryManager+Helpers.swift#998f025dc1": "#1913 baseline",

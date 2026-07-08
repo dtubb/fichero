@@ -12,7 +12,7 @@ Limits: this is not a full Swift compiler or runtime navigation proof. It checks
 that each sidebar leaf item type has a corresponding `AppViewMode` destination
 case and that the destination case appears in the content router. Structural
 sidebar items (`folder`, `libraryHeader`) are intentionally ignored. See
-docs/ROADMAP.md for the guardrail roadmap.
+agents/ROADMAP.md for the guardrail roadmap.
 
 Usage:
     python3 scripts/check_sidebar_items.py
@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = ROOT / "fichero" / "fichero"
-RULE_DOC = "docs/ROADMAP.md"
+RULE_DOC = "agents/ROADMAP.md"
 
 SIDEBAR_SOURCES = [
     SWIFT_ROOT / "Models" / "SidebarItem.swift",

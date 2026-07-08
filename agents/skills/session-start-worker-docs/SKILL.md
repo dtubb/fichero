@@ -77,9 +77,16 @@ Serve **your** worktree; a serve rooted in `~/code/fichero` shows him stale docs
 Rule of thumb: point-in-time, dated, "what I found" → `agent-work/`. Durable "how
 the system works" → `docs/`.
 
+Anything under `docs/` becomes a **public page** — mkdocs builds every `.md` in
+`docs_dir` whether or not it appears in `nav`. Agent/manager planning does not
+belong there; that is why the roadmap lives at `agents/ROADMAP.md`.
+
 **Protected paths** — do not move or rename without fixing every caller:
 
-- `docs/ROADMAP.md` — `scripts/choose_next.py` and `AGENTS.md` read it by path.
+- `agents/ROADMAP.md` — read by path in `scripts/choose_next.py`
+  (`DEFAULT_ROADMAP`) and `scripts/gardener.py` (`ROADMAP_PATH`), and named in
+  `AGENTS.md`, `agents/prompts/manager-loop.md`, and nine `scripts/check_*.py`
+  `RULE_DOC` strings.
 - `docs/CLAUDE.md` — a dozen inbound links plus the nav.
 
 ## Ponytail

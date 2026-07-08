@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Native selectable-controls guardrail.
 
-Rule: selectable row collections should use List/Table/OutlineGroup; see docs/ROADMAP.md.
+Rule: selectable row collections should use List/Table/OutlineGroup; see agents/ROADMAP.md.
 
 Flags SwiftUI view files that build list-like row collections as ScrollView plus
 LazyVStack/VStack plus ForEach. KNOWN_VIOLATIONS is today's migration backlog,
@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
-RULE_DOC = "docs/ROADMAP.md"
+RULE_DOC = "agents/ROADMAP.md"
 
 # Rekeyed to stable content signatures so unrelated line shifts do not churn the backlog.
 KNOWN_VIOLATIONS: dict[str, str] = {

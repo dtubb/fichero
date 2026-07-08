@@ -24,7 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
-RULE_DOC = "docs/ROADMAP.md"
+RULE_DOC = "agents/ROADMAP.md"
 
 # Current toolbar-tooltip backlog. Keys are `relative/path.swift#signature`.
 KNOWN_VIOLATIONS: dict[str, str] = {

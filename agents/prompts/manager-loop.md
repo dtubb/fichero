@@ -6,7 +6,7 @@ cadence:
 
 ## Pick + dispatch
 
-1. `python3 scripts/choose_next.py` — walks the `## Tier` spine in `docs/ROADMAP.md`
+1. `python3 scripts/choose_next.py` — walks the `## Tier` spine in `agents/ROADMAP.md`
    (foundations-first, milestones by due-date), returns the top ready milestone/batch.
    The **board organizer** owns this script + the spine; if it returns the wrong
    milestone, file a bug and hand it to the board — do NOT hand-edit ROADMAP order.

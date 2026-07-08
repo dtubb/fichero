@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Feature-flag release-default guardrail.
 
-Rule: work-in-progress feature flags must default off for release; see docs/ROADMAP.md.
+Rule: work-in-progress feature flags must default off for release; see agents/ROADMAP.md.
 
 Scans FeatureManager for AppStorage feature booleans that default ON directly or
 are set ON in release-default reset paths. KNOWN_VIOLATIONS is the current list
@@ -22,7 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FEATURE_MANAGER = ROOT / "fichero" / "fichero" / "Models" / "FeatureManager.swift"
-RULE_DOC = "docs/ROADMAP.md"
+RULE_DOC = "agents/ROADMAP.md"
 
 KNOWN_VIOLATIONS: dict[str, str] = {
     "fichero/fichero/Models/FeatureManager.swift#01f2f36004": "#1922 baseline",

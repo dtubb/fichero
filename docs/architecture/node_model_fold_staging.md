@@ -84,4 +84,4 @@ All work targets the **Node Model & Endpoint Unification** milestone.
 - #2293 / task #369 — canvas position persistence (the item-attribute positions Fold-E keeps).
 - #1848 — the audited action layer (every migrated `_action_*` must keep flowing through `registry.invoke`).
 - #2067 — agent-as-principal (P6 chat scopes; the agent edits nodes like a user).
-- `docs/architecture/swiftui/mac_shell_design_proposal.md` + `docs/ROADMAP.md` line 37 — the Mac UI reform this foundation enables.
+- `docs/architecture/swiftui/mac_shell_design_proposal.md` + `agents/ROADMAP.md` line 37 — the Mac UI reform this foundation enables.

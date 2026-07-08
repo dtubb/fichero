@@ -10,7 +10,7 @@ signals such as `URLSession`, `URLRequest`, `URLComponents`, `httpMethod`, and
 manual header/body mutation. Low-level client/backend infrastructure is excluded
 because it is the transport layer itself. `KNOWN_VIOLATIONS` is the current
 backlog: the script exits 0 while only those files are found, and exits 1 for a
-new bypass. See docs/ROADMAP.md for the guardrail roadmap.
+new bypass. See agents/ROADMAP.md for the guardrail roadmap.
 
 Usage:
     python3 scripts/check_service_consistency.py
@@ -25,7 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SERVICES_DIR = ROOT / "fichero" / "fichero" / "Services"
-RULE_DOC = "docs/ROADMAP.md"
+RULE_DOC = "agents/ROADMAP.md"
 
 TRANSPORT_PATTERNS: dict[str, re.Pattern[str]] = {
     "raw URLSession": re.compile(r"\bURLSession\b"),

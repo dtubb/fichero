@@ -8,7 +8,7 @@ Swift file.
 This is conservative. It skips app entry points, preview types, files without a
 clear primary type, and names referenced anywhere else (including `#Preview`).
 String-based/reflection lookups are not generally provable, so add intentional
-exceptions to `KNOWN_VIOLATIONS` only with an issue note. See docs/ROADMAP.md for
+exceptions to `KNOWN_VIOLATIONS` only with an issue note. See agents/ROADMAP.md for
 the guardrail roadmap.
 
 Usage:
@@ -25,7 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = ROOT / "fichero" / "fichero"
-RULE_DOC = "docs/ROADMAP.md"
+RULE_DOC = "agents/ROADMAP.md"
 
 TYPE_DECL = re.compile(
     r"^\s*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s*)*"

@@ -1,6 +1,6 @@
 ---
 name: choose-next
-description: Manager picks the next work batch to delegate — reads docs/ROADMAP.md + GitHub milestones/issues, finds the highest-incomplete tier with ready work, and returns 1 big issue OR 3–10 small same-milestone issues sized for a worker's context.
+description: Manager picks the next work batch to delegate — reads agents/ROADMAP.md + GitHub milestones/issues, finds the highest-incomplete tier with ready work, and returns 1 big issue OR 3–10 small same-milestone issues sized for a worker's context.
 ---
 
 # /choose-next
@@ -12,7 +12,7 @@ right order. Do not implement — just select and hand off.
 
 1. **Read the roadmap (source of truth for order):**
    ```bash
-   sed -n '1,140p' docs/ROADMAP.md
+   sed -n '1,140p' agents/ROADMAP.md
    ```
    The tiers are: 0 Gates/Verify → 1 Infrastructure → 2 Right-approaches (observable) →
    3 Features → 3b Domain → 4 Mactastic → 5 Testing → 6 Profiling → 7 UI-consistency.

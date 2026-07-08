@@ -6,7 +6,7 @@ Fichero is built openly with the help of AI coding agents. This page documents
 how that actually works, as the concrete process
 the project follows. It is grounded in the workflow files that live in the
 repository: `AGENTS.md` (the canonical agent constitution + operational manual),
-`CLAUDE.md`, `MEMORY.md`, `docs/ROADMAP.md`, and the skills under
+`CLAUDE.md`, `MEMORY.md`, `agents/ROADMAP.md`, and the skills under
 `agents/skills/`, with older background notes still preserved under
 `agent-work/agent-workflow/`.
 
@@ -39,7 +39,7 @@ on) rather than against a version number.
 
 The manager runs a deterministic loop built from two skills:
 
-1. **`choose-next`**: reads `docs/ROADMAP.md` (the priority tiers: Gates →
+1. **`choose-next`**: reads `agents/ROADMAP.md` (the priority tiers: Gates →
    Infrastructure → Observable approaches → Features → Domain → Mac polish →
    Testing → Profiling → UI consistency) and the open GitHub milestones, then
    returns the next batch: either one large keystone issue, or 3–10 small issues

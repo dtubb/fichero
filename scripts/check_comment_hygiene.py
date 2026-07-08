@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Comment hygiene guardrail.
 
-Rule: no commented-out code blocks and TODO/FIXME must cite an issue; see docs/ROADMAP.md.
+Rule: no commented-out code blocks and TODO/FIXME must cite an issue; see agents/ROADMAP.md.
 
 Flags 3+ consecutive ordinary comment lines that look like Swift code, plus
 TODO/FIXME comments without a #NNN issue reference. Doc comments, MARK headers,
@@ -22,7 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
-RULE_DOC = "docs/ROADMAP.md"
+RULE_DOC = "agents/ROADMAP.md"
 
 KNOWN_VIOLATIONS: dict[str, str] = {
 "fichero/fichero/Services/ChatServiceGenerated.swift#9190295867": "#1916 baseline",

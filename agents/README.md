@@ -21,6 +21,10 @@ operational tooling, not product code or user documentation.
   - `_shared` — principles shared across skills.
 - **`prompts/`** — reusable prompt fragments the skills compose (`manager-loop.md`,
   `worker-loop.md`).
+- **`ROADMAP.md`** — the `## Tier` priority spine. Read by path by
+  `scripts/choose_next.py` (`DEFAULT_ROADMAP`) and `scripts/gardener.py`
+  (`ROADMAP_PATH`). It lives here, not in `docs/`, because it is agent/manager
+  planning: every `.md` under `docs/` is published as a public page.
 
 ## How it fits together
 

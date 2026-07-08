@@ -56,7 +56,7 @@ parallel, isolated worktrees.
 The manager drives work through three scripts. **Do not hand-pick issues, hand-edit ROADMAP order, or `gh issue create` by hand** — that is how duplicate/mis-placed milestones crept in.
 
 1. **Pick next work** — `python3 scripts/choose_next.py [--json]`. It walks the
-   `## Tier` PRIORITY SPINE in `docs/ROADMAP.md` (foundations-first, milestone
+   `## Tier` PRIORITY SPINE in `agents/ROADMAP.md` (foundations-first, milestone
    order = ascending due-date) and returns the highest-priority *ready, unclaimed*
    batch (it already skips `status:in-progress`/`blocked`, `needs:human`, assigned).
 2. **Size each issue** — `python3 scripts/dispatch_advisor.py <issue#>` → `mini |

@@ -31,7 +31,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = ROOT / "scripts"
-ROADMAP_PATH = ROOT / "docs" / "ROADMAP.md"
+ROADMAP_PATH = ROOT / "agents" / "ROADMAP.md"
 
 
 @dataclass(frozen=True)

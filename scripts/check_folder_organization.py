@@ -11,7 +11,7 @@ This detector intentionally uses cheap static signals:
 
 It does not try to prove architecture. `KNOWN_VIOLATIONS` is the current backlog:
 the script exits 0 while only these known folders are found, and exits 1 if a new
-dumping-ground folder appears. See docs/ROADMAP.md for the guardrail roadmap.
+dumping-ground folder appears. See agents/ROADMAP.md for the guardrail roadmap.
 
 Usage:
     python3 scripts/check_folder_organization.py
@@ -25,7 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = ROOT / "fichero" / "fichero"
-RULE_DOC = "docs/ROADMAP.md"
+RULE_DOC = "agents/ROADMAP.md"
 MAX_DIRECT_SWIFT_FILES = 18
 
 MIXED_CONCERN_DIRS: dict[str, str] = {
