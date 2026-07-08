@@ -72,14 +72,12 @@ from the code rather than from a roadmap.
 
 ## Documentation
 
-Three guides, for three readers:
+Two guides, for two readers:
 
 - **[User Guide](user/README.md)** — using Fichero. Install, import, read, search,
   run workflows. Start with [What Fichero Is](user/what-fichero-is.md).
-- **[Developer Guide](contributor/README.md)** — building Fichero. Architecture,
+- **[Contributor Guide](contributor/README.md)** — building Fichero. Architecture,
   the OpenAPI contract, the action registry, the security model, the release lane.
-- **[AI Guide](ai/README.md)** — the agents that write most of the code, and the
-  rules they work under.
 
 ## Why it exists
 

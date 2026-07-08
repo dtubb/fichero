@@ -50,7 +50,7 @@ VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
 RULE_DOC = "docs/contributor/architecture/swiftui/observable_data_layer.md"
 
 # Filename substrings for the sanctioned AppKit bridges (display-only, not data
-# access) — these are allowed to touch the platform directly. See docs/ai/CLAUDE.md
+# access) — these are allowed to touch the platform directly. See AGENTS.md
 # "SwiftUI-first (AppKit only where SwiftUI can't reach)".
 APPKIT_BRIDGE_MARKERS = (
     "PDFKit", "PDFThumbnail", "PDFZoom",

@@ -116,7 +116,7 @@ nav:
       - AI & Privacy: user/ai-and-privacy.md
       - Supported File Types: user/supported-file-types.md
       - How It's Built: user/how-its-built.md
-  - Developer Guide:
+  - Contributor Guide:
       - Overview: contributor/README.md
       - How Fichero Works: contributor/how-fichero-works.md
       - Architecture Overview: contributor/architecture-overview.md
@@ -154,6 +154,3 @@ nav:
           - Bundled Backend Setup: contributor/setup-bundled-backend.md
       - UI Map: contributor/ui-map.md
       - API Reference: contributor/api-reference/index.md
-  - AI Guide:
-      - Overview: ai/README.md
-      - Architecture & Development Guide: ai/CLAUDE.md

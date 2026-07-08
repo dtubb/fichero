@@ -9,7 +9,7 @@
 > bridges where SwiftUI genuinely can't reach: PDFKit rendering + zoom, the
 > image magnifier / cursor tracking, scroll-wheel zoom, Quick Look, and
 > rich/plain-text editors (~18 files `import AppKit`). The rule is **SwiftUI-first,
-> AppKit only behind an isolated bridge** — see `docs/ai/CLAUDE.md` → "SwiftUI-first".
+> AppKit only behind an isolated bridge** — see `swiftui-principles.md`.
 > The old `APPKIT_FINAL_AUDIT.md` referenced below has been retired.
 
 ## SwiftUI-Only Policy
@@ -61,7 +61,7 @@ Use these BEFORE implementing custom solutions!
 - **MVVM Pattern**: Separate Views, ViewModels, and Models
   > **Updated 2026-06-06:** in practice the app uses `@MainActor ObservableObject`
   > services injected via `@EnvironmentObject` (per-library / per-window) rather
-  > than per-view ViewModels — see `docs/ai/CLAUDE.md` → "Multi-Window & Multi-Library
+  > than per-view ViewModels — see `swiftui-principles.md` → "Multi-Window & Multi-Library
   > Architecture". Treat "MVVM" loosely: state lives in stores/services, views stay thin.
 - **Dependency Injection**: Use @EnvironmentObject for services (never create in views)
 - **Reactive Programming**: Use @Observable (iOS 17+) or Combine

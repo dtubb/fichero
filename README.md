@@ -16,11 +16,10 @@ commercial providers, you only need to get yourself an API key. If you have a po
 
 The iPad and iPhone version require a Mac to connect to.
 
-Documentation is in three guides: the **[User Guide](docs/user/README.md)** for
-using Fichero, the **[Developer Guide](docs/contributor/README.md)** for building
-it, and the **[AI Guide](docs/ai/README.md)** for the agents that write most of the
-code. Not everything is finished — the [feature matrix](docs/user/features.md)
-lists every capability with its real status.
+Documentation is in two guides: the **[User Guide](docs/user/README.md)** for using
+Fichero, and the **[Contributor Guide](docs/contributor/README.md)** for building it.
+Coding agents read [`AGENTS.md`](AGENTS.md). Not everything is finished — the [feature matrix](docs/user/features.md) lists every
+capability with its real status.
 
 ## Features
 
@@ -46,7 +45,7 @@ you import, and treat the app as an experiment.
 
 ## How it is Built?
 
-Fichero has been coded over the last two years almost entirely by Claude, Codex, Glm 5.2, and other Frontier AI models. It is a work in progress, and it is open source. If you would like to contribute, start with the [Developer Guide](docs/contributor/README.md) and [CONTRIBUTING.md](CONTRIBUTING.md); [How It's Built](docs/user/how-its-built.md) explains the process.
+Fichero has been coded over the last two years almost entirely by Claude, Codex, Glm 5.2, and other Frontier AI models. It is a work in progress, and it is open source. If you would like to contribute, start with the [Contributor Guide](docs/contributor/README.md) and [CONTRIBUTING.md](CONTRIBUTING.md); [How It's Built](docs/user/how-its-built.md) explains the process.
 
 ## License
 

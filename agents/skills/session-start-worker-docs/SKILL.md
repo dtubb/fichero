@@ -87,7 +87,7 @@ belong there; that is why the roadmap lives at `agents/ROADMAP.md`.
   (`DEFAULT_ROADMAP`) and `scripts/gardener.py` (`ROADMAP_PATH`), and named in
   `AGENTS.md`, `agents/prompts/manager-loop.md`, and nine `scripts/check_*.py`
   `RULE_DOC` strings.
-- `docs/ai/CLAUDE.md` — a dozen inbound links plus the nav.
+- `AGENTS.md` — every agent reads it every session; it is not in docs/.
 
 ## Ponytail
 

@@ -11,5 +11,5 @@ Historians and anthropologists work with primary sources: scanned archives, fiel
 Fichero is open source and built in the open. Issues and pull requests are
 welcome on [GitHub](https://github.com/dtubb/fichero). For how the project is
 developed, see [How It's Built](docs/user/how-its-built.md). For setup and
-conventions, see the [Developer Guide](docs/contributor/README.md). To use Fichero,
+conventions, see the [Contributor Guide](docs/contributor/README.md). To use Fichero,
 start with the [User Guide](docs/user/README.md).

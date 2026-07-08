@@ -26,7 +26,7 @@ guidance see [fichero/AGENTS.md](fichero/AGENTS.md) and for the Python engine se
 For the fuller repo
 conventions, see
 [docs/contributor/setup-and-contributing.md](docs/contributor/setup-and-contributing.md).
-The [Developer Guide](docs/contributor/README.md) is the entry point for the whole
+The [Contributor Guide](docs/contributor/README.md) is the entry point for the whole
 contributor manual: architecture, the OpenAPI contract, the action registry, the
 security model, and the release lane.
 

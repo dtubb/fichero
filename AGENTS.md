@@ -3,7 +3,7 @@
 The single canonical agent/operational doc for Fichero. Every coding agent —
 Codex, Claude Code, and Claude-in-Xcode — reads this file. (`CLAUDE.md` is a thin
 pointer here.) The product north-star is `CONSTITUTION.md`; the detailed
-architecture/development guide is `docs/ai/CLAUDE.md`; the session-start / manager
+architecture/development guide is `AGENTS.md`; the session-start / manager
 skills under `agents/skills/` tell each lane its job.
 
 Every agent starts with `/session-start` (or a lane variant: `-manager`, `-worker`, `-integrator`, `-auto`); it loads context and reports state. Work happens on the milestone branch this worktree is on. Commit directly, no per-task branches.
@@ -120,7 +120,7 @@ When an agent runs **inside Xcode** (Claude-in-Xcode / the `xcode-tools` MCP ser
 - **The three-leg Swift check** before declaring SwiftUI work done, in order: (1) `swiftlint lint fichero/fichero/` clean; (2) `BuildProject` succeeds; (3) `RunAllTests` passes. A build log alone is not done; a green test run alone is not done. `XcodeRefreshCodeIssuesInFile` gives fast per-file diagnostics for the inner loop but does NOT substitute for a full build. Use `RenderPreview` / visual capture for rendered-UI changes.
 - **Limit changes to the requested task** — don't make unrelated edits.
 
-MCP/build notes live in `docs/ai/CLAUDE.md` (`## MCP Tools`, `## Development Commands`); the SwiftUI code-style guidelines live in `docs/contributor/swiftui-development-standards.md`.
+SwiftUI code-style guidelines live in `docs/contributor/swiftui-development-standards.md`; the deeper architecture reference in `docs/contributor/architecture-overview.md`.
 
 ---
 
@@ -164,6 +164,87 @@ When seed-data shape changes, the shape change and every filter that reads it sh
 Before completing a backend route change: does OpenAPI need updating? Do the Swift generated files need regenerating? Do frontend callers need updating? Plan first for architectural, OpenAPI-schema, feature-flag-tier, or database-schema changes; proceed directly on clear-root-cause fixes, tests, and lint/build fixes.
 
 **Engine bug or rendering bug?** The typed `fichero` CLI (`python -m fichero`) mirrors every endpoint reachable from SwiftUI. Reproduce against the CLI first; if it fails the same way, the engine owns it.
+
+---
+
+## Architecture at a Glance
+
+```
+SwiftUI app · fichero CLI · fichero-mcp
+              |
+   HTTPS on 127.0.0.1:8765 (TLS, pinned fail-closed)
+              |
+        FastAPI engine  ──→ DuckDB (metadata) + LanceDB (vectors)
+                        ──→ LangGraph (workflows)
+                        ──→ LangChain (LLM providers)
+```
+
+The Swift app is a rendering layer: storage, ingest, search, workflows, the KG and
+all validation live in the engine. `litellm` is metadata only — `get_model_info()`
+and `cost_per_token()`. It never routes a call.
+
+- **Route tiers.** `FICHERO_FEATURE_TIER` (`release` | `dev`, default `release`) in
+  `api/main.py`. On current `main` the dev tier gates exactly one route group:
+  `iiif`. Everything else is core. Route registration is therefore a poor signal of
+  whether a feature is *usable* — the UI is flag-gated separately.
+- **What ships to a user** is decided by `FeatureManager.resetToV001()` in
+  `fichero/fichero/Models/FeatureManager.swift`, re-applied on every
+  `releaseProfileVersion` bump. `docs/user/features.md` is derived from it.
+- **Databases:** `~/Library/Application Support/Fichero/fichero.duckdb` and
+  `.../lance/`. Never query them directly — everything goes through `db.py`.
+- **Engine is macOS-only when embedded.** Briefcase declares one platform; iOS and
+  iPadOS always talk to a remote engine. See `fichero-engine/README.md`.
+
+---
+
+## MCP Tools
+
+**The live tool list in your session is authoritative.** The repo pins nothing —
+there is no `.mcp.json`. Every MCP server comes from the agent's own global or
+plugin config, varies per harness (Claude Code, Codex, Claude-in-Xcode), and changes
+over time. A roster here would rot; this is deliberate.
+
+What the harness *needs*, and what to do when it is missing:
+
+| Capability | Server | If absent |
+|---|---|---|
+| Code navigation | **jcodemunch** — required, see Code Navigation below | fall back to Read/Grep **and say so** |
+| Xcode build / test | **xcode** MCP (`BuildProject`, `RunAllTests`) | raw `xcodebuild` + `-skipPackagePluginValidation` |
+| Apple API docs | **xcode** MCP `DocumentationSearch`, or sosumi | say you could not check; do not guess new API |
+
+`XcodeBuildMCP`'s tools mostly target iOS simulators — Fichero is macOS, so use the
+macOS / device-less variants. Prefer the `xcode` MCP over raw `xcodebuild`: it shares
+Xcode.app's cache and avoids `build.db` lock contention.
+
+**Two tools are not optional.** Every worker navigates with **jcodemunch** and writes
+**ponytail** code (shortest working diff; stdlib → native → existing dep → one line;
+delete over add; no speculative abstraction; a `ponytail:` comment on any deliberate
+simplification). Both are enforced by review, not by a script.
+
+---
+
+## Common Pitfalls
+
+The ones that cost hours, and that no test catches for you:
+
+- **A new `.swift` file is invisible until registered.** The `Fichero` target uses
+  traditional PBX file references, not synchronized groups. Write the file, then
+  `ruby scripts/add-swift-file.rb <path>`. Never hand-edit `project.pbxproj`.
+  (Test-target files use sync'd groups and just work.)
+- **`PYTHONPATH=fichero-engine/src` on every Python command.** The shared `.venv` is
+  editable-installed against `~/code/fichero`; without it, a worktree gates the
+  *stale* tree — a green run that means nothing.
+- **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use
+  `fichero-engine/scripts/start_backend.sh`.
+- **Always ignore `fichero-engine/tests/unit/_archived`.**
+- **Multi-library requests need the `X-Fichero-Library-Path` header** (app-wide
+  endpoints — health, providers/catalog, settings — skip it).
+- **A `pytest -k` subset skips the architecture guardrails.** Anything touching a
+  persisted DB, a route, or a Swift service needs the full run.
+- **Paths assembled from parts hide from a string sweep.** `ROOT / "docs" / "x.md"`
+  has no `docs/x.md` substring to grep. Moving a file breaks it silently.
+- **Backtick text inside `git commit -m "..."` is command substitution.** The shell
+  executes it and pastes the output into your message. Use `git commit -F <file>`.
 
 ---
 
@@ -214,14 +295,13 @@ The git log shows which agent produced which work, and Daniel is credited as the
 ## Docs Placement
 
 ONE docs folder, `docs/` (the MkDocs `docs_dir`). It is BOTH the published site AND
-the reference contributors read on GitHub. It holds three guides:
+the reference contributors read on GitHub. It holds two guides:
 
 - **`docs/user/`** — the User Guide: using Fichero. Entry point `docs/user/README.md`.
-- **`docs/contributor/`** — the Developer Guide: building it. Architecture, API
+- **`docs/contributor/`** — the Contributor Guide: building it. Architecture, API
   reference, release runbooks, QA, design notes. Entry point
-  `docs/contributor/README.md`.
-- **`docs/ai/`** — the AI Guide: the agents that write most of the code.
-  Entry point `docs/ai/README.md`.
+  `docs/contributor/README.md`. (Agents read this file, `AGENTS.md`, not a copy
+  inside `docs/`.)
 
 **`nav` does not gate publication.** MkDocs builds EVERY `.md` under `docs_dir` into
 a live public page. `mkdocs.yml` `nav` controls only what appears in the site
@@ -254,7 +334,6 @@ that must never be public goes outside `docs/` entirely — not merely out of `n
 |---|---|
 | `CONSTITUTION.md` | Product north star: what we're building, why, what it's not, hard constraints |
 | `AGENTS.md` | This file — operational manual + hard rules |
-| `docs/ai/CLAUDE.md` | Full architecture & development guide (canonical, detailed) |
 | `docs/contributor/architecture/` | Architecture docs |
 | `USER.md` | About Daniel — who he is, constraints |
 | `STATE.md` | Local working notes (gitignored, not in the repo) — current branch, focus, next session |
@@ -290,4 +369,4 @@ Read `docs/contributor/architecture/` first — specifically:
 - `docs/contributor/backend-development-standards.md` for backend conventions.
 - `docs/contributor/swiftui-development-standards.md` for Swift conventions.
 
-`docs/ai/CLAUDE.md` is the canonical detailed guidance and also references these.
+`AGENTS.md` is the canonical detailed guidance and also references these.

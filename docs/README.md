@@ -1,15 +1,13 @@
 # Fichero Documentation
 
-Three guides, for three readers. This page is the landing for anyone browsing
+Two guides, for two readers. This page is the landing for anyone browsing
 `docs/` on GitHub; the published site's home is [`index.md`](index.md).
 
 - **[User Guide](user/README.md)** — using Fichero. Install, import, read, search,
   run workflows. Start with [What Fichero Is](user/what-fichero-is.md), or check the
   [feature matrix](user/features.md) for what actually ships today.
-- **[Developer Guide](contributor/README.md)** — building Fichero. Architecture,
+- **[Contributor Guide](contributor/README.md)** — building Fichero. Architecture,
   the OpenAPI contract, the action registry, the security model, the release lane.
-- **[AI Guide](ai/README.md)** — the agents that write most of the code, and the
-  rules they work under.
 
 Operational rules for agents live in [`AGENTS.md`](../AGENTS.md); the product north
 star in [`CONSTITUTION.md`](../CONSTITUTION.md).
