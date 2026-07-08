@@ -18,7 +18,7 @@ Swift UI App → HTTP/REST (port 8765) → FastAPI
                                           ├── DuckDB  (structured metadata)
                                           ├── LanceDB (vector embeddings)
                                           ├── LangGraph (workflow engine)
-                                          └── LiteLLM (100+ LLM providers)
+                                          └── LangChain (LLM providers)
 ```
 
 ## Package Layout
@@ -122,7 +122,7 @@ These are also gated behind `FICHERO_FEATURE_TIER=dev`. They are complete but no
 | `models.py` | Pydantic models shared across API and database |
 | `app_db.py` | App-level settings database (separate from per-library DB) |
 | `ingest.py` | File ingestion pipeline (LINK/COPY modes, 37+ file types) |
-| `llm.py` | LangChain interface with LiteLLM for 100+ providers |
+| `llm.py` | LangChain provider integrations. LiteLLM = cost/model metadata only, never routing |
 | `providers.py` | LLM provider definitions (Ollama, OpenAI, Anthropic, etc.) |
 | `storage.py` | Thumbnail, archive, and file path management |
 | `keychain.py` | macOS Keychain credential storage |

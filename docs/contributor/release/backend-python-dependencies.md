@@ -76,7 +76,7 @@ Largest remaining app packages:
 | `lancedb` | `108M` | Vector search database |
 | `onnxruntime` | `68M` | Native runtime used by `fastembed` |
 | `kreuzberg` | `62M` | Document text extraction |
-| `litellm` | `60M` | Provider routing for LLM calls |
+| `litellm` | `60M` | Model catalog + cost metadata (`get_model_info`, `cost_per_token`). Not a router. |
 | `pymupdf` | `51M` | PDF rendering/extraction |
 | `_duckdb...so` | `43M` | DuckDB database engine |
 | `botocore` | `24M` | AWS provider dependency via LangChain |
@@ -92,7 +92,7 @@ cleanup. The main tradeoffs are:
 
 - Removing local vector search/local embeddings would cut LanceDB/PyArrow/Lance
   and FastEmbed/ONNX Runtime, but would remove core local search capability.
-- Removing broad LLM provider routing would cut some LiteLLM/LangChain/provider
+- Removing broad LLM provider support would cut some LangChain/LiteLLM/provider
   packages, but would narrow model/provider support.
 - Removing document extraction/rendering packages would cut Kreuzberg/PyMuPDF,
   but would reduce import and preview functionality.

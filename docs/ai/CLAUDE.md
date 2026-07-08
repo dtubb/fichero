@@ -10,7 +10,7 @@ Fichero is a macOS document management application with AI processing capabiliti
 - Document organization, search, and RAG-based chat
 - Visual workflow editor for document processing pipelines (LangGraph)
 - Support for 37+ file types with intelligent ingestion
-- Integration with 100+ LLM providers (local and commercial)
+- Model-agnostic LLM providers, local and commercial, via LangChain integrations
 
 **Architecture:**
 - **Swift/SwiftUI frontend** (`fichero/`) - SwiftUI-first native macOS app; AppKit via `NSViewRepresentable` where SwiftUI can't reach (PDFKit, image magnifier/zoom, rich-text editing)
@@ -37,7 +37,7 @@ Two build notes worth keeping here: prefer the **Xcode MCP** (`mcp__xcode__Build
 ```
 SwiftUI App → HTTP/REST → FastAPI (port 8765) → DuckDB/LanceDB
                                    → LangGraph (workflows)
-                                   → LLM Providers (via LiteLLM)
+                                   → LLM Providers (via LangChain)
 ```
 
 The Swift app is a **pure UI layer** - all business logic, data persistence, and AI processing happens in the Python backend.
@@ -57,7 +57,9 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
   - LINK mode: Creates bookmarks to files in place (uses macOS security-scoped bookmarks)
   - COPY mode: Imports files using APFS cloning for instant copying
 - **`loaders/`**: Text extraction engines for PDFs, DOCX, images, etc.
-- **`llm.py`**: LangChain interface with LiteLLM for 100+ LLM providers
+- **`llm.py`**: LangChain provider integrations. Every chat/completion call is routed
+  by LangChain. `litellm` is imported here but only for `get_model_info()` and
+  `cost_per_token()` — it never sends a request.
 - **`providers.py`**: LLM provider definitions (local: Ollama, LM Studio, Apple Vision; commercial: OpenAI, Anthropic, Google)
 
 ### Key Swift Modules
@@ -224,11 +226,18 @@ The Swift app **cannot function without the Python backend running**. Always sta
 
 In LINK mode, the app uses macOS security-scoped bookmarks (`bookmarks.py`) to maintain access to files outside the sandbox. This requires proper entitlements in `fichero/fichero/Fichero.entitlements`.
 
-### LiteLLM Integration
+### LangChain routes; LiteLLM is metadata only
 
-All LLM calls go through LangGraph. But, we use LiteLLM (`llm.py`), for:
-- Automatic cost tracking
-- Model capability detection
+Every LLM call goes through **LangChain** provider integrations (invoked from
+LangGraph workflow nodes). `litellm` is imported in `llm.py` / `llm_models.py` for
+exactly two things:
+
+- `litellm.cost_per_token()` — cost estimates
+- `litellm.get_model_info()` — model capability/catalog lookup
+
+It is **not** a router. `litellm.completion` / `acompletion` / `Router` appear
+nowhere in the engine. Do not route a call through it. See
+`docs/contributor/architecture/ai_infrastructure.md`.
 
 ### Workflow System
 

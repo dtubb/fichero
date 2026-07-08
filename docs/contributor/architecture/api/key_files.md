@@ -78,7 +78,7 @@
 
 | File | Purpose |
 |---|---|
-| `llm.py` | LangChain interface + LiteLLM routing for 100+ providers |
+| `llm.py` | LangChain provider integrations. LiteLLM = cost/model metadata only, never routing |
 | `providers.py` | Provider definitions (Ollama, LM Studio, OpenAI, Anthropic, Google, etc.) |
 | `pykeen_inference.py` | PyKEEN knowledge graph embedding and link prediction |
 | `graph_reasoning.py` | NetworkX graph analysis (centrality, communities, clustering) |
