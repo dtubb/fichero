@@ -6,8 +6,8 @@ set -euo pipefail
 # Usage: scripts/build-debug.sh
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SWIFTUI_ROOT="$ROOT_DIR/fichero-swiftui"
-PROJECT="$SWIFTUI_ROOT/fichero-swiftui.xcodeproj"
+SWIFTUI_ROOT="$ROOT_DIR/fichero"
+PROJECT="$SWIFTUI_ROOT/fichero.xcodeproj"
 SCHEME="Fichero"
 CONFIGURATION="Debug"
 DERIVED_DATA="$SWIFTUI_ROOT/build/xcode"
