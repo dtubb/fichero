@@ -13,7 +13,7 @@ MANIFEST_PATH="$ROOT_DIR/build/releases/release-manifest.txt"
 VOLUME_NAME="Fichero"
 APP_NAME="Fichero.app"
 APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/Release/$APP_NAME"
-ICON_SOURCE="$ROOT_DIR/icon.png"
+ICON_SOURCE="$ROOT_DIR/icons/fichero-icon.png"
 SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml}"
 
 EXTRA_ARGS=()
