@@ -1,20 +1,20 @@
-# AI Manual
+# AI Guide
 
-Fichero is built by AI agents working under Daniel Tubb's direction. This manual is
+Fichero is built by AI agents working under Daniel Tubb's direction. This guide is
 what those agents read. It is published rather than hidden because how the software
 is made is part of what the software is — see [How It's Built](../user/how-its-built.md).
 
-There are three manuals: the [user manual](../user/README.md) for people using
-Fichero, the [contributor manual](../contributor/README.md) for people building it,
+There are three guides: the [User Guide](../user/README.md) for people using
+Fichero, the [Developer Guide](../contributor/README.md) for people building it,
 and this one for the agents that write most of the code.
 
-## In this manual
+## In this guide
 
 - **[CLAUDE.md](./CLAUDE.md)** — the architecture and development guide. How the
   system is shaped, the conventions, the pitfalls. The longest document an agent
   reads, and the one it re-reads.
 
-## Outside this manual, and canonical
+## Outside this guide, and canonical
 
 These live at the repository root because tooling and agent harnesses load them by
 path. They are not published pages.
