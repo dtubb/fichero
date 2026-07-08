@@ -179,12 +179,18 @@ class IIIFLoader(MediaLoader):
                 anno = anno_page["items"][0]
                 body = anno.get("body", {})
 
-                # Get image service
+                # Get image service. Normalise to a dict first: a body may
+                # carry no service (direct-image canvas), an empty list, a
+                # single-item list, or a service dict — only a dict has .get.
                 service = body.get("service", [])
-                if isinstance(service, list) and service:
-                    service = service[0]
+                if isinstance(service, list):
+                    service = service[0] if service else {}
 
-                service_url = service.get("@id") or service.get("id")
+                service_url = (
+                    service.get("@id") or service.get("id")
+                    if isinstance(service, dict)
+                    else None
+                )
                 if service_url:
                     return self._build_image_url(service_url)
 
