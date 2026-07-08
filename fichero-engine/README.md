@@ -23,7 +23,7 @@ This file keeps only what is specific to the engine: its layout and how it works
 | `src/fichero/cli/` | Typed CLI mirroring the engine's HTTP surface (`openapi_surface_generated.py`) |
 | `src/fichero/db.py` | DuckDB + LanceDB storage |
 | `src/fichero/models.py` | Pydantic models |
-| `src/fichero_backend/` | Briefcase entry point for the bundled backend app |
+| `src/engine/` | Briefcase entry point wrapper for the bundled backend app |
 | `tests/` | `unit/`, `integration/`, `contracts/` |
 | `pyproject.toml` | Package + Briefcase config; console scripts (`fichero`, `fichero-mcp`) |
 
