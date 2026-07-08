@@ -65,10 +65,10 @@ def _validate_api_key_format(provider: str, api_key: str) -> None:
             "Please remove extra spaces."
         )
 
-    if " " in api_key or "\n" in api_key:
+    if any(ch.isspace() for ch in api_key):
         raise ProviderValidationError(
             "API key contains whitespace. "
-            "API keys should not have spaces or line breaks."
+            "API keys should not have spaces, tabs, or line breaks."
         )
 
 
