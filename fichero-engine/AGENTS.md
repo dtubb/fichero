@@ -20,6 +20,12 @@ clients over its HTTP surface.
 - If routes or schema change, run `bash fichero-engine/scripts/sync_openapi_schema.sh` and commit all regenerated contract files.
 - Pydantic fields, DB shape, and OpenAPI must move together. A declared API field written via `additionalProperties` or omitted from the model is how data disappears.
 - New mutation routes should follow the shipped `registry.invoke(...)` pattern so audit and change emission happen on the same path.
+- **The engine is macOS-only when embedded.** It is bundled with Briefcase, and
+  `pyproject.toml` declares one platform (`[tool.briefcase.app.engine.macOS]`).
+  iOS/iPadOS **cannot** embed it — LanceDB and the Apple Vision PyObjC bindings ship
+  no iOS wheels — so those targets always talk to an external/remote engine over
+  HTTPS. Never assume the engine is in-process; never gate a capability on it being
+  local. See [README.md](README.md) → *macOS only*.
 
 ## Read next
 

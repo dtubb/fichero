@@ -109,6 +109,32 @@ Swift package the app consumes:
 ./fichero-engine/scripts/build_backend_bundle.sh
 ```
 
+### macOS only — iOS and iPadOS cannot embed the engine
+
+The bundle is built with [Briefcase](https://briefcase.readthedocs.io/), and
+`pyproject.toml` declares exactly one platform: `[tool.briefcase.app.engine.macOS]`
+(arm64, `min_os_version = "15.0"`, Python 3.12). There is no iOS table, and there
+will not be one: the engine's native wheel stack — LanceDB above all, plus the
+Apple Vision PyObjC bindings — publishes no iOS wheels. A Python interpreter can be
+embedded in an iOS app; *this* dependency set cannot.
+
+So the engine ships two ways:
+
+| Target | How it reaches the engine |
+|---|---|
+| **macOS (Release)** | Embedded. The app bundles `Fichero Engine.app` and spawns it. |
+| **macOS (Debug)** | External. Run `fichero-engine/scripts/start_backend.sh` on `:8765`. |
+| **iOS / iPadOS** | **Remote only.** No local engine, ever. The app connects to an engine on another machine (paired host, or `tailscale serve`). |
+
+`EngineConfig.swift` encodes this: on macOS it probes the local engine first and
+falls back to a configured remote; on iOS it never probes loopback and goes
+straight to the saved/paired remote host. Every spawn path in
+`EmbeddedBackendService.swift` sits behind `#if os(macOS)`. The guardrail
+`scripts/check_ios_remote_client_target.py` keeps it that way.
+
+Practical consequence: an engine change that only works when the engine is
+in-process is a bug. iOS/iPadOS see the engine solely over HTTPS.
+
 ## Clean local generated artifacts
 
 ```bash
