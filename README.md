@@ -1,20 +1,20 @@
 # Fichero
 
-*Fichero*, which is Spanish for a filing cabinet or a card index, is a Mac, iPhone, and  iPad app that helps you manage, read, organize, annotate, and process research materials with AI tools. 
+*Fichero*, which is Spanish for a filing cabinet or a card index, is a Mac, iPhone, and iPad app that helps you manage, read, organize, annotate, and process research materials with AI tools. 
 
-Fichero's audience is researchers with collections of images from primary sources, historical documents, handwritten field notes, and other hard to read materials, as well as PDFs of books and articles, audio interviews, video recordings, photographs, maps, academic articles, books, and websites. Fichero is both a home for research materials, and a  collection of tools work with them.
+Fichero's audience is researchers with collections of images from primary sources, historical documents, handwritten field notes, and other hard to read materials, as well as PDFs of books and articles, audio interviews, video recordings, photographs, maps, academic articles, books, and websites. Fichero is both a home for research materials, and a collection of tools to work with them.
 
-Fichero lets you use AI tools to transcribe, extract metadata, make catalogue entries, and chat with and ask questions of your materials, while always being able to easily find the relevant source document or page. You can use and build the processing steps yourself, visually, and then run them across a whole collection of material. Fichero lets you use these workflows in a methodical, step-by-step way over tens or hundreds of thousands of documents
+Fichero lets you use AI tools to transcribe, extract metadata, make catalogue entries, and chat with and ask questions of your materials, while always being able to easily find the relevant source document or page. You can use and build the processing steps yourself, visually, and then run them across a whole collection of material. Fichero lets you use these workflows in a methodical, step-by-step way over tens or hundreds of thousands of documents.
 
-AI and machine language tools are incredibly powerful, and Fichero im here is to make them more navigable and transparent for people.
+AI and machine language tools are incredibly powerful, and Fichero's aim here is to make them more navigable and transparent for people.
 
 
 Under the hood, Fichero is an app written in SwiftUI and Python. It is both a native Mac, iOS, and iPad app. It is powered by Fichero Engine, which is written in Python. The engine uses many of the same Python tools that many AI applications, websites, and services rely on: DuckDB, LanceDB, LangChain, LangGraph. 
 
 Fichero is model-agnostic. It works with open-source models as well as
-commercial providers, you only need to get yourself an API key. If you have a powerful enough computer you can run models locally. It can conenct to Apple Intelligence and and Apple Foundation models, to run AI models locally. It can also connect to local providers (e.g., oMLX, Ollama, and LMStudo), as well as commercial ones (OpenRouter, Claude, Codex, Gemini, and others.)
+commercial providers, you only need to get yourself an API key. If you have a powerful enough computer you can run models locally. It can connect to Apple Intelligence and Apple Foundation models, to run AI models locally. It can also connect to local providers (e.g., MLX, Ollama, and LM Studio), as well as commercial ones (OpenRouter, Claude, Codex, Gemini, and others.)
 
-The iPad and iPhone version require a Mac to connect to.
+The iPad and iPhone versions require a Mac to connect to.
 
 Documentation is in two guides: the **[User Guide](docs/user/README.md)** for using
 Fichero, and the **[Contributor Guide](docs/contributor/README.md)** for building it.
