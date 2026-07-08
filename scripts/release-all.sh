@@ -197,7 +197,12 @@ ENGINE_APP="$ROOT_DIR/fichero-engine/build/engine/macos/app/Fichero Engine.app"
 if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
   if [ -d "$ENGINE_APP" ]; then
     echo "  Cleaning embedded engine bundle for App Store distribution"
-    "$ROOT_DIR/scripts/clean-embedded-engine.sh" "$ENGINE_APP"
+    if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
+      FICHERO_CODESIGN_IDENTITY="$MAC_APP_STORE_SIGNING_CERT" \
+      "$ROOT_DIR/scripts/clean-embedded-engine.sh" "$ENGINE_APP"
+    else
+      "$ROOT_DIR/scripts/clean-embedded-engine.sh" "$ENGINE_APP"
+    fi
   fi
 fi
 
