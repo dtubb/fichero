@@ -12,25 +12,23 @@ hide:
 
 # Fichero
 
-**A native macOS app for building a searchable research library and running
-document workflows on top of it.**
+**A filing cabinet for research. Organize, read, search, and process primary
+sources — on your own Mac, with the AI models you choose.**
 
 [Download for macOS :material-download:](#download){ .md-button .md-button--primary }
-[Read the FAQ :material-help-circle:](faq.md){ .md-button }
 [Get started :material-rocket-launch:](user/getting-started.md){ .md-button }
+[Read the FAQ :material-help-circle:](faq.md){ .md-button }
 
-Fichero is for researchers working with scanned archives, PDFs, field notes,
-images, audio, and other primary-source material. It combines a document
-library, a local backend, semantic search, a knowledge graph, and workflow
-tools in one app.
+*Fichero* is Spanish for a filing cabinet or card index. It is for researchers
+working with scanned archives, historical documents, handwritten field notes,
+audio interviews, photographs, maps, PDFs of books and articles — the material
+that is hard to read and harder to find again. Fichero is both a home for that
+material and a set of tools for working with it.
 
-!!! warning "This is Alpha software"
-    Fichero is in active development. Keep originals of anything you import and
-    treat each release as experimental software.
-
-!!! note "macOS first"
-    The repository also contains iOS, iPadOS, and visionOS work, but the
-    primary finished surface today is the macOS app.
+!!! warning "Public Beta"
+    Fichero is usable, in-progress software under active development. Keep
+    originals of anything you import, and treat each dated build as an
+    experiment.
 
 ## What it does
 
@@ -40,47 +38,72 @@ tools in one app.
 
     ---
 
-    Import files or folders, organize them into a library, and inspect source
-    documents, extracted text, and generated artifacts in one place.
+    Import files or folders — 37 file extensions across images, documents,
+    ebooks, audio, and video. Link them in place or copy them in. Read the
+    source, the extracted text, and everything derived from it side by side.
 
 -   :material-magnify: __Search__
 
     ---
 
-    Search by keyword and by meaning across the collection through the same
-    backend the app, CLI, and MCP server all use.
+    Keyword and semantic search across the whole collection, over the same
+    engine the app, the CLI, and the MCP server all talk to.
 
 -   :material-sitemap: __Workflows__
 
     ---
 
-    Run repeatable processing steps such as transcription, extraction,
-    summarization, and cataloguing through workflow definitions managed by the
-    engine and surfaced in the app.
+    Build processing steps visually — transcribe, extract, catalogue,
+    summarize — then run them across hundreds of thousands of documents,
+    step by step and reproducibly.
+
+-   :material-graph: __Knowledge graph__
+
+    ---
+
+    Extraction produces entities and claims with provenance back to the source
+    page. Your corrections persist as rules that later imports obey.
 
 </div>
 
 ## Why it exists
 
-Fichero grew out of Daniel Tubb's own research workflow. The goal is not to
-replace interpretation with a chat box. The goal is to make document processing
-more inspectable, repeatable, and easier to keep tied to the source material.
+AI tools are powerful and opaque. Fichero exists to make them navigable: every
+transcription, every extracted entity, every claim stays one click from the page
+it came from. The goal is not to replace interpretation with a chat box — it is
+to make document processing inspectable, repeatable, and tied to the source.
+
+## How it works
+
+One engine, many clients. The **Fichero Engine** is a Python FastAPI service
+(DuckDB, LanceDB, LangChain, LangGraph) that owns ingest, storage, search,
+workflows, and the knowledge graph. The SwiftUI app, the `fichero` CLI, and the
+MCP server are thin clients over its HTTPS surface.
+
+Fichero is **model-agnostic**. Run models locally through Apple Foundation
+Models, MLX, Ollama, or LM Studio; or bring your own API key for OpenAI,
+Anthropic, Google, OpenRouter, and others. Keys live in the macOS Keychain.
+
+See [How It's Built](how-its-built.md) for the whole picture.
 
 ## System requirements
 
-- macOS 26 Tahoe or later
-- Apple Silicon (M1 or later)
+- **Mac:** macOS 26 or later, Apple Silicon (M1 or later). The engine is
+  embedded in the app — nothing else to install.
+- **iPhone / iPad:** iOS or iPadOS 26 or later. These connect to an engine
+  running on a Mac; they cannot run one themselves.
 
 ---
 
 <h2 id="download">Download</h2>
 
-Download the latest macOS alpha from the releases repository:
+[Download the latest beta :material-apple:](https://github.com/dtubb/fichero/releases/latest){ .md-button .md-button--primary }
 
-[Download the latest Alpha :material-apple:](https://github.com/dtubb/fichero-releases/releases/latest){ .md-button .md-button--primary }
+Or join the **TestFlight** public beta for the Mac, iPhone, and iPad app.
 
-Fichero uses dated alpha releases. Before 1.0, expect rough edges, changing
-workflows, and occasional library resets between releases.
+Releases are dated, not numbered. Before 1.0, expect rough edges, changing
+workflows, and occasional library resets between builds. The app updates itself
+through Sparkle.
 
 *Release notes: [RELEASE_NOTES.md on GitHub](https://github.com/dtubb/fichero/blob/main/RELEASE_NOTES.md)*
 
@@ -88,9 +111,12 @@ workflows, and occasional library resets between releases.
 
 ## About
 
-Fichero is made by Daniel Tubb and the [Tubb Lab](https://tubblab.com). Daniel
-is an Associate Professor of Anthropology at the University of New Brunswick,
-and the project grew from his work with historical and archival material.
+Fichero is made by [Daniel Tubb](https://tubb.ca), an anthropologist and
+Associate Professor of Anthropology at the University of New Brunswick. It grew
+out of his own work with historical and archival material.
 
-[Tubb Lab](https://tubblab.com) ·
-[Daniel Tubb](https://dtubb.github.io)
+It is open source under the [MIT license](https://github.com/dtubb/fichero/blob/main/LICENSE),
+and has been coded almost entirely by frontier AI models under Daniel's
+direction — see [How It's Built](how-its-built.md). Issues and pull requests are
+welcome on [GitHub](https://github.com/dtubb/fichero); start with the
+[contributor docs](contributor/README.md).
