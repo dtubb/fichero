@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Fichero is a native Apple document-workbench for researchers. The app is aa SwifUI app with a local FastAPI engine, a typed CLI, and an MCP server over the same backend. The app is for reading, organizing, searching, and processing research materials such as PDFs, scanned
+Fichero is a native Apple document-workbench for researchers. The app is a SwiftUI app with a local FastAPI engine, a typed CLI, and an MCP server over the same backend. The app is for reading, organizing, searching, and processing research materials such as PDFs, scanned
 images, notes, audio, and video.
 
 ## What Is Built
@@ -29,10 +29,14 @@ The codebase has these core capabilities:
 One engine, many clients:
 
 ```
-SwiftUI app       CLI     MCP server
+SwiftUI app    fichero CLI    MCP server
        \           |            /
         \          |           /
-      The Fast API Fichero Engine
+         HTTPS on 127.0.0.1:8765
+                 (TLS, pinned)
+                   |
+                   v
+            FastAPI engine
         (fichero-engine/src/fichero)
            | DuckDB + LanceDB
            | workflows
@@ -65,7 +69,7 @@ These do not change:
 Execution tracking lives in GitHub:
 
 - **Source of truth:** GitHub Issues, Milestones, and the project board
-- **Local continuity only:** `STATE.md`, `MEMORY.md`, and `agent-work/`
+- **Local continuity only:** gitignored working notes kept outside the public repo
 
 ## Release State
 
