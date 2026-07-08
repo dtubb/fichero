@@ -192,6 +192,14 @@ PROJECT_MARKETING_VERSION="$(project_setting MARKETING_VERSION)"
 PROJECT_BUILD_VERSION="$(project_setting CURRENT_PROJECT_VERSION)"
 TESTFLIGHT_MARKETING_VERSION="${TESTFLIGHT_MARKETING_VERSION:-$(app_store_version "$PROJECT_MARKETING_VERSION")}"
 TESTFLIGHT_BUILD_VERSION="${TESTFLIGHT_BUILD_VERSION:-${PROJECT_BUILD_VERSION:-$(date +%Y%m%d)}}"
+ENGINE_APP="$ROOT_DIR/fichero-engine/build/engine/macos/app/Fichero Engine.app"
+
+if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
+  if [ -d "$ENGINE_APP" ]; then
+    echo "  Cleaning embedded engine bundle for App Store distribution"
+    "$ROOT_DIR/scripts/clean-embedded-engine.sh" "$ENGINE_APP"
+  fi
+fi
 
 if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
   echo

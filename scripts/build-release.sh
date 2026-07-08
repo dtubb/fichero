@@ -103,6 +103,11 @@ else
   fi
 fi
 
+if [ -d "$ENGINE_APP" ]; then
+  echo "  Cleaning embedded engine bundle for release distribution"
+  run_or_dry "$ROOT_DIR/scripts/clean-embedded-engine.sh" "$ENGINE_APP"
+fi
+
 # ── 2. Xcode Release build ──────────────────────────────────────────────────
 # Xcode's CopyFiles build phase copies FicheroBackend.app into Resources
 echo "[2/4] Xcode Release build"
