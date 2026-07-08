@@ -1,6 +1,2 @@
 blank_issues_enabled: true
-contact_links:
-  - name: Codex QA Workflow
-    url: ../CODEX_QA_WORKFLOW.md
-    about: Labeling and comment protocol for Daniel/Codex human-in-the-loop QA.
 
