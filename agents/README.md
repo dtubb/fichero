@@ -9,6 +9,9 @@ operational tooling, not product code or user documentation.
 - **`skills/`** — invocable agent skills, each a `SKILL.md` the agent loads on
   demand:
   - `session-start-manager` / `session-start-worker` / `session-end` — session lifecycle.
+  - `session-start-worker-docs` / `-tester` / `-release` — specialized workers. Each
+    narrows `session-start-worker` to one lane's files, gates, and hard rules, so a
+    worker configures itself instead of being hand-seeded each time.
   - `choose-next` — pick the next work from the roadmap priority spine.
   - `dispatch-worker` — spin up a worker in its own worktree/tmux window.
   - `gardener-agent` — repo/issue tidying (see `scripts/gardener.py`).
