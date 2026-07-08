@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # iPhone and iPad Interaction Model
 
 This page is a grounded reference for the Apple mobile interaction model as it

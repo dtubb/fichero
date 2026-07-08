@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Frontend Development Workflow Checklist
 
 **Last Updated**: December 31, 2025

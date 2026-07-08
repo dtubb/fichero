@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Remote Pairing Smoke Checklist
 
 Use this checklist when validating mac-hosted QR pairing and remote clients.

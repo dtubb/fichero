@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Frontend Key Files
 
 **Last Updated**: 2026-05-24

@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Node Model
 
 This page documents the parts of the node model that are already shipped in the

@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Frontend Development Standards
 
 **⚠️ IMPORTANT**: Fichero is **SwiftUI-first**. See `swiftui-principles.md` for mandatory guidelines.

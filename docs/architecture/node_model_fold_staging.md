@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Node-Model Subsystem Fold — Staging Doc (#2591 / EPIC #2081)
 
 > **Status: STAGED, not implemented.** Implementation deferred to after the TestFlight release per Daniel, 2026-06-26: the node-model fold is top-tier thinking but must not block TestFlight. This doc is the path — it ties each fold target to the EPIC #2081 foundation it blocks on, sequences the slices, and links issues/milestones so we know how to continue. Do not start the fold before TestFlight.

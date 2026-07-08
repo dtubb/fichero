@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Fichero — UI Map & Bug-Filing Cheat Sheet
 
 Use this to file precise bugs. Tell the manager **region + what's wrong**; the

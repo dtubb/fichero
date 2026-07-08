@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Tailscale private transport for Fichero
 
 This is the supported model for using one Fichero engine from another device on

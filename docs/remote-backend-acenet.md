@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Running the Fichero backend remotely on ACENET
 
 This is the supported connection model for using ACENET as the compute host while

@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 > **HISTORICAL SETUP NOTE.** This page describes an older Sparkle setup pass and
 > still contains the retired `fichero-releases` feed URL. Do not use it as the
 > current release procedure; use [release-lane.md](./release-lane.md) for the

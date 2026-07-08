@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 > **ARCHIVED 2026-06-27** — historical point-in-time audit. All tracked issues
 > (#1412–#1417, #1710) are now CLOSED and the recommendations here are fully done.
 > Kept for provenance only; do not treat its code line-refs as current.

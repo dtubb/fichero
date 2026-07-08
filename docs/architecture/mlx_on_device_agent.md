@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # MLX On-Device Agent Architecture
 
 > Status: design doc for #2066 / #1814 / #2067. No product code in this change.

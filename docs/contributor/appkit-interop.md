@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # AppKit Interop — "Mac-assed" Behavioral Fidelity
 
 **Status:** Adopted 2026-06-08 (Daniel directive)

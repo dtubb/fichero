@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Fichero User Manual
 
 New to Fichero? Start with [What Fichero Is](./what-fichero-is.md).

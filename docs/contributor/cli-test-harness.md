@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # CLI as Backend Test Harness
 
 Use the typed `fichero` CLI to prove backend behavior before blaming SwiftUI.

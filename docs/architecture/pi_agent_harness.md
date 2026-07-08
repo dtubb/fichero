@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Pi Agent Harness Architecture
 
 > Status: design doc for #2071. No runtime implementation in this change.

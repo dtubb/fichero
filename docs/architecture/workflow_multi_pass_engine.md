@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Workflow Multi-Pass Engine Primitives
 
 > Status: design doc for #2198. No engine code is implemented by this document.

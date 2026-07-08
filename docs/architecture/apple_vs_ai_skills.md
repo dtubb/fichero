@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Apple Skills vs AI Skills
 
 > Status: design doc for #2059. No product code in this change.

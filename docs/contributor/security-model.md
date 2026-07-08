@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Security Model
 
 ## Local-First Default

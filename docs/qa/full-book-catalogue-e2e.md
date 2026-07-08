@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Full-Book Catalogue + KG E2E
 
 Issue: #1317

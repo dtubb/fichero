@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Swift API Client - OpenAPI Generator
 
 ## Overview

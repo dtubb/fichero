@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # The Interface: A Tour of the Window
 
 This page walks through every major part of the Fichero window so you know what

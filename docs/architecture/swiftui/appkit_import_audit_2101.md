@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # AppKit / UIKit Import Audit (#2101)
 
 Status: captured for the iOS/iPad remote-client port.

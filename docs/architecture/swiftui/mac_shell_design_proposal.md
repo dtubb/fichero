@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Mac UI Shape — Holistic Design Proposal (EPIC #2030)
 
 > Status: **DRAFT for Daniel's review** (2026-06-11). The structural keystone

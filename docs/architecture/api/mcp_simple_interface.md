@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Simplified MCP Interface (`fichero-mcp-simple`)
 
 Issue: #1327

@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Fichero Developer Docs
 
 This section explains how the current Fichero codebase works for contributors. It is grounded in the live SwiftUI client under `fichero/fichero/`, the FastAPI engine under `fichero-engine/src/fichero/`, and the architecture notes already present in `docs/architecture/`.

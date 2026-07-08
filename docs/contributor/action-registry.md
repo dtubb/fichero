@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Action Registry
 
 > Architecture status: in-progress as of mid-2026 (EPIC #1848). The registry is live for the majority of backend domains. Undo, chat-tool bindings, and App Intents integration are still being wired up.

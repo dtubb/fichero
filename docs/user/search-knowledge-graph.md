@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Search, Entities, and the Knowledge Graph
 
 ## Table of Contents

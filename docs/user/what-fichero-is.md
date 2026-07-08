@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # What Fichero Is
 
 Fichero is a document library for researchers. It is built for

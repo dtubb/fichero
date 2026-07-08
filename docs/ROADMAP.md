@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Fichero — Roadmap (priority order)
 
 > **READ THIS AT SESSION START** (and `/session-start-manager`). It is the

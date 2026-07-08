@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Portable Workflows + Archival Interchange Format
 
 Status: **design** (2026-06-04). Source of truth for the import/export + supercomputer

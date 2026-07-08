@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Fichero Release Process
 
 Every `0.x.y` release ships exactly one testable feature end-to-end.

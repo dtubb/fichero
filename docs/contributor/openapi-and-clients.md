@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # OpenAPI and Generated Clients
 
 ## Table of Contents

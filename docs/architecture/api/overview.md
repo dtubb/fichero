@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Backend Overview
 
 ## What Fichero Backend Does

@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Getting Started
 
 ## Table of Contents

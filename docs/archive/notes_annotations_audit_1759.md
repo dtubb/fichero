@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 > **ARCHIVED 2026-06-27** — historical completed-work log for #1759 (CLOSED).
 > The backend parity it describes shipped. Kept for provenance only.
 

@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Researcher / Agent / Search Surface Audit (#2571)
 
 Status: audit captured for the *SwiftUI App Structure & Naming* milestone. No

@@ -3,6 +3,8 @@ hide:
   - toc
 ---
 
+(AI generated. Not reviewed.)
+
 # API Reference
 
 !!! warning "Work in progress, unstable"

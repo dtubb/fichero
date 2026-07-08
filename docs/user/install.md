@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Installing Fichero
 
 ## System requirements

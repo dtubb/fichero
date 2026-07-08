@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Reading, Transcription, and Editing
 
 ## Table of Contents

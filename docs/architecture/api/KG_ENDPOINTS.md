@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # KG Endpoints Reference
 
 Every backend endpoint the Swift inspector needs to know about. All

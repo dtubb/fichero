@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # SwiftUI-First Development Principles
 
 **Last Updated:** 2026-05-24

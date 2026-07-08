@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Developer Docs
 
 This section is the short, code-grounded entry point for developers who need

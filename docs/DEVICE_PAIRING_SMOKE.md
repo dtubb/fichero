@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Device Pairing Smoke
 
 Use this after backend pairing changes or before a release candidate.

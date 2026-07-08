@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Capture Smoke Matrix
 
 Manual smoke matrix for capture and intake flows.

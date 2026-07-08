@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Frequently Asked Questions
 
 ### What is Fichero?

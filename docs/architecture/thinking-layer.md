@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # The Thinking Layer — Source Outline + Workspace (Epic #1488)
 
 > Status: **design / blueprint** (2026-06-01). Authored from a code-architect

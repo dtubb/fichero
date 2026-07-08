@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Capture Sessions And Resumable Upload Contract
 
 Issue: `#2352`

@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Action Layer — Current Architecture
 
 **Status:** BUILT core, with ongoing route-by-route adoption. This page

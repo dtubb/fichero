@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Fichero UI Reform — Master Plan (2026-06-15)
 
 > Status: **DRAFT for Daniel** — synthesized from 7 parallel ground-truth research passes

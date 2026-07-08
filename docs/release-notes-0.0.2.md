@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Fichero 0.0.2 Release Notes
 
 > Backend Merge + Bug Fixes — the stability + reliability release before

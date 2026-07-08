@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # AI and Privacy
 
 ## Your data stays on your Mac

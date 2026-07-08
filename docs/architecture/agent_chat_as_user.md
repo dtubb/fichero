@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Agent Chat As User
 
 **Status:** PLANNED design doc. This page describes a target architecture, grounded in the code that exists on `main` today. It does **not** mean the full agent-chat model is already shipped.

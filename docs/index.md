@@ -4,6 +4,8 @@ hide:
   - toc
 ---
 
+(AI generated. Not reviewed.)
+
 <p align="center">
   <img src="assets/icon.png" alt="Fichero icon" width="128">
 </p>

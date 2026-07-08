@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # KG Renderer Decision
 
 Date: 2026-05-31  

@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Extensibility Guarantee
 
 Issue: #1652

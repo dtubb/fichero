@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Image Editing Backend Strategy at Scale
 
 > Decision doc for #2061. Scope: backend image-editing strategy only.

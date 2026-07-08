@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # SwiftUI App Structure & Naming — Reorg Plan
 
 Milestone: **SwiftUI App Structure & Naming** (due 2026-08-22). PLAN doc for the

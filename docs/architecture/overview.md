@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Fichero Architecture Overview
 
 Fichero is a two-part system:

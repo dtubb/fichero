@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 > **HISTORICAL CHECKLIST — release-candidate artifact.** This page is a
 > point-in-time QA sign-off list for the `0.1.0` gate, not a general current
 > runbook. Keep it for provenance; adapt a fresh checklist for the next release.

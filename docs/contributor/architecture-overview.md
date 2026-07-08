@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Architecture Overview
 
 ## Table of Contents

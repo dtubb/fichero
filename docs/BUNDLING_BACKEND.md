@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Bundling Python Backend Inside Fichero.app
 
 This document explains how the Python backend is bundled inside the Swift macOS app using a **nested app bundle** approach with Briefcase.

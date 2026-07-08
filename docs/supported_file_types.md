@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Supported File Types
 
 The Fichero ingest module supports 37 different file types across multiple categories. File type detection is based on file extensions.

@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Ingest Best Practices
 
 Guidelines and recommendations for effective use of the Fichero ingest module.

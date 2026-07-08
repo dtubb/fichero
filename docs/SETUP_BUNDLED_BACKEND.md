@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Setup: Bundled Backend in Fichero.app
 
 This guide walks you through the final setup steps to enable the embedded Python backend in Fichero.app.

@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Node-Model Fold — Frontend Consumption Audit (#2591 / EPIC #2081)
 
 > **Status: PLANNING (read-only).** Frontend companion to the backend audit

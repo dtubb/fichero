@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Observable Data Layer + Backend Change-Stream
 
 **Status:** Design spec (keystone architecture) · **Date:** 2026-06-08

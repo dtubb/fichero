@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 > **HISTORICAL CHECKLIST — audited 2026-06-27.** This page is a point-in-time
 > release-prep snapshot with concrete versions, cert IDs, and blocking items
 > from that date. Use [release-lane.md](./release-lane.md) for the current

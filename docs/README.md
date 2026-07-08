@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Fichero Documentation
 
 Fichero is a macOS document library for researchers: organize, read, annotate, and understand archival sources using AI workflows that stay on your computer.

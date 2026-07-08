@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Release Lane Runbook
 
 This is the current release path for Fichero. It covers two separate outputs:

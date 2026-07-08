@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # How Fichero Is Built
 
 Fichero is built openly with the help of AI coding agents. This page documents

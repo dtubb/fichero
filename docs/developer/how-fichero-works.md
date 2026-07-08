@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # How Fichero Works
 
 This page describes the current shipped architecture on `main`. It is grounded

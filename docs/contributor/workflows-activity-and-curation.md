@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Workflows, Activity, and Curation
 
 ## Table of Contents

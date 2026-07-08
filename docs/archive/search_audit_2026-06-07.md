@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 > **ARCHIVED 2026-06-27** — historical point-in-time verification (2026-06-07).
 > The search-everything vision is tracked in #1824/#1833; the concrete index
 > data-debt (dual entity-vector tables, manual claim embeddings, no rebuild

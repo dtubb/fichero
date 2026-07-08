@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Hand-rolled URLSession Audit (#1666)
 
 Audit of raw `URLSession`/`URLRequest` in `fichero/fichero/**` (the app, not the

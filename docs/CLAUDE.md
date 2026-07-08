@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # CLAUDE.md — Architecture & Development Guide
 
 The durable architecture reference for agents working in this repo: how the system is shaped, the conventions, and the pitfalls. Operational rules (build/test/lint, commit discipline, lanes), the hard rules, and the code-navigation policy all live in `AGENTS.md` (the canonical operational manual); the product north-star in `CONSTITUTION.md`. User-facing run/build docs are in `README.md`.

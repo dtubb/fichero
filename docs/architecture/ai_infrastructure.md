@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # AI Infrastructure — Architecture Review (EPIC #2056)
 
 > Status: **review doc**, written 2026-06-13. Describes what is **BUILT** in

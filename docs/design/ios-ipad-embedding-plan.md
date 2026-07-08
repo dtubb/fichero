@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # iOS / iPad Engine Embedding Feasibility Plan
 
 Status: research only for #105 / #2096. This is a grounded survey of the current backend and packaging surface, not an implementation commitment.

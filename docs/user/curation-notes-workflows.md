@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Curation, Notes, Annotations, and Workflows
 
 ## Table of Contents

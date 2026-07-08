@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Document Canvas — unified viewer + editor (image AND PDF)
 
 > Status: **design / wireframe approved** (Daniel, 2026-05-31). Supersedes the

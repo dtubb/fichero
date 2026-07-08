@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Setup and Contributing
 
 ## Table of Contents

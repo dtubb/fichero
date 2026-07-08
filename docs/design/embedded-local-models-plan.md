@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Embedded Local Models Plan
 
 Issue: #2615

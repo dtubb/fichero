@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Ingest Module Overview
 
 The ingest module is a core component of Fichero that handles file import, metadata extraction, and storage. It provides a unified interface for bringing external files into the Fichero document management system.
