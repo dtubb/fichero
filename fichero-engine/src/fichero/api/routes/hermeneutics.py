@@ -721,7 +721,7 @@ async def backtrack_circle(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AI Interpretation Suggestions (placeholder — requires LiteLLM integration)
+# AI Interpretation Suggestions (placeholder — requires LLM provider integration)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -732,8 +732,9 @@ async def suggest_interpretations(
 ) -> HermesSuggestionListResponse:
     """Generate AI interpretation suggestions for claims.
 
-    Uses available LiteLLM providers to suggest how frameworks might
-    be applied to the given claims. Returns ranked suggestions.
+    Uses the configured LLM providers (via LangChain) to suggest how
+    frameworks might be applied to the given claims. Returns ranked
+    suggestions.
     """
     if request.num_suggestions < 1 or request.num_suggestions > 10:
         raise HTTPException(
