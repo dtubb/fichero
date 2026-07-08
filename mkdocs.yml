@@ -102,6 +102,7 @@ nav:
   - User Guide:
       - Overview: user/README.md
       - What Fichero Is: user/what-fichero-is.md
+      - Feature Matrix: user/features.md
       - Installing Fichero: user/install.md
       - Getting Started: user/getting-started.md
       - The Interface (Window Tour): user/interface-tour.md

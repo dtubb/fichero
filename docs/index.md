@@ -66,6 +66,10 @@ material and a set of tools for working with it.
 
 </div>
 
+Not everything is finished. The [feature matrix](user/features.md) lists every
+capability with its real status — Live, Beta, In progress, or Planned — derived
+from the code rather than from a roadmap.
+
 ## Why it exists
 
 AI tools are powerful and opaque. Fichero exists to make them navigable: every
