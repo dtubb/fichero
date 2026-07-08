@@ -27,6 +27,15 @@ struct LibraryWindow: View {
 
     @State private var hasInitialized = false
     @State private var showingFileImporter = false
+    // ponytail: NEVER auto-present a sheet in the same update cycle that flips
+    // `isBackendRunning` — that's when DocumentTabView swaps ContentView in and
+    // the window's NSToolbar does its FIRST full layout. Presenting mid-layout
+    // re-enters the toolbar update and double-inserts an item → EXC_BREAKPOINT
+    // in -[NSToolbar _insertNewItemWithItemIdentifier:…] (#3163, same class as
+    // the AddProvider first-launch crash fixed in AppState.loadProviders).
+    // This flag trails backend-ready by a settle beat (see the .task in `body`)
+    // so the first-run sheet can only present AFTER that first toolbar layout.
+    @State private var firstRunSheetArmed = false
     @State private var hostWindow: NSWindow?
     @SceneStorage("libraryWindow.libraryId") private var persistedLibraryId: String?
 
@@ -168,8 +177,10 @@ struct LibraryWindow: View {
         // First-run onboarding (#1947 — sole first-run path, replaces ContentView sheet).
         // It opens once the backend is reachable and stays up until Finish, even if a
         // library is assigned while the user moves through the onboarding steps.
+        // Gated on `firstRunSheetArmed` so it never presents in the same update
+        // cycle that mounts ContentView / first-populates the NSToolbar (#3163).
         .sheet(isPresented: Binding(
-            get: { appState.isBackendRunning && !featureManager.firstRunCompleted },
+            get: { firstRunSheetArmed && appState.isBackendRunning && !featureManager.firstRunCompleted },
             set: { if !$0 { featureManager.firstRunCompleted = true } }
         )) {
             FirstRunWindow()
@@ -204,6 +215,18 @@ struct LibraryWindow: View {
             hasInitialized = true
             initializeWindow()
             syncHostWindowMetadata()
+        }
+        // Arm (never disarm) the first-run sheet ONE SETTLE BEAT after
+        // backend-ready, so the sheet misses the NSToolbar's first-layout
+        // window that ContentView's mount kicks off in the same cycle the
+        // `isBackendRunning` flip renders (#3163 re-entrant double-insert
+        // crash). `.task(id:)` also runs on appear, covering the Debug case
+        // where the external engine is already up before this window exists.
+        .task(id: appState.isBackendRunning) {
+            guard appState.isBackendRunning, !firstRunSheetArmed else { return }
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            firstRunSheetArmed = true
         }
     }
 
