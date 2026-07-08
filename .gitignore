@@ -118,3 +118,4 @@ fichero-engine/build/
 # internal agent scratch (local only)
 agent-work/
 HISTORY.md
+HISTORY*.md
