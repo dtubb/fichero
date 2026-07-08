@@ -146,7 +146,8 @@ if [ -z "$PYBIN" ]; then
 fi
 
 set +e
-NOTES_HTML="$(RN_VERSION="$VERSION" "${PYBIN:-python3}" - "$ROOT_DIR/RELEASE_NOTES.md" <<'PY' 2>&1
+NOTES_BUNDLE="$(
+  RN_VERSION="$VERSION" "${PYBIN:-python3}" - "$ROOT_DIR/RELEASE_NOTES.md" <<'PY' 2>&1
 import os, re, sys
 import markdown
 version = os.environ["RN_VERSION"]
@@ -159,6 +160,9 @@ body = m.group(1).strip()
 if not body:
     sys.exit("error: RELEASE_NOTES.md section '## %s' is empty." % version)
 html = markdown.markdown(body, extensions=["extra", "sane_lists"])
+print("===MARKDOWN===")
+print(body)
+print("===HTML===")
 print(html.replace("]]>", "]]&gt;"))  # never terminate the CDATA early
 PY
 )"
@@ -167,14 +171,24 @@ set -e
 
 if [ "$NOTES_RC" -ne 0 ]; then
   if [ "$DRY_RUN" = true ]; then
-    echo "[DRY RUN] release notes: $NOTES_HTML"
+    echo "[DRY RUN] release notes: $NOTES_BUNDLE"
     echo "[DRY RUN] a real run would ABORT here."
+    NOTES_MARKDOWN="(dry run — no notes rendered)"
     NOTES_HTML="<p>(dry run — no notes rendered)</p>"
   else
-    echo "$NOTES_HTML" >&2
+    echo "$NOTES_BUNDLE" >&2
     exit 1
   fi
 else
+  NOTES_MARKDOWN="$(printf '%s\n' "$NOTES_BUNDLE" | awk '
+    /^===MARKDOWN===$/ { capture=1; next }
+    /^===HTML===$/ { capture=0 }
+    capture
+  ')"
+  NOTES_HTML="$(printf '%s\n' "$NOTES_BUNDLE" | awk '
+    /^===HTML===$/ { capture=1; next }
+    capture
+  ')"
   echo "Release notes: rendered '## $VERSION' from RELEASE_NOTES.md (${#NOTES_HTML} bytes of HTML)"
 fi
 export NOTES_HTML
@@ -197,19 +211,20 @@ fi
 echo "[2/5] Create GitHub release on $RELEASE_REPO ($TAG, build $BUILD, $DMG_SIZE_HUMAN)"
 RELEASE_TARGET="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
 
-RELEASE_BODY="## Fichero ${VERSION}
-
-**Build:** ${BUILD}
-
-### Installation
+RELEASE_BODY="## Installation
 
 1. Download \`Fichero.dmg\` below
 2. Open the DMG and drag Fichero to Applications
-3. Launch Fichero — the engine starts automatically
+3. Launch Fichero
 
-### Notes
+## TestFlight
 
-See [release notes](https://tubb.ca/apps/fichero/) for what's new."
+Mac TestFlight and the universal iPhone/iPad TestFlight build are processed separately.
+For access, contact Daniel for the current TestFlight invite.
+
+## Release Notes
+
+$NOTES_MARKDOWN"
 
 if [ "$DRY_RUN" = false ]; then
   gh release create "$TAG" \
