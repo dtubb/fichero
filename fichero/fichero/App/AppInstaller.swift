@@ -6,8 +6,51 @@ import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppInstaller")
 
+// swiftlint:disable type_body_length
 /// Offers to move Fichero.app to /Applications on first launch from a DMG or Downloads folder.
 enum AppInstaller {
+    #if os(macOS)
+    static let manualInstallMessage =
+        "Couldn't move automatically. Drag Fichero into Applications, replacing the existing copy."
+
+    enum MoveOutcome: Equatable {
+        case moved
+        case alreadyInPlace
+        case needsManualDrag(reason: String)
+    }
+
+    enum MovePlan: Equatable {
+        case relaunchInstalledCopy
+        case copyFresh
+        case recycleExistingCopy
+    }
+
+    struct Dependencies {
+        var fileExists: (String) -> Bool
+        var recycle: (URL, @escaping (Error?) -> Void) -> Void
+        var copyItem: (URL, URL) throws -> Void
+        var relaunchInstalledCopy: (URL) -> Bool
+        var revealForManualInstall: (URL) -> Void
+        var showManualInstallPrompt: (URL, String) -> Void
+
+        static let live = Dependencies(
+            fileExists: { FileManager.default.fileExists(atPath: $0) },
+            recycle: { targetURL, completion in
+                NSWorkspace.shared.recycle([targetURL]) { _, error in
+                    completion(error)
+                }
+            },
+            copyItem: { sourceURL, targetURL in
+                try FileManager.default.copyItem(at: sourceURL, to: targetURL)
+            },
+            relaunchInstalledCopy: { relaunchInstalledCopy(at: $0) },
+            revealForManualInstall: { revealManualInstall(for: $0) },
+            showManualInstallPrompt: { sourceURL, reason in
+                showManualInstallPrompt(for: sourceURL, reason: reason)
+            }
+        )
+    }
+    #endif
 
     /// Returns true if the app is NOT in /Applications or ~/Applications.
     /// Always returns false for debug builds (running from Xcode).
@@ -65,30 +108,110 @@ enum AppInstaller {
     // MARK: - Private
 
     #if os(macOS)
+    static func movePlan(sourceURL: URL, targetURL: URL, targetExists: Bool) -> MovePlan {
+        if sourceURL.path == targetURL.path {
+            return .relaunchInstalledCopy
+        }
+        return targetExists ? .recycleExistingCopy : .copyFresh
+    }
+
     @MainActor
     private static func moveCurrentAppToApplicationsAndRelaunch() -> Bool {
-        let fileManager = FileManager.default
         let sourceURL = Bundle.main.bundleURL.resolvingSymlinksInPath()
         let appName = sourceURL.lastPathComponent
         let targetURL = URL(fileURLWithPath: "/Applications/\(appName)")
+        return performMove(sourceURL: sourceURL, targetURL: targetURL)
+    }
 
-        if sourceURL.path == targetURL.path {
-            return relaunchInstalledCopy(at: targetURL)
-        }
+    @MainActor
+    @discardableResult
+    static func performMove(
+        sourceURL: URL,
+        targetURL: URL,
+        dependencies: Dependencies = .live,
+        completion: @escaping (MoveOutcome) -> Void = { _ in }
+    ) -> Bool {
+        let plan = movePlan(
+            sourceURL: sourceURL,
+            targetURL: targetURL,
+            targetExists: dependencies.fileExists(targetURL.path)
+        )
 
-        do {
-            // Trash existing copy if present
-            if fileManager.fileExists(atPath: targetURL.path) {
-                try fileManager.trashItem(at: targetURL, resultingItemURL: nil)
+        switch plan {
+        case .relaunchInstalledCopy:
+            let outcome: MoveOutcome = dependencies.relaunchInstalledCopy(targetURL)
+                ? .alreadyInPlace
+                : .needsManualDrag(reason: manualInstallMessage)
+            handle(outcome, sourceURL: sourceURL, dependencies: dependencies)
+            completion(outcome)
+            return true
+        case .copyFresh:
+            let outcome = copyAndRelaunch(sourceURL: sourceURL, targetURL: targetURL, dependencies: dependencies)
+            handle(outcome, sourceURL: sourceURL, dependencies: dependencies)
+            completion(outcome)
+            return true
+        case .recycleExistingCopy:
+            dependencies.recycle(targetURL) { error in
+                Task { @MainActor in
+                    let outcome: MoveOutcome
+                    if let error {
+                        logger.error("Failed to recycle existing app copy: \(error.localizedDescription)")
+                        outcome = .needsManualDrag(reason: manualInstallMessage)
+                    } else {
+                        outcome = copyAndRelaunch(sourceURL: sourceURL, targetURL: targetURL, dependencies: dependencies)
+                    }
+                    handle(outcome, sourceURL: sourceURL, dependencies: dependencies)
+                    completion(outcome)
+                }
             }
+            return true
+        }
+    }
 
-            try fileManager.copyItem(at: sourceURL, to: targetURL)
+    private static func copyAndRelaunch(
+        sourceURL: URL,
+        targetURL: URL,
+        dependencies: Dependencies
+    ) -> MoveOutcome {
+        do {
+            try dependencies.copyItem(sourceURL, targetURL)
             logger.info("Copied app to \(targetURL.path)")
-            return relaunchInstalledCopy(at: targetURL)
+            guard dependencies.relaunchInstalledCopy(targetURL) else {
+                return .needsManualDrag(reason: manualInstallMessage)
+            }
+            return .moved
         } catch {
             logger.error("Failed to move app: \(error.localizedDescription)")
-            showError("Could not move Fichero to Applications:\n\(error.localizedDescription)")
-            return false
+            return .needsManualDrag(reason: manualInstallMessage)
+        }
+    }
+
+    private static func handle(
+        _ outcome: MoveOutcome,
+        sourceURL: URL,
+        dependencies: Dependencies
+    ) {
+        guard case let .needsManualDrag(reason) = outcome else { return }
+        dependencies.revealForManualInstall(sourceURL)
+        dependencies.showManualInstallPrompt(sourceURL, reason)
+    }
+
+    @MainActor
+    private static func revealManualInstall(for sourceURL: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([sourceURL])
+        _ = NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications", isDirectory: true))
+    }
+
+    @MainActor
+    private static func showManualInstallPrompt(for sourceURL: URL, reason: String) {
+        let alert = NSAlert()
+        alert.messageText = "Move Fichero to Applications"
+        alert.informativeText = reason
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Show in Finder")
+        alert.addButton(withTitle: "OK")
+        if alert.runModal() == .alertFirstButtonReturn {
+            revealManualInstall(for: sourceURL)
         }
     }
 
@@ -193,3 +316,4 @@ enum AppInstaller {
     }
     #endif
 }
+// swiftlint:enable type_body_length
