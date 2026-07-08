@@ -208,7 +208,12 @@ def main() -> int:
         return 1
 
     if stale:
-        print("\n(KNOWN_VIOLATIONS has stale entries; clean them up when convenient.)")
+        print(
+            "\nFix: remove the now-clean entries listed above from KNOWN_VIOLATIONS. A stale "
+            "baseline entry rots into a silent gate hole — the ratchet must tighten as "
+            f"violations are fixed. Rule pointer: {RULE_DOC}."
+        )
+        return 1
     print("\nOK: no new hand-rolled selectable row collections.")
     return 0
 
