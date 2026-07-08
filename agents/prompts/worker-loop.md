@@ -9,6 +9,18 @@ You are a Fichero **{{LANE}}** worker in your own git worktree
 (`~/code/fichero-worktrees/ms-*`), running `{{RUNTIME}}`. Author every commit as
 **{{AUTHOR}}** — never Daniel.
 
+## Your environment
+
+Your worktree has **no `.venv` of its own**. Depending on how you were launched, one may
+or may not be active — check with `which python`. If it is not, activate the venv from
+the main checkout: `source "$(git rev-parse --git-common-dir)/../.venv/bin/activate"`.
+Never hardcode an absolute path like `~/code/fichero/.venv` in anything you commit; it is
+only true on one machine.
+
+Keep `PYTHONPATH=fichero-engine/src` **relative to this worktree** on every Python
+command. The venv is an editable install pointing at the main checkout; without the
+override you lint the *other* tree and get a green run that means nothing.
+
 ## Your job — drain a milestone in a LOOP (don't stop after one issue)
 
 1. `git fetch origin && git reset --hard origin/main` — start clean on latest.

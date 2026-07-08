@@ -15,15 +15,24 @@ Every agent starts with `/session-start` (or a lane variant: `-manager`, `-worke
 - **Worker**: lints and tests **only its own diff**, then commits. Backend: `ruff check` + `pytest` on the area you touched. Swift: `swiftlint`. A worker does not compile the whole app or run the full suite.
 - **Manager / integrator**: owns the Xcode build, the full `FicheroTests` run, and the cross-stack gate before anything merges (one Xcode, the backend on :8765).
 
+Activate the virtualenv first (`source .venv/bin/activate`, see `CONTRIBUTING.md`), then
+call the tools on `PATH`. Run everything from the repo root of the tree you are editing.
+
 ```bash
 # Backend — PYTHONPATH=fichero-engine/src on every Python command
-PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/
-PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
+PYTHONPATH=fichero-engine/src ruff check fichero-engine/src/
+PYTHONPATH=fichero-engine/src pytest fichero-engine/tests/unit/
 bash fichero-engine/scripts/start_backend.sh   # server (serves HTTPS; app pins it fail-closed — never bare uvicorn/HTTP, #2538)
 
 # Swift — lint your diff; the manager runs the build + test (prefer the Xcode MCP)
 swiftlint lint fichero/fichero/
 ```
+
+**Working in a git worktree?** A worktree has no `.venv` of its own. Activate the one from
+your main checkout, but keep `PYTHONPATH=fichero-engine/src` **relative to the worktree**
+— the venv is an editable install pointing at the main checkout, so without it you lint
+and test the *other* tree and get a green run that means nothing. Never write an absolute
+path like `~/code/fichero/.venv` into a doc or a script; it is only true on one machine.
 
 - **Backend API changed?** Regenerate the committed client or the Swift build breaks: `./fichero-engine/scripts/sync_openapi_schema.sh` (change API → sync → commit regen).
 - **Ship tests with the change.** Every SwiftUI fix or feature lands with new/updated unit tests in the same commit; write the failing test first for a bug. Test the logic (state, predicates, builders, ID parsing) rather than the rendered pixels, and eyeball pixels by running the built app.
@@ -232,8 +241,8 @@ The ones that cost hours, and that no test catches for you:
   `ruby scripts/add-swift-file.rb <path>`. Never hand-edit `project.pbxproj`.
   (Test-target files use sync'd groups and just work.)
 - **`PYTHONPATH=fichero-engine/src` on every Python command.** The shared `.venv` is
-  editable-installed against `~/code/fichero`; without it, a worktree gates the
-  *stale* tree — a green run that means nothing.
+  editable-installed against your MAIN checkout, not this worktree; without it, a
+  worktree gates the *stale* tree — a green run that means nothing.
 - **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use
   `fichero-engine/scripts/start_backend.sh`.
 - **Multi-library requests need the `X-Fichero-Library-Path` header** (app-wide

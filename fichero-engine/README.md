@@ -29,7 +29,27 @@ This file keeps only what is specific to the engine: its layout and how it works
 
 ## Install
 
-The package runs from source on `PYTHONPATH`. From the repo root:
+**Set up the `.venv` first** — every command below assumes it exists.
+[CONTRIBUTING.md](../CONTRIBUTING.md) is the canonical from-source setup; the short
+form, from the repo root:
+
+```bash
+brew install python@3.12
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e 'fichero-engine[dev]'
+pip install pytest ruff
+```
+
+`pytest` and `ruff` are not in the `[dev]` extra, but the lint/test commands assume
+them.
+
+There is no `requirements.txt`. `pyproject.toml` here is the dependency manifest (37
+runtime dependencies, plus the `[dev]`, `[kg]` and `[image]` extras). Briefcase is a
+build tool, installed by `scripts/build_backend_bundle.sh` when packaging — not a
+runtime dependency.
+
+The package then runs from source on `PYTHONPATH`. From the repo root:
 
 ```bash
 PYTHONPATH=fichero-engine/src .venv/bin/python -c "import fichero"
@@ -104,6 +124,18 @@ Swift package the app consumes:
 ```
 
 ## Bundle the backend app
+
+Briefcase is a **build tool**, not a runtime dependency. `build_backend_bundle.sh`
+`pip install`s it if it is not on `PATH`. `scripts/build-release.sh` instead looks for a
+dedicated venv, and prints this if it finds neither:
+
+```bash
+python3.13 -m venv fichero-engine/.briefcase-venv
+fichero-engine/.briefcase-venv/bin/pip install briefcase
+```
+
+(That 3.13 is the interpreter that *runs* Briefcase. It is unrelated to the 3.12 that
+Briefcase *bundles into the shipped app* — `python_version = "3.12"` in `pyproject.toml`.)
 
 ```bash
 ./fichero-engine/scripts/build_backend_bundle.sh

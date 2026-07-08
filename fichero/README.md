@@ -54,14 +54,21 @@ Intents/        App Intents / Shortcuts
 
 ## Build & run
 
-Open `fichero/fichero.xcodeproj` in Xcode and run the `Fichero` scheme. Start the
-engine first (`bash fichero-engine/scripts/start_backend.sh`) so the app has
-something to connect to.
+First-time setup (Python 3.12, the repo-root `.venv`, the engine) is documented once,
+in [CONTRIBUTING.md](../CONTRIBUTING.md). This section assumes it is done.
 
-Command-line build (from repo root):
+Open `fichero/fichero.xcodeproj` in Xcode and run the `Fichero` scheme.
+
+- **Debug (⌘R)** expects an engine you started yourself:
+  `bash fichero-engine/scripts/start_backend.sh` (external, `:8765`).
+- **Release** embeds the engine (Briefcase) and spawns it on launch.
+
+Command-line build (from repo root). `-skipPackagePluginValidation` is required — the
+OpenAPIGenerator SPM plugin fails without it:
 
 ```bash
-xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -configuration Debug build
+xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero \
+  -configuration Debug -skipPackagePluginValidation build
 ```
 
 To launch an already-built `.app`, use the helper rather than exec-ing the

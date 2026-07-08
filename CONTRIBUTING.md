@@ -34,20 +34,62 @@ If you would like to contribute to Fichero, please make a pull request. Outstand
 
 ## Building from source (for developers)
 
-Most people should just download the app (see [Installing and using
-Fichero](#installing-and-using-fichero). This section is for working on
+Most people should just download the app — see [Installing and using
+Fichero](README.md#installing-and-using-fichero). This section is for working on
 Fichero itself.
 
-First, you’ll need to clone Fichero. Then create a virtual environment. Then install the fichero engine requirements.
+This is the canonical from-source setup. The subtree READMEs point here rather than
+repeating it.
 
-Then start the Fichero engine on a local host. 
+**1. Install Python 3.12.** The engine pins 3.12 — many of its ML dependencies have no
+wheels for newer versions, and Briefcase bundles 3.12 into the shipped app.
 
-**Start fichero-engine** (serves HTTPS on `127.0.0.1:8765`; the app pins it fail-closed, so a plain-HTTP engine cannot connect):
+```bash
+brew install python@3.12
+```
+
+**2. Clone, then build the virtual environment.**
+
+```bash
+git clone https://github.com/dtubb/fichero.git
+cd fichero
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e 'fichero-engine[dev]'
+pip install pytest ruff
+```
+
+The last line is not optional. `pytest` and `ruff` are neither runtime dependencies nor
+part of the `[dev]` extra, but `AGENTS.md` expects `.venv/bin/ruff` and
+`.venv/bin/pytest` to exist.
+
+**3. There is no `requirements.txt`.** `fichero-engine/pyproject.toml` is the
+dependency manifest: 37 runtime dependencies, plus the optional extras `[dev]` (15),
+`[kg]` (3) and `[image]` (1). The only `requirements-*.txt` in the repo is
+`requirements-docs.txt`, which builds this documentation site and nothing else.
+**Briefcase is a build tool, not a runtime dependency** —
+`fichero-engine/scripts/build_backend_bundle.sh` uses it to package the engine into
+the shipped app.
+
+**4. Start the engine.** It serves HTTPS on `127.0.0.1:8765`; the app pins that
+fail-closed, so a plain-HTTP engine cannot connect. Never run a bare `uvicorn`.
+
 ```bash
 bash fichero-engine/scripts/start_backend.sh
 ```
 
-Then open `fichero/fichero.xcodeproj` in Xcode and run.
+Every Python command needs `PYTHONPATH=fichero-engine/src`:
+
+```bash
+PYTHONPATH=fichero-engine/src .venv/bin/python -c "import fichero"
+```
+
+**5. Run the app.** Open `fichero/fichero.xcodeproj` in Xcode and run.
+
+- **Debug (⌘R)** talks to the engine you started in step 4, externally on `:8765`.
+- **Release** embeds the engine (Briefcase) and spawns it on launch — no manual start.
+
+iPhone and iPad cannot embed the engine; they connect to one running on a Mac.
 
 ## Architecture
 

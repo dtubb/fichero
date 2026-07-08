@@ -14,7 +14,10 @@ clients over its HTTP surface.
 
 ## Hard rules for this subtree
 
-- Every Python command runs from repo root with `PYTHONPATH=fichero-engine/src`.
+- Every Python command runs from repo root with `PYTHONPATH=fichero-engine/src`,
+  against the repo-root `.venv`. Building that venv is documented once, in
+  [../CONTRIBUTING.md](../CONTRIBUTING.md). There is no `requirements.txt`;
+  `pyproject.toml` is the manifest.
 - Start the server with `bash fichero-engine/scripts/start_backend.sh`. Do not use bare `uvicorn`; the app expects loopback HTTPS.
 - Lint/test only your diff: `PYTHONPATH=fichero-engine/src .venv/bin/ruff check ...` and focused `pytest ...`. The manager owns the full suite and cross-stack gate.
 - If routes or schema change, run `bash fichero-engine/scripts/sync_openapi_schema.sh` and commit all regenerated contract files.

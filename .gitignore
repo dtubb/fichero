@@ -108,6 +108,7 @@ BLOCK.md
 # internal agent orchestration (not for public repo)
 PLAN-GOVERNANCE.md
 STATE.md
+MEMORY.md
 
 # engine runtime/build artifacts
 fichero-engine/logs/
