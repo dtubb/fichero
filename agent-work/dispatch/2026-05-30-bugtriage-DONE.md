@@ -1,1 +1,0 @@
-§6 complete: refiled ~365 closed issues from version milestones to feature milestones by title heuristic, deleted 8 empty milestones (4 version + 4 redundant feature), confirmed no legacy labels remain, removed Migration table from docs/agent-workflow/github-conventions.md — see agent-work/proposals/2026-05-30-issue-triage.md §"Closed-Issue Re-filing Log" for detail.
