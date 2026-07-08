@@ -38,7 +38,19 @@ per-page artifacts. Content is editable in place.
 **Canvas and Space.** Library contents arrange on a 2D canvas or in a 3D space,
 with layouts that persist per library.
 
+**Translation.** Translate a document into a language you choose. The
+translation is stored as its own artifact, embedded so it turns up in search,
+and listed by language in the reader alongside the source. The immersive reader
+gains a Source / Diplomatic selector, and every machine-made representation
+carries its provenance and an **AI unreviewed** badge until a person says
+otherwise.
+
+**Bibliography.** A reference panel that extracts citations from a document,
+resolves their metadata from a DOI or ISBN, lets you edit it in a native form,
+imports references in bulk, and exports BibTeX. Deletes are undoable.
+
 **Search.** Results show the matched excerpt in context, not just a filename.
+Typos are tolerated, and exact matches rank above semantic neighbours.
 
 **Users and sharing.** Fichero now has real user accounts. Libraries can be
 shared, access granted and revoked per folder, and every mutation is recorded
@@ -72,7 +84,21 @@ model instead of returning an empty catalogue.
 
 **Undo** reaches the surfaces that promised it: documents, images, knowledge
 graph and artifacts, claim links, annotations, classifications, snapshots,
-bookmarks.
+bookmarks. Every audited action is recorded centrally, so ⌘Z works across the
+app rather than in a handful of places — and when an undo fails it says so
+instead of quietly doing nothing.
+
+**Reading layouts.** Multi-page PDFs can be read one page at a time or several
+up, with a layout picker in the reader.
+
+**Knowledge graph housekeeping.** A possible-duplicates surface merges entities
+in one click, with a picker for which record survives. Repeated claims from
+different sources fold into a single canonical row.
+
+**Errors say what happened.** Service, research, and per-library history
+failures now surface the real message instead of a generic Cocoa error, and the
+engine re-probes with backoff to recover a healthy connection rather than
+failing the launch outright.
 
 ### Security
 
@@ -85,17 +111,31 @@ remaining gap of other apps running as you on the same Mac.
 **Audited writes.** Every backend mutation routes through one audited action
 layer that records what changed and which account changed it.
 
+**Path confinement.** A lexical `..` traversal in the library path allowlist is
+closed, and the QuickLook preview sanitizes a server-supplied filename before
+using it as a path. Annotation geometry and colour are validated on the way in.
+
 **Fail loud, not quiet.** Export provenance gaps, importer degradation, and
 startup misconfiguration now surface as errors instead of silently substituting
-a default.
+a default. A workflow fan-out that fails completely reports the failure rather
+than returning an empty result, and values the pipeline cannot interpret are
+routed to human review instead of guessed at.
 
 ### Fixed
 
+- **Launch crash.** Opening a library window could crash the app: SwiftUI was
+  registering the search field twice, once globally and again in individual
+  mode views. Per-view search now defers to the single toolbar search, and the
+  first-run provider sheet waits until the toolbar has laid itself out.
+- **The app could not open its own library.** A sandboxed build was denied
+  access to its container path, and a stale API token produced an
+  authorization failure on a freshly started engine.
 - **Activity progress and log** stream correctly. The workflow event stream was
   a single-consumer queue that starved a second subscriber, leaving 0% progress
   and an empty log; it is now a fan-out broadcaster with a replay buffer.
-- **Launch crash** when a library window opened a mode view — the search field
-  was registering twice.
+- **Chat** no longer blocks while the model is thinking, and it remembers the
+  conversation — earlier turns are included in the prompt, and context survives
+  a retry.
 - **Knowledge Graph and the document reader** render again over the pinned
   engine connection.
 - **Per-page transcription** applies across every Transcribe and Catalogue
@@ -112,16 +152,21 @@ a default.
   permanent endpoint-walker test.
 - The Swift app talks to the engine through generated, typed operations rather
   than hand-written requests.
-- `scripts/verify_all.sh` (SwiftLint + Xcode test suite + the cross-language
-  gate) is the single answer to "is it green", wired to ⌘U.
-- In Debug the engine runs externally; a Release build embeds and launches it.
+- `scripts/verify_all.sh` (SwiftLint + Xcode test suite + backend contract
+  tests) is the single answer to "is it green", wired to ⌘U, and renders its
+  failures to an HTML dashboard.
+- In Debug the engine runs externally; a Release build embeds and launches it,
+  signed with hardened-runtime entitlements.
+- A launch-crash smoke test boots the built `.app` and asserts it survives.
+- Graph retrieval no longer scans the whole table; citation and reference
+  filters run in the database.
 
 ### Known issues
 
 - The live-updates event stream (`/api/changes/stream`) fails TLS on a
   self-signed `.local` certificate.
-- Chat, Agents, Automation, Workflow Chains, and MCP integrations are present
-  but feature-flagged off.
+- IIIF endpoints are staged behind `FICHERO_FEATURE_TIER=dev` and are off in a
+  release build.
 
 ---
 

@@ -10,6 +10,99 @@ in [`RELEASE_NOTES.md`](RELEASE_NOTES.md).
 
 ---
 
+## 2026-07-08
+
+**Fixes**
+
+- fix(guardrail): track the real transport invariants — allowlist the `bind_host` refusal guard, drop the dead `WILDCARD_BIND_ALLOWLIST` entry, and retarget the native-controls baseline after the Views reorg so staleness is gated rather than silently tolerated
+- fix(scripts): `build-debug.sh` pointed at a `fichero-swiftui/` directory that no longer exists — repoint to `fichero/`
+
+**Features**
+
+- feat(release): Sparkle update dialogs now show what's new — the release-notes section for the build is rendered into the appcast, and publishing a notarized build with no release-notes entry fails instead of shipping an empty dialog
+
+**Tests**
+
+- test: close the largest untested surfaces in the engine — citation renderers (BibTeX/Chicago/APA/MLA), the error taxonomy and retry/recover decorators, the RDF triple substrate, IIIF and XMP loaders (fixing a v3 no-service crash and rejecting XXE), model profiles and recommendation scoring, OCR geometry, provider error classification, path and URL security confinement, the `remote_access_tls`/`bind_host` refusal branches, and the workflow resolver, `TextCleaner`, parallel-branch reducers, and `safe_condition` evaluator
+
+**Docs**
+
+- docs: restructure the repository and the public site — mark every docs page as AI-generated and unreviewed, rewrite the home page from README/CONSTITUTION/USER, add a code-grounded feature matrix, split `RELEASE_NOTES.md` into release notes plus a generated `CHANGELOG.md`, move `ROADMAP.md` into `agents/`, untrack the internal agent trail, reorganize icons, drop the `evals/` harness, and correct the Briefcase entry-point path and macOS-only bundling claim
+- docs(agents): consolidate the build and release skills into one accurate `fichero-release`, add `fichero-test`, and add `session-start-worker-{docs,tester,release}` so specialized workers self-configure
+
+---
+
+## 2026-07-07
+
+**Fixes**
+
+- fix(toolbar): stop the launch crash — SwiftUI registered its search field twice, so the app could crash on opening a library window. Per-view `.searchable` modifiers now defer to the single global toolbar search, and the first-run provider sheet is deferred past `NSToolbar`'s first layout ([#3163](https://github.com/dtubb/fichero/issues/3163), [#3333](https://github.com/dtubb/fichero/issues/3333), [#2493](https://github.com/dtubb/fichero/issues/2493))
+- fix(auth): let the sandboxed host app open its own container library, and close a lexical `..` traversal in the library path allowlist
+- fix(startup): re-probe the engine with backoff and auto-recover a healthy connection instead of failing the launch; log single-user owner-resolution failures rather than swallowing them
+- fix(chat): make the chat handler non-blocking by invoking the model asynchronously
+- fix(services): surface the real service and research-service errors instead of a generic Cocoa message ([#2500](https://github.com/dtubb/fichero/issues/2500))
+- fix(settings): unify all three settings tabs on the backend's real multi-user state
+- fix(install): don't offer move-to-Applications for development builds launched from Xcode
+- fix(engine): decouple library discovery from the Typer CLI entry point
+
+**Features**
+
+- feat(reader): a Source / Diplomatic representation selector in the immersive reader, translations listed by language, and provenance plus an "AI unreviewed" badge on translated representations and artifact panels ([#3325](https://github.com/dtubb/fichero/issues/3325), [#3329](https://github.com/dtubb/fichero/issues/3329))
+- feat: bulk-persist bibliography import ([#3328](https://github.com/dtubb/fichero/issues/3328))
+- feat(auth): create an owner account directly from the sign-in gate
+- feat(verify): render `verify_all` failures to an HTML dashboard
+
+**Tests**
+
+- test(harness): boot the built `.app` and assert it survives launch; add a launch-stress test for the duplicate-`.searchable` crash ([#3163](https://github.com/dtubb/fichero/issues/3163))
+- test(bibliography): harden the extractor, importer, parser, exporter, and offline DOI/ISBN resolvers — fixing three real bugs (a `None`-path crash, a PDF-date year error, and an `UnboundLocalError` on the target path) ([#3328](https://github.com/dtubb/fichero/issues/3328))
+- test(auth): lock in the invariant that account rows never flip to multi-user, and cover single-user owner resolution ([#3331](https://github.com/dtubb/fichero/issues/3331))
+- test(contracts): make the API-contract client auth-agnostic, fix a cross-file isolation leak, and run backend contract tests inside `verify_all` ([#3333](https://github.com/dtubb/fichero/issues/3333))
+
+---
+
+## 2026-07-06
+
+**Features**
+
+- feat(translation): translate a document into a chosen language from the inspector, embed the translation as an artifact with scoped vectors so it is searchable, and expose an `artifact.translate` action
+- feat(bibliography): a reference panel with undoable delete, an extractor trigger in the empty state, metadata editing via a native form sheet, and DOI/ISBN metadata resolution ([#3258](https://github.com/dtubb/fichero/issues/3258))
+- feat(kg): a possible-duplicates surface with one-click audited merge, and a merge-destination picker for entities and claims
+- feat(undo): record every audited action centrally so ⌘Z works across the app ([#3302](https://github.com/dtubb/fichero/issues/3302))
+- feat(reader): multi-page reading layouts — a `PageLayoutMode` model, a shared N-up page renderer, and a layout picker in the PDF reader ([#2090](https://github.com/dtubb/fichero/issues/2090))
+- feat(inspector): an "AI unreviewed" badge on artifact rows, and descendant-artifact scope in the artifact store and panes ([#3325](https://github.com/dtubb/fichero/issues/3325), [#3186](https://github.com/dtubb/fichero/issues/3186))
+- feat(search): typo-tolerant full-text search via fuzzy matching
+- feat(frontend): note backlinks and forward-links wired into SwiftUI ([#1433](https://github.com/dtubb/fichero/issues/1433))
+
+**Fixes**
+
+- fix(workflow): fail loud when a fan-out fully errors, honor needs-human routing before fan-out, route unknown values to human review, report cancelled runs correctly, emit regular node-completion events, stop emitting updates for create-node factories, skip poisoned rows during list reads, and replace debug prints with logger calls ([#3191](https://github.com/dtubb/fichero/issues/3191))
+- fix(action-layer): route `/resolve`, `/extract`, promote-to-claim, and activity cleanup through the audited registry; reject `actor`/`origin_window` in the invoke body; set annotation `created_by` from the acting user
+- fix(kg): fold repeated cross-source claims into one canonical row, narrow entity-delete claim lookups, and de-duplicate entity names before rendering
+- fix(search): boost exact hits above semantic neighbours, decode RTF in excerpt rows, and re-run the active query when the store changes
+- fix(chat): include conversation history in the prompt and preserve fallback context across retries
+- fix(preview): branch QuickLook download on HTTP status rather than byte size, sanitize the server-supplied `Content-Disposition` filename before using it as a path, and surface image-canvas load errors with a Retry
+- fix(annotations): convert UTF-16 offsets to code-point offsets and validate bounding-box shape, range, and colour format
+- fix(release): sign the embedded engine with hardened-runtime entitlements; report the engine version from package metadata
+- fix(frontend): guard the search toolbar against a split-pane `NSToolbar` crash, centralize the pane show/hide invariant, add tooltips and accessibility labels to mini-toolbar buttons, repair the Sparkle linkage tests, and grow the workflow canvas to fit its nodes ([#1447](https://github.com/dtubb/fichero/issues/1447), [#1696](https://github.com/dtubb/fichero/issues/1696), [#1588](https://github.com/dtubb/fichero/issues/1588), [#1859](https://github.com/dtubb/fichero/issues/1859), [#520](https://github.com/dtubb/fichero/issues/520), [#3191](https://github.com/dtubb/fichero/issues/3191))
+- fix(settings): distinguish a non-owner 401 from an empty accounts list, model the tiers the backend actually exposes, and surface seed-persist failures instead of a silent `try?`
+
+**Performance**
+
+- perf: bound knowledge-graph expansion in graph RAG and push citation/reference filters into the database, replacing two whole-table scans
+
+**Tests**
+
+- test(frontend): broad decode and encode coverage across the Swift DTO surface — annotations, chat, ingest, MCP and provider request bodies, model comparison, notes, research models, search results, spatial nodes, workflow nodes and runs, and canvas layout ([#2293](https://github.com/dtubb/fichero/issues/2293), [#3082](https://github.com/dtubb/fichero/issues/3082), [#79](https://github.com/dtubb/fichero/issues/79), [#1447](https://github.com/dtubb/fichero/issues/1447))
+- test: cover the importer upsert path, live IIIF importer contract, PDF import routing, shipped workflow preset names, and legacy vision `abatch` compatibility
+
+**Docs**
+
+- chore(release): declare `ITSAppUsesNonExemptEncryption=NO` for TestFlight and the App Store
+- docs: survey iOS/iPadOS engine-embedding feasibility
+
+---
+
 ## 2026-07-05
 
 **Features**
