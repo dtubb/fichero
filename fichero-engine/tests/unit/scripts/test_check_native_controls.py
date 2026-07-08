@@ -13,20 +13,22 @@ sys.modules[_SPEC.name] = check_native_controls
 _SPEC.loader.exec_module(check_native_controls)  # type: ignore[attr-defined]
 
 
-def _signature_for(rel_path: str, start_line: int) -> str:
-    path = check_native_controls.VIEWS_DIR / rel_path
-    lines = check_native_controls.code_lines(path.read_text(encoding="utf-8"))
-    end_idx, snippet = check_native_controls._normalized_snippet(lines, start_line - 1)
-    assert end_idx >= start_line - 1
-    return check_native_controls._signature_key(rel_path, snippet)
+def test_no_new_hand_rolled_row_collections():
+    """The backlog is frozen: the scan must find nothing outside KNOWN_VIOLATIONS."""
+    found = check_native_controls.scan()
+    new = sorted(set(found) - set(check_native_controls.KNOWN_VIOLATIONS))
+    assert not new, "New hand-rolled row collection(s); use List/Table/OutlineGroup:\n  " + "\n  ".join(
+        f"{key}  <-  {found[key]}" for key in new
+    )
 
 
-def test_sanctioned_baseline_hashes_match_current_scrollview_snippets():
-    expected = {
-        "Components/WorkflowPreviewSheet.swift": 40,
-        "Library/LibraryView+DisplayModes.swift": 218,
-    }
+def test_baseline_has_no_stale_signature_entries():
+    """`main()` only warns on stale entries and still exits 0, so assert it here.
 
-    for rel_path, start_line in expected.items():
-        signature = _signature_for(rel_path, start_line)
-        assert signature in check_native_controls.KNOWN_VIOLATIONS
+    A stale entry is a signature the scan no longer produces: the violation was
+    fixed, the file moved, or its snippet changed. Any of those should shrink
+    the backlog rather than linger as a dead grandfather clause.
+    """
+    found = check_native_controls.scan()
+    stale = sorted(set(check_native_controls.KNOWN_VIOLATIONS) - set(found))
+    assert not stale, "Remove stale KNOWN_VIOLATIONS entries:\n  " + "\n  ".join(stale)

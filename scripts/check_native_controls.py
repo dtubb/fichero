@@ -26,14 +26,13 @@ RULE_DOC = "docs/ROADMAP.md"
 # Rekeyed to stable content signatures so unrelated line shifts do not churn the backlog.
 KNOWN_VIOLATIONS: dict[str, str] = {
     "Activity/ActivityOverviewView+Cards.swift#76a86e98cc": "#1912 baseline",
-    "Components/WorkflowPreviewSheet.swift#351d2ca3c5": "#1912 baseline",
     "KnowledgeGraph/OntologyBrowser/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",
     "KnowledgeGraph/OntologyBrowser/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
     "KnowledgeGraph/OntologyBrowser/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
     "Library/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
     "Library/LibraryView+DisplayModes.swift#ac36d057da": "#1912 baseline",
-    "Library/PDFReadingView.swift#12a18b04b8": "#1912 baseline",
-    "Library/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
+    "Library/Reading/PDFReadingView.swift#12a18b04b8": "#1912 baseline",
+    "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
     "Research/ResearchTasksPane.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
     "Research/ResearchTasksPane.swift#f50acbd404": "#1912 baseline (shifted by store migration)",
     "Search/SearchFiltersPanel.swift#3c0b0dafd9": "#1912 baseline",
