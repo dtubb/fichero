@@ -1,94 +1,71 @@
 # Contributing
 
-Fichero is written by AI coding agents, which receive creative direction.
+Fichero is written by AI coding agents, which receive creative direction from Daniel Tubb.
 
-There is a Claude Opus manager, that manages workers who write code. The manager keeps track of open issues and milestones, which it writes and keeps track of issues and milestones. The manager then takes commits, reviews them, merges them, runs a battery of tests against them and builds the app.
+There is a Manager (Claude Opus), that manages Workers who write code. The Manager keeps track of open issues and milestones, which it writes and keeps track of. The Manager takes commits, reviews them, merges them, runs a battery of tests against them and builds the app.
 
-## How the work runs
-
-- A **manager** agent uses a (`session-start-manager`) skill to control the app. It triages GitHub issues, picks the next batch, and dispatches it to a worker agent. The manager does not write source code.
+- The **Manager** agent uses a (`session-start-manager`) skill to control the app. It triages GitHub issues, picks the next batch, and dispatches it to a worker agent. The manager does not write source code.
 - Each **worker** agent runs in its own git worktree under
   `~/code/fichero-worktrees/<name>`, in a separate tmux window (an interactive
-  `claude` or `codex` session). A worker grinds one milestone's GitHub issues and commits as itself.
+  `claude` or `codex` or `ollama launch codex` session). A worker grinds one milestone's GitHub issues and commits as itself. Generally, Codex writes backend code, and Claude writes the SwiftUI code. Some code has been written or edited by various open source models.
 - The manager **reviews** each worker's output, **build-gates** it, runs
   `verify_all`, then **merges via PR**, closes the issues, and dispatches the next
   batch.
-  - Users reviews the result by using the app and filing bugs (‘/bug’ skill.)
+  - Users reviews the result by using the app and filing bugs (‘/bug’ skill) and making feature request (‘/feature’ skill)
 
 GitHub Issues plus Milestones is the source of truth for the backlog. Work lands on
 the milestone branch; there are no per-task branches.
 
-Generally, Codex writes the backend code, and Claude writes the SwiftUI code. Some code has been written or edited by various open source models.
-
 ## More detail
 
 See [AGENTS.md](AGENTS.md) for the operational manual (hard rules, commit
-attribution, docs placement, worker orchestration), and the folder-specific
-guidance in [fichero/AGENTS.md](fichero/AGENTS.md) and
+attribution, docs placement, worker orchestration). For SwiftUI-specific
+guidance see [fichero/AGENTS.md](fichero/AGENTS.md) and for the Python engine see
 [fichero-engine/AGENTS.md](fichero-engine/AGENTS.md). 
 
 For the fuller repo
 conventions, see
 [docs/contributor/setup-and-contributing.md](docs/contributor/setup-and-contributing.md).
 
-If you would like to contribute to Fichero, please make a pull request. Outstanding Milestones and Issues that the Fichero Manager is working on are on GitHub. Please make a pull request for consideration.
-
-Milestones and Issues are coded by AI. The Forum is for human discussion.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute. Folder-specific notes live in [fichero/AGENTS.md](fichero/AGENTS.md) and
-[fichero-engine/AGENTS.md](fichero-engine/AGENTS.md).
+If you would like to contribute to Fichero, please make a pull request. Outstanding Milestones and Issues that the Fichero Manager is working on are on GitHub. Milestones and Issues are coded by AI. The Forum is for people.
 
 ## Building from source (for developers)
 
 Most people should just download the app (see [Installing and using
-Fichero](#installing-and-using-fichero) in the reader). This section is for working on
+Fichero](#installing-and-using-fichero). This section is for working on
 Fichero itself.
 
-First, you’ll need to clone Fichero.
+First, you’ll need to clone Fichero. Then create a virtual environment. Then install the fichero engine requirements.
 
-Then create a virtual environment.
-
-Then install the fichero engine requirements.
-
-Vegetarian bug build to connect to a Fucito engine running on uvicorn on the local host. This means changes to the engine are updated directly.  
+Then start the Fichero engine on a local host. 
 
 **Start fichero-engine** (serves HTTPS on `127.0.0.1:8765`; the app pins it fail-closed, so a plain-HTTP engine cannot connect):
 ```bash
 bash fichero-engine/scripts/start_backend.sh
 ```
 
-**Run the SwiftUI app:**
-Open `fichero/fichero.xcodeproj` in Xcode and run.
+Then open `fichero/fichero.xcodeproj` in Xcode and run.
 
 ## Architecture
 
-Fichero has two components. A front end and a back end. The front end is written in SwiftUI, and the back end (the Engine) is a FastAPI server that holds the data and logic. 
+Fichero has two components. A front end and a back end. The front end is written in SwiftUI (the Fichero app), and the back end (the Engine) is a FastAPI server that holds the data and logic. The Fichero Mac, iPhone, and iPad apps share one SwiftUI codebase (and the CLI and MCP server are separate front ends) that connect to the Fichero Engine and display what it returns. The Fichero Engine is packaged using Briefcase and embedded in the Fichero app for release, but it can also run locally as a separate process or be shared on the network (a remote host), so the same clients work whether the engine is embedded, local, or remote.
 
-The Fichero Mac, iPhone, iOS (and the CLI app, and other front ends in the future) connect to the Fichero Engine and display what it returns.
+One engine, many clients:
 
 ```
-┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│  SwiftUI app     │  │  fichero CLI     │  │  MCP server      │
-│  (fichero/)      │  │  (fichero-engine/src/fichero/cli/)  │  │  (fichero-mcp)   │
-└────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
-         │                     │                     │
-         └─────────────────────┴─────────────────────┘
-                              │
-              HTTPS 127.0.0.1:8765  (TLS, pinned fail-closed)
-                              │
-                              ▼
-              ┌──────────────────────────────┐
-              │  fichero-engine (FastAPI)    │
-              │  (fichero-engine/src/fichero)│
-              └──┬─────────┬─────────┬───────┘
-                 │         │         │
-                 ▼         ▼         ▼
-           ┌─────────┐ ┌────────┐ ┌─────────┐
-           │ DuckDB  │ │LangGr. │ │LangChain│
-           │+Lance   │ │workflw │ │100+ LLMs│
-           └─────────┘ └────────┘ └─────────┘
+SwiftUI app    fichero CLI    MCP server
+       \           |            /
+        \          |           /
+         HTTPS on 127.0.0.1:8765
+                 (TLS, pinned)
+                   |
+                   v
+            FastAPI engine
+        (fichero-engine/src/fichero)
+           | DuckDB + LanceDB
+           | workflows
+           | knowledge graph
+           | provider integrations
 ```
 
 All surfaces sit on top of fichero-engine. They render and accept input; they do not contain logic.
@@ -126,39 +103,3 @@ scripts/release-all.sh --help
 - `fichero-engine/`: the server (FastAPI), workflow runner, KG, ingest ([README](fichero-engine/README.md))
 - `fichero/`: SwiftUI app, Xcode project, and `fichero` CLI under `fichero-engine/src/fichero/cli/`
 - `docs/`: published documentation site and contributor reference
-
-### fichero-engine: Python server (`fichero-engine/src/fichero/`)
-
-```
-api/               # FastAPI routes (documents, search, chat, workflows, kg, providers)
-workflows/         # LangGraph engine, tool registry, builder
-kg/                # Knowledge graph: entities, claims, aggregation
-loaders/           # Text extraction (pdf, docx, images, etc.)
-db.py              # DuckDB + LanceDB storage
-models.py          # Pydantic models
-ingest.py          # File ingestion pipeline
-storage.py         # Thumbnails, file storage
-llm.py             # LangChain LLM interface
-providers.py       # LLM provider definitions
-keychain.py        # macOS keychain for API keys
-bookmarks.py       # macOS security-scoped bookmarks
-resources/         # Config defaults, locales
-```
-
-### SwiftUI App (`fichero/fichero/`)
-
-```
-Views/             # ~234 files across ~19 feature domains
-├── ContentView.swift (+5 ext)  # Resizable multi-pane reading layout
-├── Sidebar/        # Multi-mode nav: Library, Search, Chat, Workflows, Activity, …
-├── Library/        # Document browser + PDF reading view + inspector V2 (tabbed)
-├── KnowledgeGraph/ # Entity/claim digests, graph views
-├── Chat/           # RAG conversation UI
-├── Workflow/       # Visual node editor, canvas
-└── Search/ Activity/ Settings/ AIProviders/ Automation/ …
-
-Services/          # ~49 files: APIClient + 14 *Generated.swift (OpenAPI) + wrappers
-Models/            # ~42 Swift data models
-App/               # FicheroApp entry, AppState, window scaffolding
-```
-
