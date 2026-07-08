@@ -217,9 +217,11 @@ RELEASE_BODY="## Installation
 2. Open the DMG and drag Fichero to Applications
 3. Launch Fichero
 
+The app keeps itself up to date via Sparkle — you'll be prompted in-app when a new build is available.
+
 ## TestFlight
 
-Mac TestFlight and the universal iPhone/iPad TestFlight build are processed separately.
+Mac TestFlight and the universal iPhone/iPad TestFlight build are distributed separately.
 For access, contact Daniel for the current TestFlight invite.
 
 ## Release Notes

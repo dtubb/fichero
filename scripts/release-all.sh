@@ -24,6 +24,10 @@ APP_STORE_CONNECT_ISSUER_ID="${APP_STORE_CONNECT_ISSUER_ID:-6d2cfad9-6a3d-48a0-b
 MAC_APP_STORE_PROFILE_PATH="${MAC_APP_STORE_PROFILE_PATH:-$HOME/Downloads/Mac_App_Store_Connect.provisionprofile}"
 MAC_APP_STORE_PROFILE_NAME="${MAC_APP_STORE_PROFILE_NAME:-Mac App Store Connect}"
 MAC_APP_STORE_SIGNING_CERT="${MAC_APP_STORE_SIGNING_CERT:-7CD87BA09F2DA8A79652710DE0F5E3C5DCD2CC35}"
+# Installer identity that signs the Mac App Store .pkg. This is a SEPARATE cert
+# from the application cert above; provisioning profiles never carry it, so it must
+# be named explicitly or xcodebuild tries (and fails) to resolve it via the profile.
+MAC_APP_STORE_INSTALLER_CERT="${MAC_APP_STORE_INSTALLER_CERT:-3rd Party Mac Developer Installer}"
 MAC_APP_STORE_PROFILE_UUID=""
 
 project_setting() {
@@ -191,6 +195,8 @@ if [ "$SKIP_TESTFLIGHT" = false ]; then
   <string>manual</string>
   <key>signingCertificate</key>
   <string>$MAC_APP_STORE_SIGNING_CERT</string>
+  <key>installerSigningCertificate</key>
+  <string>$MAC_APP_STORE_INSTALLER_CERT</string>
   <key>provisioningProfiles</key>
   <dict>
     <key>app.fichero.fichero</key>
