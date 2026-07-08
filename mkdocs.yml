@@ -36,6 +36,12 @@ edit_uri: edit/main/docs/
 docs_dir: docs
 site_dir: _site_build
 
+# docs/README.md is the GitHub folder landing for `docs/`; the published home is
+# index.md. Exclude it from the build so mkdocs does not warn about the two
+# conflicting (which fails --strict).
+exclude_docs: |
+  /README.md
+
 theme:
   name: material
   logo: assets/icon.png
