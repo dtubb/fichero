@@ -444,7 +444,7 @@ class APIClient: ObservableObject {
 ## Quick Reference: Key Files
 
 ### Essential Documentation
-- **`docs/CLAUDE.md`** (this file) - Canonical agent guidance
+- **`docs/ai/CLAUDE.md`** (this file) - Canonical agent guidance
 - **`docs/contributor/swiftui-principles.md`** - MANDATORY SwiftUI patterns (18KB)
 - **`docs/contributor/architecture/swiftui/api_migration_guide.md`** - OpenAPI client migration guide
 - **`docs/contributor/swiftui-development-standards.md`** - File size limits, Swift 6 guidelines

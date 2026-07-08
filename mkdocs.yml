@@ -141,5 +141,8 @@ nav:
           - Bundling the Backend: contributor/bundling-backend.md
           - Bundled Backend Setup: contributor/setup-bundled-backend.md
       - UI Map: contributor/ui-map.md
+  - AI Manual:
+      - Overview: ai/README.md
+      - Architecture & Development Guide: ai/CLAUDE.md
   - API Reference: contributor/api-reference/index.md
   - How It's Built: how-its-built.md

@@ -3,7 +3,7 @@
 The single canonical agent/operational doc for Fichero. Every coding agent —
 Codex, Claude Code, and Claude-in-Xcode — reads this file. (`CLAUDE.md` is a thin
 pointer here.) The product north-star is `CONSTITUTION.md`; the detailed
-architecture/development guide is `docs/CLAUDE.md`; the session-start / manager
+architecture/development guide is `docs/ai/CLAUDE.md`; the session-start / manager
 skills under `agents/skills/` tell each lane its job.
 
 Every agent starts with `/session-start` (or a lane variant: `-manager`, `-worker`, `-integrator`, `-auto`); it loads context and reports state. Work happens on the milestone branch this worktree is on. Commit directly, no per-task branches.
@@ -120,7 +120,7 @@ When an agent runs **inside Xcode** (Claude-in-Xcode / the `xcode-tools` MCP ser
 - **The three-leg Swift check** before declaring SwiftUI work done, in order: (1) `swiftlint lint fichero/fichero/` clean; (2) `BuildProject` succeeds; (3) `RunAllTests` passes. A build log alone is not done; a green test run alone is not done. `XcodeRefreshCodeIssuesInFile` gives fast per-file diagnostics for the inner loop but does NOT substitute for a full build. Use `RenderPreview` / visual capture for rendered-UI changes.
 - **Limit changes to the requested task** — don't make unrelated edits.
 
-MCP/build notes live in `docs/CLAUDE.md` (`## MCP Tools`, `## Development Commands`); the SwiftUI code-style guidelines live in `docs/contributor/swiftui-development-standards.md`.
+MCP/build notes live in `docs/ai/CLAUDE.md` (`## MCP Tools`, `## Development Commands`); the SwiftUI code-style guidelines live in `docs/contributor/swiftui-development-standards.md`.
 
 ---
 
@@ -239,7 +239,7 @@ internal design docs out of `nav` rather than out of `docs/`.
 |---|---|
 | `CONSTITUTION.md` | Product north star: what we're building, why, what it's not, hard constraints |
 | `AGENTS.md` | This file — operational manual + hard rules |
-| `docs/CLAUDE.md` | Full architecture & development guide (canonical, detailed) |
+| `docs/ai/CLAUDE.md` | Full architecture & development guide (canonical, detailed) |
 | `docs/contributor/architecture/` | Architecture docs |
 | `USER.md` | About Daniel — who he is, constraints |
 | `STATE.md` | Local working notes (gitignored, not in the repo) — current branch, focus, next session |
@@ -275,4 +275,4 @@ Read `docs/contributor/architecture/` first — specifically:
 - `docs/contributor/backend-development-standards.md` for backend conventions.
 - `docs/contributor/swiftui-development-standards.md` for Swift conventions.
 
-`docs/CLAUDE.md` is the canonical detailed guidance and also references these.
+`docs/ai/CLAUDE.md` is the canonical detailed guidance and also references these.

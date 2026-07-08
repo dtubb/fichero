@@ -33,7 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = ROOT / "fichero-engine" / "src" / "fichero"
-RULE_DOC = "docs/CLAUDE.md"
+RULE_DOC = "docs/ai/CLAUDE.md"
 
 # Baseline violations filed as #1915 backlog.
 # Keys are `relative/path.py#content-hash` — stable across line-number changes.
