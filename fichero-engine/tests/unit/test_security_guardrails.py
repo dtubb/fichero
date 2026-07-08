@@ -38,6 +38,7 @@ XML_ETREE_ALLOWLIST: dict[str, str] = {}
 SECRET_LOG_ALLOWLIST: dict[str, str] = {}
 WILDCARD_BIND_ALLOWLIST: dict[str, str] = {
     "bind_host.py:resolve_bind_host": "bind_host is the enforcement choke point that refuses 0.0.0.0.",
+    "remote_access_tls.py:_bind_host_for_public_host": "SANCTIONED wildcard: shared mode binds 0.0.0.0 so the host Mac app reaches loopback and iOS devices reach the LAN host.",
 }
 
 ALLOWLISTS: dict[str, dict[str, str]] = {
