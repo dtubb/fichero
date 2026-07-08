@@ -86,6 +86,6 @@ This makes the engine reachable over your tailnet only. It is not exposed to the
 
 Tailscale is only the private transport. It does not replace Fichero's API token or app-level permissions. Treat the remote engine token like a password, and share it only with devices that should be able to call the engine.
 
-See [Tailscale private transport for Fichero](../remote-backend-tailscale.md) for setup details and the exact bind-host safety rules.
+See [Tailscale private transport for Fichero](../contributor/remote-backend-tailscale.md) for setup details and the exact bind-host safety rules.
 
 This is an advanced workflow.

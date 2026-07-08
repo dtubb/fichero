@@ -53,7 +53,7 @@ bash fichero-engine/scripts/start_backend.sh
 
 For remote / off-network access, the engine still binds loopback only and is
 fronted by `tailscale serve` (never funnel) — see
-`docs/contributor/architecture/` and `docs/remote-backend-tailscale.md`.
+`docs/contributor/architecture/` and `docs/contributor/remote-backend-tailscale.md`.
 
 ## Test and lint
 

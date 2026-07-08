@@ -113,7 +113,7 @@ remote-access path.
 The shared-secret token remains required behind Tailscale. Treat the token as a
 password: do not commit it, paste it into shared logs, or use it as a substitute
 for user/object authorization. For setup details, see
-[Tailscale private transport for Fichero](../remote-backend-tailscale.md).
+[Tailscale private transport for Fichero](./remote-backend-tailscale.md).
 
 Summary of what each layer does:
 

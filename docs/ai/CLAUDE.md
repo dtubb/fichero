@@ -136,7 +136,7 @@ The ingest module is a core feature for importing files into the library:
 - **Text extraction**: Searchable text from PDFs, Office docs, images (OCR)
 - **Folder processing**: Recursive ingestion with hierarchy preservation
 
-See `docs/ingest_api.md` for detailed API documentation.
+See `docs/contributor/ingest-api.md` for detailed API documentation.
 
 ## Code Quality Standards
 
@@ -491,9 +491,9 @@ Full architectural context is in `docs/contributor/architecture/`:
 - `api/workflow_checklist.md` - Backend development checklists
 
 ### Specialized Guides
-- **`docs/ingest_api.md`** - File ingestion API reference
-- **`docs/ingest_best_practices.md`** - Ingestion patterns
-- **`docs/supported_file_types.md`** - 37+ supported file formats
+- **`docs/contributor/ingest-api.md`** - File ingestion API reference
+- **`docs/contributor/ingest-best-practices.md`** - Ingestion patterns
+- **`docs/user/supported-file-types.md`** - 37+ supported file formats
 - **`docs/contributor/bundling-backend.md`** - Backend deployment strategy
 
 ### Manual QA

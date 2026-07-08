@@ -66,4 +66,4 @@ Fichero is built around broad ingest support. The engine documentation in this r
 - audio and video
 - archives and related source material
 
-For the current file-type list, use [../supported_file_types.md](../supported_file_types.md).
+For the current file-type list, use [supported-file-types.md](./supported-file-types.md).

@@ -38,6 +38,9 @@ site_dir: _site_build
 # index.md (mkdocs would otherwise warn, failing --strict).
 exclude_docs: |
   /README.md
+  # Dated internal audits. Kept in-repo for provenance (MEMORY.md cites them) but
+  # not published: every .md under docs_dir otherwise becomes a public page.
+  /archive/
 
 theme:
   name: material
@@ -111,6 +114,7 @@ nav:
       - Search & Knowledge Graph: user/search-knowledge-graph.md
       - Curation, Notes & Workflows: user/curation-notes-workflows.md
       - AI & Privacy: user/ai-and-privacy.md
+      - Supported File Types: user/supported-file-types.md
   - Contributor:
       - Overview: contributor/README.md
       - How Fichero Works: contributor/how-fichero-works.md
@@ -122,6 +126,13 @@ nav:
       - Action Registry: contributor/action-registry.md
       - Security Model: contributor/security-model.md
       - Setup & Contributing: contributor/setup-and-contributing.md
+      - Ingest:
+          - Overview: contributor/ingest-overview.md
+          - Ingest API: contributor/ingest-api.md
+          - Best Practices: contributor/ingest-best-practices.md
+      - Remote Engine:
+          - Tailscale Private Transport: contributor/remote-backend-tailscale.md
+          - Remote Backend on ACENET: contributor/remote-backend-acenet.md
       - Standards & Principles:
           - SwiftUI Principles: contributor/swiftui-principles.md
           - AppKit Interop: contributor/appkit-interop.md

@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VERIFY_ALL = ROOT / "scripts" / "verify_all.sh"
-CHECKLIST = ROOT / "docs" / "remote-pairing-smoke-checklist.md"
+CHECKLIST = ROOT / "docs" / "contributor" / "qa" / "remote-pairing-smoke-checklist.md"
 CAPTURE_MATRIX = ROOT / "docs" / "contributor" / "qa" / "capture-smoke-matrix.md"
 
 
@@ -66,11 +66,11 @@ def scan() -> dict[str, str]:
         "no silent localhost fallback",
     ]
     if not CHECKLIST.exists():
-        issues["docs/remote-pairing-smoke-checklist.md"] = "manual smoke checklist file is missing"
+        issues["docs/contributor/qa/remote-pairing-smoke-checklist.md"] = "manual smoke checklist file is missing"
     else:
         for phrase in checklist_checks:
             if phrase not in checklist_text:
-                issues[f"docs/remote-pairing-smoke-checklist.md::{phrase}"] = (
+                issues[f"docs/contributor/qa/remote-pairing-smoke-checklist.md::{phrase}"] = (
                     f"missing checklist step: {phrase}"
                 )
 

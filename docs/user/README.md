@@ -11,7 +11,7 @@ This manual describes the Fichero app as it exists in the current SwiftUI client
 - [What Fichero Is](./what-fichero-is.md)
 - [Installing Fichero](./install.md)
 - [AI and Privacy](./ai-and-privacy.md)
-- [Tailscale Private Transport](../remote-backend-tailscale.md)
+- [Tailscale Private Transport](../contributor/remote-backend-tailscale.md)
 - [Getting Started](./getting-started.md)
 - [The Interface: A Tour of the Window](./interface-tour.md)
 - [Importing Documents](./importing-documents.md)
@@ -42,5 +42,5 @@ The exact panes you see depend on what is selected, but that overall structure s
 
 ## Related Reference Pages
 
-- Supported formats: [../supported_file_types.md](../supported_file_types.md)
+- Supported formats: [supported-file-types.md](./supported-file-types.md)
 - Current UI map used by the team: [../contributor/ui-map.md](../contributor/ui-map.md)

@@ -20,7 +20,7 @@ Researchers, historians, archivists, and anyone using the Fichero app.
 - [Search, Entities, and the Knowledge Graph](user/search-knowledge-graph.md) — semantic search, scoped queries, entity and claim inspection.
 - [Curation, Notes, Annotations, and Workflows](user/curation-notes-workflows.md) — entity and claim curation, running workflows, activity.
 - [AI, Models, and Privacy](user/ai-and-privacy.md) — local vs cloud models, what the AI does, data stays on your Mac, iPad access.
-- [Tailscale Private Transport](./remote-backend-tailscale.md) — advanced tailnet-only remote engine setup; no public web surface.
+- [Tailscale Private Transport](./contributor/remote-backend-tailscale.md) — advanced tailnet-only remote engine setup; no public web surface.
 
 Full user manual: [docs/user/README.md](user/README.md)
 
@@ -38,7 +38,7 @@ Contributors and anyone building on or integrating with Fichero.
 - [Workflows, Activity, and Curation](contributor/workflows-activity-and-curation.md) — workflow execution, annotations API, curation.
 - [Action Registry](contributor/action-registry.md) — the single audited write path for all mutations.
 - [Security Model](contributor/security-model.md) — local binding, shared-secret token, multi-user ACL, Tailscale transport.
-- [Tailscale Private Transport](./remote-backend-tailscale.md) — loopback-only engine plus `tailscale serve`, never Funnel or public bind.
+- [Tailscale Private Transport](./contributor/remote-backend-tailscale.md) — loopback-only engine plus `tailscale serve`, never Funnel or public bind.
 - [Setup and Contributing](contributor/setup-and-contributing.md) — build commands, OpenAPI sync, contributing mechanics.
 
 Full contributor index: [docs/contributor/README.md](contributor/README.md)
