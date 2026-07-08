@@ -104,3 +104,7 @@ BLOCK.md
 
 # release-notes generator cursor (local state)
 .release-notes-cursor
+
+# internal agent orchestration (not for public repo)
+PLAN-GOVERNANCE.md
+STATE.md
