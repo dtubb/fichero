@@ -45,7 +45,7 @@ For audited cross-surface mutations, the starting point is the action registry. 
 
 ## Core Reference Material In This Repo
 
-- Detailed architecture + dev guide: [../CLAUDE.md](../CLAUDE.md)
+- Detailed architecture + dev guide: [../ai/CLAUDE.md](../ai/CLAUDE.md)
 - Operational rules: [../../AGENTS.md](../../AGENTS.md)
 - Backend overview: [../architecture/api/overview.md](architecture/api/overview.md)
 - SwiftUI overview: [../architecture/swiftui/overview.md](architecture/swiftui/overview.md)
