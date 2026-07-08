@@ -55,7 +55,7 @@ Manager-only session start. This lane coordinates; it does not implement product
 - Update `STATE.md` when coordination state has actually changed
 - Enforce two AGENTS.md rules on every dispatch and merge: **Commit Attribution**
   (each agent commits as itself, committer stays the human, credit Daniel via
-  `Co-Authored-By`) and **Docs Placement** (all docs in `docs/`, public pages in
+  `Directed-By`) and **Docs Placement** (all docs in `docs/`, public pages in
   `mkdocs.yml` nav; agent scratch in `agent-work/`; crud → `git rm`). When committing a
   worker's leftover changes yourself, attribute to the worker, not the manager.
 

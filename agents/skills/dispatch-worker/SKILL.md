@@ -33,7 +33,7 @@ from in-repo worktrees; false-green incremental builds; stale-tree pytest).
   tests, commit, and report."* See [[workers-write-tests-manager-runs-them]].
 - **Commit attribution + docs placement** (AGENTS.md): the dispatch brief MUST tell
   the worker to commit as ITSELF (author = the agent, committer = human, credit Daniel
-  via `Co-Authored-By`) and to place any docs in `docs/` (all documentation, public
+  via `Directed-By`) and to place any docs in `docs/` (all documentation, public
   pages go in `mkdocs.yml` nav), agent scratch in `agent-work/`, crud → `git rm`.
 - jcodemunch index is stale → tell the worker to verify-by-reading-disk.
 - **PARTITION BY FILE-SET before fanning out (2026-06-09 lesson).** Parallel is only
@@ -110,7 +110,7 @@ git -C ~/code/fichero-worktrees/<name> \
   -c user.name="Codex" -c user.email="noreply@anthropic.com" \
   commit -m "<msg>
 
-Co-Authored-By: Daniel Tubb <dtubb@me.com>"   # only if worker left it uncommitted
+Directed-By: Daniel Tubb <dtubb@me.com>"   # only if worker left it uncommitted
 CX=$(git -C ~/code/fichero-worktrees/<name> rev-parse HEAD)
 git cherry-pick "$CX"      # resolve conflicts keeping BOTH intents
 ```

@@ -75,12 +75,12 @@ Only use `Read` immediately before `Edit`/`Write` on a file you already located.
      pytest command for the manager to run.
    - Swift/UI/CLI: mark compile-verify targets for manager/integrator; do not run full suites locally.
 7. Commit AS YOURSELF (see AGENTS.md → Commit Attribution): author is the agent
-   writing the work, committer stays the human, credit Daniel via `Co-Authored-By`.
+   writing the work, committer stays the human, credit Daniel via `Directed-By`.
    ```bash
    git -c user.name="Claude" -c user.email="noreply@anthropic.com" \
      commit -m "<imperative description> (#N)
 
-   Co-Authored-By: Daniel Tubb <dtubb@me.com>"
+   Directed-By: Daniel Tubb <dtubb@me.com>"
    ```
    Codex workers use `user.name="Codex"`. Place any docs you write in `docs/`
    (AGENTS.md → Docs Placement; public pages go in `mkdocs.yml` nav), agent scratch

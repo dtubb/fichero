@@ -33,14 +33,22 @@ scripts/tail-fichero-logs.sh
 
 ## File The Issue
 
-Create one GitHub issue:
+Use `scripts/file_issue.sh` — the ONE sanctioned way to create an issue. It checks
+the milestone exists and is OPEN, enforces the 15 canonical labels, and keyword-routes
+by title. Raw `gh issue create` is how duplicate and mis-placed milestones crept in.
 
 ```bash
-gh issue create \
-  --title "[Bug] <short title>" \
-  --label "type:bug" \
-  --body-file /tmp/fichero-bug.md
+scripts/file_issue.sh \
+  --title "<short title>" \
+  --type bug \
+  --lane backend|client:swiftui|docs \
+  --milestone auto \
+  --body-file /tmp/fichero-bug.md \
+  --dry-run
 ```
+
+Run `--dry-run` first and read the milestone it resolved. If the router guesses
+wrong, pass `--milestone "<Exact Name>"`. Drop `--dry-run` to file.
 
 Use this body:
 
