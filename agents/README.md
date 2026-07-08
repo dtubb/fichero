@@ -12,7 +12,8 @@ operational tooling, not product code or user documentation.
   - `choose-next` — pick the next work from the roadmap priority spine.
   - `dispatch-worker` — spin up a worker in its own worktree/tmux window.
   - `gardener-agent` — repo/issue tidying (see `scripts/gardener.py`).
-  - `fichero-build` / `fichero-release-prep` / `fichero-release` — build, prep, and ship.
+  - `fichero-test` — run the `verify_all` gate at the right tier and file failures.
+  - `fichero-release` — build, notarize, and ship (wraps `scripts/release-all.sh`).
   - `bug` — file a bug as a GitHub issue mid-session.
   - `_shared` — principles shared across skills.
 - **`prompts/`** — reusable prompt fragments the skills compose (`manager-loop.md`,

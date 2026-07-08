@@ -1,75 +1,117 @@
 ---
-description: Publish a Fichero release — create GitHub release, upload DMG, update appcast, deploy site to tubb.ca. Run only after Daniel has reviewed /fichero-release-prep output.
 name: fichero-release
+description: Build, notarize, and publish a Fichero release — DMG + Sparkle/GitHub, or Mac TestFlight. Wraps scripts/release-all.sh. Only Daniel publishes.
 ---
 
 # /fichero-release
 
-> **⚠️ STALE — verify before use.** Overlaps the canonical release lane
-> (`scripts/release-all.sh` / `create-github-release.sh`, documented in `docs/release/release-lane.md`).
-> Reconcile to one source before relying on the steps below (tracked in `PLAN-GOVERNANCE.md` §5).
+One skill for the whole release lane. The commands here are thin wrappers around
+`scripts/release-all.sh`; the authoritative runbook (certificates, profiles,
+signing internals, troubleshooting) is **`docs/release/release-lane.md`** — read it
+before doing anything unusual.
 
-Publish the prepared release. Only run after `/fichero-release-prep` and Daniel's approval.
+**Hard rules**
 
-## Pre-check
+- Never run `xcodebuild test` or `scripts/verify_all.sh` on Daniel's desktop for
+  this lane. Build/archive only.
+- One `xcodebuild` at a time, machine-wide. The machine is slow.
+- Only Daniel publishes. Agents may build, notarize, and stage; the GitHub release
+  and the site deploy wait for his say-so.
 
-Before doing anything, confirm:
-1. `build/releases/Fichero.dmg` exists
-2. `build/releases/release-manifest.txt` exists
-3. Daniel has reviewed the DMG and release notes
+## Version
 
-If any of these are missing, tell Daniel to run `/fichero-release-prep` first.
+`release-all.sh` auto-stamps **today's date** (CalVer, `-beta` channel) across the
+Xcode project and the engine before any build runs; a second build the same day
+bumps a sub-number. Override with `FICHERO_RELEASE_VERSION=…`, or
+`FICHERO_RELEASE_BETA=0` for a stable stamp. Don't hand-edit `MARKETING_VERSION` —
+`scripts/set-release-version.sh` owns it.
 
-## Steps
-
-### 1. Commit release notes
-
-```bash
-git add docs/index.md
-git commit -m "docs: update release notes for v[version]"
-```
-
-### 2. Create GitHub release and upload DMG
+## 1. Build + notarize the DMG
 
 ```bash
-bash scripts/create-github-release.sh
+scripts/release-all.sh --skip-testflight
 ```
 
-This creates a GitHub release, uploads the DMG, and updates `appcast.xml`.
+Builds the Briefcase engine bundle → Xcode Release → styled DMG → notarize →
+staple. Add `--skip-backend` to reuse an already-built engine bundle.
 
-### 3. Commit and push appcast
+Artifacts land in `build/releases/`:
+
+- `Fichero.dmg`
+- `release-manifest.txt` (the stamped version)
+
+Verify the staple:
 
 ```bash
-git add fichero-swiftui/appcast.xml
-git commit -m "chore: update appcast for v[version]"
-git push
+xcrun stapler validate build/releases/Fichero.dmg
 ```
 
-### 4. Deploy site to tubb.ca
+If notarization returns `Invalid`, do **not** retry blindly — the `[2b/6]` step in
+`scripts/build-release-dmg.sh` signs each Mach-O inside the embedded engine
+individually. See `docs/release/release-lane.md` → *DMG Details* for the spot-check
+commands and why `codesign --deep` is forbidden here.
+
+## 2. Smoke-test before Daniel sees it
 
 ```bash
-bash scripts/deploy-site.sh
+scripts/smoke-launch-crash.sh              # launches, catches launch-time crashes
+scripts/smoke-release-embedded-backend.sh  # embedded engine actually starts
 ```
 
-### 5. Sparkle signing reminder
+Release builds embed and spawn the engine (Debug runs it externally on `:8765`).
+The smoke script launches from `~/Applications` on purpose — launching from the
+build directory shows the installer prompt first.
 
-Remind Daniel:
+Then open the DMG by hand and check: app icon, `Applications` symlink,
+move-to-Applications prompt, app launches, engine comes up.
+
+## 3. Release notes
+
+Newest-first, Apple "what's new" style (**New / Improved / Security / Fixed**), in
+`RELEASE_NOTES.md` at the repo root. `scripts/release-notes-gen.sh` drafts sections
+from git history + closed issues using a local ollama model — draft with it, then
+edit by hand. Every claim must match what actually shipped.
+
+## 4. Publish (Daniel's call)
+
+```bash
+scripts/create-github-release.sh --prerelease
 ```
-Sign the appcast entry with your Sparkle private key:
-  sign_update build/releases/Fichero.dmg
-Then replace SIGN_WITH_SPARKLE_PRIVATE_KEY in fichero-swiftui/appcast.xml
-Commit and push the signed appcast.
+
+Creates the GitHub release on `dtubb/fichero`, uploads the DMG, EdDSA-signs it with
+the Sparkle key from the Keychain, and updates `fichero/appcast.xml`. If it hangs,
+approve the Keychain prompt for the Sparkle private key — never print or export it.
+
+Commit and push the updated `fichero/appcast.xml`, then deploy the site:
+
+```bash
+scripts/deploy-site.sh
 ```
 
-### 6. Report
+Do not change `SPARKLE_FEED_URL` without a rebuild — it is baked into `Info.plist`.
+
+## Mac TestFlight (separate track, not the DMG)
+
+```bash
+scripts/release-all.sh --skip-dmg --skip-notarize
+```
+
+Archives `arm64` only and converts the dated version to a numeric App Store version
+(`2026.06.26-beta` → `2026.6.26`, build `20260626`). Internal TestFlight only.
+
+## Report
 
 ```
-FICHERO RELEASE — v[version] — [date]
+FICHERO RELEASE — <version> — <date>
 
-GitHub release: [URL]
-DMG uploaded:   ✓
-Appcast:        Updated (needs Sparkle signature)
-Site deployed:  ✓
+DMG:        [PASS/FAIL]  (<size>)
+Notarized:  [PASS/FAIL]  (stapler validate: …)
+Smoke:      [PASS/FAIL]  (launch + embedded engine)
 
-Remaining manual step: sign appcast with Sparkle private key
+Artifacts:  build/releases/Fichero.dmg
+            build/releases/release-manifest.txt
+
+Release notes: RELEASE_NOTES.md updated? [yes/no]
+
+Waiting on Daniel: review the DMG + notes, then step 4 (publish).
 ```
