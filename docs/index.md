@@ -105,7 +105,8 @@ Releases are dated, not numbered. Before 1.0, expect rough edges, changing
 workflows, and occasional library resets between builds. The app updates itself
 through Sparkle.
 
-*Release notes: [RELEASE_NOTES.md on GitHub](https://github.com/dtubb/fichero/blob/main/RELEASE_NOTES.md)*
+*[Release notes](https://github.com/dtubb/fichero/blob/main/RELEASE_NOTES.md) — what changed in each build you can download.
+[Changelog](https://github.com/dtubb/fichero/blob/main/CHANGELOG.md) — the full day-by-day history.*
 
 ---
 
