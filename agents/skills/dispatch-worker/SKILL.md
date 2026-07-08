@@ -13,7 +13,9 @@ from in-repo worktrees; false-green incremental builds; stale-tree pytest).
 - **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`** — a single isolated
   parent dir, NEVER bare siblings `~/code/fichero-<name>`. NEVER the Agent tool's
   `isolation: worktree` (lands in `.claude/worktrees/` inside the repo, which
-  `uvicorn --reload` watches). Create: `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main`.
+  `uvicorn --reload` watches). Create with `scripts/spawn-worker.sh` — it branches off
+  `origin/main`. NEVER `git worktree add … main`: local `main` is whatever you last
+  fetched, so the worker starts on stale code.
 - **DELETION SAFETY (2026-06-09 — I rm-deleted the separate `fichero-search` project):**
   remove worktrees with `git worktree remove --force <path>` ONLY (touches only registered
   worktrees). **NEVER `rm -rf` a `~/code/` path, and NEVER glob-delete `~/code/fichero-*`** —
@@ -47,32 +49,49 @@ from in-repo worktrees; false-green incremental builds; stale-tree pytest).
   ACROSS naturally-disjoint layers (SwiftUI / backend-routes / backend-storage / tooling /
   scripts); serialize same-file lanes so the second rebases on the first.
 
-## 1. Create the external worktree
+## 1. Spawn the worker — one command
+
+`scripts/spawn-worker.sh` is the canonical launcher. It does every step below correctly,
+which is why you should not do them by hand:
+
 ```bash
-git worktree add ~/code/fichero-worktrees/<name> -b <branch> main
+scripts/spawn-worker.sh <claude|opus|sonnet|haiku|codex> "<Milestone Title>" [session-name]
 ```
 
-## 2. Launch via tmux + send-keys (NOT `codex exec` — it hangs headless)
+1. `git fetch origin`, then `git worktree add <wt> -b ms/<slug> origin/main` — off
+   **`origin/main`**, not stale local `main`.
+2. Worktree under `$FICHERO_WORKTREES` (default: `fichero-worktrees/` beside the checkout).
+3. `tmux new-session -d` in that worktree — a **detached session per worker**
+   (`f_docs`, `f_release`, …), not windows inside one session.
+4. Activates the venv, so `ruff` / `pytest` are on the worker's `PATH`.
+5. Launches the agent (`claude` or `codex`, permissions bypassed) and feeds the
+   `session-start-worker` prompt scoped to that milestone.
 
-`codex exec --full-auto` is flaky non-interactively (stdin hang: "Reading additional
-input from stdin…"; or drops to interactive if the prompt arg is empty). The reliable,
-persistent, watchable pattern is an interactive codex in a named tmux window:
+It prints `tmux attach -t <session>`.
+
+## 2. Drive it
+
+Never `codex exec --full-auto` — it is flaky non-interactively (stdin hang: "Reading
+additional input from stdin…"; drops to interactive on an empty prompt arg). The worker
+is an interactive agent in its session; talk to it:
+
 ```bash
-tmux new-window -t fichero-workers -n <name> -c ~/code/fichero-worktrees/<name> "codex -m gpt-5.4-mini"
-sleep 2
-tmux send-keys -t fichero-workers:<name> "$(cat /tmp/<name>.txt)" Enter   # the Enter IS what runs it
+tmux send-keys -t <session> "$(cat /tmp/<name>.txt)" Enter   # the Enter IS what runs it
 ```
-Next batch → `tmux send-keys` to the SAME window (keeps context). Detect done by polling
-the worktree for a new commit and/or `tmux capture-pane`. Frontend = `claude` interactive
-the same way. **NEVER `pkill -f codex`** — kills Daniel's own windows; stop a lane with
-`tmux kill-window -t fichero-workers:<name>`.
+
+Next batch → `send-keys` to the SAME session (keeps context). Detect done by polling the
+worktree for a new commit, by `tmux capture-pane`, or by the worker's own
+`scripts/notify_manager.sh` line in `~/.fichero-manager-inbox`.
+
+**NEVER `pkill -f codex`** — it kills Daniel's own agents. Stop a lane with
+`tmux kill-session -t <session>`.
 
 **TRAP — codex "Update available!" prompt eats the task (2026-06-09, stalled a keystone lane).**
 A fresh `codex` window sometimes opens on `✨ Update available! … 1. Update now 2. Skip 3. Skip
 until next version / Press enter to continue` INSTEAD of the prompt box. If you `send-keys` the
 task into that, codex runs the menu, not your task — the lane produces nothing. ALWAYS
 `tmux capture-pane` right after launch (before sending the brief); if you see the update prompt,
-`tmux send-keys -t fichero-workers:<name> "3" Enter` (skip-until-next-version) first, wait for the
+`tmux send-keys -t <session> "3" Enter` (skip-until-next-version) first, wait for the
 prompt box, THEN send the brief. Belt-and-suspenders: launch with the update check disabled if the
 codex version supports it (e.g. an env flag / `--no-update-check`), else always do the capture-pane check.
 The brief MUST tell the worker to: mirror the right templates, register new

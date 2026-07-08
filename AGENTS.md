@@ -47,10 +47,24 @@ manager-with-workers loop:
 
 - The **manager** (`session-start-manager`) holds the control lane. It does not
   write source code. It triages issues, picks the next batch, and dispatches it.
-- Each **worker** runs in its OWN git worktree under
-  `~/code/fichero-worktrees/<name>`, in a separate tmux window, as an interactive
-  agent (`claude --dangerously-skip-permissions` or `codex --dangerously-bypass-approvals-and-sandbox` or `ollama launch codex -- --dangerously-bypass-approvals-and-sandbox`). A worker grinds one
-  milestone's GitHub issues and commits as itself (see Commit Attribution below).
+- Each **worker** runs in its OWN git worktree, in its own detached tmux session, as an
+  interactive agent. A worker grinds one milestone's GitHub issues and commits as itself
+  (see Commit Attribution below).
+
+  **`scripts/spawn-worker.sh` is the canonical launcher. Use it; do not hand-roll.**
+
+  ```bash
+  scripts/spawn-worker.sh <claude|opus|sonnet|haiku|codex> "<Milestone Title>" [session-name]
+  ```
+
+  It fetches, creates the worktree off **`origin/main`** (never stale local `main`),
+  opens a detached tmux session in it, activates the venv, launches the agent, and feeds
+  the worker prompt scoped to that milestone. Worktrees land under
+  `$FICHERO_WORKTREES` (default: a `fichero-worktrees/` beside your checkout). It prints
+  the `tmux attach -t <session>` command to watch it.
+
+  Hand-rolling `git worktree add … main` branches off whatever your local `main` happens
+  to be, which is how a worker starts on stale code.
 - The manager **reviews** each worker's output (ponytail lens plus `/code-review`),
   **build-gates** it, runs `verify_all`, then **merges via PR**, closes the issues,
   and **re-dispatches** the next batch. It checks in on the workers about every 15

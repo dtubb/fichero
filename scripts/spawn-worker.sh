@@ -7,7 +7,7 @@
 #   2. opens a detached tmux session in that worktree
 #   3. activates the shared .venv
 #   4. launches the agent (claude / codex) with permissions bypassed
-#   5. feeds it the /session-start-milestone-worker prompt scoped to the milestone
+#   5. feeds it the /session-start-worker prompt, scoped to drain one milestone
 #
 # Then it prints the one command you run to watch it: `tmux attach -t <session>`.
 #
@@ -72,8 +72,8 @@ else
   git -C "$ROOT" worktree add "$WORKTREE" -b "$BRANCH" origin/main
 fi
 
-# --- the milestone-worker prompt the agent receives on launch ----------------
-PROMPT="${SKILL}session-start-milestone-worker milestone: \"${MILESTONE}\". You are the ${MODEL} worker. Work through 5-15 open, unclaimed issues in this milestone. CLAIM each issue before coding (gh issue edit N --add-assignee @me --add-label status:in-progress; skip any issue already assigned or labelled status:in-progress). Verify every issue (ruff+pytest for backend, swiftlint/xcodebuild for Swift) before committing to this branch (${BRANCH}). Push every 2-3 issues. When done or far ahead, run ${SKILL}session-end-worker. Begin by listing unclaimed issues in the milestone."
+# --- the worker prompt the agent receives on launch ---------------------------
+PROMPT="${SKILL}session-start-worker. Milestone: \"${MILESTONE}\". You are the ${MODEL} worker. Work through 5-15 open, unclaimed issues in this milestone. CLAIM each issue before coding (gh issue edit N --add-assignee @me --add-label status:in-progress; skip any issue already assigned or labelled status:in-progress). COMMIT-ONLY: lint your own diff (ruff / swiftlint) but do NOT run pytest, xcodebuild, or verify_all — the manager owns the single build and the full suite. NEVER push; commit to ${BRANCH} and signal after each commit with: bash scripts/notify_manager.sh \"done #n (<sha>); next #m\". Blocked? notify_manager.sh --blocked \"why\" and move on. When the milestone has no ready issue, run ${SKILL}session-end. Begin by listing unclaimed issues in the milestone."
 
 # --- launch tmux session, activate venv, start agent, feed prompt ------------
 tmux new-session -d -s "$SESSION" -c "$WORKTREE"

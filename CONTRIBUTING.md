@@ -60,8 +60,8 @@ pip install pytest ruff
 ```
 
 The last line is not optional. `pytest` and `ruff` are neither runtime dependencies nor
-part of the `[dev]` extra, but `AGENTS.md` expects `.venv/bin/ruff` and
-`.venv/bin/pytest` to exist.
+part of the `[dev]` extra, but the lint and test commands in `AGENTS.md` assume both are
+on your `PATH`.
 
 **3. There is no `requirements.txt`.** `fichero-engine/pyproject.toml` is the
 dependency manifest: 37 runtime dependencies, plus the optional extras `[dev]` (15),
@@ -78,10 +78,11 @@ fail-closed, so a plain-HTTP engine cannot connect. Never run a bare `uvicorn`.
 bash fichero-engine/scripts/start_backend.sh
 ```
 
-Every Python command needs `PYTHONPATH=fichero-engine/src`:
+Every Python command needs `PYTHONPATH=fichero-engine/src` (with the venv from step 2
+activated, so `python` is the right one):
 
 ```bash
-PYTHONPATH=fichero-engine/src .venv/bin/python -c "import fichero"
+PYTHONPATH=fichero-engine/src python -c "import fichero"
 ```
 
 **5. Run the app.** Open `fichero/fichero.xcodeproj` in Xcode and run.
