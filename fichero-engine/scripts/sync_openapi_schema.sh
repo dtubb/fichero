@@ -26,6 +26,18 @@ PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/generate_openapi_cli
 
 NEW_SCHEMA="$API_ROOT/tests/contracts/openapi.json"
 DEST_SCHEMA="$REPO_ROOT/fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
+DOCS_SCHEMA="$REPO_ROOT/docs/contributor/api-reference/openapi.json"
+
+# Keep the PUBLISHED API-reference schema fresh, independently of the Swift
+# fast path below. The docs copy has no generator/build step, so nothing else
+# refreshes it — and the Swift bindings can be current while it has silently
+# drifted (it was ~11 KB stale before this). Do it unconditionally, before the
+# fast-path exit, so a no-op Swift sync still refreshes the docs copy.
+# ponytail: plain cmp+cp, no build.
+if [ ! -f "$DOCS_SCHEMA" ] || ! cmp -s "$NEW_SCHEMA" "$DOCS_SCHEMA"; then
+  cp "$NEW_SCHEMA" "$DOCS_SCHEMA"
+  echo "↻ Refreshed published API-reference schema (docs/contributor/api-reference/openapi.json)"
+fi
 
 # Fast path: if the freshly-exported schema is byte-identical to what the
 # Swift package already has, the OpenAPIGenerator output is current too —
