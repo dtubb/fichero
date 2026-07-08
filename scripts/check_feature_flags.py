@@ -24,26 +24,43 @@ ROOT = Path(__file__).resolve().parent.parent
 FEATURE_MANAGER = ROOT / "fichero" / "fichero" / "Models" / "FeatureManager.swift"
 RULE_DOC = "agents/ROADMAP.md"
 
+# Signatures are opaque, so every entry names the flag it grandfathers. Without
+# that, a dead entry cannot be told from a live one by reading the file.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "fichero/fichero/Models/FeatureManager.swift#01f2f36004": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#a19c6d7750": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#9fc452b62d": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#9b7016be65": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#30ec8f1a58": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#6549e3bd15": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#20213d49ea": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#75ebc78947": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#61bb9b568c": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#8d6717ab7d": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#caee915430": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#caa37e8508": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#ef77c099ff": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#3ab4c9e236": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#a381bd0df3": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#7ef8e97466": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#ca1127921a": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#04dca90e13": "#1922 baseline",
-    "fichero/fichero/Models/FeatureManager.swift#3e90ccfee5": "#1922 baseline",
+    # --- defaults true at declaration ---
+    "fichero/fichero/Models/FeatureManager.swift#01f2f36004": "#1922 baseline: search (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#a19c6d7750": "#1922 baseline: library_advanced_views (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#9fc452b62d": "#1922 baseline: search_advanced_views (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#9b7016be65": "#1922 baseline: library_search_split_layouts (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#30ec8f1a58": "#1922 baseline: knowledge_graph (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#cf51c23a39": "shipped on in release profile v31: settings_general_tab (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#64535b1af0": "shipped on in release profile v31: settings_engine_tab (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#6d899fe1a8": "shipped on in release profile v31: settings_share_tab (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#c2da8d6ed5": "shipped on in release profile v31: settings_users_tab (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#5dd332b721": "shipped on in release profile v31: settings_capture_tab (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#2803a1d660": "shipped on in release profile v31: research (declaration)",
+    # --- set true in resetToV001() release defaults ---
+    "fichero/fichero/Models/FeatureManager.swift#6549e3bd15": "#1922 baseline: library_advanced_views (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#20213d49ea": "#1922 baseline: search (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#75ebc78947": "#1922 baseline: search_advanced_views (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#61bb9b568c": "#1922 baseline: library_icon_zoom_controls (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#8d6717ab7d": "#1922 baseline: workflows (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#caee915430": "#1922 baseline: workflow_editor_advanced_views (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#caa37e8508": "#1922 baseline: workflow_chains (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#ef77c099ff": "#1922 baseline: batches (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#3ab4c9e236": "#1922 baseline: workflow_tools_files (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#a381bd0df3": "#1922 baseline: workflow_import_export (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#7ef8e97466": "#1922 baseline: workflow_langgraph_preview (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#ca1127921a": "#1922 baseline: workflow_files_toolbar_button (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#04dca90e13": "#1922 baseline: workflow_run_on_selection (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#3e90ccfee5": "#1922 baseline: knowledge_graph (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#30894e7ab9": "shipped on in release profile v31: activity (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#4712fd879e": "shipped on in release profile v31: settings_general_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#b59a81d537": "shipped on in release profile v31: settings_engine_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#9ebf668b6b": "shipped on in release profile v31: settings_share_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#16fbdfae71": "shipped on in release profile v31: settings_users_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#276153fd1c": "shipped on in release profile v31: settings_capture_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#25d21ce82a": "shipped on in release profile v31: research (resetToV001)",
 }
 _APP_STORAGE_BOOL = re.compile(
     r'@AppStorage\("(?P<key>fichero\.features\.[^"]+)"\)\s*'
