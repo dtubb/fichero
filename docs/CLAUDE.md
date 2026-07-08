@@ -124,7 +124,7 @@ let workflows = try response.ok.body.json
 ./fichero-engine/scripts/sync_openapi_schema.sh
 ```
 
-See `docs/architecture/swiftui/api_client.md` for detailed documentation
+See `docs/contributor/architecture/swiftui/api_client.md` for detailed documentation
 
 ### Ingest System
 
@@ -259,7 +259,7 @@ Workflows are defined as visual graphs in the Swift UI but executed in Python vi
    - Avoid creating manual Swift types that shadow generated types
    - Keep `GeneratedTypeExtensions.swift` minimal (just Identifiable conformances)
 
-See `docs/architecture/swiftui/api_migration_guide.md` and `docs/architecture/swiftui/api_client.md` for current API-client cleanup context.
+See `docs/contributor/architecture/swiftui/api_migration_guide.md` and `docs/contributor/architecture/swiftui/api_client.md` for current API-client cleanup context.
 
 ## Git Workflow, Commits, Tasks, Parallelism
 
@@ -446,7 +446,7 @@ class APIClient: ObservableObject {
 ### Essential Documentation
 - **`docs/CLAUDE.md`** (this file) - Canonical agent guidance
 - **`docs/contributor/swiftui-principles.md`** - MANDATORY SwiftUI patterns (18KB)
-- **`docs/architecture/swiftui/api_migration_guide.md`** - OpenAPI client migration guide
+- **`docs/contributor/architecture/swiftui/api_migration_guide.md`** - OpenAPI client migration guide
 - **`docs/contributor/swiftui-development-standards.md`** - File size limits, Swift 6 guidelines
 - **`docs/contributor/backend-development-standards.md`** - Backend development standards
 - **GitHub Issues + Milestones + Project board** - task backlog & source of truth (`gh issue list`)
@@ -477,7 +477,7 @@ class APIClient: ObservableObject {
 ## Additional Resources
 
 ### Architecture Documentation
-Full architectural context is in `docs/architecture/`:
+Full architectural context is in `docs/contributor/architecture/`:
 
 **SwiftUI Documentation:**
 - `overview.md` - Frontend architecture overview
@@ -501,4 +501,4 @@ Full architectural context is in `docs/architecture/`:
 
 ---
 
-**Note:** This document is the canonical source of agent guidance. When in doubt, refer to the architecture documentation in `docs/architecture/` for detailed implementation patterns and examples.
+**Note:** This document is the canonical source of agent guidance. When in doubt, refer to the architecture documentation in `docs/contributor/architecture/` for detailed implementation patterns and examples.

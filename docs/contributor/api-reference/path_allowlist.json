@@ -1,5 +1,5 @@
 {
-  "_doc": "Public OpenAPI paths not yet mentioned verbatim in docs/api-reference/*.md. Drop an entry once the exact path string is documented there. CI-enforced.",
+  "_doc": "Public OpenAPI paths not yet mentioned verbatim in docs/contributor/api-reference/*.md. Drop an entry once the exact path string is documented there. CI-enforced.",
   "paths": {
     "/api/actions": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/actions/audit": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",

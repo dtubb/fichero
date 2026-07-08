@@ -99,7 +99,7 @@ propagate for chunked retry.
 
 ### Documentation
 
-The `docs/architecture/api/development_standards.md` file now has six
+The `docs/contributor/architecture/api/development_standards.md` file now has six
 documented contracts under "LLM Stack Architecture (post-#872)" covering
 the error hierarchy, timeout helper, reasoning routing, schema fail-loud
 guarantee, fm-bridge canonical decision, and the `collect_usage`

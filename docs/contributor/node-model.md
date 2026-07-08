@@ -213,7 +213,7 @@ Planned, not yet built:
 
 ## What is still planned
 
-The larger fold plan in `docs/architecture/node_model_fold_staging.md` is still
+The larger fold plan in `docs/contributor/architecture/node_model_fold_staging.md` is still
 mostly a staging document, not a completion record.
 
 What is shipped now:

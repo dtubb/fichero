@@ -35,7 +35,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
 SDEF = APP_DIR / "Fichero.sdef"
-RULE_DOC = "docs/architecture/swiftui/reform_masterplan_2026-06.md"
+RULE_DOC = "docs/contributor/architecture/swiftui/reform_masterplan_2026-06.md"
 
 _COCOA_CLASS_RE = re.compile(r'cocoa\s+class="(Fichero[A-Za-z0-9_]+)"')
 _SWIFT_CLASS_RE = re.compile(r"\bclass\s+(Fichero[A-Za-z0-9_]+)")

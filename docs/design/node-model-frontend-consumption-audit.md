@@ -4,7 +4,7 @@
 
 > **Status: PLANNING (read-only).** Frontend companion to the backend audit
 > (`endpoints-vs-ux-audit.md`, landed on the backend line) and the staging doc
-> (`docs/architecture/node_model_fold_staging.md`). Maps the **Swift surface**
+> (`docs/contributor/architecture/node_model_fold_staging.md`). Maps the **Swift surface**
 > that consumes each fold-target endpoint family, so when a backend fold lands
 > the frontend migration is pre-scoped. **No implementation here** — the fold is
 > Daniel-deferred to post-TestFlight and is backend-first (every slice gates on
@@ -104,7 +104,7 @@ keeps it) and `multilingual` (has live Swift service methods).
 
 ## Cross-references
 
-- `docs/architecture/node_model_fold_staging.md` — the fold path + P1–P6 gates.
+- `docs/contributor/architecture/node_model_fold_staging.md` — the fold path + P1–P6 gates.
 - `endpoints-vs-ux-audit.md` (backend line) — the backend endpoint audit (#2588).
 - #2081 — the node-model EPIC (foundation gaps P1–P6).
 - #2636 — `LibraryItemLink` (relations target for F5 connections).

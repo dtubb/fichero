@@ -38,7 +38,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_DIR = ROOT / "fichero" / "fichero-api-client" / "Sources"
-RULE_DOC = "docs/architecture/swiftui/api_client.md"
+RULE_DOC = "docs/contributor/architecture/swiftui/api_client.md"
 
 # The ONLY approved transport file(s) in the package: the pinned-session owner.
 ALLOWLIST: set[str] = {"RemoteCertificatePinning.swift"}

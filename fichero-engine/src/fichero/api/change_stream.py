@@ -3,7 +3,7 @@
 The foundation of the observable data layer: an in-process fan-out that lets
 mutating routes broadcast ``ChangeEvent``s to every connected app window for a
 given library. This is the backend half of the spec in
-``docs/architecture/swiftui/observable_data_layer.md``.
+``docs/contributor/architecture/swiftui/observable_data_layer.md``.
 
 It deliberately mirrors the proven workflow-run SSE infra
 (``api/routes/workflow_execution`` — ``StreamingResponse(text/event-stream)``

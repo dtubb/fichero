@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Observable-data-layer guardrail — flag Views that bypass an @Observable store.
 
-The rule (see docs/architecture/swiftui/observable_data_layer.md §1):
+The rule (see docs/contributor/architecture/swiftui/observable_data_layer.md §1):
 
     > A view never calls a backend endpoint. It observes an @Observable domain
     > store and renders what the store publishes. The store is the only endpoint
@@ -47,7 +47,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
-RULE_DOC = "docs/architecture/swiftui/observable_data_layer.md"
+RULE_DOC = "docs/contributor/architecture/swiftui/observable_data_layer.md"
 
 # Filename substrings for the sanctioned AppKit bridges (display-only, not data
 # access) — these are allowed to touch the platform directly. See docs/CLAUDE.md

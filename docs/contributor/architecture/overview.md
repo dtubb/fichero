@@ -43,14 +43,14 @@ than deleting databases.
 
 ## Canonical architecture docs
 
-- Audited mutation path / action registry: `docs/architecture/action_layer.md`
-- API/backend architecture: `docs/architecture/api/overview.md`
-- AI infrastructure and model policy: `docs/architecture/ai_infrastructure.md`
-- Image editing backend strategy: `docs/architecture/image_editing_backend_strategy.md`
-- Pi in-app agent harness: `docs/architecture/pi_agent_harness.md`
-- MLX/on-device agent service boundary: `docs/architecture/mlx_on_device_agent.md`
-- Workflow multi-pass engine primitives: `docs/architecture/workflow_multi_pass_engine.md`
-- SwiftUI/frontend architecture: `docs/architecture/swiftui/overview.md`
+- Audited mutation path / action registry: `docs/contributor/architecture/action_layer.md`
+- API/backend architecture: `docs/contributor/architecture/api/overview.md`
+- AI infrastructure and model policy: `docs/contributor/architecture/ai_infrastructure.md`
+- Image editing backend strategy: `docs/contributor/architecture/image_editing_backend_strategy.md`
+- Pi in-app agent harness: `docs/contributor/architecture/pi_agent_harness.md`
+- MLX/on-device agent service boundary: `docs/contributor/architecture/mlx_on_device_agent.md`
+- Workflow multi-pass engine primitives: `docs/contributor/architecture/workflow_multi_pass_engine.md`
+- SwiftUI/frontend architecture: `docs/contributor/architecture/swiftui/overview.md`
 - SwiftUI principles: `docs/contributor/swiftui-principles.md`
 
 ## Local run

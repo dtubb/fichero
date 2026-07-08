@@ -1,6 +1,6 @@
 """ActionRegistry — the single audited write path (EPIC #1848 / keystone #2013).
 
-See ``docs/architecture/action_layer.md``. The shapes here are the interface
+See ``docs/contributor/architecture/action_layer.md``. The shapes here are the interface
 contract the per-domain sweep (#2014) builds on; do not fork them.
 
 Snapshot approach (design choice **(a)**): the action's ``execute`` returns

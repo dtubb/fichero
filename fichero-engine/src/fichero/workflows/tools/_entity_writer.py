@@ -5,7 +5,7 @@ Centralizes the upsert + claim save pattern so each extractor in
 outputs (people, places, organizations, events, concepts) into the
 existing knowledge-graph layer (`KnowledgeEntity`, `KnowledgeClaim`).
 
-See `docs/architecture/typed_entity_storage.md` §0 for the design and
+See `docs/contributor/architecture/typed_entity_storage.md` §0 for the design and
 `docs/superpowers/plans/2026-04-28-typed-entity-storage.md` for the
 implementation plan (#728).
 """

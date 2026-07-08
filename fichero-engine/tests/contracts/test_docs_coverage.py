@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 OPENAPI = ROOT / "fichero-engine" / "tests" / "contracts" / "openapi.json"
-DOCS_DIR = ROOT / "docs" / "api-reference"
+DOCS_DIR = ROOT / "docs" / "contributor" / "api-reference"
 ALLOWLIST = DOCS_DIR / "path_allowlist.json"
 
 
@@ -36,7 +36,7 @@ def test_every_public_openapi_path_is_documented_or_allowlisted() -> None:
     missing = sorted(public - documented - set(allowlisted))
 
     assert not missing, (
-        f"{len(missing)} public OpenAPI path(s) are not mentioned in docs/api-reference/*.md "
+        f"{len(missing)} public OpenAPI path(s) are not mentioned in docs/contributor/api-reference/*.md "
         f"and not allowlisted in {ALLOWLIST.relative_to(ROOT)}:\n  " + "\n  ".join(missing)
     )
 

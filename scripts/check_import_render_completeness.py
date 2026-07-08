@@ -41,7 +41,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PY_MODELS = ROOT / "fichero-engine" / "src" / "fichero" / "models.py"
 DECODER = ROOT / "fichero" / "fichero" / "Services" / "DocumentServiceGenerated.swift"
-RULE_DOC = "docs/architecture/swiftui/reform_masterplan_2026-06.md"
+RULE_DOC = "docs/contributor/architecture/swiftui/reform_masterplan_2026-06.md"
 
 # Engine enum  ->  the Swift decoder switch that classifies it into a renderer.
 ENUM_DECODERS = {

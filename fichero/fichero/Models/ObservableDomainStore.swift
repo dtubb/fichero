@@ -75,7 +75,7 @@ final class ReloadDebouncer {
 ///
 /// Adopting it composes onto the existing `@Observable final class … :
 /// ChangeEventConsumer` declaration — no superclass change, no `@Observable`
-/// re-application. (See docs/architecture/swiftui/observable_data_layer.md.)
+/// re-application. (See docs/contributor/architecture/swiftui/observable_data_layer.md.)
 @MainActor
 // `Sendable`: every adopter is a `@MainActor @Observable final class` (implicitly
 // Sendable), so the `[weak self]` capture in `scheduleReload`'s `@Sendable`

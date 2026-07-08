@@ -58,15 +58,15 @@ Full contributor index: [docs/contributor/README.md](contributor/README.md)
 
 Internal architecture docs for contributors working on specific subsystems:
 
-- [docs/architecture/overview.md](./architecture/overview.md)
-- [docs/architecture/action_layer.md](./architecture/action_layer.md)
-- [docs/architecture/ai_infrastructure.md](./architecture/ai_infrastructure.md)
-- [docs/architecture/image_editing_backend_strategy.md](./architecture/image_editing_backend_strategy.md)
-- [docs/architecture/pi_agent_harness.md](./architecture/pi_agent_harness.md)
-- [docs/architecture/mlx_on_device_agent.md](./architecture/mlx_on_device_agent.md)
-- [docs/architecture/thinking-layer.md](./architecture/thinking-layer.md)
-- [docs/architecture/swiftui/](./architecture/swiftui/)
-- [docs/architecture/api/](./architecture/api/)
+- [docs/contributor/architecture/overview.md](./contributor/architecture/overview.md)
+- [docs/contributor/architecture/action_layer.md](./contributor/architecture/action_layer.md)
+- [docs/contributor/architecture/ai_infrastructure.md](./contributor/architecture/ai_infrastructure.md)
+- [docs/contributor/architecture/image_editing_backend_strategy.md](./contributor/architecture/image_editing_backend_strategy.md)
+- [docs/contributor/architecture/pi_agent_harness.md](./contributor/architecture/pi_agent_harness.md)
+- [docs/contributor/architecture/mlx_on_device_agent.md](./contributor/architecture/mlx_on_device_agent.md)
+- [docs/contributor/architecture/thinking-layer.md](./contributor/architecture/thinking-layer.md)
+- [docs/contributor/architecture/swiftui/](./contributor/architecture/swiftui/)
+- [docs/contributor/architecture/api/](./contributor/architecture/api/)
 
 ---
 

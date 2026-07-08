@@ -381,11 +381,11 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 - [ ] Changed workflow → Update this file
 
 ### Doc Locations
-- `docs/architecture/swiftui/overview.md` - High-level architecture
-- `docs/architecture/swiftui/key_files.md` - File organization
+- `docs/contributor/architecture/swiftui/overview.md` - High-level architecture
+- `docs/contributor/architecture/swiftui/key_files.md` - File organization
 - `docs/contributor/swiftui-principles.md` - Code patterns
 - `docs/contributor/swiftui-development-standards.md` - Standards and guidelines
-- `docs/architecture/swiftui/workflow_checklist.md` - This file
+- `docs/contributor/architecture/swiftui/workflow_checklist.md` - This file
 
 ---
 
@@ -394,7 +394,7 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 ### Quick Links
 - Backend API: http://localhost:8765/docs
 - Sample Code: `fichero/sample_code`
-- Frontend Docs: `docs/architecture/swiftui/`
+- Frontend Docs: `docs/contributor/architecture/swiftui/`
 - TODO List: GitHub Issues + Milestones (the source of truth; the old `agent-work/agent-workflow/TODO.md` is retired)
 
 ### MCP Tools

@@ -89,5 +89,5 @@ the OpenAPI schema after backend changes, the three-leg Swift check) live in the
 - Repo-wide workflow and verification: [../AGENTS.md](../AGENTS.md)
 - SwiftUI conventions: [../docs/contributor/swiftui-development-standards.md](../docs/contributor/swiftui-development-standards.md)
 - OpenAPI round-trip contract: [../docs/contributor/openapi-and-clients.md](../docs/contributor/openapi-and-clients.md)
-- Observable data layer: [../docs/architecture/swiftui/observable_data_layer.md](../docs/architecture/swiftui/observable_data_layer.md)
+- Observable data layer: [../docs/contributor/architecture/swiftui/observable_data_layer.md](../docs/contributor/architecture/swiftui/observable_data_layer.md)
 - Sparkle updater release setup: [../docs/release/sparkle-release.md](../docs/release/sparkle-release.md)

@@ -2,7 +2,7 @@
 
 # Fichero Developer Docs
 
-This section explains how the current Fichero codebase works for contributors. It is grounded in the live SwiftUI client under `fichero/fichero/`, the FastAPI engine under `fichero-engine/src/fichero/`, and the architecture notes already present in `docs/architecture/`.
+This section explains how the current Fichero codebase works for contributors. It is grounded in the live SwiftUI client under `fichero/fichero/`, the FastAPI engine under `fichero-engine/src/fichero/`, and the architecture notes already present in `docs/contributor/architecture/`.
 
 ## Table of Contents
 
@@ -45,6 +45,6 @@ For audited cross-surface mutations, the starting point is the action registry. 
 
 - Detailed architecture + dev guide: [../CLAUDE.md](../CLAUDE.md)
 - Operational rules: [../../AGENTS.md](../../AGENTS.md)
-- Backend overview: [../architecture/api/overview.md](../architecture/api/overview.md)
-- SwiftUI overview: [../architecture/swiftui/overview.md](../architecture/swiftui/overview.md)
-- API client contract notes: [../architecture/swiftui/api_client.md](../architecture/swiftui/api_client.md)
+- Backend overview: [../architecture/api/overview.md](architecture/api/overview.md)
+- SwiftUI overview: [../architecture/swiftui/overview.md](architecture/swiftui/overview.md)
+- API client contract notes: [../architecture/swiftui/api_client.md](architecture/swiftui/api_client.md)

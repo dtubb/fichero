@@ -98,7 +98,7 @@ class LibraryManager {
         // above. One per library, shared across that library's windows, so a
         // mutation in one window reaches every window's views through the shared
         // store. Lazy: built on first use. See
-        // docs/architecture/swiftui/observable_data_layer.md.
+        // docs/contributor/architecture/swiftui/observable_data_layer.md.
         @ObservationIgnored lazy var entityStore: EntityStore = EntityStore(
             entityService: entityService,
             kgCurationService: kgCurationService,

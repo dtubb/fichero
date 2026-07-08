@@ -6,7 +6,7 @@ this covers the app (`fichero/fichero/**`), which the package guard does not.
 SwiftUI should display backend objects through the generated FicheroAPIClient;
 custom transport is allowed only for the audited KEEP sites (SSE streams, engine
 health/lifecycle, auth probe, multipart import — see
-docs/architecture/swiftui/raw_urlsession_audit_1666.md) and only via the pinned
+docs/contributor/architecture/swiftui/raw_urlsession_audit_1666.md) and only via the pinned
 `RemoteCertificatePinning.configuredSession()`.
 
 This is a RATCHET: every file that currently touches raw URLSession is
@@ -33,7 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
-AUDIT_DOC = "docs/architecture/swiftui/raw_urlsession_audit_1666.md"
+AUDIT_DOC = "docs/contributor/architecture/swiftui/raw_urlsession_audit_1666.md"
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"(?<!:)//.*")

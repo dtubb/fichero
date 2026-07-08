@@ -52,7 +52,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_SRC = ROOT / "fichero-engine" / "src" / "fichero"
-RULE_DOC = "docs/architecture/swiftui/reform_masterplan_2026-06.md"
+RULE_DOC = "docs/contributor/architecture/swiftui/reform_masterplan_2026-06.md"
 
 # The canonical shared models folder, as defined in fichero/paths.py.
 CANONICAL_MODELS_DIR_EXPR = 'engine_state_dir() / "models"'

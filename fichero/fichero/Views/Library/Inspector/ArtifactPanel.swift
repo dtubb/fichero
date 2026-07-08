@@ -22,7 +22,7 @@ enum CatalogueArtifactPreviews {
 /// overwrite what's already on screen.
 ///
 /// Phase 1: read-only display. Phase 2 will add per-artifact actions
-/// (copy, regenerate, hide). See docs/architecture/swiftui/inspector_redesign.md.
+/// (copy, regenerate, hide). See docs/contributor/architecture/swiftui/inspector_redesign.md.
 struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     enum PanelKind {
         case artifact(Artifact)

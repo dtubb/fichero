@@ -152,7 +152,7 @@ The version date is stamped **at build time** — it does not auto-update when y
 Three failure modes that bite *silently*, with no exception and no test failure, just data that vanishes or rows that hide. Load-bearing, not style:
 
 1. **Declare every field on the Pydantic model.** `extra="allow"` lets unknown fields write at runtime, but `model_dump()` only serializes declared fields, so the next read drops them. Add the DB column + the model field + the OpenAPI-typed schema field in the same commit. (`feedback_pydantic_field_must_be_declared.md`)
-2. **Swift wrappers set OpenAPI-typed fields, not `additionalProperties`.** Declared fields dumped into `additionalProperties` round-trip on the wire, but the backend Pydantic model ignores them, so the write is lost. (`docs/architecture/swiftui/api_client.md`)
+2. **Swift wrappers set OpenAPI-typed fields, not `additionalProperties`.** Declared fields dumped into `additionalProperties` round-trip on the wire, but the backend Pydantic model ignores them, so the write is lost. (`docs/contributor/architecture/swiftui/api_client.md`)
 3. **Endpoint defaults matched by strict equality against seed data are foot-guns.** A `folder_path: str = "/"` default silently stops returning rows the moment seed JSON shape changes. Default `Optional[T] = None`, filter only when the caller passes a value, add a regression test. (#722 → #723)
 
 When seed-data shape changes, the shape change and every filter that reads it ship together.
@@ -220,7 +220,7 @@ lives alongside them and stays buildable reference. So:
 
 - **`docs/`** — all durable documentation: the curated user manual (`docs/user/`),
   contributor docs (`docs/contributor/`), API reference, How It's Built, and the
-  architecture/runbook reference (`docs/architecture/`, `docs/release/`, etc.). Put
+  architecture/runbook reference (`docs/contributor/architecture/`, `docs/release/`, etc.). Put
   public-worthy pages in `nav`; leave internal reference out of `nav` but in `docs/`.
 - **`agent-work/`** — AGENT scratch, never part of `docs/` or the build: session
   notes, handoffs, QA logs, reviews, validation reports, audits, triage, design
@@ -240,7 +240,7 @@ internal design docs out of `nav` rather than out of `docs/`.
 | `CONSTITUTION.md` | Product north star: what we're building, why, what it's not, hard constraints |
 | `AGENTS.md` | This file — operational manual + hard rules |
 | `docs/CLAUDE.md` | Full architecture & development guide (canonical, detailed) |
-| `docs/architecture/` | Architecture docs |
+| `docs/contributor/architecture/` | Architecture docs |
 | `USER.md` | About Daniel — who he is, constraints |
 | `STATE.md` | Local working notes (gitignored, not in the repo) — current branch, focus, next session |
 | `MEMORY.md` | Local working notes (gitignored, not in the repo) — persistent lessons and decisions |
@@ -257,7 +257,7 @@ internal design docs out of `nav` rather than out of `docs/`.
 1. Never push directly to `main` — always go through a PR (create it and merge it yourself).
 2. Never skip build, test, lint before marking work complete.
 3. Never modify genuinely auto-generated files: `openapi.json`, anything under `fichero/fichero-api-client/.build/`, anything under `fichero/fichero-api-client/Sources/FicheroAPIClient/` that's produced by the OpenAPI generator. **Note:** `fichero/fichero/Services/*Generated.swift` files are *hand-written service wrappers* (despite the confusing suffix) and CAN be edited. The `openapi.json` files ARE regenerated from the backend (via `fichero-engine/scripts/sync_openapi_schema.sh`) and that regen output should be committed — what's forbidden is hand-editing them.
-4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field that's declared in `openapi.json`. Dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` — see commit 31fc4141 for the pattern and `docs/architecture/swiftui/api_client.md` for context.
+4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field that's declared in `openapi.json`. Dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` — see commit 31fc4141 for the pattern and `docs/contributor/architecture/swiftui/api_client.md` for context.
 5. Never start coding before a plan exists for non-trivial work.
 6. `PYTHONPATH` must be set to `fichero-engine/src` for all Python commands.
 7. Never create per-task branches — commit all work to the milestone branch directly.
@@ -270,8 +270,8 @@ internal design docs out of `nav` rather than out of `docs/`.
 
 ## Before editing backend or API-client code
 
-Read `docs/architecture/` first — specifically:
-- `docs/architecture/swiftui/api_client.md` for the OpenAPI round-trip contract.
+Read `docs/contributor/architecture/` first — specifically:
+- `docs/contributor/architecture/swiftui/api_client.md` for the OpenAPI round-trip contract.
 - `docs/contributor/backend-development-standards.md` for backend conventions.
 - `docs/contributor/swiftui-development-standards.md` for Swift conventions.
 

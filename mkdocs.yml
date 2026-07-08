@@ -131,10 +131,10 @@ nav:
           - Backend Standards: contributor/backend-development-standards.md
           - Extensibility Guarantee: contributor/extensibility-guarantee.md
       - Architecture Notes:
-          - System Overview: architecture/overview.md
-          - Backend API Overview: architecture/api/overview.md
-          - SwiftUI Overview: architecture/swiftui/overview.md
-          - Release Process: architecture/release-process.md
+          - System Overview: contributor/architecture/overview.md
+          - Backend API Overview: contributor/architecture/api/overview.md
+          - SwiftUI Overview: contributor/architecture/swiftui/overview.md
+          - Release Process: contributor/architecture/release-process.md
           - 0.1.0 QA Sign-Off: release/qa-signoff-0.1.0.md
-  - API Reference: api-reference/index.md
+  - API Reference: contributor/api-reference/index.md
   - How It's Built: how-its-built.md
