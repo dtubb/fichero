@@ -203,6 +203,11 @@ def match_to_reference(
         return None
 
     value_lower = value.lower().strip()
+    # An empty value has nothing to match — bail out before fuzzy matching,
+    # where "" would be a substring of every reference and spuriously match
+    # the first one.
+    if not value_lower:
+        return None
 
     # Exact match first
     for ref in reference_values:
@@ -212,10 +217,11 @@ def match_to_reference(
     if not fuzzy:
         return None
 
-    # Fuzzy matching: check if value is contained in or contains a reference
+    # Fuzzy matching: check if value is contained in or contains a reference.
+    # Skip empty references for the same reason ("" is a substring of anything).
     for ref in reference_values:
         ref_lower = ref.lower().strip()
-        if value_lower in ref_lower or ref_lower in value_lower:
+        if ref_lower and (value_lower in ref_lower or ref_lower in value_lower):
             return ref
 
     return None
