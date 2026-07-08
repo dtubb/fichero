@@ -204,8 +204,13 @@ if [ "$SKIP_TESTFLIGHT" = false ]; then
   </dict>
   <key>testFlightInternalTestingOnly</key>
   <true/>
+  <!-- uploadSymbols=false skips IDEDistributionSymbolsStep. The embedded Python
+       engine bundles a Mach-O the dSYM symbol extractor rejects with
+       "unexpected Mach-O header code: 0xb17c0de"; the app itself packages/signs
+       fine. Skipping symbol upload sidesteps that non-blocking step (we forgo
+       crash symbolication, acceptable for a beta). -->
   <key>uploadSymbols</key>
-  <true/>
+  <false/>
   <key>manageAppVersionAndBuildNumber</key>
   <false/>
 </dict>
