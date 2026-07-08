@@ -297,7 +297,7 @@ All files involved in bundling:
 ## Questions?
 
 Refer to:
-- `docs/BUNDLING_BACKEND.md` - Architecture overview
-- `docs/SETUP_BUNDLED_BACKEND.md` - This file
+- `docs/contributor/bundling-backend.md` - Architecture overview
+- `docs/contributor/setup-bundled-backend.md` - This file
 - Build script output for diagnostics
 - Xcode build logs for detailed errors

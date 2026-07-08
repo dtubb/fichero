@@ -101,7 +101,7 @@ A few rules the codebase relies on:
 
 ## Releases
 
-The release lane is documented in [docs/release/release-lane.md](docs/release/release-lane.md).
+The release lane is documented in [docs/contributor/release/release-lane.md](docs/contributor/release/release-lane.md).
 It covers the notarized DMG/Sparkle/GitHub path and the separate Mac TestFlight
 archive/upload path. The wrapper script is:
 

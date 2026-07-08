@@ -11,7 +11,7 @@ Date: 2026-07-06
 The shipped backend is a Briefcase-packaged macOS app, not an iOS target.
 
 - `fichero-engine/pyproject.toml` defines one Briefcase app, `tool.briefcase.app.engine`, with a `[tool.briefcase.app.engine.macOS]` section and no iOS briefcase target.
-- The current bundle assumes a nested macOS backend app (`docs/BUNDLING_BACKEND.md`).
+- The current bundle assumes a nested macOS backend app (`docs/contributor/bundling-backend.md`).
 - The frontend currently pins iOS/iPadOS as a remote-client surface, not an embedded-engine surface:
   - `fichero/fichero/Services/EngineConfig.swift`: “iOS/iPadOS never runs a local engine.”
   - `fichero-engine/tests/unit/test_check_ios_remote_client_target.py` guards that posture.
@@ -71,7 +71,7 @@ Notes:
 | `cryptography` | TLS, token/security helpers | native wheels for macOS/Linux; no iOS wheel seen | YELLOW | Mature package, but still native. Likely workable only if the embed toolchain can build/link it for iOS. |
 | `zeroconf` | Bonjour discovery | native wheels for macOS/Linux; no iOS wheel seen | YELLOW | Discovery is not core to “local single-device library”; could be gated out on iPad if needed. |
 | `duckdb` | library DB | macOS arm64 wheels, no iOS wheel seen | YELLOW | Critical for current engine shape; likely one of the hardest mobile-port questions. |
-| `lancedb` + `pylance` + `pyarrow` | vector store/search | native macOS arm64 wheels, no iOS wheel seen | RED | Heavy native data stack; largest remaining bundle cost on Mac per `docs/release/backend-python-dependencies.md`. |
+| `lancedb` + `pylance` + `pyarrow` | vector store/search | native macOS arm64 wheels, no iOS wheel seen | RED | Heavy native data stack; largest remaining bundle cost on Mac per `docs/contributor/release/backend-python-dependencies.md`. |
 | `fastembed` + `onnxruntime` | local embeddings | `fastembed` is pure Python, but depends on native `onnxruntime`; no iOS wheel seen for `onnxruntime` | RED | Current local embeddings path is not a good fit for iOS as-is. |
 | `PyMuPDF` / `fitz` | PDF render/text extract | native macOS arm64 wheels, no iOS wheel seen | YELLOW | Important for import/preview, but native and large. |
 | `Pillow` / `PIL` | image IO/manipulation | PyPI publishes iOS wheels | GREEN | One of the few current native deps with explicit iOS wheel coverage. |

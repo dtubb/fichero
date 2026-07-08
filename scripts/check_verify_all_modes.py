@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 VERIFY_ALL = ROOT / "scripts" / "verify_all.sh"
 CHECKLIST = ROOT / "docs" / "remote-pairing-smoke-checklist.md"
-CAPTURE_MATRIX = ROOT / "docs" / "qa" / "CAPTURE_SMOKE_MATRIX.md"
+CAPTURE_MATRIX = ROOT / "docs" / "contributor" / "qa" / "capture-smoke-matrix.md"
 
 
 def _read(path: Path) -> str:
@@ -75,7 +75,7 @@ def scan() -> dict[str, str]:
                 )
 
     if not CAPTURE_MATRIX.exists():
-        issues["docs/qa/CAPTURE_SMOKE_MATRIX.md"] = "capture smoke matrix file is missing"
+        issues["docs/contributor/qa/capture-smoke-matrix.md"] = "capture smoke matrix file is missing"
     else:
         capture_text = _read(CAPTURE_MATRIX).lower()
         capture_checks = [
@@ -88,7 +88,7 @@ def scan() -> dict[str, str]:
         ]
         for phrase in capture_checks:
             if phrase not in capture_text:
-                issues[f"docs/qa/CAPTURE_SMOKE_MATRIX.md::{phrase}"] = (
+                issues[f"docs/contributor/qa/capture-smoke-matrix.md::{phrase}"] = (
                     f"missing capture smoke step: {phrase}"
                 )
 

@@ -30,8 +30,7 @@ Full user manual: [docs/user/README.md](user/README.md)
 
 Contributors and anyone building on or integrating with Fichero.
 
-- [Developer Overview](developer/README.md) — the short developer entry point.
-- [How Fichero Works](developer/how-fichero-works.md) — app ↔ engine runtime
+- [How Fichero Works](contributor/how-fichero-works.md) — app ↔ engine runtime
   model, storage, workflows, KG extraction, and curation.
 - [Architecture Overview](contributor/architecture-overview.md) — the two-part system: SwiftUI frontend + Python engine.
 - [OpenAPI and Generated Clients](contributor/openapi-and-clients.md) — the contract path from Python to Swift.
@@ -48,9 +47,9 @@ Full contributor index: [docs/contributor/README.md](contributor/README.md)
 
 ## Releases
 
-- [Release Lane Runbook](./release/release-lane.md) — one-command DMG notarization,
+- [Release Lane Runbook](./contributor/release/release-lane.md) — one-command DMG notarization,
   Sparkle/GitHub release, and Mac TestFlight upload.
-- [Sparkle Release Setup](./release/sparkle-release.md) — app update metadata, feed URL, and release flow.
+- [Sparkle Release Setup](./contributor/release/sparkle-release.md) — app update metadata, feed URL, and release flow.
 
 ---
 

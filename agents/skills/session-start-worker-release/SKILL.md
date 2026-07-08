@@ -11,7 +11,7 @@ contract. This file narrows it to the release lane.
 ## Lane — files you own
 
 - `RELEASE_NOTES.md`
-- `docs/release/**`
+- `docs/contributor/release/**`
 - `docs/release-notes-*.md`
 
 You do **not** own `scripts/release-all.sh`, `scripts/create-github-release.sh`, or
@@ -27,7 +27,7 @@ You do **not** own `scripts/release-all.sh`, `scripts/create-github-release.sh`,
 
 Never start a build while another runs. Never run `verify_all.sh --full` or
 `xcodebuild test` on Daniel's desktop. `/fichero-release` is the runbook for the
-mechanics; `docs/release/release-lane.md` is authoritative for signing and
+mechanics; `docs/contributor/release/release-lane.md` is authoritative for signing and
 notarization.
 
 ## Writing release notes

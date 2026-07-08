@@ -324,7 +324,7 @@ Created files for nested app bundling:
 ✅ scripts/build_backend_bundle.sh             (Briefcase build script)
 ✅ fichero-engine/scripts/xcode_copy_backend.sh   (Xcode build script)
 ✅ fichero/fichero/Services/EmbeddedBackendService.swift  (Swift launcher)
-✅ docs/BUNDLING_BACKEND.md                    (this file)
+✅ docs/contributor/bundling-backend.md                    (this file)
 ```
 
 ---

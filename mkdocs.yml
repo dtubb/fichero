@@ -111,11 +111,9 @@ nav:
       - Search & Knowledge Graph: user/search-knowledge-graph.md
       - Curation, Notes & Workflows: user/curation-notes-workflows.md
       - AI & Privacy: user/ai-and-privacy.md
-  - Developer:
-      - Overview: developer/README.md
-      - How Fichero Works: developer/how-fichero-works.md
   - Contributor:
       - Overview: contributor/README.md
+      - How Fichero Works: contributor/how-fichero-works.md
       - Architecture Overview: contributor/architecture-overview.md
       - Node Model: contributor/node-model.md
       - OpenAPI & Clients: contributor/openapi-and-clients.md
@@ -134,7 +132,14 @@ nav:
           - System Overview: contributor/architecture/overview.md
           - Backend API Overview: contributor/architecture/api/overview.md
           - SwiftUI Overview: contributor/architecture/swiftui/overview.md
+      - Release:
+          - Release Lane Runbook: contributor/release/release-lane.md
+          - Sparkle Release Setup: contributor/release/sparkle-release.md
           - Release Process: contributor/architecture/release-process.md
-          - 0.1.0 QA Sign-Off: release/qa-signoff-0.1.0.md
+          - 0.1.0 QA Sign-Off: contributor/release/qa-signoff-0.1.0.md
+      - Packaging:
+          - Bundling the Backend: contributor/bundling-backend.md
+          - Bundled Backend Setup: contributor/setup-bundled-backend.md
+      - UI Map: contributor/ui-map.md
   - API Reference: contributor/api-reference/index.md
   - How It's Built: how-its-built.md

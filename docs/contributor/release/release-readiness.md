@@ -16,7 +16,7 @@ Manager-executable checklist for cutting **both** outputs in one sitting:
 
 This worker did the SAFE prep + audit. The manager runs every codesign /
 notarize / upload step below (those need the real Keychain + certs). Companion
-runbook with full detail: `docs/release/release-lane.md`.
+runbook with full detail: `docs/contributor/release/release-lane.md`.
 
 Audited against the repo on **2026-06-27**. Version in `project.pbxproj`:
 `MARKETING_VERSION = 2026.06.26-beta`, `CURRENT_PROJECT_VERSION = 20260626`.
@@ -101,7 +101,7 @@ Referenced by ID only: ASC API key ID `2MGYUR786H`, issuer
 | **GitHub release upload** | BLOCKING | no `v*` tags / releases exist yet — this is the first. |
 | **TestFlight archive + upload** | BLOCKING | manager-only; needs Keychain approval for signing. |
 | **`SPARKLE_FEED_URL` in `project.pbxproj`** | ⚠️ STALE (non-blocking via scripts) | baked default still points at the retired `fichero-releases` repo — see Audit §6. Scripts override it at build time, so a script-built release is correct; a plain Xcode build is not. |
-| `docs/release/sparkle-release.md` | ⚠️ STALE doc | still cites the old `fichero-releases` feed + a `0.0.1` placeholder key story; superseded by `release-lane.md`. |
+| `docs/contributor/release/sparkle-release.md` | ⚠️ STALE doc | still cites the old `fichero-releases` feed + a `0.0.1` placeholder key story; superseded by `release-lane.md`. |
 
 ## 5. Manager run order (today)
 

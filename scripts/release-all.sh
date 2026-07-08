@@ -8,7 +8,7 @@ set -euo pipefail
 # Usage:
 #   scripts/release-all.sh [--skip-backend] [--skip-dmg] [--skip-notarize] [--skip-testflight] [--github] [--draft]
 #
-# See docs/release/release-lane.md for required certificates/profiles and the
+# See docs/contributor/release/release-lane.md for required certificates/profiles and the
 # repeatable DMG, Sparkle/GitHub, and Mac TestFlight release cycle.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

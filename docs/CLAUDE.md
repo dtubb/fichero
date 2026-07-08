@@ -494,7 +494,7 @@ Full architectural context is in `docs/contributor/architecture/`:
 - **`docs/ingest_api.md`** - File ingestion API reference
 - **`docs/ingest_best_practices.md`** - Ingestion patterns
 - **`docs/supported_file_types.md`** - 37+ supported file formats
-- **`docs/BUNDLING_BACKEND.md`** - Backend deployment strategy
+- **`docs/contributor/bundling-backend.md`** - Backend deployment strategy
 
 ### Manual QA
 - **`docs/qa_matrix.md`** - View-by-view manual testing checklist

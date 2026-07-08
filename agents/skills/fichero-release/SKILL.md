@@ -7,7 +7,7 @@ description: Build, notarize, and publish a Fichero release — DMG + Sparkle/Gi
 
 One skill for the whole release lane. The commands here are thin wrappers around
 `scripts/release-all.sh`; the authoritative runbook (certificates, profiles,
-signing internals, troubleshooting) is **`docs/release/release-lane.md`** — read it
+signing internals, troubleshooting) is **`docs/contributor/release/release-lane.md`** — read it
 before doing anything unusual.
 
 **Hard rules**
@@ -48,7 +48,7 @@ xcrun stapler validate build/releases/Fichero.dmg
 
 If notarization returns `Invalid`, do **not** retry blindly — the `[2b/6]` step in
 `scripts/build-release-dmg.sh` signs each Mach-O inside the embedded engine
-individually. See `docs/release/release-lane.md` → *DMG Details* for the spot-check
+individually. See `docs/contributor/release/release-lane.md` → *DMG Details* for the spot-check
 commands and why `codesign --deep` is forbidden here.
 
 ## 2. Smoke-test before Daniel sees it

@@ -43,4 +43,4 @@ The exact panes you see depend on what is selected, but that overall structure s
 ## Related Reference Pages
 
 - Supported formats: [../supported_file_types.md](../supported_file_types.md)
-- Current UI map used by the team: [../UI_MAP.md](../UI_MAP.md)
+- Current UI map used by the team: [../contributor/ui-map.md](../contributor/ui-map.md)

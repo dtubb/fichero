@@ -136,7 +136,7 @@ Backend pytest needs `PYTHONPATH=fichero-engine/src`; write-suites need their `F
 
 ## Releasing
 
-The app ships as a notarized DMG (Sparkle/GitHub) and, separately, to TestFlight. Wrapper: `scripts/release-all.sh --help`; lane doc: `docs/release/release-lane.md`.
+The app ships as a notarized DMG (Sparkle/GitHub) and, separately, to TestFlight. Wrapper: `scripts/release-all.sh --help`; lane doc: `docs/contributor/release/release-lane.md`.
 
 1. **Gate:** `verify_all.sh --full` green.
 2. **Build + package the Mac DMG:** `scripts/build-release-dmg.sh` — stamps today's dated version (`YYYY.MM.DD-beta`; opt out with `FICHERO_RELEASE_VERSION`), builds the Release app with the **embedded** engine (Briefcase), re-signs inside-out with Developer ID, and styles the DMG. (Reuse an already-built app with `--skip-app-build`, but note that **skips the date re-stamp**.)
@@ -220,7 +220,7 @@ lives alongside them and stays buildable reference. So:
 
 - **`docs/`** — all durable documentation: the curated user manual (`docs/user/`),
   contributor docs (`docs/contributor/`), API reference, How It's Built, and the
-  architecture/runbook reference (`docs/contributor/architecture/`, `docs/release/`, etc.). Put
+  architecture/runbook reference (`docs/contributor/architecture/`, `docs/contributor/release/`, etc.). Put
   public-worthy pages in `nav`; leave internal reference out of `nav` but in `docs/`.
 - **`agent-work/`** — AGENT scratch, never part of `docs/` or the build: session
   notes, handoffs, QA logs, reviews, validation reports, audits, triage, design

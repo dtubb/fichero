@@ -6,6 +6,8 @@ This section explains how the current Fichero codebase works for contributors. I
 
 ## Table of Contents
 
+- [How Fichero Works](./how-fichero-works.md) — start here: the runtime shape of the
+  app, the engine, storage, workflows, KG extraction, and curation.
 - [Architecture Overview](./architecture-overview.md)
 - [Node Model](./node-model.md)
 - [OpenAPI and Generated Clients](./openapi-and-clients.md)
