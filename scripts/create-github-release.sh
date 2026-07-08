@@ -109,12 +109,75 @@ if [ "$DRY_RUN" = false ]; then
   DMG_SIZE=$(stat -f%z "$DMG_PATH")
   DMG_SIZE_HUMAN=$(du -h "$DMG_PATH" | cut -f1)
 else
-  VERSION="0.0.0-dry"
+  # Rehearse with the version actually stamped in the project, not a placeholder,
+  # so the release-notes lookup below is genuinely exercised by --dry-run.
+  VERSION=$(sed -nE 's/^[[:space:]]*MARKETING_VERSION = "?([^";]+)"?;/\1/p' \
+    "$ROOT_DIR/fichero/fichero.xcodeproj/project.pbxproj" | head -1)
   BUILD="0"
   DMG_SIZE="0"
   DMG_SIZE_HUMAN="0B"
 fi
 TAG="v${VERSION}"
+
+# ── Release notes for this version (Sparkle "What's New") ───────────────────
+# One source of truth: the `## <VERSION>` section of RELEASE_NOTES.md, rendered
+# to HTML and inlined into the appcast <description>. Inline rather than
+# sparkle:releaseNotesLink so the update dialog needs no second fetch and no
+# hosted URL to keep alive.
+#
+# A notarized build with no release-notes entry is a bug, not a convenience:
+# it ships users an empty "What's New". Fail rather than paper over it.
+# `markdown` ships as a transitive dep of mkdocs-material (requirements-docs.txt).
+# It lives in the repo-root .venv, which a git worktree does not have — so probe
+# for an interpreter that can actually import it rather than guessing a path.
+PYBIN=""
+for _py in "${FICHERO_PYTHON:-}" "$ROOT_DIR/.venv/bin/python" \
+           "$(git -C "$ROOT_DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||')/.venv/bin/python" \
+           python3; do
+  [ -n "$_py" ] || continue
+  command -v "$_py" >/dev/null 2>&1 || [ -x "$_py" ] || continue
+  if "$_py" -c 'import markdown' >/dev/null 2>&1; then PYBIN="$_py"; break; fi
+done
+if [ -z "$PYBIN" ]; then
+  echo "error: no python with the 'markdown' module (needed to render Sparkle release notes)." >&2
+  echo "       tried: \$FICHERO_PYTHON, \$ROOT/.venv, main-checkout .venv, python3" >&2
+  echo "       fix:   pip install -r requirements-docs.txt   (or set FICHERO_PYTHON)" >&2
+  [ "$DRY_RUN" = true ] || exit 1
+fi
+
+set +e
+NOTES_HTML="$(RN_VERSION="$VERSION" "${PYBIN:-python3}" - "$ROOT_DIR/RELEASE_NOTES.md" <<'PY' 2>&1
+import os, re, sys
+import markdown
+version = os.environ["RN_VERSION"]
+src = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r"^## %s\s*$(.*?)(?=^## |\Z)" % re.escape(version), src, re.M | re.S)
+if not m:
+    sys.exit("error: RELEASE_NOTES.md has no '## %s' section — write the release "
+             "entry before publishing." % version)
+body = m.group(1).strip()
+if not body:
+    sys.exit("error: RELEASE_NOTES.md section '## %s' is empty." % version)
+html = markdown.markdown(body, extensions=["extra", "sane_lists"])
+print(html.replace("]]>", "]]&gt;"))  # never terminate the CDATA early
+PY
+)"
+NOTES_RC=$?
+set -e
+
+if [ "$NOTES_RC" -ne 0 ]; then
+  if [ "$DRY_RUN" = true ]; then
+    echo "[DRY RUN] release notes: $NOTES_HTML"
+    echo "[DRY RUN] a real run would ABORT here."
+    NOTES_HTML="<p>(dry run — no notes rendered)</p>"
+  else
+    echo "$NOTES_HTML" >&2
+    exit 1
+  fi
+else
+  echo "Release notes: rendered '## $VERSION' from RELEASE_NOTES.md (${#NOTES_HTML} bytes of HTML)"
+fi
+export NOTES_HTML
 
 echo "[1/5] Sparkle-sign DMG (Ed25519 key from Keychain)"
 if [ "$DRY_RUN" = false ]; then
@@ -185,6 +248,9 @@ if [ "$DRY_RUN" = false ]; then
             <sparkle:version>$BUILD</sparkle:version>
             <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+$NOTES_HTML
+]]></description>
             <enclosure
                 url="$RELEASE_URL"
                 length="$DMG_SIZE"
@@ -198,11 +264,15 @@ APPCAST
   else
     # Insert new <item> as the first child of <channel>
     python3 - <<PY
-import re
+import os, re
 from pathlib import Path
 
 p = Path("$APPCAST_PATH")
 xml = p.read_text()
+
+# NOTES_HTML arrives via the environment, not shell interpolation: it is
+# multi-line HTML and would otherwise have to survive a triple-quoted literal.
+notes_html = os.environ["NOTES_HTML"]
 
 new_item = """        <item>
             <title>Fichero $VERSION</title>
@@ -210,6 +280,9 @@ new_item = """        <item>
             <sparkle:version>$BUILD</sparkle:version>
             <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+""" + notes_html + """
+]]></description>
             <enclosure
                 url="$RELEASE_URL"
                 length="$DMG_SIZE"
