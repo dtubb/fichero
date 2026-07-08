@@ -915,6 +915,29 @@ def _configured_library_allowed_roots() -> list[Path]:
     return roots
 
 
+def _is_sandbox_container_app_support(path: Path, home: Path) -> bool:
+    """True iff path is under ONE sandbox container's Application Support.
+
+    Matches ~/Library/Containers/<container>/Data/Library/Application Support/...
+    where <container> is exactly one path component (bundle id or the UUID
+    form newer macOS uses on disk). This is where a sandboxed host app's own
+    Application Support lives, so an UNSANDBOXED external Debug engine can
+    open the sandboxed app's default library.
+
+    ponytail: the ceiling is a single container's Data/Library/Application
+    Support subtree — NEVER widen to all of ~/Library/Containers, which would
+    expose every sandboxed app's private data (Mail, Messages, ...) to
+    library-path reads.
+    """
+    try:
+        parts = path.relative_to(home / "Library" / "Containers").parts
+    except ValueError:
+        return False
+    # parts = (<container>, "Data", "Library", "Application Support", <...>+)
+    # len >= 5 forces the .fichero to live BELOW Application Support.
+    return len(parts) >= 5 and parts[1:4] == ("Data", "Library", "Application Support")
+
+
 def _is_allowed_library_path(library_path: str) -> bool:
     """Validate that a library path is in an allowed location.
 
@@ -924,6 +947,9 @@ def _is_allowed_library_path(library_path: str) -> bool:
     - ~/Fichero
     - ~/Dropbox
     - ~/Library/Application Support
+    - ~/Library/Containers/<one container>/Data/Library/Application Support —
+      the sandboxed host app's own container, scoped via
+      _is_sandbox_container_app_support (NOT the whole Containers tree)
     - ~/Library/CloudStorage (Box/Dropbox/iCloud provider roots)
     - ~/Library/Mobile Documents/com~apple~CloudDocs — iCloud Drive AND
       iCloud-synced Documents/Desktop physically live here
@@ -968,11 +994,20 @@ def _is_allowed_library_path(library_path: str) -> bool:
         *_configured_library_allowed_roots(),
     ]
 
-    candidates = [resolved, expanded]
+    # SECURITY: is_relative_to() is purely lexical and does NOT normalize
+    # "..", so an un-resolved candidate like ~/Documents/../../etc/x.fichero
+    # would lexically pass a root check while resolving elsewhere. Only trust
+    # the un-resolved (expanded) candidate when it contains no ".." parts;
+    # legitimate ".."-containing paths are still honoured via `resolved`.
+    candidates = [resolved]
+    if ".." not in expanded.parts:
+        candidates.append(expanded)
     return any(
         candidate.is_relative_to(root)
         for candidate in candidates
         for root in allowed_roots
+    ) or any(
+        _is_sandbox_container_app_support(candidate, home) for candidate in candidates
     )
 
 
