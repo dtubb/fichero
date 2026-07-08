@@ -37,6 +37,9 @@ def extract_from_pdf_metadata(path: str | Path) -> dict[str, Any]:
     PyMuPDF doesn't supply are absent. Empty dict on non-PDF input
     or read failure.
     """
+    if not path:
+        return {}
+
     try:
         import fitz  # PyMuPDF
     except ImportError:
@@ -79,11 +82,12 @@ def extract_from_pdf_metadata(path: str | Path) -> dict[str, Any]:
     # PDF creation date — best-effort year.
     creation_date = (info.get("creationDate") or "").strip()
     if creation_date:
-        # PDF dates look like D:20200315120000+00'00'; pull a 4-digit
-        # year.
+        # PDF dates look like D:20200315120000+00'00'; pull the first
+        # 4-digit run as the year. (No \b anchors: the year is embedded
+        # in a longer digit run, so word boundaries never match here.)
         import re
 
-        m = re.search(r"\b(\d{4})\b", creation_date)
+        m = re.search(r"(\d{4})", creation_date)
         if m:
             out["date"] = m.group(1)
 
