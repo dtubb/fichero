@@ -30,7 +30,6 @@ mutation routes such as:
 - entities in `api/routes/entities.py`
 - bookmarks in `api/routes/bookmarks.py`
 - saved searches in `api/routes/search.py`
-- room writes in `api/routes/mind_palace.py`
 
 ## Actual invoke contract
 

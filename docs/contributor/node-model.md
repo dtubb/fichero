@@ -100,7 +100,7 @@ surface; it changed the storage representation under it.
 Mind-palace rooms now have a node-backed representation in the database layer.
 
 The relevant implementation is split between `fichero-engine/src/fichero/db.py`
-and `fichero-engine/src/fichero/api/routes/mind_palace.py`:
+and the now-removed mind-palace room routes:
 
 - `Database.save(...)` special-cases `SpatialRoom` and mirrors it through
   `_save_spatial_room_document`.
@@ -294,5 +294,5 @@ Still in progress or pending:
   chat-scope folding should still be described as in progress until more code
   lands.
 - F5 retirement of the `/api/mind-palace/rooms*` endpoints is still pending.
-  Those routes are live in `fichero-engine/src/fichero/api/routes/mind_palace.py`
+  Those routes have been REMOVED; `fichero-engine/tests/unit/test_mind_palace_route_guard.py` asserts they stay removed
   and currently depend on the room <-> room-node bridge for behavior parity.

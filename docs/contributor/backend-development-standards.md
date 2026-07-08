@@ -194,7 +194,7 @@ Do not leave two parallel write paths for the same mutation concern by accident.
 These follow-ups are still live on `main` and should be documented as open work,
 not treated as solved:
 
-- **Mind-palace room writes**: `fichero-engine/tests/unit/test_routes_mind_palace.py`
+- **Mind-palace room routes are REMOVED**, and `fichero-engine/tests/unit/test_mind_palace_route_guard.py` asserts they stay removed
   still carries strict `xfail` coverage showing create/update/delete bypass
   `registry.invoke(...)` and `emit_change(...)` (`#2820`, in progress)
 - **Request-model tightening**: `fichero-engine/tests/unit/test_fold_endpoints_validation.py`

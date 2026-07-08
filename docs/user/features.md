@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Feature Matrix
 
 What Fichero actually does today, and what is still being built.

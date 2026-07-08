@@ -43,7 +43,6 @@
 - `iiif.py` — IIIF image interoperability
 - `interpretations.py` — Document interpretation
 - `knowledge_graph.py` — Semantic knowledge graph CRUD
-- `mind_palace.py` — Memory/context management
 - `research_agents.py` — Autonomous research workflows
 - `search_explain.py` — Search algorithm explanation
 

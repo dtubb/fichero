@@ -48,9 +48,9 @@ local models; it does not assume the whole feature is unbuilt.
 ### Packaging and build hooks
 
 - `pyproject.toml` already declares `resources/bin/*` as package data.
-- `scripts/build_backend_bundle.sh` compiles `bin/fm-bridge/FmBridge.swift` into
+- `fichero-engine/scripts/build_backend_bundle.sh` compiles `bin/fm-bridge/FmBridge.swift` into
   `src/fichero/resources/bin/fm-bridge` before Briefcase packaging.
-- `scripts/bundle_python_backend.sh` stages the same bridge into the packaged
+- `fichero-engine/scripts/bundle_python_backend.sh` stages the same bridge into the packaged
   site-packages path for the Python bundle flow.
 
 ## Target architecture

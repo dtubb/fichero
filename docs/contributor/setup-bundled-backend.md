@@ -8,7 +8,7 @@ This guide walks you through the final setup steps to enable the embedded Python
 
 The following has been implemented:
 
-- ✅ Backend entry point (`fichero-engine/src/fichero_backend/__main__.py`)
+- ✅ Backend entry point (`fichero-engine/src/engine/__init__.py`)
 - ✅ Briefcase configuration in `pyproject.toml`
 - ✅ Build script (`fichero-engine/scripts/build_backend_bundle.sh`)
 - ✅ Xcode copy script (`fichero-engine/scripts/xcode_copy_backend.sh`)
@@ -21,7 +21,7 @@ The following has been implemented:
 ### Step 1: Add EmbeddedBackendService.swift to Xcode
 
 1. Open `fichero/fichero.xcodeproj` in Xcode
-2. In Project Navigator, locate `fichero/Services/` folder
+2. In Project Navigator, locate `fichero/fichero/Services/` folder
 3. **Right-click on Services folder** → Add Files to "Fichero"
 4. Navigate to: `fichero/fichero/Services/EmbeddedBackendService.swift`
 5. **Make sure:** ✅ "Copy items if needed" is UNCHECKED

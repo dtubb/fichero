@@ -49,7 +49,7 @@ Swift wrappers built on top of it.
 ## 3. Backend shape
 
 The engine entry point is `fichero.api.main`. Feature behavior is mostly split
-by route module under `fichero/api/routes/`.
+by route module under `fichero-engine/src/fichero/api/routes/`.
 
 Examples:
 

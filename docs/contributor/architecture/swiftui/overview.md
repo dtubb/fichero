@@ -320,7 +320,6 @@ struct MyView: View {
 - 1 file blocked: ActionLibraryView.swift (dependency issue)
 - SwiftLint violations reduced from 330 to 69
 
-See `agents/progress.md` for full tracker with before/after line counts.
 
 ### 🚧 Missing Features
 - **Hierarchical searches/chats/workflows** - Sidebar only supports hierarchical documents
@@ -379,4 +378,3 @@ SwiftUI ← @Observable ← Service ← APIClient ← HTTP Response
 - **Development Standards**: `docs/contributor/swiftui-development-standards.md`
 - **Key Files**: `docs/contributor/architecture/swiftui/key_files.md`
 - **Workflow Checklist**: `docs/contributor/architecture/swiftui/workflow_checklist.md`
-- **Sample Code**: `fichero/sample_code`

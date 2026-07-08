@@ -58,7 +58,6 @@ git pull origin main
 **Research**:
 - [ ] Check Sosumi MCP for SwiftUI patterns
 - [ ] Check Ref MCP for Swift language features
-- [ ] Review sample code in `/sample_code` directory
 - [ ] Review similar existing implementations
 
 ---
@@ -393,7 +392,6 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 
 ### Quick Links
 - Backend API: http://localhost:8765/docs
-- Sample Code: `fichero/sample_code`
 - Frontend Docs: `docs/contributor/architecture/swiftui/`
 - TODO List: GitHub Issues + Milestones (the source of truth; the old `agent-work/agent-workflow/TODO.md` is retired)
 

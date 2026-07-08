@@ -53,7 +53,7 @@ The backend owns:
 
 `fichero.api.main` is the application entry point. `db.py` is the main storage
 abstraction over DuckDB and LanceDB. Business features are exposed through
-route modules under `fichero/api/routes/`.
+route modules under `fichero-engine/src/fichero/api/routes/`.
 
 ## Route Registration and Feature Tiers
 

@@ -88,7 +88,6 @@ were ported into focused single-purpose modules below.
 | `/api/kg/rebuild` | `kg_rebuild` | Rebuild kg.nt materialization |
 | `/api/citations` | `kg_citations` | BibTeX export (cross-cuts entities) |
 | `/api/hermeneutics` | `hermeneutics` | Textual interpretation (PatternInstance + hermeneutic circle) |
-| `/api/mind-palace` | `mind_palace` | Spatial memory/context management |
 | `/api/research` | `research_agents` | Autonomous research workflows |
 | `/api/iiif` | `iiif` | IIIF image interoperability |
 | `/api` | `search_explain` | Search algorithm explanation |

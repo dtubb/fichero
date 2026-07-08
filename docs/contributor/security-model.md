@@ -30,7 +30,7 @@ FICHERO_MULTIUSER=1 PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.
 
 When enabled:
 
-- Per-library and per-folder access control is enforced in `fichero/authz.py`.
+- Per-library and per-folder access control is enforced in `fichero-engine/src/fichero/authz.py`.
 - Enforcement happens at two points: `registry.invoke` (for all mutations) and the read path (for queries).
 - The authz layer is fail-closed: an unknown or missing permission is treated as a denial, not a pass-through.
 - Permissions are stored per library and per folder. A user with library-level read cannot write to a folder unless they also hold folder-level write.

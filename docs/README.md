@@ -1,3 +1,5 @@
+(AI generated. Not reviewed.)
+
 # Fichero Documentation
 
 Two guides, for two readers. This page is the landing for anyone browsing

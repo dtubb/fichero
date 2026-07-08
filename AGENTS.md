@@ -236,13 +236,12 @@ The ones that cost hours, and that no test catches for you:
   *stale* tree — a green run that means nothing.
 - **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use
   `fichero-engine/scripts/start_backend.sh`.
-- **Always ignore `fichero-engine/tests/unit/_archived`.**
 - **Multi-library requests need the `X-Fichero-Library-Path` header** (app-wide
   endpoints — health, providers/catalog, settings — skip it).
 - **A `pytest -k` subset skips the architecture guardrails.** Anything touching a
   persisted DB, a route, or a Swift service needs the full run.
-- **Paths assembled from parts hide from a string sweep.** `ROOT / "docs" / "x.md"`
-  has no `docs/x.md` substring to grep. Moving a file breaks it silently.
+- **Paths assembled from parts hide from a string sweep.** `ROOT / "docs" / "<page>.md"`
+  has no `docs/<page>.md` substring to grep. Moving a file breaks it silently.
 - **Backtick text inside `git commit -m "..."` is command substitution.** The shell
   executes it and pastes the output into your message. Use `git commit -F <file>`.
 

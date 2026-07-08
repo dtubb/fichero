@@ -25,8 +25,8 @@ Python FastAPI → OpenAPI Schema → Swift OpenAPI Generator → Type-safe Clie
 - `Fichero/FicheroAPIClient/Sources/FicheroAPIClient/FicheroClient.swift` - Convenience wrapper
 
 ### Scripts
-- `scripts/export_openapi_schema.py` - Exports schema from FastAPI
-- `scripts/sync_openapi_schema.sh` - Syncs Python → Swift and rebuilds
+- `fichero-engine/scripts/export_openapi_schema.py` - Exports schema from FastAPI
+- `fichero-engine/scripts/sync_openapi_schema.sh` - Syncs Python → Swift and rebuilds
 
 ### Contract Files
 - `tests/contracts/openapi.json` - Full OpenAPI schema (source of truth)
