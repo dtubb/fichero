@@ -4,7 +4,7 @@
 
 ## 2026.07.08-beta
 
-The first notarized, auto-updating build.
+The first notarized build, auto-updating via Sparkle.
 
 ### New
 
