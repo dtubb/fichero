@@ -29,11 +29,11 @@ enum AppInstaller {
         var fileExists: (String) -> Bool
         var recycle: (URL, @escaping (Error?) -> Void) -> Void
         var copyItem: (URL, URL) throws -> Void
-        var relaunchInstalledCopy: (URL) -> Bool
-        var revealForManualInstall: (URL) -> Void
-        var showManualInstallPrompt: (URL, String) -> Void
+        var relaunchInstalledCopy: @MainActor (URL) -> Bool
+        var revealForManualInstall: @MainActor (URL) -> Void
+        var showManualInstallPrompt: @MainActor (URL, String) -> Void
 
-        static let live = Dependencies(
+        @MainActor static let live = Dependencies(
             fileExists: { FileManager.default.fileExists(atPath: $0) },
             recycle: { targetURL, completion in
                 NSWorkspace.shared.recycle([targetURL]) { _, error in
@@ -43,10 +43,10 @@ enum AppInstaller {
             copyItem: { sourceURL, targetURL in
                 try FileManager.default.copyItem(at: sourceURL, to: targetURL)
             },
-            relaunchInstalledCopy: { relaunchInstalledCopy(at: $0) },
-            revealForManualInstall: { revealManualInstall(for: $0) },
+            relaunchInstalledCopy: { AppInstaller.relaunchInstalledCopy(at: $0) },
+            revealForManualInstall: { AppInstaller.revealManualInstall(for: $0) },
             showManualInstallPrompt: { sourceURL, reason in
-                showManualInstallPrompt(for: sourceURL, reason: reason)
+                AppInstaller.showManualInstallPrompt(for: sourceURL, reason: reason)
             }
         )
     }
@@ -128,9 +128,10 @@ enum AppInstaller {
     static func performMove(
         sourceURL: URL,
         targetURL: URL,
-        dependencies: Dependencies = .live,
+        dependencies: Dependencies? = nil,
         completion: @escaping (MoveOutcome) -> Void = { _ in }
     ) -> Bool {
+        let dependencies = dependencies ?? .live
         let plan = movePlan(
             sourceURL: sourceURL,
             targetURL: targetURL,
@@ -168,6 +169,7 @@ enum AppInstaller {
         }
     }
 
+    @MainActor
     private static func copyAndRelaunch(
         sourceURL: URL,
         targetURL: URL,
@@ -186,6 +188,7 @@ enum AppInstaller {
         }
     }
 
+    @MainActor
     private static func handle(
         _ outcome: MoveOutcome,
         sourceURL: URL,
