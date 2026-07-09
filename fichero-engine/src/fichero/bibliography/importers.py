@@ -29,6 +29,7 @@ _BIBTEX_FIELD_RE = re.compile(
     r"(\w+)\s*=\s*[{\"]([^{}]*(?:\{[^{}]*\}[^{}]*)*)[}\"]\s*,?",
     re.DOTALL,
 )
+_BIBTEX_ENTRY_RE = re.compile(r"@(\w+)\s*\{([^,]+),(.*?)\n\s*\}\s*(?=@|\Z)", re.DOTALL)
 
 
 def _bibtex_unescape(text: str) -> str:
@@ -51,6 +52,21 @@ def _parse_bibtex_authors(value: str) -> list[str]:
     return [a.strip() for a in re.split(r"\s+and\s+", value) if a.strip()]
 
 
+def _iter_bibtex_entries(text: str) -> list[tuple[str, str, dict[str, str]]]:
+    entries: list[tuple[str, str, dict[str, str]]] = []
+    for match in _BIBTEX_ENTRY_RE.finditer(text):
+        entry_type = match.group(1).lower()
+        cite_key = match.group(2).strip()
+        body = match.group(3)
+        fields: dict[str, str] = {}
+        for field_match in _BIBTEX_FIELD_RE.finditer(body):
+            name = field_match.group(1).strip().lower()
+            value = _bibtex_unescape(field_match.group(2))
+            fields[name] = value
+        entries.append((entry_type, cite_key, fields))
+    return entries
+
+
 def read_bibtex(text: str) -> list[dict[str, Any]]:
     """Parse a BibTeX string into a list of SourceMetadata dicts.
 
@@ -62,17 +78,7 @@ def read_bibtex(text: str) -> list[dict[str, Any]]:
     Skips entries that don't look like a valid @type{key, ...} block.
     """
     entries: list[dict[str, Any]] = []
-    # Split on @ followed by a word-character (entry type).
-    for match in re.finditer(r"@(\w+)\s*\{([^,]+),(.*?)\n\s*\}\s*(?=@|\Z)", text, re.DOTALL):
-        entry_type = match.group(1).lower()
-        # cite_key = match.group(2).strip()  # unused but parseable if needed
-        body = match.group(3)
-        fields: dict[str, Any] = {}
-        for fm in _BIBTEX_FIELD_RE.finditer(body):
-            name = fm.group(1).strip().lower()
-            value = _bibtex_unescape(fm.group(2))
-            fields[name] = value
-
+    for entry_type, cite_key, fields in _iter_bibtex_entries(text):
         out: dict[str, Any] = {}
         if "title" in fields:
             out["title"] = fields["title"]
@@ -90,11 +96,39 @@ def read_bibtex(text: str) -> list[dict[str, Any]]:
                         out["isbn_10"] = isbn_clean
                 else:
                     out[k] = fields[k]
+        if "note" in fields:
+            out["notes"] = fields["note"]
         if "number" in fields:
             out["issue"] = fields["number"]
+        metadata = out.setdefault("metadata", {})
         if "file" in fields:
-            out.setdefault("metadata", {})["filename"] = Path(fields["file"]).name
-        out.setdefault("metadata", {})["bibtex_entry_type"] = entry_type
+            metadata["filename"] = Path(fields["file"]).name
+        metadata["bibtex_entry_type"] = entry_type
+        metadata["bibtex_cite_key"] = cite_key
+        extra_fields = {
+            key: value
+            for key, value in fields.items()
+            if key
+            not in {
+                "author",
+                "title",
+                "year",
+                "publisher",
+                "journal",
+                "volume",
+                "pages",
+                "doi",
+                "isbn",
+                "issn",
+                "url",
+                "language",
+                "number",
+                "file",
+                "note",
+            }
+        }
+        if extra_fields:
+            metadata["bibtex_fields"] = extra_fields
         out["bibtex"] = write_bibtex([out])
         entries.append(out)
     return entries
@@ -269,17 +303,87 @@ def read_folder_sidecars(path: str | Path) -> list[dict[str, Any]]:
 
 def write_bibtex(entries: list[dict[str, Any]]) -> str:
     """Render a list of SourceMetadata dicts as a multi-entry BibTeX file."""
-    from fichero.citations.renderer import render_bibtex
-    from fichero.knowledge_models import SourceMetadata
-
     output_lines: list[str] = []
     for entry in entries:
-        try:
-            meta = SourceMetadata(**entry)
-        except Exception as exc:
-            logger.warning("write_bibtex: skipping malformed entry: %s", exc)
+        if not isinstance(entry, dict):
+            logger.warning("write_bibtex: skipping malformed entry: expected dict")
             continue
-        output_lines.append(render_bibtex(meta))
+        bibtex = entry.get("bibtex")
+        metadata = entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {}
+        if isinstance(bibtex, str) and bibtex.strip():
+            output_lines.append(bibtex.strip())
+            continue
+
+        title = entry.get("title")
+        authors = entry.get("authors")
+        if authors is not None and not isinstance(authors, list):
+            logger.warning("write_bibtex: skipping malformed entry: authors must be list")
+            continue
+
+        entry_type = str(metadata.get("bibtex_entry_type") or "misc")
+        cite_key = str(metadata.get("bibtex_cite_key") or "untitled")
+        issue = entry.get("issue")
+        if entry.get("kind"):
+            entry_type = str(entry["kind"])
+        elif entry.get("journal"):
+            entry_type = "article"
+        elif entry.get("journal_or_book") and entry_type == "misc":
+            entry_type = "article"
+        elif entry.get("publisher"):
+            entry_type = "book"
+
+        fields: list[tuple[str, str]] = []
+        if authors:
+            fields.append(("author", " and ".join(str(author) for author in authors if author)))
+        if title:
+            fields.append(("title", str(title)))
+        if entry.get("year") is not None:
+            fields.append(("year", str(entry["year"])))
+        elif entry.get("date"):
+            fields.append(("year", str(entry["date"])))
+
+        container = entry.get("journal") or entry.get("journal_or_book")
+        if container:
+            field_name = "journal" if entry_type == "article" else "booktitle"
+            fields.append((field_name, str(container)))
+        if entry.get("publisher"):
+            fields.append(("publisher", str(entry["publisher"])))
+        if entry.get("volume"):
+            fields.append(("volume", str(entry["volume"])))
+        if issue:
+            fields.append(("number", str(issue)))
+        if entry.get("pages"):
+            fields.append(("pages", str(entry["pages"])))
+        if entry.get("doi"):
+            fields.append(("doi", str(entry["doi"])))
+        if entry.get("isbn_13"):
+            fields.append(("isbn", str(entry["isbn_13"])))
+        elif entry.get("isbn_10"):
+            fields.append(("isbn", str(entry["isbn_10"])))
+        elif entry.get("isbn"):
+            fields.append(("isbn", str(entry["isbn"])))
+        if entry.get("url"):
+            fields.append(("url", str(entry["url"])))
+        if entry.get("language"):
+            fields.append(("language", str(entry["language"])))
+        if entry.get("notes"):
+            fields.append(("note", str(entry["notes"])))
+
+        emitted = {name for name, _ in fields}
+        extra_fields = metadata.get("bibtex_fields")
+        if isinstance(extra_fields, dict):
+            for name, value in extra_fields.items():
+                if name in emitted or value in (None, ""):
+                    continue
+                fields.append((str(name), str(value)))
+
+        lines = [f"@{entry_type}{{{cite_key},"]
+        for name, value in fields:
+            lines.append(f"  {name} = {{{value}}},")
+        if lines[-1].endswith(","):
+            lines[-1] = lines[-1][:-1]
+        lines.append("}")
+        output_lines.append("\n".join(lines))
     return "\n\n".join(output_lines)
 
 

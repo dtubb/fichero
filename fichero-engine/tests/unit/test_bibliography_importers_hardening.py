@@ -229,6 +229,30 @@ def test_write_bibtex_skips_malformed_entry():
     assert isinstance(rendered, str)
 
 
+def test_bibtex_roundtrip_preserves_unknown_fields_and_cite_key():
+    text = """@book{demo-key,
+  author = {Doe, Jane},
+  title = {Round Trip},
+  year = {1999},
+  editor = {Roe, Ann},
+  edition = {2},
+  url = {https://example.org}
+}"""
+    entry = read_bibtex(text)[0]
+
+    assert entry["metadata"]["bibtex_cite_key"] == "demo-key"
+    assert entry["metadata"]["bibtex_fields"] == {
+        "editor": "Roe, Ann",
+        "edition": "2",
+    }
+
+    rendered = write_bibtex([dict(entry, bibtex="")])
+    assert "@book{demo-key," in rendered
+    assert "editor = {Roe, Ann}" in rendered
+    assert "edition = {2}" in rendered
+    assert "url = {https://example.org}" in rendered
+
+
 # ---------------------------------------------------------------------------
 # 5. _attach_record_impl (undo payload contract)
 # ---------------------------------------------------------------------------

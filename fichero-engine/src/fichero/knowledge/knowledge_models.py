@@ -999,148 +999,76 @@ class ReferenceCitationLocation(str, Enum):
     unknown = "unknown"
 
 
-def _bibtex_escape(text: str) -> str:
-    """Escape characters that are special in BibTeX values."""
-
-    return (
-        text.replace("\\", r"\\")
-        .replace("&", r"\&")
-        .replace("%", r"\%")
-        .replace("$", r"\$")
-        .replace("#", r"\#")
-        .replace("_", r"\_")
-        .replace("{", r"\{")
-        .replace("}", r"\}")
-    )
-
-
-def _bibtex_unescape(text: str) -> str:
-    """Undo the escape sequences we emit in canonical BibTeX."""
-
-    return (
-        text.replace(r"\{", "{")
-        .replace(r"\}", "}")
-        .replace(r"\#", "#")
-        .replace(r"\$", "$")
-        .replace(r"\%", "%")
-        .replace(r"\&", "&")
-        .replace(r"\\", "\\")
-    )
-
-
-def _split_bibtex_authors(value: str) -> list[str]:
-    """BibTeX uses ``and`` to separate authors."""
-
-    return [part.strip() for part in re.split(r"\s+and\s+", value) if part.strip()]
-
-
 def _reference_entry_type(kind: ReferenceKind) -> str:
     """Map a reference kind to a BibTeX entry type."""
 
     return kind.value
 
 
-def _reference_field_name(reference: "Reference") -> str | None:
-    """Return the canonical BibTeX field for the generic container label."""
-
-    if reference.journal_or_book:
-        if reference.kind == ReferenceKind.article:
-            return "journal"
-        if reference.kind in {
-            ReferenceKind.inbook,
-            ReferenceKind.incollection,
-            ReferenceKind.inproceedings,
-            ReferenceKind.proceedings,
-        }:
-            return "booktitle"
-        return "publisher"
-    return None
-
-
 def _render_reference_bibtex(reference: "Reference") -> str:
     """Render canonical BibTeX for a reference row."""
+    from fichero.bibliography.importers import write_bibtex
 
-    key = reference.id
-    fields: list[tuple[str, str]] = []
-    if reference.authors:
-        fields.append(("author", " and ".join(reference.authors)))
-    if reference.title:
-        fields.append(("title", reference.title))
-    if reference.year is not None:
-        fields.append(("year", str(reference.year)))
-    field_name = _reference_field_name(reference)
-    if field_name and reference.journal_or_book:
-        fields.append((field_name, reference.journal_or_book))
-    if reference.publisher and field_name != "publisher":
-        fields.append(("publisher", reference.publisher))
-    if reference.doi:
-        fields.append(("doi", reference.doi))
-    if reference.isbn:
-        fields.append(("isbn", reference.isbn))
-    if reference.pages:
-        fields.append(("pages", reference.pages))
-    if reference.language:
-        fields.append(("language", reference.language))
-    if reference.notes:
-        fields.append(("note", reference.notes))
-
-    lines = [f"@{_reference_entry_type(reference.kind)}{{{key},"]
-    for name, value in fields:
-        lines.append(f"  {name} = {{{_bibtex_escape(value)}}},")
-    if lines[-1].endswith(","):
-        lines[-1] = lines[-1][:-1]
-    lines.append("}")
-    return "\n".join(lines)
-
-
-_REFERENCE_BIBTEX_RE = re.compile(
-    r"@(\w+)\s*\{\s*([^,]+)\s*,(.*?)\}\s*$", re.DOTALL
-)
-_REFERENCE_BIBTEX_FIELD_RE = re.compile(
-    r'(\w+)\s*=\s*[{\"]([^{}]*(?:\{[^{}]*\}[^{}]*)*)[}\"]\s*,?',
-    re.DOTALL,
-)
+    metadata = dict(reference.metadata or {})
+    metadata.setdefault("bibtex_entry_type", _reference_entry_type(reference.kind))
+    metadata.setdefault("bibtex_cite_key", reference.id)
+    return write_bibtex(
+        [
+            {
+                "authors": reference.authors,
+                "title": reference.title,
+                "year": reference.year,
+                "journal_or_book": reference.journal_or_book,
+                "publisher": reference.publisher,
+                "doi": reference.doi,
+                "isbn": reference.isbn,
+                "pages": reference.pages,
+                "language": reference.language,
+                "notes": reference.notes,
+                "kind": reference.kind.value,
+                "metadata": metadata,
+            }
+        ]
+    )
 
 
 def _parse_reference_bibtex(text: str) -> dict[str, Any]:
     """Parse a single-entry BibTeX string into Reference fields."""
+    from fichero.bibliography.importers import read_bibtex
 
-    match = _REFERENCE_BIBTEX_RE.search(text.strip())
-    if not match:
+    entries = read_bibtex(text)
+    if not entries:
         return {}
-
-    entry_type = match.group(1).lower()
-    body = match.group(3)
-    fields: dict[str, str] = {}
-    for field_match in _REFERENCE_BIBTEX_FIELD_RE.finditer(body):
-        name = field_match.group(1).lower()
-        value = _bibtex_unescape(field_match.group(2)).strip()
-        fields[name] = value
-
-    year_value = fields.get("year")
-    year = int(year_value) if year_value and year_value.isdigit() else None
-    isbn = fields.get("isbn")
-    if isbn:
-        isbn = re.sub(r"[^0-9Xx]", "", isbn).upper()
-
+    parsed = entries[0]
+    metadata = dict(parsed.get("metadata") or {})
+    entry_type = str(metadata.get("bibtex_entry_type") or "misc")
+    year_value = parsed.get("date")
+    year = int(year_value) if isinstance(year_value, str) and year_value.isdigit() else None
     kind = next(
         (member for member in ReferenceKind if member.value == entry_type),
         ReferenceKind.misc,
     )
-
+    extras = dict(metadata.get("bibtex_fields") or {}) if isinstance(metadata.get("bibtex_fields"), dict) else {}
+    for key in ("url", "volume", "issue", "issn"):
+        value = parsed.get(key)
+        if value not in (None, ""):
+            extras.setdefault(key, value)
+    if extras:
+        metadata["bibtex_fields"] = extras
+    journal_or_book = parsed.get("journal") or extras.get("booktitle")
     out: dict[str, Any] = {
         "kind": kind,
-        "authors": _split_bibtex_authors(fields["author"]) if fields.get("author") else [],
-        "title": fields.get("title", ""),
+        "authors": parsed.get("authors", []),
+        "title": parsed.get("title", ""),
         "year": year,
-        "journal_or_book": fields.get("journal") or fields.get("booktitle"),
-        "publisher": fields.get("publisher"),
-        "doi": fields.get("doi"),
-        "isbn": isbn,
-        "pages": fields.get("pages"),
-        "language": fields.get("language"),
-        "notes": fields.get("note", ""),
-        "metadata": {"bibtex_entry_type": entry_type},
+        "journal_or_book": journal_or_book,
+        "publisher": parsed.get("publisher"),
+        "doi": parsed.get("doi"),
+        "isbn": parsed.get("isbn_13") or parsed.get("isbn_10"),
+        "pages": parsed.get("pages"),
+        "language": parsed.get("language"),
+        "notes": parsed.get("notes", ""),
+        "metadata": metadata,
     }
     return {k: v for k, v in out.items() if v is not None}
 

@@ -49,6 +49,30 @@ class TestReferenceRoutes:
             for row in db.all(ActionAudit)
         )
 
+    def test_non_bibtex_patch_preserves_extra_bibtex_fields(self, client, db):
+        reference = Reference(
+            bibtex="""@book{demo-key,
+  author = {Doe, Jane},
+  title = {A Sample Reference},
+  year = {1942},
+  editor = {Roe, Ann},
+  edition = {2},
+  url = {https://example.org}
+}"""
+        )
+        db.save(reference)
+
+        patch = client.patch(
+            f"/api/references/{reference.id}",
+            json={"status": "verified"},
+        )
+        assert patch.status_code == 200
+        patched = patch.json()
+        assert "editor = {Roe, Ann}" in patched["bibtex"]
+        assert "edition = {2}" in patched["bibtex"]
+        assert "url = {https://example.org}" in patched["bibtex"]
+        assert patched["metadata"]["bibtex_cite_key"] == "demo-key"
+
     def test_document_citations_returns_self_and_links(self, client, db):
         document = Document(
             name="Source Document",
