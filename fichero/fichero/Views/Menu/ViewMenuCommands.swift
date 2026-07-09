@@ -678,10 +678,10 @@ struct SelectionDrivenLayoutToggle: View {
 /// (same rationale as ShowRulerButton). Key must match MiniToolbar.toolbarVisibilityKey.
 struct ShowMiniToolbarToggle: View {
     @AppStorage(
-        MiniToolbarPreferences.toolbarVisibilityKey,
-        defaultValue: MiniToolbarPreferences.toolbarVisibilityDefault
+        wrappedValue: MiniToolbarPreferences.toolbarVisibilityDefault,
+        MiniToolbarPreferences.toolbarVisibilityKey
     )
-    private var showMiniToolbar = true
+    private var showMiniToolbar: Bool
 
     var body: some View {
         Toggle(isOn: $showMiniToolbar) {
