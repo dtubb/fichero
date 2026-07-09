@@ -58,6 +58,13 @@ struct SettingsView: View {
                     }
             }
 
+            #if !canImport(AppKit)
+            AboutView()
+                .tabItem {
+                    Label("About", systemImage: "info.circle")
+                }
+            #endif
+
             AuditHistorySettingsTab()
                 .tabItem {
                     Label("History", systemImage: "clock.arrow.circlepath")
