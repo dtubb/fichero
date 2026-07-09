@@ -376,10 +376,10 @@ extension View {
 /// AppStorage the stable identity it needs to re-render when UserDefaults changes.
 private struct MiniToolbarGate<Bottom: View, Toolbar: View>: View {
     @AppStorage(
-        MiniToolbarPreferences.toolbarVisibilityKey,
-        defaultValue: MiniToolbarPreferences.toolbarVisibilityDefault
+        wrappedValue: MiniToolbarPreferences.toolbarVisibilityDefault,
+        MiniToolbarPreferences.toolbarVisibilityKey
     )
-    private var isVisible = true
+    private var isVisible: Bool
     let bottom: Bottom
     let toolbar: Toolbar
 
