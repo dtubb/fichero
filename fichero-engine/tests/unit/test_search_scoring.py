@@ -198,9 +198,24 @@ class TestBM25LexicalScoring:
 
 class TestHybridRanking:
     def test_exact_fulltext_hit_beats_semantic_only_neighbor(self, db, monkeypatch) -> None:
+        class FakeQuery:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def select(self, _columns):
+                return self
+
+            def limit(self, _limit):
+                return self
+
+            def to_list(self):
+                return self.rows
+
         class FakeTable:
-            def to_pandas(self):
-                return pd.DataFrame(
+            def search(self, _query, query_type="auto", fts_columns=None):
+                assert query_type == "fts"
+                assert fts_columns == "text"
+                return FakeQuery(
                     [
                         {
                             "document_id": "doc-exact",
@@ -209,9 +224,13 @@ class TestHybridRanking:
                             "name": "Exact hit",
                             "doc_type": "file",
                             "file_type": "text",
+                            "_score": 3.0,
                         }
                     ]
                 )
+
+            def to_pandas(self):
+                raise AssertionError("fulltext hot path should not materialize the whole table")
 
         fake_lance = SimpleNamespace(open_table=lambda _name: FakeTable())
         monkeypatch.setattr(type(db), "lance", property(lambda self: fake_lance))

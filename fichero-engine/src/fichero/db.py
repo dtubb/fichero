@@ -3773,66 +3773,122 @@ class Database(DatabaseEmbeddingMixin):
                 try:
                     # Use DuckDB for full-text search
                     if has_embeddings:
-                        # Get all documents from embeddings table for full-text search
                         table = self.lance.open_table(EMBEDDINGS_TABLE)
-                        all_docs = table.to_pandas()
-
-                        # Accent-insensitive match: NFD-decompose both
-                        # query and indexed text, strip combining diacritics.
-                        # 'Quibdó' / 'Quibdo' / 'QUIBDÓ' all match. Critical
-                        # for Spanish/Latin manuscript corpora where the
-                        # user types ASCII but the text is fully diacritic.
-                        # See _fold_for_search.
                         folded_terms = expanded_terms or [_fold_for_search(query)]
-                        normalised_text = all_docs["text"].astype(str).map(_fold_for_search)
-                        mask = (
-                            _fuzzy_contains_any_term(normalised_text, folded_terms)
-                            if use_fuzzy_match
-                            else _contains_any_term(normalised_text, folded_terms)
-                        )
-
-                        fulltext_docs = all_docs[mask].copy()
-                        fulltext_docs["folded_text"] = (
-                            fulltext_docs["text"].astype(str).map(_fold_for_search)
-                        )
-                        bm25_scores = _bm25_scores(
-                            fulltext_docs["folded_text"].tolist(),
-                            [t for t in folded_terms if t],
-                        )
-                        fulltext_docs["bm25"] = bm25_scores
-                        max_bm25 = max(bm25_scores) if bm25_scores else 0.0
-
-                        # Convert to results format
-                        for _, row in fulltext_docs.sort_values("bm25", ascending=False).iterrows():
-                            document_id = row.get("document_id") or row.get("id")
-                            if not self._is_active_document_id(document_id):
-                                continue
-                            if self._has_indexed_page_children(document_id):
-                                continue
-
-                            lexical_score = float(row.get("bm25", 0.0))
-                            normalised = (
-                                lexical_score / max_bm25 if max_bm25 > 0 else 1.0
+                        candidate_limit = max(limit * 4, offset + limit * 2)
+                        raw_fulltext_hits: list[dict] = []
+                        if not use_fuzzy_match:
+                            raw_fulltext_hits = (
+                                table.search(query, query_type="fts", fts_columns="text")
+                                .select(
+                                    [
+                                        "document_id",
+                                        "id",
+                                        "text",
+                                        "name",
+                                        "doc_type",
+                                        "file_type",
+                                        "created_at",
+                                        "updated_at",
+                                        "embedding_scope",
+                                        "passage_id",
+                                        "page_id",
+                                        "char_start",
+                                        "char_end",
+                                    ]
+                                )
+                                .limit(candidate_limit)
+                                .to_list()
                             )
-                            fulltext_results.append(
-                                {
-                                    "document_id": document_id,
-                                    "score": max(0.0, min(1.0, normalised)),
-                                    "content": row.get("text", ""),
-                                    "metadata": {
-                                        "name": row.get("name"),
-                                        "doc_type": row.get("doc_type"),
-                                        "file_type": row.get("file_type"),
-                                        "created_at": row.get("created_at"),
-                                        "updated_at": row.get("updated_at"),
-                                        "bm25_score": lexical_score,
-                                        "embedding_scope": row.get("embedding_scope"),
-                                        "passage_id": row.get("passage_id"),
-                                        "page_id": row.get("page_id"),
-                                        "char_start": row.get("char_start"),
-                                        "char_end": row.get("char_end"),
-                                    },
-                                }
+
+                        if raw_fulltext_hits:
+                            for row in raw_fulltext_hits:
+                                document_id = row.get("document_id") or row.get("id")
+                                if not self._is_active_document_id(document_id):
+                                    continue
+                                if self._has_indexed_page_children(document_id):
+                                    continue
+                                folded_content = _fold_for_search(str(row.get("text") or ""))
+                                if not any(term and term in folded_content for term in folded_terms):
+                                    continue
+
+                                lexical_score = float(row.get("_score", 0.0))
+                                fulltext_results.append(
+                                    {
+                                        "document_id": document_id,
+                                        "score": lexical_score,
+                                        "content": row.get("text", ""),
+                                        "metadata": {
+                                            "name": row.get("name"),
+                                            "doc_type": row.get("doc_type"),
+                                            "file_type": row.get("file_type"),
+                                            "created_at": row.get("created_at"),
+                                            "updated_at": row.get("updated_at"),
+                                            "bm25_score": lexical_score,
+                                            "embedding_scope": row.get("embedding_scope"),
+                                            "passage_id": row.get("passage_id"),
+                                            "page_id": row.get("page_id"),
+                                            "char_start": row.get("char_start"),
+                                            "char_end": row.get("char_end"),
+                                        },
+                                    }
+                                )
+                        else:
+                            # ponytail: fuzzy matching and zero-hit accent edge cases still
+                            # use the old corpus scan until we can index folded text.
+                            all_docs = table.to_pandas()
+                            normalised_text = all_docs["text"].astype(str).map(_fold_for_search)
+                            mask = (
+                                _fuzzy_contains_any_term(normalised_text, folded_terms)
+                                if use_fuzzy_match
+                                else _contains_any_term(normalised_text, folded_terms)
+                            )
+
+                            fulltext_docs = all_docs[mask].copy()
+                            fulltext_docs["folded_text"] = (
+                                fulltext_docs["text"].astype(str).map(_fold_for_search)
+                            )
+                            bm25_scores = _bm25_scores(
+                                fulltext_docs["folded_text"].tolist(),
+                                [t for t in folded_terms if t],
+                            )
+                            fulltext_docs["bm25"] = bm25_scores
+
+                            for _, row in fulltext_docs.sort_values("bm25", ascending=False).iterrows():
+                                document_id = row.get("document_id") or row.get("id")
+                                if not self._is_active_document_id(document_id):
+                                    continue
+                                if self._has_indexed_page_children(document_id):
+                                    continue
+
+                                lexical_score = float(row.get("bm25", 0.0))
+                                fulltext_results.append(
+                                    {
+                                        "document_id": document_id,
+                                        "score": lexical_score,
+                                        "content": row.get("text", ""),
+                                        "metadata": {
+                                            "name": row.get("name"),
+                                            "doc_type": row.get("doc_type"),
+                                            "file_type": row.get("file_type"),
+                                            "created_at": row.get("created_at"),
+                                            "updated_at": row.get("updated_at"),
+                                            "bm25_score": lexical_score,
+                                            "embedding_scope": row.get("embedding_scope"),
+                                            "passage_id": row.get("passage_id"),
+                                            "page_id": row.get("page_id"),
+                                            "char_start": row.get("char_start"),
+                                            "char_end": row.get("char_end"),
+                                        },
+                                    }
+                                )
+
+                        max_bm25 = max((result["score"] for result in fulltext_results), default=0.0)
+                        for result in fulltext_results:
+                            result["score"] = (
+                                max(0.0, min(1.0, result["score"] / max_bm25))
+                                if max_bm25 > 0
+                                else 1.0
                             )
                 except Exception as e:
                     logger.warning("Full-text search failed: %s", e)
