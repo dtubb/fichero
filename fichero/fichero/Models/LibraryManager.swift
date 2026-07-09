@@ -134,6 +134,10 @@ class LibraryManager {
         /// `activity.*` events).
         @ObservationIgnored lazy var activityStore: ActivityStore = ActivityStore(service: activityService)
 
+        /// Per-library chain store (#3191). Wraps `chainService` so chain views
+        /// observe store state instead of instantiating transports directly.
+        @ObservationIgnored lazy var chainStore: ChainStore = ChainStore(chainService: chainService)
+
         /// Per-library live workflow-execution store (#2546). Keyed by `threadId`,
         /// it is the shared home for live execution state feeding the Activity
         /// monitor: it subscribes-on-select to a running thread's SSE stream

@@ -7,8 +7,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChainEd
 /// Uses the ChainDetailContent as the main content
 struct ChainEditorView: View {
     let chain: WorkflowChain
+    @Environment(ChainStore.self) var chainStore
     @Environment(WorkflowStore.self) var workflowStore
-    @Environment(APIClient.self) var apiClient
     @State private var isExecuting = false
     @State private var showDeleteConfirmation = false
 
@@ -34,8 +34,7 @@ struct ChainEditorView: View {
         isExecuting = true
         Task {
             do {
-                let chainService = ChainService(apiClient: apiClient)
-                let response = try await chainService.executeChain(chainId: chain.id)
+                let response = try await chainStore.executeChain(chainId: chain.id)
                 logger.info("Started chain execution: \(response.executionId)")
             } catch {
                 logger.error("Chain execution failed: \(error.localizedDescription)")
@@ -46,8 +45,7 @@ struct ChainEditorView: View {
 
     private func deleteChain() async {
         do {
-            let chainService = ChainService(apiClient: apiClient)
-            try await chainService.deleteChain(chain.id)
+            try await chainStore.deleteChain(chain.id)
             logger.info("Deleted chain: \(chain.name)")
         } catch {
             logger.error("Failed to delete chain: \(error.localizedDescription)")

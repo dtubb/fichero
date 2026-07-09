@@ -5,7 +5,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 
 /// View for browsing and managing workflow chains
 struct WorkflowChainListView: View {
-    @State private var chainService: ChainService
+    @Environment(ChainStore.self) var chainStore
     @Environment(WorkflowStore.self) var workflowStore
     @State private var searchText = ""
     @State private var selectedChainId: String?
@@ -15,15 +15,11 @@ struct WorkflowChainListView: View {
     @State private var chainsToDelete: [WorkflowChain] = []
     @State private var executingChainId: String?
 
-    init(apiClient: APIClient) {
-        _chainService = State(wrappedValue: ChainService(apiClient: apiClient))
-    }
-
     var body: some View {
         ChainListContent(
             filteredChains: filteredChains,
-            isLoading: chainService.isLoading,
-            chainsEmpty: chainService.chains.isEmpty,
+            isLoading: chainStore.isLoading,
+            chainsEmpty: chainStore.chains.isEmpty,
             searchText: searchText,
             executingChainId: executingChainId,
             onNewChain: { showNewChainSheet = true },
@@ -35,10 +31,9 @@ struct WorkflowChainListView: View {
             onRefresh: {
                 Task {
                     guard FeatureManager.shared.isWorkflowChainsEnabled else {
-                        chainService.chains = []
                         return
                     }
-                    await chainService.loadChains()
+                    await chainStore.loadChains()
                 }
             }
         )
@@ -52,10 +47,9 @@ struct WorkflowChainListView: View {
         .task {
             guard !Task.isCancelled else { return }
             guard FeatureManager.shared.isWorkflowChainsEnabled else {
-                chainService.chains = []
                 return
             }
-            await chainService.loadChains()
+            await chainStore.loadChains()
         }
         .sheet(isPresented: $showNewChainSheet) {
             NewChainSheet(
@@ -96,7 +90,7 @@ struct WorkflowChainListView: View {
         Binding(
             get: {
                 guard let id = selectedChainId else { return nil }
-                return chainService.chains.first { $0.id == id }
+                return chainStore.chains.first { $0.id == id }
             },
             set: { newChain in
                 selectedChainId = newChain?.id
@@ -106,9 +100,9 @@ struct WorkflowChainListView: View {
 
     private var filteredChains: [WorkflowChain] {
         if searchText.isEmpty {
-            return chainService.chains
+            return chainStore.chains
         }
-        return chainService.chains.filter { chain in
+        return chainStore.chains.filter { chain in
             chain.name.localizedCaseInsensitiveContains(searchText) ||
                 chain.description.localizedCaseInsensitiveContains(searchText)
         }
@@ -118,7 +112,7 @@ struct WorkflowChainListView: View {
 
     private func createChain(name: String, description: String, steps: [ChainStep]) async {
         do {
-            _ = try await chainService.createChain(
+            _ = try await chainStore.createChain(
                 name: name,
                 description: description,
                 steps: steps
@@ -131,7 +125,7 @@ struct WorkflowChainListView: View {
 
     private func deleteChain(_ chain: WorkflowChain) async {
         do {
-            try await chainService.deleteChain(chain.id)
+            try await chainStore.deleteChain(chain.id)
             if selectedChainId == chain.id {
                 selectedChainId = nil
             }
@@ -144,7 +138,7 @@ struct WorkflowChainListView: View {
     private func deleteChains(_ chains: [WorkflowChain]) async {
         do {
             for chain in chains {
-                try await chainService.deleteChain(chain.id)
+                try await chainStore.deleteChain(chain.id)
             }
             let deletedIds = Set(chains.map(\.id))
             selectedChainIds.subtract(deletedIds)
@@ -166,7 +160,7 @@ struct WorkflowChainListView: View {
     }
 
     private func confirmDeleteSelection() {
-        let selectedChains = chainService.chains.filter { selectedChainIds.contains($0.id) }
+        let selectedChains = chainStore.chains.filter { selectedChainIds.contains($0.id) }
         guard !selectedChains.isEmpty else { return }
         confirmDelete(selectedChains)
     }
@@ -175,10 +169,10 @@ struct WorkflowChainListView: View {
         executingChainId = chain.id
         Task {
             do {
-                let response = try await chainService.executeChain(chainId: chain.id)
+                let response = try await chainStore.executeChain(chainId: chain.id)
                 logger.info("Started chain execution: \(response.executionId)")
 
-                let result = try await chainService.waitForExecution(response.executionId) { status in
+                let result = try await chainStore.waitForExecution(response.executionId) { status in
                     logger.debug("Chain progress: \(status.status)")
                 }
 
@@ -192,5 +186,5 @@ struct WorkflowChainListView: View {
 }
 
 #Preview {
-    WorkflowChainListView(apiClient: APIClient())
+    WorkflowChainListView()
 }

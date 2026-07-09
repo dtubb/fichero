@@ -3,6 +3,26 @@ import SwiftUI
 
 let actionsLogger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowEditor")
 
+@MainActor
+private final class WorkflowRunCompletion {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isFinished = false
+
+    func finish() {
+        guard !isFinished else { return }
+        isFinished = true
+        continuation?.resume()
+        continuation = nil
+    }
+
+    func wait() async {
+        guard !isFinished else { return }
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+}
+
 extension WorkflowEditor {
 
     func resetZoom() {
@@ -83,8 +103,7 @@ extension WorkflowEditor {
                     )
                 }
 
-                // Track completion with a continuation
-                var streamCompleted = false
+                let completion = WorkflowRunCompletion()
 
                 let response = try await workflowStreamService.execute(
                     workflowId: workflowId,
@@ -116,7 +135,7 @@ extension WorkflowEditor {
                         // Track terminal events
                         switch event {
                         case .complete, .error, .systemicError:
-                            streamCompleted = true
+                            completion.finish()
                         default:
                             break
                         }
@@ -125,17 +144,7 @@ extension WorkflowEditor {
 
                 actionsLogger.info("[SSE] Workflow started with thread: \(response.threadId)")
 
-                // Wait for stream to complete (poll observer state)
-                while !streamCompleted {
-                    try await Task.sleep(for: .milliseconds(100))
-                    // Check if we're cancelled
-                    if Task.isCancelled { break }
-                    // Also check observer for completion
-                    if let exec = executionObserver.activeExecutions[executionThreadId],
-                       !exec.isRunning {
-                        streamCompleted = true
-                    }
-                }
+                await completion.wait()
 
                 // Determine final status from observer
                 actionsLogger.info("[SSE] Stream ended, checking final state for workflowId: \(workflowId)")

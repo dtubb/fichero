@@ -14,7 +14,6 @@ enum WorkflowLibraryTab: String, CaseIterable {
 // View for browsing and managing saved workflows and workflow chains
 struct WorkflowLibraryView: View {
     @Environment(WorkflowStore.self) var workflowStore
-    @Environment(APIClient.self) var apiClient
     @State private var selectedTab: WorkflowLibraryTab = .workflows
 
     /// View display mode from toolbar (icon, list, table, map)
@@ -40,7 +39,7 @@ struct WorkflowLibraryView: View {
             case .workflows:
                 WorkflowListView(displayMode: displayMode, onOpenWorkflow: onOpenWorkflow)
             case .chains:
-                WorkflowChainListView(apiClient: apiClient)
+                WorkflowChainListView()
             }
         }
     }
