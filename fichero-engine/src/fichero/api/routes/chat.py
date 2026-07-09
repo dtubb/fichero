@@ -445,8 +445,12 @@ async def chat(
             kg_claims_used,
             kg_entities_used,
         )
-    except Exception as e:
-        logger.warning(f"Search failed, proceeding without context: {e}")
+    except Exception as exc:
+        logger.warning("Search failed; refusing ungrounded answer: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="Search unavailable — cannot ground the answer",
+        ) from exc
 
     # Generate response with LangChain LLM.
     # Pass through request values - _get_langchain_llm handles None by looking up configured providers.
