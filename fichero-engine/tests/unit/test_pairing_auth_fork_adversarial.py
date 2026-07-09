@@ -178,6 +178,24 @@ def test_pairing_rate_limiter_returns_429_on_sixth_attempt(pairing_client):
     assert statuses[pairing.PAIRING_RATE_LIMIT] == 429
 
 
+def test_successful_pairings_do_not_consume_pairing_rate_limit(pairing_client, app_db):
+    session_token = _owner_session_token(pairing_client, app_db)
+
+    statuses = []
+    for index in range(pairing.PAIRING_RATE_LIMIT + 1):
+        code_response = pairing_client.post("/api/pair/code", headers=_bearer(session_token))
+        assert code_response.status_code == 200
+        code = code_response.json()["code"]
+        response = pairing_client.post(
+            "/api/pair",
+            json={"code": code, "device_name": f"Owner iPad {index}"},
+        )
+        statuses.append(response.status_code)
+
+    assert statuses == [200] * (pairing.PAIRING_RATE_LIMIT + 1)
+    assert pairing._PAIRING_ATTEMPTS.get("testclient") in (None, [])
+
+
 def test_pairing_rate_limit_isolated_per_host_and_prunes_window(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")

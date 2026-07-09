@@ -292,6 +292,7 @@ def _check_rate_limit(
     now: datetime,
     *,
     detail: str,
+    record_attempt: bool = True,
 ) -> None:
     _prune_attempt_table(attempts_by_host, now)
     host = request.client.host if request.client else "unknown"
@@ -299,17 +300,40 @@ def _check_rate_limit(
     if len(attempts) >= PAIRING_RATE_LIMIT:
         attempts_by_host[host] = attempts
         raise HTTPException(status_code=429, detail=detail)
+    if record_attempt:
+        attempts.append(now)
+        attempts_by_host[host] = attempts
+
+
+def _record_rate_limit_attempt(
+    attempts_by_host: dict[str, list[datetime]],
+    request: Request,
+    now: datetime,
+) -> None:
+    _prune_attempt_table(attempts_by_host, now)
+    host = request.client.host if request.client else "unknown"
+    attempts = attempts_by_host.get(host, [])
     attempts.append(now)
     attempts_by_host[host] = attempts
 
 
-def _check_pair_rate_limit(request: Request, now: datetime) -> None:
+def _check_pair_rate_limit(
+    request: Request,
+    now: datetime,
+    *,
+    record_attempt: bool = True,
+) -> None:
     _check_rate_limit(
         _PAIRING_ATTEMPTS,
         request,
         now,
         detail="pairing rate limit exceeded",
+        record_attempt=record_attempt,
     )
+
+
+def _record_pair_attempt(request: Request, now: datetime) -> None:
+    _record_rate_limit_attempt(_PAIRING_ATTEMPTS, request, now)
 
 
 def _check_pair_renew_rate_limit(request: Request, now: datetime) -> None:
@@ -406,35 +430,39 @@ def pair_device(
     _require_secure_pairing_transport(request)
     now = datetime.now()
     _prune_pairing_codes(now)
-    _check_pair_rate_limit(request, now)
+    _check_pair_rate_limit(request, now, record_attempt=False)
 
-    code = body.code.strip().upper()
-    record = _PAIRING_CODES.get(code)
-    if record is None or record.used or record.expires_at <= now:
-        raise HTTPException(status_code=401, detail="invalid or expired pairing code")
-
-    name = body.device_name.strip()
-    if not name:
-        raise HTTPException(status_code=422, detail="device_name is required")
-
-    user_id = record.user_id
-    if _use_multiuser_auth():
-        user = app_db.get_user(record.user_id)
-        if user is None or not user.active:
-            record.used = True
-            _PAIRING_CODES.pop(code, None)
+    try:
+        code = body.code.strip().upper()
+        record = _PAIRING_CODES.get(code)
+        if record is None or record.used or record.expires_at <= now:
             raise HTTPException(status_code=401, detail="invalid or expired pairing code")
-        user_id = user.id
 
-    raw_token = accounts.new_session_token()
-    device = app_db.create_device(
-        name=name,
-        user_id=user_id,
-        token_hash=accounts.hash_token(raw_token),
-    )
-    record.used = True
-    _PAIRING_CODES.pop(code, None)
-    return _to_pair_response(device, raw_token)
+        name = body.device_name.strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="device_name is required")
+
+        user_id = record.user_id
+        if _use_multiuser_auth():
+            user = app_db.get_user(record.user_id)
+            if user is None or not user.active:
+                record.used = True
+                _PAIRING_CODES.pop(code, None)
+                raise HTTPException(status_code=401, detail="invalid or expired pairing code")
+            user_id = user.id
+
+        raw_token = accounts.new_session_token()
+        device = app_db.create_device(
+            name=name,
+            user_id=user_id,
+            token_hash=accounts.hash_token(raw_token),
+        )
+        record.used = True
+        _PAIRING_CODES.pop(code, None)
+        return _to_pair_response(device, raw_token)
+    except HTTPException:
+        _record_pair_attempt(request, now)
+        raise
 
 
 @router.get("/devices", response_model=DeviceListResponse)
