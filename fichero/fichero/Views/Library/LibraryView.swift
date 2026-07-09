@@ -161,6 +161,17 @@ struct LibraryView: View {
     private var canvasLayoutStore: CanvasLayoutStore? { scopedLibraryReference?.canvasLayoutStore }
     private var canvasItemStore: CanvasItemStore? { scopedLibraryReference?.canvasItemStore }
 
+    /// Extracted from `.focusedSceneValue` so the Swift type-checker doesn't
+    /// time out on the inline ternary-with-closure expression.
+    private var runWorkflowOnSelectionAction: (() -> Void)? {
+        guard !isShowingEntitiesCollection, !selection.isEmpty,
+              featureManager.isWorkflowRunOnSelectionEnabled else { return nil }
+        return {
+            selectedDocumentIdsForBatch = Array(selection)
+            showWorkflowPicker = true
+        }
+    }
+
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?
 
@@ -420,13 +431,7 @@ struct LibraryView: View {
             .sheet(item: $bookmarkPickerDocument) { document in
                 BookmarksView(document: document, onOpen: { openDocument($0) })
             }
-            .focusedSceneValue(
-                \.runWorkflowOnSelection,
-                (!isShowingEntitiesCollection && !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled) ? {
-                    selectedDocumentIdsForBatch = Array(selection)
-                    showWorkflowPicker = true
-                } : nil
-            )
+            .focusedSceneValue(\.runWorkflowOnSelection, runWorkflowOnSelectionAction)
             .onAppear {
                 if outlineModel == nil {
                     outlineModel = LibraryOutlineModel(
