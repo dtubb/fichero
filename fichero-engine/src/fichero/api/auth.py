@@ -61,6 +61,11 @@ _UNAUTHENTICATED_PREFIXES = ("/docs/", "/redoc/")
 _LOOPBACK_HOSTS = {"127.0.0.1", "::1"}
 _TESTCLIENT_HOSTS = {"localhost", "testserver", "testclient"}
 _FORWARDED_HEADERS = ("forwarded", "x-forwarded-for", "x-forwarded-host", "x-real-ip")
+_TAILSCALE_PROXY_HEADERS = (
+    "tailscale-user-login",
+    "tailscale-user-name",
+    "tailscale-app-capabilities",
+)
 
 
 def _token_file_path() -> Path:
@@ -117,6 +122,52 @@ def _is_account_or_device_token(token: str) -> bool:
         app_db.get_session_by_token_hash(token_hash) is not None
         or app_db.get_device_by_token_hash(token_hash) is not None
     )
+
+
+def _request_header_value(request: Request, header_names: tuple[str, ...]) -> str | None:
+    headers = getattr(request, "headers", None)
+    if headers is None:
+        return None
+    if isinstance(headers, dict):
+        headers = {str(key).lower(): value for key, value in headers.items()}
+    for name in header_names:
+        value = headers.get(name)
+        if value:
+            trimmed = value.strip()
+            if trimmed:
+                return trimmed
+    return None
+
+
+def _has_proxy_origin_headers(request: Request) -> bool:
+    return (
+        _request_header_value(request, _FORWARDED_HEADERS) is not None
+        or _request_header_value(request, _TAILSCALE_PROXY_HEADERS) is not None
+    )
+
+
+def _rate_limit_scope_from_request(request: Request) -> str:
+    state = getattr(request, "state", None)
+    device = getattr(state, "device", None) if state is not None else None
+    device_id = getattr(device, "id", None)
+    if device_id:
+        return f"device:{device_id}"
+
+    session = getattr(state, "session", None) if state is not None else None
+    session_id = getattr(session, "id", None)
+    if session_id:
+        return f"session:{session_id}"
+
+    user = getattr(state, "user", None) if state is not None else None
+    user_id = getattr(user, "id", None)
+    if user_id and not getattr(state, "bootstrap_auth", False):
+        return f"user:{user_id}"
+
+    proxy_identity = _request_header_value(request, _TAILSCALE_PROXY_HEADERS)
+    if proxy_identity is not None:
+        return f"proxy:{proxy_identity.lower()}"
+
+    return request.client.host if request.client else "unknown"
 
 
 def _write_token_file(path: Path, token: str) -> None:
@@ -322,9 +373,9 @@ def _is_loopback_request(request: Request) -> bool:
     """
     client_host = request.client.host if request.client else None
     if client_host in _LOOPBACK_HOSTS:
-        return not any(name in request.headers for name in _FORWARDED_HEADERS)
+        return not _has_proxy_origin_headers(request)
     if client_host in _TESTCLIENT_HOSTS and os.environ.get("PYTEST_CURRENT_TEST"):
-        return not any(name in request.headers for name in _FORWARDED_HEADERS)
+        return not _has_proxy_origin_headers(request)
     return False
 
 

@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from fichero import accounts
 from fichero.actions import ActionContext, ChangeSpec, action
-from fichero.api.auth import _use_multiuser_auth, actor_from_request
+from fichero.api.auth import _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request
 from fichero.api.routes.auth_accounts import _current_session_user
 from fichero.app_db import AppDatabase, get_app_db
 from fichero.models import AccountUser, ActionAudit, Device
@@ -295,7 +295,7 @@ def _check_rate_limit(
     record_attempt: bool = True,
 ) -> None:
     _prune_attempt_table(attempts_by_host, now)
-    host = request.client.host if request.client else "unknown"
+    host = _rate_limit_scope_from_request(request)
     attempts = attempts_by_host.get(host, [])
     if len(attempts) >= PAIRING_RATE_LIMIT:
         attempts_by_host[host] = attempts
@@ -311,7 +311,7 @@ def _record_rate_limit_attempt(
     now: datetime,
 ) -> None:
     _prune_attempt_table(attempts_by_host, now)
-    host = request.client.host if request.client else "unknown"
+    host = _rate_limit_scope_from_request(request)
     attempts = attempts_by_host.get(host, [])
     attempts.append(now)
     attempts_by_host[host] = attempts
@@ -354,7 +354,7 @@ def _current_paired_device(request: Request) -> Device:
 
 def _require_secure_pairing_transport(request: Request) -> None:
     host = ((request.client.host if request.client else "") or "").lower()
-    if host in _LOCAL_PAIRING_CLIENT_HOSTS:
+    if host in _LOCAL_PAIRING_CLIENT_HOSTS and not _has_proxy_origin_headers(request):
         return
     if request.url.scheme != "https":
         raise HTTPException(status_code=400, detail="remote pairing requires https")

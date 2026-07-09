@@ -99,6 +99,12 @@ def test_login_success_returns_session_and_me(client, app_db, monkeypatch):
         password_hash=accounts.hash_password("correct horse battery staple"),
         is_owner=True,
     )
+    app_db.create_user(
+        username="bob",
+        display_name="Bob",
+        password_hash=accounts.hash_password("correct horse battery staple"),
+        is_owner=False,
+    )
 
     response = client.post(
         "/api/auth/login",
@@ -955,6 +961,38 @@ def test_pairing_is_rate_limited(client, app_db, monkeypatch):
 
     assert statuses[:-1] == [401] * pairing.PAIRING_RATE_LIMIT
     assert statuses[-1] == 429
+
+
+def test_login_rate_limit_isolated_per_tailscale_identity_on_loopback_proxy(app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="alice",
+        display_name="Alice",
+        password_hash=accounts.hash_password("correct horse battery staple"),
+        is_owner=True,
+    )
+
+    with _client_for_address(app_db, client_addr=("127.0.0.1", 50000)) as proxied_client:
+        headers_a = {"Tailscale-User-Login": "alice@tail.example"}
+        headers_b = {"Tailscale-User-Login": "bob@tail.example"}
+
+        statuses_a = [
+            proxied_client.post(
+                "/api/auth/login",
+                headers=headers_a,
+                json={"username": "alice", "password": "wrong-password"},
+            ).status_code
+            for _ in range(auth_accounts.LOGIN_RATE_LIMIT + 1)
+        ]
+        status_b = proxied_client.post(
+            "/api/auth/login",
+            headers=headers_b,
+            json={"username": "bob", "password": "wrong-password"},
+        ).status_code
+
+    assert statuses_a[:-1] == [401] * auth_accounts.LOGIN_RATE_LIMIT
+    assert statuses_a[-1] == 429
+    assert status_b == 401
 
 
 def test_pairing_attempt_pruning_removes_stale_hosts():

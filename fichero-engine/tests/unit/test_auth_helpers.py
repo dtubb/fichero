@@ -51,6 +51,16 @@ def test_forwarding_header_defeats_loopback_trust() -> None:
         assert auth._is_loopback_request(req) is False, header
 
 
+def test_tailscale_proxy_headers_defeat_loopback_trust() -> None:
+    for header, value in (
+        ("Tailscale-User-Login", "alice@example.com"),
+        ("Tailscale-User-Name", "Alice Example"),
+        ("Tailscale-App-Capabilities", "{\"example.com/cap\":true}"),
+    ):
+        req = _request("127.0.0.1", {header: value})
+        assert auth._is_loopback_request(req) is False, header
+
+
 def test_testclient_host_is_loopback_only_under_pytest(monkeypatch) -> None:
     # _TESTCLIENT_HOSTS are accepted only when PYTEST_CURRENT_TEST is set.
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "x")
@@ -59,6 +69,11 @@ def test_testclient_host_is_loopback_only_under_pytest(monkeypatch) -> None:
 
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     assert auth._is_loopback_request(_request("testserver")) is False
+
+
+def test_rate_limit_scope_prefers_tailscale_identity_over_loopback_host() -> None:
+    req = _request("127.0.0.1", {"Tailscale-User-Login": "alice@example.com"})
+    assert auth._rate_limit_scope_from_request(req) == "proxy:alice@example.com"
 
 
 # ---------------------------------------------------------------------------

@@ -63,11 +63,13 @@ def _owner_request(
     bootstrap_auth: bool = False,
     host: str = "127.0.0.1",
     scheme: str = "https",
+    headers: dict[str, str] | None = None,
 ):
     return SimpleNamespace(
         state=SimpleNamespace(user=user, bootstrap_auth=bootstrap_auth),
         client=SimpleNamespace(host=host),
         url=SimpleNamespace(scheme=scheme),
+        headers=headers or {},
     )
 
 
@@ -240,6 +242,56 @@ def test_pairing_rate_limit_isolated_per_host_and_prunes_window(app_db, monkeypa
     assert "stale.example" not in pairing._PAIRING_ATTEMPTS
 
 
+def test_pairing_rate_limit_isolated_per_tailscale_identity_on_loopback_proxy(
+    app_db, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
+    now = datetime(2026, 7, 4, 12, 0, 0)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    monkeypatch.setattr(pairing, "datetime", FrozenDateTime)
+    proxied_a = _owner_request(
+        None,
+        host="127.0.0.1",
+        headers={"Tailscale-User-Login": "alice@tail.example"},
+    )
+    proxied_b = _owner_request(
+        None,
+        host="127.0.0.1",
+        headers={"Tailscale-User-Login": "bob@tail.example"},
+    )
+
+    for _ in range(pairing.PAIRING_RATE_LIMIT):
+        with pytest.raises(HTTPException) as exc:
+            pairing.pair_device(
+                proxied_a,
+                pairing.PairRequest(code="WRONG-CODE", device_name="Attacker"),
+                app_db,
+            )
+        assert exc.value.status_code == 401
+
+    with pytest.raises(HTTPException) as blocked:
+        pairing.pair_device(
+            proxied_a,
+            pairing.PairRequest(code="WRONG-CODE", device_name="Attacker"),
+            app_db,
+        )
+    assert blocked.value.status_code == 429
+
+    with pytest.raises(HTTPException) as other_user:
+        pairing.pair_device(
+            proxied_b,
+            pairing.PairRequest(code="WRONG-CODE", device_name="Attacker"),
+            app_db,
+        )
+    assert other_user.value.status_code == 401
+
+
 def test_pairing_rejects_code_for_deactivated_user(pairing_client, app_db):
     owner = _create_owner(app_db)
     code = "ABCD-EFGH"
@@ -376,6 +428,32 @@ def test_pair_device_rejects_remote_plaintext_transport_without_consuming_code(a
 
     assert exc.value.status_code == 400
     assert "ABCD-EFGH" in pairing._PAIRING_CODES
+    assert pairing._PAIRING_CODES["ABCD-EFGH"].used is False
+
+
+def test_pair_device_treats_tailscale_proxied_loopback_as_remote(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    owner = _create_owner(app_db)
+    pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
+        code="ABCD-EFGH",
+        user_id=owner.id,
+        expires_at=datetime.now() + timedelta(seconds=30),
+    )
+    request = _owner_request(
+        None,
+        host="127.0.0.1",
+        scheme="http",
+        headers={"Tailscale-User-Login": "alice@tail.example"},
+    )
+
+    with pytest.raises(HTTPException, match="remote pairing requires https") as exc:
+        pairing.pair_device(
+            request,
+            pairing.PairRequest(code="ABCD-EFGH", device_name="Remote iPad"),
+            app_db,
+        )
+
+    assert exc.value.status_code == 400
     assert pairing._PAIRING_CODES["ABCD-EFGH"].used is False
 
 

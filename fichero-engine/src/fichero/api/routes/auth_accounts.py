@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from fichero import accounts
-from fichero.api.auth import _use_multiuser_auth, auth_kind_from_request
+from fichero.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero.app_db import AppDatabase, get_app_db
 from fichero.models import AccountInvite, AccountUser, AuthIdentityResponse, AuthIdentityUser
 
@@ -238,7 +238,7 @@ def warn_login_single_process_invariant() -> None:
 
 
 def _login_host(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
+    return _rate_limit_scope_from_request(request)
 
 
 def _login_account_scope(username: str) -> str:
