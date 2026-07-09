@@ -239,6 +239,97 @@ class TestGraphAwareRetriever:
         assert payload.kg_claims_used == 2
         assert payload.kg_entities_used == 2
 
+    def test_retrieve_expands_hop_claims_for_explicit_document_scope(self, db):
+        seed = Document(
+            id="doc-hop-seed",
+            name="Seed doc",
+            page_content="Ada served in Popayan.",
+        )
+        witness = Document(
+            id="doc-hop-witness",
+            name="Witness doc",
+            page_content="Popayan later elected Bruno.",
+        )
+        db.save(seed)
+        db.save(witness)
+
+        db.save(KnowledgeEntity(id="ent-hop-ada", canonical_name="Ada"))
+        db.save(KnowledgeEntity(id="ent-hop-popayan", canonical_name="Popayan"))
+        db.save(KnowledgeEntity(id="ent-hop-bruno", canonical_name="Bruno"))
+        db.save(
+            KnowledgeClaim(
+                id="claim-hop-seed",
+                text="Ada served in Popayan.",
+                source_document_id="doc-hop-seed",
+                entity_ids=["ent-hop-ada", "ent-hop-popayan"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="claim-hop-neighbor",
+                text="Bruno was elected in Popayan.",
+                source_document_id="doc-hop-witness",
+                entity_ids=["ent-hop-bruno", "ent-hop-popayan"],
+            )
+        )
+
+        payload = GraphAwareRetriever(db).retrieve(
+            query="Who served in Popayan?",
+            max_sources=1,
+            document_ids=["doc-hop-seed"],
+            graph_hops=1,
+            max_kg_claims=4,
+        )
+
+        claim_ids = {
+            item["id"] for item in payload.context_docs if item["kind"] == "kg_claim"
+        }
+        assert "kg-claim:claim-hop-seed" in claim_ids
+        assert "kg-claim:claim-hop-neighbor" in claim_ids
+
+    def test_retrieve_avoids_full_claim_scan_for_multi_document_seed(self, db, monkeypatch):
+        first = Document(
+            id="doc-multi-a",
+            name="Seed A",
+            page_content="Ada served in Popayan.",
+        )
+        second = Document(
+            id="doc-multi-b",
+            name="Seed B",
+            page_content="Bruno was elected in Popayan.",
+        )
+        for doc in (first, second):
+            db.save(doc)
+        db.save(KnowledgeEntity(id="ent-multi-ada", canonical_name="Ada"))
+        db.save(KnowledgeEntity(id="ent-multi-popayan", canonical_name="Popayan"))
+        db.save(
+            KnowledgeClaim(
+                id="claim-multi-a",
+                text="Ada served in Popayan.",
+                source_document_id="doc-multi-a",
+                entity_ids=["ent-multi-ada", "ent-multi-popayan"],
+            )
+        )
+
+        original_query = db.query
+
+        def guarded_query(model, **filters):
+            if model is KnowledgeClaim and not filters:
+                raise AssertionError("full claim scan")
+            return original_query(model, **filters)
+
+        monkeypatch.setattr(db, "query", guarded_query)
+
+        payload = GraphAwareRetriever(db).retrieve(
+            query="ignored",
+            max_sources=2,
+            document_ids=["doc-multi-a", "doc-multi-b"],
+            graph_hops=1,
+            max_kg_claims=4,
+        )
+
+        assert payload.kg_claims_used == 1
+
     def test_retrieve_prefers_seed_claims_before_hop_claims_when_truncated(self, db):
         doc_a = Document(
             id="doc-a2",

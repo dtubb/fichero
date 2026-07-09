@@ -2124,6 +2124,82 @@ class Database(DatabaseEmbeddingMixin):
         ).fetchall()
         return [row[0] for row in rows]
 
+    def knowledge_claims_for_seed_documents(
+        self, doc_ids: set[str]
+    ) -> list[Any]:
+        """Claims linked to any seed document by source_document_id or source_ids."""
+        from fichero.knowledge_models import KnowledgeClaim as KnowledgeClaimModel
+
+        if not doc_ids:
+            return []
+
+        claims_by_id = {
+            claim.id: claim
+            for claim in self.query_in(
+                KnowledgeClaimModel, "source_document_id", list(doc_ids)
+            )
+        }
+        extra_ids: set[str] = set()
+        doc_id_list = list(doc_ids)
+        for start in range(0, len(doc_id_list), 200):
+            chunk = doc_id_list[start : start + 200]
+            clauses = " OR ".join(f"source_ids LIKE $d{i}" for i in range(len(chunk)))
+            params = {f"d{i}": f'%"{doc_id}"%' for i, doc_id in enumerate(chunk)}
+            rows = self.execute_fetchall(
+                f"SELECT id FROM knowledgeclaims WHERE {clauses}",
+                params,
+            )
+            extra_ids.update(claim_id for (claim_id,) in rows if claim_id)
+
+        missing_ids = extra_ids - set(claims_by_id)
+        if missing_ids:
+            for claim in self.query_in(KnowledgeClaimModel, "id", list(missing_ids)):
+                claims_by_id[claim.id] = claim
+        return list(claims_by_id.values())
+
+    def knowledge_claims_for_entity_frontier(
+        self,
+        entity_ids: set[str],
+        *,
+        exclude_ids: set[str] | None = None,
+        limit: int | None = None,
+    ) -> list[Any]:
+        """Claims whose entity_ids JSON list intersects the frontier ids."""
+        from fichero.knowledge_models import KnowledgeClaim as KnowledgeClaimModel
+
+        if not entity_ids or limit == 0:
+            return []
+
+        claim_ids: list[str] = []
+        seen: set[str] = set()
+        entity_id_list = list(entity_ids)
+        excluded = list(exclude_ids or [])
+
+        for start in range(0, len(entity_id_list), 50):
+            remaining = None if limit is None else limit - len(claim_ids)
+            if remaining is not None and remaining <= 0:
+                break
+
+            chunk = entity_id_list[start : start + 50]
+            clauses = " OR ".join(f"entity_ids LIKE $e{i}" for i in range(len(chunk)))
+            params = {f"e{i}": f'%"{entity_id}"%' for i, entity_id in enumerate(chunk)}
+            sql = f"SELECT id FROM knowledgeclaims WHERE ({clauses})"
+            if excluded:
+                exclude_placeholders = ",".join(f"$x{i}" for i in range(len(excluded)))
+                sql += f" AND id NOT IN ({exclude_placeholders})"
+                params.update({f"x{i}": claim_id for i, claim_id in enumerate(excluded)})
+            if remaining is not None:
+                sql += f" LIMIT {remaining}"
+
+            rows = self.execute_fetchall(sql, params)
+            for (claim_id,) in rows:
+                if not claim_id or claim_id in seen:
+                    continue
+                seen.add(claim_id)
+                claim_ids.append(claim_id)
+
+        return self.query_in(KnowledgeClaimModel, "id", claim_ids)
+
     def knowledge_entity_canonical_name(self, entity_id: str) -> str | None:
         """Return a single entity's canonical name, if present."""
         row = self._execute(
