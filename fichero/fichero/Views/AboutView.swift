@@ -16,9 +16,15 @@ enum AboutInfo {
     static func versionLine(shortVersion: String?, build: String?) -> String {
         "Version \(shortVersion ?? "—") (\(build ?? "—"))"
     }
+
+    static func engineVersionLine(_ version: String?) -> String {
+        "Engine \(version ?? "—")"
+    }
 }
 
 struct AboutView: View {
+    @Environment(AppState.self) private var appState
+
     private let appName = "Fichero"
     private let tagline = "A document workbench for researchers — read, organize, "
         + "search, and make things from your sources."
@@ -32,6 +38,10 @@ struct AboutView: View {
         )
     }
 
+    private var engineVersionLine: String {
+        AboutInfo.engineVersionLine(appState.backendVersion)
+    }
+
     var body: some View {
         VStack(spacing: 12) {
             appIcon
@@ -42,6 +52,11 @@ struct AboutView: View {
                 .font(.title.weight(.semibold))
 
             Text(versionLine)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+            Text(engineVersionLine)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
@@ -123,4 +138,5 @@ struct AboutWindowMenuButton: View {
 
 #Preview {
     AboutView()
+        .environment(AppState())
 }

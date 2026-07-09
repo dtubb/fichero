@@ -24,4 +24,12 @@ final class AboutInfoTests: XCTestCase {
     func testBothMissingFallBackToDashes() {
         XCTAssertEqual(AboutInfo.versionLine(shortVersion: nil, build: nil), "Version — (—)")
     }
+
+    func testEngineVersionLineUsesVersion() {
+        XCTAssertEqual(AboutInfo.engineVersionLine("2026.7.8b2"), "Engine 2026.7.8b2")
+    }
+
+    func testEngineVersionLineFallsBackToDash() {
+        XCTAssertEqual(AboutInfo.engineVersionLine(nil), "Engine —")
+    }
 }

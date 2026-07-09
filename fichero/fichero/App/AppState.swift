@@ -44,6 +44,7 @@ class AppState {
     var backendError: String? { engine.diagnosis }
     var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
     var indexedCount: Int = 0
+    var backendVersion: String?
     /// True while starting/probing. Backed by `engine.phase == .starting`.
     var isCheckingBackend: Bool { engine.isChecking }
     /// Count of consecutive heartbeat failures since the last successful
@@ -348,6 +349,7 @@ class AppState {
             case .ok(let okResponse):
                 let health = try okResponse.body.json
                 documentCount = health.activeLibraries ?? 0
+                backendVersion = health.backendVersion
                 logger.info("Backend connected: v\(health.backendVersion ?? "unknown"), \(health.activeLibraries ?? 0) active libraries")
                 // Health 200 is necessary but NOT sufficient (#2864): confirm the
                 // engine accepts our token, then — on the ready path —
