@@ -2,6 +2,15 @@ import SwiftUI
 
 // MARK: - Helpers
 
+func sidebarReplacingLibraryHeader(_ headers: [SidebarItem], with header: SidebarItem) -> [SidebarItem] {
+    guard let index = headers.firstIndex(where: { $0.id == header.id }) else {
+        return headers + [header]
+    }
+    var updated = headers
+    updated[index] = header
+    return updated
+}
+
 extension SidebarView {
     func sidebarLibrarySelectionId(_ libraryId: UUID) -> String {
         "library:\(libraryId.uuidString)"
@@ -36,17 +45,21 @@ extension SidebarView {
         return libraryManager.getLibrary(id: libraryId)
     }
 
+    func buildLibraryHeader(for library: LibraryManager.LibraryReference) -> SidebarItem {
+        let libraryContent = SidebarItemBuilder.buildLibraryGroup(library: library)
+        return SidebarItem.libraryHeader(library: library, children: libraryContent)
+    }
+
     /// Rebuild all sidebar item caches from ALL libraries
     func rebuildCaches() {
-        var libraryHeaders: [SidebarItem] = []
+        cachedLibraryHeaders = libraryManager.openLibraries.map { buildLibraryHeader(for: $0) }
+    }
 
-        for library in libraryManager.openLibraries {
-            let libraryContent = SidebarItemBuilder.buildLibraryGroup(library: library)
-            let header = SidebarItem.libraryHeader(library: library, children: libraryContent)
-            libraryHeaders.append(header)
-        }
-
-        cachedLibraryHeaders = libraryHeaders
+    /// Rebuild one library header in place, preserving every other library snapshot.
+    func rebuildCaches(for libraryId: UUID) {
+        guard let library = libraryManager.getLibrary(id: libraryId) else { return }
+        let header = buildLibraryHeader(for: library)
+        cachedLibraryHeaders = sidebarReplacingLibraryHeader(cachedLibraryHeaders, with: header)
     }
 
     /// Recursively find an item by ID

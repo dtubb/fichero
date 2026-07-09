@@ -19,19 +19,19 @@ extension SidebarView {
             // Observe document changes. DocumentStore is @Observable (#1851),
             // so it has no Combine `$collections` publisher — use Observation
             // tracking and re-arm after each mutation.
-            observeDocumentStore(library.documentStore)
+            observeDocumentStore(library.documentStore, libraryId: library.id)
 
             // Observe saved search + conversation changes. Both services are now
             // @Observable (#2960), so they have no Combine `$` publishers — use
             // Observation tracking, re-armed after each mutation.
-            observeSavedSearchService(library.savedSearchServiceGenerated)
-            observeConversationService(library.conversationServiceGenerated)
+            observeSavedSearchService(library.savedSearchServiceGenerated, libraryId: library.id)
+            observeConversationService(library.conversationServiceGenerated, libraryId: library.id)
 
             // Observe workflow changes. WorkflowStore is now @Observable (#1911),
             // so it has no Combine `$workflows` publisher — use Observation
             // tracking, re-armed after each fire, to mirror the old behaviour
             // (rebuild caches AFTER a workflow mutation completes).
-            observeWorkflowStore(library.workflowStore)
+            observeWorkflowStore(library.workflowStore, libraryId: library.id)
         }
 
         // Observe chain changes (global ChainService, now @Observable #2960).
@@ -53,26 +53,26 @@ extension SidebarView {
 
     /// Observe an @Observable SavedSearchService's `savedSearches` and rebuild
     /// caches after each mutation. Re-arm after each fire (one-shot tracking).
-    func observeSavedSearchService(_ service: SavedSearchServiceGenerated) {
+    func observeSavedSearchService(_ service: SavedSearchServiceGenerated, libraryId: UUID) {
         withObservationTracking {
             _ = service.savedSearches
         } onChange: {
             Task { @MainActor in
-                rebuildCaches()
-                observeSavedSearchService(service)
+                rebuildCaches(for: libraryId)
+                observeSavedSearchService(service, libraryId: libraryId)
             }
         }
     }
 
     /// Observe an @Observable ConversationService's `conversations` and rebuild
     /// caches after each mutation. Re-arm after each fire (one-shot tracking).
-    func observeConversationService(_ service: ConversationServiceGenerated) {
+    func observeConversationService(_ service: ConversationServiceGenerated, libraryId: UUID) {
         withObservationTracking {
             _ = service.conversations
         } onChange: {
             Task { @MainActor in
-                rebuildCaches()
-                observeConversationService(service)
+                rebuildCaches(for: libraryId)
+                observeConversationService(service, libraryId: libraryId)
             }
         }
     }
@@ -80,13 +80,13 @@ extension SidebarView {
     /// Observe an @Observable WorkflowStore's `workflows` array and rebuild the
     /// sidebar caches when it changes. `withObservationTracking` fires once, so
     /// we re-arm it on each change to keep observing for the view's lifetime.
-    func observeWorkflowStore(_ store: WorkflowStore) {
+    func observeWorkflowStore(_ store: WorkflowStore, libraryId: UUID) {
         withObservationTracking {
             _ = store.workflows
         } onChange: {
             Task { @MainActor in
-                rebuildCaches()
-                observeWorkflowStore(store)
+                rebuildCaches(for: libraryId)
+                observeWorkflowStore(store, libraryId: libraryId)
             }
         }
     }
@@ -94,15 +94,15 @@ extension SidebarView {
     /// Observe an @Observable DocumentStore's sidebar-driving arrays and
     /// rebuild caches when either changes. Re-arm after each fire because
     /// `withObservationTracking` is one-shot.
-    func observeDocumentStore(_ store: DocumentStore) {
+    func observeDocumentStore(_ store: DocumentStore, libraryId: UUID) {
         withObservationTracking {
             _ = store.collections
             _ = store.currentDocuments
             _ = store.childrenCache
         } onChange: {
             Task { @MainActor in
-                rebuildCaches()
-                observeDocumentStore(store)
+                rebuildCaches(for: libraryId)
+                observeDocumentStore(store, libraryId: libraryId)
             }
         }
     }
