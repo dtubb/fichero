@@ -132,6 +132,7 @@ struct DocumentInspector: View {
     // MARK: - Document Detail
 
     private func documentDetail(_ doc: Document) -> some View {
+        let effectiveTab = Self.clampedSelectedTab(selectedTab, for: doc)
         // Tab bar sits at the very top (matching every other pane header).
         // The attribute strip moved below the tabs and now lives *inside* the
         // Content tab only — it described the document, which is the Content
@@ -140,13 +141,14 @@ struct DocumentInspector: View {
         VStack(spacing: 0) {
             tabBar
             Divider()
-            tabContent(for: doc)
+            tabContent(for: doc, selectedTab: effectiveTab)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxHeight: .infinity)
         .onChange(of: doc.id, initial: true) { _, _ in
-            if !availableTabs(for: doc).contains(selectedTab) {
-                selectedTab = .content
+            let clamped = Self.clampedSelectedTab(selectedTab, for: doc)
+            if selectedTab != clamped {
+                selectedTab = clamped
             }
         }
     }
@@ -174,7 +176,7 @@ struct DocumentInspector: View {
                     selectTab(tab)
                 } label: {
                     Image(systemName: tab.icon)
-                        .font(.system(size: 15, weight: .regular))
+                        .font(.body)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
                 }
@@ -222,7 +224,7 @@ struct DocumentInspector: View {
 
     // Tab content for the selected tab. One arm per inspector tab; complexity
     // scales with the (intentionally flat) tab list, not nested branching.
-    @ViewBuilder private func tabContent(for doc: Document) -> some View {
+    @ViewBuilder private func tabContent(for doc: Document, selectedTab: InspectorTab) -> some View {
         switch selectedTab {
         case .content:
             contentTab(for: doc)
@@ -248,6 +250,15 @@ struct DocumentInspector: View {
     }
 
     private func availableTabs(for doc: Document?) -> [InspectorTab] {
+        Self.availableTabs(for: doc)
+    }
+
+    static func clampedSelectedTab(_ selectedTab: InspectorTab, for doc: Document?) -> InspectorTab {
+        let tabs = availableTabs(for: doc)
+        return tabs.contains(selectedTab) ? selectedTab : .content
+    }
+
+    private static func availableTabs(for doc: Document?) -> [InspectorTab] {
         guard let doc else { return InspectorTab.allCases }
         var tabs: [InspectorTab] = [
             .content, .annotations, .notes, .interpretations, .knowledgeGraph,
