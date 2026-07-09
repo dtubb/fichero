@@ -167,8 +167,10 @@ struct LibraryView: View {
     @State var filteredDocuments: [Document] = []
     @State var filteredEntities: [Components.Schemas.KnowledgeEntity] = []
     /// Stable key for .task(id:) in iconsView — updated inside recomputeFiltered()
-    /// to avoid allocating a joined string on every render (#2307).
+    /// to reset thumbnail prefetch state when the visible document set changes.
     @State var thumbnailPrefetchKey: String = ""
+    @State var prefetchedThumbnailIds: Set<String> = []
+    @State var thumbnailPrefetchTask: Task<Void, Never>?
 
     // Delete confirmation state
     @State var showDeleteConfirmation = false

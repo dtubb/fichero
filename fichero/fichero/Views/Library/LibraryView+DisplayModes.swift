@@ -66,6 +66,9 @@ extension LibraryView {
                                 .contextMenu {
                                     documentContextMenu(for: doc)
                                 }
+                                .onAppear {
+                                    scheduleThumbnailPrefetch(around: doc.id)
+                                }
                             }
                         }
                     }
@@ -194,18 +197,40 @@ extension LibraryView {
                         proxy.scrollTo(id, anchor: nil)
                     }
                 }
-                // Eager prefetch: warm the thumbnail cache as soon as the folder
-                // contents arrive so fast-scrolling sees images not placeholders (#719).
-                // Imported IIIF/W3C pages are `docType == .page` + `fileType == .image`,
-                // so include page images as well as top-level image files.
-                .task(id: thumbnailPrefetchKey) {
-                    guard !Task.isCancelled, !isShowingEntitiesCollection else { return }
-                    let imageIds = filteredDocuments
-                        .filter { $0.fileType == .image && $0.docType != .folder }
-                        .map(\.id)
-                    await libraryManager.globalLibrary?.storageService.prefetchThumbnails(imageIds)
+                .onChange(of: thumbnailPrefetchKey) { _, _ in
+                    resetThumbnailPrefetch()
+                }
+                .onDisappear {
+                    thumbnailPrefetchTask?.cancel()
                 }
             }
+        }
+    }
+
+    private func resetThumbnailPrefetch() {
+        prefetchedThumbnailIds.removeAll()
+        thumbnailPrefetchTask?.cancel()
+        thumbnailPrefetchTask = nil
+    }
+
+    private func scheduleThumbnailPrefetch(around documentId: String) {
+        guard !isShowingEntitiesCollection,
+              let index = filteredDocuments.firstIndex(where: { $0.id == documentId }) else { return }
+
+        let behind = max(gridColumnCount * 2, 8)
+        let ahead = max(gridColumnCount * 8, 24)
+        let start = max(0, index - behind)
+        let end = min(filteredDocuments.count, index + ahead)
+        let imageIds = filteredDocuments[start..<end]
+            .filter { $0.fileType == .image && $0.docType != .folder && !prefetchedThumbnailIds.contains($0.id) }
+            .map(\.id)
+        guard !imageIds.isEmpty,
+              let storageService = libraryReference?.storageService else { return }
+
+        prefetchedThumbnailIds.formUnion(imageIds)
+        thumbnailPrefetchTask?.cancel()
+        thumbnailPrefetchTask = Task {
+            await storageService.prefetchThumbnails(imageIds)
         }
     }
 
