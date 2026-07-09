@@ -20,6 +20,8 @@ struct EditorView: View {
     /// changes so a new selection always opens in view mode.
     @State private var isEditing = false
     @Environment(\.openURL) private var openURL
+    @Environment(LibraryManager.self) private var libraryManager
+    @Environment(WindowState.self) private var windowState
 
     var body: some View {
         Group {
@@ -75,9 +77,26 @@ struct EditorView: View {
                     )
                     .buttonStyle(.plain)
                     .help("Reveal in Finder")
-                }
-                #endif
 
+                    Button(
+                        action: { openWithDefault(doc) },
+                        label: {
+                            Image(systemName: "arrow.up.forward.square")
+                        }
+                    )
+                    .buttonStyle(.plain)
+                    .help("Open with default app")
+                } else {
+                    Button(
+                        action: { downloadCopy(doc) },
+                        label: {
+                            Image(systemName: "square.and.arrow.down")
+                        }
+                    )
+                    .buttonStyle(.plain)
+                    .help("Download a Copy…")
+                }
+                #else
                 Button(
                     action: { openWithDefault(doc) },
                     label: {
@@ -86,6 +105,7 @@ struct EditorView: View {
                 )
                 .buttonStyle(.plain)
                 .help("Open with default app")
+                #endif
             }
         }
         .padding()
@@ -236,6 +256,36 @@ struct EditorView: View {
         let url = URL(fileURLWithPath: path)
         openURL(url)
     }
+
+    #if os(macOS)
+    private func downloadCopy(_ doc: Document) {
+        guard let storageService = libraryManager.getLibrary(id: windowState.libraryId)?.storageService
+            ?? libraryManager.globalLibrary?.storageService else { return }
+        Task {
+            guard let tempURL = try? await storageService.downloadSourceFile(doc.id),
+                  let destinationURL = await presentDownloadPanel(for: doc, suggestedFrom: tempURL) else { return }
+            do {
+                if FileManager.default.fileExists(atPath: destinationURL.path) {
+                    try FileManager.default.removeItem(at: destinationURL)
+                }
+                try FileManager.default.copyItem(at: tempURL, to: destinationURL)
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func presentDownloadPanel(for doc: Document, suggestedFrom tempURL: URL) async -> URL? {
+        await withCheckedContinuation { continuation in
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = doc.name.isEmpty ? tempURL.lastPathComponent : doc.name
+            panel.canCreateDirectories = true
+            panel.begin { result in
+                continuation.resume(returning: result == .OK ? panel.url : nil)
+            }
+        }
+    }
+    #endif
 }
 
 // MARK: - Preview
