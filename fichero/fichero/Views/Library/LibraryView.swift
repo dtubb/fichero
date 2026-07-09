@@ -148,15 +148,17 @@ struct LibraryView: View {
     @State private var spatialSelectedNodeId: String?
     @State private var cachedLibraryProjection = SpatialLibraryProjection(nodes: [], links: [])
 
-    /// Canvas stores are now owned per-library by `LibraryReference` (#3082), NOT
-    /// per-view `@State`: ONE shared instance so a move in one window/renderer is
-    /// visible in every other. These read the shared instances off this view's
-    /// library (falling back to the Global library, matching the other lookups).
+    private var scopedLibraryReference: LibraryManager.LibraryReference? {
+        libraryManager.getLibrary(id: windowState.libraryId)
+    }
     private var libraryReference: LibraryManager.LibraryReference? {
         libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
     }
-    private var canvasLayoutStore: CanvasLayoutStore? { libraryReference?.canvasLayoutStore }
-    private var canvasItemStore: CanvasItemStore? { libraryReference?.canvasItemStore }
+    /// Canvas stores are shared per library (#3082), but must never silently
+    /// swap to another library's client/scope while this window's library is
+    /// still loading or unavailable (#3198).
+    private var canvasLayoutStore: CanvasLayoutStore? { scopedLibraryReference?.canvasLayoutStore }
+    private var canvasItemStore: CanvasItemStore? { scopedLibraryReference?.canvasItemStore }
 
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?

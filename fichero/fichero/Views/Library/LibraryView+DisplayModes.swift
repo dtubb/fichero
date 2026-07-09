@@ -225,7 +225,7 @@ extension LibraryView {
             .filter { $0.fileType == .image && $0.docType != .folder && !prefetchedThumbnailIds.contains($0.id) }
             .map(\.id)
         guard !imageIds.isEmpty,
-              let storageService = libraryReference?.storageService else { return }
+              let storageService = scopedLibraryReference?.storageService else { return }
 
         prefetchedThumbnailIds.formUnion(imageIds)
         thumbnailPrefetchTask?.cancel()
