@@ -65,18 +65,20 @@ enum SidebarItemBuilder {
     ///
     /// Included in the sidebar:
     ///   - Folders (navigation containers)
-    ///   - PDFs (first-class containers per #568) — PDF is a LEAF in the sidebar;
-    ///     pages are reached via the column/content view (#2404). A structured PDF
-    ///     still exposes its chapter outline via buildStructureItems.
+    ///   - PDFs (first-class containers per #568)
+    ///   - Image files and page documents as leaf rows under their parent folder/PDF
+    ///   - Structured PDF outline rows; when an outline exists, it still replaces
+    ///     flat page rows for now pending the chapter-vs-page product decision (#3172).
     ///
     /// **Not** included in the sidebar:
-    ///   - Images, text, docx — stay in the main grid only.
-    ///   - PDF pages — not shown as sidebar children (#2404, reverses #2260).
+    ///   - Text/docx/other generic files — stay in the main grid only.
     ///
     /// The sidebar is for containers, one level of drill-in at a time, like
     /// Finder.
     static func buildLibraryHierarchy(from documents: [Document], libraryId: UUID) -> [SidebarItem] {
-        let visibleDocs = documents.filter { $0.isNavigableContainer }
+        let visibleDocs = documents.filter {
+            $0.isNavigableContainer || $0.docType == .page || $0.fileType == .image
+        }
 
         // Build a map of parentId -> children
         var childrenMap: [String: [Document]] = [:]
@@ -99,8 +101,13 @@ enum SidebarItemBuilder {
         // Recursively build the tree (children sorted by sequence, then name).
         func buildItem(_ doc: Document) -> SidebarItem {
             let raw = childrenMap[doc.id] ?? []
-            let documentChildren = raw.sorted(by: childOrder).map { buildItem($0) }
             let structureChildren = buildStructureItems(for: doc, libraryId: libraryId)
+            let documentChildren = raw
+                .sorted(by: childOrder)
+                .filter { child in
+                    structureChildren.isEmpty || child.docType != .page
+                }
+                .map { buildItem($0) }
             let combined = documentChildren + structureChildren
             return SidebarItem.fromDocument(doc, libraryId: libraryId, children: combined.isEmpty ? nil : combined)
         }

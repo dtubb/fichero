@@ -426,16 +426,26 @@ struct SidebarItemBuilderTests {
         #expect(result.isEmpty)
     }
 
-    @Test("buildLibraryHierarchy excludes non-container files (images, text)")
-    func excludesNonContainerFiles() {
-        // Generic file with no fileType — not a container, not a page
+    @Test("buildLibraryHierarchy excludes non-sidebar file leaves like text")
+    func excludesTextFiles() {
         let generic = makeDocument(id: "f1", name: "notes.txt", docType: .file, fileType: .text)
-        let image = makeDocument(id: "f2", name: "photo.jpg", docType: .file, fileType: .image)
         let result = SidebarItemBuilder.buildLibraryHierarchy(
-            from: [generic, image],
+            from: [generic],
             libraryId: testLibraryId
         )
-        #expect(result.isEmpty, "non-container files must not appear in the sidebar")
+        #expect(result.isEmpty, "text files must not appear in the sidebar")
+    }
+
+    @Test("buildLibraryHierarchy includes images as leaf rows")
+    func includesImages() {
+        let image = makeDocument(id: "f2", name: "photo.jpg", docType: .file, fileType: .image)
+        let result = SidebarItemBuilder.buildLibraryHierarchy(
+            from: [image],
+            libraryId: testLibraryId
+        )
+        #expect(result.count == 1)
+        #expect(result[0].name == "photo.jpg")
+        #expect(result[0].children == nil)
     }
 
     @Test("buildLibraryHierarchy includes PDFs as containers (#568, #570)")
@@ -448,8 +458,8 @@ struct SidebarItemBuilderTests {
         #expect(result[0].children == nil, "PDF without pages has no children")
     }
 
-    @Test("buildLibraryHierarchy: PDF is a sidebar leaf — pages not shown as children (#2404)")
-    func pdfIsLeafInSidebar() {
+    @Test("buildLibraryHierarchy: PDF shows page child rows when no structure exists")
+    func pdfShowsPagesInSidebar() {
         let pdf = makeDocument(id: "pdf-1", name: "paper.pdf", docType: .file, fileType: .pdf)
         let page1 = makeDocument(id: "p1", name: "paper.pdf - Page 1", docType: .page, parentId: "pdf-1", sequence: 1)
         let page2 = makeDocument(id: "p2", name: "paper.pdf - Page 2", docType: .page, parentId: "pdf-1", sequence: 2)
@@ -460,11 +470,9 @@ struct SidebarItemBuilderTests {
             libraryId: testLibraryId
         )
 
-        // PDF appears once as a leaf — pages are reached via the column view (#2404).
-        // This matches folder behaviour (a folder does not expand its image children).
         #expect(result.count == 1)
         #expect(result[0].name == "paper.pdf")
-        #expect(result[0].children == nil, "PDF must be a sidebar leaf; pages belong in the column view")
+        #expect(result[0].children?.map(\.name) == ["1", "2", "3"])
     }
 
     @Test("buildLibraryHierarchy: structured PDF shows its outline, not flat pages (#2260)")

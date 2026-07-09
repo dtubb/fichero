@@ -113,7 +113,7 @@ struct SidebarItem: Identifiable, Hashable {
     static func fromDocument(_ doc: Document, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
         SidebarItem(
             id: "doc:\(doc.id)",
-            name: doc.name,
+            name: doc.pageThumbnailLabel ?? doc.name,
             // Prefer the file-type-specific icon (e.g. "doc.richtext" for PDFs)
             // over the generic docType icon ("doc" for any .file) — makes
             // PDFs visually distinct in the sidebar (#574).
