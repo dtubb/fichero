@@ -208,19 +208,16 @@ struct LibraryView: View {
     // continuously-updating scale (which would compound exponentially).
     @State var pinchBaseScale: Double = 1.0
 
-    // Processing poller (#518): fires while any document is
-    // pending/processing so the row indicator updates without manual refresh.
-    // Auto-stops when all documents settle; the onRetry()-triggered fetch
-    // updates `documents` which gates `hasProcessingDocuments` to false.
-    //
-    // 15s interval (was 3s) — 3s caused visible whole-list flash on libraries
-    // with one stuck pending row, because onRetry() replaces the documents
-    // array wholesale and SwiftUI re-renders every visible row. 15s gives
-    // reasonable ingest feedback without the flicker. Once we wire SSE-based
-    // status push (0.0.4 hybrid retrieval scope) the poll can go away entirely.
+    // Degraded fallback only: live activity/change-stream signals now trigger
+    // the surgical pending-status refresh immediately (#3200). Keep the timer
+    // only while live updates are paused/unavailable.
     private let processingPollTimer = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
     private var hasProcessingDocuments: Bool {
         documents.contains { $0.status == .processing || $0.status == .pending }
+    }
+    private var shouldUseProcessingPollFallback: Bool {
+        guard let ref = scopedLibraryReference else { return false }
+        return ref.changeStream.liveUpdatesUnavailable || ref.activityStore.liveUpdatesPaused
     }
 
     // Extracted from `body` to keep the body modifier chain within the Swift
@@ -459,6 +456,12 @@ struct LibraryView: View {
                 recomputeFiltered()
                 refreshLibraryProjection()
             }
+            .onChange(of: scopedLibraryReference?.activityStore.refreshToken ?? 0) { _, _ in
+                refreshPendingStatusesFromLiveUpdate()
+            }
+            .onChange(of: scopedLibraryReference?.activityStore.backendWork) { _, _ in
+                refreshPendingStatusesFromLiveUpdate()
+            }
             .onChange(of: searchText) { _, _ in
                 recomputeFiltered()
             }
@@ -482,26 +485,8 @@ struct LibraryView: View {
                 recomputeFiltered()
             }
             .onReceive(processingPollTimer) { _ in
-                // Surgical refresh: only mutate rows whose status changed
-                // (#518 follow-up). The previous onRetry() path replaced
-                // the whole documents array → SwiftUI re-rendered every
-                // visible row → flash. refreshPendingStatusesOnly walks
-                // currentDocuments in place and only swaps rows whose
-                // status flipped, so untouched rows keep referential
-                // identity and don't redraw.
-                //
-                // Perf (#2307): the guard below is a fast-path no-op when
-                // idle — hasProcessingDocuments short-circuits before any
-                // async work is queued, so the only cost while nothing is
-                // processing is a single Bool scan of `documents` per tick.
-                // A true lazy-suspend (connect/disconnect via onChange(of:
-                // documents)) would need @State bool machinery and risks
-                // altering poll cadence on reconnect — not worth the
-                // complexity until Instruments shows it matters. Upgrade
-                // path: onChange(of: hasProcessingDocuments) to toggle a
-                // @State isPollingActive, then gate the timer subscription.
-                guard hasProcessingDocuments, let parentId = folderId else { return }
-                Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
+                guard shouldUseProcessingPollFallback else { return }
+                refreshPendingStatusesFromLiveUpdate()
             }
             .task(id: entityCollectionTaskKey) {
                 await loadEntitiesIfNeeded()
@@ -519,6 +504,11 @@ struct LibraryView: View {
 
 // MARK: - Connection error + bottom inset (#3160: kept out of the type body)
 extension LibraryView {
+    private func refreshPendingStatusesFromLiveUpdate() {
+        guard hasProcessingDocuments, let parentId = folderId else { return }
+        Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
+    }
+
     private var connectionErrorState: some View {
         VStack(spacing: 16) {
             Image(systemName: "wifi.slash")
