@@ -10,11 +10,13 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from fichero import authz
 from fichero.actions.registry import registry
 from fichero.api.auth import action_context
+from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.routes.kg_claim_search import search_claims_semantic_impl
 from fichero.api.routes.kg_entity_curation import search_entities_semantic_impl
@@ -32,6 +34,112 @@ from fichero.models import DocType, Document, EmbeddingStatsResponse, SavedSearc
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _request_is_bootstrap(request: Request | None) -> bool:
+    return bool(getattr(getattr(request, "state", None), "bootstrap_auth", False))
+
+
+def _saved_search_owner_id(actor: Any) -> str:
+    resolved = authz.resolve_user(actor)
+    if resolved is not None:
+        return resolved.id
+    raw = str(actor).strip() if actor is not None else ""
+    return raw or "system"
+
+
+def _saved_search_visible_to_actor(
+    saved: SavedSearch,
+    actor: Any,
+    *,
+    is_bootstrap: bool = False,
+) -> bool:
+    if not authz.multiuser_enabled() or is_bootstrap:
+        return True
+    resolved = authz.resolve_user(actor)
+    if resolved is None:
+        return False
+    owner_id = str(getattr(saved, "created_by", "") or "")
+    return bool(owner_id) and owner_id == resolved.id
+
+
+def _require_saved_search_owner(
+    db: Database,
+    search_id: str,
+    actor: Any,
+    *,
+    is_bootstrap: bool = False,
+) -> SavedSearch:
+    saved = db.get(SavedSearch, search_id)
+    if saved is None or not _saved_search_visible_to_actor(
+        saved,
+        actor,
+        is_bootstrap=is_bootstrap,
+    ):
+        raise HTTPException(status_code=404, detail="Saved search not found")
+    return saved
+
+
+def _readable_document_ids(
+    *,
+    actor: Any,
+    library_path: str,
+    document_ids: set[str],
+    is_bootstrap: bool = False,
+) -> set[str]:
+    if not document_ids:
+        return set()
+    if not authz.multiuser_enabled() or is_bootstrap:
+        return set(document_ids)
+    return {
+        document_id
+        for document_id in document_ids
+        if authz.can_read(actor, library_path, document_id)
+    }
+
+
+def _filter_entity_hits_for_actor(
+    entity_hits: list[dict[str, Any]],
+    *,
+    actor: Any,
+    library_path: str,
+    is_bootstrap: bool = False,
+) -> list[dict[str, Any]]:
+    if not authz.multiuser_enabled() or is_bootstrap:
+        return entity_hits
+    visible: list[dict[str, Any]] = []
+    for hit in entity_hits:
+        doc_ids = {
+            str(doc_id)
+            for doc_id in (hit.get("source_document_ids") or [])
+            if isinstance(doc_id, str) and doc_id
+        }
+        if doc_ids and not any(authz.can_read(actor, library_path, doc_id) for doc_id in doc_ids):
+            continue
+        visible.append(hit)
+    return visible
+
+
+def _filter_claim_hits_for_actor(
+    claim_hits: list[dict[str, Any]],
+    *,
+    actor: Any,
+    library_path: str,
+    is_bootstrap: bool = False,
+) -> list[dict[str, Any]]:
+    if not authz.multiuser_enabled() or is_bootstrap:
+        return claim_hits
+    visible: list[dict[str, Any]] = []
+    for hit in claim_hits:
+        doc_ids = {
+            str(doc_id)
+            for doc_id in ([hit.get("source_document_id")] + list(hit.get("source_ids") or []))
+            if isinstance(doc_id, str) and doc_id
+        }
+        if doc_ids and not any(authz.can_read(actor, library_path, doc_id) for doc_id in doc_ids):
+            continue
+        visible.append(hit)
+    return visible
 
 
 class SearchInclude(str, Enum):
@@ -688,7 +796,10 @@ class ReorderResponse(BaseModel):
 
 @router.post("")
 async def enhanced_search(
-    request: SearchRequest, db: Database = Depends(get_library_database)
+    request: SearchRequest,
+    http_request: Request,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> SearchResponse:
     """
     Perform enhanced search over documents.
@@ -876,6 +987,17 @@ async def enhanced_search(
     except Exception as exc:  # noqa: BLE001
         logger.warning("search KG enrichment failed: %s", exc)
 
+    visible_doc_ids = _readable_document_ids(
+        actor=getattr(getattr(http_request, "state", None), "user", None),
+        library_path=x_fichero_library_path,
+        document_ids={result.document_id for result in results},
+        is_bootstrap=_request_is_bootstrap(http_request),
+    )
+    if visible_doc_ids != {result.document_id for result in results}:
+        results = [result for result in results if result.document_id in visible_doc_ids]
+        total_count = len(results)
+        search_stats["has_more"] = False
+
     # Did-you-mean: only when the user got *zero* results, AND their
     # query looks substantive (>2 chars). Avoids spamming suggestions on
     # short or accidental queries.
@@ -912,6 +1034,18 @@ async def enhanced_search(
         )
         if search_claims
         else []
+    )
+    entity_hits = _filter_entity_hits_for_actor(
+        entity_hits,
+        actor=getattr(getattr(http_request, "state", None), "user", None),
+        library_path=x_fichero_library_path,
+        is_bootstrap=_request_is_bootstrap(http_request),
+    )
+    claim_hits = _filter_claim_hits_for_actor(
+        claim_hits,
+        actor=getattr(getattr(http_request, "state", None), "user", None),
+        library_path=x_fichero_library_path,
+        is_bootstrap=_request_is_bootstrap(http_request),
     )
 
     return SearchResponse(
@@ -953,7 +1087,9 @@ class KeywordCloudListResponse(BaseModel):
 
 @router.get("/keywords", response_model=KeywordCloudListResponse)
 async def keyword_cloud(
+    request: Request,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Depends(require_library_path),
     limit: int = Query(50, ge=1, le=500),
 ) -> KeywordCloudListResponse:
     """Top-N keywords across the library, sorted by document frequency.
@@ -975,7 +1111,16 @@ async def keyword_cloud(
     from collections import Counter
 
     counter: Counter[str] = Counter()
+    readable_ids = _readable_document_ids(
+        actor=getattr(getattr(request, "state", None), "user", None),
+        library_path=x_fichero_library_path,
+        document_ids={str(doc_id) for _, doc_id in rows if isinstance(doc_id, str)},
+        is_bootstrap=_request_is_bootstrap(request),
+    )
+
     for data_blob, doc_id in rows:
+        if readable_ids and doc_id not in readable_ids:
+            continue
         if not data_blob:
             continue
         try:
@@ -1109,7 +1254,7 @@ def _saved_search_response(saved: SavedSearch) -> SavedSearchResponse:
     )
 
 
-def save_search_impl(db: Database, request: SavedSearchCreate) -> SavedSearch:
+def save_search_impl(db: Database, request: SavedSearchCreate, *, actor: Any = "system") -> SavedSearch:
     """Create + persist a ``SavedSearch`` from the create request.
 
     Extracted from ``POST /saved`` so BOTH the route and the ``savedsearch.save``
@@ -1123,6 +1268,7 @@ def save_search_impl(db: Database, request: SavedSearchCreate) -> SavedSearch:
         search_type=request.search_type,
         sort_by=request.sort_by,
         sort_direction=request.sort_direction,
+        created_by=_saved_search_owner_id(actor),
         folder_path=request.folder_path,
         sort_order=request.sort_order,
     )
@@ -1148,10 +1294,19 @@ async def save_search(
 
 @router.get("/saved", response_model=SavedSearchListResponse)
 async def list_saved_searches(
+    request: Request,
     db: Database = Depends(get_library_database),
 ) -> SavedSearchListResponse:
     """List all saved searches."""
-    searches = db.all(SavedSearch)
+    searches = [
+        search
+        for search in db.all(SavedSearch)
+        if _saved_search_visible_to_actor(
+            search,
+            getattr(getattr(request, "state", None), "user", None),
+            is_bootstrap=_request_is_bootstrap(request),
+        )
+    ]
     items = [_saved_search_response(s) for s in searches]
     return SavedSearchListResponse(items=items, count=len(items))
 
@@ -1171,7 +1326,12 @@ class SavedSearchUpdate(BaseModel):
 
 
 def update_saved_search_impl(
-    db: Database, search_id: str, request: SavedSearchUpdate
+    db: Database,
+    search_id: str,
+    request: SavedSearchUpdate,
+    *,
+    actor: Any = "system",
+    is_bootstrap: bool = False,
 ) -> SavedSearch:
     """Apply the present (non-None) ``SavedSearchUpdate`` fields and persist.
 
@@ -1179,9 +1339,12 @@ def update_saved_search_impl(
     ``savedsearch.update`` action drive the *same* code (iterate-not-replace).
     Raises ``HTTPException(404)`` on an unknown id exactly as the route did.
     """
-    saved = db.get(SavedSearch, search_id)
-    if not saved:
-        raise HTTPException(status_code=404, detail="Saved search not found")
+    saved = _require_saved_search_owner(
+        db,
+        search_id,
+        actor,
+        is_bootstrap=is_bootstrap,
+    )
 
     # Update fields
     if request.query is not None:
@@ -1208,22 +1371,40 @@ def update_saved_search_impl(
 async def update_saved_search(
     search_id: str,
     request: SavedSearchUpdate,
+    http_request: Request,
     db: Database = Depends(get_library_database_for_write),
 ) -> SavedSearchResponse:
     """Update a saved search."""
-    return _saved_search_response(update_saved_search_impl(db, search_id, request))
+    return _saved_search_response(
+        update_saved_search_impl(
+            db,
+            search_id,
+            request,
+            actor=getattr(getattr(http_request, "state", None), "user", None),
+            is_bootstrap=_request_is_bootstrap(http_request),
+        )
+    )
 
 
-def duplicate_saved_search_impl(db: Database, search_id: str) -> SavedSearch:
+def duplicate_saved_search_impl(
+    db: Database,
+    search_id: str,
+    *,
+    actor: Any = "system",
+    is_bootstrap: bool = False,
+) -> SavedSearch:
     """Create + persist a copy of a saved search under a new id.
 
     Extracted from ``POST /saved/{search_id}/duplicate`` so BOTH the route and
     the ``savedsearch.duplicate`` action drive the *same* copy logic
     (iterate-not-replace). Raises ``HTTPException(404)`` on an unknown id.
     """
-    original = db.get(SavedSearch, search_id)
-    if not original:
-        raise HTTPException(status_code=404, detail="Saved search not found")
+    original = _require_saved_search_owner(
+        db,
+        search_id,
+        actor,
+        is_bootstrap=is_bootstrap,
+    )
 
     # Create a new saved search with same properties but different ID and modified name
     new_saved = SavedSearch(
@@ -1233,6 +1414,7 @@ def duplicate_saved_search_impl(db: Database, search_id: str) -> SavedSearch:
         search_type=original.search_type,
         sort_by=original.sort_by,
         sort_direction=original.sort_direction,
+        created_by=_saved_search_owner_id(actor),
         folder_path=original.folder_path,
         sort_order=original.sort_order,
     )
@@ -1244,13 +1426,28 @@ def duplicate_saved_search_impl(db: Database, search_id: str) -> SavedSearch:
 
 @router.post("/saved/{search_id}/duplicate")
 async def duplicate_saved_search(
-    search_id: str, db: Database = Depends(get_library_database_for_write)
+    search_id: str,
+    http_request: Request,
+    db: Database = Depends(get_library_database_for_write),
 ) -> SavedSearchResponse:
     """Duplicate a saved search with a new name."""
-    return _saved_search_response(duplicate_saved_search_impl(db, search_id))
+    return _saved_search_response(
+        duplicate_saved_search_impl(
+            db,
+            search_id,
+            actor=getattr(getattr(http_request, "state", None), "user", None),
+            is_bootstrap=_request_is_bootstrap(http_request),
+        )
+    )
 
 
-def delete_saved_search_impl(db: Database, search_id: str) -> SavedSearch:
+def delete_saved_search_impl(
+    db: Database,
+    search_id: str,
+    *,
+    actor: Any = "system",
+    is_bootstrap: bool = False,
+) -> SavedSearch:
     """Delete a saved search, returning the row that was removed.
 
     Extracted from ``DELETE /saved/{search_id}`` so BOTH the route and the
@@ -1258,9 +1455,12 @@ def delete_saved_search_impl(db: Database, search_id: str) -> SavedSearch:
     Returning the deleted row lets the action snapshot it as the undo payload.
     Raises ``HTTPException(404)`` on an unknown id.
     """
-    saved = db.get(SavedSearch, search_id)
-    if not saved:
-        raise HTTPException(status_code=404, detail="Saved search not found")
+    saved = _require_saved_search_owner(
+        db,
+        search_id,
+        actor,
+        is_bootstrap=is_bootstrap,
+    )
 
     db.delete(saved)
     return saved
@@ -1268,15 +1468,27 @@ def delete_saved_search_impl(db: Database, search_id: str) -> SavedSearch:
 
 @router.delete("/saved/{search_id}")
 async def delete_saved_search(
-    search_id: str, db: Database = Depends(get_library_database_for_write)
+    search_id: str,
+    http_request: Request,
+    db: Database = Depends(get_library_database_for_write),
 ) -> DeletedResponse:
     """Delete a saved search."""
-    delete_saved_search_impl(db, search_id)
+    delete_saved_search_impl(
+        db,
+        search_id,
+        actor=getattr(getattr(http_request, "state", None), "user", None),
+        is_bootstrap=_request_is_bootstrap(http_request),
+    )
     return DeletedResponse(status="deleted")
 
 
 def reorder_saved_searches_impl(
-    db: Database, search_ids: list[str], folder_path: str = "/"
+    db: Database,
+    search_ids: list[str],
+    folder_path: str = "/",
+    *,
+    actor: Any = "system",
+    is_bootstrap: bool = False,
 ) -> tuple[int, dict[str, int], dict[str, int]]:
     """Renumber the listed saved searches to their list position and persist.
 
@@ -1289,11 +1501,12 @@ def reorder_saved_searches_impl(
     """
     before_orders: dict[str, int] = {}
     for i, search_id in enumerate(search_ids):
-        saved = db.get(SavedSearch, search_id)
-        if not saved:
-            raise HTTPException(
-                status_code=404, detail=f"Saved search not found: {search_id}"
-            )
+        saved = _require_saved_search_owner(
+            db,
+            search_id,
+            actor,
+            is_bootstrap=is_bootstrap,
+        )
 
         before_orders[search_id] = saved.sort_order
         # Update sort order
@@ -1306,12 +1519,19 @@ def reorder_saved_searches_impl(
 
 @router.post("/saved/reorder")
 async def reorder_saved_searches(
+    http_request: Request,
     search_ids: list[str],
     folder_path: str = "/",
     db: Database = Depends(get_library_database_for_write),
 ) -> ReorderResponse:
     """Reorder saved searches within a folder."""
-    count, _before, _after = reorder_saved_searches_impl(db, search_ids, folder_path)
+    count, _before, _after = reorder_saved_searches_impl(
+        db,
+        search_ids,
+        folder_path,
+        actor=getattr(getattr(http_request, "state", None), "user", None),
+        is_bootstrap=_request_is_bootstrap(http_request),
+    )
     return ReorderResponse(status="reordered", count=count)
 
 
@@ -1764,7 +1984,7 @@ def _invert_reorder_saved_searches(
 def _action_save_search(
     db: Database, params: SavedSearchCreate, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    saved = save_search_impl(db, params)
+    saved = save_search_impl(db, params, actor=ctx.actor)
     after = _snap_saved_search(saved)
     spec = ChangeSpec(
         domains=["savedsearch"],
@@ -1799,7 +2019,13 @@ def _action_update_saved_search(
         sort_direction=params.sort_direction,
         folder_path=params.folder_path,
     )
-    saved = update_saved_search_impl(db, params.search_id, request)
+    saved = update_saved_search_impl(
+        db,
+        params.search_id,
+        request,
+        actor=ctx.actor,
+        is_bootstrap=ctx.is_bootstrap,
+    )
     after = _snap_saved_search(saved)
     spec = ChangeSpec(
         domains=["savedsearch"],
@@ -1821,7 +2047,12 @@ def _action_update_saved_search(
 def _action_duplicate_saved_search(
     db: Database, params: SavedSearchIdParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    new_saved = duplicate_saved_search_impl(db, params.search_id)
+    new_saved = duplicate_saved_search_impl(
+        db,
+        params.search_id,
+        actor=ctx.actor,
+        is_bootstrap=ctx.is_bootstrap,
+    )
     after = _snap_saved_search(new_saved)
     spec = ChangeSpec(
         domains=["savedsearch"],
@@ -1843,7 +2074,12 @@ def _action_duplicate_saved_search(
 def _action_delete_saved_search(
     db: Database, params: SavedSearchIdParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    deleted = delete_saved_search_impl(db, params.search_id)
+    deleted = delete_saved_search_impl(
+        db,
+        params.search_id,
+        actor=ctx.actor,
+        is_bootstrap=ctx.is_bootstrap,
+    )
     before = _snap_saved_search(deleted)
     spec = ChangeSpec(
         domains=["savedsearch"],
@@ -1867,7 +2103,11 @@ def _action_reorder_saved_searches(
     db: Database, params: ReorderSavedSearchesParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     count, before_orders, after_orders = reorder_saved_searches_impl(
-        db, params.search_ids, params.folder_path
+        db,
+        params.search_ids,
+        params.folder_path,
+        actor=ctx.actor,
+        is_bootstrap=ctx.is_bootstrap,
     )
     spec = ChangeSpec(
         domains=["savedsearch"],

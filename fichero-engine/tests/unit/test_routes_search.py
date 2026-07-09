@@ -9,16 +9,21 @@ so tests can exercise it without a seeded vector store.
 from __future__ import annotations
 
 import asyncio
+import importlib
+from types import SimpleNamespace
+from urllib.parse import quote
 from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
+from fichero import accounts, authz
 from fichero.api.routes import search as search_routes
 from fichero.knowledge_models import ClaimType, EntityType
 from fichero.db import SearchAnchor, SearchExcerpt, SearchResult
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
-from fichero.models import DocType, Document, FileType, KGGraphListResponse, SavedSearch
+from fichero.models import AccountUser, DocType, Document, FileType, KGGraphListResponse, SavedSearch
 
 
 # ---------------------------------------------------------------------------
@@ -33,11 +38,76 @@ def _make_saved_search(db, query: str = "test query") -> SavedSearch:
         search_type="hybrid",
         sort_by="relevance",
         sort_direction="desc",
+        created_by="system",
         folder_path="/",
         sort_order=0,
     )
     db.save(s)
     return s
+
+
+@pytest.fixture
+def users(app_db):
+    owner = app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    editor = app_db.create_user(
+        username="editor",
+        display_name="Editor",
+        password_hash=accounts.hash_password("password"),
+    )
+    viewer = app_db.create_user(
+        username="viewer",
+        display_name="Viewer",
+        password_hash=accounts.hash_password("password"),
+    )
+    return SimpleNamespace(owner=owner, editor=editor, viewer=viewer)
+
+
+def _grant(app_db, user: AccountUser, library_path: str, role: str) -> None:
+    app_db.set_library_role(
+        user_id=user.id,
+        library_path=authz.normalize_library_path(library_path),
+        role=role,
+    )
+
+
+@pytest.fixture
+def multiuser_client(test_package, app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    client = TestClient(
+        api_main.app,
+        headers={"X-Fichero-Library-Path": quote(str(test_package), safe="/")},
+    )
+
+    def _login(username: str) -> dict[str, str]:
+        response = client.post(
+            "/api/auth/login",
+            json={"username": username, "password": "password"},
+        )
+        assert response.status_code == 200
+        token = response.json()["session_token"]
+        return {"Authorization": f"Bearer {token}"}
+
+    try:
+        yield client, _login, str(test_package)
+    finally:
+        client.close()
+        api_main.app.dependency_overrides.clear()
+        monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+        importlib.reload(api_main)
+
+
+def _request(user=None, bootstrap_auth: bool = False):
+    return SimpleNamespace(state=SimpleNamespace(user=user, bootstrap_auth=bootstrap_auth))
 
 
 def _seed_semantic_search_scope_library(db):
@@ -153,7 +223,9 @@ class TestEnhancedSearch:
                     query="Camilo",
                     include=[search_routes.SearchInclude.content],
                 ),
+                http_request=_request(),
                 db=FakeDB(),
+                x_fichero_library_path="/tmp/test.fichero",
             )
         )
 
@@ -222,6 +294,35 @@ class TestEnhancedSearch:
         assert "total_results" in data
         assert "search_type" in data
         assert "execution_time_ms" in data
+
+    def test_search_filters_denied_results_in_multiuser(self, multiuser_client, app_db, users, db):
+        client, login, library_path = multiuser_client
+        _grant(app_db, users.owner, library_path, "owner")
+        _grant(app_db, users.viewer, library_path, "viewer")
+
+        denied_doc = Document(
+            name="Denied Search Hit",
+            page_content="acl-needle",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(denied_doc)
+        app_db.set_library_acl_override(
+            user_id=users.viewer.id,
+            library_path=authz.normalize_library_path(library_path),
+            target_id=denied_doc.id,
+            effect="deny",
+        )
+
+        response = client.post(
+            "/api/search",
+            json={"query": "acl-needle", "search_type": "fulltext", "min_score": 0.0},
+            headers=login("viewer"),
+        )
+
+        assert response.status_code == 200
+        assert response.json()["results"] == []
+        assert response.json()["total_results"] == 0
 
     def test_min_score_filtering(self, client, mock_db):
         # Test that min_score parameter filters out low-scoring results
@@ -897,6 +998,33 @@ class TestSaveSearch:
         assert items[first.json()["id"]]["query"] == "first term"
         assert items[second.json()["id"]]["query"] == "\"Camilo\""
 
+    def test_list_saved_searches_only_returns_current_users_entries_in_multiuser(
+        self, multiuser_client, app_db, users
+    ):
+        client, login, library_path = multiuser_client
+        _grant(app_db, users.owner, library_path, "owner")
+        _grant(app_db, users.editor, library_path, "editor")
+
+        owner_save = client.post(
+            "/api/search/saved",
+            json={"query": "owner term"},
+            headers=login("owner"),
+        )
+        editor_save = client.post(
+            "/api/search/saved",
+            json={"query": "editor term"},
+            headers=login("editor"),
+        )
+
+        assert owner_save.status_code == 200
+        assert editor_save.status_code == 200
+
+        owner_listing = client.get("/api/search/saved", headers=login("owner"))
+        editor_listing = client.get("/api/search/saved", headers=login("editor"))
+
+        assert [item["query"] for item in owner_listing.json()["items"]] == ["owner term"]
+        assert [item["query"] for item in editor_listing.json()["items"]] == ["editor term"]
+
     def test_list_saved_searches_raises_for_malformed_folded_query_payload(self, db):
         db.save(
             Document(
@@ -919,7 +1047,7 @@ class TestSaveSearch:
         )
 
         with pytest.raises(ValueError, match="missing its query payload"):
-            asyncio.run(search_routes.list_saved_searches(db=db))
+            asyncio.run(search_routes.list_saved_searches(request=_request(), db=db))
 
 
 # ---------------------------------------------------------------------------
@@ -961,6 +1089,26 @@ class TestUpdateSavedSearch:
     def test_update_missing_returns_404(self, client):
         r = client.put("/api/search/saved/no-such-id", json={"query": "x"})
         assert r.status_code == 404
+
+    def test_update_rejects_another_users_saved_search_in_multiuser(
+        self, multiuser_client, app_db, users, db
+    ):
+        client, login, library_path = multiuser_client
+        _grant(app_db, users.owner, library_path, "owner")
+        _grant(app_db, users.editor, library_path, "editor")
+        saved = SavedSearch(
+            query="owner-only",
+            created_by=users.owner.id,
+        )
+        db.save(saved)
+
+        response = client.put(
+            f"/api/search/saved/{saved.id}",
+            json={"query": "stolen"},
+            headers=login("editor"),
+        )
+
+        assert response.status_code == 404
 
     def test_update_raises_when_legacy_row_exists_but_folded_node_is_missing(self, db):
         saved = _make_saved_search(db, "orphaned")
@@ -1013,7 +1161,24 @@ class TestReorderSavedSearches:
         r = client.post("/api/search/saved/reorder", json=[saved.id, "missing-search"])
 
         assert r.status_code == 404
-        assert r.json()["detail"] == "Saved search not found: missing-search"
+        assert r.json()["detail"] == "Saved search not found"
+
+    def test_reorder_rejects_other_users_saved_searches_in_multiuser(
+        self, multiuser_client, app_db, users, db
+    ):
+        client, login, library_path = multiuser_client
+        _grant(app_db, users.owner, library_path, "owner")
+        _grant(app_db, users.editor, library_path, "editor")
+        saved = SavedSearch(query="owner-first", created_by=users.owner.id)
+        db.save(saved)
+
+        response = client.post(
+            "/api/search/saved/reorder",
+            json=[saved.id],
+            headers=login("editor"),
+        )
+
+        assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------

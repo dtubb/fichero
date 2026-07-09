@@ -1218,6 +1218,7 @@ class SavedSearch(BaseModel):
     search_type: str = "hybrid"  # Type of search: semantic, fulltext, hybrid
     sort_by: str = "relevance"  # Sort field
     sort_direction: str = "desc"  # Sort direction: "asc" or "desc"
+    created_by: str = "system"  # Owning user id when multi-user is enabled
 
     # Organization
     folder_path: str = "/"  # Unix-style path for organization

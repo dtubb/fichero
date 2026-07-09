@@ -1355,6 +1355,7 @@ class Database(DatabaseEmbeddingMixin):
             search_type=str(attrs.get("search_type", "hybrid")),
             sort_by=str(attrs.get("sort_by", "relevance")),
             sort_direction=str(attrs.get("sort_direction", "desc")),
+            created_by=str(attrs.get("created_by", "system")),
             folder_path=str(attrs.get("folder_path", "/")),
             sort_order=doc.sort_order,
             created_at=doc.created_at,
@@ -2408,6 +2409,7 @@ class Database(DatabaseEmbeddingMixin):
             "saved_search_type": saved.search_type,
             "saved_search_sort_by": saved.sort_by,
             "saved_search_sort_direction": saved.sort_direction,
+            "saved_search_created_by": saved.created_by,
             "saved_search_folder_path": saved.folder_path,
         })
 
@@ -2423,6 +2425,7 @@ class Database(DatabaseEmbeddingMixin):
             "search_type": saved.search_type,
             "sort_by": saved.sort_by,
             "sort_direction": saved.sort_direction,
+            "created_by": saved.created_by,
             "folder_path": saved.folder_path,
         })
 
