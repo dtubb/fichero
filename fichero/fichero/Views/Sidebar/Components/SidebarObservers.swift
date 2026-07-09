@@ -112,10 +112,12 @@ extension SidebarView {
         guard !automationIsLoading else { return }
         automationIsLoading = true
         defer { automationIsLoading = false }
+        automationLoadError = nil
 
         do {
             guard let library = libraryManager.openLibraries.first else {
                 logger.warning("No library available to load automation data")
+                automationLoadError = "No library available for Automation."
                 return
             }
             let automationService = library.automationService
@@ -125,9 +127,11 @@ extension SidebarView {
             let (loadedSchedules, loadedTriggers) = try await (schedulesTask, triggersTask)
             schedules = loadedSchedules
             triggers = loadedTriggers
+            automationLoadError = nil
             logger.info("Loaded \(loadedSchedules.count) schedules and \(loadedTriggers.count) triggers")
         } catch {
             logger.error("Failed to load automation data: \(error.localizedDescription)")
+            automationLoadError = error.localizedDescription
         }
     }
 
@@ -136,6 +140,7 @@ extension SidebarView {
         guard !activityIsLoading else { return }
         activityIsLoading = true
         defer { activityIsLoading = false }
+        activityLoadError = nil
 
         let types = [
             "workflow_started",
@@ -144,6 +149,7 @@ extension SidebarView {
             "workflow_cancelled"
         ]
         let since = Date().addingTimeInterval(-7 * 24 * 3600)
+        var failures: [String] = []
 
         // Load activity from each open library
         for library in libraryManager.openLibraries {
@@ -163,8 +169,10 @@ extension SidebarView {
                 logger.info("Loaded \(runs.count) activity items from \(library.displayName)")
             } catch {
                 logger.error("Failed to load activity from \(library.displayName): \(error.localizedDescription)")
+                failures.append("\(library.displayName): \(error.localizedDescription)")
             }
         }
+        activityLoadError = failures.isEmpty ? nil : failures.joined(separator: "\n")
     }
 
     /// Configure item registry handlers

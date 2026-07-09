@@ -52,10 +52,12 @@ struct SidebarView: View {
     @State var schedules: [ScheduleInfo] = []
     @State var triggers: [TriggerInfo] = []
     @State var automationIsLoading = false
+    @State var automationLoadError: String?
 
     // Activity data (historical runs)
     @State var historicalRunsByLibrary: [UUID: [ActivityItem]] = [:]
     @State var activityIsLoading = false
+    @State var activityLoadError: String?
     @State var selectedActivityItemIds: Set<String> = []
     @State var showingRenameLibraryPrompt = false
     @State var libraryToRenameId: UUID?
@@ -212,8 +214,6 @@ struct SidebarView: View {
                 // When a run starts or finishes, refresh historical runs so completed items persist.
                 guard oldCount != newCount else { return }
                 Task { @MainActor in
-                    // Give backend activity writer a brief moment to persist completion events.
-                    try? await Task.sleep(for: .milliseconds(400))
                     guard !Task.isCancelled else { return }
                     await loadActivityData()
                 }

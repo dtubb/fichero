@@ -3,6 +3,38 @@ import SwiftUI
 // MARK: - Activity Navigation Row
 
 extension SidebarView {
+    @ViewBuilder
+    private func sidebarLoadErrorRow(
+        title: String,
+        message: String,
+        retry: @escaping @MainActor () async -> Void
+    ) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Text(message)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Button("Retry") {
+                Task { @MainActor in
+                    await retry()
+                }
+            }
+            .buttonStyle(.borderless)
+        }
+        .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 8))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .selectionDisabled()
+    }
+
     private func pinnedNavigationRow(
         _ title: String,
         systemImage: String,
@@ -152,6 +184,22 @@ extension SidebarView {
 
         if FeatureManager.shared.isActivityEnabled {
             activityNavigationRow()
+        }
+
+        if let automationLoadError {
+            sidebarLoadErrorRow(
+                title: "Automation Unavailable",
+                message: automationLoadError,
+                retry: { await loadAutomationData() }
+            )
+        }
+
+        if let activityLoadError {
+            sidebarLoadErrorRow(
+                title: "Activity Unavailable",
+                message: activityLoadError,
+                retry: { await loadActivityData() }
+            )
         }
     }
 }
