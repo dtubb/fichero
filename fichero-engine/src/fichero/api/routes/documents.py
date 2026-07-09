@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from fichero.api.auth import action_context
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.api.routes.iiif import build_document_annotation_page
 from fichero.db import Database
 from fichero.knowledge_models import (
     Annotation,
@@ -962,6 +963,18 @@ async def update_document(
     doc = Document.model_validate(result.result)
     logger.info(f"Updated document: {doc_id}")
     return doc
+
+
+@router.get(
+    "/{doc_id}/annotations.jsonld",
+    summary="Export a document's annotations as W3C AnnotationPage",
+)
+async def export_document_annotations_jsonld(
+    doc_id: str,
+    db: Database = Depends(get_library_database),
+) -> dict[str, Any]:
+    doc = _get_document_row(db, doc_id)
+    return build_document_annotation_page(db, doc)
 
 
 @router.patch("/batch-exclude", response_model=DocumentBatchExcludeResponse)

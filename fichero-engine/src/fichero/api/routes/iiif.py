@@ -18,10 +18,12 @@ from PIL import Image
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.knowledge_models import Annotation, AnnotationKind
 from fichero.models import Document, FileType
 from fichero.path_security import allowed_source_roots, resolve_under_allowed_roots
 from fichero.storage import get_display, get_thumbnail, resolve_source
 from fichero.storage import settings as storage_settings
+from fichero.utf16_offsets import utf16_range_to_codepoint_range
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/iiif", tags=["iiif"])
@@ -67,35 +69,6 @@ class ImageInfoResponse(BaseModel):
 # =============================================================================
 
 
-class IIIFCanvas(BaseModel):
-    """IIIF Canvas for presentation."""
-
-    id: str
-    type: str = "Canvas"
-    label: str
-    width: int
-    height: int
-    items: list[dict[str, Any]] = Field(default_factory=list)
-
-
-class IIIFManifest(BaseModel):
-    """IIIF Presentation API Manifest."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    context: str = "http://iiif.io/api/presentation/2/context.json"
-    id: str = Field(..., alias="@id")
-    type: str = "sc:Manifest"
-    label: str
-    description: str | None = None
-    sequences: list[dict[str, Any]] = Field(default_factory=list)
-
-
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-
 def _get_image_path(
     doc: Document, library_root: Path | None = None
 ) -> Path | None:
@@ -131,6 +104,171 @@ def _document_or_404(db: Database, document_id: str) -> Document:
     if doc is None or getattr(doc, "deleted_at", None) is not None:
         raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
     return doc
+
+
+def _iiif_base_url(document_id: str) -> str:
+    return f"/api/iiif/iiif/{document_id}"
+
+
+def _iiif_canvas_id(document_id: str) -> str:
+    return f"{_iiif_base_url(document_id)}/canvas/1"
+
+
+def _annotation_motivation(kind: AnnotationKind) -> str:
+    return {
+        AnnotationKind.highlight: "highlighting",
+        AnnotationKind.note: "commenting",
+        AnnotationKind.comment: "commenting",
+        AnnotationKind.bookmark: "bookmarking",
+        AnnotationKind.rating: "assessing",
+    }.get(kind, "commenting")
+
+
+def _annotation_exact_text(doc: Document, ann: Annotation) -> str | None:
+    if (
+        not doc.page_content
+        or ann.char_start is None
+        or ann.char_end is None
+    ):
+        return None
+    cp_start, cp_end = utf16_range_to_codepoint_range(
+        doc.page_content, ann.char_start, ann.char_end
+    )
+    return doc.page_content[cp_start:cp_end] or None
+
+
+def _annotation_target(doc: Document, ann: Annotation) -> dict[str, Any]:
+    selectors: list[dict[str, Any]] = []
+    if ann.char_start is not None and ann.char_end is not None:
+        selectors.append(
+            {
+                "type": "TextPositionSelector",
+                "start": ann.char_start,
+                "end": ann.char_end,
+            }
+        )
+        if exact := _annotation_exact_text(doc, ann):
+            selectors.append(
+                {
+                    "type": "TextQuoteSelector",
+                    "exact": exact,
+                }
+            )
+    if ann.bbox and len(ann.bbox) == 4:
+        x, y, width, height = ann.bbox
+        selectors.append(
+            {
+                "type": "FragmentSelector",
+                "conformsTo": "http://www.w3.org/TR/media-frags/",
+                "value": f"xywh=pct:{x * 100:g},{y * 100:g},{width * 100:g},{height * 100:g}",
+            }
+        )
+    target: dict[str, Any] = {"source": _iiif_canvas_id(doc.id)}
+    if selectors:
+        target["selector"] = selectors[0] if len(selectors) == 1 else selectors
+    return target
+
+
+def build_document_annotation_page(db: Database, doc: Document) -> dict[str, Any]:
+    annotations = _dedupe_annotations(
+        db.query_in(Annotation, "document_id", [doc.id]),
+        db.query_in(Annotation, "page_id", [doc.id]),
+    )
+    items: list[dict[str, Any]] = []
+    for ann in annotations:
+        body = None
+        if ann.text:
+            body = {
+                "type": "TextualBody",
+                "value": ann.text,
+                "format": "text/plain",
+            }
+        items.append(
+            {
+                "id": f"/api/documents/{doc.id}/annotations/{ann.id}",
+                "type": "Annotation",
+                "motivation": _annotation_motivation(ann.kind),
+                "body": body,
+                "target": _annotation_target(doc, ann),
+            }
+        )
+    return {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "id": f"/api/documents/{doc.id}/annotations.jsonld",
+        "type": "AnnotationPage",
+        "items": items,
+    }
+
+
+def _dedupe_annotations(*groups: list[Annotation]) -> list[Annotation]:
+    seen: set[str] = set()
+    rows: list[Annotation] = []
+    for group in groups:
+        for row in group:
+            if row.id in seen:
+                continue
+            seen.add(row.id)
+            rows.append(row)
+    return rows
+
+
+def build_iiif_manifest(db: Database, doc: Document) -> dict[str, Any]:
+    image_path = _get_image_path(doc, db.path.parent)
+    if not image_path:
+        raise HTTPException(
+            status_code=404, detail=f"No image available for document: {doc.id}"
+        )
+    width, height = _get_image_dimensions(image_path)
+    base_url = _iiif_base_url(doc.id)
+    manifest_url = f"{base_url}/manifest"
+    annotation_page_url = f"/api/documents/{doc.id}/annotations.jsonld"
+    canvas = {
+        "id": _iiif_canvas_id(doc.id),
+        "type": "Canvas",
+        "label": {"en": [doc.name or "Canvas 1"]},
+        "width": width,
+        "height": height,
+        "items": [
+            {
+                "id": f"{base_url}/page/1",
+                "type": "AnnotationPage",
+                "items": [
+                    {
+                        "id": f"{base_url}/painting/1",
+                        "type": "Annotation",
+                        "motivation": "painting",
+                        "body": {
+                            "id": f"{base_url}/full/full/0/default.jpg",
+                            "type": "Image",
+                            "format": "image/jpeg",
+                            "width": width,
+                            "height": height,
+                            "service": [
+                                {
+                                    "id": base_url,
+                                    "type": "ImageService2",
+                                    "profile": "http://iiif.io/api/image/2/level1.json",
+                                }
+                            ],
+                        },
+                        "target": _iiif_canvas_id(doc.id),
+                    }
+                ],
+            }
+        ],
+        "annotations": [{"id": annotation_page_url, "type": "AnnotationPage"}],
+    }
+    manifest = {
+        "@context": "http://iiif.io/api/presentation/3/context.json",
+        "id": manifest_url,
+        "type": "Manifest",
+        "label": {"en": [doc.name or "Untitled"]},
+        "items": [canvas],
+    }
+    description = getattr(doc, "description", None)
+    if description:
+        manifest["summary"] = {"en": [description]}
+    return manifest
 
 
 def _serve_iiif_image(
@@ -306,72 +444,16 @@ async def serve_iiif_image(
 
 @router.get(
     "/manifest/{document_id}",
-    response_model=IIIFManifest,
     summary="IIIF Manifest",
     description="Returns IIIF Presentation API manifest for document.",
 )
 async def get_iiif_manifest(
     document_id: str,
     db: Database = Depends(get_library_database),
-) -> IIIFManifest:
+) -> dict[str, Any]:
     """Get IIIF manifest for document."""
     doc = _document_or_404(db, document_id)
-
-    image_path = _get_image_path(doc, db.path.parent)
-    if not image_path:
-        raise HTTPException(
-            status_code=404, detail=f"No image available for document: {document_id}"
-        )
-
-    width, height = _get_image_dimensions(image_path)
-
-    # Build manifest
-    base_url = f"/api/iiif/{document_id}"
-    manifest_url = f"/api/iiif/manifest/{document_id}"
-
-    canvas = IIIFCanvas(
-        id=f"{base_url}/canvas/1",
-        label=doc.name or "Canvas 1",
-        width=width,
-        height=height,
-        items=[
-            {
-                "type": "AnnotationPage",
-                "items": [
-                    {
-                        "type": "Annotation",
-                        "motivation": "painting",
-                        "body": {
-                            "type": "Image",
-                            "id": f"{base_url}/full/full/0/default.jpg",
-                            "format": "image/jpeg",
-                            "width": width,
-                            "height": height,
-                            "service": {
-                                "type": "ImageService2",
-                                "profile": "http://iiif.io/api/image/2/level1.json",
-                                "id": base_url,
-                            },
-                        },
-                        "target": f"{base_url}/canvas/1",
-                    }
-                ],
-            }
-        ],
-    )
-
-    sequence = {
-        "type": "Sequence",
-        "canvases": [canvas.model_dump()],
-    }
-
-    return IIIFManifest(
-        context="http://iiif.io/api/presentation/2/context.json",
-        id=manifest_url,
-        label=doc.name or "Untitled",
-        description=doc.description,
-        sequences=[sequence],
-    )
+    return build_iiif_manifest(db, doc)
 
 
 @router.get(
