@@ -21,9 +21,9 @@ struct WorkflowToolbar: View {
     // plain values — default to the shared FeatureManager, but visible at the
     // call site and overridable in previews/tests — instead of an `@ObservedObject`
     // that binds the legacy singleton ad hoc inside an `@Observable`-Environment view.
-    var showImportExport = FeatureManager.shared.isWorkflowImportExportEnabled
-    var showLangGraphPreview = FeatureManager.shared.isWorkflowLangGraphPreviewEnabled
-    var showFilesToolbarButton = FeatureManager.shared.isWorkflowFilesToolbarButtonEnabled
+    let showImportExport: Bool
+    let showLangGraphPreview: Bool
+    let showFilesToolbarButton: Bool
 
     var body: some View {
         MiniToolbar {

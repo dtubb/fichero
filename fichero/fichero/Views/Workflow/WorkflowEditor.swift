@@ -39,7 +39,7 @@ struct WorkflowEditor: View {
     @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(DocumentStore.self) var documentStore: DocumentStore
     @Environment(LibraryManager.self) var libraryManager
-    @ObservedObject var featureManager = FeatureManager.shared
+    @EnvironmentObject var featureManager: FeatureManager
 
     // Uses @Observable pattern - injected via .environment() from LibraryWindow
     @Environment(WorkflowExecutionObserver.self) var executionObserver
@@ -136,7 +136,10 @@ struct WorkflowEditor: View {
                 },
                 onCompareModels: {
                     showModelComparison = true
-                }
+                },
+                showImportExport: featureManager.isWorkflowImportExportEnabled,
+                showLangGraphPreview: featureManager.isWorkflowLangGraphPreviewEnabled,
+                showFilesToolbarButton: featureManager.isWorkflowFilesToolbarButtonEnabled
             )
         }
         // Saving is silent — no "Saved" flash/toast (#2438). Save failures still

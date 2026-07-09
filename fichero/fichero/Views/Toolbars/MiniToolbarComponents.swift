@@ -218,9 +218,8 @@ struct WorkflowMiniToolbarButton: View {
     let isEnabled: Bool
     let action: () -> Void
 
-    // Plain injectable flag (#3205) — defaults to the shared FeatureManager but
-    // is visible/overridable, replacing an `@ObservedObject` singleton binding.
-    var showRunOnSelection = FeatureManager.shared.isWorkflowRunOnSelectionEnabled
+    /// Plain injectable flag (#3205) — the caller owns feature-state injection.
+    let showRunOnSelection: Bool
 
     var body: some View {
         if showRunOnSelection {
