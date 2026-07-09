@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "0.1.0"
+    "version": "2026.7.3b1"
   },
   "paths": {
     "/api/health": {
@@ -532,6 +532,16 @@
               "title": "Days"
             },
             "description": "Delete activities older than N days"
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "responses": {
@@ -4258,6 +4268,16 @@
               "nullable": true,
               "title": "Document Id"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -4323,6 +4343,16 @@
               "title": "Use Llm"
             },
             "description": "When true, in addition to PDF metadata run an Apple Intelligence first-page extractor. Requires a configured LLM."
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "responses": {
@@ -4332,6 +4362,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MetadataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bibliography/import/persist": {
+      "post": {
+        "tags": [
+          "bibliography"
+        ],
+        "summary": "Parse + persist bibliography entries as child documents (#3328)",
+        "operationId": "bulk_import_persist_api_bibliography_import_persist_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkImportResponse"
                 }
               }
             }
@@ -4817,15 +4900,27 @@
         "summary": "Chat",
         "description": "Send a message and get a response with RAG.\n\n1. Searches for relevant documents\n2. Builds context from top results\n3. Calls LLM with context + query\n4. Returns response with source citations",
         "operationId": "chat_api_chat_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ChatRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -18896,7 +18991,6 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": true,
-                "default": {},
                 "title": "Workflow Data"
               }
             }
@@ -23728,7 +23822,7 @@
           "knowledge-graph"
         ],
         "summary": "Suggest Interpretations",
-        "description": "Generate AI interpretation suggestions for claims.\n\nUses available LiteLLM providers to suggest how frameworks might\nbe applied to the given claims. Returns ranked suggestions.",
+        "description": "Generate AI interpretation suggestions for claims.\n\nUses the configured LLM providers (via LangChain) to suggest how\nframeworks might be applied to the given claims. Returns ranked\nsuggestions.",
         "operationId": "suggest_interpretations_api_hermeneutics_suggestions_post",
         "requestBody": {
           "content": {
@@ -24800,7 +24894,7 @@
           "knowledge-graph"
         ],
         "summary": "Suggest Interpretations",
-        "description": "Generate AI interpretation suggestions for claims.\n\nUses available LiteLLM providers to suggest how frameworks might\nbe applied to the given claims. Returns ranked suggestions.",
+        "description": "Generate AI interpretation suggestions for claims.\n\nUses the configured LLM providers (via LangChain) to suggest how\nframeworks might be applied to the given claims. Returns ranked\nsuggestions.",
         "operationId": "suggest_interpretations_api_kg_interpretations_suggestions_post",
         "requestBody": {
           "content": {
@@ -33308,6 +33402,8 @@
           },
           "rating": {
             "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
             "nullable": true,
             "title": "Rating"
           },
@@ -33417,6 +33513,8 @@
           },
           "rating": {
             "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
             "nullable": true,
             "title": "Rating"
           },
@@ -34803,6 +34901,60 @@
         ],
         "title": "BrowserSaveResponse"
       },
+      "BulkImportRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "format": {
+            "type": "string",
+            "nullable": true,
+            "title": "Format"
+          },
+          "target_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Document Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "BulkImportRequest",
+        "description": "Parse bibliography text and persist every entry as a child document."
+      },
+      "BulkImportResponse": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Document Ids"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "document_ids",
+          "entries"
+        ],
+        "title": "BulkImportResponse"
+      },
       "CacheClearResponse": {
         "properties": {
           "entries_deleted": {
@@ -35756,6 +35908,8 @@
         "properties": {
           "message": {
             "type": "string",
+            "maxLength": 32000,
+            "minLength": 1,
             "title": "Message"
           },
           "conversation_id": {
@@ -44163,23 +44317,23 @@
             "title": "Params",
             "description": "Raw action params"
           },
-          "origin_window": {
-            "type": "string",
-            "nullable": true,
-            "title": "Origin Window",
-            "description": "Self-echo de-dup seam for the change stream"
-          },
-          "actor": {
-            "type": "string",
-            "nullable": true,
-            "title": "Actor",
-            "description": "Override actor; defaults to 'ui'"
-          },
           "run_id": {
             "type": "string",
             "nullable": true,
             "title": "Run Id",
             "description": "AI run id, if any (#1832)"
+          },
+          "actor": {
+            "type": "string",
+            "nullable": true,
+            "title": "Actor",
+            "description": "DEPRECATED \u2014 rejected if set. Actor comes from the authenticated session."
+          },
+          "origin_window": {
+            "type": "string",
+            "nullable": true,
+            "title": "Origin Window",
+            "description": "DEPRECATED \u2014 rejected if set. Use X-Fichero-Origin-Window header."
           }
         },
         "type": "object",

@@ -1371,6 +1371,16 @@
       },
       {
         "method": "POST",
+        "path": "/bibliography/import/persist",
+        "operation_id": "bulk_import_persist_api_bibliography_import_persist_post",
+        "summary": "Parse + persist bibliography entries as child documents (#3328)",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BulkImportRequest",
+        "response_model": "BulkImportResponse"
+      },
+      {
+        "method": "POST",
         "path": "/bibliography/resolve",
         "operation_id": "resolve_api_bibliography_resolve_post",
         "summary": "Resolve a DOI or ISBN via Crossref / Open Library (#910)",

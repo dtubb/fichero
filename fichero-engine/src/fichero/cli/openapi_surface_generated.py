@@ -338,9 +338,9 @@ def register_generated_openapi_commands(
                 "params": params,
                 "run_id": run_id,
             }, {
-                "actor": {'type': 'string', 'nullable': True, 'title': 'Actor', 'description': "Override actor; defaults to 'ui'", 'x-cli-required': False},
+                "actor": {'type': 'string', 'nullable': True, 'title': 'Actor', 'description': 'DEPRECATED — rejected if set. Actor comes from the authenticated session.', 'x-cli-required': False},
                 "name": {'type': 'string', 'title': 'Name', 'description': "Registered action name, '<domain>.<verb>'", 'x-cli-required': True},
-                "origin_window": {'type': 'string', 'nullable': True, 'title': 'Origin Window', 'description': 'Self-echo de-dup seam for the change stream', 'x-cli-required': False},
+                "origin_window": {'type': 'string', 'nullable': True, 'title': 'Origin Window', 'description': 'DEPRECATED — rejected if set. Use X-Fichero-Origin-Window header.', 'x-cli-required': False},
                 "params": {'additionalProperties': True, 'type': 'object', 'title': 'Params', 'description': 'Raw action params', 'x-cli-required': False},
                 "run_id": {'type': 'string', 'nullable': True, 'title': 'Run Id', 'description': 'AI run id, if any (#1832)', 'x-cli-required': False},
             }, required=True)
@@ -1022,7 +1022,7 @@ def register_generated_openapi_commands(
                 "page_index": {'type': 'integer', 'nullable': True, 'title': 'Page Index', 'x-cli-required': False},
                 "page_label": {'type': 'string', 'nullable': True, 'title': 'Page Label', 'x-cli-required': False},
                 "paragraph_index": {'type': 'integer', 'nullable': True, 'title': 'Paragraph Index', 'x-cli-required': False},
-                "rating": {'type': 'integer', 'nullable': True, 'title': 'Rating', 'x-cli-required': False},
+                "rating": {'type': 'integer', 'maximum': 5.0, 'minimum': 1.0, 'nullable': True, 'title': 'Rating', 'x-cli-required': False},
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tags', 'default': [], 'x-cli-required': False},
                 "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
             }, required=True)
@@ -1150,7 +1150,7 @@ def register_generated_openapi_commands(
                 "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
                 "page_id": {'type': 'string', 'nullable': True, 'title': 'Page Id', 'x-cli-required': False},
                 "paragraph_index": {'type': 'integer', 'nullable': True, 'title': 'Paragraph Index', 'x-cli-required': False},
-                "rating": {'type': 'integer', 'nullable': True, 'title': 'Rating', 'x-cli-required': False},
+                "rating": {'type': 'integer', 'maximum': 5.0, 'minimum': 1.0, 'nullable': True, 'title': 'Rating', 'x-cli-required': False},
                 "tags": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tags', 'x-cli-required': False},
                 "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
             }, required=True)
@@ -1849,6 +1849,29 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("parse-persist-entries-as-child-documents-3328")
+    def bibliography_parse_persist_entries_as_child_documents_3328_post(
+        ctx: typer.Context,
+        format: Optional[str] = typer.Option(None, "--format", help="Request field: format."),
+        target_document_id: Optional[str] = typer.Option(None, "--target-document-id", help="Request field: target_document_id."),
+        text: str = typer.Option(..., "--text", help="Request field: text."),
+    ) -> None:
+        """Parse + persist bibliography entries as child documents (#3328) (POST /api/bibliography/import/persist)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/bibliography/import/persist"
+            params = None
+            payload = _build_json_payload({
+                "format": format,
+                "target_document_id": target_document_id,
+                "text": text,
+            }, {
+                "format": {'type': 'string', 'nullable': True, 'title': 'Format', 'x-cli-required': False},
+                "target_document_id": {'type': 'string', 'nullable': True, 'title': 'Target Document Id', 'x-cli-required': False},
+                "text": {'type': 'string', 'title': 'Text', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("resolve-a-doi-or-isbn-via-crossref-open-library-910")
     def bibliography_resolve_a_doi_or_isbn_via_crossref_open_library_910_post(
         ctx: typer.Context,
@@ -2320,7 +2343,7 @@ def register_generated_openapi_commands(
                 "include_sources": {'type': 'boolean', 'title': 'Include Sources', 'default': True, 'x-cli-required': False},
                 "max_kg_claims": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Max Kg Claims', 'default': 12, 'x-cli-required': False},
                 "max_sources": {'type': 'integer', 'maximum': 50.0, 'minimum': 1.0, 'title': 'Max Sources', 'default': 5, 'x-cli-required': False},
-                "message": {'type': 'string', 'title': 'Message', 'x-cli-required': True},
+                "message": {'type': 'string', 'maxLength': 32000, 'minLength': 1, 'title': 'Message', 'x-cli-required': True},
                 "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'x-cli-required': False},
                 "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
             }, required=True)
