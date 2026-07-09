@@ -79,25 +79,37 @@ changed without regen → exit 1.
 
 ## D. Xcode schemes / targets / destinations (manager does this first)
 
-Single `Fichero` target — no new targets. Build configurations:
+Single `Fichero` target — no new targets. Build configurations are the full
+**tier x backend-mode grid** (8 Mac configs). The existing 4 keep their names
+(`release-all.sh` / `build-and-validate.sh` hardcode `-configuration Release`),
+each now carrying `FICHERO_EMBED_ENGINE` alongside `FICHERO_FEATURE_TIER`;
+4 new configs are cloned for the Embedded / Local variants:
 
-| config  | FICHERO_FEATURE_TIER | purpose              |
-|---------|----------------------|----------------------|
-| Debug   | dev                  | local dev, ⌘R       |
-| Alpha   | alpha                | Daniel review builds |
-| Beta    | beta                 | TestFlight / testers |
-| Release | release              | DMG / public         |
+| config            | FICHERO_FEATURE_TIER | FICHERO_EMBED_ENGINE | role                  |
+|-------------------|----------------------|----------------------|-----------------------|
+| Debug             | dev                  | NO                   | Dev Local             |
+| Dev Embedded      | dev                  | YES                  | Dev Embedded          |
+| Alpha             | alpha                | NO                   | Alpha Local           |
+| Alpha Embedded    | alpha                | YES                  | Alpha Embedded        |
+| Beta              | beta                 | NO                   | Beta Local            |
+| Beta Embedded     | beta                 | YES                  | Beta Embedded         |
+| Release           | release              | YES                  | Release Embedded (DMG)|
+| Release Local     | release              | NO                   | Release Local         |
 
-- Add `Alpha` and `Beta` configurations (cloned from Release for optimizer settings).
-- Fix `(Debug) Mac` scheme: Run + Test `buildConfiguration` back to `Debug` (currently
-  mis-set to `Release` — root cause of last session's "no external engine on :8765").
-- Add `(Alpha) Mac`, `(Alpha) iOS`, `(Beta) Mac`, `(Beta) iOS` schemes bound to the new
-  configs. Existing `(Release, DMG)` + `(Release Testflight)` Mac/iOS stay on Release.
+- The engine embed run-script gates on `FICHERO_EMBED_ENGINE != YES` (was
+  `CONFIGURATION != Release`), so the Local variants skip embedding and expect
+  an external engine on `:8765`; the Embedded variants bundle + spawn it.
+- Schemes follow the strict `(Tier, Mode)` convention - 8 Mac + 4 iOS (iOS is
+  always Local; the Python engine can't run on-device, so no iOS Embedded):
+  `Fichero (Dev Local|Dev Embedded|Alpha Local|Alpha Embedded|Beta Local|Beta
+  Embedded|Release Local|Release Embedded)` on Mac, and
+  `Fichero (Dev|Alpha|Beta|Release Local iOS)` on iOS. Every build action
+  (Test/Launch/Profile/Analyze/Archive) is set to the scheme's tier config, so
+  the baked tier/embed flow through - no per-scheme `FICHERO_FEATURE_TIER` env
+  var (the config bakes it; the app reads baked-first).
 - `FicheroTests` + `FicheroUITests (Debug) iOS` schemes untouched.
-- Destinations: per-platform schemes already give My Mac / iOS sim / iPad — no new
-  destinations needed.
-- `FICHERO_FEATURE_TIER` build setting per config → Info.plist `FicheroFeatureTier` key
-  (read by `Bundle.main.infoDictionary`).
+- `FICHERO_FEATURE_TIER` build setting per config -> Info.plist `FicheroFeatureTier`
+  key (read by `Bundle.main.infoDictionary`).
 
 ## E. UX flagging (dev / alpha / beta only; release shows nothing)
 
