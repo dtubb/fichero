@@ -20,6 +20,7 @@ struct SidebarView: View {
     // Window state - needed to switch libraries when selecting items
     @Environment(AppState.self) var appState
     @Environment(WindowState.self) var windowState
+    @Environment(\.undoManager) var undoManager
 
     // API client for service calls
     @Environment(APIClient.self) var apiClient

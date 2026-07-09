@@ -336,6 +336,25 @@ class DocumentServiceGenerated {
         }
     }
 
+    /// Restore a soft-deleted document subtree from Trash.
+    func restoreDocument(_ id: String) async throws {
+        logger.info("Restoring document: \(id)")
+
+        let response = try await client.api.restoreDocumentApiDocumentsDocIdRestorePost(.init(
+            path: .init(docId: id)
+        ))
+
+        switch response {
+        case .ok:
+            return
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     /// Patch workspace curated items for a folder in the active library.
     /// - Parameters:
     ///   - folderId: Workspace folder document ID

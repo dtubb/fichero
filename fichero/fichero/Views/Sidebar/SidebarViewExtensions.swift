@@ -3,6 +3,20 @@ import SwiftUI
 
 private let sidebarExtLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarExtensions")
 
+func sidebarDeleteConfirmationMessage(for item: SidebarItem?) -> String {
+    guard let item else {
+        return "Move this item to Trash? You can put it back later."
+    }
+    if case .document(let doc) = item.itemType,
+       doc.isLinked,
+       let path = doc.path {
+        return
+            "Move the Fichero reference to \"\(item.name)\" to Trash? "
+            + "The original file at \(path) stays on disk, and you can put this back later."
+    }
+    return "Move \"\(item.name)\" to Trash? You can put it back later."
+}
+
 // MARK: - Sidebar Bottom Toolbar
 
 /// Compact bottom toolbar for sidebar with common actions.
@@ -360,17 +374,7 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
                     deleteState.cancelDelete()
                 }
             } message: {
-                if let item = deleteState.itemToDelete,
-                   case .document(let doc) = item.itemType,
-                   doc.isLinked,
-                   let path = doc.path {
-                    Text(
-                        "Remove the Fichero reference to \"\(item.name)\"? "
-                        + "The original file at \(path) will stay on disk."
-                    )
-                } else {
-                    Text("This action cannot be undone.")
-                }
+                Text(sidebarDeleteConfirmationMessage(for: deleteState.itemToDelete))
             }
             .alert("Delete Failed", isPresented: $deleteState.showingDeleteError) {
                 Button("OK", role: .cancel) {}

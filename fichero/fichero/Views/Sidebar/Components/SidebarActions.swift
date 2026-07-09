@@ -107,6 +107,18 @@ extension SidebarView {
                     params: DocumentDeleteActionParams(docId: doc.id)
                 )
                 LastAction.shared.record(auditId: result.auditId, actionName: "document.delete")
+                undoManager?.registerUndo(withTarget: library.documentStore) { store in
+                    Task { @MainActor in
+                        do {
+                            try await store.documentService.restoreDocument(doc.id)
+                            await store.refresh()
+                        } catch {
+                            logger.error("Failed to restore deleted document: \(error.localizedDescription)")
+                        }
+                    }
+                }
+                undoManager?.setActionName("Move to Trash")
+                await library.documentStore.refresh()
             case .savedSearch(let search):
                 try await library.savedSearchServiceGenerated.deleteSavedSearch(search.id)
             case .conversation(let conversation):
@@ -132,7 +144,7 @@ extension SidebarView {
                 logger.warning("Cannot delete library header")
             }
             logger.info("Delete successful")
-            rebuildCaches()
+            rebuildCaches(for: libraryId)
             selectedItemId = nil
         } catch {
             logger.error("Failed to delete: \(error.localizedDescription)")
