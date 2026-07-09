@@ -1,0 +1,399 @@
+- key: library
+  name: Library
+  tier: release
+  swift_flag: null
+  routes: []
+  ux_group: Core
+  notes: Import, organize, and browse a hierarchy of documents.
+- key: reader
+  name: Reader
+  tier: release
+  swift_flag: null
+  routes: []
+  ux_group: Core
+  notes: PDFs, page images, extracted text, artifacts, and inspector.
+- key: ingest
+  name: Ingest
+  tier: release
+  swift_flag: null
+  routes:
+    - /api/ingest
+  ux_group: Core
+  notes: File and URL import into the library.
+- key: libraryAdvancedViews
+  name: Library advanced views
+  tier: release
+  swift_flag: fichero.features.library_advanced_views
+  routes: []
+  ux_group: Core
+  notes: Grid, list, table, and map views in the library.
+- key: libraryIconZoomControls
+  name: Library icon zoom controls
+  tier: release
+  swift_flag: fichero.features.library_icon_zoom_controls
+  routes: []
+  ux_group: Core
+  notes: Zoom controls for icon-based library layouts.
+- key: search
+  name: Search
+  tier: release
+  swift_flag: fichero.features.search
+  routes:
+    - /api/search
+  ux_group: Core
+  notes: Keyword and semantic search across the library.
+- key: searchAdvancedViews
+  name: Search advanced views
+  tier: release
+  swift_flag: fichero.features.search_advanced_views
+  routes: []
+  ux_group: Core
+  notes: Search results in all supported presentation modes.
+- key: workflows
+  name: Workflows
+  tier: release
+  swift_flag: fichero.features.workflows
+  routes:
+    - /api/workflows
+    - /api/workflow-execution
+  ux_group: Processing
+  notes: Visual workflow editor and execution surface.
+- key: workflowEditorAdvancedViews
+  name: Workflow editor advanced views
+  tier: release
+  swift_flag: fichero.features.workflow_editor_advanced_views
+  routes: []
+  ux_group: Processing
+  notes: Extra presentation modes in the workflow editor.
+- key: workflowChains
+  name: Workflow chains
+  tier: release
+  swift_flag: fichero.features.workflow_chains
+  routes:
+    - /api/chains
+  ux_group: Processing
+  notes: Multi-step composed workflow pipelines.
+- key: workflowImportExport
+  name: Workflow import and export
+  tier: release
+  swift_flag: fichero.features.workflow_import_export
+  routes: []
+  ux_group: Processing
+  notes: Import and export workflow definitions.
+- key: workflowRunOnSelection
+  name: Workflow run on selection
+  tier: release
+  swift_flag: fichero.features.workflow_run_on_selection
+  routes: []
+  ux_group: Processing
+  notes: Run the active workflow on the selected documents.
+- key: workflowLangGraphPreview
+  name: Workflow LangGraph preview
+  tier: release
+  swift_flag: fichero.features.workflow_langgraph_preview
+  routes: []
+  ux_group: Processing
+  notes: Inspect the compiled LangGraph form of a workflow.
+- key: batches
+  name: Batches
+  tier: release
+  swift_flag: fichero.features.batches
+  routes:
+    - /api/batches
+  ux_group: Processing
+  notes: Queue workflow work across many documents.
+- key: workflowToolsFiles
+  name: Workflow tools files
+  tier: release
+  swift_flag: fichero.features.workflow_tools_files
+  routes: []
+  ux_group: Processing
+  notes: File and collection tools enabled in shipped workflows.
+- key: knowledgeGraph
+  name: Knowledge graph
+  tier: release
+  swift_flag: fichero.features.knowledge_graph
+  routes:
+    - /api/kg
+    - /api/hermeneutics
+  ux_group: Knowledge
+  notes: Entities, claims, provenance, and ontology surfaces.
+- key: curation
+  name: Curation
+  tier: release
+  swift_flag: null
+  routes:
+    - /api/claims
+  ux_group: Knowledge
+  notes: Persist corrections as rules that future imports obey.
+- key: providers
+  name: Providers
+  tier: release
+  swift_flag: null
+  routes:
+    - /api/providers
+    - /api/models
+  ux_group: Models
+  notes: Local and cloud model providers plus model catalog.
+- key: modelComparison
+  name: Model comparison
+  tier: release
+  swift_flag: null
+  routes:
+    - /api/model-comparison
+  ux_group: Models
+  notes: Compare model behavior and metadata in-app.
+- key: cli
+  name: CLI
+  tier: release
+  swift_flag: null
+  routes: []
+  ux_group: Clients
+  notes: Typed CLI over the same HTTP API surface.
+- key: mcpServer
+  name: MCP server
+  tier: release
+  swift_flag: null
+  routes:
+    - /api/mcp
+  ux_group: Clients
+  notes: MCP server surface backed by the engine.
+- key: activity
+  name: Activity
+  tier: beta
+  swift_flag: fichero.features.activity
+  routes:
+    - /api/activity
+  ux_group: Processing
+  notes: Execution history and live progress over SSE.
+- key: research
+  name: Research
+  tier: beta
+  swift_flag: fichero.features.research
+  routes:
+    - /api/research
+  ux_group: Knowledge
+  notes: KG-backed research workflows and answer surface.
+- key: settingsGeneralTab
+  name: Settings general tab
+  tier: beta
+  swift_flag: fichero.features.settings_general_tab
+  routes: []
+  ux_group: Settings
+  notes: General settings panel.
+- key: settingsEngineTab
+  name: Settings engine tab
+  tier: beta
+  swift_flag: fichero.features.settings_engine_tab
+  routes: []
+  ux_group: Settings
+  notes: Engine settings panel.
+- key: settingsShareTab
+  name: Settings share tab
+  tier: beta
+  swift_flag: fichero.features.settings_share_tab
+  routes: []
+  ux_group: Settings
+  notes: Sharing and collaboration settings panel.
+- key: settingsUsersTab
+  name: Settings users tab
+  tier: beta
+  swift_flag: fichero.features.settings_users_tab
+  routes: []
+  ux_group: Settings
+  notes: Multi-user settings panel.
+- key: settingsCaptureTab
+  name: Settings capture tab
+  tier: beta
+  swift_flag: fichero.features.settings_capture_tab
+  routes: []
+  ux_group: Settings
+  notes: Capture and intake settings panel.
+- key: chat
+  name: Chat
+  tier: alpha
+  swift_flag: fichero.features.chat
+  routes:
+    - /api/chat
+  ux_group: Knowledge
+  notes: RAG conversation over the active library.
+- key: workflowToolsSearch
+  name: Workflow tools search
+  tier: alpha
+  swift_flag: fichero.features.workflow_tools_search
+  routes: []
+  ux_group: Processing
+  notes: Search-oriented workflow tools that are not yet shipped by default.
+- key: workflowToolsTransform
+  name: Workflow tools transform
+  tier: alpha
+  swift_flag: fichero.features.workflow_tools_transform
+  routes: []
+  ux_group: Processing
+  notes: Transform workflow tools still under review.
+- key: workflowToolsConvert
+  name: Workflow tools convert
+  tier: alpha
+  swift_flag: fichero.features.workflow_tools_convert
+  routes: []
+  ux_group: Processing
+  notes: Convert workflow tools still under review.
+- key: workflowToolsLogic
+  name: Workflow tools logic
+  tier: alpha
+  swift_flag: fichero.features.workflow_tools_logic
+  routes: []
+  ux_group: Processing
+  notes: Logic workflow tools still under review.
+- key: workflowToolsOutputs
+  name: Workflow tools outputs
+  tier: alpha
+  swift_flag: fichero.features.workflow_tools_outputs
+  routes: []
+  ux_group: Processing
+  notes: Output workflow tools still under review.
+- key: workflowToolsAudio
+  name: Workflow tools audio
+  tier: alpha
+  swift_flag: fichero.features.workflow_tools_audio
+  routes: []
+  ux_group: Processing
+  notes: Audio workflow tools still under review.
+- key: workflowToolsVideo
+  name: Workflow tools video
+  tier: alpha
+  swift_flag: fichero.features.workflow_tools_video
+  routes: []
+  ux_group: Processing
+  notes: Video workflow tools still under review.
+- key: workflowToolsMcp
+  name: Workflow tools MCP
+  tier: alpha
+  swift_flag: fichero.features.workflow_tools_mcp
+  routes: []
+  ux_group: Processing
+  notes: MCP-backed workflow tools still under review.
+- key: workflowToolsAgents
+  name: Workflow tools agents
+  tier: alpha
+  swift_flag: fichero.features.workflow_tools_agents
+  routes: []
+  ux_group: Processing
+  notes: Agent-backed workflow tools still under review.
+- key: providersExtended
+  name: Extended provider catalog
+  tier: alpha
+  swift_flag: fichero.features.providers_extended
+  routes: []
+  ux_group: Models
+  notes: Expanded provider and model catalog beyond the shipped baseline.
+- key: settingsBackendTab
+  name: Settings backend tab
+  tier: alpha
+  swift_flag: fichero.features.settings_backend_tab
+  routes: []
+  ux_group: Settings
+  notes: Backend configuration panel.
+- key: settingsModelsTab
+  name: Settings models tab
+  tier: alpha
+  swift_flag: fichero.features.settings_models_tab
+  routes: []
+  ux_group: Settings
+  notes: Model configuration panel.
+- key: libraryFilterToolbar
+  name: Library filter toolbar
+  tier: alpha
+  swift_flag: fichero.features.library_filter_toolbar
+  routes: []
+  ux_group: Core
+  notes: Advanced filter toolbar in the library.
+- key: librarySearchSplitLayouts
+  name: Library and search split layouts
+  tier: alpha
+  swift_flag: fichero.features.library_search_split_layouts
+  routes: []
+  ux_group: Core
+  notes: Split layouts for library and search.
+- key: claimHighlightSync
+  name: Claim highlight sync
+  tier: alpha
+  swift_flag: fichero.features.claim_highlight_sync
+  routes: []
+  ux_group: Knowledge
+  notes: Bidirectional claim highlight sync across panes.
+- key: pdfScrollGridSync
+  name: PDF scroll grid sync
+  tier: alpha
+  swift_flag: fichero.features.pdf_scroll_grid_sync
+  routes: []
+  ux_group: Core
+  notes: Live PDF scroll synchronization into other panes.
+- key: workspaceMode
+  name: Workspace mode
+  tier: alpha
+  swift_flag: fichero.features.workspace_mode
+  routes: []
+  ux_group: Clients
+  notes: Alternate workspace-oriented shell mode.
+- key: spatialMode
+  name: Spatial mode
+  tier: alpha
+  swift_flag: fichero.features.spatial_mode
+  routes: []
+  ux_group: Clients
+  notes: Spatial library presentation mode.
+- key: canvasRealityKit2D
+  name: Canvas RealityKit 2D
+  tier: alpha
+  swift_flag: fichero.features.canvas_realitykit_2d
+  routes: []
+  ux_group: Clients
+  notes: Route the 2D canvas to the RealityKit renderer.
+- key: canvasRealityKit3D
+  name: Canvas RealityKit 3D
+  tier: alpha
+  swift_flag: fichero.features.canvas_realitykit_3d
+  routes: []
+  ux_group: Clients
+  notes: Route the 3D space to the contract-based RealityKit renderer.
+- key: automation
+  name: Automation
+  tier: alpha
+  swift_flag: fichero.features.automation
+  routes:
+    - /api/schedules
+    - /api/triggers
+  ux_group: Processing
+  notes: Schedules, triggers, and automated flows.
+- key: mcpUi
+  name: MCP servers UI
+  tier: alpha
+  swift_flag: fichero.features.mcp
+  routes:
+    - /api/mcp-servers
+  ux_group: Clients
+  notes: UI for managing MCP server connections.
+- key: agents
+  name: Agents
+  tier: dev
+  swift_flag: fichero.features.agents
+  routes: []
+  ux_group: Knowledge
+  notes: In-app agent surface still in the rawest stage.
+- key: integrations
+  name: Integrations
+  tier: dev
+  swift_flag: fichero.features.integrations
+  routes:
+    - /api/integrations
+  ux_group: Clients
+  notes: External integrations surface still in the rawest stage.
+- key: iiif
+  name: IIIF
+  tier: dev
+  swift_flag: null
+  routes:
+    - /api/iiif
+  ux_group: Core
+  notes: IIIF image and annotation server interoperability.

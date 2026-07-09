@@ -106,3 +106,43 @@ jobs:
             fi
           done
           [ "$drift" -eq 0 ] && echo "openapi.json is semantically in sync with the FastAPI app." || exit 1
+
+  feature-tier-drift:
+    name: Feature tier drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install backend
+        working-directory: fichero-engine
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]' || pip install -e .
+
+      - name: Regenerate feature-tier artifacts
+        env:
+          PYTHONPATH: fichero-engine/src
+        run: python scripts/gen_feature_tiers.py
+
+      - name: Fail if feature-tier artifacts drifted from committed copy
+        run: |
+          drift=0
+          for f in \
+            docs/user/features.md \
+            fichero/fichero/Models/FeatureTiers.generated.swift \
+            fichero-engine/src/fichero/api/feature_tiers_generated.py; do
+            if ! git diff --quiet -- "$f"; then
+              echo "::error::Feature-tier artifact drift detected in $f."
+              echo "Fix: run \`python scripts/gen_feature_tiers.py\` locally and commit the regenerated file."
+              git --no-pager diff -- "$f" | head -120
+              drift=1
+            fi
+          done
+          [ "$drift" -eq 0 ] && echo "Feature-tier artifacts are in sync with features.yaml." || exit 1
