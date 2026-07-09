@@ -361,6 +361,19 @@ def test_pair_device_rejects_remote_plaintext_transport_without_consuming_code(a
     assert pairing._PAIRING_CODES["ABCD-EFGH"].used is False
 
 
+def test_create_pairing_code_rejects_remote_plaintext_transport(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    owner = _create_owner(app_db)
+
+    with pytest.raises(HTTPException, match="remote pairing requires https") as exc:
+        pairing.create_pairing_code(
+            _owner_request(owner, host="198.51.100.26", scheme="http"),
+            app_db,
+        )
+
+    assert exc.value.status_code == 400
+
+
 def test_pair_device_rejects_remote_https_without_configured_spki_pin(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     monkeypatch.delenv("FICHERO_TLS_SPKI_HASH", raising=False)
@@ -385,6 +398,25 @@ def test_pair_device_rejects_remote_https_without_configured_spki_pin(app_db, mo
     assert exc.value.status_code == 503
     assert "ABCD-EFGH" in pairing._PAIRING_CODES
     assert pairing._PAIRING_CODES["ABCD-EFGH"].used is False
+
+
+def test_create_pairing_code_rejects_remote_https_without_configured_spki_pin(
+    app_db, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.delenv("FICHERO_TLS_SPKI_HASH", raising=False)
+    owner = _create_owner(app_db)
+
+    with pytest.raises(
+        HTTPException,
+        match="remote pairing unavailable without configured SPKI pin",
+    ) as exc:
+        pairing.create_pairing_code(
+            _owner_request(owner, host="198.51.100.27", scheme="https"),
+            app_db,
+        )
+
+    assert exc.value.status_code == 503
 
 
 def test_pair_device_allows_remote_https_with_configured_spki_pin(app_db, monkeypatch):

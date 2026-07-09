@@ -371,6 +371,7 @@ def create_pairing_code(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> PairCodeResponse:
     """Mint a short-lived one-time pairing code for the authenticated caller."""
+    _require_secure_pairing_transport(request)
     user = _pairing_user(request, app_db)
     now = datetime.now()
     _prune_pairing_codes(now)

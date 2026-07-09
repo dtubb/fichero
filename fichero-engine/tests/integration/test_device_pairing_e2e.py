@@ -149,6 +149,13 @@ def test_device_pairing_e2e_rejects_remote_pairing_without_https(pairing_harness
     assert response.status_code == 400
     assert response.json() == {"detail": "remote pairing requires https"}
 
+    code_response = remote_http_client.post(
+        "/api/pair/code",
+        headers=_bearer(login.json()["session_token"]),
+    )
+    assert code_response.status_code == 400
+    assert code_response.json() == {"detail": "remote pairing requires https"}
+
 
 def test_device_pairing_e2e_rejects_remote_pairing_without_spki_pin(
     pairing_harness, monkeypatch
@@ -174,6 +181,15 @@ def test_device_pairing_e2e_rejects_remote_pairing_without_spki_pin(
 
     assert response.status_code == 503
     assert response.json() == {
+        "detail": "remote pairing unavailable without configured SPKI pin"
+    }
+
+    code_response = remote_client.post(
+        "/api/pair/code",
+        headers=_bearer(login.json()["session_token"]),
+    )
+    assert code_response.status_code == 503
+    assert code_response.json() == {
         "detail": "remote pairing unavailable without configured SPKI pin"
     }
 
