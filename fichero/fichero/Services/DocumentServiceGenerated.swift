@@ -345,7 +345,7 @@ class DocumentServiceGenerated {
         ))
 
         switch response {
-        case .ok:
+        case .noContent:
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -673,7 +673,9 @@ private extension DocumentServiceGenerated {
         let fileType = doc.fileType?.rawValue ?? (extras["file_type"] as? String)
         let path = doc.path ?? (extras["path"] as? String)
         let sequence = doc.sequence ?? (extras["sequence"] as? Int)
-        let childCount = doc.childCount ?? (extras["child_count"] as? Int) ?? 0
+        // child_count isn't a typed field on Components.Schemas.Document (it lives
+        // on FolderViewsResponse); it arrives via additionalProperties.
+        let childCount = (extras["child_count"] as? Int) ?? 0
         // bbox is OpenAPIArrayContainer — extract its inner [Int] payload.
         let bbox = (doc.bbox?.value as? [Int]) ?? (extras["bbox"] as? [Int])
         let pageContent = doc.pageContent ?? (extras["page_content"] as? String)
