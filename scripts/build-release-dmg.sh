@@ -55,6 +55,20 @@ if [ ! -d "$APP_PATH" ]; then
   exit 1
 fi
 
+# Guardrail (#13): never ship a stale app. The built app's version MUST match the
+# project's MARKETING_VERSION. A cached/pre-built Products/Release app of a
+# different version (e.g. --skip-app-build, or a skipped stamp) must NOT be
+# packaged + tagged as this release — that shipped a 07.07 app under a 07.08 tag
+# and created a Sparkle update loop.
+BUILT_VER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist" 2>/dev/null)"
+EXPECT_VER="$(awk -F'= ' '/MARKETING_VERSION[[:space:]]*=/ {gsub(/[;"]/,"",$2); print $2; exit}' "$ROOT_DIR/fichero/fichero.xcodeproj/project.pbxproj")"
+if [ -n "$EXPECT_VER" ] && [ "$BUILT_VER" != "$EXPECT_VER" ]; then
+  echo "error: built app version '$BUILT_VER' != project MARKETING_VERSION '$EXPECT_VER'." >&2
+  echo "       Refusing to ship a stale app. Clean-build the app (drop --skip-app-build) or fix the version stamp." >&2
+  exit 1
+fi
+echo "  Version check OK: app is $BUILT_VER"
+
 # ── 2. Stage DMG contents ───────────────────────────────────────────────────
 echo
 echo "[2/6] Stage DMG contents"
