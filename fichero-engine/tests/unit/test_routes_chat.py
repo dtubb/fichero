@@ -312,6 +312,77 @@ class TestChatWithSources:
         assert r.status_code == 200
         assert "chat_retrieval" in caplog.text
 
+    def test_chat_retrieval_failure_returns_502_and_skips_llm(self, client, monkeypatch):
+        class _BrokenRetriever:
+            def retrieve(self, **_kwargs):
+                raise RuntimeError("index offline")
+
+        llm_called = False
+
+        class _ShouldNotRunLLM:
+            async def ainvoke(self, _messages):
+                nonlocal llm_called
+                llm_called = True
+                return type("_Response", (), {"content": "nope"})()
+
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: _ShouldNotRunLLM(),
+        )
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.GraphAwareRetriever",
+            lambda *_args, **_kwargs: _BrokenRetriever(),
+        )
+
+        response = client.post("/api/chat", json={"message": "Use retrieval"})
+
+        assert response.status_code == 502
+        assert response.json()["detail"] == "Search unavailable — cannot ground the answer"
+        assert llm_called is False
+
+    def test_chat_emits_conversation_change_with_actor_context(
+        self, client, db, monkeypatch
+    ):
+        emitted: list[dict] = []
+        fake_llm = _FakeLLM()
+
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.emit_change",
+            lambda library_path, **kwargs: emitted.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        create_response = client.post(
+            "/api/chat",
+            headers={"X-Fichero-Origin-Window": "chat-window-1"},
+            json={"message": "Start a new conversation"},
+        )
+
+        assert create_response.status_code == 200
+        created_conversation_id = create_response.json()["conversation_id"]
+        assert emitted[-1]["type"] == "conversation.created"
+        assert emitted[-1]["metadata"] == {"conversation_id": created_conversation_id}
+        assert emitted[-1]["origin_window"] == "chat-window-1"
+        assert emitted[-1]["origin_user"] == emitted[-1]["actor"]
+        assert emitted[-1]["actor"]
+
+        update_response = client.post(
+            "/api/chat",
+            json={
+                "conversation_id": created_conversation_id,
+                "message": "Continue the conversation",
+            },
+        )
+
+        assert update_response.status_code == 200
+        assert emitted[-1]["type"] == "conversation.updated"
+        assert emitted[-1]["metadata"] == {"conversation_id": created_conversation_id}
+
     def test_chat_rejects_out_of_range_graph_hops(self, client):
         r = client.post(
             "/api/chat",

@@ -14,6 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
+from fichero.actions.registry import ActionContext, ChangeSpec, action
+from fichero.api.auth import action_context
+from fichero.api.change_stream import emit_change
 from fichero.api.routes.claims import _descendant_doc_ids
 from fichero.db import Database
 from fichero.api.main import get_library_database, get_library_database_for_write
@@ -358,6 +361,7 @@ def _build_history_messages(
 async def chat(
     request: ChatRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> ChatResponse:
     """
     Send a message and get a response with RAG.
@@ -371,6 +375,7 @@ async def chat(
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
     # Get or create conversation
+    created = not request.conversation_id
     if request.conversation_id:
         conv = db.get(Conversation, request.conversation_id)
         if not conv:
@@ -476,6 +481,14 @@ async def chat(
 
     # Save conversation to database
     db.save(conv)
+    emit_change(
+        ctx.library_path or "",
+        type="conversation.created" if created else "conversation.updated",
+        actor=ctx.actor,
+        metadata={"conversation_id": conv.id},
+        origin_window=ctx.origin_window,
+        origin_user=ctx.actor,
+    )
 
     return ChatResponse(
         message=response_text,
@@ -853,9 +866,6 @@ async def extract_text(
 # an overwrite) — keeping every delete<->restore and edit<->restore redo chain
 # sane. ``conversation.duplicate`` creates a brand-new row (no prior state to
 # reverse to) and is left NOT undoable per the sweep scope.
-
-from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
-
 
 def _snap_conversation(conv: Conversation) -> dict:
     """JSON-able snapshot of a Conversation row (the undo payload)."""
