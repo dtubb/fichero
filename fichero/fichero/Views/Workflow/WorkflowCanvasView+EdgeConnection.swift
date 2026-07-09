@@ -41,6 +41,7 @@ extension WorkflowCanvasView {
 
     /// Detach an edge from an input port and start dragging from the original source
     func detachAndRedrag(fromNode targetNodeId: String, port: PortInfo) {
+        let previousWorkflow = workflow
         // Find the edge connected to this input port
         guard let edgeIndex = workflow.edges.firstIndex(where: {
             $0.targetNodeId == targetNodeId && $0.targetPortId == port.id
@@ -62,6 +63,7 @@ extension WorkflowCanvasView {
 
         // Start a new edge drag from the original source
         startEdgeDrag(from: sourceNode, port: sourcePort)
+        registerUndo(from: previousWorkflow, actionName: "Delete Connection")
     }
 
     func updateEdgeDrag(translation: CGSize) {
@@ -77,6 +79,7 @@ extension WorkflowCanvasView {
 
     func endEdgeDrag() {
         guard let edge = draggedEdge else { return }
+        let previousWorkflow = workflow
 
         // Find nearest input port within threshold (40px makes it easier to connect)
         let threshold: CGFloat = 40
@@ -124,6 +127,7 @@ extension WorkflowCanvasView {
                 sourceNodeId: edge.sourceNodeId,
                 sourcePortId: edge.sourcePortId
             )
+            registerUndo(from: previousWorkflow, actionName: "Add Connection")
         }
 
         draggedEdge = nil

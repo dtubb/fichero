@@ -1,6 +1,30 @@
 // swiftlint:disable file_length
 import SwiftUI
 
+@MainActor
+private final class WorkflowUndoProxy {
+    var apply: ((Workflow) -> Void)?
+
+    func registerTransition(
+        from currentWorkflow: Workflow,
+        to targetWorkflow: Workflow,
+        actionName: String,
+        undoManager: UndoManager?
+    ) {
+        guard let undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { proxy in
+            proxy.apply?(targetWorkflow)
+            proxy.registerTransition(
+                from: targetWorkflow,
+                to: currentWorkflow,
+                actionName: actionName,
+                undoManager: undoManager
+            )
+        }
+        undoManager.setActionName(actionName)
+    }
+}
+
 /// Canvas view for workflow nodes with free placement and port-based connections
 struct WorkflowCanvasView: View {
     @Binding var workflow: Workflow
@@ -14,6 +38,7 @@ struct WorkflowCanvasView: View {
 
     // App state for accessing AI defaults
     @Environment(AppState.self) var appState
+    @Environment(\.undoManager) private var undoManager
 
     /// Node execution states for the editor canvas.
     ///
@@ -57,6 +82,8 @@ struct WorkflowCanvasView: View {
     // Node dragging state
     @State var nodeDragStartPosition: CGPoint?
     @State var draggingNodeIndex: Int?
+    @State private var dragUndoWorkflow: Workflow?
+    @State private var undoProxy = WorkflowUndoProxy()
 
     // Node dimensions for port positioning
     let nodeWidth: CGFloat = 140
@@ -153,7 +180,13 @@ struct WorkflowCanvasView: View {
         .focusable()
         .focused($isCanvasFocused)
         .focusEffectDisabled()
-        .onAppear { isCanvasFocused = true }
+        .onAppear {
+            isCanvasFocused = true
+            let binding = $workflow
+            undoProxy.apply = { restored in
+                binding.wrappedValue = restored
+            }
+        }
         #if os(macOS)
         .onDeleteCommand {
             deleteSelection()
@@ -163,10 +196,13 @@ struct WorkflowCanvasView: View {
 
     /// Delete selected edge or nodes
     private func deleteSelection() {
+        let previousWorkflow = workflow
+
         // Delete selected edge first
         if let edgeId = selectedEdgeId {
             workflow.edges.removeAll { $0.id == edgeId }
             selectedEdgeId = nil
+            registerUndo(from: previousWorkflow, actionName: "Delete Connection")
             return
         }
 
@@ -180,7 +216,18 @@ struct WorkflowCanvasView: View {
             }
             selectedNodeIds.removeAll()
             editingNodeId = nil
+            registerUndo(from: previousWorkflow, actionName: "Delete Node")
         }
+    }
+
+    func registerUndo(from previousWorkflow: Workflow, actionName: String) {
+        guard previousWorkflow != workflow else { return }
+        undoProxy.registerTransition(
+            from: workflow,
+            to: previousWorkflow,
+            actionName: actionName,
+            undoManager: undoManager
+        )
     }
 }
 
@@ -236,8 +283,10 @@ extension WorkflowCanvasView {
                 }
                 .contextMenu {
                     Button(role: .destructive) {
+                        let previousWorkflow = workflow
                         workflow.edges.removeAll { $0.id == edge.id }
                         selectedEdgeId = nil
+                        registerUndo(from: previousWorkflow, actionName: "Delete Connection")
                     } label: {
                         Label("Delete Connection", systemImage: "trash")
                     }
@@ -330,8 +379,7 @@ extension WorkflowCanvasView {
                     handleNodeDrag(value: value, index: index)
                 }
                 .onEnded { _ in
-                    nodeDragStartPosition = nil
-                    draggingNodeIndex = nil
+                    finishNodeDrag()
                 }
         )
         // Context menu for node
@@ -359,6 +407,7 @@ extension WorkflowCanvasView {
     }
 
     func deleteNode(at index: Int) {
+        let previousWorkflow = workflow
         let nodeId = workflow.nodes[index].id
 
         // Remove connected edges
@@ -368,9 +417,11 @@ extension WorkflowCanvasView {
         workflow.nodes.remove(at: index)
         editingNodeId = nil
         selectedNodeIds.remove(nodeId)
+        registerUndo(from: previousWorkflow, actionName: "Delete Node")
     }
 
     func duplicateNode(at index: Int) {
+        let previousWorkflow = workflow
         let original = workflow.nodes[index]
         let duplicate = WorkflowNode(
             tool: original.tool,
@@ -384,6 +435,7 @@ extension WorkflowCanvasView {
         )
         workflow.nodes.insert(duplicate, at: index + 1)
         editingNodeId = duplicate.id
+        registerUndo(from: previousWorkflow, actionName: "Duplicate Node")
     }
 }
 

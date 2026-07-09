@@ -47,6 +47,7 @@ extension WorkflowCanvasView {
 
         // On first drag event, store starting position
         if nodeDragStartPosition == nil {
+            dragUndoWorkflow = workflow
             nodeDragStartPosition = CGPoint(
                 x: workflow.nodes[index].positionX,
                 y: workflow.nodes[index].positionY
@@ -112,6 +113,15 @@ extension WorkflowCanvasView {
                     workflow.nodes[index].positionX += minDistance
                 }
             }
+        }
+    }
+
+    func finishNodeDrag() {
+        nodeDragStartPosition = nil
+        draggingNodeIndex = nil
+        if let previousWorkflow = dragUndoWorkflow {
+            registerUndo(from: previousWorkflow, actionName: "Move Node")
+            dragUndoWorkflow = nil
         }
     }
 }

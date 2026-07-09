@@ -62,6 +62,7 @@ extension WorkflowCanvasView {
 
         // Create node with AI defaults in a Task (async context required)
         Task { @MainActor in
+            let previousWorkflow = workflow
             // Get default provider/model for this tool's category
             let (provider, model) = await getDefaultsForCategory(toolInfo.category)
 
@@ -114,6 +115,7 @@ extension WorkflowCanvasView {
 
             selectedNodeIds = [node.id]
             editingNodeId = node.id
+            registerUndo(from: previousWorkflow, actionName: "Add Node")
         }
     }
 
