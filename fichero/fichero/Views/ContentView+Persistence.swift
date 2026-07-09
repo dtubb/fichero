@@ -180,7 +180,7 @@ extension ContentView {
         guard let data = folderViewDisplayModesJSON.data(using: .utf8),
               let dict = try? JSONDecoder().decode([String: String].self, from: data),
               let rawValue = dict[folderId] else { return nil }
-        return ViewDisplayMode(rawValue: rawValue)
+        return ViewDisplayMode.persisted(rawValue)
     }
 
     func saveDisplayMode(_ mode: ViewDisplayMode, for folderId: String?) {

@@ -269,11 +269,7 @@ extension ContentView {
                 // library view; Space (.space → SpaceSceneView) is the RealityKit
                 // 3D renderer on the SAME shared stores (#3088). Both offered for
                 // every folder/pdf/node (#2667/#3081/#3088).
-                var modes: [ViewDisplayMode] = [.icon, .list, .table, .canvas, .space]
-                if featureManager.isWorkspaceModeEnabled {
-                    modes.append(.workspace)
-                }
-                return modes
+                return [.icon, .list, .table, .canvas, .space]
             }
             if !featureManager.isLibraryAdvancedViewsEnabled {
                 return [.icon]
@@ -467,17 +463,17 @@ extension ContentView {
 
     /// Normalize a requested display mode against current feature gates.
     func normalizedViewDisplayMode(_ mode: ViewDisplayMode) -> ViewDisplayMode {
-        // Legacy rawValue migration ("Map"/"Spatial"→.canvas, "RealityKit"→.space)
-        // now happens in ViewDisplayMode.init?(rawValue:) at decode time (#3081),
-        // so here we only fall back when the requested mode isn't available in the
-        // current context (e.g. .space before its renderer is offered, #3081).
-        guard availableViewDisplayModes.contains(mode) else {
+        let requestedMode: ViewDisplayMode = switch mode {
+        case .workspace: .canvas
+        default: mode
+        }
+        guard availableViewDisplayModes.contains(requestedMode) else {
             if availableViewDisplayModes.contains(.list) {
                 return .list
             }
             return .icon
         }
-        return mode
+        return requestedMode
     }
 
     /// Available preview/split modes for current sidebar context.

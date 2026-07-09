@@ -19,21 +19,27 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     case table = "Table"
     case canvas = "Canvas"
     case space = "Space"
+    /// Legacy persisted alias: decode/normalize to `.canvas`, never present as
+    /// a live selectable mode (#3199).
     case workspace = "Workspace"
 
-    // Decoding uses the synthesized `init?(rawValue:)` — exact match only. The
-    // library data isn't in production use, so legacy strings ("Map"/"Spatial"/
-    // "RealityKit") are intentionally NOT migrated; they decode to nil and reset
-    // to the default rather than carry a back-compat shim (Daniel, 2026-07-05).
-
-    /// User-selectable cases: the coherent view-mode set (#3081). `.workspace`
-    /// is offered separately via `availableViewDisplayModes` behind its feature
-    /// gate, so it is not part of the base selectable set.
+    /// User-selectable cases: the coherent live view-mode set (#3081/#3199).
     static var selectableCases: [ViewDisplayMode] {
         [.icon, .list, .table, .canvas, .space]
     }
 
     var id: String { rawValue }
+
+    static func persisted(_ rawValue: String) -> ViewDisplayMode? {
+        switch rawValue {
+        case Self.icon.rawValue: .icon
+        case Self.list.rawValue: .list
+        case Self.table.rawValue: .table
+        case Self.canvas.rawValue, "Map", "Spatial", Self.workspace.rawValue: .canvas
+        case Self.space.rawValue, "RealityKit": .space
+        default: nil
+        }
+    }
 
     /// The `LibraryLayout` (View-menu twin) this display mode maps to. The single
     /// source of truth for the ViewDisplayMode → LibraryLayout bridge (#3088),

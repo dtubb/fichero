@@ -98,44 +98,38 @@ extension ContentView {
         case .library:
             // Space (3D) has no renderer yet (#3081) — .space normalizes to an
             // available mode upstream, so the library path renders LibraryView.
-            if viewDisplayMode == .workspace,
-                      featureManager.isWorkspaceModeEnabled,
-                      let doc = libraryViewDocument {
-                CollectionWorkspaceStub(document: doc)
-            } else {
-                LibraryView(
-                    documents: selectedDocuments,
-                    contentCollection: isEntityLibrarySelection ? .entities : .documents,
-                    isLoading: documentStore.isLoading,
-                    isConnected: documentStore.isConnected,
-                    errorMessage: documentStore.error?.localizedDescription,
-                    onRetry: {
-                        Task { @MainActor in
-                            await documentStore.refresh()
-                        }
-                    },
-                    libraryToolbar: libraryToolbarState,
-                    selection: $browserSelection,
-                    detailDocument: $detailDocument,
-                    viewMode: $viewSettings.libraryLayout,
-                    isPaneFocused: focusedPane == .content,
-                    displayMode: viewDisplayMode,
-                    folderId: sidebarSelectionState.selectedItemId,
-                    onRequestFocus: { focusedPane = .content },
-                    onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
-                    onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
-                    onNavigateInto: { doc in navigateToDocument(doc) },
-                    onPageFocus: { doc in
-                        if pageFocusDocument?.id != doc.id {
-                            pageFocusDocument = doc
-                        }
-                    },
-                    sidebarHidden: !showSidebar,
-                    onToolbarSearchSubmit: { query in
-                        runToolbarSearch(query)
+            LibraryView(
+                documents: selectedDocuments,
+                contentCollection: isEntityLibrarySelection ? .entities : .documents,
+                isLoading: documentStore.isLoading,
+                isConnected: documentStore.isConnected,
+                errorMessage: documentStore.error?.localizedDescription,
+                onRetry: {
+                    Task { @MainActor in
+                        await documentStore.refresh()
                     }
-                )
-            }
+                },
+                libraryToolbar: libraryToolbarState,
+                selection: $browserSelection,
+                detailDocument: $detailDocument,
+                viewMode: $viewSettings.libraryLayout,
+                isPaneFocused: focusedPane == .content,
+                displayMode: viewDisplayMode,
+                folderId: sidebarSelectionState.selectedItemId,
+                onRequestFocus: { focusedPane = .content },
+                onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
+                onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
+                onNavigateInto: { doc in navigateToDocument(doc) },
+                onPageFocus: { doc in
+                    if pageFocusDocument?.id != doc.id {
+                        pageFocusDocument = doc
+                    }
+                },
+                sidebarHidden: !showSidebar,
+                onToolbarSearchSubmit: { query in
+                    runToolbarSearch(query)
+                }
+            )
 
         case .search(let savedSearch):
             SearchView(
