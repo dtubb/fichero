@@ -17,6 +17,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>FicheroFeatureTier</key>
+	<string>$(FICHERO_FEATURE_TIER)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSAppleScriptEnabled</key>
