@@ -11,6 +11,7 @@ import SwiftUI
 /// shows the same live runs as the in-sidebar Activity surface.
 struct ActivityMonitorWindow: View {
     @Environment(LibraryManager.self) private var libraryManager
+    @State private var selectionState = ActivityWindowSelectionState.shared
 
     private var library: LibraryManager.LibraryReference? {
         if let id = libraryManager.currentLibraryId,
@@ -23,9 +24,31 @@ struct ActivityMonitorWindow: View {
     var body: some View {
         Group {
             if let library {
-                ActivityMonitorView()
-                    .environment(library.apiClient)
-                    .environment(library.workflowExecutionStore)
+                HStack(spacing: 0) {
+                    ActivityBrowserView(
+                        selectedRunId: selectionState.selectedRun?.id,
+                        onSelectRun: { selectionState.select($0) },
+                        showsOpenWindowButton: false
+                    )
+                    .frame(minWidth: 240, idealWidth: 280, maxWidth: 320)
+
+                    Divider()
+
+                    if let selectedRun = selectionState.selectedRun {
+                        ActivityDetailView(selectedRun: selectedRun)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ContentUnavailableView(
+                            "Select a Run",
+                            systemImage: "clock",
+                            description: Text("Choose a workflow run from the list to inspect it.")
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .environment(library.activityStore)
+                .environment(library.apiClient)
+                .environment(library.workflowExecutionStore)
             } else {
                 ContentUnavailableView(
                     "No Library Open",
@@ -35,6 +58,6 @@ struct ActivityMonitorWindow: View {
             }
         }
         .navigationTitle("Activity")
-        .frame(minWidth: 560, minHeight: 360)
+        .frame(minWidth: 900, minHeight: 520)
     }
 }

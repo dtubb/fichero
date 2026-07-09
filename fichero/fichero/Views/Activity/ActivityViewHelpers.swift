@@ -1,5 +1,17 @@
 import SwiftUI
 
+@MainActor
+@Observable
+final class ActivityWindowSelectionState {
+    static let shared = ActivityWindowSelectionState()
+
+    var selectedRun: SelectedActivityRun?
+
+    func select(_ run: SelectedActivityRun?) {
+        selectedRun = run
+    }
+}
+
 /// Shared helper functions for Activity views
 enum ActivityViewHelpers {
 
@@ -140,6 +152,7 @@ enum ActivityViewHelpers {
 struct ActivityBrowserView: View {
     let selectedRunId: String?
     let onSelectRun: (SelectedActivityRun) -> Void
+    var showsOpenWindowButton: Bool = true
 
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(ActivityStore.self) private var activityStore
@@ -165,7 +178,7 @@ struct ActivityBrowserView: View {
                 // window's root is the hierarchical outline table. Hidden on
                 // single-window platforms (iPhone) where it would be a dead
                 // affordance (#2805).
-                if supportsMultipleWindows {
+                if showsOpenWindowButton && supportsMultipleWindows {
                     Button {
                         openWindow(id: "activity-monitor")
                     } label: {
@@ -252,6 +265,25 @@ struct ActivityBrowserView: View {
             activeExecutions: Array(executionObserver.activeExecutions.values),
             openLibraries: libraryManager.openLibraries
         )
+    }
+}
+
+struct ActivityWindowLauncherView: View {
+    let selectedRun: SelectedActivityRun?
+
+    @Environment(\.openWindow) private var openWindow
+    @State private var selectionState = ActivityWindowSelectionState.shared
+
+    var body: some View {
+        ContentUnavailableView(
+            "Activity Lives in Its Own Window",
+            systemImage: "arrow.up.forward.app",
+            description: Text("Use the Activity window for run history, live updates, and details.")
+        )
+        .task(id: selectedRun?.id) {
+            selectionState.select(selectedRun)
+            openWindow(id: "activity-monitor")
+        }
     }
 }
 
