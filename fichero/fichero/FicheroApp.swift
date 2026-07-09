@@ -345,7 +345,6 @@ struct FicheroApp: App {
                 Divider()
 
                 FocusedRenameButton()
-                    .keyboardShortcut(.return, modifiers: [])
 
                 FocusedDeleteButton()
                     .keyboardShortcut(.delete, modifiers: [.command])

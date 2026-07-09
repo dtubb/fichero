@@ -1,9 +1,9 @@
 #if canImport(AppKit)
 import AppKit
 #endif
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OpenAPIRuntime
 import OSLog
 import SwiftUI
@@ -246,7 +246,7 @@ struct FileMenuCommands: View {
             }
             .disabled(registry.libraries.isEmpty)
 
-            Button("Close Database") {
+            Button("Close Library") {
                 closeLibraryAction?.run()
             }
             .keyboardShortcut("w", modifiers: [.command, .control])
@@ -272,7 +272,7 @@ struct FileMenuCommands: View {
 
             Divider()
 
-            Button("Save Database As...") {
+            Button("Save Library As...") {
                 saveLibraryAction?.run()
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])

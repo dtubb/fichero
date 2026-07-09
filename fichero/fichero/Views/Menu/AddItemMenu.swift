@@ -52,7 +52,7 @@ struct AddItemMenu: View {
                 }
                 .disabled(importCopyAction == nil)
 
-                Button("Add Files...") {
+                Button("Move Files...") {
                     importMoveAction?()
                 }
                 .disabled(importMoveAction == nil)
