@@ -45,8 +45,8 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
     // disabled states. Behavioural gating by FeatureManager is exercised in
     // FeatureManagerTests.testWorkflowRunOnSelectionDefault.
     @MainActor func testWorkflowMiniToolbarButtonIsInstantiable() {
-        let enabled = WorkflowMiniToolbarButton(isEnabled: true, action: {})
-        let disabled = WorkflowMiniToolbarButton(isEnabled: false, action: {})
+        let enabled = WorkflowMiniToolbarButton(isEnabled: true, action: {}, showRunOnSelection: true)
+        let disabled = WorkflowMiniToolbarButton(isEnabled: false, action: {}, showRunOnSelection: false)
         _ = enabled
         _ = disabled
     }
@@ -56,6 +56,14 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
     func testMiniToolbarVisibilityPreferenceIsDefaultOn() {
         XCTAssertEqual(MiniToolbarPreferences.toolbarVisibilityKey, "fichero.ui.showMiniToolbar")
         XCTAssertTrue(MiniToolbarPreferences.toolbarVisibilityDefault)
+    }
+
+    func testVisibilityConsumersUseSharedPreferenceConstant() throws {
+        let toolbarSource = try Self.appSource("Views/Toolbars/MiniToolbar.swift")
+        XCTAssertTrue(toolbarSource.contains("MiniToolbarPreferences.toolbarVisibilityKey"))
+
+        let menuSource = try Self.appSource("Views/Menu/ViewMenuCommands.swift")
+        XCTAssertTrue(menuSource.contains("MiniToolbarPreferences.toolbarVisibilityKey"))
     }
 
     // #2475: Sidebar bottom bar must meet the 52/44 touch tier on iPhone/iPad.

@@ -375,8 +375,11 @@ extension View {
 /// Using a dedicated view struct (rather than an `if` inside the extension) gives
 /// AppStorage the stable identity it needs to re-render when UserDefaults changes.
 private struct MiniToolbarGate<Bottom: View, Toolbar: View>: View {
-    // Keep key in sync with MiniToolbar.toolbarVisibilityKey (#2460).
-    @AppStorage("fichero.ui.showMiniToolbar") private var isVisible = true
+    @AppStorage(
+        MiniToolbarPreferences.toolbarVisibilityKey,
+        defaultValue: MiniToolbarPreferences.toolbarVisibilityDefault
+    )
+    private var isVisible = true
     let bottom: Bottom
     let toolbar: Toolbar
 

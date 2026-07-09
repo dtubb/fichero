@@ -677,7 +677,11 @@ struct SelectionDrivenLayoutToggle: View {
 /// a checkmark item that stays in sync with @AppStorage changes from any window
 /// (same rationale as ShowRulerButton). Key must match MiniToolbar.toolbarVisibilityKey.
 struct ShowMiniToolbarToggle: View {
-    @AppStorage("fichero.ui.showMiniToolbar") private var showMiniToolbar: Bool = true
+    @AppStorage(
+        MiniToolbarPreferences.toolbarVisibilityKey,
+        defaultValue: MiniToolbarPreferences.toolbarVisibilityDefault
+    )
+    private var showMiniToolbar = true
 
     var body: some View {
         Toggle(isOn: $showMiniToolbar) {
