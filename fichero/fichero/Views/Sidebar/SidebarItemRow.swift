@@ -180,6 +180,14 @@ struct SidebarItemRow: View {
             set: { isExpanded in
                 if isExpanded {
                     expandedItems.insert(item.id)
+                    guard case .document(let document) = item.itemType,
+                          document.childCount > 0,
+                          item.children == nil,
+                          let store = documentStore,
+                          store.childrenCache[document.id] == nil else { return }
+                    Task {
+                        await store.loadSidebarChildren(of: document)
+                    }
                 } else {
                     expandedItems.remove(item.id)
                 }

@@ -126,6 +126,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     var isWorkspace: Bool
     var curatedItems: [[String: AnyCodable]]
     var structure: [DocumentStructureNode]
+    var childCount: Int
     /// User-defined order within the document's parent folder. Written by the
     /// backend `/documents/reorder` route (`documents.py:276`) and by the
     /// `move` route when it accepts a position. Defaults to 0 for documents
@@ -155,6 +156,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         case isWorkspace = "is_workspace"
         case curatedItems = "curated_items"
         case structure
+        case childCount = "child_count"
         case sortOrder = "sort_order"
         case prototypeKey = "prototype_key"
         case createdAt = "created_at"
@@ -179,6 +181,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         isWorkspace: Bool = false,
         curatedItems: [[String: AnyCodable]] = [],
         structure: [DocumentStructureNode] = [],
+        childCount: Int = 0,
         sortOrder: Int = 0,
         prototypeKey: String? = nil,
         createdAt: Date = Date(),
@@ -201,6 +204,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.isWorkspace = isWorkspace
         self.curatedItems = curatedItems
         self.structure = structure
+        self.childCount = childCount
         self.sortOrder = sortOrder
         self.prototypeKey = prototypeKey
         self.createdAt = createdAt
@@ -229,6 +233,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.isWorkspace = try container.decodeIfPresent(Bool.self, forKey: .isWorkspace) ?? false
         self.curatedItems = try container.decodeIfPresent([[String: AnyCodable]].self, forKey: .curatedItems) ?? []
         self.structure = try container.decodeIfPresent([DocumentStructureNode].self, forKey: .structure) ?? []
+        self.childCount = try container.decodeIfPresent(Int.self, forKey: .childCount) ?? 0
         self.sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         self.prototypeKey = try container.decodeIfPresent(String.self, forKey: .prototypeKey)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)

@@ -654,6 +654,7 @@ private extension DocumentServiceGenerated {
         let fileType = doc.fileType?.rawValue ?? (extras["file_type"] as? String)
         let path = doc.path ?? (extras["path"] as? String)
         let sequence = doc.sequence ?? (extras["sequence"] as? Int)
+        let childCount = doc.childCount ?? (extras["child_count"] as? Int) ?? 0
         // bbox is OpenAPIArrayContainer — extract its inner [Int] payload.
         let bbox = (doc.bbox?.value as? [Int]) ?? (extras["bbox"] as? [Int])
         let pageContent = doc.pageContent ?? (extras["page_content"] as? String)
@@ -671,6 +672,7 @@ private extension DocumentServiceGenerated {
             metadata: convertMetadata(doc.metadata),
             pageContent: pageContent,
             excludeFromProcessing: doc.excludeFromProcessing ?? false,
+            childCount: childCount,
             createdAt: doc.createdAt ?? Date(),
             updatedAt: doc.updatedAt ?? Date(),
             expectedThumbnailPath: doc.expectedThumbnailPath,

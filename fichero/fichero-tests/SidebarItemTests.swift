@@ -345,6 +345,18 @@ struct SidebarItemFactoryTests {
         )
         #expect(item.isExpandable == false)
     }
+
+    @Test("isExpandable true for a document with unloaded children")
+    func expandableFromChildCountWithoutLoadedChildren() {
+        let document = Document(
+            id: "folder-1",
+            docType: .folder,
+            name: "Folder",
+            childCount: 2
+        )
+        let item = SidebarItem.fromDocument(document, libraryId: testLibraryId)
+        #expect(item.isExpandable == true)
+    }
 }
 
 // MARK: - SidebarItemBuilder Hierarchy Tests
@@ -377,6 +389,7 @@ struct SidebarItemBuilderTests {
             metadata: [:],
             pageContent: nil,
             structure: structure,
+            childCount: 0,
             sortOrder: sortOrder,
             createdAt: now,
             updatedAt: now,

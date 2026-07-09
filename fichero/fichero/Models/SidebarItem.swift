@@ -65,7 +65,14 @@ struct SidebarItem: Identifiable, Hashable {
     }
 
     var isExpandable: Bool {
-        children != nil && !children!.isEmpty
+        if let children, !children.isEmpty {
+            return true
+        }
+        guard case .document(let document) = itemType else { return false }
+        if !document.structure.isEmpty {
+            return true
+        }
+        return document.isNavigableContainer && document.childCount > 0
     }
 
     /// What kind of items can this item accept as drop targets, if any?

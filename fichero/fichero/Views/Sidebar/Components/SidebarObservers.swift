@@ -98,6 +98,7 @@ extension SidebarView {
         withObservationTracking {
             _ = store.collections
             _ = store.currentDocuments
+            _ = store.childrenCache
         } onChange: {
             Task { @MainActor in
                 rebuildCaches()

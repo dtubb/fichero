@@ -175,23 +175,22 @@ final class DocumentStore {
 
     // MARK: - Loading Collections
 
-    /// Load all documents from the backend to build full tree.
+    var sidebarDocuments: [Document] {
+        var seen = Set<String>()
+        return (collections + childrenCache.values.flatMap { $0 }).filter { seen.insert($0.id).inserted }
+    }
+
+    /// Load root documents only; descendants are loaded lazily into `childrenCache`.
     func loadCollections() async {
         isLoading = true
         error = nil
 
         do {
-            logger.info("Loading all documents for tree building...")
-            // Load ALL documents so SidebarItemBuilder can construct full hierarchy from parent_id
-            // No limit - load everything for complete tree structure (#3030: generated list_documents).
-            let items = try await documentService.listDocuments()
-            collections = applyStatusOverrides(items)
+            logger.info("Loading root documents for sidebar...")
+            collections = applyStatusOverrides(try await documentService.getRoots())
+            childrenCache.removeAll()
             isConnected = true
-            logger.info("Loaded \(self.collections.count) documents total")
-
-            let rootCount = self.collections.filter { $0.parentId == nil }.count
-            let childCount = self.collections.count - rootCount
-            logger.info("  - \(rootCount) root items, \(childCount) nested items")
+            logger.info("Loaded \(self.collections.count) root documents")
 
             // Publish change
             publish(.collectionsUpdated(collections))
@@ -229,6 +228,20 @@ final class DocumentStore {
     func selectCollection(_ collection: Document) async {
         selectedCollection = collection
         await loadChildren(of: collection)
+    }
+
+    /// Populate the sidebar child cache without changing the current grid selection.
+    func loadSidebarChildren(of document: Document) async {
+        guard childrenCache[document.id] == nil else { return }
+
+        do {
+            let children = applyStatusOverrides(try await documentService.getChildren(document.id))
+            childrenCache[document.id] = children
+            logger.info("Cached \(children.count) sidebar children for \(document.id)")
+        } catch {
+            logger.error("loadSidebarChildren failed: \(error.localizedDescription)")
+            self.error = error
+        }
     }
 
     /// Load children of a document.

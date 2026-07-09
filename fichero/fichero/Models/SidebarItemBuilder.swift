@@ -12,12 +12,12 @@ enum SidebarItemBuilder {
     static func buildLibraryGroup(
         library: LibraryManager.LibraryReference
     ) -> [SidebarItem] {
-        let docCount = library.documentStore.collections.count
+        let documents = library.documentStore.sidebarDocuments
+        let docCount = documents.count
         sidebarBuilderLogger.info("⏱ SidebarItemBuilder.build entry — \(docCount) docs in \(library.displayName)")
         var allItems: [SidebarItem] = []
 
         // Add document folders first
-        let documents = library.documentStore.collections
         let libraryItems = buildLibraryHierarchy(from: documents, libraryId: library.id)
         allItems.append(contentsOf: libraryItems)
 

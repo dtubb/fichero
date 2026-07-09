@@ -80,8 +80,7 @@ extension SidebarItemRow {
     }
 
     private var isExpandable: Bool {
-        guard let children = item.children else { return false }
-        return !children.isEmpty
+        item.isExpandable
     }
 
     // Folders (with or without children) are drop targets; leaves
@@ -90,11 +89,15 @@ extension SidebarItemRow {
     // can't drop anything onto a file.
     @ViewBuilder
     private var bodyContent: some View {
-        if let children = item.children, !children.isEmpty {
+        if isExpandable {
             DisclosureGroup(isExpanded: isExpanded) {
-                childrenList(children)
+                childrenList(item.children ?? [])
             } label: {
-                folderLabel
+                if isFolder {
+                    folderLabel
+                } else {
+                    leafLabel
+                }
             }
         } else if isFolder {
             folderLabel
