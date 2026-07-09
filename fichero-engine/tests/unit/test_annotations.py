@@ -605,11 +605,30 @@ class TestAnnotationCreatedByAttribution:
 # #3266 regression: bbox and color validation
 # ---------------------------------------------------------------------------
 
-import re as _re  # avoid clash with test fixture
-
 
 class TestAnnotationBboxValidation:
-    """AnnotationCreateRequest rejects malformed bbox and color."""
+    """Annotation models reject malformed bbox and color."""
+
+    def test_annotation_model_bbox_wrong_length_rejected(self, client):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError) as exc:
+            Annotation(kind=AnnotationKind.highlight, bbox=[0.1, 0.2, 0.3])
+        assert "bbox must have exactly 4 elements" in str(exc.value)
+
+    def test_annotation_model_zero_bbox_rejected(self, client):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError) as exc:
+            Annotation(kind=AnnotationKind.highlight, bbox=[0.0, 0.0, 0.0, 0.0])
+        assert "width must be > 0" in str(exc.value)
+
+    def test_annotation_model_invalid_color_rejected(self, client):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError) as exc:
+            Annotation(kind=AnnotationKind.highlight, color="red")
+        assert "hex colour" in str(exc.value)
 
     def test_bbox_wrong_length_rejected(self, client):
         """bbox must be exactly 4 elements."""

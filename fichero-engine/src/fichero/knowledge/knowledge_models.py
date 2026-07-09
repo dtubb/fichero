@@ -48,6 +48,36 @@ DOI_PATTERN = re.compile(r"^10\.\d{4,}/[^\s]+$")
 ISBN_13_PATTERN = re.compile(r"^\d{13}$")
 ISBN_10_PATTERN = re.compile(r"^\d{9}[\dXx]$")
 ISSN_PATTERN = re.compile(r"^\d{4}-\d{3}[\dXx]$")
+HEX_COLOR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$")
+
+
+def validate_annotation_bbox(value: list[float] | None) -> list[float] | None:
+    if value is None:
+        return value
+    if len(value) != 4:
+        raise ValueError(
+            f"bbox must have exactly 4 elements [x, y, width, height], got {len(value)}"
+        )
+    for index, component in enumerate(value):
+        if component != component or component in (float("inf"), float("-inf")):
+            raise ValueError(f"bbox[{index}] must be finite, got {component}")
+        if component < 0 or component > 1:
+            raise ValueError(f"bbox[{index}] must be in [0, 1], got {component}")
+    if value[2] <= 0:
+        raise ValueError(f"bbox width must be > 0, got {value[2]}")
+    if value[3] <= 0:
+        raise ValueError(f"bbox height must be > 0, got {value[3]}")
+    return value
+
+
+def validate_annotation_color(value: str | None) -> str | None:
+    if value is None:
+        return value
+    if not HEX_COLOR_PATTERN.match(value):
+        raise ValueError(
+            f"color must be a hex colour like #RRGGBB or #RRGGBBAA, got {value!r}"
+        )
+    return value
 
 
 class SourceMetadata(BaseModel):
@@ -1409,6 +1439,16 @@ class Annotation(BaseModel):
     created_by: str = "human"
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    @field_validator("bbox")
+    @classmethod
+    def validate_bbox(cls, value: list[float] | None) -> list[float] | None:
+        return validate_annotation_bbox(value)
+
+    @field_validator("color")
+    @classmethod
+    def validate_color(cls, value: str | None) -> str | None:
+        return validate_annotation_color(value)
 
 
 class PendingMatchState(str, Enum):

@@ -24,6 +24,8 @@ from fichero.knowledge_models import (
     Annotation,
     AnnotationKind,
     KnowledgeClaim,
+    validate_annotation_bbox,
+    validate_annotation_color,
 )
 from fichero.utf16_offsets import utf16_range_to_codepoint_range
 from fichero.models import AnnotationListResponse, DocType, Document
@@ -57,33 +59,12 @@ class AnnotationCreateRequest(BaseModel):
     @field_validator("bbox")
     @classmethod
     def validate_bbox(cls, v: list[float] | None) -> list[float] | None:
-        """Validate bbox: must be [x, y, width, height], all in [0, 1], w/h > 0."""
-        if v is None:
-            return v
-        if len(v) != 4:
-            raise ValueError(f"bbox must have exactly 4 elements [x, y, width, height], got {len(v)}")
-        import math
-        for i, val in enumerate(v):
-            if math.isnan(val) or math.isinf(val):
-                raise ValueError(f"bbox[{i}] must be finite, got {val}")
-            if val < 0 or val > 1:
-                raise ValueError(f"bbox[{i}] must be in [0, 1], got {val}")
-        if v[2] <= 0:
-            raise ValueError(f"bbox width must be > 0, got {v[2]}")
-        if v[3] <= 0:
-            raise ValueError(f"bbox height must be > 0, got {v[3]}")
-        return v
+        return validate_annotation_bbox(v)
 
     @field_validator("color")
     @classmethod
     def validate_color(cls, v: str | None) -> str | None:
-        """Validate color: must be a hex string like #RRGGBB or #RRGGBBAA."""
-        if v is None:
-            return v
-        import re
-        if not re.match(r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$", v):
-            raise ValueError(f"color must be a hex colour like #RRGGBB or #RRGGBBAA, got {v!r}")
-        return v
+        return validate_annotation_color(v)
 
 
 class AnnotationScopePayload(BaseModel):
@@ -273,33 +254,12 @@ class AnnotationPatchRequest(BaseModel):
     @field_validator("bbox")
     @classmethod
     def validate_bbox(cls, v: list[float] | None) -> list[float] | None:
-        """Validate bbox: must be [x, y, width, height], all in [0, 1], w/h > 0."""
-        if v is None:
-            return v
-        if len(v) != 4:
-            raise ValueError(f"bbox must have exactly 4 elements [x, y, width, height], got {len(v)}")
-        import math
-        for i, val in enumerate(v):
-            if math.isnan(val) or math.isinf(val):
-                raise ValueError(f"bbox[{i}] must be finite, got {val}")
-            if val < 0 or val > 1:
-                raise ValueError(f"bbox[{i}] must be in [0, 1], got {val}")
-        if v[2] <= 0:
-            raise ValueError(f"bbox width must be > 0, got {v[2]}")
-        if v[3] <= 0:
-            raise ValueError(f"bbox height must be > 0, got {v[3]}")
-        return v
+        return validate_annotation_bbox(v)
 
     @field_validator("color")
     @classmethod
     def validate_color(cls, v: str | None) -> str | None:
-        """Validate color: must be a hex string like #RRGGBB or #RRGGBBAA."""
-        if v is None:
-            return v
-        import re
-        if not re.match(r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$", v):
-            raise ValueError(f"color must be a hex colour like #RRGGBB or #RRGGBBAA, got {v!r}")
-        return v
+        return validate_annotation_color(v)
 
 
 def patch_annotation_impl(
