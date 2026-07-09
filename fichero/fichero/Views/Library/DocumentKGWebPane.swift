@@ -124,7 +124,10 @@ enum DocumentKGPaneRoute {
             selectionBg = cssColor(.selectedTextBackgroundColor)
             selectionText = cssColor(.selectedTextColor)
         }
-        return ":root{\(vars)}::selection{background-color:\(selectionBg);color:\(selectionText);}"
+        return """
+        :root{\(vars)}html,body{background:transparent!important;}
+        ::selection{background-color:\(selectionBg);color:\(selectionText);}
+        """
     }
 
     /// JS that injects (or refreshes) the system-theme `<style>` element so it
@@ -284,7 +287,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
         let webView = GuardedWKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
-        webView.setValue(false, forKey: "drawsBackground")
+        webView.underPageBackgroundColor = .clear
         // Enable trackpad pinch-to-zoom (#2316).
         webView.allowsMagnification = true
         context.coordinator.webView = webView

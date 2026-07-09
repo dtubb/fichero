@@ -14,7 +14,7 @@ import pytest
 from fichero.api.auth import initialize_token
 from fichero.api.routes import auth_accounts, pairing
 from fichero.db_manager import db_manager
-from fichero.models import ActionAudit
+from fichero.models import ActionAudit, DocType, Document, FileType, Status
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -454,6 +454,66 @@ def test_multiuser_adversarial_owner_gates_denials_and_actor_attribution(
     audits = sorted(primary_db.all(ActionAudit), key=lambda audit: audit.created_at)
     assert any(audit.action_name == "acl.set" and audit.actor == "owner" for audit in audits)
     assert any(audit.action_name == "savedsearch.save" and audit.actor == "ann" for audit in audits)
+
+
+def test_reader_view_routes_require_read_access_for_the_selected_library(
+    tmp_path, app_db, monkeypatch
+):
+    primary = _create_library(tmp_path, "primary")
+    secondary = _create_library(tmp_path, "secondary")
+
+    db_manager.get_database(secondary).save(
+        Document(
+            id="secondary-doc",
+            name="Denied.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content="secret transcript",
+            status=Status.completed,
+        )
+    )
+
+    with _client(app_db, monkeypatch) as client:
+        _bootstrap_create_owner(client)
+        owner_token = _login(client, "owner", "owner-password")
+        _register_library(client, primary, "Primary")
+        _register_library(client, secondary, "Secondary")
+        invite = _mint_invite(client, "ann", "Ann")
+        redeemed = client.post(
+            "/api/auth/invites/redeem",
+            json={"invite_token": invite["invite_token"], "new_password": "ann-password"},
+        )
+        assert redeemed.status_code == 200
+        ann_token = redeemed.json()["session_token"]
+
+        share = client.post(
+            "/api/authz/share",
+            headers=_library_headers(primary, owner_token),
+            json={"user": "ann", "role": "viewer", "object_type": "library"},
+        )
+        assert share.status_code == 200
+
+        denied_document = client.get(
+            "/view/document/secondary-doc",
+            headers=_library_headers(secondary, ann_token),
+        )
+        denied_global = client.get(
+            "/view/kg/global",
+            headers=_library_headers(secondary, ann_token),
+        )
+
+        expected = {
+            "detail": "read access denied",
+            "code": "library_access_denied",
+            "library_path": str(secondary),
+            "auth_kind": "session",
+            "username": "ann",
+            "required": "read",
+        }
+        assert denied_document.status_code == 403
+        assert denied_document.json() == expected
+        assert denied_global.status_code == 403
+        assert denied_global.json() == expected
 
 
 def test_multiuser_session_revoke_and_deactivate_kill_access(tmp_path, app_db, monkeypatch):
