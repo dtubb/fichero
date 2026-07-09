@@ -8,6 +8,30 @@ struct SidebarSelectionTests {
         #expect(sidebarSelectionFallback(current: "doc:1", tapped: "doc:1") == nil)
     }
 
+    @Test("sidebar destination parses and serializes document ids")
+    func destinationRoundTripDocument() {
+        let destination = try #require(SidebarDestination(serializedID: "doc:abc"))
+        #expect(destination == .document("abc"))
+        #expect(destination.serializedID == "doc:abc")
+    }
+
+    @Test("sidebar destination parses browser sentinels")
+    func destinationParsesBrowserSentinel() {
+        let destination = try #require(SidebarDestination(serializedID: "activity-browser"))
+        #expect(destination == .browser(.activity))
+        #expect(destination.serializedID == "activity-browser")
+    }
+
+    @Test("selection state keeps string persistence as a bridge")
+    @MainActor
+    func selectionStateBridgesTypedAndStringSelection() {
+        let state = SidebarSelectionState()
+        state.selectedItemId = "workflow:wf-1"
+        #expect(state.selectedDestination == .workflow("wf-1"))
+        state.selectedDestination = .browser(.research)
+        #expect(state.selectedItemId == "research-browser")
+    }
+
     @Test("#1165 sidebar tap fallback only requests missing selection")
     func tapFallbackRequestsDifferentSelection() {
         #expect(sidebarSelectionFallback(current: nil, tapped: "doc:1") == "doc:1")

@@ -75,6 +75,10 @@ struct SidebarItem: Identifiable, Hashable {
         return document.isNavigableContainer && document.childCount > 0
     }
 
+    var destination: SidebarDestination {
+        SidebarDestination(serializedID: id) ?? .document(id)
+    }
+
     /// What kind of items can this item accept as drop targets, if any?
     ///
     /// Returns:

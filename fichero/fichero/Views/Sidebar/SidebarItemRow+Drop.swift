@@ -135,7 +135,7 @@ extension SidebarItemRow {
             // with no intervening `.tag` — order matters here.
             .draggable(child.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(id: child.id))
             .moveDisabled(child.icon == "tray.fill")
-            .tag(child.id)
+            .tag(child.destination)
         }
         .dropDestination(for: SidebarDragID.self) { ids, offset in
             sidebarRowLogger.debug("nested .dropDestination FIRED with \(ids.count) ids at offset \(offset)")

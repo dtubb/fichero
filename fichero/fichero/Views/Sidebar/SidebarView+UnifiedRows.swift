@@ -107,7 +107,10 @@ extension SidebarView {
                 get: { sidebarState.expandedItems },
                 set: { sidebarState.expandedItems = $0 }
             ),
-            selectedItemId: $selectionState.selectedItemId,
+            selectedItemId: Binding(
+                get: { selectionState.selectedItemId },
+                set: { selectionState.selectedItemId = $0 }
+            ),
             renameState: renameState,
             deleteState: deleteState,
             sidebarState: sidebarState,
@@ -118,7 +121,7 @@ extension SidebarView {
         .draggable(item.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(id: item.id))
         .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
         .moveDisabled(item.icon == "tray.fill")
-        .tag(item.id)
+        .tag(item.destination)
 
         if item.category == .activity {
             row.simultaneousGesture(

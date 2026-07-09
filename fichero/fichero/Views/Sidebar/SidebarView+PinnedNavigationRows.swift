@@ -6,7 +6,7 @@ extension SidebarView {
     private func pinnedNavigationRow(
         _ title: String,
         systemImage: String,
-        tag: String,
+        tag: SidebarDestination,
         help: String
     ) -> some View {
         Label(title, systemImage: systemImage)
@@ -44,7 +44,7 @@ extension SidebarView {
         .contentShape(Rectangle())
         // Use .tag so List(selection:) owns the tap → onChange routes to activity view.
         // A Button without .tag in sidebar List doesn't reliably fire on macOS (#647).
-        .tag("activity-browser")
+        .tag(SidebarDestination.browser(.activity))
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
@@ -54,7 +54,7 @@ extension SidebarView {
         pinnedNavigationRow(
             "Workflows",
             systemImage: "bolt",
-            tag: "workflows-browser",
+            tag: .browser(.workflows),
             help: "Browse workflows"
         )
     }
@@ -63,7 +63,7 @@ extension SidebarView {
         pinnedNavigationRow(
             "Batches",
             systemImage: "square.stack.3d.up",
-            tag: "batches-browser",
+            tag: .browser(.batches),
             help: "Browse batch runs"
         )
     }
@@ -72,7 +72,7 @@ extension SidebarView {
         pinnedNavigationRow(
             "Model Comparison",
             systemImage: "rectangle.split.2x1",
-            tag: "comparison-browser",
+            tag: .browser(.comparison),
             help: "Open the model comparison workspace"
         )
     }
@@ -96,7 +96,7 @@ extension SidebarView {
         pinnedNavigationRow(
             "Research",
             systemImage: SidebarMode.research.icon,
-            tag: "research-browser",
+            tag: .browser(.research),
             help: "Open the research workspace"
         )
     }
@@ -105,7 +105,7 @@ extension SidebarView {
         pinnedNavigationRow(
             "Entities",
             systemImage: SidebarMode.knowledgeGraph.icon,
-            tag: "entities-browser",
+            tag: .browser(.entities),
             help: "Browse the library by entity and knowledge graph"
         )
     }

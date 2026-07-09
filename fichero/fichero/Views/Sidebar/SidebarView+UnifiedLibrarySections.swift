@@ -46,7 +46,7 @@ extension SidebarView {
                 } label: {
                     libraryDisclosureLabel(library: library, totalCount: totalCount)
                 }
-                .tag(sidebarLibrarySelectionId(library.id))
+                .tag(SidebarDestination.library(library.id))
                 .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
             }
         }

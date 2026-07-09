@@ -3,82 +3,77 @@ import SwiftUI
 // MARK: - Selection Handling
 
 extension SidebarView {
-    // Routes a `selectedItemId` value to the matching `sidebarMode` / `viewMode`.
+    // Routes a typed sidebar selection to the matching `sidebarMode` / `viewMode`.
     //
     // Extracted from the inline `.onChange(of: selectedItemId)` closure so the
     // SAME routing can also be invoked to reconcile a restored selection once
     // the sidebar caches are ready (#2548) — see `sidebarShouldReconcileSelection`.
-    // `lastHandledSelectionId` keeps this idempotent: re-invoking with the same
+    // `lastHandledSelectionDestination` keeps this idempotent: re-invoking with the same
     // id is a no-op, so the reconcile path never double-handles a live click.
     // swiftlint:disable:next cyclomatic_complexity function_body_length
-    func handleSelectionChange(_ newId: String?) {
-        sidebarViewLogger.info("selectedItemId changed to: \(newId ?? "nil")")
-        if newId == nil || !(newId?.hasPrefix("run:") ?? false) {
+    func handleSelectionChange(_ newDestination: SidebarDestination?) {
+        sidebarViewLogger.info("selectedItemId changed to: \(newDestination?.serializedID ?? "nil")")
+        if case .run(let runId) = newDestination {
+            selectedActivityItemIds = ["run:\(runId)"]
+        } else {
             selectedActivityItemIds.removeAll()
-        } else if let runId = newId {
-            selectedActivityItemIds = [runId]
         }
-        guard let id = newId else {
-            lastHandledSelectionId = nil
+        guard let destination = newDestination else {
+            lastHandledSelectionDestination = nil
             return
         }
-        if lastHandledSelectionId == id {
+        if lastHandledSelectionDestination == destination {
             return
         }
-        lastHandledSelectionId = id
-        if let libraryId = selectedLibraryId(from: id) {
+        lastHandledSelectionDestination = destination
+        switch destination {
+        case .library(let libraryId):
             if windowState.libraryId != libraryId {
                 windowState.libraryId = libraryId
             }
             sidebarMode = .library
             viewMode = .library(nil)
             return
-        }
-        if id == "activity-browser" {
+        case .browser(.activity):
             sidebarMode = .activity
             viewMode = .activity(nil)
             return
-        }
-        if id == "workflows-browser" {
+        case .browser(.workflows):
             sidebarMode = .workflows
             viewMode = .workflow(nil)
             return
-        }
-        if id == "batches-browser" {
+        case .browser(.batches):
             viewMode = .batches
             return
-        }
-        if id == "entities-browser" {
+        case .browser(.entities):
             sidebarMode = .library
             viewMode = .library(nil)
             return
-        }
-        if id == "comparison-browser" {
+        case .browser(.comparison):
             sidebarMode = .chat
             viewMode = .comparison(nil)
             return
-        }
-        if id == "research-browser" {
+        case .browser(.research):
             sidebarMode = .research
             return
-        }
-        if id.hasPrefix("run:"),
-           let selectedRun = unifiedSelectedRun(forSidebarId: id) {
+        case .run:
+            guard let selectedRun = unifiedSelectedRun(forSidebarId: destination.serializedID) else { return }
             viewMode = .activity(selectedRun.toSelectedRun())
             return
+        default:
+            let item = findItemById(destination.serializedID, in: allCachedItems)
+            handleSelection(item)
         }
-        let item = findItemById(id, in: allCachedItems)
-        handleSelection(item)
     }
 
     /// Drives a restored/persisted `selectedItemId` into the view mode when it
     /// hasn't been handled yet (#2548). Idempotent via `lastHandledSelectionId`.
     func reconcileRestoredSelection() {
         guard sidebarShouldReconcileSelection(
-            selectedId: selectedItemId,
-            lastHandled: lastHandledSelectionId
+            selectedId: selectedDestination?.serializedID,
+            lastHandled: lastHandledSelectionDestination?.serializedID
         ) else { return }
-        handleSelectionChange(selectedItemId)
+        handleSelectionChange(selectedDestination)
     }
 
     // Handle sidebar item selection and update view mode

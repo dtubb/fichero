@@ -67,7 +67,7 @@ struct SidebarView: View {
     @State var cancellables = Set<AnyCancellable>()
     // Internal (not private) so the extracted `handleSelectionChange` routing in
     // SidebarView+SelectionHandling.swift can read/update it (#2548).
-    @State var lastHandledSelectionId: String?
+    @State var lastHandledSelectionDestination: SidebarDestination?
 
     init(
         sidebarMode: Binding<SidebarMode>,
@@ -98,6 +98,11 @@ struct SidebarView: View {
         // Preserves the old @Binding semantics so non-mutating extension
         // methods (SidebarCreationHandlers) can still assign selectedItemId (#2548).
         nonmutating set { selectionState.selectedItemId = newValue }
+    }
+
+    var selectedDestination: SidebarDestination? {
+        get { selectionState.selectedDestination }
+        nonmutating set { selectionState.selectedDestination = newValue }
     }
 
     var body: some View {
@@ -157,9 +162,9 @@ struct SidebarView: View {
                 // because the value didn't change on launch (#2548).
                 reconcileRestoredSelection()
             }
-            .onChange(of: selectionState.selectedItemId) { _, newId in
+            .onChange(of: selectionState.selectedDestination) { _, newDestination in
                 // Route the live selection change to sidebarMode / viewMode.
-                handleSelectionChange(newId)
+                handleSelectionChange(newDestination)
             }
             .onChange(of: libraryManager.openLibraries.count) { _, _ in
                 // Rebuild when libraries are added/removed
@@ -182,7 +187,7 @@ struct SidebarView: View {
                 // new section without onChange being blocked by lastHandledSelectionId
                 // (which only guards against same-tick duplicate events, not cross-section
                 // re-selection — #646).
-                lastHandledSelectionId = nil
+                lastHandledSelectionDestination = nil
                 // Refresh data when switching to mode-specific sidebars
                 // This ensures sidebar shows updated data after editor saves
                 if newMode == .automation {
