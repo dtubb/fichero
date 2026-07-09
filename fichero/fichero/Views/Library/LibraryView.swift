@@ -148,7 +148,8 @@ struct LibraryView: View {
     @State private var spatialSelectedNodeId: String?
     @State private var cachedLibraryProjection = SpatialLibraryProjection(nodes: [], links: [])
 
-    private var scopedLibraryReference: LibraryManager.LibraryReference? {
+    // internal (not private): accessed from LibraryView+DisplayModes extension (separate file)
+    var scopedLibraryReference: LibraryManager.LibraryReference? {
         libraryManager.getLibrary(id: windowState.libraryId)
     }
     private var libraryReference: LibraryManager.LibraryReference? {
