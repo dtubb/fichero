@@ -138,7 +138,7 @@ struct DocumentInspector: View {
         // Content tab only — it described the document, which is the Content
         // tab's concern, and it shouldn't crowd the Knowledge Graph /
         // Citations / Info tabs. (#1228)
-        VStack(spacing: 0) {
+        return VStack(spacing: 0) {
             tabBar
             Divider()
             tabContent(for: doc, selectedTab: effectiveTab)
