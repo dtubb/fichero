@@ -63,6 +63,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from fichero.api.library_header import optional_library_path, require_library_path
+from fichero.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero.api.routes.local_inference import shutdown_managed_local_inference_services
 from fichero.db import Database, db_manager
 from fichero.discovery import start_bonjour_advertiser
@@ -1325,7 +1326,6 @@ from fichero.api.routes import (  # noqa: E402
     folders,
     hermeneutics,
     image_editing,
-    iiif,
     ingest,
     integrations,
     kg_claim_analysis,
@@ -1513,19 +1513,42 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (triggers.router, "/api", ["triggers"]),
 ]
 
-# All former dev-tier routers promoted to _CORE for 0.0.2 release review
-# (Daniel 2026-05-28). Kept as an empty list so the tier plumbing
-# (get_route_specs_for_tier) stays intact; re-add a spec here to demote a
-# feature back to dev-only.
-_DEV_ROUTE_SPECS: list[RouteSpec] = [
-    (iiif.router, "/api/iiif", ["iiif"]),
-]
+_VALID_FEATURE_TIERS = ("release", "beta", "alpha", "dev")
+_CUMULATIVE_ROUTE_PREFIX_SET = {
+    tier: set(prefixes) for tier, prefixes in CUMULATIVE_ROUTE_PREFIXES.items()
+}
+
+
+def _route_spec_public_prefix(route_spec: RouteSpec) -> str:
+    """Resolve the public URL prefix a RouteSpec exposes."""
+    router, include_prefix, _ = route_spec
+    router_prefix = getattr(router, "prefix", "") or ""
+    if router_prefix:
+        return f"{include_prefix}{router_prefix}"
+    if include_prefix != "/api":
+        return include_prefix
+
+    first_segments = {
+        "/" + path.lstrip("/").split("/", 1)[0]
+        for route in getattr(router, "routes", [])
+        if (path := getattr(route, "path", "")).lstrip("/")
+    }
+    if len(first_segments) == 1:
+        return f"{include_prefix}{first_segments.pop()}"
+    return include_prefix
+
+
+def _route_spec_enabled_for_tier(route_spec: RouteSpec, feature_tier: str) -> bool:
+    public_prefix = _route_spec_public_prefix(route_spec)
+    if public_prefix not in ROUTE_PREFIX_TIERS:
+        return True
+    return public_prefix in _CUMULATIVE_ROUTE_PREFIX_SET[feature_tier]
 
 
 def resolve_feature_tier() -> str:
     """Resolve active API feature tier from env with release-safe default."""
     configured_tier = os.environ.get("FICHERO_FEATURE_TIER", "release").strip().lower()
-    if configured_tier not in {"release", "dev"}:
+    if configured_tier not in _VALID_FEATURE_TIERS:
         logger.warning(
             "Unknown FICHERO_FEATURE_TIER=%s, defaulting to release", configured_tier
         )
@@ -1539,9 +1562,12 @@ def resolve_feature_tier() -> str:
 
 def get_route_specs_for_tier(feature_tier: str) -> Sequence[RouteSpec]:
     """Return routers enabled for the given feature tier."""
-    if feature_tier == "dev":
-        return [*_CORE_ROUTE_SPECS, *_DEV_ROUTE_SPECS]
-    return _CORE_ROUTE_SPECS
+    normalized_tier = feature_tier if feature_tier in _VALID_FEATURE_TIERS else "release"
+    return [
+        route_spec
+        for route_spec in _CORE_ROUTE_SPECS
+        if _route_spec_enabled_for_tier(route_spec, normalized_tier)
+    ]
 
 
 def register_tiered_routes(feature_tier: str | None = None) -> str:

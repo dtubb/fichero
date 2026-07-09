@@ -8,7 +8,6 @@ import os
 from unittest.mock import patch
 
 import pytest
-from fastapi.middleware.cors import CORSMiddleware
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -139,17 +138,31 @@ class TestMCPAuthorization:
 class TestFeatureTierSecurity:
     """Test feature tier bypass protections."""
 
-    def test_tier_change_requires_validation(self, client):
-        """MEDIUM-1: Changing FICHERO_FEATURE_TIER should require validation."""
-        # This is environment-based, so test that dev routes
-        # are not accessible in release mode
-        with patch.dict(os.environ, {"FICHERO_FEATURE_TIER": "release"}):
-            # Try to access a dev route
-            response = client.get("/api/research/tools/web-search")
-            
-            # Should be blocked or return 404 in release mode
-            # Note: This depends on route registration logic
-            pass  # Implementation specific
+    @pytest.mark.parametrize(
+        ("tier", "path"),
+        [
+            ("release", "/api/iiif/iiif/test/info.json"),
+            ("release", "/api/chat"),
+            ("release", "/api/research/projects"),
+            ("release", "/api/activity"),
+            ("beta", "/api/iiif/iiif/test/info.json"),
+            ("beta", "/api/chat"),
+            ("alpha", "/api/iiif/iiif/test/info.json"),
+        ],
+    )
+    def test_tier_change_requires_validation(self, monkeypatch, tier, path):
+        """MEDIUM-1: Hidden-tier routes should stay unreachable."""
+        import fichero.api.main as main_module
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        test_app = FastAPI()
+        monkeypatch.setattr(main_module, "app", test_app)
+        main_module.register_tiered_routes(tier)
+        client = TestClient(test_app)
+
+        response = client.get(path)
+        assert response.status_code == 404
 
     def test_tier_change_logged(self):
         """MEDIUM-1: Tier changes should be logged."""
@@ -222,8 +235,6 @@ class TestEnvironmentSecurity:
 
     def test_debug_mode_disabled_in_production(self):
         """MEDIUM: Debug mode should be disabled in production."""
-        from fichero.api import main
-        
         # Check that debug mode is not enabled by default
         # This is more of a configuration check
         assert True  # Placeholder - actual check depends on implementation
