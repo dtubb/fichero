@@ -1326,6 +1326,7 @@ from fichero.api.routes import (  # noqa: E402
     folders,
     hermeneutics,
     image_editing,
+    iiif,
     ingest,
     integrations,
     kg_claim_analysis,
@@ -1511,6 +1512,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (orchestration.router, "", ["orchestration"]),
     (schedules.router, "/api", ["schedules"]),
     (triggers.router, "/api", ["triggers"]),
+    (iiif.router, "/api/iiif", ["iiif"]),
 ]
 
 _VALID_FEATURE_TIERS = ("release", "beta", "alpha", "dev")
@@ -1522,11 +1524,15 @@ _CUMULATIVE_ROUTE_PREFIX_SET = {
 def _route_spec_public_prefix(route_spec: RouteSpec) -> str:
     """Resolve the public URL prefix a RouteSpec exposes."""
     router, include_prefix, _ = route_spec
+    # Non-"/api" include prefixes (e.g. "/api/iiif") are the declared public
+    # prefix as emitted by gen_feature_tiers.py into ROUTE_PREFIX_TIERS; do NOT
+    # concatenate the router's own prefix (iiif.router.prefix="/iiif" would
+    # yield "/api/iiif/iiif" and escape tier gating as unclassified).
+    if include_prefix != "/api":
+        return include_prefix
     router_prefix = getattr(router, "prefix", "") or ""
     if router_prefix:
         return f"{include_prefix}{router_prefix}"
-    if include_prefix != "/api":
-        return include_prefix
 
     first_segments = {
         "/" + path.lstrip("/").split("/", 1)[0]
