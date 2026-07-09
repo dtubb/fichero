@@ -40,7 +40,13 @@ final class DocumentStore {
     var selectedCollection: Document?
 
     /// Documents in the current view (children of selected item)
-    var currentDocuments: [Document] = []
+    var currentDocuments: [Document] = [] {
+        didSet { revision += 1 }
+    }
+
+    /// Cheap O(1) change token for views that only need to know the visible
+    /// document set changed, not diff the whole array.
+    private(set) var revision: Int = 0
 
     /// Currently selected document for detail view
     var selectedDocument: Document?

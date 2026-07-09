@@ -146,6 +146,7 @@ struct LibraryView: View {
 
     @State var entities: [Components.Schemas.KnowledgeEntity] = []
     @State private var spatialSelectedNodeId: String?
+    @State private var cachedLibraryProjection = SpatialLibraryProjection(nodes: [], links: [])
 
     /// Canvas stores are now owned per-library by `LibraryReference` (#3082), NOT
     /// per-view `@State`: ONE shared instance so a move in one window/renderer is
@@ -435,25 +436,23 @@ struct LibraryView: View {
                 loadSortSettings(for: folderId)
                 syncSortOrder()
                 recomputeFiltered()
+                refreshLibraryProjection()
                 consumePendingOpen()
             }
-            // Key on the whole array, not .count: a same-count mutation (a
-            // processing doc finishing → status badge, a rename, a reorder)
-            // must refresh the memoized filteredDocuments or the list goes
-            // stale. Document is Hashable ⇒ [Document] is Equatable, so the
-            // per-render == is cheap relative to the sort it guards. (#2307)
-            .onChange(of: documents) { _, _ in
+            .onChange(of: documentStore.revision) { _, _ in
                 // A window opened via "Open in New Tab/Window" may still be
                 // loading its documents when it first appears; retry the
                 // pending-open hand-off once rows arrive (#1685).
                 recomputeFiltered()
+                refreshLibraryProjection()
                 consumePendingOpen()
             }
-            .onChange(of: documentStore.currentDocuments) { _, _ in
+            .onChange(of: documentStore.revision) { _, _ in
                 syncPagesByParentId()
             }
             .onChange(of: entities) { _, _ in
                 recomputeFiltered()
+                refreshLibraryProjection()
             }
             .onChange(of: searchText) { _, _ in
                 recomputeFiltered()
@@ -781,12 +780,8 @@ extension LibraryView {
 // MARK: - Spatial projection
 
 extension LibraryView {
-    /// Projects the current documents + entities into spatial nodes/links for
-    /// the `.canvas` (and future `.space`) views. Item positions are persisted
-    /// separately via `CanvasLayoutStore` (#2293); this only supplies the
-    /// projector's computed defaults.
-    var libraryProjection: SpatialLibraryProjection {
-        SpatialLibraryProjector.project(
+    private func refreshLibraryProjection() {
+        cachedLibraryProjection = SpatialLibraryProjector.project(
             SpatialLibraryInput(
                 documents: documents.map {
                     SpatialLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId)
@@ -802,6 +797,14 @@ extension LibraryView {
                 claims: []
             )
         )
+    }
+
+    /// Projects the current documents + entities into spatial nodes/links for
+    /// the `.canvas` (and future `.space`) views. Item positions are persisted
+    /// separately via `CanvasLayoutStore` (#2293); this only supplies the
+    /// projector's computed defaults.
+    var libraryProjection: SpatialLibraryProjection {
+        cachedLibraryProjection
     }
 }
 
