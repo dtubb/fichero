@@ -19,6 +19,9 @@ extension ChatView {
             }
         } catch {
             logger.error("Failed to load conversation \(id): \(error.localizedDescription)")
+            await MainActor.run {
+                errorMessage = "Couldn't load conversation: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -26,10 +29,12 @@ extension ChatView {
     /// (#2449 Xcode-style: the title is a menu to jump to earlier conversations).
     func loadConversations() async {
         do {
-            let list = try await conversationService.getConversationsForSidebar()
-            await MainActor.run { conversations = list }
+            try await conversationService.loadConversations()
         } catch {
             logger.error("Failed to load conversations: \(error.localizedDescription)")
+            await MainActor.run {
+                errorMessage = "Couldn't load conversations: \(error.localizedDescription)"
+            }
         }
     }
 

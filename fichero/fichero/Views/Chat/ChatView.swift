@@ -28,9 +28,6 @@ struct ChatView: View {
     @State var selectedProvider: String = ""
     @State var selectedModel: String = ""
 
-    /// Recent conversations backing the header title menu (#2449).
-    @State var conversations: [Conversation] = []
-
     @Environment(ChatServiceGenerated.self) var chatService
     @Environment(ConversationServiceGenerated.self) var conversationService
 
@@ -52,7 +49,7 @@ struct ChatView: View {
             // View-specific toolbar at top
             ChatViewToolbar(
                 conversationTitle: currentConversation.title,
-                conversations: conversations,
+                conversations: conversationService.conversations,
                 onSelectConversation: switchConversation,
                 implicitScopeLabel: attachContext.implicitScopeLabel,
                 selectedDocumentsCount: selectedDocuments.count,

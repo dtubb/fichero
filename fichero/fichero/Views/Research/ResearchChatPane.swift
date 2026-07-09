@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Chat pane scoped to a research project.
-/// Re-uses the existing ChatView, filtering to conversations in /research/{project_id}.
+/// Chat pane embedded in a research project workspace.
+/// Today this reuses the library-wide ChatView unchanged; it does NOT yet scope
+/// conversations to the project folder path (#3242).
 struct ResearchChatPane: View {
     var project: ResearchProject
     @Environment(ConversationServiceGenerated.self) var conversationServiceGenerated
