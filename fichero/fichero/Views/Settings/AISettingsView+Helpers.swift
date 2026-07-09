@@ -267,8 +267,20 @@ extension AISettingsView {
             if !defaults.smallProvider.isEmpty {
                 loadModels(for: defaults.smallProvider, into: $smallModels)
             }
+            if !defaults.mediumProvider.isEmpty {
+                loadModels(for: defaults.mediumProvider, into: $mediumModels)
+            }
             if !defaults.largeProvider.isEmpty {
                 loadModels(for: defaults.largeProvider, into: $largeModels)
+            }
+            if !defaults.visionSmallProvider.isEmpty {
+                loadModels(for: defaults.visionSmallProvider, into: $visionSmallModels)
+            }
+            if !defaults.visionMediumProvider.isEmpty {
+                loadModels(for: defaults.visionMediumProvider, into: $visionMediumModels)
+            }
+            if !defaults.visionLargeProvider.isEmpty {
+                loadModels(for: defaults.visionLargeProvider, into: $visionLargeModels)
             }
         } catch {
             settingsLogger.error("Failed to load AI defaults: \(error.localizedDescription)")
@@ -299,7 +311,11 @@ extension AISettingsView {
             videoModels = []
             embeddingsModels = []
             smallModels = []
+            mediumModels = []
             largeModels = []
+            visionSmallModels = []
+            visionMediumModels = []
+            visionLargeModels = []
             errorMessage = nil
         } catch {
             settingsLogger.error("Failed to reset AI defaults: \(error.localizedDescription)")

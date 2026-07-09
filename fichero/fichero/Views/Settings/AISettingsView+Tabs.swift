@@ -59,7 +59,7 @@ extension AISettingsView {
             }
 
             // Capability-tier defaults referenced by workflow nodes via the
-            // $small / $large aliases (#810/#813).
+            // $small / $medium / $large aliases (#810/#813).
             Section("Default Small Model ($small)") {
                 let smallHelp =
                     "Workflow nodes that declare $small resolve to this " +
@@ -74,6 +74,18 @@ extension AISettingsView {
                 modelPicker(selection: $defaults.smallModel, models: smallModels, tier: .text)
             }
 
+            Section("Default Medium Model ($medium)") {
+                let mediumHelp =
+                    "Workflow nodes that declare $medium resolve to this " +
+                    "model — balanced speed and quality for everyday drafting " +
+                    "and extraction."
+                Text(mediumHelp)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                providerPicker(selection: $defaults.mediumProvider)
+                modelPicker(selection: $defaults.mediumModel, models: mediumModels, tier: .text)
+            }
+
             Section("Default Large Model ($large)") {
                 let largeHelp =
                     "Workflow nodes that declare $large resolve to this " +
@@ -86,6 +98,30 @@ extension AISettingsView {
                 // $large resolves a frontier chat LLM — filter to the
                 // text tier so OCR / transcription models can't be picked. (#1290)
                 modelPicker(selection: $defaults.largeModel, models: largeModels, tier: .text)
+            }
+
+            Section("Vision Small Model ($vision_small)") {
+                Text("Vision workflow nodes that declare $vision_small resolve to this fast image model.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                providerPicker(selection: $defaults.visionSmallProvider)
+                modelPicker(selection: $defaults.visionSmallModel, models: visionSmallModels, tier: .vision)
+            }
+
+            Section("Vision Medium Model ($vision_medium)") {
+                Text("Vision workflow nodes that declare $vision_medium resolve to this balanced image model.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                providerPicker(selection: $defaults.visionMediumProvider)
+                modelPicker(selection: $defaults.visionMediumModel, models: visionMediumModels, tier: .vision)
+            }
+
+            Section("Vision Large Model ($vision_large)") {
+                Text("Vision workflow nodes that declare $vision_large resolve to this frontier image model.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                providerPicker(selection: $defaults.visionLargeProvider)
+                modelPicker(selection: $defaults.visionLargeModel, models: visionLargeModels, tier: .vision)
             }
 
             Section {
@@ -137,9 +173,29 @@ extension AISettingsView {
                 for: newValue, into: $smallModels, selecting: $defaults.smallModel,
                 )
         }
+        .onChange(of: defaults.mediumProvider) { _, newValue in
+            loadModelsResettingSelection(
+                for: newValue, into: $mediumModels, selecting: $defaults.mediumModel,
+                )
+        }
         .onChange(of: defaults.largeProvider) { _, newValue in
             loadModelsResettingSelection(
                 for: newValue, into: $largeModels, selecting: $defaults.largeModel,
+                )
+        }
+        .onChange(of: defaults.visionSmallProvider) { _, newValue in
+            loadModelsResettingSelection(
+                for: newValue, into: $visionSmallModels, selecting: $defaults.visionSmallModel,
+                )
+        }
+        .onChange(of: defaults.visionMediumProvider) { _, newValue in
+            loadModelsResettingSelection(
+                for: newValue, into: $visionMediumModels, selecting: $defaults.visionMediumModel,
+                )
+        }
+        .onChange(of: defaults.visionLargeProvider) { _, newValue in
+            loadModelsResettingSelection(
+                for: newValue, into: $visionLargeModels, selecting: $defaults.visionLargeModel,
                 )
         }
     }

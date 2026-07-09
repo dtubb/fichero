@@ -19,9 +19,13 @@ struct AISettingsView: View {
     @State var audioModels: [ModelInfo] = []
     @State var videoModels: [ModelInfo] = []
     @State var embeddingsModels: [ModelInfo] = []
-    // Capability-tier model lists ($small / $large aliases — #810/#813).
+    // Capability-tier model lists ($small / $medium / $large aliases — #810/#813).
     @State var smallModels: [ModelInfo] = []
+    @State var mediumModels: [ModelInfo] = []
     @State var largeModels: [ModelInfo] = []
+    @State var visionSmallModels: [ModelInfo] = []
+    @State var visionMediumModels: [ModelInfo] = []
+    @State var visionLargeModels: [ModelInfo] = []
 
     var body: some View {
         VStack(spacing: 0) {
