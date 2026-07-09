@@ -82,7 +82,7 @@ struct WorkflowCanvasView: View {
     // Node dragging state
     @State var nodeDragStartPosition: CGPoint?
     @State var draggingNodeIndex: Int?
-    @State private var dragUndoWorkflow: Workflow?
+    @State var dragUndoWorkflow: Workflow?
     @State private var undoProxy = WorkflowUndoProxy()
 
     // Node dimensions for port positioning
