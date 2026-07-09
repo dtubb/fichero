@@ -584,7 +584,7 @@ struct InspectorButton: View {
                 systemImage: "sidebar.right"
             )
         }
-        .keyboardShortcut("i", modifiers: [.command, .option])
+        .keyboardShortcut("i", modifiers: [.command, .control])
         .disabled(showInspector == nil)
     }
 }
@@ -748,13 +748,13 @@ struct ShowFindBarButton: View {
         } label: {
             Label("Find in Artifact", systemImage: "magnifyingglass")
         }
-        .keyboardShortcut("f", modifiers: .command)
+        .keyboardShortcut("f", modifiers: [.command, .option])
         #else
         Button {
         } label: {
             Label("Find in Artifact", systemImage: "magnifyingglass")
         }
-        .keyboardShortcut("f", modifiers: .command)
+        .keyboardShortcut("f", modifiers: [.command, .option])
         .disabled(true)
         #endif
     }
