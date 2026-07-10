@@ -93,4 +93,57 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertEqual(url.scheme, "https")
         XCTAssertTrue(url.absoluteString.hasSuffix("/view/document/doc-123"), url.absoluteString)
     }
+
+    func testBootstrapScriptRefreshesOnlyWhenNeeded() {
+        XCTAssertTrue(
+            DocumentKGPaneRoute.shouldRefreshBootstrapScript(
+                hasCachedScript: false,
+                cachedLibraryPath: nil,
+                libraryPath: "/tmp/library",
+                force: false
+            )
+        )
+        XCTAssertFalse(
+            DocumentKGPaneRoute.shouldRefreshBootstrapScript(
+                hasCachedScript: true,
+                cachedLibraryPath: "/tmp/library",
+                libraryPath: "/tmp/library",
+                force: false
+            )
+        )
+        XCTAssertTrue(
+            DocumentKGPaneRoute.shouldRefreshBootstrapScript(
+                hasCachedScript: true,
+                cachedLibraryPath: "/tmp/old",
+                libraryPath: "/tmp/library",
+                force: false
+            )
+        )
+        XCTAssertTrue(
+            DocumentKGPaneRoute.shouldRefreshBootstrapScript(
+                hasCachedScript: true,
+                cachedLibraryPath: "/tmp/library",
+                libraryPath: "/tmp/library",
+                force: true
+            )
+        )
+    }
+
+    func testReaderPaneCachesBootstrapScriptBetweenUpdates() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("fichero")
+                .appendingPathComponent("Views/Library/DocumentKGWebPane.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("cachedBootstrapScript"))
+        XCTAssertTrue(source.contains("cachedBootstrapLibraryPath"))
+        XCTAssertTrue(source.contains("shouldRefreshBootstrapScript"))
+        XCTAssertTrue(source.contains("context.coordinator.bootstrapScript(forceRefresh: true)"))
+        XCTAssertFalse(source.contains("let script = DocumentKGPaneRoute.bootstrapScript("))
+        XCTAssertFalse(source.contains("webView.evaluateJavaScript(script)"))
+    }
 }

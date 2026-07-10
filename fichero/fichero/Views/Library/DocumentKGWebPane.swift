@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 #if canImport(AppKit)
 import AppKit
 #elseif canImport(UIKit)
@@ -86,6 +87,15 @@ enum DocumentKGPaneRoute {
         window.ficheroToken = '\(tokenLiteral)';
         window.ficheroLibrary = '\(libraryLiteral)';
         """
+    }
+
+    static func shouldRefreshBootstrapScript(
+        hasCachedScript: Bool,
+        cachedLibraryPath: String?,
+        libraryPath: String,
+        force: Bool
+    ) -> Bool {
+        force || !hasCachedScript || cachedLibraryPath != libraryPath
     }
 
     #if canImport(AppKit)
@@ -231,6 +241,7 @@ final class GuardedWKWebView: WKWebView {
     }
 }
 
+// swiftlint:disable:next type_body_length
 struct DocumentKGWebPane: NSViewRepresentable {
     let documentId: String
     let libraryPath: String
@@ -259,10 +270,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         if DocumentKGPaneRoute.supportsAuthenticatedWebView() {
             controller.addUserScript(
                 WKUserScript(
-                    source: DocumentKGPaneRoute.bootstrapScript(
-                        token: AuthTokenMiddleware.readTokenFromDisk(),
-                        libraryPath: libraryPath
-                    ),
+                    source: context.coordinator.bootstrapScript(forceRefresh: true),
                     injectionTime: .atDocumentStart,
                     forMainFrameOnly: true
                 )
@@ -320,6 +328,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
         private var lastActivePageNumber: Int?
         private var lastActiveTab: String?
         private var suppressActivePageSyncUntil = Date.distantPast
+        private var cachedBootstrapScript: String?
+        private var cachedBootstrapLibraryPath: String?
 
         init(parent: DocumentKGWebPane) {
             self.parent = parent
@@ -350,11 +360,23 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
         func injectContext(into webView: WKWebView) {
             guard DocumentKGPaneRoute.supportsAuthenticatedWebView() else { return }
-            let script = DocumentKGPaneRoute.bootstrapScript(
-                token: AuthTokenMiddleware.readTokenFromDisk(),
-                libraryPath: parent.libraryPath
-            )
-            webView.evaluateJavaScript(script)
+            webView.evaluateJavaScript(bootstrapScript())
+        }
+
+        func bootstrapScript(forceRefresh: Bool = false) -> String {
+            if DocumentKGPaneRoute.shouldRefreshBootstrapScript(
+                hasCachedScript: cachedBootstrapScript != nil,
+                cachedLibraryPath: cachedBootstrapLibraryPath,
+                libraryPath: parent.libraryPath,
+                force: forceRefresh
+            ) {
+                cachedBootstrapLibraryPath = parent.libraryPath
+                cachedBootstrapScript = DocumentKGPaneRoute.bootstrapScript(
+                    token: AuthTokenMiddleware.readTokenFromDisk(),
+                    libraryPath: parent.libraryPath
+                )
+            }
+            return cachedBootstrapScript ?? ""
         }
 
         func syncSelection(into webView: WKWebView) {
@@ -567,6 +589,7 @@ final class GuardedWKWebView: WKWebView {
     }
 }
 
+// swiftlint:disable:next type_body_length
 struct DocumentKGWebPane: UIViewRepresentable {
     let documentId: String
     let libraryPath: String
@@ -591,10 +614,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
         if DocumentKGPaneRoute.supportsAuthenticatedWebView() {
             controller.addUserScript(
                 WKUserScript(
-                    source: DocumentKGPaneRoute.bootstrapScript(
-                        token: AuthTokenMiddleware.readTokenFromDisk(),
-                        libraryPath: libraryPath
-                    ),
+                    source: context.coordinator.bootstrapScript(forceRefresh: true),
                     injectionTime: .atDocumentStart,
                     forMainFrameOnly: true
                 )
@@ -652,6 +672,8 @@ struct DocumentKGWebPane: UIViewRepresentable {
         private var lastActiveTab: String?
         private var suppressActivePageSyncUntil = Date.distantPast
         private var lastAppliedZoom: Double = 1.0
+        private var cachedBootstrapScript: String?
+        private var cachedBootstrapLibraryPath: String?
 
         init(parent: DocumentKGWebPane) {
             self.parent = parent
@@ -681,11 +703,23 @@ struct DocumentKGWebPane: UIViewRepresentable {
 
         func injectContext(into webView: WKWebView) {
             guard DocumentKGPaneRoute.supportsAuthenticatedWebView() else { return }
-            let script = DocumentKGPaneRoute.bootstrapScript(
-                token: AuthTokenMiddleware.readTokenFromDisk(),
-                libraryPath: parent.libraryPath
-            )
-            webView.evaluateJavaScript(script)
+            webView.evaluateJavaScript(bootstrapScript())
+        }
+
+        func bootstrapScript(forceRefresh: Bool = false) -> String {
+            if DocumentKGPaneRoute.shouldRefreshBootstrapScript(
+                hasCachedScript: cachedBootstrapScript != nil,
+                cachedLibraryPath: cachedBootstrapLibraryPath,
+                libraryPath: parent.libraryPath,
+                force: forceRefresh
+            ) {
+                cachedBootstrapLibraryPath = parent.libraryPath
+                cachedBootstrapScript = DocumentKGPaneRoute.bootstrapScript(
+                    token: AuthTokenMiddleware.readTokenFromDisk(),
+                    libraryPath: parent.libraryPath
+                )
+            }
+            return cachedBootstrapScript ?? ""
         }
 
         func syncSelection(into webView: WKWebView) {
