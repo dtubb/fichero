@@ -717,6 +717,11 @@ extension LibraryView {
             case .fileComplete:
                 if let identity = event.fileProgressIdentity {
                     store.recordFanoutComplete(for: identity)
+                    if let documentId = identity.leafDocumentId {
+                        Task { @MainActor in
+                            await store.refreshDocumentsByIds([documentId])
+                        }
+                    }
                 }
             case .fileError:
                 if let identity = event.fileProgressIdentity {
@@ -729,6 +734,11 @@ extension LibraryView {
         switch event {
         case .complete:
             documentStore?.flushPendingFanoutCompletions(status: .completed)
+            if let documentStore {
+                Task { @MainActor in
+                    await documentStore.refreshDocumentsByIds(selectedDocumentIdsForBatch)
+                }
+            }
             return true
         case .error, .systemicError:
             documentStore?.flushPendingFanoutCompletions(status: .failed)
