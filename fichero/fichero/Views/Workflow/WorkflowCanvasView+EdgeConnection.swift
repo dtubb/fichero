@@ -211,7 +211,7 @@ extension WorkflowCanvasView {
 extension WorkflowCanvasView {
     func calculatePortPositions() -> [String: CGPoint] {
         var positions: [String: CGPoint] = [:]
-        let showAdvancedPorts = FeatureManager.shared.isWorkflowEditorAdvancedViewsEnabled
+        let showAdvancedPorts = featureManager.isWorkflowEditorAdvancedViewsEnabled
 
         for node in workflow.nodes {
             let nodePosition = CGPoint(x: node.positionX, y: node.positionY)

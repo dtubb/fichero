@@ -39,6 +39,7 @@ struct WorkflowCanvasView: View {
     // App state for accessing AI defaults
     @Environment(AppState.self) var appState
     @Environment(\.undoManager) private var undoManager
+    @EnvironmentObject private var featureManager: FeatureManager
 
     /// Node execution states for the editor canvas.
     ///
@@ -512,6 +513,7 @@ extension WorkflowCanvasView {
                 snapToGrid: $snapToGrid
             )
             .environment(executionObserver)
+            .environmentObject(FeatureManager.shared)
             .frame(width: 800, height: 500)
         }
     }

@@ -20,6 +20,20 @@ final class ToolbarFeatureFlagInjectionBoundaryTests: XCTestCase {
         XCTAssertTrue(source.contains("showImportExport: featureManager.isWorkflowImportExportEnabled"))
     }
 
+    func testWorkflowNodeSurfacesReadFeatureManagerFromEnvironment() throws {
+        let nodeView = try Self.appSource("Views/Workflow/WorkflowNodeView.swift")
+        XCTAssertTrue(nodeView.contains("@EnvironmentObject private var featureManager: FeatureManager"))
+        XCTAssertFalse(nodeView.contains("FeatureManager.shared"))
+
+        let nodePopover = try Self.appSource("Views/Workflow/NodePopover.swift")
+        XCTAssertTrue(nodePopover.contains("@EnvironmentObject private var featureManager: FeatureManager"))
+        XCTAssertFalse(nodePopover.contains("@ObservedObject var featureManager = FeatureManager.shared"))
+
+        let edgeConnections = try Self.appSource("Views/Workflow/WorkflowCanvasView+EdgeConnection.swift")
+        XCTAssertTrue(edgeConnections.contains("let showAdvancedPorts = featureManager.isWorkflowEditorAdvancedViewsEnabled"))
+        XCTAssertFalse(edgeConnections.contains("FeatureManager.shared.isWorkflowEditorAdvancedViewsEnabled"))
+    }
+
     private static func appSource(_ relativePath: String) throws -> String {
         let baseURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
