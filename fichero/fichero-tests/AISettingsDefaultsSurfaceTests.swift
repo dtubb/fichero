@@ -17,6 +17,15 @@ final class AISettingsDefaultsSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("@State var visionLargeModels: [ModelInfo] = []"))
     }
 
+    func testModelManagementTabsStayInsideSettingsAndRespectTierGate() throws {
+        let source = try Self.appSource("Views/Settings/AISettingsView.swift")
+        XCTAssertTrue(source.contains("featureManager.isSettingsModelsTabEnabled"))
+        XCTAssertTrue(source.contains("Text(\"Models & Providers\").tag(AISettingsTab.providers)"))
+        XCTAssertTrue(source.contains("Text(\"Downloads\").tag(AISettingsTab.downloads)"))
+        XCTAssertTrue(source.contains("Text(\"Local LLM\").tag(AISettingsTab.localLLM)"))
+        XCTAssertTrue(source.contains("switch effectiveSelectedTab"))
+    }
+
     private static func appSource(_ relativePath: String) throws -> String {
         let baseURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

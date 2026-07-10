@@ -27,6 +27,22 @@ struct AISettingsView: View {
     @State var visionMediumModels: [ModelInfo] = []
     @State var visionLargeModels: [ModelInfo] = []
 
+    private var showsModelManagementTabs: Bool {
+        featureManager.isSettingsModelsTabEnabled
+    }
+
+    private var effectiveSelectedTab: AISettingsTab {
+        guard showsModelManagementTabs else {
+            switch selectedTab {
+            case .defaults, .advanced:
+                return selectedTab
+            case .providers, .downloads, .localLLM:
+                return .defaults
+            }
+        }
+        return selectedTab
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if !appState.isBackendRunning {
@@ -47,16 +63,18 @@ struct AISettingsView: View {
             } else {
                 Picker("", selection: $selectedTab) {
                     Text("Defaults").tag(AISettingsTab.defaults)
-                    Text("Models & Providers").tag(AISettingsTab.providers)
-                    Text("Downloads").tag(AISettingsTab.downloads)
-                    Text("Local LLM").tag(AISettingsTab.localLLM)
+                    if showsModelManagementTabs {
+                        Text("Models & Providers").tag(AISettingsTab.providers)
+                        Text("Downloads").tag(AISettingsTab.downloads)
+                        Text("Local LLM").tag(AISettingsTab.localLLM)
+                    }
                     Text("Advanced").tag(AISettingsTab.advanced)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
                 .padding(.top, 8)
 
-                switch selectedTab {
+                switch effectiveSelectedTab {
                 case .defaults:
                     defaultsTab
                 case .providers:
@@ -81,6 +99,11 @@ struct AISettingsView: View {
         .task {
             guard !Task.isCancelled else { return }
             await loadDefaults()
+        }
+        .onChange(of: showsModelManagementTabs, initial: true) { _, isVisible in
+            if !isVisible {
+                selectedTab = effectiveSelectedTab
+            }
         }
         .onChange(of: defaults) {
             Task {

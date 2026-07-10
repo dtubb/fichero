@@ -8,6 +8,12 @@ final class AboutSettingsSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("Label(\"About\", systemImage: \"info.circle\")"))
     }
 
+    func testAppMenuDoesNotDuplicateAISettingsEntry() throws {
+        let source = try Self.appSource("FicheroApp.swift")
+        XCTAssertFalse(source.contains("AI Providers & Models..."))
+        XCTAssertFalse(source.contains("showSettingsWindow:"))
+    }
+
     private static func appSource(_ relativePath: String) throws -> String {
         let baseURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

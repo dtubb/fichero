@@ -421,12 +421,6 @@ struct FicheroApp: App {
             CommandGroup(after: .appSettings) {
                 Divider()
 
-                Button {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                } label: {
-                    Label("AI Providers & Models...", systemImage: "cpu")
-                }
-
                 if featureManager.isMCPEnabled {
                     Button(featureManager.badgedLabel("MCP Servers...", for: .mcpUi)) {
                         appState.showMCPServers = true
