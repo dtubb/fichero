@@ -104,14 +104,14 @@ enum FeatureTiers {
         ),
         .libraryAdvancedViews: .init(
             name: "Library advanced views",
-            tier: .release,
+            tier: .beta,
             swiftFlag: "fichero.features.library_advanced_views",
             uxGroup: "Core",
             notes: "Grid, list, table, and map views in the library."
         ),
         .libraryIconZoomControls: .init(
             name: "Library icon zoom controls",
-            tier: .release,
+            tier: .dev,
             swiftFlag: "fichero.features.library_icon_zoom_controls",
             uxGroup: "Core",
             notes: "Zoom controls for icon-based library layouts."
@@ -125,105 +125,105 @@ enum FeatureTiers {
         ),
         .searchAdvancedViews: .init(
             name: "Search advanced views",
-            tier: .release,
+            tier: .beta,
             swiftFlag: "fichero.features.search_advanced_views",
             uxGroup: "Core",
             notes: "Search results in all supported presentation modes."
         ),
         .workflows: .init(
             name: "Workflows",
-            tier: .release,
+            tier: .beta,
             swiftFlag: "fichero.features.workflows",
             uxGroup: "Processing",
             notes: "Visual workflow editor and execution surface."
         ),
         .workflowEditorAdvancedViews: .init(
             name: "Workflow editor advanced views",
-            tier: .release,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_editor_advanced_views",
             uxGroup: "Processing",
             notes: "Extra presentation modes in the workflow editor."
         ),
         .workflowChains: .init(
             name: "Workflow chains",
-            tier: .release,
+            tier: .beta,
             swiftFlag: "fichero.features.workflow_chains",
             uxGroup: "Processing",
             notes: "Multi-step composed workflow pipelines."
         ),
         .workflowImportExport: .init(
             name: "Workflow import and export",
-            tier: .release,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_import_export",
             uxGroup: "Processing",
             notes: "Import and export workflow definitions."
         ),
         .workflowRunOnSelection: .init(
             name: "Workflow run on selection",
-            tier: .release,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_run_on_selection",
             uxGroup: "Processing",
             notes: "Run the active workflow on the selected documents."
         ),
         .workflowLangGraphPreview: .init(
             name: "Workflow LangGraph preview",
-            tier: .release,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_langgraph_preview",
             uxGroup: "Processing",
             notes: "Inspect the compiled LangGraph form of a workflow."
         ),
         .batches: .init(
             name: "Batches",
-            tier: .release,
+            tier: .beta,
             swiftFlag: "fichero.features.batches",
             uxGroup: "Processing",
             notes: "Queue workflow work across many documents."
         ),
         .workflowToolsFiles: .init(
             name: "Workflow tools files",
-            tier: .release,
+            tier: .beta,
             swiftFlag: "fichero.features.workflow_tools_files",
             uxGroup: "Processing",
             notes: "File and collection tools enabled in shipped workflows."
         ),
         .knowledgeGraph: .init(
             name: "Knowledge graph",
-            tier: .release,
+            tier: .beta,
             swiftFlag: "fichero.features.knowledge_graph",
             uxGroup: "Knowledge",
             notes: "Entities, claims, provenance, and ontology surfaces."
         ),
         .curation: .init(
             name: "Curation",
-            tier: .release,
+            tier: .beta,
             swiftFlag: nil,
             uxGroup: "Knowledge",
             notes: "Persist corrections as rules that future imports obey."
         ),
         .providers: .init(
             name: "Providers",
-            tier: .release,
+            tier: .beta,
             swiftFlag: nil,
             uxGroup: "Models",
             notes: "Local and cloud model providers plus model catalog."
         ),
         .modelComparison: .init(
             name: "Model comparison",
-            tier: .release,
+            tier: .beta,
             swiftFlag: nil,
             uxGroup: "Models",
             notes: "Compare model behavior and metadata in-app."
         ),
         .cli: .init(
             name: "CLI",
-            tier: .release,
+            tier: .beta,
             swiftFlag: nil,
             uxGroup: "Clients",
             notes: "Typed CLI over the same HTTP API surface."
         ),
         .mcpServer: .init(
             name: "MCP server",
-            tier: .release,
+            tier: .beta,
             swiftFlag: nil,
             uxGroup: "Clients",
             notes: "MCP server surface backed by the engine."
@@ -251,189 +251,189 @@ enum FeatureTiers {
         ),
         .settingsEngineTab: .init(
             name: "Settings engine tab",
-            tier: .beta,
+            tier: .dev,
             swiftFlag: "fichero.features.settings_engine_tab",
             uxGroup: "Settings",
             notes: "Engine settings panel."
         ),
         .settingsShareTab: .init(
             name: "Settings share tab",
-            tier: .beta,
+            tier: .dev,
             swiftFlag: "fichero.features.settings_share_tab",
             uxGroup: "Settings",
             notes: "Sharing and collaboration settings panel."
         ),
         .settingsUsersTab: .init(
             name: "Settings users tab",
-            tier: .beta,
+            tier: .dev,
             swiftFlag: "fichero.features.settings_users_tab",
             uxGroup: "Settings",
             notes: "Multi-user settings panel."
         ),
         .settingsCaptureTab: .init(
             name: "Settings capture tab",
-            tier: .beta,
+            tier: .dev,
             swiftFlag: "fichero.features.settings_capture_tab",
             uxGroup: "Settings",
             notes: "Capture and intake settings panel."
         ),
         .chat: .init(
             name: "Chat",
-            tier: .alpha,
+            tier: .beta,
             swiftFlag: "fichero.features.chat",
             uxGroup: "Knowledge",
             notes: "RAG conversation over the active library."
         ),
         .workflowToolsSearch: .init(
             name: "Workflow tools search",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_tools_search",
             uxGroup: "Processing",
             notes: "Search-oriented workflow tools that are not yet shipped by default."
         ),
         .workflowToolsTransform: .init(
             name: "Workflow tools transform",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_tools_transform",
             uxGroup: "Processing",
             notes: "Transform workflow tools still under review."
         ),
         .workflowToolsConvert: .init(
             name: "Workflow tools convert",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_tools_convert",
             uxGroup: "Processing",
             notes: "Convert workflow tools still under review."
         ),
         .workflowToolsLogic: .init(
             name: "Workflow tools logic",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_tools_logic",
             uxGroup: "Processing",
             notes: "Logic workflow tools still under review."
         ),
         .workflowToolsOutputs: .init(
             name: "Workflow tools outputs",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_tools_outputs",
             uxGroup: "Processing",
             notes: "Output workflow tools still under review."
         ),
         .workflowToolsAudio: .init(
             name: "Workflow tools audio",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_tools_audio",
             uxGroup: "Processing",
             notes: "Audio workflow tools still under review."
         ),
         .workflowToolsVideo: .init(
             name: "Workflow tools video",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_tools_video",
             uxGroup: "Processing",
             notes: "Video workflow tools still under review."
         ),
         .workflowToolsMcp: .init(
             name: "Workflow tools MCP",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_tools_mcp",
             uxGroup: "Processing",
             notes: "MCP-backed workflow tools still under review."
         ),
         .workflowToolsAgents: .init(
             name: "Workflow tools agents",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.workflow_tools_agents",
             uxGroup: "Processing",
             notes: "Agent-backed workflow tools still under review."
         ),
         .providersExtended: .init(
             name: "Extended provider catalog",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.providers_extended",
             uxGroup: "Models",
             notes: "Expanded provider and model catalog beyond the shipped baseline."
         ),
         .settingsBackendTab: .init(
             name: "Settings backend tab",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.settings_backend_tab",
             uxGroup: "Settings",
             notes: "Backend configuration panel."
         ),
         .settingsModelsTab: .init(
             name: "Settings models tab",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.settings_models_tab",
             uxGroup: "Settings",
             notes: "Model configuration panel."
         ),
         .libraryFilterToolbar: .init(
             name: "Library filter toolbar",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.library_filter_toolbar",
             uxGroup: "Core",
             notes: "Advanced filter toolbar in the library."
         ),
         .librarySearchSplitLayouts: .init(
             name: "Library and search split layouts",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.library_search_split_layouts",
             uxGroup: "Core",
             notes: "Split layouts for library and search."
         ),
         .claimHighlightSync: .init(
             name: "Claim highlight sync",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.claim_highlight_sync",
             uxGroup: "Knowledge",
             notes: "Bidirectional claim highlight sync across panes."
         ),
         .pdfScrollGridSync: .init(
             name: "PDF scroll grid sync",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.pdf_scroll_grid_sync",
             uxGroup: "Core",
             notes: "Live PDF scroll synchronization into other panes."
         ),
         .workspaceMode: .init(
             name: "Workspace mode",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.workspace_mode",
             uxGroup: "Clients",
             notes: "Alternate workspace-oriented shell mode."
         ),
         .spatialMode: .init(
             name: "Spatial mode",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.spatial_mode",
             uxGroup: "Clients",
             notes: "Spatial library presentation mode."
         ),
         .canvasRealityKit2D: .init(
             name: "Canvas RealityKit 2D",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.canvas_realitykit_2d",
             uxGroup: "Clients",
             notes: "Route the 2D canvas to the RealityKit renderer."
         ),
         .canvasRealityKit3D: .init(
             name: "Canvas RealityKit 3D",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.canvas_realitykit_3d",
             uxGroup: "Clients",
             notes: "Route the 3D space to the contract-based RealityKit renderer."
         ),
         .automation: .init(
             name: "Automation",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.automation",
             uxGroup: "Processing",
             notes: "Schedules, triggers, and automated flows."
         ),
         .mcpUi: .init(
             name: "MCP servers UI",
-            tier: .alpha,
+            tier: .dev,
             swiftFlag: "fichero.features.mcp",
             uxGroup: "Clients",
             notes: "UI for managing MCP server connections."
