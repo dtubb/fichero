@@ -127,6 +127,12 @@ class TestCreateWorkflow:
         assert r.json()["nodes"] == []
         assert r.json()["edges"] == []
 
+    def test_create_response_never_flags_user_workflow_untested(self, client):
+        response = client.post("/api/workflows", json=_workflow_payload("User Flow"))
+
+        assert response.status_code == 200
+        assert response.json()["untested"] is False
+
 
 # ---------------------------------------------------------------------------
 # GET /api/workflows/{workflow_id}
@@ -304,6 +310,19 @@ class TestImportWorkflow:
         assert data["format"] == "nodes"
         assert data["nodes"] == []
         assert data["edges"] == []
+
+    def test_import_response_never_flags_user_workflow_untested(self, client):
+        response = client.post(
+            "/api/workflows/import",
+            json={
+                "name": "Imported Name",
+                "nodes": [],
+                "edges": [],
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["untested"] is False
 
     def test_import_missing_nodes_or_edges_returns_400(self, client):
         r = client.post(
