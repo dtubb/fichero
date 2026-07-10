@@ -247,6 +247,15 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(connectionSource.contains("await onConnected?()"))
     }
 
+    func testDocumentTabViewForwardsArtifactServiceIntoContentView() throws {
+        let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
+
+        XCTAssertTrue(tabSource.contains("@Environment(ArtifactServiceGenerated.self) var artifactService"))
+        XCTAssertTrue(tabSource.contains(".environment(artifactService)"))
+        XCTAssertTrue(tabSource.contains("built after `selectCollection`"))
+        XCTAssertTrue(tabSource.contains("No Observable object of type ArtifactServiceGenerated"))
+    }
+
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {
         let settingsSource = try Self.appSource("Views/Settings/BackendSettingsView.swift")
         let remoteAccessSource = try Self.appSource("Views/Settings/BackendSettingsRemoteAccessSection.swift")
