@@ -461,6 +461,19 @@ class TestListWorkflowTools:
         assert grouped["transcribe"]["tested"] is True
         assert grouped["describe"]["tested"] is False
 
+    def test_get_single_tool_exposes_tested_flag(self, client):
+        response = client.get("/api/workflows/tools/transcribe")
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "transcribe"
+        assert response.json()["tested"] is True
+
+    def test_get_single_tool_missing_returns_404(self, client):
+        response = client.get("/api/workflows/tools/no-such-tool")
+
+        assert response.status_code == 404
+        assert "Tool not found" in response.json()["detail"]
+
     def test_create_node_from_tool(self, client, monkeypatch):
         calls: list[tuple] = []
         monkeypatch.setattr(
