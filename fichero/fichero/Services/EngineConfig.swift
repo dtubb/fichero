@@ -548,7 +548,14 @@ enum RemoteAccessConfig {
     }
 
     static var advertisedSPKIPin: String {
-        RemoteCertificatePinning.advertisedSPKIPin(hostString: publicBaseURLString) ?? ""
+        hostedBackendSPKIPin(hostString: publicBaseURLString) ?? ""
+    }
+
+    static func hostedBackendSPKIPin(hostString: String) -> String? {
+        let trimmed = hostString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return RemoteCertificatePinning.advertisedSPKIPin(hostString: trimmed)
+            ?? RemoteCertificatePinning.persistedSPKIPin(hostString: trimmed)
     }
 
     static var pairedLibraryPath: String {

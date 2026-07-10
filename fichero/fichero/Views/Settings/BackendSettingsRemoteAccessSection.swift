@@ -320,7 +320,7 @@ struct BackendSettingsRemoteAccessSection: View {
     }
 
     private func loadAdvertisedSPKIPin() {
-        spkiPin = RemoteCertificatePinning.advertisedSPKIPin(hostString: publicBaseURL) ?? ""
+        spkiPin = RemoteAccessConfig.hostedBackendSPKIPin(hostString: publicBaseURL) ?? ""
     }
 
     private func copyInvite() {
