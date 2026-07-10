@@ -11,14 +11,26 @@ import SwiftUI
 /// Pure formatting for the About window (#2557), factored out of the view so it
 /// is unit-testable without a bundle.
 enum AboutInfo {
+    private static func displayValue(_ value: String?) -> String {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return "—"
+        }
+        return trimmed
+    }
+
     /// The "Version X (build)" line from the bundle's short version + build
     /// number, with an em-dash fallback for a missing/absent key.
     static func versionLine(shortVersion: String?, build: String?) -> String {
-        "Version \(shortVersion ?? "—") (\(build ?? "—"))"
+        "Version \(displayValue(shortVersion)) (\(displayValue(build)))"
     }
 
     static func engineVersionLine(_ version: String?) -> String {
-        "Engine \(version ?? "—")"
+        "Engine \(displayValue(version))"
+    }
+
+    static func copyrightLine(bundleValue: String?, fallback: String) -> String {
+        displayValue(bundleValue) == "—" ? fallback : displayValue(bundleValue)
     }
 }
 
@@ -29,7 +41,7 @@ struct AboutView: View {
     private let tagline = "A document workbench for researchers — read, organize, "
         + "search, and make things from your sources."
     private let credit = "Created by Daniel Tubb"
-    private let copyright = "© 2025 Daniel Tubb · MIT License"
+    private let fallbackCopyright = "© 2025 Daniel Tubb · MIT License"
 
     private var versionLine: String {
         AboutInfo.versionLine(
@@ -40,6 +52,13 @@ struct AboutView: View {
 
     private var engineVersionLine: String {
         AboutInfo.engineVersionLine(appState.backendVersion)
+    }
+
+    private var copyrightLine: String {
+        AboutInfo.copyrightLine(
+            bundleValue: Bundle.main.infoDictionary?["NSHumanReadableCopyright"] as? String,
+            fallback: fallbackCopyright
+        )
     }
 
     var body: some View {
@@ -73,7 +92,7 @@ struct AboutView: View {
             VStack(spacing: 4) {
                 Text(credit)
                     .font(.callout)
-                Text(copyright)
+                Text(copyrightLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

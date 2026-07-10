@@ -26,6 +26,13 @@ final class AboutSettingsSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("Label(\"Integrations\", systemImage: \"app.connected.to.app.below.fill\")"))
     }
 
+    func testAboutViewUsesBundleCopyrightBeforeFallback() throws {
+        let source = try Self.appSource("Views/AboutView.swift")
+        XCTAssertTrue(source.contains("NSHumanReadableCopyright"))
+        XCTAssertTrue(source.contains("AboutInfo.copyrightLine("))
+        XCTAssertTrue(source.contains("fallbackCopyright"))
+    }
+
     private static func appSource(_ relativePath: String) throws -> String {
         let baseURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

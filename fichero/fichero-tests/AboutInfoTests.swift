@@ -25,11 +25,33 @@ final class AboutInfoTests: XCTestCase {
         XCTAssertEqual(AboutInfo.versionLine(shortVersion: nil, build: nil), "Version — (—)")
     }
 
+    func testEmptyVersionValuesFallBackToDashes() {
+        XCTAssertEqual(AboutInfo.versionLine(shortVersion: "", build: " "), "Version — (—)")
+    }
+
     func testEngineVersionLineUsesVersion() {
         XCTAssertEqual(AboutInfo.engineVersionLine("2026.7.8b2"), "Engine 2026.7.8b2")
     }
 
     func testEngineVersionLineFallsBackToDash() {
         XCTAssertEqual(AboutInfo.engineVersionLine(nil), "Engine —")
+    }
+
+    func testEngineVersionLineTreatsEmptyAsMissing() {
+        XCTAssertEqual(AboutInfo.engineVersionLine(" "), "Engine —")
+    }
+
+    func testCopyrightLineUsesBundleValue() {
+        XCTAssertEqual(
+            AboutInfo.copyrightLine(bundleValue: "© 2026 Daniel Tubb · MIT License", fallback: "fallback"),
+            "© 2026 Daniel Tubb · MIT License"
+        )
+    }
+
+    func testCopyrightLineFallsBackWhenBundleValueMissing() {
+        XCTAssertEqual(
+            AboutInfo.copyrightLine(bundleValue: " ", fallback: "fallback"),
+            "fallback"
+        )
     }
 }
