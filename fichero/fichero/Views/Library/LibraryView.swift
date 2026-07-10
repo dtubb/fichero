@@ -387,7 +387,7 @@ struct LibraryView: View {
                         ref.activityStore.reconnectLiveUpdates()
                     })
                     Spacer(minLength: 0)
-                })
+                }
                 .padding(.top, 8)
                 .padding(.bottom, 4)
             }

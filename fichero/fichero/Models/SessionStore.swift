@@ -116,7 +116,7 @@ final class SessionStore {
         switch meStatusCode {
         case 200: return .authenticated
         case 404: return .disabled
-        default where multiuserEnabled == false: return .disabled
+        case _ where multiuserEnabled == false: return .disabled
         default: return accountsExist == false ? .needsOwnerSetup : .needsLogin
         }
     }
