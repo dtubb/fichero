@@ -1,6 +1,6 @@
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OSLog
 import Security
 
@@ -348,7 +348,10 @@ final class EmbeddedBackendService {
             // Debug builds skip the "Embed Fichero Engine" phase (it only runs in
             // Release), so in a Debug ⌘R the engine is expected to be running
             // externally on :8765. If it isn't, that's this path.
-            logger.error("Debug: start the engine first — fichero-engine/scripts/start_backend.sh. Release: briefcase build macOS --app engine (in fichero-engine/), then rebuild.")
+            logger.error(
+                "Debug: start the engine first — fichero-engine/scripts/start_backend.sh. "
+                    + "Release: briefcase build macOS --app engine (in fichero-engine/), then rebuild."
+            )
             throw BackendError.backendAppNotFound
         }
 
@@ -434,10 +437,8 @@ final class EmbeddedBackendService {
                 uniquingKeysWith: { $1 }
             )
         }
-        #if DEBUG
-        // Ensure workflow/provider routes are available for debug UI surfaces.
-        environment["FICHERO_FEATURE_TIER"] = environment["FICHERO_FEATURE_TIER"] ?? "dev"
-        #endif
+        environment["FICHERO_FEATURE_TIER"] =
+            FeatureManager.shared.activeBuildTier.environmentValue
         process.environment = environment
 
         // Diagnostic (#757): capture engine stdout/stderr to a tail-able file
