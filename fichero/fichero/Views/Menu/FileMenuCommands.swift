@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -290,7 +291,7 @@ struct FileMenuCommands: View {
                 Button {
                     Task { await exportEleventySite() }
                 } label: {
-                    Label("Static Site (11ty)...", systemImage: "globe")
+                    Label("Markdown Static Site...", systemImage: "globe")
                 }
                 .disabled(currentLibrary == nil)
             } label: {
@@ -348,12 +349,13 @@ struct FileMenuCommands: View {
         #endif
     }
 
-    /// Export the current library as an Eleventy static site (#3055). Routes
-    /// through the DocumentServiceGenerated wrapper (tokened generated client),
-    /// after the user picks an output folder.
+    /// Export the current library as a local markdown/11ty static site (#3055).
+    /// Routes through the DocumentServiceGenerated wrapper (tokened generated
+    /// client) after the user picks an output folder; GitHub publish/reimport is
+    /// a later layer on top of this export.
     private func exportEleventySite() async {
         #if !os(macOS)
-        logger.info("Static-site export is macOS-only; a folder picker is needed on iOS.")
+            logger.info("Markdown-site export is macOS-only; a folder picker is needed on iOS.")
         #else
         guard let library = currentLibrary else { return }
         guard let outputURL = await presentDirectoryPanel() else { return }
@@ -364,12 +366,12 @@ struct FileMenuCommands: View {
                 siteTitle: library.displayName
             )
             logger.info(
-                "Exported \(result.documentCount) document(s) to static site at \(result.outputPath)"
+                "Exported \(result.documentCount) document(s) to markdown static site at \(result.outputPath)"
             )
             revealInFinder(URL(fileURLWithPath: result.outputPath))
         } catch {
-            logger.error("Failed to export static site: \(error.localizedDescription)")
-            presentExportError(error, title: "Static Site Export Failed")
+            logger.error("Failed to export markdown static site: \(error.localizedDescription)")
+            presentExportError(error, title: "Markdown Static Site Export Failed")
         }
         #endif
     }
@@ -382,7 +384,7 @@ struct FileMenuCommands: View {
             panel.canChooseFiles = false
             panel.canCreateDirectories = true
             panel.prompt = "Export Here"
-            panel.message = "Choose a folder for the generated static site"
+            panel.message = "Choose a folder for the exported markdown static site"
             panel.begin { result in
                 continuation.resume(returning: result == .OK ? panel.url : nil)
             }
@@ -459,3 +461,4 @@ private enum ExportError: Error, LocalizedError {
         }
     }
 }
+// swiftlint:enable file_length

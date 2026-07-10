@@ -5,8 +5,11 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         let fileMenuSource = try Self.appSource("Views/Menu/FileMenuCommands.swift")
         XCTAssertTrue(fileMenuSource.contains("Button(\"Close Library\")"))
         XCTAssertTrue(fileMenuSource.contains("Button(\"Save Library As...\")"))
+        XCTAssertTrue(fileMenuSource.contains("Label(\"Markdown Static Site...\", systemImage: \"globe\")"))
+        XCTAssertTrue(fileMenuSource.contains("library.documentServiceGenerated.exportEleventySite("))
         XCTAssertFalse(fileMenuSource.contains("Close Database"))
         XCTAssertFalse(fileMenuSource.contains("Save Database As..."))
+        XCTAssertFalse(fileMenuSource.contains("Label(\"Static Site (11ty)...\", systemImage: \"globe\")"))
 
         let focusedCommandsSource = try Self.appSource("Views/Menu/FocusedCommandButtons.swift")
         XCTAssertTrue(focusedCommandsSource.contains("Button(\"Move Files...\")"))
