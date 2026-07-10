@@ -263,6 +263,36 @@ def sync_debug_bootstrap_token(
     return sync_app_bootstrap_token(token, app_id=app_id)
 
 
+def prepare_app_bootstrap_token_for_launch(
+    *,
+    app_id: str = "app.fichero.fichero",
+) -> str | None:
+    """Prepare the sandbox token copy without clobbering a running engine token.
+
+    The app may spawn a second backend process with a fresh
+    ``FICHERO_BOOTSTRAP_TOKEN`` while an older loopback engine is still serving.
+    If the launcher rewrites ``.api-key`` before the new process binds, the app
+    starts sending the fresh token to the still-running engine and hits a 401
+    loop. Preserve the existing bootstrap token in that pre-bind window; the
+    real server startup will adopt the app-supplied token once it actually
+    serves.
+    """
+    env_token = os.environ.get("FICHERO_BOOTSTRAP_TOKEN", "").strip()
+    if env_token:
+        try:
+            existing = _token_file_path().read_text().strip()
+        except OSError:
+            existing = ""
+        if existing and not _is_account_or_device_token(existing):
+            sync_app_bootstrap_token(existing, app_id=app_id)
+            return existing
+        return None
+
+    token = initialize_token()
+    sync_app_bootstrap_token(token, app_id=app_id)
+    return token
+
+
 def _is_stale_sandbox_bootstrap_token(raw_token: str, expected_bootstrap_token: str) -> bool:
     """Detect the local app's stale sandbox token without widening 401 semantics."""
     if not raw_token or raw_token == expected_bootstrap_token:

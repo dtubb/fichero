@@ -191,11 +191,9 @@ export FICHERO_DEBUG_APP_BUNDLE_ID
 PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - <<'PY'
 import os
 
-from fichero.api.auth import initialize_token, sync_debug_bootstrap_token
+from fichero.api.auth import prepare_app_bootstrap_token_for_launch
 
-token = initialize_token()
-sync_debug_bootstrap_token(
-    token,
+prepare_app_bootstrap_token_for_launch(
     app_id=os.environ.get("FICHERO_APP_BUNDLE_ID", "app.fichero.fichero"),
 )
 PY
