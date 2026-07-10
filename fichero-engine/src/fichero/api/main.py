@@ -682,9 +682,10 @@ def _ensure_bootstrap_token_written() -> None:
     global _api_token
     if not _auth_enabled():
         return
-    from fichero.api.auth import initialize_token
+    from fichero.api.auth import initialize_token, sync_app_bootstrap_token
 
     _api_token = initialize_token()
+    sync_app_bootstrap_token(_api_token)
 
 
 @asynccontextmanager

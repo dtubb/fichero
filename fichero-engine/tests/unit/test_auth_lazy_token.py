@@ -129,6 +129,29 @@ def test_startup_writes_token_file_so_client_is_not_deadlocked(monkeypatch, tmp_
     assert token_path.read_text().strip()
 
 
+def test_startup_syncs_sandbox_token_copy_for_follow_up_windows(monkeypatch, tmp_path):
+    """Startup must refresh the sandbox copy so new windows keep the same token."""
+    import fichero.api.auth as auth_module
+    from fichero.api.main import _ensure_bootstrap_token_written
+
+    host_token_path = tmp_path / "host" / ".api-key"
+    sandbox_token_path = tmp_path / "sandbox" / ".api-key"
+    monkeypatch.setattr(auth_module, "_token_file_path", lambda: host_token_path)
+    monkeypatch.setattr(
+        auth_module,
+        "_sandbox_token_file_path",
+        lambda _app_id: sandbox_token_path,
+    )
+    monkeypatch.delenv("FICHERO_DISABLE_AUTH", raising=False)
+
+    _ensure_bootstrap_token_written()
+
+    assert host_token_path.exists()
+    assert sandbox_token_path.exists()
+    assert sandbox_token_path.read_text() == host_token_path.read_text()
+    assert stat.S_IMODE(sandbox_token_path.stat().st_mode) == 0o600
+
+
 def test_sync_debug_bootstrap_token_writes_sandbox_copy_that_authenticates(
     monkeypatch, tmp_path
 ):
