@@ -17,6 +17,8 @@ from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.models import DocType, Document, FileType
 from fichero.ingest import ingest_file, ingest_folder, IngestMode
 
+TEST_EMBEDDING_DIM = 1024
+
 
 class TestDatabaseSearch:
     """Test search integration in db.py."""
@@ -32,7 +34,7 @@ class TestDatabaseSearch:
         db.save(doc)
 
         # Mock the embedder to avoid loading model
-        with patch.object(db, '_embed_text', return_value=[0.1] * 384):
+        with patch.object(db, '_embed_text', return_value=[0.1] * TEST_EMBEDDING_DIM):
             result = db.embed(doc)
 
         assert result is True
@@ -61,10 +63,10 @@ class TestDatabaseSearch:
         )
         db.save(doc)
 
-        with patch.object(db, '_embed_text', return_value=[0.1] * 384):
+        with patch.object(db, '_embed_text', return_value=[0.1] * TEST_EMBEDDING_DIM):
             db.embed(doc)
 
-        with patch.object(db, '_embed_text', return_value=[0.1] * 384):
+        with patch.object(db, '_embed_text', return_value=[0.1] * TEST_EMBEDDING_DIM):
             results, total_count, _stats = db.search("employment terms")
 
         assert len(results) >= 1
@@ -196,8 +198,13 @@ class TestDatabaseSearch:
         db.save(entity)
         db.save(claim)
 
-        with patch.object(db, '_embed_text', return_value=[0.1] * 384), patch.object(
-            db, "_embed_texts", side_effect=[[[0.1] * 384], [[0.1] * 384]]
+        with patch.object(db, '_embed_text', return_value=[0.1] * TEST_EMBEDDING_DIM), patch.object(
+            db,
+            "_embed_texts",
+            side_effect=[
+                [[0.1] * TEST_EMBEDDING_DIM],
+                [[0.1] * TEST_EMBEDDING_DIM],
+            ],
         ):
             db.embed(doc)
             db.embed_entities([entity])
@@ -274,7 +281,7 @@ class TestDatabaseSearch:
         doc = Document(name="test.pdf", page_content="Content to embed")
         db.save(doc)
 
-        with patch.object(db, '_embed_text', return_value=[0.1] * 384):
+        with patch.object(db, '_embed_text', return_value=[0.1] * TEST_EMBEDDING_DIM):
             db.embed(doc)
 
         assert db.has_embedding(doc.id)
@@ -295,7 +302,7 @@ class TestSaveWithAutoEmbed:
             page_content="Long enough content for embedding",
         )
 
-        with patch.object(db, '_embed_text', return_value=[0.1] * 384):
+        with patch.object(db, '_embed_text', return_value=[0.1] * TEST_EMBEDDING_DIM):
             db.save(doc, auto_embed=True)
 
         assert db.has_embedding(doc.id)
