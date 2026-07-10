@@ -51,6 +51,17 @@ final class PDFCompactReadingTests: XCTestCase {
         }
     }
 
+    func testRefreshedFocusedDocumentUsesLatestMatchingSnapshot() {
+        let stale = page(id: "p2", sequence: 2)
+        var fresh = stale
+        fresh.pageContent = "Transcribed text"
+
+        let refreshed = ContentView.refreshedFocusedDocument(stale, in: [page(id: "p1", sequence: 1), fresh])
+
+        XCTAssertEqual(refreshed?.id, "p2")
+        XCTAssertEqual(refreshed?.pageContent, "Transcribed text")
+    }
+
     // MARK: - PDF leaf resolution
 
     func testShouldUsePDFCanvasLeafResolution() {

@@ -3,6 +3,14 @@ import XCTest
 
 @MainActor
 final class DocumentInspectorTests: XCTestCase {
+    private static func appSource(_ relativePath: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+        return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
+    }
+
     func testClampedSelectedTabFallsBackWhenEditsUnavailable() {
         let folder = Document(
             id: "folder-1",
@@ -29,5 +37,13 @@ final class DocumentInspectorTests: XCTestCase {
             DocumentInspector.clampedSelectedTab(.edits, for: page),
             .edits
         )
+    }
+
+    func testArtifactsPaneReloadsOnWorkflowSignals() throws {
+        let source = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+
+        XCTAssertTrue(source.contains(".onChange(of: executionObserver.fileCompletedCount)"))
+        XCTAssertTrue(source.contains(".onChange(of: executionObserver.workflowCompletedCount)"))
+        XCTAssertTrue(source.contains("Task { await store.reload() }"))
     }
 }

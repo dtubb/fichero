@@ -57,6 +57,7 @@ struct ArtifactsInspectorPane: View {
     @Environment(DocumentServiceGenerated.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(LibraryManager.self) private var libraryManager
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
@@ -137,6 +138,12 @@ struct ArtifactsInspectorPane: View {
                 includeDescendants: includesDescendantArtifacts,
                 force: true
             )
+        }
+        .onChange(of: executionObserver.fileCompletedCount) { _, _ in
+            Task { await store.reload() }
+        }
+        .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
+            Task { await store.reload() }
         }
     }
 

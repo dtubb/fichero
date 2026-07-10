@@ -558,10 +558,17 @@ extension ContentView {
         }
         // Keep detailDocument in sync when currentDocuments refreshes
         // so the inspector shows updated page_content after workflows complete.
-        if let currentDetail = detailDocument,
-           let updatedDoc = newDocs.first(where: { $0.id == currentDetail.id }) {
-            detailDocument = updatedDoc
-        }
+        detailDocument = Self.refreshedFocusedDocument(detailDocument, in: newDocs)
+        pageFocusDocument = Self.refreshedFocusedDocument(pageFocusDocument, in: newDocs)
+    }
+
+    /// Replace an actively-focused document snapshot with the freshly-loaded
+    /// row from `newDocs` when available, otherwise keep the current snapshot.
+    /// This keeps page-scoped inspector/reader state current after workflow
+    /// writes without clearing focus when the row is temporarily absent.
+    static func refreshedFocusedDocument(_ current: Document?, in newDocs: [Document]) -> Document? {
+        guard let current else { return nil }
+        return newDocs.first(where: { $0.id == current.id }) ?? current
     }
 
     /// Handles `.onChange(of: viewSettings.previewMode)`.
