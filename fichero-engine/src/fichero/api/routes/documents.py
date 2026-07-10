@@ -6,6 +6,7 @@ CRUD operations for Document model.
 
 import asyncio
 import logging
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -2718,7 +2719,7 @@ def _invert_import_upload_to_delete(
 def _action_import_upload_file(
     db: Database, params: UploadFileImportParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    library_root = Path(ctx.library_path) if ctx.library_path else Path(db.path).parent
+    library_root = (Path(ctx.library_path) if ctx.library_path else Path(db.path).parent).resolve()
     file_path = Path(params.path).expanduser()
     if not file_path.is_absolute():
         file_path = library_root / file_path
@@ -2730,6 +2731,18 @@ def _action_import_upload_file(
         raise HTTPException(status_code=400, detail=f"File not found: {params.path}")
     if not file_path.is_file():
         raise HTTPException(status_code=400, detail=f"Not a file: {params.path}")
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    is_route_upload_temp = (
+        file_path.parent == temp_root and file_path.name.startswith("fichero_upload_")
+    )
+    try:
+        file_path.relative_to(library_root)
+    except ValueError as exc:
+        if not is_route_upload_temp:
+            raise HTTPException(
+                status_code=400,
+                detail="Upload path must stay inside the library package",
+            ) from exc
     doc = import_uploaded_file_impl(
         db,
         file_path,
