@@ -153,6 +153,57 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("wrong lateral origin"))
     }
 
+    func testDeferredDisclosureContentNeededForExpandableLazyFolder() {
+        let folder = makeDoc(id: "folder-1", name: "Folder", childCount: 2)
+        let item = SidebarItem.fromDocument(folder, libraryId: UUID())
+
+        XCTAssertTrue(item.isExpandable)
+        XCTAssertTrue(sidebarNeedsDeferredDisclosureContent(item))
+    }
+
+    func testDeferredDisclosureContentNotNeededAfterChildrenLoad() {
+        let folder = makeDoc(id: "folder-1", name: "Folder", childCount: 2)
+        let child = SidebarItem.folder(name: "Child", folderPath: "/child", category: .folder, libraryId: UUID())
+        let item = SidebarItem.fromDocument(folder, libraryId: UUID(), children: [child])
+
+        XCTAssertFalse(sidebarNeedsDeferredDisclosureContent(item))
+    }
+
+    func testSidebarBuilderKeepsUnloadedFolderExpandableFromChildCount() {
+        let folder = makeDoc(id: "folder-1", name: "Folder", childCount: 1)
+        let result = SidebarItemBuilder.buildLibraryHierarchy(from: [folder], libraryId: UUID())
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertNil(result[0].children)
+        XCTAssertTrue(result[0].isExpandable)
+        XCTAssertTrue(sidebarNeedsDeferredDisclosureContent(result[0]))
+    }
+
+    func testSidebarBuilderKeepsUnloadedPdfExpandableFromChildCount() {
+        let pdf = Document(
+            id: "pdf-1",
+            parentId: nil,
+            docType: .file,
+            fileType: .pdf,
+            name: "paper.pdf",
+            path: nil,
+            sequence: nil,
+            bbox: nil,
+            status: .completed,
+            metadata: [:],
+            pageContent: nil,
+            childCount: 3,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        let result = SidebarItemBuilder.buildLibraryHierarchy(from: [pdf], libraryId: UUID())
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertNil(result[0].children)
+        XCTAssertTrue(result[0].isExpandable)
+        XCTAssertTrue(sidebarNeedsDeferredDisclosureContent(result[0]))
+    }
+
     func testCurrentChatScopePrefersSelectionThenDetailThenVisibleCollection() {
         let folder = Document(id: "folder-1", docType: .folder, name: "Folder")
         let page = Document(id: "page-1", parentId: "folder-1", docType: .page, fileType: .pdf, name: "Page 1")
@@ -410,12 +461,13 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeDoc(id: String, name: String) -> Document {
+    private func makeDoc(id: String, name: String, childCount: Int = 0) -> Document {
         Document(
             id: id, parentId: nil, docType: .folder,
             fileType: nil, name: name, path: nil,
             sequence: nil, bbox: nil, status: .completed,
             metadata: [:], pageContent: nil,
+            childCount: childCount,
             createdAt: Date(), updatedAt: Date()
         )
     }

@@ -1,6 +1,10 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+func sidebarNeedsDeferredDisclosureContent(_ item: SidebarItem) -> Bool {
+    item.isExpandable && item.children == nil
+}
+
 extension SidebarItemRow {
     var body: some View {
         bodyContent
@@ -83,6 +87,19 @@ extension SidebarItemRow {
         item.isExpandable
     }
 
+    @ViewBuilder
+    private var disclosureContent: some View {
+        if let children = item.children, !children.isEmpty {
+            childrenList(children)
+        } else if sidebarNeedsDeferredDisclosureContent(item) {
+            // Keep the native disclosure chevron visible while descendants are
+            // still lazy-loaded from metadata-only childCount state (#3355).
+            Color.clear
+                .frame(height: 0.5)
+                .accessibilityHidden(true)
+        }
+    }
+
     // Folders (with or without children) are drop targets; leaves
     // (PDFs, images, saved searches, etc.) are drag sources only.
     // Matches Finder semantics: you can drag a file out, but you
@@ -91,7 +108,7 @@ extension SidebarItemRow {
     private var bodyContent: some View {
         if isExpandable {
             DisclosureGroup(isExpanded: isExpanded) {
-                childrenList(item.children ?? [])
+                disclosureContent
             } label: {
                 if isFolder {
                     folderLabel
