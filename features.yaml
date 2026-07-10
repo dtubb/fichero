@@ -183,28 +183,28 @@
   notes: General settings panel.
 - key: settingsEngineTab
   name: Settings engine tab
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.settings_engine_tab
   routes: []
   ux_group: Settings
   notes: Engine settings panel.
 - key: settingsShareTab
   name: Settings share tab
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.settings_share_tab
   routes: []
   ux_group: Settings
   notes: Sharing and collaboration settings panel.
 - key: settingsUsersTab
   name: Settings users tab
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.settings_users_tab
   routes: []
   ux_group: Settings
   notes: Multi-user settings panel.
 - key: settingsCaptureTab
   name: Settings capture tab
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.settings_capture_tab
   routes: []
   ux_group: Settings
@@ -289,14 +289,14 @@
   notes: Expanded provider and model catalog beyond the shipped baseline.
 - key: settingsBackendTab
   name: Settings backend tab
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.settings_backend_tab
   routes: []
   ux_group: Settings
   notes: Backend configuration panel.
 - key: settingsModelsTab
   name: Settings models tab
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.settings_models_tab
   routes: []
   ux_group: Settings
@@ -368,7 +368,7 @@
   notes: Schedules, triggers, and automated flows.
 - key: mcpUi
   name: MCP servers UI
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.mcp
   routes:
     - /api/mcp-servers
@@ -383,7 +383,7 @@
   notes: In-app agent surface still in the rawest stage.
 - key: integrations
   name: Integrations
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.integrations
   routes:
     - /api/integrations

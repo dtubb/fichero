@@ -251,28 +251,28 @@ enum FeatureTiers {
         ),
         .settingsEngineTab: .init(
             name: "Settings engine tab",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.settings_engine_tab",
             uxGroup: "Settings",
             notes: "Engine settings panel."
         ),
         .settingsShareTab: .init(
             name: "Settings share tab",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.settings_share_tab",
             uxGroup: "Settings",
             notes: "Sharing and collaboration settings panel."
         ),
         .settingsUsersTab: .init(
             name: "Settings users tab",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.settings_users_tab",
             uxGroup: "Settings",
             notes: "Multi-user settings panel."
         ),
         .settingsCaptureTab: .init(
             name: "Settings capture tab",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.settings_capture_tab",
             uxGroup: "Settings",
             notes: "Capture and intake settings panel."
@@ -356,14 +356,14 @@ enum FeatureTiers {
         ),
         .settingsBackendTab: .init(
             name: "Settings backend tab",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.settings_backend_tab",
             uxGroup: "Settings",
             notes: "Backend configuration panel."
         ),
         .settingsModelsTab: .init(
             name: "Settings models tab",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.settings_models_tab",
             uxGroup: "Settings",
             notes: "Model configuration panel."
@@ -433,7 +433,7 @@ enum FeatureTiers {
         ),
         .mcpUi: .init(
             name: "MCP servers UI",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.mcp",
             uxGroup: "Clients",
             notes: "UI for managing MCP server connections."
@@ -447,7 +447,7 @@ enum FeatureTiers {
         ),
         .integrations: .init(
             name: "Integrations",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.integrations",
             uxGroup: "Clients",
             notes: "External integrations surface still in the rawest stage."
