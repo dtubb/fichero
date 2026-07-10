@@ -30,6 +30,11 @@ final class FocusedArtifact {
     /// when nothing is selected (the detail shows its empty state).
     var id: String?
 
+    /// The document the current artifact selection belongs to. Lets the
+    /// window-level inspector retarget to the right document before showing
+    /// the artifacts pane when a child artifact row is selected elsewhere.
+    var documentId: String?
+
     /// The resolved artifact for `id`, kept in sync by the owning list pane.
     /// A value snapshot so a window can render it without the store.
     private(set) var artifact: Artifact?
@@ -44,7 +49,18 @@ final class FocusedArtifact {
     /// Set the selection and resolve its snapshot against `items`. Called by
     /// the list pane whenever the selection changes or the store's items
     /// reload (so the snapshot tracks live edits / workflow re-runs).
-    func select(_ id: String?, in items: [Artifact]) {
+    func select(
+        _ id: String?,
+        documentId: String? = nil,
+        documentName: String? = nil,
+        in items: [Artifact]
+    ) {
+        if let documentId {
+            self.documentId = documentId
+        }
+        if let documentName {
+            self.documentName = documentName
+        }
         self.id = id
         resolve(in: items)
     }

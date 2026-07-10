@@ -128,6 +128,7 @@ struct ArtifactsInspectorPane: View {
         .task(id: document.id) {
             // Point the shared store at this document and reset selection.
             focused.clear()
+            focused.documentId = document.id
             focused.documentName = document.name
             await store.setScope(
                 documentId: document.id,

@@ -64,4 +64,23 @@ struct ArtifactSelectionTests {
         // current may be nil while multi-selecting — stays nil, doesn't pick arbitrarily
         #expect(ArtifactSelection.focusedID(for: ["a", "b"], current: nil) == nil)
     }
+
+    @MainActor
+    @Test("FocusedArtifact keeps document scope with the selected artifact")
+    func focusedArtifactTracksDocumentScope() {
+        let focused = FocusedArtifact()
+        let artifact = artifact("artifact-1", documentId: "doc-42")
+
+        focused.select(
+            artifact.id,
+            documentId: "doc-42",
+            documentName: "Document 42",
+            in: [artifact]
+        )
+
+        #expect(focused.id == "artifact-1")
+        #expect(focused.documentId == "doc-42")
+        #expect(focused.documentName == "Document 42")
+        #expect(focused.artifact?.id == "artifact-1")
+    }
 }
