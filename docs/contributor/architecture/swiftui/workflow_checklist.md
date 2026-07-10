@@ -7,7 +7,7 @@
 
 > **Updated 2026-06-06:** several process references below are stale — read with
 > these corrections:
-> - **Tasks are tracked in GitHub Issues + Milestones**, not `agent-work/agent-workflow/TODO.md`
+> - **Tasks are tracked in GitHub Issues + Milestones**, not a local TODO file
 >   (retired). Ignore the "check / update TODO.md" steps.
 > - **Branch discipline**: commit milestone work directly to the milestone branch
 >   (e.g. `main`); do **not** create per-task `feature-branch-name` branches and do
@@ -50,7 +50,7 @@ git pull origin main
 
 **Planning**:
 - [ ] Understand the requirement/bug
-- [ ] Check `agent-work/agent-workflow/TODO.md` for task details
+- [ ] Check the assigned GitHub issue for task details
 - [ ] Read relevant context files (`key_files.md`, `swiftui-principles.md`)
 - [ ] Identify affected files (use `key_files.md`)
 - [ ] Check if files need splitting (> 400 lines?)
@@ -280,14 +280,14 @@ git push origin feature-branch-name
 ## Common Tasks Quick Reference
 
 ### Adding a New Feature
-1. Read `agent-work/agent-workflow/TODO.md` for task details
+1. Read the assigned GitHub issue for task details
 2. Check `key_files.md` for affected files
 3. Review `swiftui-principles.md` for patterns
 4. Implement following workflow above
 5. Run SwiftLint and build
 6. Test manually
 7. Commit with descriptive message
-8. Update `agent-work/agent-workflow/TODO.md` task status
+8. Update the GitHub issue status
 
 ### Fixing a Bug
 1. Reproduce the bug
@@ -393,7 +393,7 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 ### Quick Links
 - Backend API: http://localhost:8765/docs
 - Frontend Docs: `docs/contributor/architecture/swiftui/`
-- TODO List: GitHub Issues + Milestones (the source of truth; the old `agent-work/agent-workflow/TODO.md` is retired)
+- TODO List: GitHub Issues + Milestones
 
 ### MCP Tools
 - **Sosumi**: `searchAppleDocumentation("swiftui drag drop")`
