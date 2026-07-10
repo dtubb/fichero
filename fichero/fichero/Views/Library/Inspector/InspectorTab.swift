@@ -1,12 +1,14 @@
 import SwiftUI
 
 /// Tab selection for document inspector. Order matters — left-to-right is
-/// content / annotations / notes / entities / knowledge graph / citations /
-/// edits / info, per Daniel's mental model: "the document itself" →
-/// "what was marked" → "what was noted" → "extracted entities" → "structured
-/// claims" → "references" → "edit tools" → "metadata about the document".
+/// content / artifacts / annotations / notes / entities / knowledge graph /
+/// citations / edits / info, per Daniel's mental model: "the document itself"
+/// → "workflow outputs" → "what was marked" → "what was noted" →
+/// "extracted entities" → "structured claims" → "references" →
+/// "edit tools" → "metadata about the document".
 enum InspectorTab: String, CaseIterable, Identifiable {
     case content = "Content"
+    case artifacts = "Artifacts"
     case outline = "Outline"
     case annotations = "Annotations"
     case notes = "Notes"
@@ -22,6 +24,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .content: return "doc.text"
+        case .artifacts: return "shippingbox"
         case .outline: return "list.bullet.indent"
         case .annotations: return "highlighter"
         case .notes: return "pencil.and.scribble"
@@ -39,6 +42,8 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         switch self {
         case .content:
             return "Content — read the document's extracted text and page contents"
+        case .artifacts:
+            return "Artifacts — inspect workflow outputs like transcriptions, catalogues, and summaries"
         case .outline:
             return "Outline — drill down the document's structure: chapters, sections, pages, and what's on each"
         case .annotations:
