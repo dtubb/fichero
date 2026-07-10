@@ -470,6 +470,13 @@ class ManagedLocalInferenceProcess:
         self._stdout_task = None
         self._stderr_task = None
 
+    async def finalize_last_error(self) -> str | None:
+        if self._process is None or self._process.returncode in {None, 0}:
+            return self.last_error
+        await self._join_stream_tasks()
+        self._update_last_error()
+        return self.last_error
+
     def _python_executable(self) -> str:
         candidate = (self.profile.python_executable or "").strip()
         if candidate:
@@ -660,7 +667,12 @@ class LocalInferenceServiceManager:
 
         if not self.process.is_running():
             self.state = LocalServiceState.failed
-            self.last_error = self.process.last_error or "local inference process is not running"
+            finalize_last_error = getattr(self.process, "finalize_last_error", None)
+            self.last_error = (
+                await finalize_last_error() if callable(finalize_last_error) else None
+                or self.process.last_error
+                or "local inference process is not running"
+            )
             return self.status()
 
         try:
@@ -687,7 +699,12 @@ class LocalInferenceServiceManager:
 
         if not self.process.is_running():
             self.state = LocalServiceState.failed
-            self.last_error = self.process.last_error or "local inference process is not running"
+            finalize_last_error = getattr(self.process, "finalize_last_error", None)
+            self.last_error = (
+                await finalize_last_error() if callable(finalize_last_error) else None
+                or self.process.last_error
+                or "local inference process is not running"
+            )
             return self.status()
 
         try:
