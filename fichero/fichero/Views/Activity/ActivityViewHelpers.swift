@@ -170,11 +170,8 @@ struct ActivityBrowserView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
-                Text("Activity")
-                    .font(.headline)
-                Spacer()
+                Spacer(minLength: 0)
                 if activityStore.isRebuildingRuns {
                     ProgressView().scaleEffect(0.6)
                 }
@@ -200,11 +197,12 @@ struct ActivityBrowserView: View {
             Divider()
 
             if activityStore.runs.isEmpty && !activityStore.isRebuildingRuns {
-                ContentUnavailableView(
-                    "No Runs Yet",
-                    systemImage: "clock",
-                    description: Text("Run a workflow to see activity here")
-                )
+                List {
+                    Text("No runs yet")
+                        .foregroundStyle(.secondary)
+                        .listRowSeparator(.hidden)
+                }
+                .listStyle(.plain)
             } else {
                 List(selection: $listSelection) {
                     ForEach(activityStore.runs) { run in

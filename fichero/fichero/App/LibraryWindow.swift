@@ -133,47 +133,6 @@ struct LibraryWindow: View {
             )
             .environment(appState.providerService)
         }
-        .sheet(isPresented: Binding(
-            get: { appState.showMCPServers },
-            set: { appState.showMCPServers = $0 }
-        )) {
-            MCPServersSheet()
-                .environment(appState)
-                .environment(appState.mcpService)
-        }
-        // Notes now live per-document in the inspector's Notes tab
-        // (DocumentNotesTab, #1500) — the standalone browser sheet is retired.
-        // Integrations sheets
-        .sheet(isPresented: Binding(
-            get: { appState.showFolderWatchers },
-            set: { appState.showFolderWatchers = $0 }
-        )) {
-            IntegrationsPlaceholderSheet(
-                title: "Folder Watchers",
-                description: "Automatically process files when added to watched folders.",
-                icon: "folder.badge.gearshape"
-            )
-        }
-        .sheet(isPresented: Binding(
-            get: { appState.showAppObservers },
-            set: { appState.showAppObservers = $0 }
-        )) {
-            IntegrationsPlaceholderSheet(
-                title: "App Observers",
-                description: "Trigger workflows based on app events (e.g., when files are saved in specific apps).",
-                icon: "app.badge"
-            )
-        }
-        .sheet(isPresented: Binding(
-            get: { appState.showAutomationRules },
-            set: { appState.showAutomationRules = $0 }
-        )) {
-            IntegrationsPlaceholderSheet(
-                title: "Automation Rules",
-                description: "Create rules to automatically organize and process documents.",
-                icon: "gearshape.2"
-            )
-        }
         // First-run onboarding (#1947 — sole first-run path, replaces ContentView sheet).
         // It opens once the backend is reachable and stays up until Finish, even if a
         // library is assigned while the user moves through the onboarding steps.

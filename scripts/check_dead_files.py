@@ -60,6 +60,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Sidebar/SidebarView+LibraryHeaderHelpers.swift": "#1945 — candidate dead file: library header helper row",
     "Views/Workflow/WorkflowEditor+Actions.swift": "#1945 — candidate dead file: workflow completion helper",
     "Views/MCPServers/MCPToolsCatalogView.swift": "#1945 — candidate dead file: MCP tools catalog helper types",
+    "Views/MCPServers/MCPServersSheet.swift": "#3366 — settings routing keeps legacy sheet compiled for transition/back-compat",
     "Views/Menu/AddItemMenu.swift": "#2955 — live but scanner-blind: sole toolbar-evidence for Link/Copy/Add-Files in the action-surface matrix",
     "Views/Menu/ImagePreviewMenuCommands.swift": "#1945 — candidate dead file: MagnifierLimits",
     "Views/Notes/NotesBrowserView.swift": "#2955 — live but scanner-blind: source read by NoteServiceTests",

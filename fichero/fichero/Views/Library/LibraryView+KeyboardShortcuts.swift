@@ -1,5 +1,7 @@
 import SwiftUI
 
+// swiftlint:disable file_length
+
 private struct DocumentDeleteActionParams: Encodable {
     let docId: String
 
@@ -72,7 +74,13 @@ extension LibraryView {
                     set: { libraryToolbar.sortFieldRaw = $0 }
                 )
             )
-            .focusedSceneValue(\.librarySortAscending, $libraryToolbar.sortAscending)
+            .focusedSceneValue(
+                \.librarySortAscending,
+                FocusedSortAscending(
+                    value: libraryToolbar.sortAscending,
+                    set: { libraryToolbar.sortAscending = $0 }
+                )
+            )
             .confirmationDialog(
                 "Delete \(documentsToDelete.count) document\(documentsToDelete.count == 1 ? "" : "s")?",
                 isPresented: $showDeleteConfirmation,
@@ -384,6 +392,23 @@ struct FocusedSortField: Equatable {
     }
 }
 
+/// Equatable wrapper for the library sort direction focused value.
+///
+/// Publishing a raw `Binding<Bool>` re-triggers the focus system on every body
+/// pass even when the direction did not change. Mirror `FocusedSortField` so
+/// the View menu only sees a new focused value when the actual ascending flag
+/// changes, not whenever the view re-renders.
+struct FocusedSortAscending: Equatable {
+    /// The current ascending/descending flag.
+    let value: Bool
+    /// Update the direction.
+    let set: (Bool) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.value == rhs.value
+    }
+}
+
 // MARK: - FocusedValue Keys for Library Actions
 
 /// FocusedValue key for selecting all documents in the library
@@ -403,7 +428,7 @@ struct LibrarySortFieldKey: FocusedValueKey {
 
 /// FocusedValue key for the library sort direction binding
 struct LibrarySortAscendingKey: FocusedValueKey {
-    typealias Value = Binding<Bool>
+    typealias Value = FocusedSortAscending
 }
 
 extension FocusedValues {
@@ -427,3 +452,5 @@ extension FocusedValues {
         set { self[LibrarySortAscendingKey.self] = newValue }
     }
 }
+
+// swiftlint:enable file_length

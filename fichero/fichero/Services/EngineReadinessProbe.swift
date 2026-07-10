@@ -60,7 +60,7 @@ struct EngineReadinessProbe {
         if let expectedNonce, health.nonce != expectedNonce {
             return .identityMismatch(pid: health.pid)
         }
-        let registryStatus = await fetchRegistryStatus()
+        let registryStatus = await fetchRegistryObservation().status
         return Self.classify(
             healthStatus: 200,
             healthNonce: health.nonce,
@@ -68,6 +68,11 @@ struct EngineReadinessProbe {
             enginePid: health.pid,
             registryStatus: registryStatus
         )
+    }
+
+    func authFailure() async -> AccessError? {
+        let registry = await fetchRegistryObservation()
+        return Self.classifyAuthFailure(statusCode: registry.status, body: registry.body)
     }
 
     /// Pure classification of a probe's observations → the readiness contract.
@@ -91,6 +96,11 @@ struct EngineReadinessProbe {
         }
     }
 
+    static func classifyAuthFailure(statusCode: Int?, body: Data?) -> AccessError? {
+        guard let statusCode else { return nil }
+        return AccessError.classify(statusCode: statusCode, body: body)
+    }
+
     // MARK: - Transport (fail-closed)
 
     /// One `/api/health` observation: status + the two identity fields.
@@ -98,6 +108,11 @@ struct EngineReadinessProbe {
         let status: Int?
         let nonce: String?
         let pid: Int?
+    }
+
+    private struct RegistryObservation {
+        let status: Int?
+        let body: Data?
     }
 
     private func fetchHealth() async -> HealthObservation {
@@ -111,15 +126,18 @@ struct EngineReadinessProbe {
         }
     }
 
-    private func fetchRegistryStatus() async -> Int? {
+    private func fetchRegistryObservation() async -> RegistryObservation {
         var request = URLRequest(url: registryURL)
         request.httpMethod = "GET"
         request.addEngineAuth()
         do {
-            let (_, response) = try await session.data(for: request)
-            return (response as? HTTPURLResponse)?.statusCode
+            let (data, response) = try await session.data(for: request)
+            return RegistryObservation(
+                status: (response as? HTTPURLResponse)?.statusCode,
+                body: data
+            )
         } catch {
-            return nil
+            return RegistryObservation(status: nil, body: nil)
         }
     }
 }

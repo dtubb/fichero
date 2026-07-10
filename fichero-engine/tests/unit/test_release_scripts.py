@@ -194,7 +194,7 @@ def test_start_backend_syncs_bootstrap_token_into_debug_sandbox() -> None:
     text = _script_text(START_BACKEND)
 
     assert 'FICHERO_DEBUG_APP_BUNDLE_ID="${FICHERO_DEBUG_APP_BUNDLE_ID:-app.fichero.fichero}"' in text
-    assert "sync_debug_bootstrap_token" in text
+    assert "prepare_app_bootstrap_token_for_launch" in text
 
 
 def test_backend_bundle_builds_fm_bridge_into_package_resources() -> None:

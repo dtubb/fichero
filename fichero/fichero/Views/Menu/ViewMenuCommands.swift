@@ -398,19 +398,19 @@ struct SortSection: View {
                 Divider()
 
                 Button {
-                    sortAscending?.wrappedValue = true
+                    sortAscending?.set(true)
                 } label: {
                     Text("Ascending")
-                    if sortAscending?.wrappedValue == true {
+                    if sortAscending?.value == true {
                         Image(systemName: "checkmark")
                     }
                 }
 
                 Button {
-                    sortAscending?.wrappedValue = false
+                    sortAscending?.set(false)
                 } label: {
                     Text("Descending")
-                    if sortAscending?.wrappedValue == false {
+                    if sortAscending?.value == false {
                         Image(systemName: "checkmark")
                     }
                 }

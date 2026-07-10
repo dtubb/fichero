@@ -4,9 +4,8 @@ import XCTest
 @testable import Fichero
 
 final class EngineConfigTests: XCTestCase {
-    private var originalHost: String?
     private var originalRemoteEnabled: Bool?
-    private var originalPublicBaseURL: String?
+    private var originalHost: String?, originalPublicBaseURL: String?
 
     override func setUp() {
         super.setUp()
@@ -20,6 +19,8 @@ final class EngineConfigTests: XCTestCase {
     override func tearDown() {
         restoreEngineHost(originalHost)
         restoreRemoteAccessState(enabled: originalRemoteEnabled, publicBaseURL: originalPublicBaseURL)
+        RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: "https://fichero.local:9443")
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: "https://fichero.local:9443")
         originalHost = nil
         originalRemoteEnabled = nil
         originalPublicBaseURL = nil
@@ -158,6 +159,15 @@ final class EngineConfigTests: XCTestCase {
         ) { error in
             XCTAssertEqual(error as? RemoteURLValidationError, .hostPolicyNotAllowed)
         }
+    }
+
+    func testHostedBackendSPKIPinFallsBackToPersistedPin() throws {
+        let hostedURL = "https://fichero.local:9443"
+        UserDefaults.standard.set(hostedURL, forKey: RemoteAccessConfig.publicBaseURLKey)
+        try RemoteCertificatePinning.persistSPKIPin("sha256/fallback-pin=", hostString: hostedURL)
+
+        XCTAssertEqual(RemoteAccessConfig.hostedBackendSPKIPin(hostString: hostedURL), "sha256/fallback-pin=")
+        XCTAssertEqual(RemoteAccessConfig.advertisedSPKIPin, "sha256/fallback-pin=")
     }
 
     func testHostedRemoteAccessURLDoesNotOverrideActiveEngineHost() {

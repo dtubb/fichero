@@ -1,6 +1,10 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+func sidebarNeedsDeferredDisclosureContent(_ item: SidebarItem) -> Bool {
+    item.isExpandable && item.children == nil
+}
+
 extension SidebarItemRow {
     var body: some View {
         bodyContent
@@ -83,15 +87,27 @@ extension SidebarItemRow {
         item.isExpandable
     }
 
-    // Folders (with or without children) are drop targets; leaves
-    // (PDFs, images, saved searches, etc.) are drag sources only.
-    // Matches Finder semantics: you can drag a file out, but you
-    // can't drop anything onto a file.
+    @ViewBuilder
+    private var disclosureContent: some View {
+        if let children = item.children, !children.isEmpty {
+            childrenList(children)
+        } else if sidebarNeedsDeferredDisclosureContent(item) {
+            // Keep the native disclosure chevron visible while descendants are
+            // still lazy-loaded from metadata-only childCount state (#3355).
+            Color.clear
+                .frame(height: 0.5)
+                .accessibilityHidden(true)
+        }
+    }
+
+    // Folders are direct drop targets. Document leaves also accept file drops,
+    // which resolve to their parent folder so dropping onto `page1.pdf` imports
+    // beside it, matching Finder's sibling-drop behavior.
     @ViewBuilder
     private var bodyContent: some View {
         if isExpandable {
             DisclosureGroup(isExpanded: isExpanded) {
-                childrenList(item.children ?? [])
+                disclosureContent
             } label: {
                 if isFolder {
                     folderLabel
@@ -132,6 +148,13 @@ extension SidebarItemRow {
     /// SwiftUI's tap-vs-drag disambiguation (#711 follow-up).
     private var leafLabel: some View {
         fullWidthLabel
+            .sidebarDropHighlight(isDropTargeted)
+            .onDrop(
+                of: [UTType.utf8PlainText, UTType.item],
+                isTargeted: $isDropTargeted
+            ) { providers in
+                handleRowDrop(providers)
+            }
             .contextMenu { rowContextMenu }
     }
 }

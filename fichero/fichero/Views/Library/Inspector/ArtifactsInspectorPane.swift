@@ -39,9 +39,9 @@ struct TranslationLanguage: Identifiable, Hashable {
 /// The Artifacts inspector tab, rebuilt as List + detail (#2003, EPIC #2002).
 ///
 /// Replaces the old `DocumentInspectorContentV2(mode: .artifactsOnly)` stacked
-/// `ArtifactPanel`s. A horizontal split: a lightweight `ArtifactListView` on
-/// the left for overview, a single `ArtifactDetailView` on the right that
-/// follows the selection. A toolbar button tears the detail off into a
+/// `ArtifactPanel`s. A vertical stack: a lightweight `ArtifactListView` on top
+/// for overview, a single `ArtifactDetailView` below that follows the selection.
+/// A toolbar button tears the detail off into a
 /// separate, draggable window (`ArtifactDetailWindow`) that also follows
 /// selection.
 ///
@@ -57,6 +57,7 @@ struct ArtifactsInspectorPane: View {
     @Environment(DocumentServiceGenerated.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(LibraryManager.self) private var libraryManager
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
@@ -77,13 +78,15 @@ struct ArtifactsInspectorPane: View {
             if let actionError {
                 errorBox(actionError)
             }
-            PlatformHSplitView {
+            VStack(spacing: 0) {
                 ArtifactListView(
                     store: store,
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
                 .frame(minHeight: 120, idealHeight: 200)
+
+                Divider()
 
                 ArtifactDetailView(
                     artifact: selectedArtifact,
@@ -128,12 +131,19 @@ struct ArtifactsInspectorPane: View {
         .task(id: document.id) {
             // Point the shared store at this document and reset selection.
             focused.clear()
+            focused.documentId = document.id
             focused.documentName = document.name
             await store.setScope(
                 documentId: document.id,
                 includeDescendants: includesDescendantArtifacts,
                 force: true
             )
+        }
+        .onChange(of: executionObserver.fileCompletedCount) { _, _ in
+            Task { await store.reload() }
+        }
+        .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
+            Task { await store.reload() }
         }
     }
 

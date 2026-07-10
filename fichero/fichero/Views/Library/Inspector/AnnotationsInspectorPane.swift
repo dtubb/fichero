@@ -25,13 +25,15 @@ struct AnnotationsInspectorPane: View {
             if let loadError = annotationStore.loadError {
                 errorBox(loadError)
             }
-            PlatformHSplitView {
+            VStack(spacing: 0) {
                 AnnotationListView(
                     annotations: annotations,
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
                 .frame(minHeight: 120, idealHeight: 200)
+
+                Divider()
 
                 AnnotationDetailView(
                     annotation: selectedAnnotation,

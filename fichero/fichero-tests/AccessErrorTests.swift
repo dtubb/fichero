@@ -164,4 +164,13 @@ struct AccessErrorTests {
         #expect(AccessError.tlsPinFailure.recovery == .resetPin)
         #expect(AccessError.engineUnreachable.recovery == .restartEngine)
     }
+
+    @Test func connectionDiagnosesExplainTheCorrectRecovery() {
+        #expect(AppState.diagnosis(for: .staleBootstrapToken).contains("saved engine token is out of date"))
+        #expect(
+            AppState.diagnosis(for: .unauthenticated)
+                == "Fichero connected to the engine, but the saved sign-in is out of date. Reset Sign-In & Retry."
+        )
+        #expect(AppState.diagnosis(for: .tlsPinFailure).contains("Reset the certificate"))
+    }
 }

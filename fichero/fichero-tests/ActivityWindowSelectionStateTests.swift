@@ -64,6 +64,14 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(helpersSource.contains(".onTapGesture(count: 2)"))
     }
 
+    func testActivityWindowDoesNotRepeatTitleOrCenterEmptyPlaceholder() throws {
+        let helpersSource = try Self.appSource("Views/Activity/ActivityViewHelpers.swift")
+
+        XCTAssertFalse(helpersSource.contains("Text(\"Activity\")"))
+        XCTAssertFalse(helpersSource.contains("ContentUnavailableView(\n                    \"No Runs Yet\""))
+        XCTAssertTrue(helpersSource.contains("Text(\"No runs yet\")"))
+    }
+
     func testActivityIsRemovedFromSidebarEntryPoints() throws {
         let viewMenuSource = try Self.appSource("Views/Menu/ViewMenuCommands.swift")
         let modeBarSource = try Self.appSource("Views/Sidebar/SidebarModeBar.swift")

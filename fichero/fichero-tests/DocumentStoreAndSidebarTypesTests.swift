@@ -153,6 +153,83 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("wrong lateral origin"))
     }
 
+    func testDeferredDisclosureContentNeededForExpandableLazyFolder() {
+        let folder = makeDoc(id: "folder-1", name: "Folder", childCount: 2)
+        let item = SidebarItem.fromDocument(folder, libraryId: UUID())
+
+        XCTAssertTrue(item.isExpandable)
+        XCTAssertTrue(sidebarNeedsDeferredDisclosureContent(item))
+    }
+
+    func testDeferredDisclosureContentNotNeededAfterChildrenLoad() {
+        let folder = makeDoc(id: "folder-1", name: "Folder", childCount: 2)
+        let child = SidebarItem.folder(name: "Child", folderPath: "/child", category: .folder, libraryId: UUID())
+        let item = SidebarItem.fromDocument(folder, libraryId: UUID(), children: [child])
+
+        XCTAssertFalse(sidebarNeedsDeferredDisclosureContent(item))
+    }
+
+    func testSidebarBuilderKeepsUnloadedFolderExpandableFromChildCount() {
+        let folder = makeDoc(id: "folder-1", name: "Folder", childCount: 1)
+        let result = SidebarItemBuilder.buildLibraryHierarchy(from: [folder], libraryId: UUID())
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertNil(result[0].children)
+        XCTAssertTrue(result[0].isExpandable)
+        XCTAssertTrue(sidebarNeedsDeferredDisclosureContent(result[0]))
+    }
+
+    func testSidebarBuilderKeepsUnloadedPdfExpandableFromChildCount() {
+        let pdf = Document(
+            id: "pdf-1",
+            parentId: nil,
+            docType: .file,
+            fileType: .pdf,
+            name: "paper.pdf",
+            path: nil,
+            sequence: nil,
+            bbox: nil,
+            status: .completed,
+            metadata: [:],
+            pageContent: nil,
+            childCount: 3,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        let result = SidebarItemBuilder.buildLibraryHierarchy(from: [pdf], libraryId: UUID())
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertNil(result[0].children)
+        XCTAssertTrue(result[0].isExpandable)
+        XCTAssertTrue(sidebarNeedsDeferredDisclosureContent(result[0]))
+    }
+
+    func testLibraryViewClipsItsOwnPaneBounds() throws {
+        let source = try Self.appSource("Views/ContentView+Navigation.swift")
+
+        XCTAssertTrue(source.contains("Keep the library surface inside the content column"))
+        XCTAssertTrue(source.contains(".clipped()"))
+        XCTAssertTrue(source.contains("under the shell sidebar or off the left window edge"))
+    }
+
+    func testDetailShellColumnClipsAllPreviewLayoutsToItsBounds() throws {
+        let source = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(source.contains("Keep every library/preview/reader combination inside the detail"))
+        XCTAssertTrue(source.contains("column bounds. Without this outer clip"))
+        XCTAssertTrue(source.contains(".background(Color(platformColor: .textBackgroundColor))\n        .clipped()"))
+    }
+
+    func testLibraryWorkspaceDefersLiveUpdateStreamsUntilBackendReady() throws {
+        let source = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
+
+        XCTAssertTrue(source.contains("@Environment(AppState.self) private var appState"))
+        XCTAssertTrue(source.contains("guard appState.isBackendRunning else { return }"))
+        XCTAssertTrue(source.contains("app is still probing the engine can falsely trip the paused"))
+        XCTAssertTrue(source.contains("library.changeStream.start()"))
+        XCTAssertTrue(source.contains("library.activityStore.start()"))
+    }
+
     func testCurrentChatScopePrefersSelectionThenDetailThenVisibleCollection() {
         let folder = Document(id: "folder-1", docType: .folder, name: "Folder")
         let page = Document(id: "page-1", parentId: "folder-1", docType: .page, fileType: .pdf, name: "Page 1")
@@ -251,9 +328,20 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     func testDocumentTabViewForwardsArtifactServiceIntoContentView() throws {
         let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
         let contentViewSource = try Self.appSource("Views/ContentView.swift")
+        let builderSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
         let requiredSnippets = [
             "@Environment(ArtifactServiceGenerated.self) var artifactService",
+            "@Environment(EntityServiceGenerated.self) var entityService",
+            "@Environment(KGCurationServiceGenerated.self) var kgCurationService",
+            "@Environment(ArtifactStore.self) var artifactStore",
+            "@Environment(EntityStore.self) var entityStore",
+            "@Environment(ClaimStore.self) var claimStore",
             ".environment(artifactService)",
+            ".environment(entityService)",
+            ".environment(kgCurationService)",
+            ".environment(artifactStore)",
+            ".environment(entityStore)",
+            ".environment(claimStore)",
             ".environmentObject(FeatureManager.shared)",
             "@Environment(WorkflowStreamService.self) var workflowStreamService",
             "@Environment(ResearchService.self) var researchService",
@@ -271,6 +359,10 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             XCTAssertTrue(tabSource.contains(snippet), "Missing snippet: \(snippet)")
         }
         XCTAssertTrue(contentViewSource.contains("@EnvironmentObject var featureManager: FeatureManager"))
+        XCTAssertTrue(contentViewSource.contains("@Environment(ArtifactServiceGenerated.self) var artifactService"))
+        XCTAssertTrue(contentViewSource.contains("@Environment(EntityServiceGenerated.self) var entityService"))
+        XCTAssertTrue(builderSource.contains(".environment(artifactService)"))
+        XCTAssertTrue(builderSource.contains(".environment(entityService)"))
     }
 
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {
@@ -410,12 +502,13 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeDoc(id: String, name: String) -> Document {
+    private func makeDoc(id: String, name: String, childCount: Int = 0) -> Document {
         Document(
             id: id, parentId: nil, docType: .folder,
             fileType: nil, name: name, path: nil,
             sequence: nil, bbox: nil, status: .completed,
             metadata: [:], pageContent: nil,
+            childCount: childCount,
             createdAt: Date(), updatedAt: Date()
         )
     }

@@ -560,15 +560,10 @@ extension LibraryView {
         MiniToolbar<EmptyView, EmptyView>.touchTargetSide
     }
 
-    /// Height of the bottom action bar. Stays compact (28pt) on the Mac and
-    /// grows to the standard touch height on iPhone/iPad so the larger hit
-    /// targets fit (#2474).
+    /// Height of the bottom action bar. Matches the shared mini-toolbar policy
+    /// so library, sidebar, reader, preview, and inspector strips line up.
     private var bottomBarHeight: CGFloat {
-        #if os(macOS)
-        return 28
-        #else
-        return MiniToolbar<EmptyView, EmptyView>.standardHeight
-        #endif
+        MiniToolbar<EmptyView, EmptyView>.standardHeight
     }
 
     /// Finder/Xcode-style bottom toolbar acting on the current library selection.

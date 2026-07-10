@@ -84,8 +84,27 @@ enum DocumentKGPaneRoute {
         let tokenLiteral = jsStringLiteral(token ?? "")
         let libraryLiteral = jsStringLiteral(libraryPath)
         return """
-        window.ficheroToken = '\(tokenLiteral)';
-        window.ficheroLibrary = '\(libraryLiteral)';
+        (function() {
+            var nativeToken = '\(tokenLiteral)';
+            var nativeTokenSentinel = '__fichero_native_token__';
+            window.ficheroToken = nativeTokenSentinel;
+            window.ficheroLibrary = '\(libraryLiteral)';
+            if (window.ficheroNativeFetchInstalled) { return; }
+            window.ficheroNativeFetchInstalled = true;
+            var nativeFetch = window.fetch.bind(window);
+            window.fetch = function(input, init) {
+                var requestURL = typeof input === 'string' ? input : input?.url;
+                var url = new URL(requestURL || '', window.location.href);
+                var nextInit = init ? Object.assign({}, init) : {};
+                var headers = new Headers(nextInit.headers || (input && input.headers) || {});
+                if (url.origin === window.location.origin
+                    && headers.get('Authorization') === 'Bearer ' + nativeTokenSentinel) {
+                    headers.set('Authorization', 'Bearer ' + nativeToken);
+                    nextInit.headers = headers;
+                }
+                return nativeFetch(input, nextInit);
+            };
+        })();
         """
     }
 
@@ -166,49 +185,95 @@ enum DocumentKGPaneRoute {
     static func themeInjectionScript() -> String { "" }
     #endif
 
+    // swiftlint:disable:next function_body_length
     static func scrollSyncScript(pageCount: Int?) -> String {
         let count = max(pageCount ?? 0, 0)
         return """
         (function() {
             window.ficheroPageCount = \(count);
-            window.ficheroScrollSyncSuppress = false;
+            window.ficheroScrollSyncSequence = window.ficheroScrollSyncSequence || 0;
+            function scroller() {
+                return document.querySelector('.content') || document.scrollingElement;
+            }
+            function pageAnchors() {
+                return Array.from(document.querySelectorAll('.transcript [data-page]'));
+            }
+            function installPageAnchors() {
+                if (pageAnchors().length > 0) { return pageAnchors(); }
+                var transcript = document.querySelector('.transcript');
+                if (!transcript) { return []; }
+                var walker = document.createTreeWalker(transcript, NodeFilter.SHOW_TEXT);
+                var nodes = [];
+                var node;
+                while ((node = walker.nextNode())) {
+                    nodes.push(node);
+                }
+                nodes.forEach(function(textNode) {
+                    var text = textNode.nodeValue;
+                    var regex = /(^|\\n)(Page\\s+(\\d+)\\b)/g;
+                    var match;
+                    var lastIndex = 0;
+                    var fragment = document.createDocumentFragment();
+                    while ((match = regex.exec(text)) !== null) {
+                        var prefix = match[1] || "";
+                        var headingStart = match.index + prefix.length;
+                        fragment.appendChild(document.createTextNode(text.slice(lastIndex, headingStart)));
+                        var anchor = document.createElement('span');
+                        anchor.dataset.page = match[3];
+                        anchor.style.position = 'relative';
+                        anchor.style.top = '-8px';
+                        anchor.setAttribute('aria-hidden', 'true');
+                        fragment.appendChild(anchor);
+                        fragment.appendChild(document.createTextNode(text.slice(headingStart, regex.lastIndex)));
+                        lastIndex = regex.lastIndex;
+                    }
+                    if (lastIndex === 0) { return; }
+                    fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+                    textNode.parentNode.replaceChild(fragment, textNode);
+                });
+                return pageAnchors();
+            }
             window.ficheroScrollToPage = function(pageNumber, pageCount) {
                 var count = pageCount || window.ficheroPageCount || 0;
                 var page = Number(pageNumber);
-                var scroller = document.querySelector('.content') || document.scrollingElement;
-                if (!scroller || count <= 1 || !Number.isFinite(page)) { return; }
-                var maxScroll = scroller.scrollHeight - scroller.clientHeight;
-                if (maxScroll <= 0) { return; }
-                var progress = Math.max(0, Math.min(1, (page - 1) / Math.max(count - 1, 1)));
-                window.ficheroScrollSyncSuppress = true;
-                scroller.scrollTop = progress * maxScroll;
-                window.setTimeout(function() { window.ficheroScrollSyncSuppress = false; }, 180);
+                var anchor = document.querySelector('.transcript [data-page="' + page + '"]');
+                var root = scroller();
+                if (!anchor) {
+                    installPageAnchors();
+                    anchor = document.querySelector('.transcript [data-page="' + page + '"]');
+                }
+                if (!anchor || !root || count <= 1 || !Number.isFinite(page)) { return; }
+                window.ficheroScrollSyncSequence += 1;
+                anchor.scrollIntoView({ block: 'start', inline: 'nearest' });
             };
-            if (window.ficheroScrollSyncInstalled) { return; }
-            window.ficheroScrollSyncInstalled = true;
-            var lastPage = null;
-            var timer = null;
-            function notifyPageFromScroll() {
+            function postPage(page) {
                 var count = window.ficheroPageCount || 0;
-                var scroller = document.querySelector('.content') || document.scrollingElement;
                 var handler = window.webkit?.messageHandlers?.ficheroBridge;
-                if (!scroller || !handler || count <= 1 || window.ficheroScrollSyncSuppress) { return; }
-                var maxScroll = scroller.scrollHeight - scroller.clientHeight;
-                if (maxScroll <= 0) { return; }
-                var progress = Math.max(0, Math.min(1, scroller.scrollTop / maxScroll));
-                var page = Math.max(1, Math.min(count, Math.round(progress * (count - 1)) + 1));
-                if (page === lastPage) { return; }
-                lastPage = page;
+                if (!handler || count <= 1 || page === window.ficheroScrollSyncLastPage) { return; }
+                window.ficheroScrollSyncLastPage = page;
                 handler.postMessage({ kind: 'pageSelected', pageNumber: page });
             }
-            function scheduleNotify() {
-                window.clearTimeout(timer);
-                timer = window.setTimeout(notifyPageFromScroll, 90);
+            function observePageAnchors() {
+                var root = scroller();
+                var anchors = installPageAnchors();
+                var count = window.ficheroPageCount || 0;
+                if (!root || count <= 1 || anchors.length === 0) { return; }
+                if (window.ficheroScrollSyncObserver) {
+                    window.ficheroScrollSyncObserver.disconnect();
+                }
+                window.ficheroScrollSyncObserver = new IntersectionObserver(function(entries) {
+                    var visible = entries
+                        .filter(function(entry) { return entry.isIntersecting; })
+                        .sort(function(a, b) {
+                            return Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top);
+                        });
+                    if (visible.length === 0) { return; }
+                    var page = Number(visible[0].target.dataset.page);
+                    if (Number.isFinite(page)) { postPage(page); }
+                }, { root: root === document.scrollingElement ? null : root, rootMargin: '0px 0px -70% 0px' });
+                anchors.forEach(function(anchor) { window.ficheroScrollSyncObserver.observe(anchor); });
             }
-            var scroller = document.querySelector('.content') || document.scrollingElement;
-            if (scroller) {
-                scroller.addEventListener('scroll', scheduleNotify, { passive: true });
-            }
+            observePageAnchors();
         })();
         """
     }

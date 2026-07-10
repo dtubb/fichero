@@ -41,6 +41,10 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
         XCTAssertEqual(MiniToolbar<EmptyView, EmptyView>.touchTargetSide, policy.touchTargetSide)
     }
 
+    func testPaneFilterBarUsesMiniToolbarHeight() {
+        XCTAssertEqual(PaneFilterBar<EmptyView>.height, MiniToolbar<EmptyView, EmptyView>.standardHeight)
+    }
+
     // #2415: WorkflowMiniToolbarButton must be constructable in both enabled and
     // disabled states. Behavioural gating by FeatureManager is exercised in
     // FeatureManagerTests.testWorkflowRunOnSelectionDefault.

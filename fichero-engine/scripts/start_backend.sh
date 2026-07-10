@@ -112,7 +112,7 @@ PY
   )"
   export FICHERO_TLS_CERTFILE FICHERO_TLS_KEYFILE FICHERO_TLS_SPKI_HASH
   if [ -n "${FICHERO_PUBLIC_BASE_URL:-}" ]; then
-    export FICHERO_MULTIUSER FICHERO_PUBLIC_BASE_URL
+    export FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-1}" FICHERO_PUBLIC_BASE_URL
     if [ "$DEFAULTS_BONJOUR_ENABLED" = true ]; then
       export FICHERO_ENABLE_BONJOUR="${FICHERO_ENABLE_BONJOUR:-1}"
     fi
@@ -184,16 +184,16 @@ if [ -n "${FICHERO_TLS_CERTFILE:-}" ] || [ -n "${FICHERO_TLS_KEYFILE:-}" ]; then
   fi
 fi
 
-FICHERO_APP_BUNDLE_ID="${FICHERO_APP_BUNDLE_ID:-${FICHERO_DEBUG_APP_BUNDLE_ID:-app.fichero.fichero}}"
+FICHERO_DEBUG_APP_BUNDLE_ID="${FICHERO_DEBUG_APP_BUNDLE_ID:-app.fichero.fichero}"
+FICHERO_APP_BUNDLE_ID="${FICHERO_APP_BUNDLE_ID:-${FICHERO_DEBUG_APP_BUNDLE_ID}}"
 export FICHERO_APP_BUNDLE_ID
+export FICHERO_DEBUG_APP_BUNDLE_ID
 PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - <<'PY'
 import os
 
-from fichero.api.auth import initialize_token, sync_app_bootstrap_token
+from fichero.api.auth import prepare_app_bootstrap_token_for_launch
 
-token = initialize_token()
-sync_app_bootstrap_token(
-    token,
+prepare_app_bootstrap_token_for_launch(
     app_id=os.environ.get("FICHERO_APP_BUNDLE_ID", "app.fichero.fichero"),
 )
 PY

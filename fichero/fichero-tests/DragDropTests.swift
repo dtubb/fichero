@@ -324,3 +324,69 @@ struct CircularDropDetectionTests {
         #expect(!containsDescendant("unrelated-id", in: folder))
     }
 }
+
+// MARK: - Sidebar File Drop Target Tests
+
+struct SidebarFileDropTargetTests {
+
+    private let libraryId = UUID()
+
+    private func makeFolder(id: String, name: String) -> SidebarItem {
+        SidebarItem(
+            id: "doc:\(id)",
+            name: name,
+            icon: "folder",
+            category: .folder,
+            itemType: .document(Document(id: id, docType: .folder, name: name)),
+            children: nil,
+            progress: nil,
+            showProgress: false,
+            libraryId: libraryId,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: true
+        )
+    }
+
+    private func makeFile(id: String, name: String, parentId: String?) -> SidebarItem {
+        SidebarItem(
+            id: "doc:\(id)",
+            name: name,
+            icon: "doc.richtext",
+            category: .folder,
+            itemType: .document(
+                Document(
+                    id: id,
+                    parentId: parentId,
+                    docType: .file,
+                    fileType: .pdf,
+                    name: name
+                )
+            ),
+            children: nil,
+            progress: nil,
+            showProgress: false,
+            libraryId: libraryId,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
+        )
+    }
+
+    @Test("drop on file resolves to its parent folder row")
+    func fileDropTargetsParentFolder() {
+        let folder = makeFolder(id: "folder-1", name: "Inbox")
+        let file = makeFile(id: "file-1", name: "page1.pdf", parentId: "folder-1")
+
+        let resolved = sidebarParentFolderItem(of: file, in: [folder, file])
+
+        #expect(resolved?.id == folder.id)
+    }
+
+    @Test("drop on root file keeps root fallback")
+    func rootFileDropFallsBackToRoot() {
+        let file = makeFile(id: "file-1", name: "page1.pdf", parentId: nil)
+
+        #expect(sidebarParentFolderItem(of: file, in: [file]) == nil)
+    }
+}

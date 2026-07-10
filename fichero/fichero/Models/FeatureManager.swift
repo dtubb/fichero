@@ -30,7 +30,7 @@ class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_len
     static let shared = FeatureManager()
     // Bumped to re-apply workflow execution release defaults on existing
     // installs (langgraph preview, run-on-selection, files toolbar, import/export).
-    private static let releaseProfileVersion = 31
+    private static let releaseProfileVersion = 32
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_all,kg_writer,extract_entities,key_people,timeline,keywords,summarize_file,"
@@ -326,13 +326,13 @@ class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_len
         chatEnabledInternal = false
         agentsEnabledInternal = false
         automationEnabledInternal = false
-        mcpEnabledInternal = false
-        integrationsEnabledInternal = false
+        mcpEnabledInternal = true
+        integrationsEnabledInternal = true
         activityEnabledInternal = true
 
         settingsGeneralTabEnabledInternal = true
-        settingsBackendTabEnabledInternal = false
-        settingsModelsTabEnabledInternal = false
+        settingsBackendTabEnabledInternal = true
+        settingsModelsTabEnabledInternal = true
         settingsEngineTabEnabledInternal = true
         settingsShareTabEnabledInternal = true
         settingsUsersTabEnabledInternal = true

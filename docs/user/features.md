@@ -33,10 +33,16 @@ Build-tier visibility uses a maturity floor:
 | Workflow tools files | `beta` | `fichero.features.workflow_tools_files` | - | Processing | File and collection tools enabled in shipped workflows. |
 | Workflows | `beta` | `fichero.features.workflows` | `/api/workflows`, `/api/workflow-execution` | Processing | Visual workflow editor and execution surface. |
 | Settings general tab | `beta` | `fichero.features.settings_general_tab` | - | Settings | General settings panel. |
+| Integrations | `alpha` | `fichero.features.integrations` | `/api/integrations` | Clients | External integrations surface still in the rawest stage. |
+| MCP servers UI | `alpha` | `fichero.features.mcp` | `/api/mcp-servers` | Clients | UI for managing MCP server connections. |
+| Settings backend tab | `alpha` | `fichero.features.settings_backend_tab` | - | Settings | Backend configuration panel. |
+| Settings capture tab | `alpha` | `fichero.features.settings_capture_tab` | - | Settings | Capture and intake settings panel. |
+| Settings engine tab | `alpha` | `fichero.features.settings_engine_tab` | - | Settings | Engine settings panel. |
+| Settings models tab | `alpha` | `fichero.features.settings_models_tab` | - | Settings | Model configuration panel. |
+| Settings share tab | `alpha` | `fichero.features.settings_share_tab` | - | Settings | Sharing and collaboration settings panel. |
+| Settings users tab | `alpha` | `fichero.features.settings_users_tab` | - | Settings | Multi-user settings panel. |
 | Canvas RealityKit 2D | `dev` | `fichero.features.canvas_realitykit_2d` | - | Clients | Route the 2D canvas to the RealityKit renderer. |
 | Canvas RealityKit 3D | `dev` | `fichero.features.canvas_realitykit_3d` | - | Clients | Route the 3D space to the contract-based RealityKit renderer. |
-| Integrations | `dev` | `fichero.features.integrations` | `/api/integrations` | Clients | External integrations surface still in the rawest stage. |
-| MCP servers UI | `dev` | `fichero.features.mcp` | `/api/mcp-servers` | Clients | UI for managing MCP server connections. |
 | Spatial mode | `dev` | `fichero.features.spatial_mode` | - | Clients | Spatial library presentation mode. |
 | Workspace mode | `dev` | `fichero.features.workspace_mode` | - | Clients | Alternate workspace-oriented shell mode. |
 | IIIF | `dev` | - | `/api/iiif` | Core | IIIF image and annotation server interoperability. |
@@ -61,9 +67,3 @@ Build-tier visibility uses a maturity floor:
 | Workflow tools search | `dev` | `fichero.features.workflow_tools_search` | - | Processing | Search-oriented workflow tools that are not yet shipped by default. |
 | Workflow tools transform | `dev` | `fichero.features.workflow_tools_transform` | - | Processing | Transform workflow tools still under review. |
 | Workflow tools video | `dev` | `fichero.features.workflow_tools_video` | - | Processing | Video workflow tools still under review. |
-| Settings backend tab | `dev` | `fichero.features.settings_backend_tab` | - | Settings | Backend configuration panel. |
-| Settings capture tab | `dev` | `fichero.features.settings_capture_tab` | - | Settings | Capture and intake settings panel. |
-| Settings engine tab | `dev` | `fichero.features.settings_engine_tab` | - | Settings | Engine settings panel. |
-| Settings models tab | `dev` | `fichero.features.settings_models_tab` | - | Settings | Model configuration panel. |
-| Settings share tab | `dev` | `fichero.features.settings_share_tab` | - | Settings | Sharing and collaboration settings panel. |
-| Settings users tab | `dev` | `fichero.features.settings_users_tab` | - | Settings | Multi-user settings panel. |

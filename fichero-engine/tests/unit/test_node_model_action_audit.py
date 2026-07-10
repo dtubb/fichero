@@ -6,8 +6,6 @@ current bypasses as strict xfails for manager follow-up.
 
 from __future__ import annotations
 
-import pytest
-
 import fichero.api.routes.bookmarks  # noqa: F401
 import fichero.api.routes.claims  # noqa: F401
 import fichero.api.routes.documents  # noqa: F401
@@ -202,7 +200,7 @@ def test_saved_search_create_route_writes_action_audit(client, db):
     saved_id = response.json()["id"]
     audits = _audits_for_target(db, saved_id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "savedsearch.save"
     assert audits[0].target_ids == [saved_id]
 
@@ -225,7 +223,7 @@ def test_note_create_route_writes_action_audit(client, db):
     note_id = response.json()["id"]
     audits = _audits_for_target(db, note_id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "note.create"
     assert audits[0].target_ids == [note_id]
 
@@ -237,7 +235,7 @@ def test_claim_create_route_writes_action_audit(client, db):
     claim_id = response.json()["id"]
     audits = _audits_for_target(db, claim_id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "claim.create"
     assert audits[0].target_ids == [claim_id]
 
@@ -251,7 +249,7 @@ def test_claim_patch_route_writes_action_audit(client, db):
 
     audits = _audits_for_target(db, claim.id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "claim.patch"
     assert audits[0].target_ids == [claim.id]
 
@@ -265,7 +263,7 @@ def test_claim_delete_route_writes_action_audit(client, db):
 
     audits = _audits_for_target(db, claim.id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "claim.delete"
     assert audits[0].target_ids == [claim.id]
 
@@ -283,7 +281,7 @@ def test_bookmark_create_route_writes_action_audit(client, db):
     bookmark_id = response.json()["id"]
     audits = _audits_for_target(db, bookmark_id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "bookmark.create"
     assert audits[0].target_ids == [bookmark_id]
 
@@ -295,7 +293,7 @@ def test_document_create_route_writes_action_audit(client, db):
     doc_id = response.json()["id"]
     audits = _audits_for_target(db, doc_id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "document.create"
     assert audits[0].target_ids == [doc_id]
 
@@ -310,7 +308,7 @@ def test_folder_create_route_writes_action_audit(client, db):
     folder_id = response.json()["id"]
     audits = _audits_for_target(db, folder_id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "document.create"
     assert audits[0].target_ids == [folder_id]
 
@@ -326,7 +324,7 @@ def test_document_move_route_writes_action_audit(client, db):
 
     audits = _audits_for_target(db, child.id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "document.move"
     assert audits[0].target_ids == [child.id]
 
@@ -340,7 +338,7 @@ def test_document_delete_route_writes_action_audit(client, db):
 
     audits = _audits_for_target(db, doc.id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "document.delete"
     assert audits[0].target_ids == [doc.id]
 
@@ -352,7 +350,7 @@ def test_entity_create_route_writes_action_audit(client, db):
     entity_id = response.json()["id"]
     audits = _audits_for_target(db, entity_id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "entity.create"
     assert audits[0].target_ids == [entity_id]
 
@@ -369,7 +367,7 @@ def test_entity_patch_route_writes_action_audit(client, db):
 
     audits = _audits_for_target(db, entity.id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "entity.update"
     assert audits[0].target_ids == [entity.id]
 
@@ -383,7 +381,7 @@ def test_entity_delete_route_writes_action_audit(client, db):
 
     audits = _audits_for_target(db, entity.id)
     assert len(audits) == 1
-    assert audits[0].actor == "system"
+    assert audits[0].actor == "owner"
     assert audits[0].action_name == "entity.delete"
     assert audits[0].target_ids == [entity.id]
 

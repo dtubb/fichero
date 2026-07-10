@@ -102,8 +102,8 @@ struct SidebarSelectionTests {
         #expect(source.contains("newWindow.tabbingMode = .disallowed"))
     }
 
-    @Test("#3187 library double-click opens a new window instead of previewing in place")
-    func libraryDoubleClickOpensNewWindow() throws {
+    @Test("#3364 library double-click opens in the current window")
+    func libraryDoubleClickOpensInCurrentWindow() throws {
         let source = try appSource("Views/Library/LibraryView+FilterAndBatch.swift")
         let functionStart = try #require(source.range(of: "func handleDoubleClick(_ doc: Document) {"))
         let nextFunction = try #require(
@@ -111,11 +111,9 @@ struct SidebarSelectionTests {
         )
         let functionBody = String(source[functionStart.lowerBound..<nextFunction.lowerBound])
 
-        #expect(functionBody.contains("selection = [doc.id]"))
         #expect(functionBody.contains("listScrollCenterTarget = doc.id"))
-        #expect(functionBody.contains("openDocumentInNewWindow(doc, asTab: false)"))
-        #expect(!functionBody.contains("detailDocument = doc"))
-        #expect(!functionBody.contains("onNavigateInto(doc)"))
+        #expect(functionBody.contains("openDocument(doc)"))
+        #expect(!functionBody.contains("openDocumentInNewWindow(doc, asTab: false)"))
     }
 
     @Test("#3187 library browser surfaces keep a shared leading inset clear of the sidebar")

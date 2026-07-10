@@ -40,7 +40,7 @@ struct DocumentPrototypePicker: View {
                 } label: {
                     HStack(spacing: 4) {
                         if isAssigning {
-                            ProgressView().scaleEffect(0.6).frame(width: 12, height: 12)
+                            ProgressView().controlSize(.mini)
                         }
                         if let key = selectedKey,
                            let proto = prototypes.first(where: { $0.key == key }) {

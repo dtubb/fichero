@@ -421,7 +421,7 @@ struct ShareSettingsView: View {
     }
 
     private func loadSPKIPin() {
-        spkiPin = RemoteCertificatePinning.advertisedSPKIPin(hostString: publicBaseURL) ?? ""
+        spkiPin = RemoteAccessConfig.hostedBackendSPKIPin(hostString: publicBaseURL) ?? ""
     }
 
     private var sharedLibraryPath: String? {

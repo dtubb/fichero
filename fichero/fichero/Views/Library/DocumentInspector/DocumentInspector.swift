@@ -45,6 +45,7 @@ struct DocumentInspector: View {
     @Environment(KGCurationServiceGenerated.self) private var kgCurationService
     @EnvironmentObject private var featureManager: FeatureManager
     @Environment(ClaimFocusState.self) private var claimFocusState
+    @State private var focusedArtifact = FocusedArtifact.shared
     /// Cross-view KG focus. When an entity is focused (a lozenge / WebKit-graph
     /// click), the inspector retargets to inspect that entity instead of the
     /// document (#1484). Clearing it returns to the document.
@@ -78,6 +79,12 @@ struct DocumentInspector: View {
             if entityId != nil {
                 selectedTab = .knowledgeGraph
             }
+        }
+        .onChange(of: focusedArtifact.id) { _, _ in
+            routeArtifactFocus()
+        }
+        .onChange(of: focusedArtifact.documentId) { _, _ in
+            routeArtifactFocus()
         }
     }
 
@@ -237,10 +244,13 @@ struct DocumentInspector: View {
 
     // Tab content for the selected tab. One arm per inspector tab; complexity
     // scales with the (intentionally flat) tab list, not nested branching.
+    // swiftlint:disable:next cyclomatic_complexity
     @ViewBuilder private func tabContent(for doc: Document, selectedTab: InspectorTab) -> some View {
         switch selectedTab {
         case .content:
             contentTab(for: doc)
+        case .artifacts:
+            ArtifactsInspectorPane(document: doc)
         case .outline:
             SourceOutlineView(documentId: doc.id)
         case .annotations:
@@ -274,7 +284,7 @@ struct DocumentInspector: View {
     private static func availableTabs(for doc: Document?) -> [InspectorTab] {
         guard let doc else { return InspectorTab.allCases }
         var tabs: [InspectorTab] = [
-            .content, .annotations, .notes, .interpretations, .knowledgeGraph,
+            .content, .artifacts, .annotations, .notes, .interpretations, .knowledgeGraph,
             .outline, .entities, .citations
         ]
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
@@ -374,6 +384,13 @@ struct DocumentInspector: View {
 
     private func copyToClipboard(_ text: String) {
         PlatformPasteboard.writeString(text)
+    }
+
+    private func routeArtifactFocus() {
+        guard let doc = document,
+              focusedArtifact.id != nil,
+              focusedArtifact.documentId == doc.id else { return }
+        selectedTab = .artifacts
     }
 }
 

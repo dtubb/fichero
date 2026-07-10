@@ -341,6 +341,57 @@ def test_sync_app_bootstrap_token_is_idempotent_for_existing_uuid_container(
     assert uuid_token_path.stat().st_mtime_ns == before_mtimes[uuid_token_path]
 
 
+def test_prepare_app_bootstrap_token_for_launch_preserves_running_engine_token(
+    monkeypatch, tmp_path
+):
+    import fichero.api.auth as auth_module
+
+    host_token_path = tmp_path / "host" / ".api-key"
+    sandbox_token_path = tmp_path / "sandbox" / ".api-key"
+    monkeypatch.setattr(auth_module, "_token_file_path", lambda: host_token_path)
+    monkeypatch.setattr(
+        auth_module,
+        "_sandbox_token_file_path",
+        lambda _app_id: sandbox_token_path,
+    )
+    monkeypatch.setenv("FICHERO_BOOTSTRAP_TOKEN", "fresh-app-token")
+
+    host_token_path.parent.mkdir(parents=True, exist_ok=True)
+    host_token_path.write_text("running-engine-token")
+
+    resolved = auth_module.prepare_app_bootstrap_token_for_launch(
+        app_id="app.fichero.debug-tests",
+    )
+
+    assert resolved == "running-engine-token"
+    assert host_token_path.read_text() == "running-engine-token"
+    assert sandbox_token_path.read_text() == "running-engine-token"
+
+
+def test_prepare_app_bootstrap_token_for_launch_defers_app_supplied_token_until_startup(
+    monkeypatch, tmp_path
+):
+    import fichero.api.auth as auth_module
+
+    host_token_path = tmp_path / "host" / ".api-key"
+    sandbox_token_path = tmp_path / "sandbox" / ".api-key"
+    monkeypatch.setattr(auth_module, "_token_file_path", lambda: host_token_path)
+    monkeypatch.setattr(
+        auth_module,
+        "_sandbox_token_file_path",
+        lambda _app_id: sandbox_token_path,
+    )
+    monkeypatch.setenv("FICHERO_BOOTSTRAP_TOKEN", "fresh-app-token")
+
+    resolved = auth_module.prepare_app_bootstrap_token_for_launch(
+        app_id="app.fichero.debug-tests",
+    )
+
+    assert resolved is None
+    assert not host_token_path.exists()
+    assert not sandbox_token_path.exists()
+
+
 def test_uuid_sandbox_token_paths_ignores_unreadable_root(monkeypatch):
     import fichero.api.auth as auth_module
 

@@ -130,6 +130,10 @@ extension ContentView {
                     runToolbarSearch(query)
                 }
             )
+            // Keep the library surface inside the content column across every
+            // preview/sidebar layout variant; without this, list/table rows can
+            // paint under the shell sidebar or off the left window edge (#3336).
+            .clipped()
 
         case .search(let savedSearch):
             SearchView(

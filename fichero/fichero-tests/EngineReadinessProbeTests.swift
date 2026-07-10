@@ -14,9 +14,19 @@ import Testing
 @Suite("EngineReadinessProbe (#3106)")
 struct EngineReadinessProbeTests {
 
-    private func classify(_ health: Int?, nonce: String? = nil, expected: String? = nil, pid: Int? = nil, registry: Int? = nil) -> EngineReadiness {
+    private func classify(
+        _ health: Int?,
+        nonce: String? = nil,
+        expected: String? = nil,
+        pid: Int? = nil,
+        registry: Int? = nil
+    ) -> EngineReadiness {
         EngineReadinessProbe.classify(
-            healthStatus: health, healthNonce: nonce, expectedNonce: expected, enginePid: pid, registryStatus: registry
+            healthStatus: health,
+            healthNonce: nonce,
+            expectedNonce: expected,
+            enginePid: pid,
+            registryStatus: registry
         )
     }
 
@@ -29,6 +39,12 @@ struct EngineReadinessProbeTests {
     func authRejected() {
         #expect(classify(200, registry: 401) == .authRejected)
         #expect(classify(200, registry: 403) == .authRejected)
+    }
+
+    @Test("auth-failure classifier keeps the stale bootstrap token body")
+    func authFailureKeepsStructuredBody() {
+        let body = Data(#"{"detail":"local bootstrap token is stale","code":"stale_bootstrap_token"}"#.utf8)
+        #expect(EngineReadinessProbe.classifyAuthFailure(statusCode: 401, body: body) == .staleBootstrapToken)
     }
 
     @Test("registry 404 / other / no response → notResponding (fail-closed)")

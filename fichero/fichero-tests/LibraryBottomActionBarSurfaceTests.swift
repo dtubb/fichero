@@ -36,6 +36,21 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("showWorkflowPicker = true"))
     }
 
+    func testWorkflowPickerUsesActiveLibraryWorkflows() throws {
+        let pickerSource = try Self.appSource("Views/Sheets/WorkflowPickerSheet.swift")
+
+        XCTAssertTrue(pickerSource.contains("@Environment(LibraryManager.self) private var libraryManager"))
+        XCTAssertTrue(pickerSource.contains("@Environment(WindowState.self) private var windowState"))
+        XCTAssertTrue(pickerSource.contains("libraryManager.getLibrary(id: windowState.libraryId)"))
+    }
+
+    func testBatchWorkflowRefreshesDocumentsAsWorkflowStepsComplete() throws {
+        let source = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
+
+        XCTAssertTrue(source.contains("await store.refreshDocumentsByIds([documentId])"))
+        XCTAssertTrue(source.contains("await documentStore.refreshDocumentsByIds(selectedDocumentIdsForBatch)"))
+    }
+
     func testEssentialTierHoldsPrimaryVerbs() throws {
         let source = try Self.appSource("Views/Library/LibraryView.swift")
         let start = try XCTUnwrap(source.range(of: "private var essentialBarButtons: some View"))

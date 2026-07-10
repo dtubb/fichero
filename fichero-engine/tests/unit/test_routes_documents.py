@@ -9,7 +9,7 @@ pagination. No external dependencies; uses real in-memory DB fixture.
 import asyncio
 import logging
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -1187,7 +1187,7 @@ class TestDeleteDocument:
         persisted = db.get(Document, doc.id)
         assert persisted is not None
         assert persisted.deleted_at is not None
-        assert persisted.deleted_by == "system"
+        assert persisted.deleted_by == "owner"
         r2 = client.get(f"/api/documents/{doc.id}")
         assert r2.status_code == 404
 

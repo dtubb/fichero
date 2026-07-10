@@ -42,6 +42,7 @@ from fichero.workflows.tools._workflow_change_emit import emit_workflow_kg_chang
 from fichero.workflows.types import DataType, PortDef, State
 from fichero.api.routes.claim_curation import ClaimMergeRequest, merge_claims
 from fichero.api.routes.kg_entity_curation import EntityMergeRequest, merge_entities
+from fichero.actions.registry import ActionContext
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +169,7 @@ async def merge_dedup_only(
         return {"summary": _empty_summary(), "count": 0}
 
     progress_callback = inputs.get("__progress_callback")
+    action_ctx = ActionContext(actor="workflow", library_path=library_path)
     summary = {
         "documents_scoped": len(scoped_doc_ids),
         "entities_examined": 0,
@@ -233,6 +235,7 @@ async def merge_dedup_only(
                 merged_aliases=[entity.canonical_name],
             ),
             db=db,
+            ctx=action_ctx,
         )
         touched_entity_ids.extend([target_id, entity.id])
         summary["entities_merged"] += 1
@@ -319,6 +322,7 @@ async def merge_dedup_only(
                 absorbed_claim_ids=[claim.id for claim in absorbed],
             ),
             db=db,
+            ctx=action_ctx,
         )
         touched_claim_ids.extend([survivor.id, *[claim.id for claim in absorbed]])
         summary["claim_merges"] += len(absorbed)

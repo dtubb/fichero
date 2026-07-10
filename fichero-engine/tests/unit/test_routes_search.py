@@ -1161,7 +1161,7 @@ class TestReorderSavedSearches:
         r = client.post("/api/search/saved/reorder", json=[saved.id, "missing-search"])
 
         assert r.status_code == 404
-        assert r.json()["detail"] == "Saved search not found"
+        assert r.json()["detail"] == "Saved search not found: missing-search"
 
     def test_reorder_rejects_other_users_saved_searches_in_multiuser(
         self, multiuser_client, app_db, users, db

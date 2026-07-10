@@ -3,7 +3,8 @@ import SwiftUI
 /// Sheet for picking a workflow to run on selected documents
 struct WorkflowPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(LibraryManager.self) var libraryManager
+    @Environment(LibraryManager.self) private var libraryManager
+    @Environment(WindowState.self) private var windowState
 
     let selectedDocumentIds: [String]
     let onSelect: (String) -> Void
@@ -11,8 +12,8 @@ struct WorkflowPickerSheet: View {
     @State private var searchText = ""
 
     private var workflows: [WorkflowSidebarItem] {
-        guard let globalLibrary = libraryManager.globalLibrary else { return [] }
-        return globalLibrary.workflowStore.workflows
+        let library = libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
+        return library?.workflowStore.workflows ?? []
     }
 
     private var filteredWorkflows: [WorkflowSidebarItem] {
@@ -164,4 +165,5 @@ private struct WorkflowPickerRow: View {
         }
     )
     .environment(LibraryManager.shared)
+    .environment(WindowState(libraryId: LibraryManager.globalLibraryId))
 }

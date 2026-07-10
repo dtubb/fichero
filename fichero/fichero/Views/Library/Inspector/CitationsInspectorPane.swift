@@ -3,9 +3,9 @@ import SwiftUI
 
 /// The Citations inspector tab, built as List + detail (#2004, EPIC #2002).
 ///
-/// Mirrors `ArtifactsInspectorPane`: a horizontal split with a lightweight
-/// `CitationListView` on the left and a single `CitationDetailView` on the
-/// right that follows the selection. A toolbar button tears the detail off
+/// Mirrors `ArtifactsInspectorPane`: a vertical stack with a lightweight
+/// `CitationListView` on top and a single `CitationDetailView` below that
+/// follows the selection. A toolbar button tears the detail off
 /// into a separate `CitationDetailWindow` that also follows selection.
 ///
 /// Replaces the stacked `CitationGraphPanel` that lived as a section inside the
@@ -34,13 +34,15 @@ struct CitationsInspectorPane: View {
     }
 
     var body: some View {
-        PlatformHSplitView {
+        VStack(spacing: 0) {
             CitationListView(
                 store: store,
                 focused: focused,
                 onOpenInWindow: openDetailWindow
             )
             .frame(minHeight: 120, idealHeight: 200)
+
+            Divider()
 
             CitationDetailView(item: selectedItem, usages: store.usages)
                 .frame(minHeight: 160)

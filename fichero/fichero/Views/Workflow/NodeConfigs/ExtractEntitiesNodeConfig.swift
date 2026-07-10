@@ -89,13 +89,14 @@ struct ExtractEntitiesNodeConfig: View {
                     Task { await addCustomType() }
                 } label: {
                     if isAdding {
-                        ProgressView().scaleEffect(0.6).frame(width: 16, height: 16)
+                        ProgressView().controlSize(.mini)
                     } else {
                         Image(systemName: "plus.circle.fill")
                     }
                 }
                 .buttonStyle(.plain)
                 .disabled(newTypeName.trimmingCharacters(in: .whitespaces).isEmpty || isAdding)
+                .accessibilityLabel("Add extraction target")
                 .help("Register this extraction target in your library")
             }
 

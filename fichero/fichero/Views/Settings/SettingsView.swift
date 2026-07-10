@@ -7,9 +7,17 @@ struct SettingsView: View {
     @Environment(AppState.self) var appState
     @ObservedObject var featureManager = FeatureManager.shared
 
+    private var settingsSelection: Binding<SettingsTab> {
+        Binding(
+            get: { appState.selectedSettingsTab },
+            set: { appState.selectedSettingsTab = $0 }
+        )
+    }
+
     var body: some View {
-        TabView {
+        TabView(selection: settingsSelection) {
             AISettingsView()
+                .tag(SettingsTab.aiModels)
                 .tabItem {
                     Label("AI", systemImage: "brain")
                 }
@@ -17,6 +25,7 @@ struct SettingsView: View {
             if featureManager.isMCPEnabled {
                 MCPServersView()
                     .environment(appState.mcpService)
+                    .tag(SettingsTab.mcp)
                     .tabItem {
                         Label("MCP", systemImage: "server.rack")
                     }
@@ -24,6 +33,7 @@ struct SettingsView: View {
 
             if featureManager.isIntegrationsEnabled {
                 IntegrationsSettingsView(showAutomationRules: featureManager.isAutomationEnabled)
+                    .tag(SettingsTab.integrations)
                     .tabItem {
                         Label("Integrations", systemImage: "app.connected.to.app.below.fill")
                     }
@@ -31,6 +41,7 @@ struct SettingsView: View {
 
             if featureManager.isSettingsGeneralTabEnabled {
                 GeneralSettingsView()
+                    .tag(SettingsTab.general)
                     .tabItem {
                         Label("General", systemImage: "gear")
                     }
@@ -39,6 +50,7 @@ struct SettingsView: View {
             #if canImport(AppKit)
             if featureManager.isSettingsEngineTabEnabled {
                 EngineSettingsView()
+                    .tag(SettingsTab.engine)
                     .tabItem {
                         Label("Engine", systemImage: "square.grid.3x1.below.line.grid.1x2")
                     }
@@ -46,6 +58,7 @@ struct SettingsView: View {
 
             if featureManager.isSettingsShareTabEnabled {
                 ShareSettingsView()
+                    .tag(SettingsTab.connect)
                     .tabItem {
                         Label("Connect", systemImage: "qrcode.viewfinder")
                     }
@@ -54,6 +67,7 @@ struct SettingsView: View {
 
             if featureManager.isSettingsBackendTabEnabled {
                 BackendSettingsView()
+                    .tag(SettingsTab.backend)
                     .tabItem {
                         Label("Backend", systemImage: "server.rack")
                     }
@@ -61,6 +75,7 @@ struct SettingsView: View {
 
             if featureManager.isSettingsUsersTabEnabled {
                 UsersSettingsView()
+                    .tag(SettingsTab.users)
                     .tabItem {
                         Label("Users", systemImage: "person.2")
                     }
@@ -68,6 +83,7 @@ struct SettingsView: View {
 
             if featureManager.isSettingsCaptureTabEnabled {
                 CaptureSettingsView()
+                    .tag(SettingsTab.capture)
                     .tabItem {
                         Label("Capture", systemImage: "arrow.up.doc")
                     }
@@ -75,17 +91,20 @@ struct SettingsView: View {
 
             #if !canImport(AppKit)
             AboutView()
+                .tag(SettingsTab.about)
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
             #endif
 
             AuditHistorySettingsTab()
+                .tag(SettingsTab.history)
                 .tabItem {
                     Label("History", systemImage: "clock.arrow.circlepath")
                 }
 
             BackupsSettingsTab()
+                .tag(SettingsTab.backups)
                 .tabItem {
                     Label("Backups", systemImage: "externaldrive.badge.timemachine")
                 }

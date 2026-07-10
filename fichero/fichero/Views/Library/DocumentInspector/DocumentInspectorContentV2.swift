@@ -33,6 +33,10 @@ struct DocumentInspectorContentV2: View {
     @State private var loadError: String?
     @State private var actionError: String?
 
+    private var liveDocument: Document {
+        Self.refreshedDocument(document, in: documentStore.currentDocuments)
+    }
+
     var body: some View {
         // Two layout modes:
         //
@@ -61,11 +65,13 @@ struct DocumentInspectorContentV2: View {
             await loadArtifacts()
         }
         .onChange(of: executionObserver.fileCompletedCount) { _, _ in
+            Task { await refreshVisibleDocument() }
             // Refresh after individual file completions — but don't compete
             // with an in-flight load.
             Task { await loadArtifacts() }
         }
         .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
+            Task { await refreshVisibleDocument() }
             Task { await loadArtifacts() }
         }
     }
@@ -88,7 +94,7 @@ struct DocumentInspectorContentV2: View {
             // suppresses it so the panel list is purely workflow output.
             if mode != .artifactsOnly {
                 ArtifactPanel(
-                    kind: .pageContent(text: document.pageContent ?? ""),
+                    kind: .pageContent(text: liveDocument.pageContent ?? ""),
                     // In pageContentOnly there's no outer ScrollView, so the
                     // editor fills the pane top-down instead of centring (#1286).
                     fillsHeight: mode == .pageContentOnly,
@@ -213,7 +219,7 @@ struct DocumentInspectorContentV2: View {
 
     private var panelCount: Int {
         var count = sortedArtifacts.count
-        if let pageContent = document.pageContent, !pageContent.isEmpty { count += 1 }
+        if let pageContent = liveDocument.pageContent, !pageContent.isEmpty { count += 1 }
         return count
     }
 
@@ -298,11 +304,20 @@ struct DocumentInspectorContentV2: View {
 
     private func savePageContent(_ content: String) async {
         actionError = await persistPageContent(
-            document: document,
+            document: liveDocument,
             content: content,
             documentService: documentService,
             documentStore: documentStore
         ).map { "Couldn't save: \($0)" }
+    }
+
+    private func refreshVisibleDocument() async {
+        guard mode == .pageContentOnly else { return }
+        await documentStore.refreshDocumentsByIds([document.id])
+    }
+
+    static func refreshedDocument(_ document: Document, in currentDocuments: [Document]) -> Document {
+        currentDocuments.first(where: { $0.id == document.id }) ?? document
     }
 
     static func shouldIncludeDescendantArtifacts(for document: Document, mode: Mode) -> Bool {

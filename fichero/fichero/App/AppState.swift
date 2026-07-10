@@ -2,7 +2,25 @@ import FicheroAPIClient
 import Foundation
 import Observation
 import OSLog
+#if canImport(AppKit)
+import AppKit
+#endif
 import SwiftUI
+
+enum SettingsTab: Hashable {
+    case aiModels
+    case mcp
+    case integrations
+    case general
+    case engine
+    case connect
+    case backend
+    case users
+    case capture
+    case about
+    case history
+    case backups
+}
 
 // AppState is the app-state hub (backend session + providers + heartbeat +
 // endpoint failover); its body exceeds the default limits. Its private state is
@@ -45,6 +63,7 @@ class AppState {
     var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
     var indexedCount: Int = 0
     var backendVersion: String?
+    private(set) var backendAccessError: AccessError?
     /// True while starting/probing. Backed by `engine.phase == .starting`.
     var isCheckingBackend: Bool { engine.isChecking }
     /// Count of consecutive heartbeat failures since the last successful
@@ -66,13 +85,39 @@ class AppState {
 
     // MARK: - MCP Server Management
 
-    var showMCPServers: Bool = false
+    var selectedSettingsTab: SettingsTab = .aiModels
+
+    var showMCPServers: Bool = false {
+        didSet {
+            guard showMCPServers else { return }
+            openSettings(tab: .mcp)
+            showMCPServers = false
+        }
+    }
 
     // MARK: - Integrations (Hazel-like folder/app observers)
 
-    var showFolderWatchers: Bool = false
-    var showAppObservers: Bool = false
-    var showAutomationRules: Bool = false
+    var showFolderWatchers: Bool = false {
+        didSet {
+            guard showFolderWatchers else { return }
+            openSettings(tab: .integrations)
+            showFolderWatchers = false
+        }
+    }
+    var showAppObservers: Bool = false {
+        didSet {
+            guard showAppObservers else { return }
+            openSettings(tab: .integrations)
+            showAppObservers = false
+        }
+    }
+    var showAutomationRules: Bool = false {
+        didSet {
+            guard showAutomationRules else { return }
+            openSettings(tab: .integrations)
+            showAutomationRules = false
+        }
+    }
 
     // MARK: - Services
 
@@ -109,6 +154,25 @@ class AppState {
 
     deinit {
         heartbeatTask?.cancel()
+    }
+
+    func openSettings(tab: SettingsTab) {
+        selectedSettingsTab = resolvedSettingsTab(for: tab)
+        #if canImport(AppKit)
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        #endif
+    }
+
+    private func resolvedSettingsTab(for requestedTab: SettingsTab) -> SettingsTab {
+        let featureManager = FeatureManager.shared
+        switch requestedTab {
+        case .mcp where !featureManager.isMCPEnabled:
+            return .aiModels
+        case .integrations where !featureManager.isIntegrationsEnabled:
+            return .aiModels
+        default:
+            return requestedTab
+        }
     }
 
     // MARK: - Heartbeat
@@ -185,15 +249,16 @@ class AppState {
             await sessionStore.refresh()
             await identityStore.load()
             recordActiveEndpoint()
+            backendAccessError = nil
             engine.markReady()
             await loadProviders()
         case .authRejected:
-            engine.markAuthRejected(
-                "The engine is running but rejected this app's credentials. "
-                + "The token the app holds doesn't match the engine's."
-            )
+            let accessError = await EngineReadinessProbe(hostURL: EngineConfig.host).authFailure() ?? .unauthenticated
+            backendAccessError = accessError
+            engine.markAuthRejected(Self.diagnosis(for: accessError))
             logger.error("Auth rejected on readiness probe — authBroken")
         case .notResponding, .identityMismatch:
+            backendAccessError = nil
             engine.markUnreachable(
                 "The engine answered health checks but the authenticated readiness probe failed."
             )
@@ -340,6 +405,7 @@ class AppState {
         logger.info("⏱ checkBackendHealth entry")
         // Enter the checking/starting phase; the outcome below resolves it to
         // ready / unreachable / authRejected (via confirmAuthAndLoad).
+        backendAccessError = nil
         engine.markStarting()
 
         logger.info("⏱ checkBackendHealth request-start")
@@ -360,10 +426,12 @@ class AppState {
                 await confirmAuthAndLoad()
 
             default:
+                backendAccessError = nil
                 engine.markUnreachable("API returned error status")
             }
 
         } catch let error as URLError where error.code == .cannotConnectToHost {
+            backendAccessError = .engineUnreachable
             engine.markUnreachable("""
                 Cannot connect to API server.
 
@@ -373,8 +441,29 @@ class AppState {
                 """)
             logger.error("Backend not reachable: \(error.localizedDescription)")
         } catch {
-            engine.markUnreachable("Failed to connect to API: \(error.localizedDescription)")
+            let accessError = AccessError.classify(error)
+            backendAccessError = accessError
+            engine.markUnreachable(Self.diagnosis(for: accessError))
             logger.error("Backend health check failed: \(error.localizedDescription)")
+        }
+    }
+
+    nonisolated static func diagnosis(for error: AccessError) -> String {
+        switch error {
+        case .staleBootstrapToken:
+            return "Fichero connected to the engine, but this app's saved engine token is out of date. Restart the engine and try again."
+        case .unauthenticated:
+            return "Fichero connected to the engine, but the saved sign-in is out of date. Reset Sign-In & Retry."
+        case .tlsPinFailure:
+            return "This app's pinned certificate doesn't match the running engine. Reset the certificate and retry."
+        case .deviceAccessExpired:
+            return "This device's access has expired. Re-pair it with the engine and try again."
+        case .engineUnreachable:
+            return "The Fichero engine isn't reachable. Start or restart it, then try again."
+        case .forbidden(_, let message):
+            return message ?? "This app doesn't have access to the running engine."
+        case .transport(let description):
+            return "Failed to connect to the engine: \(description)"
         }
     }
 

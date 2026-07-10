@@ -89,6 +89,14 @@ extension LibraryView {
             guard let nodeId = newSelection.first else { return }
             if let pageDoc = pageDocumentForNodeId(nodeId) {
                 onPageFocus(pageDoc)
+            } else if let artifactSelection = artifactSelectionForNodeId(nodeId) {
+                detailDocument = artifactSelection.document
+                FocusedArtifact.shared.select(
+                    artifactSelection.artifact.id,
+                    documentId: artifactSelection.document.id,
+                    documentName: artifactSelection.document.name,
+                    in: [artifactSelection.artifact]
+                )
             }
         }
     }
@@ -100,6 +108,17 @@ extension LibraryView {
             for child in node.children ?? [] {
                 if child.id == nodeId, case .pageItem(let page) = child.kind {
                     return page
+                }
+            }
+        }
+        return nil
+    }
+
+    private func artifactSelectionForNodeId(_ nodeId: String) -> (document: Document, artifact: Artifact)? {
+        for node in outlineNodes {
+            for child in node.children ?? [] {
+                if child.id == nodeId, case .artifactItem(let artifact) = child.kind {
+                    return (node.document, artifact)
                 }
             }
         }

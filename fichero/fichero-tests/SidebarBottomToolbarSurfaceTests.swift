@@ -3,7 +3,7 @@ import XCTest
 /// Source-surface test for the sidebar bottom toolbar's mini-toolbar
 /// unification (#3058, parent #2670): the bar routes through the shared
 /// `AdaptiveMiniToolbarRow` with an overflow menu mirroring the secondary
-/// actions, keeping the existing PaneFilterBar (mac) / glass (iOS) chrome.
+/// actions, using the shared PaneFilterBar chrome on every platform.
 /// Mirrors `WorkflowImportExportSurfaceTests` (deterministic, token-free).
 final class SidebarBottomToolbarSurfaceTests: XCTestCase {
     private static func appSource(_ relativePath: String) throws -> String {
@@ -20,9 +20,8 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("AdaptiveMiniToolbarRow {"))
         XCTAssertTrue(source.contains("overflowMenu: {"))
         XCTAssertTrue(source.contains("private var overflowMenu: some View"))
-        // PaneFilterBar (macOS/visionOS) + glass container (iOS) chrome preserved.
+        // PaneFilterBar owns the shared Liquid Glass/material chrome.
         XCTAssertTrue(source.contains("PaneFilterBar { adaptiveActionRow }"))
-        XCTAssertTrue(source.contains(".glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))"))
     }
 
     func testOverflowMirrorsSecondaryActions() throws {
