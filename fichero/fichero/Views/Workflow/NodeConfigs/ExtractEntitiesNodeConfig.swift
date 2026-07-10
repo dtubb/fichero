@@ -89,7 +89,7 @@ struct ExtractEntitiesNodeConfig: View {
                     Task { await addCustomType() }
                 } label: {
                     if isAdding {
-                        ProgressView().scaleEffect(0.6).frame(width: 16, height: 16)
+                        ProgressView().controlSize(.mini)
                     } else {
                         Image(systemName: "plus.circle.fill")
                     }
