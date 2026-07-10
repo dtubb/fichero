@@ -605,7 +605,7 @@ class TestSaveClaim:
         assert loaded.date_values[0].start == "1820-01-01"
         assert loaded.date_values[0].source_field is None
 
-    def test_cross_source_duplicate_folds_into_canonical_supports(self, db):
+    def test_cross_source_duplicate_preserves_document_scoped_claims(self, db):
         from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
 
         entity_id = upsert_entity(db, "Pedro", EntityType.person)
@@ -628,22 +628,20 @@ class TestSaveClaim:
             confidence=0.7,
         )
 
-        assert second == first
+        assert second != first
         claims = db.all(KnowledgeClaim)
-        assert len(claims) == 1
-        # Canonical (first) claim should still be enriched with corroboration data.
-        loaded = db.get(KnowledgeClaim, first)
-        assert loaded is not None
-        assert loaded.corroboration_count == 2
-        assert loaded.corroborating_source_ids == [
-            "doc_corroborate_1",
-            "doc_corroborate_2",
-        ]
-        assert loaded.confidence_source == "corroboration"
-        assert len(loaded.source_supports) == 2
-        links = db.all(KnowledgeClaimLink)
-        assert len(links) == 1
-        assert links[0].relation_type == ClaimRelationType.corroborates
+        assert len(claims) == 2
+
+        first_loaded = db.get(KnowledgeClaim, first)
+        second_loaded = db.get(KnowledgeClaim, second)
+        assert first_loaded is not None
+        assert second_loaded is not None
+        assert first_loaded.source_document_id == "doc_corroborate_1"
+        assert second_loaded.source_document_id == "doc_corroborate_2"
+        assert first_loaded.source_page_label == "1"
+        assert second_loaded.source_page_label == "7"
+
+        assert db.all(KnowledgeClaimLink) == []
 
     def test_within_page_dedup_skips_near_duplicate(self, db):
         """Regression test for the #896 dedup guard: a second
