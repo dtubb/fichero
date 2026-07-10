@@ -84,8 +84,27 @@ enum DocumentKGPaneRoute {
         let tokenLiteral = jsStringLiteral(token ?? "")
         let libraryLiteral = jsStringLiteral(libraryPath)
         return """
-        window.ficheroToken = '\(tokenLiteral)';
-        window.ficheroLibrary = '\(libraryLiteral)';
+        (function() {
+            var nativeToken = '\(tokenLiteral)';
+            var nativeTokenSentinel = '__fichero_native_token__';
+            window.ficheroToken = nativeTokenSentinel;
+            window.ficheroLibrary = '\(libraryLiteral)';
+            if (window.ficheroNativeFetchInstalled) { return; }
+            window.ficheroNativeFetchInstalled = true;
+            var nativeFetch = window.fetch.bind(window);
+            window.fetch = function(input, init) {
+                var requestURL = typeof input === 'string' ? input : input?.url;
+                var url = new URL(requestURL || '', window.location.href);
+                var nextInit = init ? Object.assign({}, init) : {};
+                var headers = new Headers(nextInit.headers || (input && input.headers) || {});
+                if (url.origin === window.location.origin
+                    && headers.get('Authorization') === 'Bearer ' + nativeTokenSentinel) {
+                    headers.set('Authorization', 'Bearer ' + nativeToken);
+                    nextInit.headers = headers;
+                }
+                return nativeFetch(input, nextInit);
+            };
+        })();
         """
     }
 

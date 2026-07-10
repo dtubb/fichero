@@ -129,6 +129,15 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         )
     }
 
+    func testBootstrapScriptDoesNotExposeRealTokenOnWindow() {
+        let script = DocumentKGPaneRoute.bootstrapScript(token: "secret-token", libraryPath: "/tmp/library")
+
+        XCTAssertTrue(script.contains("window.ficheroToken = nativeTokenSentinel"))
+        XCTAssertTrue(script.contains("window.fetch = function(input, init)"))
+        XCTAssertTrue(script.contains("headers.set('Authorization', 'Bearer ' + nativeToken)"))
+        XCTAssertFalse(script.contains("window.ficheroToken = 'secret-token'"))
+    }
+
     func testReaderPaneCachesBootstrapScriptBetweenUpdates() throws {
         let source = try String(
             contentsOf: URL(fileURLWithPath: #filePath)
