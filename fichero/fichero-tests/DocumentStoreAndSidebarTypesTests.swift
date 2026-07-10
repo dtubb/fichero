@@ -2,6 +2,7 @@
 import Foundation
 import XCTest
 
+// swiftlint:disable file_length
 // Tests for DocumentStoreTypes (request DTOs + error model) and
 // SidebarViewTypes (AppViewMode category routing + ActivityChildType
 // label/icon table + SelectedActivityRun.with helper).
@@ -249,11 +250,24 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testDocumentTabViewForwardsArtifactServiceIntoContentView() throws {
         let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
+        let requiredSnippets = [
+            "@Environment(ArtifactServiceGenerated.self) var artifactService",
+            ".environment(artifactService)",
+            "@Environment(WorkflowStreamService.self) var workflowStreamService",
+            "@Environment(ResearchService.self) var researchService",
+            "@Environment(ClaimFocusState.self) var claimFocusState",
+            "@Environment(KGFocusState.self) var kgFocusState",
+            ".environment(workflowStreamService)",
+            ".environment(researchService)",
+            ".environment(claimFocusState)",
+            ".environment(kgFocusState)",
+            "built after `selectCollection`",
+            "never depends on accidental inheritance"
+        ]
 
-        XCTAssertTrue(tabSource.contains("@Environment(ArtifactServiceGenerated.self) var artifactService"))
-        XCTAssertTrue(tabSource.contains(".environment(artifactService)"))
-        XCTAssertTrue(tabSource.contains("built after `selectCollection`"))
-        XCTAssertTrue(tabSource.contains("No Observable object of type ArtifactServiceGenerated"))
+        for snippet in requiredSnippets {
+            XCTAssertTrue(tabSource.contains(snippet), "Missing snippet: \(snippet)")
+        }
     }
 
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {
@@ -403,3 +417,4 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         )
     }
 }
+// swiftlint:enable file_length
