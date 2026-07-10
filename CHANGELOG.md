@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-07-10
+
+**Features**
+
+- Add the four-tier feature-gating foundation across backend route registration, generated feature artifacts, and Xcode build configurations/schemes so release, beta, alpha, and dev surfaces can be separated deliberately.
+- Surface feature-tier state in the app with build-tier awareness, visibility floors, UX badges, and a feature reference that stays checked by CI.
+- Export document annotations as W3C AnnotationPage JSON-LD and refresh the generated OpenAPI/CLI surfaces.
+
+**Fixes**
+
+- Restore the document inspector after the Fabel tab rewiring by forwarding the missing document-inspector services into docked inspectors and stopping detached document windows from reading the global library singleton.
+- Repair the backend and frontend guardrail drift found during integration: route-prefix tier mapping, saved-search reorder errors, upload path confinement, migration-status fallback, owner attribution in audited route locks, embedding-dimension expectations, activity cleanup mocks, direct undo helper calls, and claim-link/change-stream action context.
+- Keep shared external engines loopback-only, preserve workflow preset trust metadata, retire duplicate workflow catalogue presets, and refresh AppKit/OpenAPI baselines after the UI reorganization.
+- Clean observable/accessibility/shell-chrome offenders in the SwiftUI guardrail lane, including FeatureManager environment injection and icon-only button labels.
+
+**Tests**
+
+- Add route-level trust-flag coverage for workflow tool and user-workflow routes, provider key-status/no-key responses, export route header/error mapping, chat history stability, generated sidebar document loading, and tier routing/security splits.
+- Align backend integration tests with the active embedding dimension and update audit/action tests for the owner-context path used by the app.
+
+**Release**
+
+- Stamp the 2026.07.10 beta build, refresh the local OpenAPI/API-client contract artifacts, update Xcode project/scheme metadata, and track the annotation-export Swift wiring backlog explicitly for the ratchet checks.
+
+---
+
 ## 2026-07-08
 
 **Fixes**
