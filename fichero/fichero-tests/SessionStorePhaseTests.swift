@@ -59,6 +59,17 @@ struct SessionStorePhaseTests {
             != AuthError.redeemInvite(statusCode: 409).errorDescription)
     }
 
+    @Test("owner setup defaults a blank display name to the username")
+    func ownerSetupDefaultsDisplayName() {
+        #expect(SessionStore.ownerDisplayName("", username: "solo-owner") == "solo-owner")
+        #expect(SessionStore.ownerDisplayName("  \n ", username: "solo-owner") == "solo-owner")
+    }
+
+    @Test("owner setup preserves an explicit display name")
+    func ownerSetupPreservesDisplayName() {
+        #expect(SessionStore.ownerDisplayName("  Solo Owner  ", username: "solo-owner") == "Solo Owner")
+    }
+
     // MARK: - Invite link parsing (#3157)
 
     @Test("a well-formed invite link yields its token")

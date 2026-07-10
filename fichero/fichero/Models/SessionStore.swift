@@ -135,6 +135,7 @@ final class SessionStore {
     /// loopback path — the middleware attaches the bootstrap token because no
     /// session exists yet), then sign in as that owner.
     func createOwner(username: String, displayName: String, password: String) async throws {
+        let displayName = Self.ownerDisplayName(displayName, username: username)
         let request = Components.Schemas.CreateUserRequest(
             username: username,
             displayName: displayName,
@@ -150,6 +151,12 @@ final class SessionStore {
         case .undocumented(let statusCode, _):
             throw AuthError.createOwner(statusCode: statusCode)
         }
+    }
+
+    nonisolated static func ownerDisplayName(_ displayName: String, username: String) -> String {
+        let trimmedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedDisplayName.isEmpty { return trimmedDisplayName }
+        return username.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Invite redemption (#3157)

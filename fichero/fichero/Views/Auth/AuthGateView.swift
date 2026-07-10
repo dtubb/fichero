@@ -280,7 +280,6 @@ private struct OwnerSetupFormView: View {
 
     private var canSubmit: Bool {
         !username.trimmingCharacters(in: .whitespaces).isEmpty
-            && !displayName.trimmingCharacters(in: .whitespaces).isEmpty
             && password.count >= Self.minPasswordLength
             && passwordsMatch
             && !isSubmitting
@@ -294,7 +293,7 @@ private struct OwnerSetupFormView: View {
                 : "Set up an owner account with owner access to this server."
         ) {
             VStack(spacing: 12) {
-                TextField("Username", text: $username)
+                TextField("Username / handle", text: $username)
                     .textContentType(.username)
                     .textFieldStyle(.roundedBorder)
                     #if !os(macOS)
@@ -302,7 +301,7 @@ private struct OwnerSetupFormView: View {
                     .autocorrectionDisabled()
                     #endif
 
-                TextField("Display Name", text: $displayName)
+                TextField("Display name (optional)", text: $displayName)
                     .textContentType(.name)
                     .textFieldStyle(.roundedBorder)
 
