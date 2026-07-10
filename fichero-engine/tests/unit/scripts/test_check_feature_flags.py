@@ -31,6 +31,18 @@ def test_baseline_has_no_stale_signature_entries():
     assert not stale, "Remove stale KNOWN_VIOLATIONS entries:\n  " + "\n  ".join(stale)
 
 
+def test_main_fails_when_known_violations_are_stale(monkeypatch):
+    monkeypatch.setattr(check_feature_flags, "scan", lambda: {})
+    monkeypatch.setattr(
+        check_feature_flags,
+        "KNOWN_VIOLATIONS",
+        {"FeatureManager.swift#deadbeef00": "test stale entry: fake_flag (declaration)"},
+    )
+    monkeypatch.setattr(sys, "argv", ["check_feature_flags.py"])
+
+    assert check_feature_flags.main() == 1
+
+
 def test_every_baseline_entry_names_the_flag_it_grandfathers():
     """Signatures are opaque hashes; the reason text is the only human-readable key.
 
