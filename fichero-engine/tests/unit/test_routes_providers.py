@@ -8,7 +8,7 @@ external APIs.
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 from fichero.models import Provider, ProviderType
 from fichero.api.routes.providers import get_app_database
@@ -91,6 +91,38 @@ class TestAppleAvailability:
             "available": False,
             "reason": "fm-bridge binary not found",
         }
+
+
+class TestProviderKeysAndConnection:
+    def test_local_provider_api_key_status_reports_true_without_key_lookup(self, client):
+        with patch(
+            "fichero.api.routes.provider_keys.has_api_key",
+            side_effect=AssertionError("local provider should not probe key presence"),
+        ), patch(
+            "fichero.api.routes.provider_keys.keychain_available",
+            return_value=False,
+        ):
+            response = client.get("/api/providers/apple/api-key/status")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "provider_type": "apple",
+            "has_api_key": True,
+            "is_local": True,
+            "keychain_available": False,
+        }
+
+    def test_openai_connection_without_api_key_fails_loudly(self, client):
+        with patch(
+            "fichero.api.routes.provider_keys.get_api_key",
+            return_value=None,
+        ):
+            response = client.post("/api/providers/openai/test")
+
+        assert response.status_code == 200
+        assert response.json()["success"] is False
+        assert response.json()["message"] == "No API key configured"
+        assert response.json()["provider_type"] == "openai"
 
 
 # ---------------------------------------------------------------------------
