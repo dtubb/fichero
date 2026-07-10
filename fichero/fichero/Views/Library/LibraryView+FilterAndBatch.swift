@@ -263,13 +263,12 @@ extension LibraryView {
     }
 
     /// Finder-style double-click: keep the source row selected in THIS window,
-    /// then open the item in a NEW WINDOW. The destination window consumes the
-    /// pending document id and navigates into containers there. (#3187)
+    /// then open it in place — navigate into containers, otherwise preview the
+    /// document. Explicit New Tab / New Window affordances stay in the context
+    /// menu. (#3364)
     func handleDoubleClick(_ doc: Document) {
-        selection = [doc.id]
-        selectionAnchor = doc.id
         listScrollCenterTarget = doc.id
-        openDocumentInNewWindow(doc, asTab: false)
+        openDocument(doc)
     }
 
     func handleTap(_ doc: Document) {
