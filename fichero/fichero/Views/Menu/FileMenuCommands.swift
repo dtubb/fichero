@@ -227,7 +227,12 @@ struct FileMenuCommands: View {
             .disabled(openLibraryAction == nil)
 
             Menu("Open Recent") {
-                if registry.libraries.isEmpty {
+                if let fetchError = registry.fetchError,
+                   registry.libraries.isEmpty {
+                    Text("Couldn’t load recent libraries")
+                    Text(fetchError)
+                        .foregroundStyle(.secondary)
+                } else if registry.libraries.isEmpty {
                     Text("No Recent Libraries")
                 } else {
                     ForEach(registry.libraries) { library in
@@ -245,7 +250,7 @@ struct FileMenuCommands: View {
                     }
                 }
             }
-            .disabled(registry.libraries.isEmpty)
+            .disabled(registry.libraries.isEmpty && registry.fetchError == nil)
 
             Button("Close Library") {
                 closeLibraryAction?.run()
