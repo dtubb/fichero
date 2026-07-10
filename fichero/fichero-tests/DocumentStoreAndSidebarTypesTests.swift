@@ -61,6 +61,14 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertEqual(DocumentStoreError.serverError(500).errorDescription, "Server error (HTTP 500)")
     }
 
+    func testDocumentStoreLoadsSidebarRootsThroughGeneratedService() throws {
+        let source = try Self.appSource("Models/DocumentStore.swift")
+
+        XCTAssertTrue(source.contains("documentService.getRoots()"))
+        XCTAssertFalse(source.contains("api.get(\"/documents\""))
+        XCTAssertFalse(source.contains("api.post(\"/documents\""))
+    }
+
     // MARK: - AppViewMode.category
 
     func testAppViewModeCategoryRouting() {
