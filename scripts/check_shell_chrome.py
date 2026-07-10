@@ -59,7 +59,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "745fa9e2e206": '[notif] fichero/fichero/Views/ContentView.swift:545: .onReceive(NotificationCenter.default.publisher(for: .ficheroShowPanelRequested)) { note i',
     "ee7aad6e9825": '[notif] fichero/fichero/Views/Library/DocumentKGWebPane.swift:861: NotificationCenter.default.post(name: .ficheroOpenClaimSource, object: nil, userInfo: info',
     "0fbc3922252c": '[shared] fichero/fichero/Views/Library/LibraryView.swift:105: @ObservedObject var featureManager = FeatureManager.shared',
-    "36a4b40d8b59": '[shared] fichero/fichero/Views/Library/iOSLibraryPickerMenu.swift:14: @ObservedObject private var registry = KnownLibraryRegistryStore.shared',
     "881489cff539": '[shared] fichero/fichero/Views/Menu/AddItemMenu.swift:10: @ObservedObject var featureManager = FeatureManager.shared',
     "178cfaef2a1f": '[shared] fichero/fichero/Views/Menu/FocusedCommandButtons.swift:520: @ObservedObject var featureManager = FeatureManager.shared',
     "fa1a51aebf74": '[shared] fichero/fichero/Views/Menu/ViewMenuCommands.swift:386: @ObservedObject var featureManager = FeatureManager.shared',

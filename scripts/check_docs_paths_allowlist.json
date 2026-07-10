@@ -1,6 +1,8 @@
 {
   "_doc": "Repo paths named in docs that do not exist, on purpose (build artifacts, or things described as deleted). Every other absent path is a bug. See AGENTS.md.",
   "known_absent_paths": [
+    "build/releases",
+    "build/verify_all_needs_fixing.json",
     "fichero-engine/build/fichero-backend/macos/app/FicheroBackend.app",
     "fichero/build/xcode/Products/Release",
     "fichero/build/xcode/Products/Release/Fichero.app",

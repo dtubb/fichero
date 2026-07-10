@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import logging
 import os
 
+logger = logging.getLogger(__name__)
 TRUE_VALUES = {"1", "true", "yes", "on"}
 FALSE_VALUES = {"0", "false", "no", "off"}
 MULTIUSER_SETTING_KEY = "multiuser.enabled"
@@ -42,7 +44,8 @@ def _persisted_multiuser_enabled() -> bool | None:
         from fichero.app_db import get_app_db
 
         value = get_app_db().get_setting(MULTIUSER_SETTING_KEY)
-    except Exception:
+    except Exception as exc:
+        logger.warning("Could not read persisted multi-user setting: %s", exc)
         return None
     if value is None:
         return None

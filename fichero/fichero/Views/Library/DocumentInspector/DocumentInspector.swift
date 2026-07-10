@@ -181,11 +181,13 @@ struct DocumentInspector: View {
                     Button {
                         selectTab(tab)
                     } label: {
-                        Image(systemName: tab.icon)
+                        Label(tab.rawValue, systemImage: tab.icon)
+                            .labelStyle(.iconOnly)
                             .font(.body)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .contentShape(Rectangle())
                     }
+                    .accessibilityLabel(tab.rawValue)
                     .buttonStyle(.plain)
                     .background(
                         RoundedRectangle(cornerRadius: 5)
@@ -196,7 +198,6 @@ struct DocumentInspector: View {
                     )
                     .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
                     .help(tab.helpText)
-                    .accessibilityLabel(tab.rawValue)
                     // Stable per-tab XCUITest hook, e.g. "inspectorTab-Content" (#1230).
                     .accessibilityIdentifier("inspectorTab-\(tab.rawValue)")
                 }

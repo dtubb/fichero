@@ -420,6 +420,7 @@ def test_undo_mutates_undone_without_breaking_chain(db, chain_actions):
     result = asyncio.run(
         undo_action(
             forward.audit_id,
+            request=None,
             db=db,
             ctx=ActionContext(actor="alice"),
         )

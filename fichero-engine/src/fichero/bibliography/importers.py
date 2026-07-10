@@ -301,6 +301,16 @@ def read_folder_sidecars(path: str | Path) -> list[dict[str, Any]]:
 # =============================================================================
 
 
+def _fallback_bibtex_cite_key(entry: dict[str, Any]) -> str:
+    authors = entry.get("authors")
+    author = authors[0] if isinstance(authors, list) and authors else ""
+    surname = str(author).split(",", 1)[0]
+    year_match = re.search(r"\d{4}", str(entry.get("year") or entry.get("date") or ""))
+    title_word = next(iter(re.findall(r"[A-Za-z0-9]+", str(entry.get("title") or ""))), "")
+    key = f"{surname}{year_match.group(0) if year_match else ''}{title_word}".lower()
+    return re.sub(r"[^a-z0-9]+", "", key) or "untitled"
+
+
 def write_bibtex(entries: list[dict[str, Any]]) -> str:
     """Render a list of SourceMetadata dicts as a multi-entry BibTeX file."""
     output_lines: list[str] = []
@@ -321,7 +331,7 @@ def write_bibtex(entries: list[dict[str, Any]]) -> str:
             continue
 
         entry_type = str(metadata.get("bibtex_entry_type") or "misc")
-        cite_key = str(metadata.get("bibtex_cite_key") or "untitled")
+        cite_key = str(metadata.get("bibtex_cite_key") or _fallback_bibtex_cite_key(entry))
         issue = entry.get("issue")
         if entry.get("kind"):
             entry_type = str(entry["kind"])
