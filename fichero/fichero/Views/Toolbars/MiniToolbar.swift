@@ -308,12 +308,13 @@ struct LozengeButton: View {
 
 // MARK: - Pane Filter Bar (bottom of content panes)
 
-/// 24pt compact bar — matches Xcode's Navigator filter bar height.
-/// Use at the bottom of sidebar / library / inspector panes in place of
-/// a full `MiniToolbar` when only filter lozenges and small action buttons
-/// are needed.
+/// Mini-toolbar-height filter/action strip for sidebar / library / inspector
+/// panes. It shares `MiniToolbarMetricPolicy` so filter rows line up with the
+/// reader, preview, and inspector mini-toolbars on macOS, iPad, and iPhone.
 struct PaneFilterBar<Content: View>: View {
-    static var height: CGFloat { 24 }
+    static var height: CGFloat {
+        MiniToolbar<EmptyView, EmptyView>.standardHeight
+    }
 
     let content: Content
 

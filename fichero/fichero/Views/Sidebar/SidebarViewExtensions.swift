@@ -61,20 +61,7 @@ struct SidebarBottomToolbar: View {
     }
 
     var body: some View {
-        #if os(macOS) || os(visionOS)
         PaneFilterBar { adaptiveActionRow }
-        #else
-        VStack(spacing: 0) {
-            Divider()
-            GlassEffectContainer {
-                adaptiveActionRow
-                    .padding(.horizontal, 8)
-                    .frame(minHeight: metrics.standardHeight)
-                    .frame(maxWidth: .infinity)
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
-            }
-        }
-        #endif
     }
 
     /// The action row on the shared AdaptiveMiniToolbarRow (#3058, parent #2670):
