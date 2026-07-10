@@ -588,6 +588,7 @@ struct ContentView: View {
                     detailDocument: $detailDocument,
                     columnVisibility: $columnVisibility,
                     editingWorkflow: $editingWorkflow,
+                    currentLayoutMode: $currentLayoutMode,
                     isDropTargeted: $isDropTargeted,
                     isImporting: $isImporting,
                     importProgress: $importProgress,

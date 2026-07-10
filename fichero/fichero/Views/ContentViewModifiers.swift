@@ -162,15 +162,11 @@ struct MainContentModifiers: ViewModifier {
     @Binding var detailDocument: Document?
     @Binding var columnVisibility: NavigationSplitViewVisibility
     @Binding var editingWorkflow: Workflow
+    @Binding var currentLayoutMode: LayoutMode
     @Binding var isDropTargeted: Bool
     @Binding var isImporting: Bool
     @Binding var importProgress: String?
     @Binding var importError: String?
-
-    // Read currentLayoutMode via SceneStorage so handleBrowserSelectionChange
-    // can decide whether single-click should update the preview pane.
-    // Same SceneStorage key as ContentView, so they share state. (#779)
-    @SceneStorage("currentLayoutMode") private var currentLayoutMode: LayoutMode = .widescreen
 
     /// Last workflow definition this window loaded or the server confirmed — the
     /// baseline that lets cross-window re-sync tell "no unsaved edits" (safe to
