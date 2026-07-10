@@ -443,6 +443,10 @@ extension ContentView {
             }
         }
         .background(Color(platformColor: .textBackgroundColor))
+        // Keep every library/preview/reader combination inside the detail
+        // column bounds. Without this outer clip, inner split panes can still
+        // paint under the shell sidebar or past the left window edge (#3336).
+        .clipped()
     }
 
     private var detailTabStrip: some View {

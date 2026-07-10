@@ -212,6 +212,14 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("under the shell sidebar or off the left window edge"))
     }
 
+    func testDetailShellColumnClipsAllPreviewLayoutsToItsBounds() throws {
+        let source = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(source.contains("Keep every library/preview/reader combination inside the detail"))
+        XCTAssertTrue(source.contains("column bounds. Without this outer clip"))
+        XCTAssertTrue(source.contains(".background(Color(platformColor: .textBackgroundColor))\n        .clipped()"))
+    }
+
     func testLibraryWorkspaceDefersLiveUpdateStreamsUntilBackendReady() throws {
         let source = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
 
