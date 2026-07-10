@@ -358,26 +358,38 @@ struct LibraryView: View {
     /// stream has dropped. Reading `stream.liveUpdatesUnavailable` (a nested
     /// @Observable) makes the pill appear/disappear reactively.
     @ViewBuilder
-    private var liveUpdatesPausedOverlay: some View {
+    private var liveUpdatesPausedInset: some View {
         if let ref = libraryReference {
             // Remote change delivery rides the activity stream (#3159/#2479), so
             // a 403 there means this device has no role on the library — a
             // terminal state with no reconnect (retrying can't mint access).
             if ref.changeStream.accessDenied || ref.activityStore.liveUpdatesAccessDenied {
-                LiveUpdatesPausedPill(
-                    message: "No access to live updates",
-                    systemImage: "lock.slash",
-                    onReconnect: nil
-                )
+                HStack {
+                    Spacer(minLength: 0)
+                    LiveUpdatesPausedPill(
+                        message: "No access to live updates",
+                        systemImage: "lock.slash",
+                        onReconnect: nil
+                    )
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 8)
+                .padding(.bottom, 4)
             } else if ref.changeStream.liveUpdatesUnavailable || ref.activityStore.liveUpdatesPaused {
                 // Either the dedicated change stream (local) or the folded
                 // activity stream (remote) dropped — say so instead of quietly
                 // going stale, and offer a one-tap resubscribe of both.
-                LiveUpdatesPausedPill(onReconnect: {
-                    ref.changeStream.stop()
-                    ref.changeStream.start()
-                    ref.activityStore.reconnectLiveUpdates()
+                HStack {
+                    Spacer(minLength: 0)
+                    LiveUpdatesPausedPill(onReconnect: {
+                        ref.changeStream.stop()
+                        ref.changeStream.start()
+                        ref.activityStore.reconnectLiveUpdates()
+                    })
+                    Spacer(minLength: 0)
                 })
+                .padding(.top, 8)
+                .padding(.bottom, 4)
             }
         }
     }
@@ -388,9 +400,12 @@ struct LibraryView: View {
                 libraryContent
             }
             // No-silent-fallback (F7): if this library's change stream drops, say
-            // so with a pill over the content instead of quietly showing stale
-            // rows. Tapping Reconnect forces an immediate resubscribe.
-            .overlay(alignment: .top) { liveUpdatesPausedOverlay }
+            // so with a pill above the content instead of quietly showing stale
+            // rows. Reserving real space keeps the first row from peeking
+            // through behind the pill.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                liveUpdatesPausedInset
+            }
             // Xcode-navigator-style quick filter, pinned to the BOTTOM of the
             // library list pane. Narrows the rows currently shown client-side
             // (binds `searchText`, which drives `filteredDocuments`) — distinct

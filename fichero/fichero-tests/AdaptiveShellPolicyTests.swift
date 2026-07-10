@@ -380,6 +380,14 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(buildersSource.contains("SwipeSiblingNavigator("))
     }
 
+    func testWidescreenLibraryPaneIsClippedToItsSplitColumn() throws {
+        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+
+        XCTAssertTrue(buildersSource.contains("adaptiveSplittablePane(storageKey: \"library\")"))
+        XCTAssertTrue(buildersSource.contains(".clipped()"))
+        XCTAssertTrue(buildersSource.contains("must never paint past its own split"))
+    }
+
     func testSidebarsUseSystemGlassMaterials() throws {
         let sidebarSource = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
         let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")

@@ -102,4 +102,30 @@ struct IdentityStoreTests {
         #expect(decoded.user?.displayName == "Daniel Tubb")
         #expect(decoded.user?.isOwner == false)
     }
+
+    @Test func nonOwnerUsersSettingsShowsAccountDetailsInsteadOfEmptyState() {
+        let presentation = UsersSettingsPresentation.resolve(.init(
+            isLoading: false,
+            loadError: nil,
+            usersEmpty: true,
+            hasCurrentUser: true,
+            hasAuthzSnapshot: true,
+            listAccessDenied: true,
+            isOwnerAccess: false
+        ))
+        #expect(presentation == .accountDetails)
+    }
+
+    @Test func ownerStillGetsEmptyStateWhenNoAccountDataExists() {
+        let presentation = UsersSettingsPresentation.resolve(.init(
+            isLoading: false,
+            loadError: nil,
+            usersEmpty: true,
+            hasCurrentUser: false,
+            hasAuthzSnapshot: false,
+            listAccessDenied: false,
+            isOwnerAccess: true
+        ))
+        #expect(presentation == .empty)
+    }
 }

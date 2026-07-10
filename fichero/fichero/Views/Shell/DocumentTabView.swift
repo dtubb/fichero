@@ -28,6 +28,7 @@ struct DocumentTabView: View {
     // @Observable objects injected by LibraryWindow — must be forwarded explicitly
     // when ContentView() is constructed below (SwiftUI does not re-propagate
     // @Environment(T.self) values across an explicit .environment() chain).
+    @Environment(ArtifactServiceGenerated.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     // Get the library reference
@@ -113,6 +114,14 @@ struct DocumentTabView: View {
                     // grabbing `.shared` — the DI seam for #3033. Shared instances.
                     .environment(ErrorService.shared)
                     .environmentObject(FeatureManager.shared)
+                    // Forward the @Observable artifact service so the library
+                    // subtree built after `selectCollection` (LibraryView →
+                    // inspector / artifact cells) can read it via
+                    // @Environment(ArtifactServiceGenerated.self). Without this,
+                    // opening a library or selecting a collection traps with
+                    // "No Observable object of type ArtifactServiceGenerated
+                    // found." (#3350)
+                    .environment(artifactService)
                     // Forward the @Observable observer so ContentView and its subtree
                     // (DocumentInspector → ArtifactEntityViews) can read it via
                     // @Environment(WorkflowExecutionObserver.self). Without this the

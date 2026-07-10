@@ -20,6 +20,20 @@ struct SessionStorePhaseTests {
         #expect(SessionStore.resolvePhase(meStatusCode: 404, accountsExist: false) == .disabled)
     }
 
+    @Test("identity probe disables the gate when multi-user is off")
+    func singleUserIdentityDisablesGate() {
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: 401,
+            accountsExist: true,
+            multiuserEnabled: false
+        ) == .disabled)
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: -1,
+            accountsExist: nil,
+            multiuserEnabled: false
+        ) == .disabled)
+    }
+
     @Test("401 with zero accounts routes to first-run owner setup")
     func unauthenticatedWithNoAccountsShowsOwnerSetup() {
         #expect(SessionStore.resolvePhase(meStatusCode: 401, accountsExist: false) == .needsOwnerSetup)
@@ -57,6 +71,17 @@ struct SessionStorePhaseTests {
         #expect(AuthError.redeemInvite(statusCode: 401).errorDescription?.isEmpty == false)
         #expect(AuthError.redeemInvite(statusCode: 401).errorDescription
             != AuthError.redeemInvite(statusCode: 409).errorDescription)
+    }
+
+    @Test("owner setup defaults a blank display name to the username")
+    func ownerSetupDefaultsDisplayName() {
+        #expect(SessionStore.ownerDisplayName("", username: "solo-owner") == "solo-owner")
+        #expect(SessionStore.ownerDisplayName("  \n ", username: "solo-owner") == "solo-owner")
+    }
+
+    @Test("owner setup preserves an explicit display name")
+    func ownerSetupPreservesDisplayName() {
+        #expect(SessionStore.ownerDisplayName("  Solo Owner  ", username: "solo-owner") == "Solo Owner")
     }
 
     // MARK: - Invite link parsing (#3157)

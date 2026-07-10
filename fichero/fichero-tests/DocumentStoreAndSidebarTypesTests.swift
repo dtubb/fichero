@@ -61,6 +61,14 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertEqual(DocumentStoreError.serverError(500).errorDescription, "Server error (HTTP 500)")
     }
 
+    func testDocumentStoreLoadsSidebarRootsThroughGeneratedService() throws {
+        let source = try Self.appSource("Models/DocumentStore.swift")
+
+        XCTAssertTrue(source.contains("documentService.getRoots()"))
+        XCTAssertFalse(source.contains("api.get(\"/documents\""))
+        XCTAssertFalse(source.contains("api.post(\"/documents\""))
+    }
+
     // MARK: - AppViewMode.category
 
     func testAppViewModeCategoryRouting() {
@@ -237,6 +245,15 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(connectionSource.contains("var onConnected: (@MainActor () async -> Void)?"))
         XCTAssertTrue(connectionSource.contains("await completeSuccessfulConnection()"))
         XCTAssertTrue(connectionSource.contains("await onConnected?()"))
+    }
+
+    func testDocumentTabViewForwardsArtifactServiceIntoContentView() throws {
+        let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
+
+        XCTAssertTrue(tabSource.contains("@Environment(ArtifactServiceGenerated.self) var artifactService"))
+        XCTAssertTrue(tabSource.contains(".environment(artifactService)"))
+        XCTAssertTrue(tabSource.contains("built after `selectCollection`"))
+        XCTAssertTrue(tabSource.contains("No Observable object of type ArtifactServiceGenerated"))
     }
 
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {

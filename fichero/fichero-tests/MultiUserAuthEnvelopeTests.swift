@@ -96,4 +96,13 @@ struct MultiUserAuthEnvelopeTests {
             #expect(SessionStore.resolvePhase(meStatusCode: status, accountsExist: nil) == .needsLogin)
         }
     }
+
+    @Test("identity probe wins when single-user bootstrap access is active")
+    func singleUserIdentityWinsOverAccountRows() {
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: 401,
+            accountsExist: true,
+            multiuserEnabled: false
+        ) == .disabled)
+    }
 }

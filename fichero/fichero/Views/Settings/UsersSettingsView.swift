@@ -15,7 +15,11 @@ struct UsersSettingsView: View {
     var body: some View {
         Group {
             if let library = libraryManager.globalLibrary {
-                UsersContent(store: appState.usersStore, library: library)
+                UsersContent(
+                    store: appState.usersStore,
+                    identityStore: appState.identityStore,
+                    library: library
+                )
             } else {
                 ContentUnavailableView(
                     "No library open",
@@ -29,8 +33,42 @@ struct UsersSettingsView: View {
 
 // MARK: - Content
 
+enum UsersSettingsPresentation: Equatable {
+    struct Input: Equatable {
+        let isLoading: Bool
+        let loadError: String?
+        let usersEmpty: Bool
+        let hasCurrentUser: Bool
+        let hasAuthzSnapshot: Bool
+        let listAccessDenied: Bool
+        let isOwnerAccess: Bool
+    }
+
+    case loading
+    case loadError(String)
+    case empty
+    case accountDetails
+
+    static func resolve(_ input: Input) -> Self {
+        if input.isLoading && input.usersEmpty && !input.hasCurrentUser && !input.hasAuthzSnapshot {
+            return .loading
+        }
+        if let loadError = input.loadError, input.usersEmpty, !input.hasCurrentUser, !input.hasAuthzSnapshot {
+            return .loadError(loadError)
+        }
+        if input.usersEmpty && !input.hasCurrentUser && !input.hasAuthzSnapshot {
+            return .empty
+        }
+        if input.listAccessDenied && !input.isOwnerAccess {
+            return .accountDetails
+        }
+        return .accountDetails
+    }
+}
+
 private struct UsersContent: View {
     let store: UsersStore
+    let identityStore: IdentityStore
     let library: LibraryManager.LibraryReference
 
     @State private var authzSnapshot: Components.Schemas.LibraryAuthzSnapshot?
@@ -50,32 +88,23 @@ private struct UsersContent: View {
 
     var body: some View {
         Group {
-            if store.isLoading && store.users.isEmpty && authzSnapshot == nil {
+            switch presentation {
+            case .loading:
                 ProgressView("Loading accounts…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let error = store.loadError, store.users.isEmpty, authzSnapshot == nil {
+            case let .loadError(error):
                 ContentUnavailableView(
                     "Couldn’t load accounts",
                     systemImage: "person.2.slash",
                     description: Text(error)
                 )
-            } else if store.listAccessDenied && store.users.isEmpty {
-                // Non-owner: the account list is owner-only, so 'No accounts'
-                // would be misleading — say the accounts are owner-managed (#3287).
-                ContentUnavailableView(
-                    "Managed by the library owner",
-                    systemImage: "person.badge.key",
-                    description: Text(
-                        "You’re signed in but don’t manage accounts. Ask the library owner to add or change users."
-                    )
-                )
-            } else if store.users.isEmpty && store.currentUser == nil && authzSnapshot == nil {
+            case .empty:
                 ContentUnavailableView(
                     "No accounts",
                     systemImage: "person.2",
                     description: Text("No user accounts were returned by the engine.")
                 )
-            } else {
+            case .accountDetails:
                 accountList
             }
         }
@@ -86,6 +115,18 @@ private struct UsersContent: View {
 }
 
 extension UsersContent {
+    fileprivate var presentation: UsersSettingsPresentation {
+        UsersSettingsPresentation.resolve(.init(
+            isLoading: store.isLoading,
+            loadError: store.loadError,
+            usersEmpty: store.users.isEmpty,
+            hasCurrentUser: store.currentUser != nil,
+            hasAuthzSnapshot: authzSnapshot != nil,
+            listAccessDenied: store.listAccessDenied,
+            isOwnerAccess: identityStore.isOwnerAccess
+        ))
+    }
+
     @ViewBuilder
     fileprivate var accountList: some View {
         Form {
@@ -97,7 +138,7 @@ extension UsersContent {
                 }
             }
 
-            if !store.users.isEmpty {
+            if identityStore.isOwnerAccess && !store.users.isEmpty {
                 Section {
                     ForEach(store.users, id: \.id) { user in
                         userRow(user, isCurrent: user.id == store.currentUser?.id)
@@ -110,13 +151,22 @@ extension UsersContent {
                 }
             }
 
-            if store.currentUser?.isOwner == true {
+            if !identityStore.isOwnerAccess {
+                Section {
+                    Text("Account management is owner-only. Your current access appears below.")
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Accounts")
+                }
+            }
+
+            if identityStore.isOwnerAccess {
                 addAccountSection
             }
 
             // Invite links (#3157) are only meaningful in multi-user mode, and
             // only owners can mint them.
-            if store.currentUser?.isOwner == true, authzSnapshot?.multiuserEnabled == true {
+            if identityStore.isOwnerAccess, authzSnapshot?.multiuserEnabled == true {
                 InviteAccountSection(store: store)
             }
 

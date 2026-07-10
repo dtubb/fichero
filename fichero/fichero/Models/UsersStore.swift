@@ -60,6 +60,9 @@ final class UsersStore {
                 // "not permitted", not "no accounts" (#3287). Other non-2xx codes
                 // are genuine load failures.
                 listAccessDenied = (statusCode == 401 || statusCode == 403)
+                if listAccessDenied {
+                    users = []
+                }
             }
         } catch {
             loadError = error.localizedDescription

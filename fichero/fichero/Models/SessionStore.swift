@@ -89,8 +89,16 @@ final class SessionStore {
         default:
             // 401 (no/expired session) or an inconclusive probe: decide between
             // first-run owner setup and normal login using the account count.
+            // But first, ask `/auth/identity`: when multi-user is OFF the local
+            // bootstrap credential is already sufficient and the login wall must
+            // stay hidden even if `/auth/me` returns 401 (#3330).
+            let multiuserEnabled = await multiuserEnabled()
             let accountsExist = await accountsExist()
-            phase = Self.resolvePhase(meStatusCode: meCode, accountsExist: accountsExist)
+            phase = Self.resolvePhase(
+                meStatusCode: meCode,
+                accountsExist: accountsExist,
+                multiuserEnabled: multiuserEnabled
+            )
             if phase != .authenticated { currentUser = nil }
         }
     }
@@ -100,10 +108,15 @@ final class SessionStore {
     /// account-count probe could not be resolved (e.g. a remote engine where
     /// the bootstrap path isn't available) — in that case we fail closed to the
     /// login screen rather than assuming a fresh install.
-    nonisolated static func resolvePhase(meStatusCode: Int, accountsExist: Bool?) -> Phase {
+    nonisolated static func resolvePhase(
+        meStatusCode: Int,
+        accountsExist: Bool?,
+        multiuserEnabled: Bool? = nil
+    ) -> Phase {
         switch meStatusCode {
         case 200: return .authenticated
         case 404: return .disabled
+        default where multiuserEnabled == false: return .disabled
         default: return accountsExist == false ? .needsOwnerSetup : .needsLogin
         }
     }
@@ -135,6 +148,7 @@ final class SessionStore {
     /// loopback path — the middleware attaches the bootstrap token because no
     /// session exists yet), then sign in as that owner.
     func createOwner(username: String, displayName: String, password: String) async throws {
+        let displayName = Self.ownerDisplayName(displayName, username: username)
         let request = Components.Schemas.CreateUserRequest(
             username: username,
             displayName: displayName,
@@ -150,6 +164,12 @@ final class SessionStore {
         case .undocumented(let statusCode, _):
             throw AuthError.createOwner(statusCode: statusCode)
         }
+    }
+
+    nonisolated static func ownerDisplayName(_ displayName: String, username: String) -> String {
+        let trimmedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedDisplayName.isEmpty { return trimmedDisplayName }
+        return username.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Invite redemption (#3157)
@@ -240,6 +260,20 @@ final class SessionStore {
             switch response {
             case .ok(let ok):
                 return try !ok.body.json.items.isEmpty
+            case .undocumented:
+                return nil
+            }
+        } catch {
+            return nil
+        }
+    }
+
+    private func multiuserEnabled() async -> Bool? {
+        do {
+            let response = try await client.api.identityApiAuthIdentityGet()
+            switch response {
+            case .ok(let ok):
+                return try ok.body.json.multiuserEnabled
             case .undocumented:
                 return nil
             }
