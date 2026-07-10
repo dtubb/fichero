@@ -118,6 +118,14 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(annotationSource.contains(".contentShape(Rectangle())"))
     }
 
+    func testDocumentInspectorArtifactPanelsRouteSelectionIntoArtifactInspector() throws {
+        let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorContentV2.swift")
+
+        XCTAssertTrue(source.contains("FocusedArtifact.shared.select("))
+        XCTAssertTrue(source.contains("documentId: document.id"))
+        XCTAssertTrue(source.contains(".onTapGesture"))
+    }
+
     func testInspectorEntitySelectionReducerPlainClickReplacesSelection() {
         let result = InspectorEntityBulkSelection.reduceTap(
             tappedId: "b",

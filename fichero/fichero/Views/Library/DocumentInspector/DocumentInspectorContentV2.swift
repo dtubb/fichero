@@ -121,17 +121,7 @@ struct DocumentInspectorContentV2: View {
             // is editable (RTF round-trips, auto-save) and deletable.
             if mode != .pageContentOnly {
                 ForEach(sortedArtifacts) { artifact in
-                    ArtifactPanel(
-                        kind: .artifact(artifact),
-                        // #1374: artifact content should be visible by default
-                        // in the Artifacts tab; collapsed headers were hiding
-                        // the bodies and making the panel look empty.
-                        defaultExpanded: true,
-                        onDelete: { Task { await deleteArtifact(artifact) } },
-                        onSave: { newContent in
-                            await saveArtifact(artifact, content: newContent)
-                        }
-                    )
+                    artifactPanel(for: artifact)
                 }
 
                 // Hint shown when no generated artifacts exist.
@@ -267,6 +257,34 @@ struct DocumentInspectorContentV2: View {
             artifacts = snapshot
             actionError = "Couldn't delete: \(error.localizedDescription)"
         }
+    }
+
+    @ViewBuilder
+    private func artifactPanel(for artifact: Artifact) -> some View {
+        ArtifactPanel(
+            kind: .artifact(artifact),
+            // #1374: artifact content should be visible by default
+            // in the Artifacts tab; collapsed headers were hiding
+            // the bodies and making the panel look empty.
+            defaultExpanded: true,
+            onDelete: { Task { await deleteArtifact(artifact) } },
+            onSave: { newContent in
+                await saveArtifact(artifact, content: newContent)
+            }
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            inspectArtifact(artifact)
+        }
+    }
+
+    private func inspectArtifact(_ artifact: Artifact) {
+        FocusedArtifact.shared.select(
+            artifact.id,
+            documentId: document.id,
+            documentName: document.name,
+            in: artifacts
+        )
     }
 
     private func clearPageContent() async {
