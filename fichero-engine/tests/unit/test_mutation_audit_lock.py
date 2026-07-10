@@ -328,7 +328,7 @@ def test_node_model_create_routes_write_audit_and_emit_change(
     audits = _audits_for_target(db, target_id, action_name=action_name)
     assert len(audits) == 1, f"{label} expected one audit row for {target_id}"
     audit = audits[0]
-    assert audit.actor == "system"
+    assert audit.actor == "owner"
     assert audit.action_name == action_name
     assert audit.target_ids == [target_id]
 
@@ -382,7 +382,7 @@ def test_node_model_mutation_routes_write_audit_and_emit_change(
     audits = _audits_for_target(db, target_id, action_name=action_name)
     assert len(audits) == 1, f"{label} expected one {action_name} audit row for {target_id}"
     audit = audits[0]
-    assert audit.actor == "system"
+    assert audit.actor == "owner"
     assert audit.action_name == action_name
     assert target_id in audit.target_ids
 
@@ -419,7 +419,7 @@ def test_document_import_route_writes_action_audit_and_emit_change(
     audits = _audits_for_target(db, document_id, action_name="import.upload_file")
     assert len(audits) == 1
     audit = audits[0]
-    assert audit.actor == "system"
+    assert audit.actor == "owner"
     assert audit.target_ids == [document_id]
 
     matches = _matching_emit_calls(
