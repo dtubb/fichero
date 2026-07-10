@@ -9,23 +9,24 @@ import Testing
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab includes content/outline/annotations/notes/entities/kg/citations/edits/info")
+    @Test("InspectorTab includes content/outline/annotations/notes/interpretation/entities/kg/citations/edits/info")
     func allCases() {
-        #expect(InspectorTab.allCases.count == 9)
+        #expect(InspectorTab.allCases.count == 10)
         #expect(InspectorTab.allCases.contains(.content))
         #expect(InspectorTab.allCases.contains(.outline))
         #expect(InspectorTab.allCases.contains(.annotations))
         #expect(InspectorTab.allCases.contains(.notes))
+        #expect(InspectorTab.allCases.contains(.interpretations))
         #expect(InspectorTab.allCases.contains(.entities))
         #expect(InspectorTab.allCases.contains(.knowledgeGraph))
         #expect(InspectorTab.allCases.contains(.citations))
         #expect(InspectorTab.allCases.contains(.edits))
         #expect(InspectorTab.allCases.contains(.info))
     }
-    @Test("InspectorTab order: content, outline, annotations, notes, entities, kg, citations, edits, info")
+    @Test("InspectorTab order: content, outline, annotations, notes, interpretation, entities, kg, citations, edits, info")
     func ordering() {
         let expected: [InspectorTab] = [
-            .content, .outline, .annotations, .notes, .entities, .knowledgeGraph,
+            .content, .outline, .annotations, .notes, .interpretations, .entities, .knowledgeGraph,
             .citations, .edits, .info
         ]
         #expect(InspectorTab.allCases == expected)
@@ -44,6 +45,7 @@ struct InspectorTabTests {
         #expect(InspectorTab.outline.icon == "list.bullet.indent")
         #expect(InspectorTab.annotations.icon == "highlighter")
         #expect(InspectorTab.notes.icon == "pencil.and.scribble")
+        #expect(InspectorTab.interpretations.icon == "quote.bubble")
         #expect(InspectorTab.entities.icon == "person.text.rectangle")
         #expect(InspectorTab.knowledgeGraph.icon == "point.3.connected.trianglepath.dotted")
         #expect(InspectorTab.edits.icon == "slider.horizontal.3")
@@ -56,10 +58,27 @@ struct InspectorTabTests {
         #expect(InspectorTab.outline.rawValue == "Outline")
         #expect(InspectorTab.annotations.rawValue == "Annotations")
         #expect(InspectorTab.notes.rawValue == "Notes")
+        #expect(InspectorTab.interpretations.rawValue == "Interpretation")
         #expect(InspectorTab.entities.rawValue == "Entities")
         #expect(InspectorTab.knowledgeGraph.rawValue == "Knowledge Graph")
         #expect(InspectorTab.edits.rawValue == "Edits")
         #expect(InspectorTab.info.rawValue == "Info")
+    }
+
+    @Test("DocumentInspector tab bar shows selected tab title with semantic caption font")
+    func tabBarShowsSelectedTitle() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("fichero")
+                .appendingPathComponent("Views/Library/DocumentInspector/DocumentInspector.swift"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("let selectedTabTitle = Self.clampedSelectedTab(selectedTab, for: document).rawValue"))
+        #expect(source.contains("Text(selectedTabTitle)"))
+        #expect(source.contains(".font(.caption)"))
     }
 }
 

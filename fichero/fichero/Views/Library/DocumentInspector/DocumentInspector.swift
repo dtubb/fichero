@@ -163,37 +163,45 @@ struct DocumentInspector: View {
     @ViewBuilder
     private var tabBar: some View {
         let tabs = availableTabs(for: document)
-        HStack(spacing: 0) {
-            ForEach(Array(tabs.enumerated()), id: \.element) { index, tab in
-                if index > 0 {
-                    // Hairline divider between segments — hidden adjacent to the
-                    // selected segment so its fill reads as one continuous pill.
-                    Divider()
-                        .frame(height: 14)
-                        .opacity(selectedTab == tab || selectedTab == tabs[index - 1] ? 0 : 1)
+        let selectedTabTitle = Self.clampedSelectedTab(selectedTab, for: document).rawValue
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 0) {
+                ForEach(Array(tabs.enumerated()), id: \.element) { index, tab in
+                    if index > 0 {
+                        // Hairline divider between segments — hidden adjacent to the
+                        // selected segment so its fill reads as one continuous pill.
+                        Divider()
+                            .frame(height: 14)
+                            .opacity(selectedTab == tab || selectedTab == tabs[index - 1] ? 0 : 1)
+                    }
+                    Button {
+                        selectTab(tab)
+                    } label: {
+                        Image(systemName: tab.icon)
+                            .font(.body)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(selectedTab == tab
+                                    ? Color.accentColor.opacity(0.18)
+                                    : Color.clear)
+                            .padding(2)
+                    )
+                    .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
+                    .help(tab.helpText)
+                    .accessibilityLabel(tab.rawValue)
+                    // Stable per-tab XCUITest hook, e.g. "inspectorTab-Content" (#1230).
+                    .accessibilityIdentifier("inspectorTab-\(tab.rawValue)")
                 }
-                Button {
-                    selectTab(tab)
-                } label: {
-                    Image(systemName: tab.icon)
-                        .font(.body)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .background(
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(selectedTab == tab
-                                ? Color.accentColor.opacity(0.18)
-                                : Color.clear)
-                        .padding(2)
-                )
-                .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
-                .help(tab.helpText)
-                .accessibilityLabel(tab.rawValue)
-                // Stable per-tab XCUITest hook, e.g. "inspectorTab-Content" (#1230).
-                .accessibilityIdentifier("inspectorTab-\(tab.rawValue)")
             }
+            Text(selectedTabTitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .padding(.horizontal, 6)
         }
         .frame(maxWidth: .infinity)
         // Grouped facet capsule now on the shared Tahoe glass treatment (#3061 /
