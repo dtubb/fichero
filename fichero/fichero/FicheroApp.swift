@@ -327,6 +327,18 @@ struct FicheroApp: App {
                         Task { await appState.sessionStore.logout() }
                     }
                 }
+
+                // Feature Tier Legend — the active build's tier + a window listing
+                // each feature's gate. Lives in the App menu: a top-level
+                // `CommandGroup(after: .help)` would be the 11th CommandsContent
+                // entry, exceeding @CommandsBuilder's 10-arity buildBlock (#3347).
+                // Shown only in non-release builds.
+                if featureManager.shouldShowTierChrome {
+                    Divider()
+                    Button(featureManager.buildTierStatusText) {
+                        openWindow(id: "feature-tier-legend")
+                    }
+                }
             }
 
             // File menu - Database/Library management
@@ -404,19 +416,6 @@ struct FicheroApp: App {
             }
 
             TextFormattingCommands()
-
-            CommandGroup(after: .help) {
-                if featureManager.shouldShowTierChrome {
-                    Divider()
-
-                    Button(featureManager.buildTierStatusText) { }
-                        .disabled(true)
-
-                    Button("Feature Tier Legend...") {
-                        openWindow(id: "feature-tier-legend")
-                    }
-                }
-            }
 
         }
 

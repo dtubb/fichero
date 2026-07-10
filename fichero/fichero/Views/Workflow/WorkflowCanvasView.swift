@@ -39,7 +39,7 @@ struct WorkflowCanvasView: View {
     // App state for accessing AI defaults
     @Environment(AppState.self) var appState
     @Environment(\.undoManager) private var undoManager
-    @EnvironmentObject private var featureManager: FeatureManager
+    @EnvironmentObject var featureManager: FeatureManager
 
     /// Node execution states for the editor canvas.
     ///

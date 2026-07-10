@@ -38,11 +38,13 @@ struct ChatView: View {
         conversation: Conversation?,
         selectedDocuments: Binding<Set<String>>,
         attachContext: ChatAttachContext = .empty,
+        conversationFolderPath: String? = nil,
         onConversationUpdated: (() -> Void)? = nil
     ) {
         self.conversation = conversation
         self._selectedDocuments = selectedDocuments
         self.attachContext = attachContext
+        self.conversationFolderPath = conversationFolderPath
         self.onConversationUpdated = onConversationUpdated
         self._currentConversation = State(initialValue: conversation ?? Conversation())
     }
