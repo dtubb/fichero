@@ -22,7 +22,7 @@ def test_ui_test_launch_uses_isolated_library_hooks() -> None:
 
 def test_reading_surface_has_stable_accessibility_hooks() -> None:
     files = [
-        ROOT / "fichero" / "fichero" / "Views" / "Library" / "DocumentInspector.swift",
+        ROOT / "fichero" / "fichero" / "Views" / "Library" / "DocumentInspector" / "DocumentInspector.swift",
         ROOT / "fichero" / "fichero" / "Views" / "Library" / "DocumentKGSurface.swift",
         ROOT / "fichero" / "fichero" / "Views" / "Toolbars" / "ReaderToolbar.swift",
     ]
