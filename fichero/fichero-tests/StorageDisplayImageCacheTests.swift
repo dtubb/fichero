@@ -28,6 +28,10 @@ struct StorageDisplayImageCacheTests {
         #endif
     }
 
+    private func dummyPreview() -> PreviewImage {
+        PreviewImage(image: dummyImage(), pixelSize: CGSize(width: 120, height: 80))
+    }
+
     @Test("display cache count never exceeds the limit")
     func displayCacheStaysBounded() {
         let service = makeService()
@@ -149,5 +153,41 @@ struct StorageDisplayImageCacheTests {
         #expect(!callbackFired, "onEditApplied must NOT fire when the op fails")
         #expect(model.errorMessage == nil,
                 "no errorMessage expected when the guard exits early (no service)")
+    }
+
+    @Test("edit refresh reuses the cached original preview and only reloads edited bytes")
+    func editRefreshDoesNotRefetchOriginalPreview() async {
+        var calls: [Bool] = []
+        let model = ImageEditorModel(documentId: "doc-preview") { _, applyEdits, _ in
+            calls.append(applyEdits)
+            return self.dummyPreview()
+        }
+
+        await model.reloadPreviews(forceOriginalReload: true, forceEditedReload: true)
+        calls.removeAll()
+
+        await model.reloadPreviews(forceOriginalReload: false, forceEditedReload: true)
+
+        #expect(calls == [true])
+    }
+
+    @Test("switching back to original only fetches the missing original preview")
+    func toggleToOriginalOnlyFetchesOriginalWhenMissing() async {
+        var calls: [Bool] = []
+        let model = ImageEditorModel(documentId: "doc-toggle") { _, applyEdits, _ in
+            calls.append(applyEdits)
+            return self.dummyPreview()
+        }
+        model.showEdited = true
+        model.editedPreview = dummyPreview()
+        model.originalPreview = nil
+        model.preview = nil
+
+        model.setShowEdited(false)
+        await Task.yield()
+        await Task.yield()
+
+        #expect(calls == [false])
+        #expect(model.preview != nil)
     }
 }

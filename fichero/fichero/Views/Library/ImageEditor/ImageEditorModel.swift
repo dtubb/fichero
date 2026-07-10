@@ -3,8 +3,8 @@ import AppKit
 #elseif canImport(UIKit)
 import UIKit
 #endif
-import Observation
 import Foundation
+import Observation
 import OSLog
 import SwiftUI
 
@@ -19,6 +19,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEd
 @MainActor
 @Observable
 final class ImageEditorModel {
+    typealias PreviewLoader = @MainActor (_ documentId: String, _ applyEdits: Bool, _ page: Int) async throws -> PreviewImage
+
     /// Currently displayed preview (original or edited, per `showEdited`).
     var preview: PreviewImage?
     /// Cached original preview (apply_edits=false) for A/B compare UI.
@@ -49,10 +51,12 @@ final class ImageEditorModel {
     /// In-flight original↔edited toggle. Tracked so rapid taps coalesce to the
     /// latest intended state instead of running out of order (#1508).
     private var toggleTask: Task<Void, Never>?
+    private let previewLoader: PreviewLoader?
 
-    init(documentId: String = "") {
+    init(documentId: String = "", previewLoader: PreviewLoader? = nil) {
         self.documentId = documentId
         self.chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
+        self.previewLoader = previewLoader
     }
 
     /// Bind to a document. Safe to call repeatedly (e.g. on prev/next nav) —
@@ -73,7 +77,7 @@ final class ImageEditorModel {
     /// Reload both the chain and the current preview.
     func reload() async {
         await loadChain()
-        await reloadPreviews()
+        await reloadPreviews(forceOriginalReload: true, forceEditedReload: true)
     }
 
     private func loadChain() async {
@@ -88,26 +92,49 @@ final class ImageEditorModel {
     }
 
     /// Re-fetch the preview honouring the current `showEdited` toggle + page.
-    func reloadPreviews() async {
-        guard let service, !documentId.isEmpty else { return }
+    ///
+    /// `forceOriginalReload` stays false for normal edit/reset refreshes: the
+    /// original source bytes do not change when the edit chain changes, so
+    /// re-downloading them on every op just burns latency.
+    func reloadPreviews(
+        forceOriginalReload: Bool = false,
+        forceEditedReload: Bool = true
+    ) async {
+        guard !documentId.isEmpty else { return }
+        let shouldLoadOriginal = forceOriginalReload || originalPreview == nil
+        let shouldLoadEdited = forceEditedReload || editedPreview == nil
+        guard shouldLoadOriginal || shouldLoadEdited else {
+            preview = showEdited ? editedPreview : originalPreview
+            return
+        }
         do {
-            async let original = service.loadPreview(
-                documentId: documentId,
-                applyEdits: false,
-                page: page
-            )
-            async let edited = service.loadPreview(
-                documentId: documentId,
-                applyEdits: true,
-                page: page
-            )
-            originalPreview = try await original
-            editedPreview = try await edited
+            if shouldLoadOriginal && shouldLoadEdited {
+                async let original = loadPreview(applyEdits: false)
+                async let edited = loadPreview(applyEdits: true)
+                originalPreview = try await original
+                editedPreview = try await edited
+            } else if shouldLoadOriginal {
+                originalPreview = try await loadPreview(applyEdits: false)
+            } else if shouldLoadEdited {
+                editedPreview = try await loadPreview(applyEdits: true)
+            }
             preview = showEdited ? editedPreview : originalPreview
         } catch {
             logger.error("loadPreview failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func loadPreview(applyEdits: Bool) async throws -> PreviewImage {
+        if let previewLoader {
+            return try await previewLoader(documentId, applyEdits, page)
+        }
+        guard let service else { throw ImageEditingError.invalidResponse }
+        return try await service.loadPreview(
+            documentId: documentId,
+            applyEdits: applyEdits,
+            page: page
+        )
     }
 
     /// Flip the original↔edited toggle and re-render (#469).
@@ -131,7 +158,10 @@ final class ImageEditorModel {
             self.showEdited = target
             self.preview = target ? self.editedPreview : self.originalPreview
             if self.preview == nil, !Task.isCancelled {
-                await self.reloadPreviews()
+                await self.reloadPreviews(
+                    forceOriginalReload: !target,
+                    forceEditedReload: target
+                )
             }
         }
     }
@@ -240,7 +270,7 @@ final class ImageEditorModel {
             try await service.resetChain(documentId: documentId)
             chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
             onEditApplied?(documentId)
-            await reloadPreviews()
+            await reloadPreviews(forceOriginalReload: false, forceEditedReload: true)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -257,7 +287,7 @@ final class ImageEditorModel {
             chain = try await body(service)
             onEditApplied?(documentId)
             showEdited = true
-            await reloadPreviews()
+            await reloadPreviews(forceOriginalReload: false, forceEditedReload: true)
         } catch {
             logger.error("operation failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
