@@ -103,6 +103,21 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(source.contains("Loaded \\(entityStore.entities.count) entities, but none mapped into a visible section."))
     }
 
+    func testInspectorListRowsUseFullRowHitTargets() throws {
+        let entitiesSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+        let artifactSource = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
+        let citationSource = try Self.appSource("Views/Library/Inspector/CitationListView.swift")
+        let annotationSource = try Self.appSource("Views/Library/Inspector/AnnotationListView.swift")
+
+        XCTAssertTrue(entitiesSource.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(entitiesSource.contains(".tag(entity.stableInspectorId)"))
+        XCTAssertTrue(artifactSource.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(citationSource.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(annotationSource.contains(".contentShape(Rectangle())"))
+    }
+
     func testInspectorEntitySelectionReducerPlainClickReplacesSelection() {
         let result = InspectorEntityBulkSelection.reduceTap(
             tappedId: "b",

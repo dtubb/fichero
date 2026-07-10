@@ -314,6 +314,7 @@ struct DocumentInspectorEntitiesTab: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+        .tag(entity.stableInspectorId)
         .simultaneousGesture(
             TapGesture(count: 2).onEnded { openEntity(entity) }
         )

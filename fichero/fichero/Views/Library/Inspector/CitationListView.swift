@@ -110,6 +110,7 @@ private struct CitationRow: View {
             }
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 
     private var subtitle: String? {
