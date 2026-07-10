@@ -94,7 +94,7 @@ class TestCropImage:
     def test_returns_none_for_missing_file(self, tmp_path):
         ann = Annotation(
             document_id="d", kind=AnnotationKind.highlight,
-            bbox=[0, 0, 10, 10],
+            bbox=[0, 0, 0.1, 0.1],
         )
         assert crop_image(tmp_path / "no.png", ann) is None
 
