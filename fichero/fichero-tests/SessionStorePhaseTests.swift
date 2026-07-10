@@ -20,6 +20,20 @@ struct SessionStorePhaseTests {
         #expect(SessionStore.resolvePhase(meStatusCode: 404, accountsExist: false) == .disabled)
     }
 
+    @Test("identity probe disables the gate when multi-user is off")
+    func singleUserIdentityDisablesGate() {
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: 401,
+            accountsExist: true,
+            multiuserEnabled: false
+        ) == .disabled)
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: -1,
+            accountsExist: nil,
+            multiuserEnabled: false
+        ) == .disabled)
+    }
+
     @Test("401 with zero accounts routes to first-run owner setup")
     func unauthenticatedWithNoAccountsShowsOwnerSetup() {
         #expect(SessionStore.resolvePhase(meStatusCode: 401, accountsExist: false) == .needsOwnerSetup)
