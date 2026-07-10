@@ -15,7 +15,6 @@ from unittest.mock import patch, MagicMock, AsyncMock
 
 from fichero.workflows.activity import (
     Activity,
-    ActivityFilter,
     ActivityLevel,
     ActivityStats,
     ActivityTracker,
@@ -239,7 +238,7 @@ class TestActivityEndpoints:
         with patch("fichero.api.routes.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.store = MagicMock()
-            mock_instance.store.delete_old = AsyncMock(return_value=50)
+            mock_instance.store.delete_old_sync.return_value = 50
             mock_tracker.return_value = mock_instance
 
             response = client.delete("/api/activity/cleanup?days=30")
@@ -307,9 +306,6 @@ class TestActivityTrackerIntegration:
         The ActivityTracker.log() method uses fire-and-forget async tasks.
         We mock create_task to just run the coroutine synchronously for testing.
         """
-        import asyncio
-
-        original_create_task = asyncio.create_task
         created_tasks = []
 
         def mock_task(coro):
