@@ -7,13 +7,19 @@ import XCTest
 /// most-used tag pops visually.
 @MainActor
 final class SearchResultsDisplayTests: XCTestCase {
+    private static func appSource(_ relativePath: String) throws -> String {
+        let baseURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("../fichero")
+        return try String(contentsOf: baseURL.appendingPathComponent(relativePath), encoding: .utf8)
+    }
 
     // MARK: - fontSize: scaling
 
     func testFontSizeMinAndMaxClampToBounds() {
         let cloud: [KeywordCloudEntryDTO] = [
             KeywordCloudEntryDTO(name: "rare", count: 1),
-            KeywordCloudEntryDTO(name: "common", count: 100),
+            KeywordCloudEntryDTO(name: "common", count: 100)
         ]
         let rareSize = SearchResultsDisplay.fontSize(for: cloud[0], cloud: cloud)
         let commonSize = SearchResultsDisplay.fontSize(for: cloud[1], cloud: cloud)
@@ -28,7 +34,7 @@ final class SearchResultsDisplayTests: XCTestCase {
         let cloud: [KeywordCloudEntryDTO] = [
             KeywordCloudEntryDTO(name: "lo", count: 0),
             KeywordCloudEntryDTO(name: "mid", count: 10),
-            KeywordCloudEntryDTO(name: "hi", count: 20),
+            KeywordCloudEntryDTO(name: "hi", count: 20)
         ]
         let midSize = SearchResultsDisplay.fontSize(for: cloud[1], cloud: cloud)
         XCTAssertEqual(midSize, 14, accuracy: 0.1)
@@ -42,7 +48,7 @@ final class SearchResultsDisplayTests: XCTestCase {
         let cloud: [KeywordCloudEntryDTO] = [
             KeywordCloudEntryDTO(name: "a", count: 5),
             KeywordCloudEntryDTO(name: "b", count: 5),
-            KeywordCloudEntryDTO(name: "c", count: 5),
+            KeywordCloudEntryDTO(name: "c", count: 5)
         ]
         for entry in cloud {
             XCTAssertEqual(
@@ -54,11 +60,23 @@ final class SearchResultsDisplayTests: XCTestCase {
 
     func testFontSizeSingleEntryFallsBackToDefault() {
         let cloud: [KeywordCloudEntryDTO] = [
-            KeywordCloudEntryDTO(name: "alone", count: 42),
+            KeywordCloudEntryDTO(name: "alone", count: 42)
         ]
         XCTAssertEqual(
             SearchResultsDisplay.fontSize(for: cloud[0], cloud: cloud),
             12
         )
+    }
+
+    func testSavedSearchReplayRestoresSortAndSearchType() throws {
+        let viewSource = try Self.appSource("Views/Search/SearchView.swift")
+        let helperSource = try Self.appSource("Views/Search/SearchView+Helpers.swift")
+
+        XCTAssertTrue(viewSource.contains("searchType = search.searchType"))
+        XCTAssertTrue(viewSource.contains("sortBy = search.sortBy"))
+        XCTAssertTrue(viewSource.contains("sortDirection = search.sortDirection"))
+        XCTAssertTrue(helperSource.contains("searchType: searchType"))
+        XCTAssertTrue(helperSource.contains("sortBy: sortBy"))
+        XCTAssertTrue(helperSource.contains("sortDirection: sortDirection"))
     }
 }

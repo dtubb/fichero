@@ -27,6 +27,7 @@ struct SearchView: View {
     /// Sort order chosen from the in-view sort menu. Matches backend
     /// `sort_by` values. Persisted via @SceneStorage so the user's pick
     /// survives window restoration.
+    @SceneStorage("searchType") var searchType: String = "hybrid"
     @SceneStorage("searchSortBy") var sortBy: String = "relevance"
     @SceneStorage("searchSortDirection") var sortDirection: String = "desc"
 
@@ -109,6 +110,9 @@ struct SearchView: View {
             }
             .onAppear {
                 if let search = savedSearch {
+                    searchType = search.searchType
+                    sortBy = search.sortBy
+                    sortDirection = search.sortDirection
                     queryText = search.query
                     performSearch()
                 }
@@ -129,6 +133,9 @@ struct SearchView: View {
             )
             .onChange(of: savedSearch?.id) { _, _ in
                 guard let search = savedSearch else { return }
+                searchType = search.searchType
+                sortBy = search.sortBy
+                sortDirection = search.sortDirection
                 queryText = search.query
                 performSearch()
             }

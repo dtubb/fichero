@@ -1,9 +1,8 @@
-import Observation
-import Foundation
-import Combine
-import OSLog
 import FicheroAPIClient
+import Foundation
+import Observation
 import OpenAPIRuntime
+import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SavedSearchService")
 
@@ -183,33 +182,13 @@ class SavedSearchServiceGenerated {
     /// Load saved searches from backend and update property
     func loadSavedSearches() async throws {
         let apiSearches = try await listSavedSearches()
-        savedSearches = apiSearches.map { api in
-            SavedSearch(
-                id: api.id,
-                name: api.query,  // Use query as display name
-                query: api.query,
-                filters: SearchFilters(),  // Filters parsing not yet implemented
-                isSmartSearch: api.isSmartSearch,
-                folderPath: api.folderPath,
-                sortOrder: api.sortOrder
-            )
-        }
+        savedSearches = apiSearches.map(savedSearch(from:))
     }
 
     /// Convert API responses to local SavedSearch models for sidebar.
     func getSavedSearchesForSidebar() async throws -> [SavedSearch] {
         let apiSearches = try await listSavedSearches()
-        return apiSearches.map { api in
-            SavedSearch(
-                id: api.id,
-                name: api.query,  // Use query as display name
-                query: api.query,
-                filters: SearchFilters(),  // Filters parsing not yet implemented
-                isSmartSearch: api.isSmartSearch,
-                folderPath: api.folderPath,
-                sortOrder: api.sortOrder
-            )
-        }
+        return apiSearches.map(savedSearch(from:))
     }
 
     // MARK: - Type Conversion
@@ -220,13 +199,30 @@ class SavedSearchServiceGenerated {
             id: generated.id,
             query: generated.query,
             isSmartSearch: generated.isSmartSearch,
-            filters: nil,  // TODO: Parse filters from generated type
+            filters: nil,
             searchType: generated.searchType,
             sortBy: generated.sortBy,
             sortDirection: generated.sortDirection,
             folderPath: generated.folderPath,
             sortOrder: generated.sortOrder,
             createdAt: generated.createdAt
+        )
+    }
+
+    private func savedSearch(from api: SavedSearchAPI) -> SavedSearch {
+        SavedSearch(
+            id: api.id,
+            name: api.query,
+            query: api.query,
+            // ponytail: backend filter mapping is still stringly; add typed
+            // decode when the panel is wired back in.
+            filters: SearchFilters(),
+            searchType: api.searchType,
+            sortBy: api.sortBy,
+            sortDirection: api.sortDirection,
+            isSmartSearch: api.isSmartSearch,
+            folderPath: api.folderPath,
+            sortOrder: api.sortOrder
         )
     }
 }

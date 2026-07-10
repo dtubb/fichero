@@ -7,6 +7,9 @@ struct SavedSearch: Identifiable, Codable, Hashable {
     var name: String
     var query: String
     var filters: SearchFilters
+    var searchType: String
+    var sortBy: String
+    var sortDirection: String
     var icon: String
     var isSmartSearch: Bool
     var folderPath: String
@@ -18,6 +21,9 @@ struct SavedSearch: Identifiable, Codable, Hashable {
         case name
         case query
         case filters
+        case searchType = "search_type"
+        case sortBy = "sort_by"
+        case sortDirection = "sort_direction"
         case icon
         case isSmartSearch = "is_smart_search"
         case folderPath = "folder_path"
@@ -30,6 +36,9 @@ struct SavedSearch: Identifiable, Codable, Hashable {
         name: String,
         query: String = "",
         filters: SearchFilters = SearchFilters(),
+        searchType: String = "hybrid",
+        sortBy: String = "relevance",
+        sortDirection: String = "desc",
         icon: String = "magnifyingglass",
         isSmartSearch: Bool = false,
         folderPath: String = "/",
@@ -40,6 +49,9 @@ struct SavedSearch: Identifiable, Codable, Hashable {
         self.name = name
         self.query = query
         self.filters = filters
+        self.searchType = searchType
+        self.sortBy = sortBy
+        self.sortDirection = sortDirection
         self.icon = icon
         self.isSmartSearch = isSmartSearch
         self.folderPath = folderPath

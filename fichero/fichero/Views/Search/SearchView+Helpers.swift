@@ -123,9 +123,9 @@ extension SearchView {
             _ = try await library.savedSearchServiceGenerated.saveSearch(
                 query: query,
                 isSmartSearch: true,
-                searchType: "hybrid",
-                sortBy: "relevance",
-                sortDirection: "desc"
+                searchType: searchType,
+                sortBy: sortBy,
+                sortDirection: sortDirection
             )
             try await library.savedSearchServiceGenerated.loadSavedSearches()
         } catch {
@@ -159,6 +159,7 @@ extension SearchView {
             await searchStore.performSearch(
                 query: queryText,
                 include: searchScopeSelection.apiIncludes,
+                searchType: searchType,
                 sortBy: sortBy,
                 sortOrder: sortDirection
             )

@@ -47,6 +47,7 @@ final class SearchStore: ChangeEventConsumer {
         query: String,
         limit: Int = 50,
         include: [Components.Schemas.SearchInclude] = [],
+        searchType: String = "hybrid",
         sortBy: String = "relevance",
         sortOrder: String = "desc"
     ) async {
@@ -66,7 +67,7 @@ final class SearchStore: ChangeEventConsumer {
                 limit: limit,
                 include: include,
                 minScore: 0.0,
-                searchType: "hybrid",
+                searchType: searchType,
                 filters: nil,
                 sortBy: sortBy,
                 sortOrder: sortOrder,
