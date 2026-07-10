@@ -384,6 +384,10 @@ extension ContentView {
                             .overlay { paneFocusIndicator(for: .content) }
                             .frame(width: widescreenContentFixedWidth)
                             .frame(maxWidth: widescreenContentFixedWidth == nil ? .infinity : nil)
+                            // The library pane must never paint past its own split
+                            // column — otherwise list/grid rows can bleed under the
+                            // shell sidebar or off the left window edge.
+                            .clipped()
                         }
 
                         if panePlan.showsLibraryDivider {
