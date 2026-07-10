@@ -179,24 +179,6 @@ struct SidebarModeSection: View {
                 }
             }
 
-            if featureManager.isActivityEnabled {
-                Divider()
-
-                // Activity mode (7) - unified view of all workflow runs
-                SidebarModeButton(
-                    mode: .activity,
-                    label: featureManager.badgedFeatureName(
-                        for: .activity,
-                        fallback: SidebarMode.activity.label
-                    ),
-                    icon: SidebarMode.activity.icon,
-                    shortcut: SidebarMode.activity.shortcutNumber,
-                    current: currentMode
-                ) {
-                    sidebarMode?.wrappedValue = .activity
-                }
-            }
-
             // Research (8) + Knowledge Graph (9) menu entries. These exist in the
             // sidebar mode-icon bar but had dropped out of the View menu, so the
             // menu items + ⌃⌘8 / ⌃⌘9 shortcuts that surface the entity browser

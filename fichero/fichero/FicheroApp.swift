@@ -357,6 +357,10 @@ struct FicheroApp: App {
                     .environment(viewSettings)
             }
 
+            CommandGroup(after: .windowArrangement) {
+                ActivityWindowMenuButton()
+            }
+
             CommandGroup(replacing: .sidebar) { }
 
             // Data menu — declared after View, before Format
@@ -533,12 +537,19 @@ struct FicheroApp: App {
         // observes it live; needs libraryManager + the app-level execution
         // observer injected here (env from the main window does not flow into a
         // separate scene). Opened via `openWindow(id: "activity-monitor")`.
-        WindowGroup("Activity", id: "activity-monitor") {
+        WindowGroup("Activity", id: ActivityWindowSelectionState.monitorWindowID) {
             ActivityMonitorWindow()
                 .environment(libraryManager)
                 .environment(appExecutionObserver)
         }
-        .defaultSize(width: 720, height: 480)
+        .defaultSize(width: 480, height: 640)
+
+        WindowGroup("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {
+            ActivityDetailWindow()
+                .environment(libraryManager)
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 840, height: 640)
 
         // `Settings` is a SEPARATE Scene: environment objects injected into the
         // main WindowGroup do NOT flow into it. Every object a settings pane

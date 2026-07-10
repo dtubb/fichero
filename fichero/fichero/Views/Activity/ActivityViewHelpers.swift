@@ -4,6 +4,8 @@ import SwiftUI
 @Observable
 final class ActivityWindowSelectionState {
     static let shared = ActivityWindowSelectionState()
+    static let monitorWindowID = "activity-monitor"
+    static let detailWindowID = "activity-detail"
 
     var selectedRun: SelectedActivityRun?
 
@@ -153,12 +155,14 @@ struct ActivityBrowserView: View {
     let selectedRunId: String?
     let onSelectRun: (SelectedActivityRun) -> Void
     var showsOpenWindowButton: Bool = true
+    var opensDetailWindow: Bool = false
 
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(ActivityStore.self) private var activityStore
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
+    @State private var selectionState = ActivityWindowSelectionState.shared
 
     // Run list + per-library failures now live on ActivityStore (#3231 p2); the
     // view observes them and calls rebuildRuns with its @Environment deps.
@@ -180,7 +184,7 @@ struct ActivityBrowserView: View {
                 // affordance (#2805).
                 if showsOpenWindowButton && supportsMultipleWindows {
                     Button {
-                        openWindow(id: "activity-monitor")
+                        openWindow(id: ActivityWindowSelectionState.monitorWindowID)
                     } label: {
                         Image(systemName: "arrow.up.forward.app")
                     }
@@ -202,10 +206,20 @@ struct ActivityBrowserView: View {
             } else {
                 List(selection: $listSelection) {
                     ForEach(activityStore.runs) { run in
-                        ActivityBrowserRow(run: run)
+                        ActivityBrowserRow(
+                            run: run,
+                            showsDetailButton: opensDetailWindow && supportsMultipleWindows,
+                            onOpenDetails: {
+                                openDetails(for: run)
+                            }
+                        )
                             .tag(run.runId)
                             .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                             .listRowSeparator(.hidden)
+                            .onTapGesture(count: 2) {
+                                guard opensDetailWindow && supportsMultipleWindows else { return }
+                                openDetails(for: run)
+                            }
                     }
                 }
                 .listStyle(.plain)
@@ -266,6 +280,13 @@ struct ActivityBrowserView: View {
             openLibraries: libraryManager.openLibraries
         )
     }
+
+    private func openDetails(for run: ActivityRun) {
+        let selectedRun = run.toSelectedRun()
+        selectionState.select(selectedRun)
+        onSelectRun(selectedRun)
+        openWindow(id: ActivityWindowSelectionState.detailWindowID)
+    }
 }
 
 struct ActivityWindowLauncherView: View {
@@ -282,7 +303,7 @@ struct ActivityWindowLauncherView: View {
         )
         .task(id: selectedRun?.id) {
             selectionState.select(selectedRun)
-            openWindow(id: "activity-monitor")
+            openWindow(id: ActivityWindowSelectionState.monitorWindowID)
         }
     }
 }
@@ -291,11 +312,13 @@ struct ActivityWindowLauncherView: View {
 
 private struct ActivityBrowserRow: View {
     let run: ActivityRun
+    var showsDetailButton: Bool = false
+    var onOpenDetails: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: run.status.icon)
-                .font(.system(size: 16))
+                .font(.body)
                 .foregroundStyle(run.status.color)
                 .frame(width: 20)
 
@@ -324,6 +347,15 @@ private struct ActivityBrowserRow: View {
             }
 
             Spacer()
+
+            if showsDetailButton, let onOpenDetails {
+                Button(action: onOpenDetails) {
+                    Image(systemName: "info.circle")
+                        .font(.body)
+                }
+                .buttonStyle(.borderless)
+                .help("Open activity details in a separate window")
+            }
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())

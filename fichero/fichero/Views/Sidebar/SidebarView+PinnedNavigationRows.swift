@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Activity Navigation Row
-
 extension SidebarView {
     @ViewBuilder
     private func sidebarLoadErrorRow(
@@ -49,37 +47,6 @@ extension SidebarView {
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
             .help(help)
-    }
-
-    /// Single non-expandable "Activity" row — clicking navigates to the activity browser.
-    /// Styled as a regular sidebar leaf row (icon + normal-weight label) matching
-    /// Inbox / folder rows. Bold section-header style removed in #655.
-    @ViewBuilder
-    private func activityNavigationRow() -> some View {
-        Label {
-            HStack(spacing: 4) {
-                Text("Activity")
-                    .lineLimit(1)
-                if executionObserver.isAnyWorkflowRunning {
-                    // Spinner instead of static play.circle so it's clear
-                    // something is actively in flight (#785). Daniel: "the
-                    // blue dot in activity is also not a spinner".
-                    ProgressView()
-                        .controlSize(.small)
-                        .scaleEffect(0.7)
-                }
-            }
-        } icon: {
-            Image(systemName: "clock.arrow.circlepath")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        // Use .tag so List(selection:) owns the tap → onChange routes to activity view.
-        // A Button without .tag in sidebar List doesn't reliably fire on macOS (#647).
-        .tag(SidebarDestination.browser(.activity))
-        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
     }
 
     private func workflowsNavigationRow() -> some View {
@@ -152,8 +119,7 @@ extension SidebarView {
             || FeatureManager.shared.isBatchesEnabled
             || FeatureManager.shared.isChatEnabled
             || FeatureManager.shared.isResearchEnabled
-            || FeatureManager.shared.isKnowledgeGraphEnabled
-            || FeatureManager.shared.isActivityEnabled {
+            || FeatureManager.shared.isKnowledgeGraphEnabled {
             Divider()
                 .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                 .listRowSeparator(.hidden)
@@ -182,23 +148,11 @@ extension SidebarView {
             entitiesNavigationRow()
         }
 
-        if FeatureManager.shared.isActivityEnabled {
-            activityNavigationRow()
-        }
-
         if let automationLoadError {
             sidebarLoadErrorRow(
                 title: "Automation Unavailable",
                 message: automationLoadError,
                 retry: { await loadAutomationData() }
-            )
-        }
-
-        if let activityLoadError {
-            sidebarLoadErrorRow(
-                title: "Activity Unavailable",
-                message: activityLoadError,
-                retry: { await loadActivityData() }
             )
         }
     }

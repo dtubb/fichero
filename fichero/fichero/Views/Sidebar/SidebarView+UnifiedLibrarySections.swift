@@ -84,9 +84,7 @@ extension SidebarView {
         let triggerItems = (isGlobalLibrary && FeatureManager.shared.isAutomationEnabled)
             ? triggers.map { SidebarItem.fromTrigger($0, libraryId: libraryId) }
             : []
-        let activityItems = FeatureManager.shared.isActivityEnabled
-            ? unifiedActivityItems(for: library, libraryId: libraryId)
-            : []
+        let activityItems: [SidebarItem] = []
 
         return UnifiedLibraryBuckets(
             documentItems: documentItems,

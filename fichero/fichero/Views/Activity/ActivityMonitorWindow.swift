@@ -24,28 +24,12 @@ struct ActivityMonitorWindow: View {
     var body: some View {
         Group {
             if let library {
-                HStack(spacing: 0) {
-                    ActivityBrowserView(
-                        selectedRunId: selectionState.selectedRun?.id,
-                        onSelectRun: { selectionState.select($0) },
-                        showsOpenWindowButton: false
-                    )
-                    .frame(minWidth: 240, idealWidth: 280, maxWidth: 320)
-
-                    Divider()
-
-                    if let selectedRun = selectionState.selectedRun {
-                        ActivityDetailView(selectedRun: selectedRun)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        ContentUnavailableView(
-                            "Select a Run",
-                            systemImage: "clock",
-                            description: Text("Choose a workflow run from the list to inspect it.")
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                }
+                ActivityBrowserView(
+                    selectedRunId: selectionState.selectedRun?.id,
+                    onSelectRun: { selectionState.select($0) },
+                    showsOpenWindowButton: false,
+                    opensDetailWindow: true
+                )
                 .environment(library.activityStore)
                 .environment(library.apiClient)
                 .environment(library.workflowExecutionStore)
@@ -58,6 +42,50 @@ struct ActivityMonitorWindow: View {
             }
         }
         .navigationTitle("Activity")
-        .frame(minWidth: 900, minHeight: 520)
+        .frame(minWidth: 420, minHeight: 520)
     }
 }
+
+struct ActivityDetailWindow: View {
+    @Environment(LibraryManager.self) private var libraryManager
+    @State private var selectionState = ActivityWindowSelectionState.shared
+
+    private var library: LibraryManager.LibraryReference? {
+        if let id = libraryManager.currentLibraryId,
+           let library = libraryManager.getLibrary(id: id) {
+            return library
+        }
+        return libraryManager.globalLibrary
+    }
+
+    var body: some View {
+        Group {
+            if let library, let selectedRun = selectionState.selectedRun {
+                ActivityDetailView(selectedRun: selectedRun)
+                    .environment(library.activityStore)
+                    .environment(library.apiClient)
+                    .environment(library.workflowExecutionStore)
+            } else {
+                ContentUnavailableView(
+                    "No Activity Selected",
+                    systemImage: "info.circle",
+                    description: Text("Double-click a run in the Activity window to inspect it.")
+                )
+            }
+        }
+        .navigationTitle("Activity Details")
+        .frame(minWidth: 720, minHeight: 520)
+    }
+}
+
+#if os(macOS)
+struct ActivityWindowMenuButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Activity") {
+            openWindow(id: ActivityWindowSelectionState.monitorWindowID)
+        }
+    }
+}
+#endif

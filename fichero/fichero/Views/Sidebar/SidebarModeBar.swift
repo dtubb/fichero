@@ -11,9 +11,6 @@ struct SidebarModeBar: View {
     // Feature manager to hide disabled modes
     @EnvironmentObject var featureManager: FeatureManager
 
-    // Badge counts from environment
-    @Environment(WorkflowExecutionObserver.self) private var executionObserver
-
     /// Fallback icon budget: how many mode icons render inline before the rest
     /// collapse into the '…' overflow (#3059). Selected + `.library` are always
     /// kept inline on top of this, so a narrow sidebar never loses context.
@@ -74,10 +71,6 @@ struct SidebarModeBar: View {
                 modeIcon(.automation)
             }
 
-            if featureManager.isActivityEnabled {
-                modeSeparator
-                modeIcon(.activity)
-            }
         }
     }
 
@@ -156,7 +149,6 @@ struct SidebarModeBar: View {
         if featureManager.isResearchEnabled { modes.append(.research) }
         if featureManager.isKnowledgeGraphEnabled { modes.append(.knowledgeGraph) }
         if featureManager.isAutomationEnabled { modes.append(.automation) }
-        if featureManager.isActivityEnabled { modes.append(.activity) }
         return modes
     }
 
@@ -187,9 +179,6 @@ struct SidebarModeBar: View {
 
     private func badgeCount(for mode: SidebarMode) -> Int {
         switch mode {
-        case .activity:
-            // Show count of running executions
-            return executionObserver.activeExecutions.count
         default:
             return 0
         }
