@@ -35,7 +35,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
-RULE_DOC = "docs/contributor/architecture/swiftui/appkit_import_audit_2101.md"
+RULE_DOC = "docs/contributor/architecture/swiftui/reform_masterplan_2026-06.md"
 
 # Current cross-platform migration backlog: files that import AppKit/UIKit.
 # Keys are paths relative to SWIFT_DIR (posix). Value documents why it is a
@@ -48,12 +48,12 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "FicheroApp_iOS.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Models/Platform/PlatformAliases.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Models/Platform/PlatformPasteboard.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Models/SpatialTheme.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Models/SpaceTheme.swift": "#2713 — Spatial renderer color bridge uses NSColor/UIColor behind #if canImport; #2101",
     "Models/WorkflowExporter.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Services/ImageEditingServiceGenerated.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Services/EmbeddedBackendService.swift": "#2864 — macOS engine lifecycle/alert bridge uses NSApplication/NSAlert; #2101",
     "Services/EngineConfig.swift": "#2381 — macOS launch-mode bridge reads Option-key state via NSEvent; #2101",
     "Services/RemoteClientPairing.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Views/Auth/AuthGateView.swift": "#3331 — auth gate loads the platform app icon via NSApp/UIImage fallback; #2101",
     "Views/Capture/MobileCaptureQueueView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Components/BackendConnectionView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Components/MacPlainTextEditor.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
@@ -62,24 +62,26 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Library/DocumentKGWebPane.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Library/ImmersiveReaderView.swift": "#2520 — macOS first-responder bridge catches Esc via NSViewRepresentable; #2101",
     "Views/Library/FolderAccessManager.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Library/AnnotatableTextView.swift": "#2458 — NSTextView bridge for selectable highlighted text spans; #2101",
     "Views/Library/ImageEditor/ImageEditorModel.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Library/ImageEditor/ImageEditorView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Library/ImageViewer/ImageWithCursorTracking.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Library/ImageViewer/TrackingImageView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Library/ImageViewerComponents.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Library/LibraryWorkspaceRoot.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Library/MagnifierPanel.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Library/PDFPageView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Library/PDFThumbnailView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Views/Library/ImageViewer/ImageViewerComponents.swift": "#2713 — image viewer bridge uses AppKit image helpers; #2101",
+    "Views/Library/ImageViewer/MagnifierPanel.swift": "#2713 — loupe bridge uses AppKit/UIKit-specific magnifier surfaces; #2101",
+    "Views/Library/ImageViewer/ScrollWheelZoom.swift": "#2713 — zoom gesture bridge uses AppKit/UIKit event adapters; #2101",
+    "Views/Library/Reading/ImmersiveReaderView.swift": "#2520 — immersive reader catches Esc via platform keyboard bridge; #2101",
+    "Views/Library/Reading/PDFPageView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Views/Library/Reading/PDFThumbnailView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Views/Library/Workspace/LibraryWorkspaceRoot.swift": "#2713 — workspace root uses UIKit-only mobile affordances; #2101",
     "Views/Library/QuickLookComponents.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Library/QuickLookPreviewViews.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Library/ScrollWheelZoom.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Menu/FileMenuCommands.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Views/Menu/FocusedCommandButtons.swift": "#2713 — command buttons use macOS focus-key equivalents via AppKit; #2101",
     "Views/Onboarding/FirstRunWindow.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/OpenAffordances.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Views/Search/SearchArrowKeyNavigation.swift": "#2713 — search keyboard navigation listens to AppKit key events; #2101",
+    "Views/Shell/OpenAffordances.swift": "#2713 — open/import affordance bridge uses AppKit open-panel helpers; #2101",
     "Views/Sidebar/SidebarView+ActivityRows.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
 }
 
