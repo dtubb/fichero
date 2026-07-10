@@ -69,6 +69,7 @@ def _undo(db, audit_id: str, library_path: str):
     return asyncio.run(
         undo_action(
             audit_id,
+            request=_request(),
             db=db,
             ctx=ActionContext(actor="tester", library_path=library_path),
             x_fichero_library_path=library_path,
