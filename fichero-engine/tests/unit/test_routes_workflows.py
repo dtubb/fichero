@@ -26,12 +26,13 @@ def _workflow_payload(name: str = "Test Workflow") -> dict:
     }
 
 
-def _make_workflow(db, name: str = "Test Workflow") -> Workflow:
+def _make_workflow(db, name: str = "Test Workflow", **kwargs) -> Workflow:
     wf = Workflow(
         name=name,
         description="A test workflow",
         format="nodes",
         steps=[],
+        **kwargs,
     )
     db.save(wf)
     return wf
@@ -81,6 +82,29 @@ class TestListWorkflows:
         assert r.status_code == 200
         names = {w["name"] for w in r.json()["items"]}
         assert names == {"Cat"}
+
+    def test_list_marks_system_preset_untested_unless_config_opted_in(self, client, db):
+        _make_workflow(
+            db,
+            "Shipped Preset",
+            is_system=True,
+            config={"preset_version": 2},
+        )
+        _make_workflow(
+            db,
+            "Trusted Preset",
+            is_system=True,
+            config={"tested": True},
+        )
+        _make_workflow(db, "User Workflow", is_system=False, config={"tested": True})
+
+        response = client.get("/api/workflows")
+
+        assert response.status_code == 200
+        by_name = {item["name"]: item for item in response.json()["items"]}
+        assert by_name["Shipped Preset"]["untested"] is True
+        assert by_name["Trusted Preset"]["untested"] is False
+        assert by_name["User Workflow"]["untested"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +234,29 @@ class TestDuplicateWorkflow:
         copy = r.json()
         assert copy["id"] != wf.id
         assert "Copy" in copy["name"]
+
+    def test_duplicate_preserves_system_trust_metadata(self, client, db):
+        wf = _make_workflow(
+            db,
+            "Preset",
+            is_system=True,
+            is_template=True,
+            tags=["preset"],
+            config={"preset_version": 3},
+        )
+
+        response = client.post(f"/api/workflows/{wf.id}/duplicate")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["untested"] is True
+
+        duplicate = db.get(Workflow, payload["id"])
+        assert duplicate is not None
+        assert duplicate.is_system is True
+        assert duplicate.is_template is True
+        assert duplicate.tags == ["preset"]
+        assert duplicate.config == {"preset_version": 3}
 
     def test_duplicate_missing_returns_404(self, client):
         r = client.post("/api/workflows/no-such-id/duplicate")
