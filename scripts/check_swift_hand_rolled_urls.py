@@ -72,13 +72,6 @@ _APIPATH_RE = re.compile(r'"/api/')
 # Keys are `relpath#sha1(normalized-line)[:10]`. Several call sites share an
 # identical line (and thus hash) within a file — that is expected.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "App/AppState.swift#10ac98dccd": (
-        "authenticated connection heartbeat/readiness probe (#2864) — a low-level "
-        "liveness check that must send the bootstrap auth header and read the raw "
-        "up/down/401 signal to detect a broken or stranger backend; routing it "
-        "through the generated client would hide that signal behind its middleware. "
-        "Revisit if the client gains a raw liveness path."
-    ),
     "Models/DocumentStore+CRUD.swift#842cbd3a0a": "§6b baseline — hand-built URLRequest(url:)",
     "Views/Components/FicheroWebView.swift#72bc3c3d1f": "§6b baseline — hand-built URLRequest(url:)",
     "Views/Components/FicheroWebView.swift#b0f6d9c546": (

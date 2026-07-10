@@ -500,7 +500,7 @@ async def get_thread_history(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to get history for thread {thread_id}")
         raise workflow_internal_error("Failed to get workflow history")
 
@@ -538,7 +538,7 @@ async def list_threads(
 
         return ThreadListResponse(threads=threads)
 
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to list threads")
         raise workflow_internal_error("Failed to list workflow threads")
 
@@ -608,7 +608,7 @@ async def delete_thread(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to delete thread {thread_id}")
         raise workflow_internal_error("Failed to delete workflow thread")
 
@@ -795,7 +795,7 @@ async def get_workflow_run(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to get workflow run for thread {thread_id}")
         raise workflow_internal_error("Failed to get workflow run")
 
@@ -847,7 +847,7 @@ async def get_thread_diagram_png(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to generate diagram for thread {thread_id}")
         raise workflow_internal_error("Failed to generate workflow diagram")
 
@@ -879,6 +879,6 @@ async def get_thread_diagram_svg(
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to generate SVG diagram for thread {thread_id}")
         raise workflow_internal_error("Failed to generate workflow diagram")

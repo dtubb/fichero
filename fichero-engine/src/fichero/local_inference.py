@@ -14,7 +14,6 @@ import ipaddress
 import os
 import platform
 import subprocess
-import sys
 import time
 from datetime import UTC, datetime
 from enum import Enum

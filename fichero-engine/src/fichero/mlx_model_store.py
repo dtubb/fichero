@@ -91,8 +91,8 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
 _DEFAULT_PYTHON_DOWNLOAD = """
 from huggingface_hub import snapshot_download
 import os, sys
-repo_id, revision = sys.argv[1], sys.argv[2]
-snapshot_download(repo_id=repo_id, revision=revision)
+repo_id, revision, models_path = sys.argv[1], sys.argv[2], sys.argv[3]
+snapshot_download(repo_id=repo_id, revision=revision, cache_dir=models_path)
 """
 
 
@@ -280,6 +280,7 @@ class MLXModelStore:
             _DEFAULT_PYTHON_DOWNLOAD,
             spec.repo_id,
             spec.revision,
+            str(self.cache_dir),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=self.env(),

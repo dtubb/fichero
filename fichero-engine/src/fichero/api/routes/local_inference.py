@@ -19,7 +19,6 @@ from fichero.local_inference import (
     LocalInferenceServiceStatus,
     LocalInferenceValidationError,
     LocalModelCatalogEntry,
-    LocalModelSource,
     LocalProviderProfile,
     ManagedLocalInferenceProcess,
     get_local_inference_capabilities,

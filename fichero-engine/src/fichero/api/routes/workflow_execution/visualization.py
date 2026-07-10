@@ -93,7 +93,7 @@ async def get_workflow_visualization(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to generate visualization for workflow {workflow_id}")
         raise workflow_internal_error("Failed to generate workflow visualization")
 
@@ -156,6 +156,6 @@ async def get_workflow_code(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to export code for workflow {workflow_id}")
         raise workflow_internal_error("Failed to export workflow code")

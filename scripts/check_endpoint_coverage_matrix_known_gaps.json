@@ -75,7 +75,6 @@
   "GET /api/chains/executions/{execution_id}": "store missing",
   "GET /api/chains/presets/paleography": "store missing",
   "GET /api/chains/{chain_id}": "store missing",
-  "GET /api/changes/stream": "store missing",
   "GET /api/claims/queues/curated": "store missing",
   "GET /api/claims/queues/rejected": "store missing",
   "GET /api/claims/queues/shortlisted": "store missing",

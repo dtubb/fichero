@@ -52,7 +52,6 @@ GRANDFATHERED_FILES: set[str] = {
     "Models/DocumentStore+CRUD.swift",          # multipart import upload
     "Views/Library/QuickLookComponents.swift",  # binary source bytes for QuickLook
     "Services/ActivityStreamService.swift",     # SSE
-    "Services/LibraryChangeStream.swift",       # SSE
     "Services/WorkflowStreamService.swift",     # SSE
     "Services/EmbeddedBackendService.swift",    # engine health / lifecycle
     # MIGRATE (delete when the sub-issue lands)

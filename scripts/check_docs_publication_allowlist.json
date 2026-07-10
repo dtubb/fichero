@@ -27,6 +27,7 @@
     "contributor/architecture/thinking-layer.md",
     "contributor/architecture/workflow_multi_pass_engine.md",
     "contributor/cli-test-harness.md",
+    "contributor/feature-tiers.md",
     "contributor/design/embedded-local-models-plan.md",
     "contributor/design/ios-ipad-embedding-plan.md",
     "contributor/design/swiftui-app-reorg.md",
@@ -36,6 +37,7 @@
     "contributor/qa/remote-pairing-smoke-checklist.md",
     "contributor/release/backend-python-dependencies.md",
     "contributor/release/release-notes-0.0.2.md",
-    "contributor/release/release-readiness.md"
+    "contributor/release/release-readiness.md",
+    "superpowers/specs/2026-07-09-feature-gating-design.md"
   ]
 }
