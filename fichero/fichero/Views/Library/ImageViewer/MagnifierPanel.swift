@@ -51,6 +51,7 @@ struct MagnifierPanelView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 4))
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Unlock magnifier")
                             .help("Click to unlock magnifier")
                             .padding(8)
                             Spacer()
@@ -68,6 +69,7 @@ struct MagnifierPanelView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(isLocked ? .accentColor : .primary)
+                    .accessibilityLabel(isLocked ? "Unlock magnifier" : "Lock magnifier")
                     .help(isLocked ? "Unlock magnifier (follows cursor)" : "Lock magnifier (stays on current position)")
 
                     Divider()
@@ -88,6 +90,7 @@ struct MagnifierPanelView: View {
                                 .font(.caption)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Zoom out")
                         .help("Zoom the magnifier out")
                         .disabled(magnification <= minMagnification)
 
@@ -102,6 +105,7 @@ struct MagnifierPanelView: View {
                                 .font(.caption)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Zoom in")
                         .help("Zoom the magnifier in")
                         .disabled(magnification >= maxMagnification)
                     }
@@ -318,6 +322,7 @@ struct MagnifierPanelView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 4))
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Unlock magnifier")
                             .padding(8)
                             Spacer()
                         }
@@ -332,6 +337,7 @@ struct MagnifierPanelView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(isLocked ? .accentColor : .primary)
+                    .accessibilityLabel(isLocked ? "Unlock magnifier" : "Lock magnifier")
                     .help(isLocked ? "Unlock magnifier (follows cursor)" : "Lock magnifier (stays on current position)")
 
                     Divider()
@@ -350,6 +356,7 @@ struct MagnifierPanelView: View {
                                 .font(.caption)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Zoom out")
                         .help("Zoom the magnifier out")
                         .disabled(magnification <= minMagnification)
 
@@ -364,6 +371,7 @@ struct MagnifierPanelView: View {
                                 .font(.caption)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Zoom in")
                         .help("Zoom the magnifier in")
                         .disabled(magnification >= maxMagnification)
                     }

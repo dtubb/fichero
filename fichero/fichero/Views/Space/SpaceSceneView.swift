@@ -546,6 +546,7 @@ private extension SpaceSceneView {
             Image(systemName: "square.grid.3x3")
         }
         .buttonStyle(.borderless)
+        .accessibilityLabel("Arrange pages in a grid")
         .padding(8)
         .help("Arrange pages in a grid by page order")
     }

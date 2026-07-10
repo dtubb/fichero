@@ -116,10 +116,11 @@ struct DocumentTabView: View {
                     .environment(researchService)
                     .environment(windowState)
                     // App-wide singletons injected at the ContentView host so
-                    // ContentView reads them via @EnvironmentObject rather than
-                    // grabbing `.shared` — the DI seam for #3033. Shared instances.
+                    // ContentView reads them via @Environment(Type.self) rather
+                    // than grabbing `.shared` — the DI seam for #3033. Shared
+                    // instances, no new objects created here.
                     .environment(ErrorService.shared)
-                    .environmentObject(FeatureManager.shared)
+                    .environment(FeatureManager.shared)
                     // Forward the @Observable artifact service so the library
                     // subtree built after `selectCollection` (LibraryView →
                     // inspector / artifact cells) can read it via

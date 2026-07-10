@@ -354,6 +354,7 @@ private struct ActivityBrowserRow: View {
                         .font(.body)
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("Open activity details")
                 .help("Open activity details in a separate window")
             }
         }
