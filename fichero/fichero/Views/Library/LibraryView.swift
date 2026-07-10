@@ -223,9 +223,6 @@ struct LibraryView: View {
     // the surgical pending-status refresh immediately (#3200). Keep the timer
     // only while live updates are paused/unavailable.
     private let processingPollTimer = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
-    private var hasProcessingDocuments: Bool {
-        documents.contains { $0.status == .processing || $0.status == .pending }
-    }
     private var shouldUseProcessingPollFallback: Bool {
         guard let ref = scopedLibraryReference else { return false }
         return ref.changeStream.liveUpdatesUnavailable || ref.activityStore.liveUpdatesPaused
@@ -271,20 +268,6 @@ struct LibraryView: View {
                 spaceModeView
             }
         }
-    }
-
-    /// The 3D Space renderer, gated (#3104): the new contract-based
-    /// `CanvasSpaceView` when the flag is on, else the #3088 `SpaceSceneView`.
-    /// Both read the SAME shared stores; #3088 stays the stepping-stone until
-    /// cutover (#3087). Extracted to keep `libraryContent`'s switch bounded.
-    /// Spatial node ids of container documents (folder / workspace) — drag-onto
-    /// move-into targets (#3086). Dropping onto one moves the dragged doc inside.
-    private var canvasContainerIds: Set<String> {
-        Set(
-            documentStore.collections
-                .filter { $0.docType == .folder || $0.isWorkspace }
-                .map { SpatialLibraryProjector.nodeId(forDocument: $0.id) }
-        )
     }
 
     /// Move a dragged canvas node INTO a container via the audited `document.move`
@@ -820,6 +803,27 @@ extension LibraryView {
     /// projector's computed defaults.
     var libraryProjection: SpatialLibraryProjection {
         cachedLibraryProjection
+    }
+}
+
+// MARK: - Kept out of the type body (type_body_length, mirrors #3160)
+
+private extension LibraryView {
+    // Processing poller (#518): if any visible docs are still processing, keep
+    // a lightweight 15s refresh running so statuses advance to completed even
+    // if a backend completion signal is missed.
+    private var hasProcessingDocuments: Bool {
+        documents.contains { $0.status == .processing || $0.status == .pending }
+    }
+
+    /// Spatial node ids of container documents (folder / workspace) — drag-onto
+    /// move-into targets (#3086). Dropping onto one moves the dragged doc inside.
+    private var canvasContainerIds: Set<String> {
+        Set(
+            documentStore.collections
+                .filter { $0.docType == .folder || $0.isWorkspace }
+                .map { SpatialLibraryProjector.nodeId(forDocument: $0.id) }
+        )
     }
 }
 
