@@ -2,7 +2,25 @@ import FicheroAPIClient
 import Foundation
 import Observation
 import OSLog
+#if canImport(AppKit)
+import AppKit
+#endif
 import SwiftUI
+
+enum SettingsTab: Hashable {
+    case aiModels
+    case mcp
+    case integrations
+    case general
+    case engine
+    case connect
+    case backend
+    case users
+    case capture
+    case about
+    case history
+    case backups
+}
 
 // AppState is the app-state hub (backend session + providers + heartbeat +
 // endpoint failover); its body exceeds the default limits. Its private state is
@@ -66,13 +84,39 @@ class AppState {
 
     // MARK: - MCP Server Management
 
-    var showMCPServers: Bool = false
+    var selectedSettingsTab: SettingsTab = .aiModels
+
+    var showMCPServers: Bool = false {
+        didSet {
+            guard showMCPServers else { return }
+            openSettings(tab: .mcp)
+            showMCPServers = false
+        }
+    }
 
     // MARK: - Integrations (Hazel-like folder/app observers)
 
-    var showFolderWatchers: Bool = false
-    var showAppObservers: Bool = false
-    var showAutomationRules: Bool = false
+    var showFolderWatchers: Bool = false {
+        didSet {
+            guard showFolderWatchers else { return }
+            openSettings(tab: .integrations)
+            showFolderWatchers = false
+        }
+    }
+    var showAppObservers: Bool = false {
+        didSet {
+            guard showAppObservers else { return }
+            openSettings(tab: .integrations)
+            showAppObservers = false
+        }
+    }
+    var showAutomationRules: Bool = false {
+        didSet {
+            guard showAutomationRules else { return }
+            openSettings(tab: .integrations)
+            showAutomationRules = false
+        }
+    }
 
     // MARK: - Services
 
@@ -109,6 +153,13 @@ class AppState {
 
     deinit {
         heartbeatTask?.cancel()
+    }
+
+    func openSettings(tab: SettingsTab) {
+        selectedSettingsTab = tab
+        #if canImport(AppKit)
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        #endif
     }
 
     // MARK: - Heartbeat

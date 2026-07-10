@@ -89,14 +89,6 @@ struct SheetModifiers: ViewModifier {
                 )
                 .environment(appState.providerService)
             }
-            .sheet(isPresented: Binding(
-                get: { appState.showMCPServers },
-                set: { appState.showMCPServers = $0 }
-            )) {
-                MCPServersSheet()
-                    .environment(appState)
-                    .environment(appState.mcpService)
-            }
     }
 }
 
