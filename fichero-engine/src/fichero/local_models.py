@@ -2,7 +2,7 @@
 Unified Local Model Management
 
 Manages locally-downloaded AI models for Whisper, FastEmbed, and spaCy.
-Models are stored in ~/Library/Application Support/com.fichero.fichero/models/
+Models are stored in ~/Library/Application Support/Fichero/models/
 to avoid macOS auto-cleanup of ~/.cache/ directories.
 
 Storage layout:

@@ -2,7 +2,7 @@
 Local Models API Routes
 
 Endpoints for managing locally-downloaded AI models (Whisper, embeddings, spaCy).
-Models are stored in ~/Library/Application Support/com.fichero.fichero/models/
+Models are stored in ~/Library/Application Support/Fichero/models/
 """
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
