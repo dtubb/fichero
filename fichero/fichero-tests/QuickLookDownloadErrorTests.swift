@@ -78,5 +78,40 @@ final class QuickLookDownloadErrorTests: XCTestCase {
         XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("a\nb\tc.pdf"), "abc.pdf")
         XCTAssertEqual(QuickLookDownloadView.sanitizedFileName(String(repeating: "x", count: 500)).count, 200)
     }
+
+    // MARK: - preferredDownloadFileName (#3202 Unicode filename handling)
+
+    func testPreferredDownloadFileNameUsesRFC5987FilenameStar() {
+        let header = "attachment; filename*=UTF-8''R%C3%A9sum%C3%A9%20Scan.pdf"
+        XCTAssertEqual(
+            QuickLookDownloadView.preferredDownloadFileName(
+                contentDisposition: header,
+                fallback: "fallback.pdf"
+            ),
+            "Résumé Scan.pdf"
+        )
+    }
+
+    func testPreferredDownloadFileNameFallsBackToQuotedFilename() {
+        let header = #"attachment; filename="scan-final.pdf""#
+        XCTAssertEqual(
+            QuickLookDownloadView.preferredDownloadFileName(
+                contentDisposition: header,
+                fallback: "fallback.pdf"
+            ),
+            "scan-final.pdf"
+        )
+    }
+
+    func testPreferredDownloadFileNameKeepsFallbackWhenServerNameIsUnsafe() {
+        let header = #"attachment; filename="../..""#
+        XCTAssertEqual(
+            QuickLookDownloadView.preferredDownloadFileName(
+                contentDisposition: header,
+                fallback: "fallback.pdf"
+            ),
+            "fallback.pdf"
+        )
+    }
 }
 #endif

@@ -87,7 +87,6 @@ struct QuickLookDownloadView: View {
         await downloadFromAPI()
     }
 
-    // swiftlint:disable:next function_body_length
     private func downloadFromAPI() async {
         let sourceURL = apiClient.sourceURL(for: document.id)
 
@@ -119,24 +118,13 @@ struct QuickLookDownloadView: View {
                 return
             }
 
-            // Try to get filename from Content-Disposition header
             var fileName = fileNameWithExtension()
             if let httpResponse = response as? HTTPURLResponse,
-               let contentDisposition = httpResponse.value(forHTTPHeaderField: "Content-Disposition"),
-               let range = contentDisposition.range(of: "filename=\""),
-               let endRange = contentDisposition.range(
-                of: "\"",
-                range: range.upperBound..<contentDisposition.endIndex
-               ) {
-                // Sanitize the server-controlled filename before it becomes a
-                // path component — a value with `/`, `\`, or `..` would corrupt
-                // or escape the cache path (#3207).
-                let serverFileName = Self.sanitizedFileName(
-                    String(contentDisposition[range.upperBound..<endRange.lowerBound])
+               let contentDisposition = httpResponse.value(forHTTPHeaderField: "Content-Disposition") {
+                fileName = Self.preferredDownloadFileName(
+                    contentDisposition: contentDisposition,
+                    fallback: fileName
                 )
-                if !serverFileName.isEmpty {
-                    fileName = serverFileName
-                }
             }
 
             // Move to cache directory
@@ -201,6 +189,38 @@ struct QuickLookDownloadView: View {
         let cleaned = String(String.UnicodeScalarView(kept)).trimmingCharacters(in: .whitespaces)
         guard !cleaned.isEmpty, cleaned != ".", cleaned != ".." else { return "" }
         return String(cleaned.prefix(200))
+    }
+
+    /// Pick the best cache filename from a Content-Disposition header. Supports
+    /// both RFC 5987 `filename*=` (UTF-8 percent-encoded) and plain
+    /// `filename=`. Every server-provided value is sanitized before use; if no
+    /// safe value remains, the caller's fallback is kept. Pure + static so the
+    /// Unicode/header parsing contract is unit-testable.
+    static func preferredDownloadFileName(contentDisposition: String, fallback: String) -> String {
+        let parts = contentDisposition.split(separator: ";").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        for part in parts {
+            guard part.lowercased().hasPrefix("filename*=") else { continue }
+            let rawValue = String(part.dropFirst("filename*=".count))
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            let encoded = rawValue.components(separatedBy: "''").last ?? rawValue
+            if let decoded = encoded.removingPercentEncoding {
+                let sanitized = sanitizedFileName(decoded)
+                if !sanitized.isEmpty { return sanitized }
+            }
+        }
+
+        for part in parts {
+            guard part.lowercased().hasPrefix("filename=") else { continue }
+            let rawValue = String(part.dropFirst("filename=".count))
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            let sanitized = sanitizedFileName(rawValue)
+            if !sanitized.isEmpty { return sanitized }
+        }
+
+        return fallback
     }
 
     private func cleanupTemporaryFile() {
