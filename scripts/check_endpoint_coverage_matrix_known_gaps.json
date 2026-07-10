@@ -135,6 +135,7 @@
   "GET /api/documents/trash": "#2075 backend; UI tracked in #2077",
   "GET /api/documents/workspaces": "store missing",
   "GET /api/documents/{doc_id}/ancestors": "store missing",
+  "GET /api/documents/{doc_id}/annotations.jsonld": "backend/CLI annotation export; Swift store wiring tracked as annotation export UI backlog",
   "GET /api/documents/{doc_id}/notes": "store missing",
   "GET /api/documents/{doc_id}/page-ranges": "store missing",
   "GET /api/documents/{doc_id}/page-ranges/at/{page}": "store missing",

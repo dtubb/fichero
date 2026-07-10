@@ -95,6 +95,7 @@ KNOWN_GAPS: dict[str, str] = {
     'GET /api/documents/trash': "#2075 backend; UI tracked in #2077",
     'DELETE /api/documents/{doc_id}/notes': "#1920 baseline - cli-only",
     'DELETE /api/documents/{doc_id}/purge': "#2075 backend; UI tracked in #2077",
+    'GET /api/documents/{doc_id}/annotations.jsonld': "backend/CLI annotation export; Swift store wiring tracked as annotation export UI backlog",
     'GET /api/documents/{doc_id}/notes': "#1920 baseline - cli-only",
     'PUT /api/documents/{doc_id}/notes': "#1920 baseline - cli-only",
     'GET /api/documents/{doc_id}/page-ranges': "#1920 baseline - cli-only",
