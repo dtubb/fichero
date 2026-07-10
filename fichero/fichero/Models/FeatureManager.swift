@@ -1,11 +1,32 @@
-import Observation
 import Foundation
+import Observation
+import OSLog
 import SwiftUI
+
+// swiftlint:disable file_length
+
+private let featureManagerLogger = Logger(
+    subsystem: "app.fichero.fichero",
+    category: "FeatureManager"
+)
+
+extension FeatureTier {
+    var rank: Int { rawValue }
+
+    var environmentValue: String {
+        switch self {
+        case .dev: return "dev"
+        case .alpha: return "alpha"
+        case .beta: return "beta"
+        case .release: return "release"
+        }
+    }
+}
 
 /// Central manager for app features and modules.
 /// Allows enabling/disabling major functional blocks for different release stages (e.g., v0.0.1).
 @MainActor
-class FeatureManager: ObservableObject {
+class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_length
     static let shared = FeatureManager()
     // Bumped to re-apply workflow execution release defaults on existing
     // installs (langgraph preview, run-on-selection, files toolbar, import/export).
@@ -20,8 +41,7 @@ class FeatureManager: ObservableObject {
         + "keywords_extract,quotes_extract,"
         + "people_folder_cleanup,places_folder_cleanup,organizations_folder_cleanup,"
         + "dates_folder_cleanup,events_folder_cleanup,keywords_folder_cleanup"
-    private static let isDevFeatureTier =
-        ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"]?.lowercased() == "dev"
+    private static var didWarnUnknownFeatureTier = false
 
     /// Global toggle to override all flags for internal development.
     /// In a production release, this would be hardcoded to false.
@@ -129,47 +149,129 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.release_profile_version")
     private var releaseProfileVersionApplied: Int = 0
 
-    var isWorkflowsEnabled: Bool { allFeaturesEnabled || workflowsEnabledInternal }
-    var isSearchEnabled: Bool { allFeaturesEnabled || searchEnabledInternal }
+    var activeBuildTier: FeatureTier {
+        if let tier = Self.resolveFeatureTier(
+            Bundle.main.infoDictionary?["FicheroFeatureTier"] as? String
+        ) {
+            return tier
+        }
+        if let tier = Self.resolveFeatureTier(
+            ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"]
+        ) {
+            return tier
+        }
+        return .dev
+    }
+
+    @available(*, deprecated, message: "use activeBuildTier == .dev")
+    static var isDevFeatureTier: Bool { shared.activeBuildTier == .dev }
+
+    func isVisible(_ key: FeatureKey) -> Bool {
+        FeatureTiers.map[key]!.tier.rank >= activeBuildTier.rank
+    }
+
+    private func isEnabled(_ key: FeatureKey, _ enabled: Bool) -> Bool {
+        isVisible(key) && (allFeaturesEnabled || enabled)
+    }
+
+    var isWorkflowsEnabled: Bool { isEnabled(.workflows, workflowsEnabledInternal) }
+    var isSearchEnabled: Bool { isEnabled(.search, searchEnabledInternal) }
     var isWorkflowEditorAdvancedViewsEnabled: Bool {
-        allFeaturesEnabled || workflowEditorAdvancedViewsEnabled
+        isEnabled(.workflowEditorAdvancedViews, workflowEditorAdvancedViewsEnabled)
     }
-    var isWorkflowChainsEnabled: Bool { allFeaturesEnabled || workflowChainsEnabledInternal }
-    var isBatchesEnabled: Bool { allFeaturesEnabled || batchesEnabledInternal }
-    var isChatEnabled: Bool { allFeaturesEnabled || chatEnabledInternal }
-    var isAgentsEnabled: Bool { allFeaturesEnabled || agentsEnabledInternal }
-    var isAutomationEnabled: Bool { allFeaturesEnabled || automationEnabledInternal }
-    var isMCPEnabled: Bool { allFeaturesEnabled || mcpEnabledInternal }
-    var isIntegrationsEnabled: Bool { allFeaturesEnabled || integrationsEnabledInternal }
-    var isActivityEnabled: Bool { allFeaturesEnabled || activityEnabledInternal }
+    var isWorkflowChainsEnabled: Bool { isEnabled(.workflowChains, workflowChainsEnabledInternal) }
+    var isBatchesEnabled: Bool { isEnabled(.batches, batchesEnabledInternal) }
+    var isChatEnabled: Bool { isEnabled(.chat, chatEnabledInternal) }
+    var isAgentsEnabled: Bool { isEnabled(.agents, agentsEnabledInternal) }
+    var isAutomationEnabled: Bool { isEnabled(.automation, automationEnabledInternal) }
+    var isMCPEnabled: Bool { isEnabled(.mcpUi, mcpEnabledInternal) }
+    var isIntegrationsEnabled: Bool { isEnabled(.integrations, integrationsEnabledInternal) }
+    var isActivityEnabled: Bool { isEnabled(.activity, activityEnabledInternal) }
     var isLibraryAdvancedViewsEnabled: Bool {
-        allFeaturesEnabled || libraryAdvancedViewsEnabledInternal
+        isEnabled(.libraryAdvancedViews, libraryAdvancedViewsEnabledInternal)
     }
-    var isSearchAdvancedViewsEnabled: Bool { allFeaturesEnabled || searchAdvancedViewsEnabledInternal }
+    var isSearchAdvancedViewsEnabled: Bool {
+        isEnabled(.searchAdvancedViews, searchAdvancedViewsEnabledInternal)
+    }
     var isLibrarySearchSplitLayoutsEnabled: Bool {
-        allFeaturesEnabled || librarySearchSplitLayoutsEnabledInternal
+        isEnabled(.librarySearchSplitLayouts, librarySearchSplitLayoutsEnabledInternal)
     }
-    var isLibraryFilterToolbarEnabled: Bool { allFeaturesEnabled || libraryFilterToolbarEnabledInternal }
+    var isLibraryFilterToolbarEnabled: Bool {
+        isEnabled(.libraryFilterToolbar, libraryFilterToolbarEnabledInternal)
+    }
     var isLibraryIconZoomControlsEnabled: Bool {
-        allFeaturesEnabled || libraryIconZoomControlsEnabledInternal
+        isEnabled(.libraryIconZoomControls, libraryIconZoomControlsEnabledInternal)
     }
-    var isSettingsGeneralTabEnabled: Bool { allFeaturesEnabled || settingsGeneralTabEnabledInternal }
-    var isSettingsBackendTabEnabled: Bool { allFeaturesEnabled || settingsBackendTabEnabledInternal }
-    var isSettingsModelsTabEnabled: Bool { allFeaturesEnabled || settingsModelsTabEnabledInternal }
-    var isSettingsEngineTabEnabled: Bool { allFeaturesEnabled || settingsEngineTabEnabledInternal }
-    var isSettingsShareTabEnabled: Bool { allFeaturesEnabled || settingsShareTabEnabledInternal }
-    var isSettingsUsersTabEnabled: Bool { allFeaturesEnabled || settingsUsersTabEnabledInternal }
-    var isSettingsCaptureTabEnabled: Bool { allFeaturesEnabled || settingsCaptureTabEnabledInternal }
-    var isWorkflowToolsMCPEnabled: Bool { allFeaturesEnabled || workflowToolsMCPEnabledInternal }
-    var isWorkflowToolsAgentsEnabled: Bool { allFeaturesEnabled || workflowToolsAgentsEnabledInternal }
-    var isWorkflowToolsAudioEnabled: Bool { allFeaturesEnabled || workflowToolsAudioEnabledInternal }
-    var isWorkflowToolsVideoEnabled: Bool { allFeaturesEnabled || workflowToolsVideoEnabledInternal }
-    var isWorkflowToolsTransformEnabled: Bool { allFeaturesEnabled || workflowToolsTransformEnabledInternal }
-    var isWorkflowToolsConvertEnabled: Bool { allFeaturesEnabled || workflowToolsConvertEnabledInternal }
-    var isWorkflowToolsLogicEnabled: Bool { allFeaturesEnabled || workflowToolsLogicEnabledInternal }
-    var isWorkflowToolsOutputsEnabled: Bool { allFeaturesEnabled || workflowToolsOutputsEnabledInternal }
-    var isWorkflowToolsFilesEnabled: Bool { allFeaturesEnabled || workflowToolsFilesEnabledInternal }
-    var isWorkflowToolsSearchEnabled: Bool { allFeaturesEnabled || workflowToolsSearchEnabledInternal }
+    var isSettingsGeneralTabEnabled: Bool {
+        isEnabled(.settingsGeneralTab, settingsGeneralTabEnabledInternal)
+    }
+    var isSettingsBackendTabEnabled: Bool {
+        isEnabled(.settingsBackendTab, settingsBackendTabEnabledInternal)
+    }
+    var isSettingsModelsTabEnabled: Bool {
+        isEnabled(.settingsModelsTab, settingsModelsTabEnabledInternal)
+    }
+    var isSettingsEngineTabEnabled: Bool {
+        isEnabled(.settingsEngineTab, settingsEngineTabEnabledInternal)
+    }
+    var isSettingsShareTabEnabled: Bool {
+        isEnabled(.settingsShareTab, settingsShareTabEnabledInternal)
+    }
+    var isSettingsUsersTabEnabled: Bool {
+        isEnabled(.settingsUsersTab, settingsUsersTabEnabledInternal)
+    }
+    var isSettingsCaptureTabEnabled: Bool {
+        isEnabled(.settingsCaptureTab, settingsCaptureTabEnabledInternal)
+    }
+    var isWorkflowToolsMCPEnabled: Bool {
+        isEnabled(.workflowToolsMcp, workflowToolsMCPEnabledInternal)
+    }
+    var isWorkflowToolsAgentsEnabled: Bool {
+        isEnabled(.workflowToolsAgents, workflowToolsAgentsEnabledInternal)
+    }
+    var isWorkflowToolsAudioEnabled: Bool {
+        isEnabled(.workflowToolsAudio, workflowToolsAudioEnabledInternal)
+    }
+    var isWorkflowToolsVideoEnabled: Bool {
+        isEnabled(.workflowToolsVideo, workflowToolsVideoEnabledInternal)
+    }
+    var isWorkflowToolsTransformEnabled: Bool {
+        isEnabled(.workflowToolsTransform, workflowToolsTransformEnabledInternal)
+    }
+    var isWorkflowToolsConvertEnabled: Bool {
+        isEnabled(.workflowToolsConvert, workflowToolsConvertEnabledInternal)
+    }
+    var isWorkflowToolsLogicEnabled: Bool {
+        isEnabled(.workflowToolsLogic, workflowToolsLogicEnabledInternal)
+    }
+    var isWorkflowToolsOutputsEnabled: Bool {
+        isEnabled(.workflowToolsOutputs, workflowToolsOutputsEnabledInternal)
+    }
+    var isWorkflowToolsFilesEnabled: Bool {
+        isEnabled(.workflowToolsFiles, workflowToolsFilesEnabledInternal)
+    }
+    var isWorkflowToolsSearchEnabled: Bool {
+        isEnabled(.workflowToolsSearch, workflowToolsSearchEnabledInternal)
+    }
+    var isProvidersExtendedEnabled: Bool {
+        isEnabled(.providersExtended, providersExtendedEnabledInternal)
+    }
+    var isProvidersEnabled: Bool {
+        isVisible(.providers)
+            && (allFeaturesEnabled || providersExtendedEnabledInternal || activeBuildTier == .dev)
+    }
+    var isWorkflowImportExportEnabled: Bool {
+        isEnabled(.workflowImportExport, workflowImportExportEnabledInternal)
+    }
+    var isWorkflowLangGraphPreviewEnabled: Bool {
+        isEnabled(.workflowLangGraphPreview, workflowLangGraphPreviewEnabledInternal)
+    }
+    var isWorkflowFilesToolbarButtonEnabled: Bool {
+        isEnabled(.workflowImportExport, workflowFilesToolbarEnabledInternal)
+    }
+    var isWorkflowRunOnSelectionEnabled: Bool {
+        isEnabled(.workflowRunOnSelection, workflowRunOnSelectionEnabledInternal)
+    }
     var workflowEnabledTools: Set<String> {
         Set(
             workflowEnabledToolsInternal
@@ -178,30 +280,28 @@ class FeatureManager: ObservableObject {
                 .filter { !$0.isEmpty }
         )
     }
-    var isProvidersExtendedEnabled: Bool { allFeaturesEnabled || providersExtendedEnabledInternal }
-    var isProvidersEnabled: Bool {
-        allFeaturesEnabled || providersExtendedEnabledInternal || Self.isDevFeatureTier
-    }
-    var isWorkflowImportExportEnabled: Bool { allFeaturesEnabled || workflowImportExportEnabledInternal }
-    var isWorkflowLangGraphPreviewEnabled: Bool {
-        allFeaturesEnabled || workflowLangGraphPreviewEnabledInternal
-    }
-    var isWorkflowFilesToolbarButtonEnabled: Bool { allFeaturesEnabled || workflowFilesToolbarEnabledInternal }
-    var isWorkflowRunOnSelectionEnabled: Bool {
-        allFeaturesEnabled || workflowRunOnSelectionEnabledInternal
-    }
     /// PDF scroll → grid/inspector sync. Defaulted OFF; enable via Settings or `FICHERO_ALL_FEATURES=1`.
     /// Guards the NSScrollView live-scroll observer added in PDFPageView (#591/#592).
-    var isPdfScrollGridSyncEnabled: Bool { allFeaturesEnabled || pdfScrollGridSyncEnabledInternal }
+    var isPdfScrollGridSyncEnabled: Bool {
+        isEnabled(.pdfScrollGridSync, pdfScrollGridSyncEnabledInternal)
+    }
     /// Bidirectional claim highlight sync across PDF, Content, and Inspector panes. Defaulted OFF.
-    var isClaimHighlightSyncEnabled: Bool { allFeaturesEnabled || claimHighlightSyncEnabledInternal }
-    var isWorkspaceModeEnabled: Bool { allFeaturesEnabled || workspaceModeEnabledInternal }
-    var isSpatialModeEnabled: Bool { allFeaturesEnabled || spatialModeEnabledInternal }
-    var isCanvasRealityKit2DEnabled: Bool { allFeaturesEnabled || canvasRealityKit2DEnabledInternal }
-    var isCanvasRealityKit3DEnabled: Bool { allFeaturesEnabled || canvasRealityKit3DEnabledInternal }
-    var isResearchEnabled: Bool { allFeaturesEnabled || researchEnabledInternal }
+    var isClaimHighlightSyncEnabled: Bool {
+        isEnabled(.claimHighlightSync, claimHighlightSyncEnabledInternal)
+    }
+    var isWorkspaceModeEnabled: Bool { isEnabled(.workspaceMode, workspaceModeEnabledInternal) }
+    var isSpatialModeEnabled: Bool { isEnabled(.spatialMode, spatialModeEnabledInternal) }
+    var isCanvasRealityKit2DEnabled: Bool {
+        isEnabled(.canvasRealityKit2D, canvasRealityKit2DEnabledInternal)
+    }
+    var isCanvasRealityKit3DEnabled: Bool {
+        isEnabled(.canvasRealityKit3D, canvasRealityKit3DEnabledInternal)
+    }
+    var isResearchEnabled: Bool { isEnabled(.research, researchEnabledInternal) }
     /// Knowledge Graph / Ontology browser (#498). Defaulted ON — the view is complete.
-    var isKnowledgeGraphEnabled: Bool { allFeaturesEnabled || knowledgeGraphEnabledInternal }
+    var isKnowledgeGraphEnabled: Bool {
+        isEnabled(.knowledgeGraph, knowledgeGraphEnabledInternal)
+    }
 
     private init() {
         if UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
@@ -292,6 +392,40 @@ class FeatureManager: ObservableObject {
         default:
             return toolName.lowercased()
         }
+    }
+
+    private static func resolveFeatureTier(_ rawValue: String?) -> FeatureTier? {
+        guard let rawValue else {
+            return nil
+        }
+        let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else {
+            return nil
+        }
+
+        switch normalized {
+        case "dev":
+            return .dev
+        case "alpha":
+            return .alpha
+        case "beta":
+            return .beta
+        case "release":
+            return .release
+        default:
+            warnUnknownFeatureTierOnce(rawValue)
+            return .dev
+        }
+    }
+
+    private static func warnUnknownFeatureTierOnce(_ rawValue: String) {
+        guard !didWarnUnknownFeatureTier else {
+            return
+        }
+        didWarnUnknownFeatureTier = true
+        featureManagerLogger.warning(
+            "Unknown FICHERO_FEATURE_TIER value '\(rawValue, privacy: .public)'; defaulting to dev"
+        )
     }
 }
 
