@@ -96,6 +96,7 @@ struct ExtractEntitiesNodeConfig: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(newTypeName.trimmingCharacters(in: .whitespaces).isEmpty || isAdding)
+                .accessibilityLabel("Add extraction target")
                 .help("Register this extraction target in your library")
             }
 

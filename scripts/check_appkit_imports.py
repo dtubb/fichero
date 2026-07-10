@@ -41,6 +41,7 @@ RULE_DOC = "docs/contributor/architecture/swiftui/reform_masterplan_2026-06.md"
 # Keys are paths relative to SWIFT_DIR (posix). Value documents why it is a
 # sanctioned bridge OR that it is baseline debt to migrate.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "App/AppState.swift": "#3341/#3369 — app state owns macOS activation/recovery routing; migrate remaining AppKit hooks under #2101",
     "App/AppInstaller.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "App/LibraryWindow.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "App/SparkleUpdater.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
