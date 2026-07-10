@@ -146,4 +146,14 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertFalse(source.contains("let script = DocumentKGPaneRoute.bootstrapScript("))
         XCTAssertFalse(source.contains("webView.evaluateJavaScript(script)"))
     }
+
+    func testScrollSyncUsesTranscriptPageAnchors() {
+        let script = DocumentKGPaneRoute.scrollSyncScript(pageCount: 3)
+
+        XCTAssertTrue(script.contains("IntersectionObserver"))
+        XCTAssertTrue(script.contains("data-page"))
+        XCTAssertTrue(script.contains("scrollIntoView"))
+        XCTAssertFalse(script.contains("progress * maxScroll"))
+        XCTAssertFalse(script.contains("scrollTop / maxScroll"))
+    }
 }
