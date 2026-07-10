@@ -791,7 +791,7 @@ extension ContentView {
     var inspectorView: some View {
         switch viewMode {
         case .library, .search:
-            let inspector = DocumentInspector(
+            DocumentInspector(
                 document: inspectorDocument,
                 onNavigateToSource: { sourceDocId in
                     Task { @MainActor in
@@ -799,19 +799,14 @@ extension ContentView {
                     }
                 }
             )
-            if let library = windowState.library {
-                inspector
-                    .environment(library.documentServiceGenerated)
-                    .environment(library.artifactService)
-                    .environment(library.entityService)
-                    .environment(library.kgCurationService)
-                    .environment(library.documentStore)
-                    .environment(library.artifactStore)
-                    .environment(library.entityStore)
-                    .environment(library.claimStore)
-            } else {
-                inspector
-            }
+            .environment(documentService)
+            .environment(artifactService)
+            .environment(entityService)
+            .environment(kgCurationService)
+            .environment(documentStore)
+            .environment(artifactStore)
+            .environment(entityStore)
+            .environment(claimStore)
 
         case .chat, .comparison:
             ChatInspector(

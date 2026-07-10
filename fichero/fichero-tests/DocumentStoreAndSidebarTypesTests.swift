@@ -328,9 +328,20 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     func testDocumentTabViewForwardsArtifactServiceIntoContentView() throws {
         let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
         let contentViewSource = try Self.appSource("Views/ContentView.swift")
+        let builderSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
         let requiredSnippets = [
             "@Environment(ArtifactServiceGenerated.self) var artifactService",
+            "@Environment(EntityServiceGenerated.self) var entityService",
+            "@Environment(KGCurationServiceGenerated.self) var kgCurationService",
+            "@Environment(ArtifactStore.self) var artifactStore",
+            "@Environment(EntityStore.self) var entityStore",
+            "@Environment(ClaimStore.self) var claimStore",
             ".environment(artifactService)",
+            ".environment(entityService)",
+            ".environment(kgCurationService)",
+            ".environment(artifactStore)",
+            ".environment(entityStore)",
+            ".environment(claimStore)",
             ".environmentObject(FeatureManager.shared)",
             "@Environment(WorkflowStreamService.self) var workflowStreamService",
             "@Environment(ResearchService.self) var researchService",
@@ -348,6 +359,10 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             XCTAssertTrue(tabSource.contains(snippet), "Missing snippet: \(snippet)")
         }
         XCTAssertTrue(contentViewSource.contains("@EnvironmentObject var featureManager: FeatureManager"))
+        XCTAssertTrue(contentViewSource.contains("@Environment(ArtifactServiceGenerated.self) var artifactService"))
+        XCTAssertTrue(contentViewSource.contains("@Environment(EntityServiceGenerated.self) var entityService"))
+        XCTAssertTrue(builderSource.contains(".environment(artifactService)"))
+        XCTAssertTrue(builderSource.contains(".environment(entityService)"))
     }
 
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {

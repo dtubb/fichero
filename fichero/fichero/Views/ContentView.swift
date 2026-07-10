@@ -78,6 +78,12 @@ struct ContentView: View {
     @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
+    @Environment(ArtifactServiceGenerated.self) var artifactService
+    @Environment(EntityServiceGenerated.self) var entityService
+    @Environment(KGCurationServiceGenerated.self) var kgCurationService
+    @Environment(ArtifactStore.self) var artifactStore
+    @Environment(EntityStore.self) var entityStore
+    @Environment(ClaimStore.self) var claimStore
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     /// iOS has no `willTerminate`; backgrounding is the save signal (#3016).
     @Environment(\.scenePhase) private var scenePhase

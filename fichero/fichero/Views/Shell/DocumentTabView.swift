@@ -31,6 +31,11 @@ struct DocumentTabView: View {
     // when ContentView() is constructed below (SwiftUI does not re-propagate
     // @Environment(T.self) values across an explicit .environment() chain).
     @Environment(ArtifactServiceGenerated.self) var artifactService
+    @Environment(EntityServiceGenerated.self) var entityService
+    @Environment(KGCurationServiceGenerated.self) var kgCurationService
+    @Environment(ArtifactStore.self) var artifactStore
+    @Environment(EntityStore.self) var entityStore
+    @Environment(ClaimStore.self) var claimStore
     @Environment(ClaimFocusState.self) var claimFocusState
     @Environment(KGFocusState.self) var kgFocusState
     @Environment(WorkflowExecutionObserver.self) var executionObserver
@@ -129,6 +134,16 @@ struct DocumentTabView: View {
                     // "No Observable object of type ArtifactServiceGenerated
                     // found." (#3350)
                     .environment(artifactService)
+                    // The inspector reads the entity / KG services + stores
+                    // from ContentView, not directly from DocumentTabView's
+                    // parent environment. Forward them here too so the
+                    // inspector still resolves its dependencies during the
+                    // first render before windowState.library is available.
+                    .environment(entityService)
+                    .environment(kgCurationService)
+                    .environment(artifactStore)
+                    .environment(entityStore)
+                    .environment(claimStore)
                     // These app-/library-scoped @Observable focus + substrate
                     // services are also read directly by ContentView. Forward
                     // them here so switching into Research / KG / claim-focused
