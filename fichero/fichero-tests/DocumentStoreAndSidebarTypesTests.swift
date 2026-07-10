@@ -254,7 +254,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let requiredSnippets = [
             "@Environment(ArtifactServiceGenerated.self) var artifactService",
             ".environment(artifactService)",
-            ".environment(FeatureManager.shared)",
+            ".environmentObject(FeatureManager.shared)",
             "@Environment(WorkflowStreamService.self) var workflowStreamService",
             "@Environment(ResearchService.self) var researchService",
             "@Environment(ClaimFocusState.self) var claimFocusState",
@@ -270,7 +270,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         for snippet in requiredSnippets {
             XCTAssertTrue(tabSource.contains(snippet), "Missing snippet: \(snippet)")
         }
-        XCTAssertTrue(contentViewSource.contains("@Environment(FeatureManager.self) var featureManager"))
+        XCTAssertTrue(contentViewSource.contains("@EnvironmentObject var featureManager: FeatureManager"))
     }
 
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {

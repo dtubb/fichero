@@ -179,7 +179,7 @@ struct ContentView: View {
     // prereq for the ContentView+State extractions (#3033). Still the shared
     // instances at runtime; injection is the seam.
     @Environment(ErrorService.self) var errorService
-    @Environment(FeatureManager.self) var featureManager
+    @EnvironmentObject var featureManager: FeatureManager
 
     // Pane focus state for Tab cycling
     @FocusState var focusedPane: PaneFocus?
@@ -949,7 +949,7 @@ private struct ToolbarSearchableModifier: ViewModifier {
         .environment(ViewSettings())
         .environment(AppState())
         .environment(ErrorService.shared)
-        .environment(FeatureManager.shared)
+        .environmentObject(FeatureManager.shared)
         .frame(width: 1200, height: 700)
 }
 
@@ -965,7 +965,7 @@ private struct ToolbarSearchableModifier: ViewModifier {
         .environment(ViewSettings())
         .environment(AppState())
         .environment(ErrorService.shared)
-        .environment(FeatureManager.shared)
+        .environmentObject(FeatureManager.shared)
         .environment(\.horizontalSizeClass, .regular)
         .frame(width: 1200, height: 700)
 }
@@ -975,7 +975,7 @@ private struct ToolbarSearchableModifier: ViewModifier {
         .environment(ViewSettings())
         .environment(AppState())
         .environment(ErrorService.shared)
-        .environment(FeatureManager.shared)
+        .environmentObject(FeatureManager.shared)
         .environment(\.horizontalSizeClass, .compact)
         .frame(width: 390, height: 780)
 }
