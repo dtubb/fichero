@@ -71,7 +71,7 @@ def test_prepare_remote_access_flag_prints_manifest_and_returns(monkeypatch, cap
         captured["allow_loopback"] = allow_loopback
         captured["subject_alt_hosts"] = tuple(subject_alt_hosts)
         return SimpleNamespace(
-            bind_host="192.168.1.42",
+            bind_host="127.0.0.1",
             certificate_path=str(tmp_path / "server.crt"),
             key_path=str(tmp_path / "server.key"),
             spki_pin="spki-pin",
@@ -95,7 +95,7 @@ def test_prepare_remote_access_flag_prints_manifest_and_returns(monkeypatch, cap
     assert captured["allow_loopback"] is False
     assert captured["subject_alt_hosts"] == ()
     assert json.loads(capsys.readouterr().out) == {
-        "bind_host": "192.168.1.42",
+        "bind_host": "127.0.0.1",
         "certificate_path": str(tmp_path / "server.crt"),
         "key_path": str(tmp_path / "server.key"),
         "spki_pin": "spki-pin",

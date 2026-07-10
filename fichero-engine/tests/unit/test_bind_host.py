@@ -86,26 +86,12 @@ def test_share_off_defaults_to_loopback() -> None:
 
 
 def test_share_on_uses_wildcard_only_with_ack(tmp_path: Path) -> None:
-    """Remote access TLS keeps one explicit LAN address, never a wildcard."""
+    """Sharing keeps the engine on loopback; the public URL is perimeter only."""
     material = prepare_remote_access_tls(
         "https://192.168.1.42:9443",
         storage_root=tmp_path,
     )
-    assert material.bind_host == "192.168.1.42"
-
-    with pytest.raises(ValueError, match="non-loopback"):
-        resolve_bind_host({"FICHERO_BIND_HOST": material.bind_host})
-
-    with pytest.warns(RuntimeWarning, match="non-loopback host"):
-        assert (
-            resolve_bind_host(
-                {
-                    "FICHERO_BIND_HOST": material.bind_host,
-                    NON_LOOPBACK_BIND_ACK_ENV: NON_LOOPBACK_BIND_ACK_VALUE,
-                }
-            )
-            == "192.168.1.42"
-        )
+    assert material.bind_host == DEFAULT_BIND_HOST
 
 
 def test_share_on_never_binds_bare_lan_host() -> None:

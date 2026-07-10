@@ -164,9 +164,9 @@ def _is_loopback_host(host: str) -> bool:
 def _bind_host_for_public_host(host: str) -> str:
     """Return a safe local bind target for a reachable private URL.
 
-    Keep one explicit bind target here. Loopback stays loopback; remote-access
-    preparation resolves to the explicit LAN host and the launcher adds that as
-    a second socket beside loopback when enabled.
+    The engine bind stays loopback even when we advertise a reachable remote
+    URL. Tailscale serve / the external transport is the network perimeter;
+    sharing must not move the app's local listener off 127.0.0.1.
     """
 
     if _is_loopback_host(host):
@@ -181,7 +181,7 @@ def _bind_host_for_public_host(host: str) -> str:
                 "the engine can bind to a real local Mac address."
             )
 
-    return host
+    return "127.0.0.1"
 
 
 def _normalized_subject_alt_hosts(

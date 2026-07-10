@@ -27,7 +27,7 @@ def test_prepare_remote_access_tls_creates_reusable_material(tmp_path: Path) -> 
     certificate_path = Path(material.certificate_path)
     key_path = Path(material.key_path)
 
-    assert material.bind_host == "192.168.1.42"
+    assert material.bind_host == "127.0.0.1"
     assert certificate_path.exists()
     assert key_path.exists()
 
@@ -155,7 +155,7 @@ def test_material_manifest_json_round_trips_with_stable_key_order(tmp_path: Path
     payload = material_manifest_json(material)
     decoded = json.loads(payload)
 
-    assert decoded["bind_host"] == "192.168.1.42"
+    assert decoded["bind_host"] == "127.0.0.1"
     assert decoded["spki_pin"] == material.spki_pin
     assert list(decoded) == sorted(decoded), "Swift launcher relies on sorted keys"
     assert json.loads(material_manifest_json(material)) == decoded
