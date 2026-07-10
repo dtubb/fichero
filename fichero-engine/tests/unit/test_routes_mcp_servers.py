@@ -53,13 +53,12 @@ class TestListMCPServers:
         assert r.status_code == 200
         assert r.json() == {"items": [], "count": 0}
 
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_returns_configured_servers(self, client, app_db):
         _make_mcp_server(app_db, "Server A")
         _make_mcp_server(app_db, "Server B")
         r = client.get("/api/mcp-servers")
         assert r.status_code == 200
-        assert len(r.json()["items"]["items"]) == 2
+        assert len(r.json()["items"]) == 2
 
     def test_openapi_lists_typed_mcp_server_items(self, client):
         schema = client.app.openapi()
@@ -113,7 +112,6 @@ class TestCreateMCPServer:
         assert data["env"] == {}
         assert data["headers"] == {"Authorization": "Bearer token"}
 
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_create_server_appears_in_list(self, client):
         payload = {
             "name": "listed-server",
@@ -122,7 +120,7 @@ class TestCreateMCPServer:
         }
         client.post("/api/mcp-servers", json=payload)
         r = client.get("/api/mcp-servers")
-        names = [s["name"] for s in r.json()]
+        names = [s["name"] for s in r.json()["items"]]
         assert "listed-server" in names
 
 
@@ -132,12 +130,11 @@ class TestCreateMCPServer:
 
 
 class TestGetMCPServer:
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_get_existing_server(self, client, app_db):
         server = _make_mcp_server(app_db)
         r = client.get(f"/api/mcp-servers/{server.id}")
         assert r.status_code == 200
-        assert r.json()["items"]["id"] == server.id
+        assert r.json()["id"] == server.id
 
     def test_get_missing_returns_404(self, client):
         r = client.get("/api/mcp-servers/nonexistent-id")
@@ -150,7 +147,6 @@ class TestGetMCPServer:
 
 
 class TestUpdateMCPServer:
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_update_description(self, client, app_db):
         server = _make_mcp_server(app_db)
         r = client.put(f"/api/mcp-servers/{server.id}", json={
@@ -159,7 +155,7 @@ class TestUpdateMCPServer:
             "description": "Updated description",
         })
         assert r.status_code == 200
-        assert r.json()["items"]["description"] == "Updated description"
+        assert r.json()["description"] == "Updated description"
 
     def test_update_missing_returns_404(self, client):
         r = client.put("/api/mcp-servers/no-such-id", json={

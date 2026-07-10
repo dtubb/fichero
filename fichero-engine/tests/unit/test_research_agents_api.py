@@ -10,7 +10,6 @@ import pytest
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
 def test_project_crud(client, db):
     """Create, read, update, delete research projects."""
     # Create
@@ -31,7 +30,7 @@ def test_project_crud(client, db):
     # List
     list_resp = client.get("/api/research/projects")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    assert len(list_resp.json()["items"]) >= 1
 
     # Get
     get_resp = client.get(f"/api/research/projects/{project_id}")
@@ -41,7 +40,7 @@ def test_project_crud(client, db):
     # Filter by status
     filter_resp = client.get("/api/research/projects?status=active")
     assert filter_resp.status_code == 200
-    assert all(p["status"] == "active" for p in filter_resp.json())
+    assert all(p["status"] == "active" for p in filter_resp.json()["items"])
 
     # Update
     patch_resp = client.patch(
@@ -96,7 +95,7 @@ def test_plan_crud(client, db):
     # List plans for project
     list_resp = client.get(f"/api/research/projects/{project_id}/plans")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    assert len(list_resp.json()["items"]) >= 1
 
     # Get single plan
     get_resp = client.get(f"/api/research/plans/{plan_id}")
@@ -199,7 +198,7 @@ def test_task_crud(client, db):
     # List tasks
     list_resp = client.get(f"/api/research/plans/{plan_id}/tasks")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    assert len(list_resp.json()["items"]) >= 1
 
     # Update task
     patch_resp = client.patch(
@@ -258,7 +257,7 @@ def test_step_crud(client, db):
     # List steps
     list_resp = client.get(f"/api/research/tasks/{task_id}/steps")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    assert len(list_resp.json()["items"]) >= 1
 
     # Update step result
     patch_resp = client.patch(
@@ -303,7 +302,7 @@ def test_search_source_crud(client, db):
     # List sources
     list_resp = client.get(f"/api/research/projects/{project_id}/sources")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    assert len(list_resp.json()["items"]) >= 1
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -334,7 +333,7 @@ def test_note_crud(client, db):
     # List notes
     list_resp = client.get(f"/api/research/projects/{project_id}/notes")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    assert len(list_resp.json()["items"]) >= 1
 
     # Update note
     patch_resp = client.patch(

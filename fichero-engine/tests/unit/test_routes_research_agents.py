@@ -82,14 +82,13 @@ class TestListProjects:
         assert r.status_code == 200
         assert r.json() == {"items": [], "count": 0}
 
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_returns_projects(self, client, db):
         db.save(_make_project("p-1", "Project Alpha"))
         db.save(_make_project("p-2", "Project Beta"))
 
         r = client.get(f"{BASE}/projects")
         assert r.status_code == 200
-        assert len(r.json()["items"]["items"]) == 2
+        assert len(r.json()["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -98,13 +97,12 @@ class TestListProjects:
 
 
 class TestGetProject:
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_get_existing(self, client, db):
         db.save(_make_project("p-get", "Named Project"))
 
         r = client.get(f"{BASE}/projects/p-get")
         assert r.status_code == 200
-        assert r.json()["items"]["name"] == "Named Project"
+        assert r.json()["name"] == "Named Project"
 
     def test_get_missing_returns_404(self, client):
         r = client.get(f"{BASE}/projects/no-such")
@@ -117,13 +115,12 @@ class TestGetProject:
 
 
 class TestUpdateProject:
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_update_project_name(self, client, db):
         db.save(_make_project("p-upd", "Old Name"))
 
         r = client.patch(f"{BASE}/projects/p-upd", json={"name": "New Name"})
         assert r.status_code == 200
-        assert r.json()["items"]["name"] == "New Name"
+        assert r.json()["name"] == "New Name"
 
     def test_update_missing_returns_404(self, client):
         r = client.patch(f"{BASE}/projects/no-such", json={"name": "X"})
@@ -188,7 +185,6 @@ class TestListProjectPlans:
         assert r.status_code == 200
         assert r.json() == {"items": [], "count": 0}
 
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_returns_plans(self, client, db):
         db.save(_make_project("proj-pl"))
         db.save(_make_plan("pl-1", "proj-pl"))
@@ -196,7 +192,7 @@ class TestListProjectPlans:
 
         r = client.get(f"{BASE}/projects/proj-pl/plans")
         assert r.status_code == 200
-        assert len(r.json()["items"]["items"]) == 2
+        assert len(r.json()["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +228,6 @@ class TestCreateTask:
 
 
 class TestListPlanTasks:
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_returns_tasks(self, client, db):
         db.save(_make_project("proj-lt"))
         db.save(_make_plan("plan-lt", "proj-lt"))
@@ -241,14 +236,13 @@ class TestListPlanTasks:
 
         r = client.get(f"{BASE}/plans/plan-lt/tasks")
         assert r.status_code == 200
-        assert len(r.json()["items"]["items"]) == 2
+        assert len(r.json()["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
 # Direct-handler tests (#1297 follow-up: FE↔BE review fixes)
 #
-# The HTTP routes above are dev-tier gated out of the TestClient (#1151), so
-# these call the route coroutines directly with the `db` fixture to verify the
+# These call the route coroutines directly with the `db` fixture to verify the
 # handler logic the FE↔BE review flagged:
 #   - library_destination_folder_id round-trips on create + update
 #   - GET /projects/{id}/tasks aggregates tasks across a project's plans
