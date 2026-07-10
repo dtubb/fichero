@@ -8,6 +8,9 @@ struct ChatView: View {
     /// Host-supplied attach targets for the composer paperclip (#2449 step 2).
     /// Defaults to empty, so a host without library context still gets the sheet.
     var attachContext: ChatAttachContext = .empty
+    /// Optional conversation folder filter for hosts that scope chat threads
+    /// to one workspace instead of the whole library.
+    var conversationFolderPath: String?
 
     @State var currentConversation: Conversation
     // Tracks the backend-confirmed conversation ID. Nil until the first
@@ -49,7 +52,7 @@ struct ChatView: View {
             // View-specific toolbar at top
             ChatViewToolbar(
                 conversationTitle: currentConversation.title,
-                conversations: conversationService.conversations,
+                conversations: visibleConversations,
                 onSelectConversation: switchConversation,
                 implicitScopeLabel: attachContext.implicitScopeLabel,
                 selectedDocumentsCount: selectedDocuments.count,
@@ -101,6 +104,13 @@ struct ChatView: View {
             await loadProviders()
             await loadConversations()
         }
+    }
+
+    private var visibleConversations: [Conversation] {
+        Self.visibleConversations(
+            conversationService.conversations,
+            folderPath: conversationFolderPath
+        )
     }
 
     /// Composer pin menu (#2449 hybrid step 3): the chat is already grounded on

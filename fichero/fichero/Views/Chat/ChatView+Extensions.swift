@@ -6,6 +6,22 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChatVie
 // MARK: - Data Loading
 
 extension ChatView {
+    static func visibleConversations(
+        _ conversations: [Conversation],
+        folderPath: String?
+    ) -> [Conversation] {
+        guard let folderPath = normalizedConversationFolderPath(folderPath) else {
+            return conversations
+        }
+        return conversations.filter { $0.folderPath == folderPath }
+    }
+
+    static func normalizedConversationFolderPath(_ folderPath: String?) -> String? {
+        guard let folderPath else { return nil }
+        let trimmed = folderPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     func loadConversation(_ id: String) async {
         do {
             let detail = try await conversationService.getConversation(id)
@@ -14,7 +30,9 @@ extension ChatView {
                     id: detail.id,
                     title: detail.title,
                     messages: detail.messages.map { $0.toChatMessage() },
-                    documentScope: []
+                    documentScope: [],
+                    folderPath: detail.folderPath,
+                    sortOrder: detail.sortOrder
                 )
             }
         } catch {
@@ -154,8 +172,47 @@ extension ChatView {
 // MARK: - Actions
 
 extension ChatView {
+    private func applyChatResponse(
+        _ response: ChatAPIResponse,
+        assistantMessage: ChatMessage,
+        scopedFolderPath: String?
+    ) async {
+        await MainActor.run {
+            backendConversationId = response.conversationId
+            if let scopedFolderPath {
+                currentConversation.folderPath = scopedFolderPath
+            }
+            currentConversation.messages.append(assistantMessage)
+            isLoading = false
+            onConversationUpdated?()
+        }
+        await persistConversationFolderPathIfNeeded(
+            conversationId: response.conversationId,
+            scopedFolderPath: scopedFolderPath
+        )
+    }
+
+    private func persistConversationFolderPathIfNeeded(
+        conversationId: String,
+        scopedFolderPath: String?
+    ) async {
+        guard let scopedFolderPath else { return }
+        do {
+            _ = try await conversationService.updateConversation(
+                conversationId,
+                folderPath: scopedFolderPath
+            )
+        } catch {
+            logger.error(
+                "Failed to move conversation \(conversationId) to scoped folder: \(error.localizedDescription)"
+            )
+        }
+    }
+
     func startNewChat() {
-        currentConversation = Conversation()
+        currentConversation = Conversation(
+            folderPath: Self.normalizedConversationFolderPath(conversationFolderPath) ?? "/"
+        )
         backendConversationId = nil
         selectedDocuments.removeAll()
         inputText = ""
@@ -231,14 +288,13 @@ extension ChatView {
                     sources: sources,
                     retrieval: retrieval
                 )
+                let scopedFolderPath = Self.normalizedConversationFolderPath(conversationFolderPath)
 
-                await MainActor.run {
-                    backendConversationId = response.conversationId
-                    currentConversation.messages.append(assistantMessage)
-                    isLoading = false
-                    // Notify that conversation was updated (for sidebar refresh)
-                    onConversationUpdated?()
-                }
+                await applyChatResponse(
+                    response,
+                    assistantMessage: assistantMessage,
+                    scopedFolderPath: scopedFolderPath
+                )
                 // Refresh the header title menu so a newly-created conversation
                 // (and its backend-assigned title) appears in the jump list (#2449).
                 await loadConversations()
