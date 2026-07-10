@@ -139,18 +139,29 @@ class TestFeatureTierSecurity:
     """Test feature tier bypass protections."""
 
     @pytest.mark.parametrize(
-        ("tier", "path"),
+        ("tier", "method", "path", "expected_404"),
         [
-            ("release", "/api/iiif/iiif/test/info.json"),
-            ("release", "/api/chat"),
-            ("release", "/api/research/projects"),
-            ("release", "/api/activity"),
-            ("beta", "/api/iiif/iiif/test/info.json"),
-            ("beta", "/api/chat"),
-            ("alpha", "/api/iiif/iiif/test/info.json"),
+            ("release", "get", "/api/iiif/iiif/test/info.json", True),
+            ("release", "post", "/api/chat", True),
+            ("release", "get", "/api/research/projects", True),
+            ("release", "get", "/api/activity", True),
+            ("beta", "get", "/api/iiif/iiif/test/info.json", True),
+            ("beta", "post", "/api/chat", False),
+            ("beta", "get", "/api/research/projects", False),
+            ("beta", "get", "/api/activity", False),
+            ("alpha", "get", "/api/iiif/iiif/test/info.json", True),
+            ("alpha", "post", "/api/chat", False),
+            ("alpha", "get", "/api/research/projects", False),
+            ("alpha", "get", "/api/activity", False),
+            ("dev", "get", "/api/iiif/iiif/test/info.json", False),
+            ("dev", "post", "/api/chat", False),
+            ("dev", "get", "/api/research/projects", False),
+            ("dev", "get", "/api/activity", False),
         ],
     )
-    def test_tier_change_requires_validation(self, monkeypatch, tier, path):
+    def test_tier_change_requires_validation(
+        self, monkeypatch, tier, method, path, expected_404
+    ):
         """MEDIUM-1: Hidden-tier routes should stay unreachable."""
         import fichero.api.main as main_module
         from fastapi import FastAPI
@@ -161,8 +172,8 @@ class TestFeatureTierSecurity:
         main_module.register_tiered_routes(tier)
         client = TestClient(test_app)
 
-        response = client.get(path)
-        assert response.status_code == 404
+        response = getattr(client, method)(path)
+        assert (response.status_code == 404) is expected_404
 
     def test_tier_change_logged(self):
         """MEDIUM-1: Tier changes should be logged."""
