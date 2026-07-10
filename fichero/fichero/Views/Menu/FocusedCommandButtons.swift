@@ -285,9 +285,10 @@ struct FocusedNewSearchButton: View {
 /// Button that creates a new chat
 struct FocusedNewChatButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions
+    @ObservedObject var featureManager = FeatureManager.shared
 
     var body: some View {
-        Button("New Chat") {
+        Button(featureManager.badgedLabel("New Chat", for: .chat)) {
             sidebarActions?.createChat()
         }
         .keyboardShortcut("n", modifiers: [.command, .control])
@@ -335,9 +336,10 @@ struct FocusedNewComparisonButton: View {
 /// Button that creates a new schedule
 struct FocusedNewScheduleButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions
+    @ObservedObject var featureManager = FeatureManager.shared
 
     var body: some View {
-        Button("New Schedule") {
+        Button(featureManager.badgedLabel("New Schedule", for: .automation)) {
             sidebarActions?.createSchedule()
         }
         .disabled(sidebarActions == nil)

@@ -69,7 +69,7 @@ struct AddItemMenu: View {
             }
 
             if featureManager.isChatEnabled {
-                Button("New Chat") {
+                Button(featureManager.badgedLabel("New Chat", for: .chat)) {
                     createChatAction?()
                 }
                 .disabled(createChatAction == nil)
@@ -83,7 +83,7 @@ struct AddItemMenu: View {
             }
 
             if featureManager.isAutomationEnabled {
-                Button("New Schedule") {
+                Button(featureManager.badgedLabel("New Schedule", for: .automation)) {
                     createScheduleAction?()
                 }
                 .disabled(createScheduleAction == nil)

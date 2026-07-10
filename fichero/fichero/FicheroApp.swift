@@ -30,6 +30,7 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
 // swiftlint:disable:next type_body_length
 struct FicheroApp: App {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "FicheroApp")
+    @Environment(\.openWindow) private var openWindow
     // App delegate for lifecycle events
     @NSApplicationDelegateAdaptor(FicheroAppDelegate.self) private var appDelegate
 
@@ -400,7 +401,18 @@ struct FicheroApp: App {
 
             TextFormattingCommands()
 
-            // Help menu - use default macOS help behavior
+            CommandGroup(after: .help) {
+                if featureManager.shouldShowTierChrome {
+                    Divider()
+
+                    Button(featureManager.buildTierStatusText) { }
+                        .disabled(true)
+
+                    Button("Feature Tier Legend...") {
+                        openWindow(id: "feature-tier-legend")
+                    }
+                }
+            }
 
             CommandGroup(after: .appSettings) {
                 Divider()
@@ -412,7 +424,7 @@ struct FicheroApp: App {
                 }
 
                 if featureManager.isMCPEnabled {
-                    Button("MCP Servers...") {
+                    Button(featureManager.badgedLabel("MCP Servers...", for: .mcpUi)) {
                         appState.showMCPServers = true
                     }
                 }
@@ -421,7 +433,7 @@ struct FicheroApp: App {
                     Divider()
 
                     // Integrations submenu (Hazel-like folder/app observers)
-                    Menu("Integrations") {
+                    Menu(featureManager.badgedLabel("Integrations", for: .integrations)) {
                         Button("Folder Watchers...") {
                             appState.showFolderWatchers = true
                         }
@@ -432,7 +444,7 @@ struct FicheroApp: App {
 
                         Divider()
 
-                        Button("Automation Rules...") {
+                        Button(featureManager.badgedLabel("Automation Rules...", for: .automation)) {
                             appState.showAutomationRules = true
                         }
                     }
@@ -466,6 +478,13 @@ struct FicheroApp: App {
             AboutView()
         }
         .windowResizability(.contentSize)
+        .defaultPosition(.center)
+
+        Window("Feature Tier Legend", id: "feature-tier-legend") {
+            FeatureTierLegendWindow()
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 420, height: 520)
         .defaultPosition(.center)
         #endif
 
@@ -533,6 +552,51 @@ struct FicheroApp: App {
                 .environment(appState)
                 .environment(backendService)
                 .environment(libraryManager)
+        }
+    }
+}
+
+private struct FeatureTierLegendWindow: View {
+    @ObservedObject private var featureManager = FeatureManager.shared
+
+    private var orderedTiers: [FeatureTier] {
+        FeatureTier.allCases.sorted { $0.rawValue < $1.rawValue }
+    }
+
+    private func features(for tier: FeatureTier) -> [FeatureDescriptor] {
+        FeatureTiers.map.values
+            .filter { $0.tier == tier }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(featureManager.buildTierStatusText)
+                    .font(.headline)
+
+                ForEach(orderedTiers, id: \.self) { tier in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(tier.legendColor)
+                                .frame(width: 10, height: 10)
+                            Text(tier.tierBadgeText)
+                                .font(.headline)
+                            Text("- visible in \(tier.environmentValue) builds and above")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        ForEach(features(for: tier), id: \.name) { feature in
+                            Text(feature.name)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

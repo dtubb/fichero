@@ -1,6 +1,47 @@
 import SwiftUI
 // swiftlint:disable file_length
 
+extension FeatureTier {
+    var tierBadgeText: String { environmentValue.uppercased() }
+
+    var legendColor: Color {
+        switch self {
+        case .dev:
+            .red
+        case .alpha:
+            .orange
+        case .beta:
+            .blue
+        case .release:
+            .green
+        }
+    }
+}
+
+extension FeatureManager {
+    var shouldShowTierChrome: Bool { activeBuildTier != .release }
+
+    var buildTierStatusText: String {
+        "\(activeBuildTier.tierBadgeText) build - features shown at tier >= \(activeBuildTier.environmentValue)."
+    }
+
+    func badgedLabel(_ base: String, for key: FeatureKey) -> String {
+        guard
+            shouldShowTierChrome,
+            isVisible(key),
+            let descriptor = FeatureTiers.map[key],
+            descriptor.tier != .release
+        else {
+            return base
+        }
+        return "\(base) [\(descriptor.tier.tierBadgeText)]"
+    }
+
+    func badgedFeatureName(for key: FeatureKey, fallback: String) -> String {
+        badgedLabel(FeatureTiers.map[key]?.name ?? fallback, for: key)
+    }
+}
+
 /// View menu commands - Sidebar modes, library layouts, preview modes, and inspector toggle
 /// Extracted from FicheroApp.swift to maintain consistency with other menu command patterns
 struct ViewMenuCommands: View {
@@ -98,7 +139,7 @@ struct SidebarModeSection: View {
             if featureManager.isChatEnabled {
                 SidebarModeButton(
                     mode: .chat,
-                    label: SidebarMode.chat.label,
+                    label: featureManager.badgedFeatureName(for: .chat, fallback: SidebarMode.chat.label),
                     icon: SidebarMode.chat.icon,
                     shortcut: SidebarMode.chat.shortcutNumber,
                     current: currentMode
@@ -126,7 +167,10 @@ struct SidebarModeSection: View {
             if featureManager.isAutomationEnabled {
                 SidebarModeButton(
                     mode: .automation,
-                    label: SidebarMode.automation.label,
+                    label: featureManager.badgedFeatureName(
+                        for: .automation,
+                        fallback: SidebarMode.automation.label
+                    ),
                     icon: SidebarMode.automation.icon,
                     shortcut: SidebarMode.automation.shortcutNumber,
                     current: currentMode
@@ -141,7 +185,10 @@ struct SidebarModeSection: View {
                 // Activity mode (7) - unified view of all workflow runs
                 SidebarModeButton(
                     mode: .activity,
-                    label: SidebarMode.activity.label,
+                    label: featureManager.badgedFeatureName(
+                        for: .activity,
+                        fallback: SidebarMode.activity.label
+                    ),
                     icon: SidebarMode.activity.icon,
                     shortcut: SidebarMode.activity.shortcutNumber,
                     current: currentMode
@@ -157,7 +204,10 @@ struct SidebarModeSection: View {
             if featureManager.isResearchEnabled {
                 SidebarModeButton(
                     mode: .research,
-                    label: SidebarMode.research.label,
+                    label: featureManager.badgedFeatureName(
+                        for: .research,
+                        fallback: SidebarMode.research.label
+                    ),
                     icon: SidebarMode.research.icon,
                     shortcut: SidebarMode.research.shortcutNumber,
                     current: currentMode
