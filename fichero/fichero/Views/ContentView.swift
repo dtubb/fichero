@@ -5,6 +5,16 @@ import UniformTypeIdentifiers
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ContentView")
 // swiftlint:disable file_length
 
+private enum ContentToolbarID {
+    static let navigationHistory = "fichero.nav.history"
+    static let inspectorToggle = "fichero.inspectorToggle"
+    static let compactInspectorToggle = "fichero.inspectorToggle.compact"
+    static let activityStatus = "fichero.activityStatus"
+    static let viewMenu = "fichero.viewMenu"
+    static let contentPaneToggles = "fichero.contentPane.toggles"
+    static let breadcrumb = "fichero.breadcrumb"
+}
+
 /// Identifies which main pane has keyboard focus for Tab cycling
 enum PaneFocus: Hashable {
     case sidebar, content, preview, reading, inspector
@@ -628,7 +638,7 @@ struct ContentView: View {
                 // — same mechanism as the sidebar-section buttons (#2309).
                 .toolbar {
                     if showInspectorToggle {
-                        ToolbarItem(id: "fichero.inspectorToggle", placement: .primaryAction) {
+                        ToolbarItem(id: ContentToolbarID.inspectorToggle, placement: .primaryAction) {
                             inspectorToggleButton
                         }
                     }
@@ -645,7 +655,7 @@ struct ContentView: View {
                 // — same mechanism as the sidebar-section buttons (#2309).
                 .toolbar {
                     if showInspectorToggle {
-                        ToolbarItem(id: "fichero.inspectorToggle", placement: .primaryAction) {
+                        ToolbarItem(id: ContentToolbarID.inspectorToggle, placement: .primaryAction) {
                             inspectorToggleButton
                         }
                     }
@@ -703,7 +713,7 @@ extension ContentView {
     /// LEADING zone: back/forward history navigation in the content-column toolbar.
     @ToolbarContentBuilder
     private var leadingToolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .navigation) {
+        ToolbarItemGroup(id: ContentToolbarID.navigationHistory, placement: .navigation) {
             Button {
                 navigateBack()
             } label: {
@@ -732,14 +742,14 @@ extension ContentView {
     private var trailingToolbarContent: some ToolbarContent {
         #if !os(macOS)
         if showInspectorToggle && !usesDockedInspector {
-            ToolbarItem(id: "fichero.inspectorToggle.compact", placement: .topBarTrailing) {
+            ToolbarItem(id: ContentToolbarID.compactInspectorToggle, placement: .topBarTrailing) {
                 inspectorToggleButton
             }
         }
         #endif
 
         // Activity / error status — sits between the title and the inspector section.
-        ToolbarItem(id: "fichero.activityStatus", placement: .automatic) {
+        ToolbarItem(id: ContentToolbarID.activityStatus, placement: .automatic) {
             HStack(spacing: 6) {
                 if isImporting {
                     ProgressView()
@@ -757,7 +767,7 @@ extension ContentView {
 
         // Show/hide-panes + view-mode control on every platform's toolbar,
         // including Mac (previously menu-bar only) so it matches iPad/iOS (#2493).
-        ToolbarItem(id: "fichero.viewMenu", placement: .primaryAction) {
+        ToolbarItem(id: ContentToolbarID.viewMenu, placement: .primaryAction) {
             platformViewMenuButton
         }
     }
@@ -770,7 +780,7 @@ extension ContentView {
         // hidden (#2813).
         if supportsReadingWorkspace
             && !Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
-            ToolbarItemGroup(placement: .automatic) {
+            ToolbarItemGroup(id: ContentToolbarID.contentPaneToggles, placement: .automatic) {
                 if showViewModePicker && availableViewDisplayModes.count > 1 {
                     viewDisplayModeMenu
                 }
@@ -844,7 +854,7 @@ extension ContentView {
         // dropped — the nav title carries the context and search moves to the
         // native `.searchable` field instead (#2814).
         if horizontalSizeClass != .compact {
-            ToolbarItem(id: "fichero.breadcrumb", placement: .principal) {
+            ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal) {
                 let libraryName: String? = {
                 guard case .library(let doc) = viewMode, doc != nil else { return nil }
                 return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
