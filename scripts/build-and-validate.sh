@@ -4,6 +4,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Tier -> (scheme, config) from FICHERO_RELEASE_TIER (default release).
+source "$ROOT_DIR/scripts/tier_build_map.sh"
 cd "$ROOT_DIR"
 
 SKIP_NOTARIZE=false
@@ -106,8 +108,8 @@ cd "$ROOT_DIR"
 echo "[5/8] Xcode Release build"
 XCODE_OUTPUT=$(xcodebuild \
   -project fichero/fichero.xcodeproj \
-  -scheme Fichero \
-  -configuration Release \
+  -scheme "$MAC_SCHEME" \
+  -configuration "$MAC_CONFIG" \
   -derivedDataPath fichero/build/xcode \
   -skipPackagePluginValidation \
   build 2>&1)
@@ -121,7 +123,7 @@ fi
 
 # ── 6. Codesign verification ────────────────────────────────────────────────
 echo "[6/8] Codesign"
-APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/Release/Fichero.app"
+APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/$MAC_CONFIG/Fichero.app"
 
 DEVELOPER_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}' || true)
 if [ -n "$DEVELOPER_ID" ]; then

@@ -15,6 +15,8 @@ set -euo pipefail
 # repeatable DMG, Sparkle/GitHub, and Mac TestFlight release cycle.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Tier -> (scheme, config) from FICHERO_RELEASE_TIER (default release).
+source "$ROOT_DIR/scripts/tier_build_map.sh"
 RELEASE_DIR="$ROOT_DIR/build/releases"
 DMG_PATH="$RELEASE_DIR/Fichero.dmg"
 MAC_ARCHIVE_PATH="$RELEASE_DIR/Fichero-macOS.xcarchive"
@@ -214,8 +216,8 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
   install_mac_app_store_profile
 
   if ! xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj" \
-    -scheme Fichero \
-    -configuration Release \
+    -scheme "$MAC_SCHEME" \
+    -configuration "$MAC_CONFIG" \
     -destination "platform=macOS,arch=arm64" \
     -archivePath "$MAC_ARCHIVE_PATH" \
     -skipPackagePluginValidation \
@@ -292,8 +294,8 @@ if [ "$RUN_IOS_TESTFLIGHT" = true ]; then
 
   rm -rf "$IOS_ARCHIVE_PATH"
   if ! xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj" \
-    -scheme Fichero \
-    -configuration Release \
+    -scheme "$IOS_SCHEME" \
+    -configuration "$IOS_CONFIG" \
     -destination "generic/platform=iOS" \
     -archivePath "$IOS_ARCHIVE_PATH" \
     -skipPackagePluginValidation \

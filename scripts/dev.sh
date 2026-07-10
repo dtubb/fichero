@@ -40,7 +40,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT_DIR/fichero/fichero.xcodeproj"
-SCHEME="Fichero"
+SCHEME="Fichero (Dev Local)"
 DERIVED_ROOT="${DERIVED_ROOT:-${TMPDIR:-/tmp}/fichero-dev-derived}"
 BUILD_LOCK="${TMPDIR:-/tmp}/fichero-dev-build.lock"
 

@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SWIFTUI_ROOT="$ROOT_DIR/fichero"
 PROJECT="$SWIFTUI_ROOT/fichero.xcodeproj"
-SCHEME="Fichero"
+SCHEME="Fichero (Dev Local)"
 CONFIGURATION="Debug"
 DERIVED_DATA="$SWIFTUI_ROOT/build/xcode"
 APP_PATH="$DERIVED_DATA/Products/$CONFIGURATION/Fichero.app"
