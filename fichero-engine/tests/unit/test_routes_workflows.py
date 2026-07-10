@@ -434,12 +434,32 @@ class TestListWorkflowTools:
         assert r.status_code == 200
         assert isinstance(r.json()["items"], list)
 
+    def test_tools_list_exposes_tested_flag(self, client):
+        response = client.get("/api/workflows/tools")
+
+        assert response.status_code == 200
+        by_name = {item["name"]: item for item in response.json()["items"]}
+        assert by_name["transcribe"]["tested"] is True
+        assert by_name["describe"]["tested"] is False
+
     def test_tools_grouped(self, client):
         r = client.get("/api/workflows/tools/grouped")
         assert r.status_code == 200
         data = r.json()
         assert "items" in data
         assert isinstance(data["items"], list)
+
+    def test_grouped_tools_preserve_tested_flag(self, client):
+        response = client.get("/api/workflows/tools/grouped")
+
+        assert response.status_code == 200
+        grouped = {
+            tool["name"]: tool
+            for group in response.json()["items"]
+            for tool in group["tools"]
+        }
+        assert grouped["transcribe"]["tested"] is True
+        assert grouped["describe"]["tested"] is False
 
     def test_create_node_from_tool(self, client, monkeypatch):
         calls: list[tuple] = []
