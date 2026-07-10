@@ -39,7 +39,7 @@ struct WorkflowEditor: View {
     @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(DocumentStore.self) var documentStore: DocumentStore
     @Environment(LibraryManager.self) var libraryManager
-    @EnvironmentObject var featureManager: FeatureManager
+    @Environment(FeatureManager.self) var featureManager
 
     // Uses @Observable pattern - injected via .environment() from LibraryWindow
     @Environment(WorkflowExecutionObserver.self) var executionObserver

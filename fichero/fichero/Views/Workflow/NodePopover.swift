@@ -26,7 +26,7 @@ struct NodePopover: View {
     @Environment(DocumentStore.self) var documentStore: DocumentStore
     @Environment(SavedSearchServiceGenerated.self) var savedSearchServiceGenerated
     @Environment(WorkflowServiceGenerated.self) var workflowService
-    @EnvironmentObject private var featureManager: FeatureManager
+    @Environment(FeatureManager.self) private var featureManager
 
     // Dynamic prompt from backend (fetched based on current config)
     @State private var backendPrompt: String?
@@ -348,5 +348,5 @@ struct NodePopover: View {
     .environment(library.documentStore)
     .environment(library.savedSearchServiceGenerated)
     .environment(library.workflowServiceGenerated)
-    .environmentObject(FeatureManager.shared)
+    .environment(FeatureManager.shared)
 }

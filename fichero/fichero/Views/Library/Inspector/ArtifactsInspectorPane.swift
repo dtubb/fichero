@@ -56,6 +56,7 @@ struct ArtifactsInspectorPane: View {
     @Environment(ArtifactServiceGenerated.self) private var artifactService
     @Environment(DocumentServiceGenerated.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
+    @Environment(LibraryManager.self) private var libraryManager
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
@@ -187,7 +188,7 @@ struct ArtifactsInspectorPane: View {
     }
 
     private func translate(to language: TranslationLanguage) {
-        guard let actionsService = LibraryManager.shared.globalLibrary?.actionsService else {
+        guard let actionsService = libraryManager.globalLibrary?.actionsService else {
             actionError = "No library available to translate."
             return
         }

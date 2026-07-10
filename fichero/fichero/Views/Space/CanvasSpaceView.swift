@@ -134,18 +134,22 @@ struct CanvasSpaceView: View {
                 Image(systemName: "plus")
             }
             .fixedSize()
+            .accessibilityLabel("Add canvas item")
             .help("Add a canvas item at the camera focus")
 
             if let id = selectedNodeId {
                 Button { adjustZ(of: id, by: 0.25) } label: { Image(systemName: "arrow.up.forward") }
+                    .accessibilityLabel("Push canvas item away")
                     .help("Push away (−z toward the camera axis)")
                 Button { adjustZ(of: id, by: -0.25) } label: { Image(systemName: "arrow.down.backward") }
+                    .accessibilityLabel("Pull canvas item forward")
                     .help("Pull forward along z")
             }
             if selectedIsItem, let id = selectedNodeId {
                 Button(role: .destructive) { controller?.dispatch(.deleteItem(id: id)) } label: {
                     Image(systemName: "trash")
                 }
+                .accessibilityLabel("Delete canvas item")
                 .help("Delete this canvas item")
             }
         }

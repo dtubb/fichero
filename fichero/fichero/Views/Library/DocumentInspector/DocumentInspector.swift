@@ -43,7 +43,7 @@ struct DocumentInspector: View {
     @Environment(EntityServiceGenerated.self) private var entityService
     @Environment(ArtifactServiceGenerated.self) private var artifactService
     @Environment(KGCurationServiceGenerated.self) private var kgCurationService
-    @ObservedObject private var featureManager = FeatureManager.shared
+    @Environment(FeatureManager.self) private var featureManager
     @Environment(ClaimFocusState.self) private var claimFocusState
     /// Cross-view KG focus. When an entity is focused (a lozenge / WebKit-graph
     /// click), the inspector retargets to inspect that entity instead of the
@@ -69,9 +69,13 @@ struct DocumentInspector: View {
         .task(id: kgFocusState.focusedEntityId) {
             await loadFocusedEntity()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .ficheroOpenClaimSource)) { note in
-            guard let info = note.userInfo else { return }
-            if info["claimId"] is String || info["entityId"] is String {
+        .onChange(of: claimFocusState.selectedClaimId) { _, claimId in
+            if claimId != nil {
+                selectedTab = .knowledgeGraph
+            }
+        }
+        .onChange(of: kgFocusState.focusedEntityId) { _, entityId in
+            if entityId != nil {
                 selectedTab = .knowledgeGraph
             }
         }

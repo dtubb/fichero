@@ -2,91 +2,11 @@ import SwiftUI
 
 // MARK: - Page Content Pane (#1189)
 
-struct PageContentPaneEditState {
-    var isEditing = false
-    var draftContent = ""
-    var savedContent = ""
-
-    mutating func synchronize(with content: String) {
-        guard !isEditing else { return }
-        draftContent = content
-        savedContent = content
-    }
-
-    mutating func beginEditing(from content: String) {
-        draftContent = content
-        savedContent = content
-        isEditing = true
-    }
-
-    mutating func markSaved() {
-        savedContent = draftContent
-    }
-
-    var hasUnsavedChanges: Bool {
-        draftContent != savedContent
-    }
-
-    func shouldSaveOnBlur(isFocused: Bool) -> Bool {
-        isEditing && !isFocused && hasUnsavedChanges
-    }
-}
-
-struct PageContentClaimSourceHighlight: Equatable {
-    let before: String
-    let highlighted: String
-    let after: String
-
-    static func match(content: String, documentId: String, info: [AnyHashable: Any]) -> Self? {
-        guard let infoDocumentId = info["documentId"] as? String,
-              infoDocumentId == documentId,
-              !content.isEmpty else { return nil }
-
-        if let charRange = charRange(in: content, info: info) {
-            return split(content: content, range: charRange)
-        }
-
-        let excerpt = ((info["excerpt"] as? String) ?? (info["claimText"] as? String))?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let excerpt, !excerpt.isEmpty,
-              let range = content.range(
-                of: excerpt,
-                options: [.caseInsensitive, .diacriticInsensitive]
-              ) else { return nil }
-        return split(content: content, range: range)
-    }
-
-    private static func charRange(in content: String, info: [AnyHashable: Any]) -> Range<String.Index>? {
-        let start = intValue(info["charStart"])
-        let end = intValue(info["charEnd"])
-        guard let start, let end, start >= 0, end > start, end <= content.utf16.count else {
-            return nil
-        }
-        let lower = String.Index(utf16Offset: start, in: content)
-        let upper = String.Index(utf16Offset: end, in: content)
-        guard lower < upper else { return nil }
-        return lower..<upper
-    }
-
-    private static func intValue(_ value: Any?) -> Int? {
-        if let int = value as? Int { return int }
-        if let number = value as? NSNumber { return number.intValue }
-        return nil
-    }
-
-    private static func split(content: String, range: Range<String.Index>) -> Self {
-        Self(
-            before: String(content[..<range.lowerBound]),
-            highlighted: String(content[range]),
-            after: String(content[range.upperBound...])
-        )
-    }
-}
-
 /// Displays the transcription / page_content text for the selected page document.
-struct PageContentPane: View {
+struct PageContentPane: View { // swiftlint:disable:this type_body_length
     let document: Document?
 
+    @Environment(ClaimFocusState.self) private var claimFocusState
     @Environment(DocumentServiceGenerated.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
@@ -224,9 +144,11 @@ struct PageContentPane: View {
                 isEditorFocused = true
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .ficheroNavigateToPage)) { note in
-            updateSourceHighlight(note)
-        }
+        .onChange(of: claimFocusState.selectedClaimId) { _, _ in syncSourceHighlightFromClaimFocus() }
+        .onChange(of: claimFocusState.selectedClaimSourceDocumentId) { _, _ in syncSourceHighlightFromClaimFocus() }
+        .onChange(of: claimFocusState.selectedClaimText) { _, _ in syncSourceHighlightFromClaimFocus() }
+        .onChange(of: claimFocusState.selectedClaimCharStart) { _, _ in syncSourceHighlightFromClaimFocus() }
+        .onChange(of: claimFocusState.selectedClaimCharEnd) { _, _ in syncSourceHighlightFromClaimFocus() }
     }
 
     @ViewBuilder
@@ -285,6 +207,29 @@ struct PageContentPane: View {
                 documentId: doc.id,
                 info: info
               ) else { return }
+        sourceHighlight = highlight
+        sourceHighlightToken = UUID()
+    }
+
+    private func syncSourceHighlightFromClaimFocus() {
+        guard let doc = pageDoc else {
+            sourceHighlight = nil
+            return
+        }
+        let info: [AnyHashable: Any] = [
+            "documentId": claimFocusState.selectedClaimSourceDocumentId as Any,
+            "claimText": claimFocusState.selectedClaimText as Any,
+            "charStart": claimFocusState.selectedClaimCharStart as Any,
+            "charEnd": claimFocusState.selectedClaimCharEnd as Any
+        ]
+        guard let highlight = PageContentClaimSourceHighlight.match(
+            content: pageContent,
+            documentId: doc.id,
+            info: info
+        ) else {
+            sourceHighlight = nil
+            return
+        }
         sourceHighlight = highlight
         sourceHighlightToken = UUID()
     }

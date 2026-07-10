@@ -262,6 +262,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
+                .accessibilityLabel("Delete artifact")
                 .help("Delete this artifact")
             }
         }
