@@ -83,7 +83,8 @@ extension SidebarItemRow {
         case .externalFiles:
             // Any mixed/internal+Finder payload is treated as external so we
             // don't partially route the same drop through document moves.
-            _ = handleProvidersDrop(providers, targetFolder: item)
+            let targetFolder = item.isFolder ? item : parentFolderItem(of: item)
+            _ = handleProvidersDrop(providers, targetFolder: targetFolder)
             return true
 
         case .unsupported:

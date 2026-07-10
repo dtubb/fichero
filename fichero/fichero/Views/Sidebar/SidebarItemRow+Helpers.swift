@@ -211,6 +211,30 @@ func sidebarReorderedDocIds(
     return afterDocIds
 }
 
+func findSidebarItemById(_ id: String, in items: [SidebarItem]) -> SidebarItem? {
+    for item in items {
+        if item.id == id {
+            return item
+        }
+        if let children = item.children,
+           let found = findSidebarItemById(id, in: children) {
+            return found
+        }
+    }
+    return nil
+}
+
+func sidebarParentFolderItem(
+    of item: SidebarItem,
+    in allCachedItems: [SidebarItem]
+) -> SidebarItem? {
+    guard case .document(let doc) = item.itemType,
+          let parentId = doc.parentId else {
+        return nil
+    }
+    return findSidebarItemById("doc:\(parentId)", in: allCachedItems)
+}
+
 extension SidebarItemRow {
     func isDescendant(_ potentialDescendant: String, of ancestorId: String) -> Bool {
         guard let ancestorItem = findItemById(ancestorId, in: allCachedItems) else {
@@ -252,11 +276,7 @@ extension SidebarItemRow {
     /// Used so that dropping a file onto `page1.pdf` imports the new file next to
     /// it (into the same folder), matching Finder's sibling-drop behaviour.
     func parentFolderItem(of item: SidebarItem) -> SidebarItem? {
-        guard case .document(let doc) = item.itemType,
-              let parentId = doc.parentId else {
-            return nil
-        }
-        return findItemById("doc:\(parentId)", in: allCachedItems)
+        sidebarParentFolderItem(of: item, in: allCachedItems)
     }
 
     /// Dispatch a sidebar drag-drop move to the appropriate backend service

@@ -100,10 +100,9 @@ extension SidebarItemRow {
         }
     }
 
-    // Folders (with or without children) are drop targets; leaves
-    // (PDFs, images, saved searches, etc.) are drag sources only.
-    // Matches Finder semantics: you can drag a file out, but you
-    // can't drop anything onto a file.
+    // Folders are direct drop targets. Document leaves also accept file drops,
+    // which resolve to their parent folder so dropping onto `page1.pdf` imports
+    // beside it, matching Finder's sibling-drop behavior.
     @ViewBuilder
     private var bodyContent: some View {
         if isExpandable {
@@ -149,6 +148,13 @@ extension SidebarItemRow {
     /// SwiftUI's tap-vs-drag disambiguation (#711 follow-up).
     private var leafLabel: some View {
         fullWidthLabel
+            .sidebarDropHighlight(isDropTargeted)
+            .onDrop(
+                of: [UTType.utf8PlainText, UTType.item],
+                isTargeted: $isDropTargeted
+            ) { providers in
+                handleRowDrop(providers)
+            }
             .contextMenu { rowContextMenu }
     }
 }
