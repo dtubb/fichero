@@ -212,6 +212,16 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("under the shell sidebar or off the left window edge"))
     }
 
+    func testLibraryWorkspaceDefersLiveUpdateStreamsUntilBackendReady() throws {
+        let source = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
+
+        XCTAssertTrue(source.contains("@Environment(AppState.self) private var appState"))
+        XCTAssertTrue(source.contains("guard appState.isBackendRunning else { return }"))
+        XCTAssertTrue(source.contains("app is still probing the engine can falsely trip the paused"))
+        XCTAssertTrue(source.contains("library.changeStream.start()"))
+        XCTAssertTrue(source.contains("library.activityStore.start()"))
+    }
+
     func testCurrentChatScopePrefersSelectionThenDetailThenVisibleCollection() {
         let folder = Document(id: "folder-1", docType: .folder, name: "Folder")
         let page = Document(id: "page-1", parentId: "folder-1", docType: .page, fileType: .pdf, name: "Page 1")

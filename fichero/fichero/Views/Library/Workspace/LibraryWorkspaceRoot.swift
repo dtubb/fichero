@@ -35,6 +35,7 @@ enum LibraryWorkspaceSelection {
 /// macOS wraps it in `LibraryWindow` for window chrome and commands; iPhone,
 /// iPad, and visionOS embed the same workspace directly.
 struct LibraryWorkspaceRoot: View {
+    @Environment(AppState.self) private var appState
     @Environment(LibraryManager.self) private var libraryManager
     #if canImport(UIKit) && !os(macOS)
     @Environment(MobileCaptureQueueStore.self) private var captureQueue
@@ -94,10 +95,15 @@ struct LibraryWorkspaceRoot: View {
             .environment(library.referenceStore)
             .environment(library.interpretationStore)
             .environment(library.changeStream)
-            .task(id: library.id) {
+            .task(id: "\(library.id.uuidString)-\(appState.isBackendRunning)") {
                 if windowState.libraryId != library.id {
                     windowState.libraryId = library.id
                 }
+                // Don’t start the live-update streams until the backend has
+                // completed its readiness handshake. Starting them while the
+                // app is still probing the engine can falsely trip the paused
+                // pill until the user taps Reconnect (#3351).
+                guard appState.isBackendRunning else { return }
                 library.changeStream.start()
                 library.activityStore.start()
             }
