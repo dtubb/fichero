@@ -40,11 +40,7 @@ struct DocumentDetailWindow: View {
     @State private var focused = FocusedDocument.shared
     @State private var isPinned = false
     @State private var pinnedDocument: Document?
-    @State private var windowState = WindowState(
-        libraryId: FocusedDocument.shared.libraryId
-            ?? LibraryManager.shared.globalLibrary?.id
-            ?? UUID()
-    )
+    @State private var windowState = WindowState(libraryId: FocusedDocument.shared.libraryId ?? UUID())
 
     private var activeLibrary: LibraryManager.LibraryReference? {
         if let libraryId = focused.libraryId,

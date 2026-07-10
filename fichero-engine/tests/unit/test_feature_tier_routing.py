@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import fichero.api.main as main_module
+from fichero.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero.api.main import get_route_specs_for_tier, register_tiered_routes, resolve_feature_tier
 
 
@@ -27,7 +28,20 @@ def _tier_client(monkeypatch, tier: str) -> TestClient:
     return TestClient(test_app)
 
 
-def test_release_tier_exposes_001_routes():
+def _tiered_public_prefixes_for(tier: str) -> set[str]:
+    return {
+        main_module._route_spec_public_prefix(route_spec)
+        for route_spec in get_route_specs_for_tier(tier)
+        if main_module._route_spec_public_prefix(route_spec) in ROUTE_PREFIX_TIERS
+    }
+
+
+def test_tiered_route_prefixes_match_generated_cumulative_map():
+    for tier in ("release", "beta", "alpha", "dev"):
+        assert _tiered_public_prefixes_for(tier) == set(CUMULATIVE_ROUTE_PREFIXES[tier])
+
+
+def test_release_tier_keeps_core_routes_and_hides_beta_routes():
     prefixes = _route_prefixes_for("release")
 
     assert "/api/documents" in prefixes
@@ -41,19 +55,10 @@ def test_release_tier_exposes_001_routes():
     assert "/api/folders" in prefixes
     assert "/api/artifacts" in prefixes
 
-    assert "/api/providers" in prefixes
-    assert "/api/models" in prefixes
-    assert any(
-        prefix == "/api" and "model-comparison" in tags
-        for _, prefix, tags in get_route_specs_for_tier("release")
-    )
-    assert "/api/workflows" in prefixes
-    assert "/api/workflow-execution" in prefixes
-    # Chains promoted from dev to core for 0.0.2 (#1151)
-    chain_tags = [
-        tags for _, _, tags in get_route_specs_for_tier("release") if "chains" in tags
-    ]
-    assert chain_tags, "chains router must be in release tier (#1151)"
+    assert "/api/providers" not in prefixes
+    assert "/api/models" not in prefixes
+    assert "/api/workflows" not in prefixes
+    assert "/api/workflow-execution" not in prefixes
 
 
 def _kg_router_count(tier: str) -> int:
@@ -62,18 +67,10 @@ def _kg_router_count(tier: str) -> int:
     return sum(1 for _, _, tags in specs if "knowledge-graph" in tags)
 
 
-def test_release_tier_includes_consolidated_kg_surface():
-    """Release tier exposes the full consolidated KG surface — the post-
-    1587a1b6 \"all KG ships in release\" decision (#832) + the #997
-    promotion that moved hermeneutics from dev to release too. Dev no
-    longer needs to add KG routers.
-    """
-    assert _kg_router_count("release") >= 15
-    # Dev tier should still have at least as much KG surface as release
-    # (no regression: dev == release for KG today, but the test reads
-    # as \"dev never has fewer\" so a future dev-only KG router slots in
-    # without test breakage).
-    assert _kg_router_count("dev") >= _kg_router_count("release")
+def test_higher_tiers_do_not_lose_kg_surface():
+    assert _kg_router_count("beta") >= _kg_router_count("release")
+    assert _kg_router_count("alpha") == _kg_router_count("beta")
+    assert _kg_router_count("dev") >= _kg_router_count("alpha")
 
 
 def test_iiif_server_mode_is_dev_tier_only():
@@ -85,7 +82,7 @@ def test_iiif_server_mode_is_dev_tier_only():
 
 def test_alpha_and_beta_routes_are_cumulative():
     assert not _spec_exists("release", "/api/chat", "chat")
-    assert not _spec_exists("beta", "/api/chat", "chat")
+    assert _spec_exists("beta", "/api/chat", "chat")
     assert _spec_exists("alpha", "/api/chat", "chat")
     assert _spec_exists("dev", "/api/chat", "chat")
 
@@ -102,8 +99,12 @@ def test_alpha_and_beta_routes_are_cumulative():
 
 def test_release_routes_remain_visible_in_all_tiers():
     for tier in ("release", "beta", "alpha", "dev"):
-        assert _spec_exists(tier, "/api/workflows", "workflows")
         assert _spec_exists(tier, "/api/search", "search")
+        assert _spec_exists(tier, "/api/ingest", "ingest")
+
+    for tier in ("beta", "alpha", "dev"):
+        assert _spec_exists(tier, "/api/workflows", "workflows")
+        assert _spec_exists(tier, "/api/workflow-execution", "workflow-execution")
 
 
 def test_invalid_tier_defaults_to_release(monkeypatch):
@@ -135,7 +136,7 @@ def test_beta_build_404s_dev_and_alpha_routes(monkeypatch):
     client = _tier_client(monkeypatch, "beta")
 
     assert client.get("/api/iiif/iiif/test/info.json").status_code == 404
-    assert client.post("/api/chat").status_code == 404
+    assert client.post("/api/chat").status_code != 404
     assert client.get("/api/research/projects").status_code != 404
     assert client.get("/api/activity").status_code != 404
 
@@ -144,6 +145,15 @@ def test_alpha_build_404s_dev_routes_only(monkeypatch):
     client = _tier_client(monkeypatch, "alpha")
 
     assert client.get("/api/iiif/iiif/test/info.json").status_code == 404
+    assert client.post("/api/chat").status_code != 404
+    assert client.get("/api/research/projects").status_code != 404
+    assert client.get("/api/activity").status_code != 404
+
+
+def test_dev_build_serves_release_beta_and_dev_routes(monkeypatch):
+    client = _tier_client(monkeypatch, "dev")
+
+    assert client.get("/api/iiif/iiif/test/info.json").status_code != 404
     assert client.post("/api/chat").status_code != 404
     assert client.get("/api/research/projects").status_code != 404
     assert client.get("/api/activity").status_code != 404

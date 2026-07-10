@@ -63,6 +63,15 @@ SANCTIONED_RAW_TRANSPORT: dict[str, str] = {
         "URLSession byte stream derives base URL and library context from the "
         "same generated-client transport as the typed activity endpoints"
     ),
+    "ChangeStreamTransport.swift": (
+        "#1943/#2518 — library change-stream is an infinite SSE feed; generated "
+        "operations buffer the response body, so the pinned raw stream remains "
+        "the sanctioned transport for incremental change events"
+    ),
+    "EngineReadinessProbe.swift": (
+        "#3106 — readiness bootstrap must probe health/registry before the "
+        "generated client and signed-in library context are usable"
+    ),
     "ArtifactServiceGenerated.swift": (
         "#1943 — same file also hosts EntityServiceGenerated; remaining raw helpers "
         "decode flexible citation/classification/hermeneutics payloads that generated "

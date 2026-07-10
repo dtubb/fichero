@@ -896,8 +896,9 @@ class MigrationRunner:
     def get_migration_status(self, run_id: str) -> dict | None:
         """Get status of a migration run from its audit logs."""
         records = self.db.query(MigrationRunRecord, run_id=run_id)
-        if records:
-            return records[0].model_dump()
+        run_records = [record for record in records if isinstance(record, MigrationRunRecord)]
+        if run_records:
+            return run_records[0].model_dump()
 
         mutations = self.db.query(MutationLog, run_id=run_id)
         if not mutations:

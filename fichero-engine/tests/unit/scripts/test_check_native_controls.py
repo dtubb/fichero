@@ -32,3 +32,15 @@ def test_baseline_has_no_stale_signature_entries():
     found = check_native_controls.scan()
     stale = sorted(set(check_native_controls.KNOWN_VIOLATIONS) - set(found))
     assert not stale, "Remove stale KNOWN_VIOLATIONS entries:\n  " + "\n  ".join(stale)
+
+
+def test_main_fails_when_known_violations_are_stale(monkeypatch):
+    monkeypatch.setattr(check_native_controls, "scan", lambda: {})
+    monkeypatch.setattr(
+        check_native_controls,
+        "KNOWN_VIOLATIONS",
+        {"Fake.swift#deadbeef00": "test stale entry"},
+    )
+    monkeypatch.setattr(sys, "argv", ["check_native_controls.py"])
+
+    assert check_native_controls.main() == 1

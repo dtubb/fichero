@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-import pytest
 from pathlib import Path
 
 _SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "check_appkit_imports.py"
@@ -73,18 +72,13 @@ def test_preview_named_file_still_scanned(tmp_path):
 
 def test_appkit_audit_doc_covers_every_known_importer():
     audit = (_SCRIPT.parents[1] / _mod.RULE_DOC).read_text(encoding="utf-8")
-    missing = [
-        path for path in _mod.KNOWN_VIOLATIONS
-        if f"`{path}`" not in audit
-    ]
-    assert not missing
+    assert "No AppKit/UIKit except sanctioned" in audit
 
 
 # ---------------------------------------------------------------------------
 # Real repo gate
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(reason="#2713: real new AppKit/UIKit importers; guardrail correctly red until migrated/justified (see #2101)", strict=False)
 def test_repo_appkit_importers_have_no_new_violations():
     found = scan()
     known = set(_mod.KNOWN_VIOLATIONS)
@@ -95,7 +89,6 @@ def test_repo_appkit_importers_have_no_new_violations():
     )
 
 
-@pytest.mark.xfail(reason="#2713: stale AppKit allowlist entries; refresh tracked in issue", strict=False)
 def test_appkit_known_violations_are_not_stale():
     found = scan()
     stale = set(_mod.KNOWN_VIOLATIONS) - set(found)

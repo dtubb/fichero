@@ -95,6 +95,7 @@ extension ChatInspector {
                                         .foregroundColor(.accentColor)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("Add document to chat")
                                 .help("Add this document to the chat scope")
                             }
                         }

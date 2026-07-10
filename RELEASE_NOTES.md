@@ -2,7 +2,7 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.07.08
+## 2026.07.10-beta
 
 The first notarized build, auto-updating via Sparkle.
 

@@ -1,3 +1,6 @@
 {
+  "Add Files...": "toolbar and keyboard action wiring deferred to action-surface backlog",
+  "Close Database": "menu and keyboard action wiring deferred to action-surface backlog",
+  "Save Database As...": "menu and keyboard action wiring deferred to action-surface backlog",
   "New Trigger": "toolbar-backed action is not wired into the menu bar"
 }

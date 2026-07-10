@@ -256,10 +256,7 @@ PY
 }
 
 XCODE_PROJECT="fichero/fichero.xcodeproj"
-# #3345 split schemes per platform: Mac vs iOS. Use the Dev Local pair (Debug
-# config, external engine on :8765) for the verify build/test legs.
-XCODE_SCHEME="Fichero (Dev Local)"
-XCODE_SCHEME_IOS="Fichero (Dev Local iOS)"
+XCODE_SCHEME="Fichero"
 VISION_SUPPORTED=0
 
 if rg -q 'SUPPORTED_PLATFORMS = ".*xros' "${XCODE_PROJECT}/project.pbxproj"; then
@@ -431,12 +428,12 @@ run_platform_checks() {
 
     run_xcode_build "xcodebuild iPhone Simulator build" \
       -project "${XCODE_PROJECT}" \
-      -scheme "${XCODE_SCHEME_IOS}" \
+      -scheme "${XCODE_SCHEME}" \
       -destination "id=${iphone_udid}"
 
     run_xcode_build "xcodebuild iPad Simulator build" \
       -project "${XCODE_PROJECT}" \
-      -scheme "${XCODE_SCHEME_IOS}" \
+      -scheme "${XCODE_SCHEME}" \
       -destination "id=${ipad_udid}"
 
     if [[ "${VISION_SUPPORTED}" -eq 1 ]]; then
@@ -445,7 +442,7 @@ run_platform_checks() {
       if [[ -n "${vision_udid}" ]]; then
         run_xcode_build "xcodebuild visionOS Simulator build" \
           -project "${XCODE_PROJECT}" \
-          -scheme "${XCODE_SCHEME_IOS}" \
+          -scheme "${XCODE_SCHEME}" \
           -destination "id=${vision_udid}"
       else
         skip_check "xcodebuild visionOS Simulator build" "no available visionOS simulator"

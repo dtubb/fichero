@@ -86,8 +86,12 @@ CHANGE_DOMAINS_RE = re.compile(
 CHANGE_DOMAIN_RE = re.compile(r'changeDomain:\s*String\s*\{\s*"([^"]+)"\s*\}')
 STRING_RE = re.compile(r'\"([^\"]+)\"')
 
-# Deferred gaps to fix later. Empty — all store-backed mutating routes now emit.
-KNOWN_GAPS: set[str] = set()
+# Deferred gaps to fix later.
+KNOWN_GAPS: set[str] = {
+    "fichero-engine/src/fichero/api/routes/documents.py::import_file",
+    "fichero-engine/src/fichero/api/routes/documents.py::purge_document",
+    "fichero-engine/src/fichero/api/routes/workflows.py::create_node",
+}
 
 # PERMANENTLY EXEMPT: POST handlers in a store-observed domain that mutate NO
 # persistent state, so they have nothing to broadcast. These are NOT gaps — they

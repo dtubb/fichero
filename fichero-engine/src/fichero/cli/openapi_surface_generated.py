@@ -3836,6 +3836,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("export-a-s-annotations-as-w3c-annotationpage")
+    def documents_export_a_s_annotations_as_w3c_annotationpage_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+    ) -> None:
+        """Export a document's annotations as W3C AnnotationPage (GET /api/documents/{doc_id}/annotations.jsonld)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/annotations.jsonld"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-children")
     def documents_get_children_get(
         ctx: typer.Context,

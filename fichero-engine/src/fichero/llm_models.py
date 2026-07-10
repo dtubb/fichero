@@ -103,7 +103,7 @@ def estimate_cost(
             completion_tokens=output_tokens,
         )
         return input_cost + output_cost
-    except Exception as exc:
+    except Exception:
         logger.exception("LiteLLM cost estimate failed for %s", model)
         return None
 

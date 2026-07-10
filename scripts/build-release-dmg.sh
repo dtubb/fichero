@@ -6,16 +6,13 @@ set -euo pipefail
 # Usage: scripts/build-release-dmg.sh [--skip-backend] [--skip-app-build]
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# Tier -> config from FICHERO_RELEASE_TIER (default release); the app build is
-# delegated to build-release.sh, so here we only need the Products/$MAC_CONFIG dir.
-source "$ROOT_DIR/scripts/tier_build_map.sh"
 STAGE_DIR="$ROOT_DIR/build/releases/dmg-stage"
 DMG_RW="$ROOT_DIR/build/releases/Fichero-rw.dmg"
 DMG_PATH="$ROOT_DIR/build/releases/Fichero.dmg"
 MANIFEST_PATH="$ROOT_DIR/build/releases/release-manifest.txt"
 VOLUME_NAME="Fichero"
 APP_NAME="Fichero.app"
-APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/$MAC_CONFIG/$APP_NAME"
+APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/Release/$APP_NAME"
 ICON_SOURCE="$ROOT_DIR/icons/fichero-icon.png"
 SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml}"
 

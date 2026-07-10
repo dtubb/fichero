@@ -186,9 +186,11 @@ struct ActivityBrowserView: View {
                     Button {
                         openWindow(id: ActivityWindowSelectionState.monitorWindowID)
                     } label: {
-                        Image(systemName: "arrow.up.forward.app")
+                        Label("Open Activity Monitor", systemImage: "arrow.up.forward.app")
+                            .labelStyle(.iconOnly)
                     }
                     .buttonStyle(.borderless)
+                    .accessibilityLabel("Open Activity Monitor")
                     .help("Open Activity Monitor in its own window")
                 }
             }
@@ -354,6 +356,7 @@ private struct ActivityBrowserRow: View {
                         .font(.body)
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("Open activity details")
                 .help("Open activity details in a separate window")
             }
         }

@@ -7909,6 +7909,50 @@
         }
       }
     },
+    "/api/documents/{doc_id}/annotations.jsonld": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Export a document's annotations as W3C AnnotationPage",
+        "operationId": "export_document_annotations_jsonld_api_documents__doc_id__annotations_jsonld_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Export Document Annotations Jsonld Api Documents  Doc Id  Annotations Jsonld Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/batch-exclude": {
       "patch": {
         "tags": [
@@ -31690,7 +31734,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IIIFManifest"
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Iiif Manifest Api Iiif Iiif Manifest  Document Id  Get"
                 }
               }
             }
@@ -43316,48 +43362,6 @@
         },
         "type": "object",
         "title": "HeuristicRequest"
-      },
-      "IIIFManifest": {
-        "properties": {
-          "context": {
-            "type": "string",
-            "title": "Context",
-            "default": "http://iiif.io/api/presentation/2/context.json"
-          },
-          "@id": {
-            "type": "string",
-            "title": "@Id"
-          },
-          "type": {
-            "type": "string",
-            "title": "Type",
-            "default": "sc:Manifest"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true,
-            "title": "Description"
-          },
-          "sequences": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Sequences"
-          }
-        },
-        "type": "object",
-        "required": [
-          "@id",
-          "label"
-        ],
-        "title": "IIIFManifest",
-        "description": "IIIF Presentation API Manifest."
       },
       "ImageEditChainResponse": {
         "properties": {

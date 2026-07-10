@@ -29,6 +29,7 @@
     "/api/documents/cleanup-orphans": "baseline: not yet wired",
     "/api/documents/pdfs/backfill-pages": "baseline: not yet wired",
     "/api/documents/trash": "#2075 backend; UI tracked in #2077",
+    "/api/documents/{doc_id}/annotations.jsonld": "backend/CLI annotation export; SwiftUI wiring tracked as annotation export UI backlog",
     "/api/documents/{doc_id}/notes": "baseline: not yet wired",
     "/api/documents/{doc_id}/page-ranges": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",
     "/api/documents/{doc_id}/page-ranges/at/{page}": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",

@@ -631,6 +631,12 @@ class TestAnnotationMutationsEmitChange:
                 {"library_path": library_path, **kwargs}
             ),
         )
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
 
         ann = _make_annotation(
             db, document_id="doc-emit-ann-promote", text="Promote me"
@@ -678,7 +684,7 @@ class TestWorkflowMutationsEmitChange:
         call = captured[0]
         assert call["library_path"] == str(test_package)
         assert call["type"] == "workflow.created"
-        assert call["actor"] == "system"
+        assert call["actor"] == "owner"
 
     def test_delete_workflow_emits_deleted(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
@@ -707,7 +713,7 @@ class TestWorkflowMutationsEmitChange:
         call = captured[-1]
         assert call["library_path"] == str(test_package)
         assert call["type"] == "workflow.deleted"
-        assert call["actor"] == "system"
+        assert call["actor"] == "owner"
 
 
 class TestNoteMutationsEmitChange:
@@ -811,7 +817,7 @@ class TestNoteMutationsEmitChange:
         call = captured[0]
         assert call["library_path"] == str(test_package)
         assert call["type"] == "note.updated"
-        assert call["actor"] == "system"
+        assert call["actor"] == "owner"
         assert folder.id in call["document_ids"]
 
 

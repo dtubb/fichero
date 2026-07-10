@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from fichero.db import Database
@@ -64,7 +64,7 @@ async def get_workflow_cache_stats(
 
         return CacheStatsResponse(**stats)
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to get cache stats for workflow {workflow_id}")
         raise workflow_internal_error("Failed to get workflow cache stats")
 
@@ -94,7 +94,7 @@ async def clear_workflow_cache(
             message=f"Cleared {count} cached entries for workflow {workflow_id}",
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to clear cache for workflow {workflow_id}")
         raise workflow_internal_error("Failed to clear workflow cache")
 
@@ -119,7 +119,7 @@ async def clear_all_cache(
             entries_deleted=count, message=f"Cleared entire cache: {count} entries"
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to clear cache")
         raise workflow_internal_error("Failed to clear workflow cache")
 
@@ -142,6 +142,6 @@ async def get_all_cache_stats(
 
         return CacheStatsResponse(**stats)
 
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to get cache stats")
         raise workflow_internal_error("Failed to get workflow cache stats")

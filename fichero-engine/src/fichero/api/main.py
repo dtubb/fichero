@@ -1524,15 +1524,15 @@ _CUMULATIVE_ROUTE_PREFIX_SET = {
 def _route_spec_public_prefix(route_spec: RouteSpec) -> str:
     """Resolve the public URL prefix a RouteSpec exposes."""
     router, include_prefix, _ = route_spec
-    # Non-"/api" include prefixes (e.g. "/api/iiif") are the declared public
-    # prefix as emitted by gen_feature_tiers.py into ROUTE_PREFIX_TIERS; do NOT
-    # concatenate the router's own prefix (iiif.router.prefix="/iiif" would
-    # yield "/api/iiif/iiif" and escape tier gating as unclassified).
+    router_prefix = getattr(router, "prefix", "") or ""
+    exposed_prefix = f"{include_prefix}{router_prefix}" if router_prefix else include_prefix
+    for public_prefix in sorted(ROUTE_PREFIX_TIERS, key=len, reverse=True):
+        if exposed_prefix == public_prefix or exposed_prefix.startswith(f"{public_prefix}/"):
+            return public_prefix
+    # Non-"/api" include prefixes (e.g. "/api/iiif") are usually already the
+    # declared public prefix. Do not concatenate inner route paths here.
     if include_prefix != "/api":
         return include_prefix
-    router_prefix = getattr(router, "prefix", "") or ""
-    if router_prefix:
-        return f"{include_prefix}{router_prefix}"
 
     first_segments = {
         "/" + path.lstrip("/").split("/", 1)[0]

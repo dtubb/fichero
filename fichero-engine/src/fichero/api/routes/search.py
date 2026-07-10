@@ -1501,12 +1501,17 @@ def reorder_saved_searches_impl(
     """
     before_orders: dict[str, int] = {}
     for i, search_id in enumerate(search_ids):
-        saved = _require_saved_search_owner(
-            db,
-            search_id,
+        saved = db.get(SavedSearch, search_id)
+        if saved is None:
+            raise HTTPException(
+                status_code=404, detail=f"Saved search not found: {search_id}"
+            )
+        if not _saved_search_visible_to_actor(
+            saved,
             actor,
             is_bootstrap=is_bootstrap,
-        )
+        ):
+            raise HTTPException(status_code=404, detail="Saved search not found")
 
         before_orders[search_id] = saved.sort_order
         # Update sort order

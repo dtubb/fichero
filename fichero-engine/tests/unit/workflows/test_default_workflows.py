@@ -97,6 +97,7 @@ class TestLoadPresetFiles:
     def test_legacy_catalogue_duplicate_presets_do_not_ship(self):
         presets = {p["name"]: p for p in _load_preset_files()}
         removed = {
+            "Catalogue Full Pipeline",
             "Catalogue Each",
             "Catalogue Stage 1 - Transcribe Pages",
             "Catalogue Stage 2 - Extract Entities + KG",
@@ -191,16 +192,20 @@ class TestLoadPresetFiles:
         remains unchanged while users can run transcription and entity/KG
         stages independently (#1669)."""
         presets = {p["name"]: p for p in _load_preset_files()}
+        catalogue = presets["Catalogue"]
         stage0 = presets["1 · Import → Artifacts"]
         stage0b = presets["2 · Extract Entities"]
         stage0c = presets["3 · Extract SVO → Claims"]
         stage0d = presets["4 · Merge / Dedup"]
         stage0e = presets["5 · KG Persist / Finalize"]
-        full_pipeline = presets["Catalogue Full Pipeline"]
 
-        for preset in (
-            stage0, stage0b, stage0c, stage0d, stage0e, full_pipeline
-        ):
+        assert catalogue.get("is_template") is True
+        assert catalogue.get("is_system") is True
+        assert catalogue.get("folder_path") == "/Catalogue"
+        assert "stage" not in catalogue.get("tags", [])
+        assert "reviewable" not in catalogue.get("tags", [])
+
+        for preset in (stage0, stage0b, stage0c, stage0d, stage0e):
             assert preset.get("is_template") is True
             assert preset.get("is_system") is True
             assert preset.get("folder_path") == "/Catalogue"
@@ -273,45 +278,6 @@ class TestLoadPresetFiles:
             and e["target_port"] == "documents"
             for e in stage0e["edges"]
         ), "stage 5 must feed selected documents into kg_persist_finalize"
-
-        full_tools = [n["tool"] for n in full_pipeline["nodes"]]
-        assert full_tools == [
-            "files",
-            "import_artifacts",
-            "extract_entities_only",
-            "extract_svo_only",
-            "merge_dedup_only",
-            "kg_persist_finalize",
-        ]
-        full_nodes = {node["tool"]: node["id"] for node in full_pipeline["nodes"]}
-        expected_barriers = [
-            ("import_artifacts", "extract_entities_only"),
-            ("extract_entities_only", "extract_svo_only"),
-            ("extract_svo_only", "merge_dedup_only"),
-            ("merge_dedup_only", "kg_persist_finalize"),
-        ]
-        for source_tool, target_tool in expected_barriers:
-            assert any(
-                e["source"] == full_nodes[source_tool]
-                and e["target"] == full_nodes[target_tool]
-                and e["source_port"] == "summary"
-                and e["target_port"] == "barrier"
-                for e in full_pipeline["edges"]
-            ), f"full pipeline must serialize {source_tool} -> {target_tool}"
-        for target_tool in (
-            "import_artifacts",
-            "extract_entities_only",
-            "extract_svo_only",
-            "merge_dedup_only",
-            "kg_persist_finalize",
-        ):
-            assert any(
-                e["source"] == full_nodes["files"]
-                and e["target"] == full_nodes[target_tool]
-                and e["source_port"] == "documents"
-                and e["target_port"] == "documents"
-                for e in full_pipeline["edges"]
-            ), f"full pipeline must feed documents into {target_tool}"
 
     def test_catalogue_small_uses_dollar_small_throughout(self):
         """Every LLM-using node in the default Catalogue preset references
@@ -1377,6 +1343,7 @@ class TestSeedDefaultWorkflows:
 
         db = MagicMock()
         legacy_names = [
+            "Catalogue Full Pipeline",
             "Catalogue Each",
             "Catalogue Stage 1 - Transcribe Pages",
             "Catalogue Stage 2 - Extract Entities + KG",

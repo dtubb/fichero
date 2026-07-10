@@ -490,7 +490,7 @@ def test_catalogue_full_pipeline_runs_from_folder_with_stubs(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ):
-    workflow = _workflow_from_preset("Catalogue Full Pipeline", provider_name="mock")
+    workflow = _workflow_from_preset("Catalogue", provider_name="mock")
     library_path, folder, docs_by_id, expected_doc_ids = _seed_full_pipeline_folder(tmp_path)
     node_ids = {node.tool: node.id for node in workflow.nodes}
 

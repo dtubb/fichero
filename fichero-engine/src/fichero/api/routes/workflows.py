@@ -803,8 +803,6 @@ async def list_workflows(
     of folder. Pass an explicit value (e.g. "/Catalogue") to filter.
     """
     try:
-        from fichero.models import Workflow
-
         workflows = _workflow_rows_for_list(db, folder_path)
         items = [
             _workflow_to_response(workflow)
@@ -1139,14 +1137,17 @@ def duplicate_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # no
     new_workflow = Workflow(
         name=f"{original.name} (Copy)",
         description=original.description,
+        is_template=original.is_template,
+        is_system=original.is_system,
+        tags=list(original.tags),
         format=original.format,
+        config=dict(original.config),
         provider=original.provider,
         model=original.model,
         nodes=original.nodes,
         edges=original.edges,
         folder_path=original.folder_path,  # Keep in same folder
         sort_order=original.sort_order,  # Preserve order preference
-        untested=_workflow_untested(original),
     )
     db.save(new_workflow)  # generates a new id
     return new_workflow

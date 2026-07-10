@@ -1,7 +1,7 @@
 """Tests for local AI model management routes.
 
 Local models (Whisper speech-to-text, embedding models) are downloaded to
-~/Library/Application Support/com.fichero.fichero/models/. Routes list,
+~/Library/Application Support/Fichero/models/. Routes list,
 download, and delete models without external calls (LocalModelManager mocked).
 """
 
@@ -42,6 +42,13 @@ def _make_model_entry(
 
 
 class TestListLocalModels:
+    def test_models_base_uses_shared_engine_state_dir(self):
+        from fichero.local_models import MODELS_BASE
+        from fichero.paths import engine_state_dir
+
+        assert MODELS_BASE == engine_state_dir() / "models"
+        assert "com.fichero.fichero" not in str(MODELS_BASE)
+
     def test_returns_all_models(self, client):
         models = [_make_model_entry("base"), _make_model_entry("small")]
         with patch("fichero.local_models.LocalModelManager") as MockMgr:

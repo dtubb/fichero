@@ -80,7 +80,6 @@ class TestListTriggers:
         assert r.status_code == 200
         assert r.json() == {"items": [], "count": 0}
 
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_list_returns_triggers(self, client, mock_watcher):
         mock_watcher.list_triggers.return_value = [
             _make_mock_trigger("t1"),
@@ -88,7 +87,7 @@ class TestListTriggers:
         ]
         r = client.get("/api/triggers")
         assert r.status_code == 200
-        assert len(r.json()["items"]["items"]) == 2
+        assert len(r.json()["items"]) == 2
 
 
 class TestCreateTrigger:
@@ -137,7 +136,6 @@ class TestCreateTrigger:
             "library_path": "{library_path}",
         }
 
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_create_trigger(self, client, mock_watcher):
         payload = {
             "name": "Watch Inbox",
@@ -156,15 +154,14 @@ class TestCreateTrigger:
         }
         r = client.post("/api/triggers", json=payload)
         assert r.status_code == 200
-        assert r.json()["items"]["trigger_id"] == "trig-1"
+        assert r.json()["trigger_id"] == "trig-1"
 
 
 class TestGetTrigger:
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_get_existing_trigger(self, client, mock_watcher):
         r = client.get("/api/triggers/trig-1")
         assert r.status_code == 200
-        assert r.json()["items"]["trigger_id"] == "trig-1"
+        assert r.json()["trigger_id"] == "trig-1"
 
     def test_get_missing_returns_404(self, client, mock_watcher):
         mock_watcher.get_trigger.return_value = None

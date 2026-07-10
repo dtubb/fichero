@@ -351,7 +351,7 @@ async def execute_workflow(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to start workflow {request.workflow_id}")
         raise workflow_internal_error("Failed to start workflow")
 
@@ -499,7 +499,7 @@ async def resume_workflow(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to resume workflow thread {thread_id}")
         raise workflow_internal_error("Failed to resume workflow")
 
@@ -593,6 +593,6 @@ async def get_thread_status(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to get status for thread {thread_id}")
         raise workflow_internal_error("Failed to get workflow status")
