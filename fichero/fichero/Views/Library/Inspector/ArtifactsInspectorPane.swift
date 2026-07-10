@@ -39,9 +39,9 @@ struct TranslationLanguage: Identifiable, Hashable {
 /// The Artifacts inspector tab, rebuilt as List + detail (#2003, EPIC #2002).
 ///
 /// Replaces the old `DocumentInspectorContentV2(mode: .artifactsOnly)` stacked
-/// `ArtifactPanel`s. A horizontal split: a lightweight `ArtifactListView` on
-/// the left for overview, a single `ArtifactDetailView` on the right that
-/// follows the selection. A toolbar button tears the detail off into a
+/// `ArtifactPanel`s. A vertical stack: a lightweight `ArtifactListView` on top
+/// for overview, a single `ArtifactDetailView` below that follows the selection.
+/// A toolbar button tears the detail off into a
 /// separate, draggable window (`ArtifactDetailWindow`) that also follows
 /// selection.
 ///
@@ -77,13 +77,15 @@ struct ArtifactsInspectorPane: View {
             if let actionError {
                 errorBox(actionError)
             }
-            PlatformHSplitView {
+            VStack(spacing: 0) {
                 ArtifactListView(
                     store: store,
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
                 .frame(minHeight: 120, idealHeight: 200)
+
+                Divider()
 
                 ArtifactDetailView(
                     artifact: selectedArtifact,
