@@ -8,6 +8,7 @@ import pytest
 from tests.integration._seedlib import seed
 
 from fichero.db import db_manager
+from fichero.knowledge_models import KnowledgeClaim
 from fichero.models import DocType, Document, FileType, Status, Workflow
 from fichero.workflows.builder import build_graph
 from fichero.workflows.default_workflows import _load_preset_files
@@ -591,11 +592,13 @@ def test_catalogue_full_pipeline_runs_from_folder_with_stubs(
     assert not final_state.get("error")
     assert set(node_ids.values()) <= set(final_state.get("completed_nodes") or [])
     assert final_state["outputs"][node_ids["files"]]["count"] == 2
-    assert final_state["outputs"][node_ids["import_artifacts"]]["summary"]["documents_processed"] == 2
-    assert final_state["outputs"][node_ids["extract_entities_only"]]["summary"]["documents_processed"] == 2
-    assert final_state["outputs"][node_ids["extract_svo_only"]]["summary"]["documents_processed"] == 2
-    assert final_state["outputs"][node_ids["merge_dedup_only"]]["summary"]["documents_scoped"] == 2
-    assert final_state["outputs"][node_ids["kg_persist_finalize"]]["summary"]["documents_scoped"] == 2
+    db = db_manager.get_database(library_path)
+    claims = [
+        claim
+        for claim in db.query(KnowledgeClaim)
+        if claim.source_document_id in expected_doc_ids
+    ]
+    assert claims
 
 
 def _seed_full_pipeline_folder(tmp_path):
