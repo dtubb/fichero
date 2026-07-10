@@ -28,7 +28,6 @@ RULE_DOC = "agents/ROADMAP.md"
 
 # Current toolbar-tooltip backlog. Keys are `relative/path.swift#signature`.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "Integrations/IntegrationsView.swift#1dd291304d": "#1954 baseline",
     "Workflow/WorkflowChainListView/NewChainSheet.swift#f4542716d0": "#1954 baseline",
     "Workflow/WorkflowExecutionView.swift#99a2a105dc": "#1954 baseline",
 }

@@ -161,6 +161,8 @@ async def create_claim_link(
     ctx: "ActionContext" = Depends(action_context),
 ) -> KnowledgeClaimLink:
     """Create a link between two claims."""
+    if not isinstance(ctx, ActionContext):
+        ctx = ActionContext(actor="system")
     result = registry.invoke(
         db,
         "claim.create_link",
@@ -212,6 +214,8 @@ async def update_claim_link(
     ctx: "ActionContext" = Depends(action_context),
 ) -> KnowledgeClaimLink:
     """Update an existing claim link."""
+    if not isinstance(ctx, ActionContext):
+        ctx = ActionContext(actor="system")
     result = registry.invoke(
         db,
         "claim.update_link",
@@ -228,6 +232,8 @@ async def delete_claim_link(
     ctx: "ActionContext" = Depends(action_context),
 ) -> ClaimLinkDeletedResponse:
     """Delete a claim link (hard delete)."""
+    if not isinstance(ctx, ActionContext):
+        ctx = ActionContext(actor="system")
     registry.invoke(
         db,
         "claim.delete_link",
