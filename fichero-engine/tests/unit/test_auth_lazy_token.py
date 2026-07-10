@@ -10,6 +10,7 @@ process.
 from __future__ import annotations
 
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -206,8 +207,6 @@ def test_sync_app_bootstrap_token_overwrites_stale_container_copy(monkeypatch, t
 
 
 def test_sync_app_bootstrap_token_stays_scoped_to_requested_app_id(monkeypatch, tmp_path):
-    import stat
-
     import fichero.api.auth as auth_module
 
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -233,6 +232,102 @@ def test_sync_app_bootstrap_token_stays_scoped_to_requested_app_id(monkeypatch, 
     assert "app.fichero.debug-tests" in synced.parts
     assert not wrong.exists()
     assert stat.S_IMODE(synced.stat().st_mode) == 0o600
+
+
+def test_sync_app_bootstrap_token_discovers_uuid_sandbox_container(monkeypatch, tmp_path):
+    import fichero.api.auth as auth_module
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    containers_root = tmp_path / "Library" / "Containers"
+    uuid_container = (
+        containers_root
+        / "123e4567-e89b-12d3-a456-426614174000"
+        / "Data"
+        / "Library"
+        / "Application Support"
+        / "Fichero"
+    )
+    skipped_missing_support = containers_root / "123e4567-e89b-12d3-a456-426614174001" / "Data"
+    skipped_non_uuid = (
+        containers_root
+        / "app.fichero.not-uuid"
+        / "Data"
+        / "Library"
+        / "Application Support"
+        / "Fichero"
+    )
+    uuid_container.mkdir(parents=True, exist_ok=True)
+    skipped_missing_support.mkdir(parents=True, exist_ok=True)
+    skipped_non_uuid.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(auth_module, "_sandbox_containers_root", lambda: containers_root)
+
+    token = "fresh-bootstrap-token"
+    bundle_path = auth_module.sync_app_bootstrap_token(
+        token,
+        app_id="app.fichero.debug-tests",
+    )
+    uuid_token_path = uuid_container / ".api-key"
+
+    assert bundle_path.read_text() == token
+    assert uuid_token_path.read_text() == token
+    assert stat.S_IMODE(uuid_token_path.stat().st_mode) == 0o600
+    assert not (skipped_missing_support / "Library" / "Application Support" / "Fichero" / ".api-key").exists()
+    assert not (skipped_non_uuid / ".api-key").exists()
+
+
+def test_sync_app_bootstrap_token_is_idempotent_for_existing_uuid_container(
+    monkeypatch, tmp_path
+):
+    import fichero.api.auth as auth_module
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    containers_root = tmp_path / "Library" / "Containers"
+    uuid_support_dir = (
+        containers_root
+        / "123e4567-e89b-12d3-a456-426614174000"
+        / "Data"
+        / "Library"
+        / "Application Support"
+        / "Fichero"
+    )
+    uuid_support_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(auth_module, "_sandbox_containers_root", lambda: containers_root)
+
+    token = "fresh-bootstrap-token"
+    auth_module.sync_app_bootstrap_token(token, app_id="app.fichero.debug-tests")
+    bundle_path = auth_module._sandbox_token_file_path("app.fichero.debug-tests")
+    uuid_token_path = uuid_support_dir / ".api-key"
+    before_mtimes = {
+        bundle_path: bundle_path.stat().st_mtime_ns,
+        uuid_token_path: uuid_token_path.stat().st_mtime_ns,
+    }
+
+    calls: list[Path] = []
+    real_write = auth_module._write_token_file
+
+    def counting_write(path: Path, value: str) -> None:
+        calls.append(path)
+        real_write(path, value)
+
+    monkeypatch.setattr(auth_module, "_write_token_file", counting_write)
+    auth_module.sync_app_bootstrap_token(token, app_id="app.fichero.debug-tests")
+
+    assert calls == []
+    assert bundle_path.stat().st_mtime_ns == before_mtimes[bundle_path]
+    assert uuid_token_path.stat().st_mtime_ns == before_mtimes[uuid_token_path]
+
+
+def test_uuid_sandbox_token_paths_ignores_unreadable_root(monkeypatch):
+    import fichero.api.auth as auth_module
+
+    class UnreadableRoot:
+        def iterdir(self):
+            raise OSError("nope")
+
+    monkeypatch.setattr(auth_module, "_sandbox_containers_root", lambda: UnreadableRoot())
+
+    assert auth_module._uuid_sandbox_token_paths() == []
 
 
 def test_startup_skips_token_when_auth_disabled(monkeypatch, tmp_path):
