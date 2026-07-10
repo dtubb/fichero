@@ -1,6 +1,8 @@
 """Tests for document export routes."""
 
 import json
+from types import SimpleNamespace
+from urllib.parse import quote
 
 from fichero.knowledge_models import ClaimType, EntityType
 from fichero.loaders.xlsx_reader import read_xlsx_records
@@ -9,6 +11,35 @@ from fichero.models import KnowledgeClaim, KnowledgeEntity
 
 
 class TestMarkdownFolderExport:
+    def test_forwards_library_header_to_export_service(
+        self, client, monkeypatch, tmp_path
+    ):
+        captured: dict[str, object] = {}
+
+        def fake_export_markdown_folder(**kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                output_path=str(kwargs["output_path"]),
+                files=[],
+                assets=[],
+                document_count=0,
+            )
+
+        monkeypatch.setattr(
+            "fichero.api.routes.export.export_markdown_folder",
+            fake_export_markdown_folder,
+        )
+
+        library_path = "/tmp/Export Library.fichero"
+        response = client.post(
+            "/api/export/markdown-folder",
+            headers={"X-Fichero-Library-Path": quote(library_path)},
+            json={"output_path": str(tmp_path / "export")},
+        )
+
+        assert response.status_code == 200
+        assert captured["package_path"] == library_path
+
     def test_exports_folder_markdown_and_assets(self, client, db, tmp_path):
         folder = Document(
             id="folder-export",
@@ -321,6 +352,31 @@ class TestExcelExport:
 
 
 class TestEleventySiteExport:
+    def test_route_forwards_library_header_and_surfaces_oserror(
+        self, client, monkeypatch, tmp_path
+    ):
+        captured: dict[str, object] = {}
+
+        def fake_export_eleventy_site(**kwargs):
+            captured.update(kwargs)
+            raise OSError("disk full")
+
+        monkeypatch.setattr(
+            "fichero.api.routes.export.export_eleventy_site",
+            fake_export_eleventy_site,
+        )
+
+        library_path = "/tmp/Site Library.fichero"
+        response = client.post(
+            "/api/export/eleventy-site",
+            headers={"X-Fichero-Library-Path": quote(library_path)},
+            json={"output_path": str(tmp_path / "site")},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "disk full"
+        assert captured["package_path"] == library_path
+
     def test_publishes_collections_subcollections_and_scaffold(
         self, client, db, tmp_path
     ):
