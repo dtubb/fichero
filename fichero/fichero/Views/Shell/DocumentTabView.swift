@@ -23,12 +23,16 @@ struct DocumentTabView: View {
     @Environment(ImportServiceGenerated.self) var importService
     @Environment(DocumentServiceGenerated.self) var documentService
     @Environment(StorageServiceGenerated.self) var storageService
+    @Environment(WorkflowStreamService.self) var workflowStreamService
+    @Environment(ResearchService.self) var researchService
     @Environment(WindowState.self) var windowState
 
     // @Observable objects injected by LibraryWindow — must be forwarded explicitly
     // when ContentView() is constructed below (SwiftUI does not re-propagate
     // @Environment(T.self) values across an explicit .environment() chain).
     @Environment(ArtifactServiceGenerated.self) var artifactService
+    @Environment(ClaimFocusState.self) var claimFocusState
+    @Environment(KGFocusState.self) var kgFocusState
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     // Get the library reference
@@ -108,6 +112,8 @@ struct DocumentTabView: View {
                     .environment(importService)
                     .environment(documentService)
                     .environment(storageService)
+                    .environment(workflowStreamService)
+                    .environment(researchService)
                     .environment(windowState)
                     // App-wide singletons injected at the ContentView host so
                     // ContentView reads them via @EnvironmentObject rather than
@@ -122,6 +128,13 @@ struct DocumentTabView: View {
                     // "No Observable object of type ArtifactServiceGenerated
                     // found." (#3350)
                     .environment(artifactService)
+                    // These app-/library-scoped @Observable focus + substrate
+                    // services are also read directly by ContentView. Forward
+                    // them here so switching into Research / KG / claim-focused
+                    // surfaces never depends on accidental inheritance past the
+                    // explicit ContentView() host.
+                    .environment(claimFocusState)
+                    .environment(kgFocusState)
                     // Forward the @Observable observer so ContentView and its subtree
                     // (DocumentInspector → ArtifactEntityViews) can read it via
                     // @Environment(WorkflowExecutionObserver.self). Without this the
