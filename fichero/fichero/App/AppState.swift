@@ -451,9 +451,9 @@ class AppState {
     nonisolated static func diagnosis(for error: AccessError) -> String {
         switch error {
         case .staleBootstrapToken:
-            return "This app's token doesn't match the running engine. Restart the engine and try again."
+            return "Fichero connected to the engine, but this app's saved engine token is out of date. Restart the engine and try again."
         case .unauthenticated:
-            return "This app's sign-in token doesn't match the running engine. Reset sign-in and try again."
+            return "Fichero connected to the engine, but the saved sign-in is out of date. Reset Sign-In & Retry."
         case .tlsPinFailure:
             return "This app's pinned certificate doesn't match the running engine. Reset the certificate and retry."
         case .deviceAccessExpired:
