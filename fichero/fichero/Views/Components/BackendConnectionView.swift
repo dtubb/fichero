@@ -6,6 +6,8 @@ import UIKit
 import FicheroAPIClient
 import SwiftUI
 
+// swiftlint:disable file_length type_body_length
+
 /// View shown while the embedded engine is booting (or when it failed to start).
 ///
 /// The engine takes ~25-40s to boot on first launch (heavy ML imports — see
@@ -130,6 +132,20 @@ struct BackendConnectionView: View {
             // pre-window NSAlert (#3111).
             return "Port 8765 Is In Use"
         }
+        switch failureAccessError {
+        case .staleBootstrapToken:
+            return "Engine Token Mismatch"
+        case .tlsPinFailure:
+            return "Certificate Mismatch"
+        case .deviceAccessExpired:
+            return "Device Access Expired"
+        case .forbidden:
+            return "No Access to Engine"
+        case .transport:
+            return "Connection Failed"
+        case .unauthenticated, .engineUnreachable, .none:
+            break
+        }
         if appState.authBroken {
             // Health-200-but-auth-broken: the specific state that used to blank
             // the window with silent 401s (#2864).
@@ -141,7 +157,18 @@ struct BackendConnectionView: View {
     /// Prefer the specific diagnosis (port occupied by PID / auth rejected /
     /// probe failed) over the generic error string (#2864).
     private var failureDetail: String? {
-        appState.backendDiagnosis ?? appState.backendError
+        failureAccessError?.errorDescription ?? appState.backendDiagnosis ?? appState.backendError
+    }
+
+    private var failureAccessError: AccessError? {
+        appState.backendAccessError ?? (appState.authBroken ? .unauthenticated : nil)
+    }
+
+    private var retryButtonTitle: String {
+        if case .staleBootstrapToken? = failureAccessError {
+            return usesExternalBackendConnection ? "Retry After Restarting Engine" : "Restart Engine"
+        }
+        return usesExternalBackendConnection ? "Retry Connection" : "Restart Engine"
     }
 
     private var secondaryStatusText: String {
@@ -159,7 +186,7 @@ struct BackendConnectionView: View {
             messageIndex = 0
             Task { await onRetry?() }
         } label: {
-            Label(usesExternalBackendConnection ? "Retry Connection" : "Restart Engine", systemImage: "arrow.clockwise")
+            Label(retryButtonTitle, systemImage: "arrow.clockwise")
         }
         .buttonStyle(.borderedProminent)
         .disabled(backendService.isStarting)
@@ -220,6 +247,19 @@ struct BackendConnectionView: View {
             Label("Reset Sign-In & Retry", systemImage: "person.badge.key")
         }
         .buttonStyle(.bordered)
+        .disabled(backendService.isStarting)
+    }
+
+    @ViewBuilder
+    private var resetCertificateButton: some View {
+        Button {
+            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: EngineConfig.hostString)
+            messageIndex = 0
+            Task { await onRetry?() }
+        } label: {
+            Label("Reset Certificate & Retry", systemImage: "lock.rotation")
+        }
+        .buttonStyle(.borderedProminent)
         .disabled(backendService.isStarting)
     }
 
@@ -327,11 +367,12 @@ struct BackendConnectionView: View {
                     if portConflictPID != nil {
                         portConflictActions
                     } else {
-                        retryButton
-                        // Auth-rejected (engine up, token refused) also gets the
-                        // stale-credential reset so the taxonomy has a next step
-                        // beyond respawning into the same rejection (F6).
-                        if appState.authBroken {
+                        if failureAccessError?.recovery == .resetPin {
+                            resetCertificateButton
+                        } else {
+                            retryButton
+                        }
+                        if failureAccessError?.recovery == .signIn {
                             resetSignInButton
                         }
                     }
@@ -386,3 +427,5 @@ struct BackendConnectionView: View {
     BackendConnectionView(appState: AppState())
         .frame(width: 600, height: 400)
 }
+
+// swiftlint:enable file_length type_body_length

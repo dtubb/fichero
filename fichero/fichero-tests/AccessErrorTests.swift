@@ -164,4 +164,10 @@ struct AccessErrorTests {
         #expect(AccessError.tlsPinFailure.recovery == .resetPin)
         #expect(AccessError.engineUnreachable.recovery == .restartEngine)
     }
+
+    @Test func connectionDiagnosesExplainTheCorrectRecovery() {
+        #expect(AppState.diagnosis(for: .staleBootstrapToken).contains("Restart the engine"))
+        #expect(AppState.diagnosis(for: .unauthenticated).contains("Reset sign-in"))
+        #expect(AppState.diagnosis(for: .tlsPinFailure).contains("Reset the certificate"))
+    }
 }
