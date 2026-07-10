@@ -38,6 +38,7 @@ extension LibraryView {
                 handleDoubleClick(doc)
             }
         }
+        .padding(.leading, browserLeadingInset)
     }
 
     /// Strip a child-group node's `:type` suffix back to the document id.

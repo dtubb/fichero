@@ -101,6 +101,32 @@ struct SidebarSelectionTests {
         #expect(source.contains("NSWindow.allowsAutomaticWindowTabbing = false"))
         #expect(source.contains("newWindow.tabbingMode = .disallowed"))
     }
+
+    @Test("#3187 library double-click opens a new window instead of previewing in place")
+    func libraryDoubleClickOpensNewWindow() throws {
+        let source = try appSource("Views/Library/LibraryView+FilterAndBatch.swift")
+        let functionStart = try #require(source.range(of: "func handleDoubleClick(_ doc: Document) {"))
+        let nextFunction = try #require(
+            source.range(of: "func handleTap(_ doc: Document) {", range: functionStart.lowerBound..<source.endIndex)
+        )
+        let functionBody = String(source[functionStart.lowerBound..<nextFunction.lowerBound])
+
+        #expect(functionBody.contains("selection = [doc.id]"))
+        #expect(functionBody.contains("listScrollCenterTarget = doc.id"))
+        #expect(functionBody.contains("openDocumentInNewWindow(doc, asTab: false)"))
+        #expect(!functionBody.contains("detailDocument = doc"))
+        #expect(!functionBody.contains("onNavigateInto(doc)"))
+    }
+
+    @Test("#3187 library browser surfaces keep a shared leading inset clear of the sidebar")
+    func libraryBrowserUsesSharedLeadingInset() throws {
+        let displayModesSource = try appSource("Views/Library/LibraryView+DisplayModes.swift")
+        let tableSource = try appSource("Views/Library/LibraryView+TableMapViews.swift")
+
+        #expect(displayModesSource.contains("var browserLeadingInset: CGFloat { 12 }"))
+        #expect(displayModesSource.contains(".padding(.leading, browserLeadingInset)"))
+        #expect(tableSource.contains(".padding(.leading, browserLeadingInset)"))
+    }
 }
 
 private func appSource(_ relativePath: String) throws -> String {

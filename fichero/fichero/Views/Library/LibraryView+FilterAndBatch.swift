@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import FicheroAPIClient
 import OSLog
 import SwiftUI
@@ -261,31 +262,14 @@ extension LibraryView {
         doc.isNavigableContainer
     }
 
-    /// Handle double-click: navigate into folders/PDFs, preview everything else.
-    /// Also updates selection so the highlighted row matches the activated
-    /// doc — without this, double-clicking a doc that wasn't single-clicked
-    /// first leaves the previous selection highlighted while the new doc
-    /// shows in the preview pane. (#779)
+    /// Finder-style double-click: keep the source row selected in THIS window,
+    /// then open the item in a NEW WINDOW. The destination window consumes the
+    /// pending document id and navigates into containers there. (#3187)
     func handleDoubleClick(_ doc: Document) {
-        // Wrap in withAnimation so the layout transition from .none →
-        // .standard/.widescreen animates instead of flashing — combined with
-        // the .animation(value: layout) on the centerContent Group, this
-        // makes the first click smooth.
-        withAnimation(.easeInOut(duration: 0.2)) {
-            selection = [doc.id]
-            selectionAnchor = doc.id
-            if canNavigateInto(doc) {
-                onNavigateInto(doc)
-            } else {
-                detailDocument = doc
-            }
-        }
-        // Scroll grid to the activated doc so when the preview opens and
-        // the grid shrinks, the user can still see what they just opened
-        // in the now-smaller grid pane. Use the *center* target so we force
-        // a recenter even when the item was technically visible in the old
-        // wide grid — after the layout shrinks, "visible" changes (#769).
+        selection = [doc.id]
+        selectionAnchor = doc.id
         listScrollCenterTarget = doc.id
+        openDocumentInNewWindow(doc, asTab: false)
     }
 
     func handleTap(_ doc: Document) {
@@ -442,6 +426,7 @@ extension LibraryView {
     // MARK: - Context Menu
 
     @ViewBuilder
+    // swiftlint:disable:next function_body_length
     func documentContextMenu(for document: Document) -> some View {
         let excludeTargets = excludeToggleTargets(for: document)
         let shouldIncludeInProcessing = excludeTargets.allSatisfy(\.excludeFromProcessing)
@@ -641,6 +626,7 @@ extension LibraryView {
     /// Passes ALL selected document IDs at once so aggregation workflows (Catalogue)
     /// receive the complete set, and SSE events drive UI refresh.
     @MainActor
+    // swiftlint:disable:next function_body_length
     func runBatchWorkflow(
         workflowId: String,
         providerOverride: String? = nil,
@@ -716,6 +702,7 @@ extension LibraryView {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     private func handleBatchWorkflowEvent(
         _ event: WorkflowStreamEvent,
         threadId: String,

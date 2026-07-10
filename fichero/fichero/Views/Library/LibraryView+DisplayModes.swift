@@ -11,6 +11,8 @@ extension LibraryView {
         isPaneFocused ? .accentColor : .secondary
     }
 
+    var browserLeadingInset: CGFloat { 12 }
+
     var iconsView: some View {
         let itemMin = CGFloat(max(60, 120 * iconViewScale))
         let itemMax = CGFloat(max(80, 150 * iconViewScale))
@@ -111,6 +113,7 @@ extension LibraryView {
                 .focusable()
                 .focusEffectDisabled()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.leading, browserLeadingInset)
                 // Pinch-to-zoom on the trackpad resizes icons live, like
                 // Finder's icon view. Clamped 0.5–2.5x to match the toolbar
                 // +/- buttons' usable range; persisted via @AppStorage on
@@ -323,6 +326,7 @@ extension LibraryView {
                     }
                 }
             }
+            .padding(.leading, browserLeadingInset)
         }
     }
 
