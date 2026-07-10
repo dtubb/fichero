@@ -34,6 +34,9 @@ final class AboutSettingsSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("var selectedSettingsTab: SettingsTab = .aiModels"))
         XCTAssertTrue(source.contains("openSettings(tab: .mcp)"))
         XCTAssertEqual(source.components(separatedBy: "openSettings(tab: .integrations)").count - 1, 3)
+        XCTAssertTrue(source.contains("case .mcp where !featureManager.isMCPEnabled:"))
+        XCTAssertTrue(source.contains("case .integrations where !featureManager.isIntegrationsEnabled:"))
+        XCTAssertEqual(source.components(separatedBy: "return .aiModels").count - 1, 2)
         XCTAssertTrue(source.contains("NSApp.sendAction(Selector((\"showSettingsWindow:\")), to: nil, from: nil)"))
     }
 
