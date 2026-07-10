@@ -4,10 +4,11 @@ Shared pytest fixtures for all tests.
 Provides fixtures for package documents testing with proper isolation.
 """
 
-import pytest
-import inspect
 import asyncio
+import faulthandler
+import inspect
 import os
+import pytest
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
@@ -60,6 +61,45 @@ os.environ.setdefault("FICHERO_BASE_PATH", str(_test_base))
 from fichero.api.main import app  # noqa: E402
 from fichero.db import db_manager  # noqa: E402
 from fichero.app_db import AppDatabase  # noqa: E402
+
+_deadlock_dump_armed = False
+
+
+def _deadlock_dump_timeout_seconds() -> float | None:
+    """Opt-in session hang dump timeout for deadlock triage (#2651)."""
+    raw = os.environ.get("FICHERO_TEST_DEADLOCK_TIMEOUT", "").strip()
+    if not raw:
+        return None
+    try:
+        timeout = float(raw)
+    except ValueError:
+        return None
+    if timeout <= 0:
+        return None
+    return timeout
+
+
+def pytest_sessionstart(session):  # noqa: ARG001
+    """Optionally arm faulthandler to dump all Python stacks on a hung suite."""
+    global _deadlock_dump_armed
+
+    timeout = _deadlock_dump_timeout_seconds()
+    if timeout is None:
+        _deadlock_dump_armed = False
+        return
+    if not faulthandler.is_enabled():
+        faulthandler.enable(all_threads=True)
+    faulthandler.dump_traceback_later(timeout, repeat=False)
+    _deadlock_dump_armed = True
+
+
+def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
+    """Cancel the hang dump alarm once the suite exits normally."""
+    global _deadlock_dump_armed
+
+    if _deadlock_dump_armed:
+        faulthandler.cancel_dump_traceback_later()
+        _deadlock_dump_armed = False
 
 
 def pytest_collection_modifyitems(items):
