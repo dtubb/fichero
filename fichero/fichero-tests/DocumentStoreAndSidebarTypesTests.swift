@@ -204,6 +204,14 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(sidebarNeedsDeferredDisclosureContent(result[0]))
     }
 
+    func testLibraryViewClipsItsOwnPaneBounds() throws {
+        let source = try Self.appSource("Views/ContentView+Navigation.swift")
+
+        XCTAssertTrue(source.contains("Keep the library surface inside the content column"))
+        XCTAssertTrue(source.contains(".clipped()"))
+        XCTAssertTrue(source.contains("under the shell sidebar or off the left window edge"))
+    }
+
     func testCurrentChatScopePrefersSelectionThenDetailThenVisibleCollection() {
         let folder = Document(id: "folder-1", docType: .folder, name: "Folder")
         let page = Document(id: "page-1", parentId: "folder-1", docType: .page, fileType: .pdf, name: "Page 1")
