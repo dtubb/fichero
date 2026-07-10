@@ -26,13 +26,22 @@ struct WorkflowToolbar: View {
     let showFilesToolbarButton: Bool
 
     var body: some View {
-        MiniToolbar {
+        MiniToolbar(content: {
             inputSourcePicker
             Spacer(minLength: 0)
-            ViewThatFits(in: .horizontal) {
-                actionButtons
-                overflowMenu
-            }
+            adaptiveActionRow
+        }, trailing: {
+            runButton
+        })
+    }
+
+    private var adaptiveActionRow: some View {
+        AdaptiveMiniToolbarRow {
+            essentialButtons
+        } secondary: {
+            secondaryButtons
+        } overflowMenu: {
+            overflowMenu
         }
     }
 
@@ -53,7 +62,8 @@ struct WorkflowToolbar: View {
         }
     }
 
-    private var actionButtons: some View {
+    @ViewBuilder
+    private var essentialButtons: some View {
         HStack(spacing: 8) {
             if showImportExport {
                 Button(action: onImport) {
@@ -70,7 +80,12 @@ struct WorkflowToolbar: View {
                 .help("Export Workflow")
                 .accessibilityLabel("Export Workflow")
             }
+        }
+    }
 
+    @ViewBuilder
+    private var secondaryButtons: some View {
+        HStack(spacing: 8) {
             if showLangGraphPreview, let onPreview = onPreviewDiagram {
                 Button(action: onPreview) {
                     Image(systemName: "flowchart")
@@ -97,7 +112,11 @@ struct WorkflowToolbar: View {
                 .help("Compare Models")
                 .accessibilityLabel("Compare Models")
             }
+        }
+    }
 
+    private var runButton: some View {
+        HStack(spacing: 8) {
             Divider()
                 .frame(height: 16)
 

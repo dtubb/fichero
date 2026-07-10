@@ -69,4 +69,22 @@ final class MiniToolbarOverflowTests: XCTestCase {
         // The tiering is derived from the pure policy, not hand-rolled in body.
         XCTAssertTrue(source.contains("MiniToolbarTierPolicy.inlineTiers"))
     }
+
+    func testReaderToolbarUsesSharedAdaptiveMiniToolbarRow() throws {
+        let source = try Self.appSource("Views/Toolbars/ReaderToolbar.swift")
+
+        XCTAssertTrue(source.contains("private var adaptiveToolsRow: some View"))
+        XCTAssertTrue(source.contains("AdaptiveMiniToolbarRow {"))
+        XCTAssertTrue(source.contains("secondaryToolsCluster"))
+        XCTAssertTrue(source.contains("overflowMenu"))
+    }
+
+    func testWorkflowToolbarUsesSharedAdaptiveMiniToolbarRow() throws {
+        let source = try Self.appSource("Views/Toolbars/WorkflowToolbar.swift")
+
+        XCTAssertTrue(source.contains("private var adaptiveActionRow: some View"))
+        XCTAssertTrue(source.contains("AdaptiveMiniToolbarRow {"))
+        XCTAssertTrue(source.contains("trailing: {"))
+        XCTAssertTrue(source.contains("runButton"))
+    }
 }

@@ -28,9 +28,10 @@ final class WorkflowImportExportSurfaceTests: XCTestCase {
         let toolbarPlacement = try XCTUnwrap(editor.range(of: "WorkflowToolbar(", range: canvasFrame.upperBound..<editor.endIndex))
 
         XCTAssertFalse(toolbarPlacement.isEmpty)
-        XCTAssertTrue(toolbar.contains("MiniToolbar {"))
-        XCTAssertTrue(toolbar.contains("ViewThatFits(in: .horizontal)"))
+        XCTAssertTrue(toolbar.contains("MiniToolbar(content: {"))
+        XCTAssertTrue(toolbar.contains("AdaptiveMiniToolbarRow {"))
         XCTAssertTrue(toolbar.contains("ellipsis.circle"))
+        XCTAssertTrue(toolbar.contains("runButton"))
         XCTAssertFalse(toolbar.contains("Color(.controlBackgroundColor)"))
     }
 

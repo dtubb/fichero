@@ -50,6 +50,7 @@ struct ReaderPageNav {
 
 // MARK: - ReaderToolbar
 
+// swiftlint:disable type_body_length
 /// One unified, persistent reader toolbar shared by the image viewer and the PDF
 /// viewer (#2423 / #2421). It sits at the **bottom** of the canvas and renders
 /// every tool section for every document type, **disabling (greying)** the tools
@@ -132,12 +133,7 @@ struct ReaderToolbar: View {
             pageNavCluster
             pageLayoutSection
             Spacer(minLength: 0)
-            // Zoom/fit are desktop-centric; on compact width pinch-zoom handles
-            // scaling, so we drop them to de-clutter the bar (#2549).
-            if !isCompact {
-                zoomCluster
-            }
-            secondaryToolsCluster
+            adaptiveToolsRow
             Spacer()
         }, trailing: {
             pinButton
@@ -421,6 +417,22 @@ struct ReaderToolbar: View {
         }
     }
 
+    /// The shared adaptive row keeps the reader on the same mini-toolbar
+    /// budget/overflow policy as the library and sidebar surfaces (#3201).
+    private var adaptiveToolsRow: some View {
+        AdaptiveMiniToolbarRow {
+            // Zoom/fit are desktop-centric; on compact width pinch-zoom handles
+            // scaling, so we drop them to de-clutter the bar (#2549).
+            if !isCompact {
+                zoomCluster
+            }
+        } secondary: {
+            secondaryToolsCluster
+        } overflowMenu: {
+            overflowMenu
+        }
+    }
+
     // MARK: - Pin (trailing, after split buttons)
 
     @ViewBuilder
@@ -439,6 +451,7 @@ struct ReaderToolbar: View {
         }
     }
 }
+// swiftlint:enable type_body_length
 
 private struct ReaderToolbarCluster<Expanded: View>: View {
     @Binding var isExpanded: Bool
