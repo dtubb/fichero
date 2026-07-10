@@ -2619,6 +2619,18 @@
       },
       {
         "method": "GET",
+        "path": "/documents/{doc_id}/annotations.jsonld",
+        "operation_id": "export_document_annotations_jsonld_api_documents__doc_id__annotations_jsonld_get",
+        "summary": "Export a document's annotations as W3C AnnotationPage",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/documents/{doc_id}/children",
         "operation_id": "get_children_api_documents__doc_id__children_get",
         "summary": "Get Children",
@@ -3662,7 +3674,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "IIIFManifest"
+        "response_model": null
       },
       {
         "method": "GET",
