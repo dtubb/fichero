@@ -85,7 +85,7 @@ def test_kg_persist_finalize_preset_recomputes_and_is_idempotent(tmp_path: Path)
 def test_catalogue_full_pipeline_runs_1_to_5(tmp_path: Path):
     library_path, parent_doc_id, page_doc_ids = _seed_full_pipeline_library(tmp_path)
     db = db_manager.get_database(library_path)
-    workflow = _load_workflow("Catalogue Full Pipeline", provider_name="mock")
+    workflow = _load_workflow("Catalogue", provider_name="mock")
 
     async def fake_entities(*args, **kwargs):
         del args, kwargs

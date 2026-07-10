@@ -4,7 +4,6 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-import pytest
 from pathlib import Path
 
 _SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "check_openapi_shadow_types.py"
@@ -66,7 +65,6 @@ def test_shadow_in_comment_not_flagged(tmp_path):
 # Real repo gate
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(reason="#2712: real Swift OpenAPI shadow-type drift (SpatialModels.swift); guardrail correctly red until fixed", strict=False)
 def test_repo_has_no_new_shadow_types():
     found = scan()
     known = set(_mod.KNOWN_VIOLATIONS)
@@ -78,7 +76,6 @@ def test_repo_has_no_new_shadow_types():
     )
 
 
-@pytest.mark.xfail(reason="#2712: stale shadow-type allowlist entries; refresh tracked in issue", strict=False)
 def test_shadow_known_violations_are_not_stale():
     found = scan()
     stale = set(_mod.KNOWN_VIOLATIONS) - set(found)

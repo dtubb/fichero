@@ -86,6 +86,92 @@ class TestListConversations:
 
 
 class TestChatWithSources:
+    def test_chat_continuation_caps_prompt_history_to_recent_turns(
+        self, client, db, monkeypatch
+    ):
+        conv = _make_conv("conv-history-cap", "Long History")
+        conv.messages = []
+        for i in range(12):
+            conv.messages.extend(
+                [
+                    {"role": "user", "content": f"Q{i}"},
+                    {"role": "assistant", "content": f"A{i}"},
+                ]
+            )
+        db.save(conv)
+
+        class _FakeRetriever:
+            def retrieve(self, **_kwargs):
+                return _FakeRetrievalPayload()
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.GraphAwareRetriever",
+            lambda *_args, **_kwargs: _FakeRetriever(),
+        )
+
+        response = client.post(
+            "/api/chat",
+            json={
+                "conversation_id": conv.id,
+                "message": "Newest question",
+            },
+        )
+
+        assert response.status_code == 200
+        assert len(fake_llm.messages) == 22
+        assert fake_llm.messages[1].content == "Q2"
+        assert fake_llm.messages[2].content == "A2"
+        assert fake_llm.messages[-2].content == "A11"
+        assert fake_llm.messages[-1].content == "Question: Newest question"
+        assert all(msg.content != "Q0" for msg in fake_llm.messages[1:-1])
+        assert all(msg.content != "A0" for msg in fake_llm.messages[1:-1])
+        assert all(msg.content != "Q1" for msg in fake_llm.messages[1:-1])
+        assert all(msg.content != "A1" for msg in fake_llm.messages[1:-1])
+
+    def test_chat_continuation_skips_malformed_stored_history(
+        self, client, db, monkeypatch
+    ):
+        conv = _make_conv("conv-history-malformed", "Malformed History")
+        conv.messages = [
+            {"role": "system", "content": "ignore me"},
+            {"role": "user", "content": "Q0"},
+            {"role": "assistant", "content": "A0"},
+            {"role": "assistant", "content": "orphan assistant"},
+            {"role": "user", "content": "orphan user"},
+        ]
+        db.save(conv)
+
+        class _FakeRetriever:
+            def retrieve(self, **_kwargs):
+                return _FakeRetrievalPayload()
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.GraphAwareRetriever",
+            lambda *_args, **_kwargs: _FakeRetriever(),
+        )
+
+        response = client.post(
+            "/api/chat",
+            json={
+                "conversation_id": conv.id,
+                "message": "Continue safely",
+            },
+        )
+
+        assert response.status_code == 200
+        assert [msg.content for msg in fake_llm.messages[1:-1]] == ["Q0", "A0"]
+        assert fake_llm.messages[-1].content == "Question: Continue safely"
+
     def test_chat_scoped_to_document_returns_sources(
         self, client, db, monkeypatch
     ):

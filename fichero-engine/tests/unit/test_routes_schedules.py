@@ -166,11 +166,10 @@ class TestCreateSchedule:
 
 
 class TestGetSchedule:
-    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_get_existing_schedule(self, client, mock_scheduler):
         r = client.get("/api/schedules/sched-1")
         assert r.status_code == 200
-        assert r.json()["items"]["schedule_id"] == "sched-1"
+        assert r.json()["schedule_id"] == "sched-1"
 
     def test_get_returns_404_when_none(self, client, mock_scheduler):
         mock_scheduler.get_schedule.return_value = None

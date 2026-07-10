@@ -11,6 +11,7 @@ from fichero.bind_host import (
     LAN_BIND_HOST_ENV,
     NON_LOOPBACK_BIND_ACK_ENV,
     NON_LOOPBACK_BIND_ACK_VALUE,
+    PUBLIC_URL_ENV,
     resolve_bind_host,
     resolve_lan_bind_host,
 )
@@ -110,6 +111,19 @@ def test_share_on_uses_wildcard_only_with_ack(tmp_path: Path) -> None:
 def test_share_on_never_binds_bare_lan_host() -> None:
     """LAN listener stays off until the explicit host flag is set."""
     assert resolve_lan_bind_host({}) is None
+
+
+def test_public_base_url_keeps_primary_bind_on_loopback() -> None:
+    assert (
+        resolve_bind_host(
+            {
+                PUBLIC_URL_ENV: "https://fichero.tail123.ts.net",
+                "FICHERO_BIND_HOST": "100.64.12.34",
+                NON_LOOPBACK_BIND_ACK_ENV: NON_LOOPBACK_BIND_ACK_VALUE,
+            }
+        )
+        == DEFAULT_BIND_HOST
+    )
 
 
 def test_resolve_lan_bind_host_requires_explicit_ack() -> None:

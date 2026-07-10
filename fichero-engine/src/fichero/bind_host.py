@@ -14,6 +14,7 @@ from collections.abc import Mapping
 from os import environ
 
 DEFAULT_BIND_HOST = "127.0.0.1"
+PUBLIC_URL_ENV = "FICHERO_PUBLIC_BASE_URL"
 LAN_BIND_HOST_ENV = "FICHERO_LAN_HOST"
 NON_LOOPBACK_BIND_ACK_ENV = "FICHERO_ALLOW_NON_LOOPBACK_BIND"
 NON_LOOPBACK_BIND_ACK_VALUE = "I_UNDERSTAND_SHARED_SECRET_RISK"
@@ -40,6 +41,9 @@ def resolve_bind_host(
 
     source = env if env is not None else environ
     raw_host = host if host is not None else source.get("FICHERO_BIND_HOST")
+    public_base_url = (source.get(PUBLIC_URL_ENV) or "").strip()
+    if host is None and public_base_url:
+        return DEFAULT_BIND_HOST
     resolved = (raw_host or DEFAULT_BIND_HOST).strip()
 
     if resolved == "0.0.0.0":

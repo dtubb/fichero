@@ -28,6 +28,7 @@ import os
 import secrets
 import stat
 from pathlib import Path
+import uuid
 
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.responses import JSONResponse
@@ -106,6 +107,44 @@ def _sandbox_bootstrap_bundle_ids() -> list[str]:
     return seen
 
 
+def _sandbox_containers_root() -> Path:
+    return Path.home() / "Library" / "Containers"
+
+
+def _uuid_sandbox_token_paths() -> list[Path]:
+    root = _sandbox_containers_root()
+    try:
+        container_dirs = list(root.iterdir())
+    except OSError:
+        return []
+
+    token_paths: list[Path] = []
+    for container_dir in container_dirs:
+        try:
+            if not container_dir.is_dir():
+                continue
+        except OSError:
+            continue
+        try:
+            uuid.UUID(container_dir.name)
+        except ValueError:
+            continue
+        support_dir = (
+            container_dir
+            / "Data"
+            / "Library"
+            / "Application Support"
+            / "Fichero"
+        )
+        try:
+            if not support_dir.is_dir():
+                continue
+        except OSError:
+            continue
+        token_paths.append(support_dir / ".api-key")
+    return token_paths
+
+
 def _is_account_or_device_token(token: str) -> bool:
     """Return true when a token already belongs to a session/device row.
 
@@ -181,6 +220,18 @@ def _write_token_file(path: Path, token: str) -> None:
     os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
 
 
+def _token_file_needs_sync(path: Path, token: str) -> bool:
+    try:
+        current_token = path.read_text()
+    except OSError:
+        return True
+    try:
+        current_mode = stat.S_IMODE(path.stat().st_mode)
+    except OSError:
+        return True
+    return current_token != token or current_mode != 0o600
+
+
 def sync_app_bootstrap_token(
     token: str,
     *,
@@ -188,7 +239,18 @@ def sync_app_bootstrap_token(
 ) -> Path:
     """Mirror the bootstrap token into the sandboxed local app container."""
     path = _sandbox_token_file_path(app_id)
-    _write_token_file(path, token)
+    target_paths = [path, *_uuid_sandbox_token_paths()]
+    seen_paths: set[Path] = set()
+    for target_path in target_paths:
+        if target_path in seen_paths:
+            continue
+        seen_paths.add(target_path)
+        if not _token_file_needs_sync(target_path, token):
+            continue
+        try:
+            _write_token_file(target_path, token)
+        except OSError:
+            logger.warning("Failed to sync bootstrap token to sandbox container %s", target_path)
     return path
 
 

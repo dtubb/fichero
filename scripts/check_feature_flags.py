@@ -185,7 +185,11 @@ def main() -> int:
         return 1
 
     if stale:
-        print("\n(KNOWN_VIOLATIONS has stale entries; clean them up when convenient.)")
+        print(
+            "\nFix: remove the now-clean entries listed above from KNOWN_VIOLATIONS. A stale "
+            "baseline entry leaves the ratchet green after the debt is gone; tighten it."
+        )
+        return 1
     print("\nOK: no new WIP feature flags default on.")
     return 0
 

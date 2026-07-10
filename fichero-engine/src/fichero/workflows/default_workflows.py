@@ -32,6 +32,7 @@ _PRESETS_DIR = Path(__file__).resolve().parent.parent / "resources" / "default_w
 _DEPRECATED_PRESET_NAMES: set[str] = {
     "Catalogue (composable)",
     "Catalogue (Apple Vision)",
+    "Catalogue Full Pipeline",
     "Catalogue Each",
     "Catalogue Stage 1 - Transcribe Pages",
     "Catalogue Stage 2 - Extract Entities + KG",

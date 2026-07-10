@@ -26,12 +26,13 @@ def _workflow_payload(name: str = "Test Workflow") -> dict:
     }
 
 
-def _make_workflow(db, name: str = "Test Workflow") -> Workflow:
+def _make_workflow(db, name: str = "Test Workflow", **kwargs) -> Workflow:
     wf = Workflow(
         name=name,
         description="A test workflow",
         format="nodes",
         steps=[],
+        **kwargs,
     )
     db.save(wf)
     return wf
@@ -82,6 +83,29 @@ class TestListWorkflows:
         names = {w["name"] for w in r.json()["items"]}
         assert names == {"Cat"}
 
+    def test_list_marks_system_preset_untested_unless_config_opted_in(self, client, db):
+        _make_workflow(
+            db,
+            "Shipped Preset",
+            is_system=True,
+            config={"preset_version": 2},
+        )
+        _make_workflow(
+            db,
+            "Trusted Preset",
+            is_system=True,
+            config={"tested": True},
+        )
+        _make_workflow(db, "User Workflow", is_system=False, config={"tested": True})
+
+        response = client.get("/api/workflows")
+
+        assert response.status_code == 200
+        by_name = {item["name"]: item for item in response.json()["items"]}
+        assert by_name["Shipped Preset"]["untested"] is True
+        assert by_name["Trusted Preset"]["untested"] is False
+        assert by_name["User Workflow"]["untested"] is False
+
 
 # ---------------------------------------------------------------------------
 # POST /api/workflows — create
@@ -102,6 +126,12 @@ class TestCreateWorkflow:
         assert r.status_code == 200
         assert r.json()["nodes"] == []
         assert r.json()["edges"] == []
+
+    def test_create_response_never_flags_user_workflow_untested(self, client):
+        response = client.post("/api/workflows", json=_workflow_payload("User Flow"))
+
+        assert response.status_code == 200
+        assert response.json()["untested"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +241,29 @@ class TestDuplicateWorkflow:
         assert copy["id"] != wf.id
         assert "Copy" in copy["name"]
 
+    def test_duplicate_preserves_system_trust_metadata(self, client, db):
+        wf = _make_workflow(
+            db,
+            "Preset",
+            is_system=True,
+            is_template=True,
+            tags=["preset"],
+            config={"preset_version": 3},
+        )
+
+        response = client.post(f"/api/workflows/{wf.id}/duplicate")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["untested"] is True
+
+        duplicate = db.get(Workflow, payload["id"])
+        assert duplicate is not None
+        assert duplicate.is_system is True
+        assert duplicate.is_template is True
+        assert duplicate.tags == ["preset"]
+        assert duplicate.config == {"preset_version": 3}
+
     def test_duplicate_missing_returns_404(self, client):
         r = client.post("/api/workflows/no-such-id/duplicate")
         assert r.status_code == 404
@@ -257,6 +310,19 @@ class TestImportWorkflow:
         assert data["format"] == "nodes"
         assert data["nodes"] == []
         assert data["edges"] == []
+
+    def test_import_response_never_flags_user_workflow_untested(self, client):
+        response = client.post(
+            "/api/workflows/import",
+            json={
+                "name": "Imported Name",
+                "nodes": [],
+                "edges": [],
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["untested"] is False
 
     def test_import_missing_nodes_or_edges_returns_400(self, client):
         r = client.post(
@@ -368,12 +434,45 @@ class TestListWorkflowTools:
         assert r.status_code == 200
         assert isinstance(r.json()["items"], list)
 
+    def test_tools_list_exposes_tested_flag(self, client):
+        response = client.get("/api/workflows/tools")
+
+        assert response.status_code == 200
+        by_name = {item["name"]: item for item in response.json()["items"]}
+        assert by_name["transcribe"]["tested"] is True
+        assert by_name["describe"]["tested"] is False
+
     def test_tools_grouped(self, client):
         r = client.get("/api/workflows/tools/grouped")
         assert r.status_code == 200
         data = r.json()
         assert "items" in data
         assert isinstance(data["items"], list)
+
+    def test_grouped_tools_preserve_tested_flag(self, client):
+        response = client.get("/api/workflows/tools/grouped")
+
+        assert response.status_code == 200
+        grouped = {
+            tool["name"]: tool
+            for group in response.json()["items"]
+            for tool in group["tools"]
+        }
+        assert grouped["transcribe"]["tested"] is True
+        assert grouped["describe"]["tested"] is False
+
+    def test_get_single_tool_exposes_tested_flag(self, client):
+        response = client.get("/api/workflows/tools/transcribe")
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "transcribe"
+        assert response.json()["tested"] is True
+
+    def test_get_single_tool_missing_returns_404(self, client):
+        response = client.get("/api/workflows/tools/no-such-tool")
+
+        assert response.status_code == 404
+        assert "Tool not found" in response.json()["detail"]
 
     def test_create_node_from_tool(self, client, monkeypatch):
         calls: list[tuple] = []
