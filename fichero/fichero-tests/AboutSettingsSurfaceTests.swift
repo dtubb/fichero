@@ -12,6 +12,18 @@ final class AboutSettingsSurfaceTests: XCTestCase {
         let source = try Self.appSource("FicheroApp.swift")
         XCTAssertFalse(source.contains("AI Providers & Models..."))
         XCTAssertFalse(source.contains("showSettingsWindow:"))
+        XCTAssertFalse(source.contains("MCP Servers..."))
+        XCTAssertFalse(source.contains("Button(\"Folder Watchers...\")"))
+        XCTAssertFalse(source.contains("Button(\"App Observers...\")"))
+        XCTAssertFalse(source.contains("Automation Rules..."))
+    }
+
+    func testSettingsViewHostsMCPAndIntegrationsTabs() throws {
+        let source = try Self.appSource("Views/Settings/SettingsView.swift")
+        XCTAssertTrue(source.contains("MCPServersView()"))
+        XCTAssertTrue(source.contains("IntegrationsSettingsView(showAutomationRules: featureManager.isAutomationEnabled)"))
+        XCTAssertTrue(source.contains("Label(\"MCP\", systemImage: \"server.rack\")"))
+        XCTAssertTrue(source.contains("Label(\"Integrations\", systemImage: \"app.connected.to.app.below.fill\")"))
     }
 
     private static func appSource(_ relativePath: String) throws -> String {

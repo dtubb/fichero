@@ -14,6 +14,21 @@ struct SettingsView: View {
                     Label("AI", systemImage: "brain")
                 }
 
+            if featureManager.isMCPEnabled {
+                MCPServersView()
+                    .environment(appState.mcpService)
+                    .tabItem {
+                        Label("MCP", systemImage: "server.rack")
+                    }
+            }
+
+            if featureManager.isIntegrationsEnabled {
+                IntegrationsSettingsView(showAutomationRules: featureManager.isAutomationEnabled)
+                    .tabItem {
+                        Label("Integrations", systemImage: "app.connected.to.app.below.fill")
+                    }
+            }
+
             if featureManager.isSettingsGeneralTabEnabled {
                 GeneralSettingsView()
                     .tabItem {
@@ -107,5 +122,40 @@ private struct SettingsPreviewHarness: View {
             .environment(AppState())
             .environment(EmbeddedBackendService())
             .environment(LibraryManager.shared)
+    }
+}
+
+private struct IntegrationsSettingsView: View {
+    let showAutomationRules: Bool
+
+    var body: some View {
+        Form {
+            Section {
+                IntegrationsPlaceholderContent(
+                    title: "Folder Watchers",
+                    description: "Automatically process files when added to watched folders.",
+                    icon: "folder.badge.gearshape"
+                )
+            }
+
+            Section {
+                IntegrationsPlaceholderContent(
+                    title: "App Observers",
+                    description: "Trigger workflows based on app events, like files saved from specific apps.",
+                    icon: "app.badge"
+                )
+            }
+
+            if showAutomationRules {
+                Section {
+                    IntegrationsPlaceholderContent(
+                        title: "Automation Rules",
+                        description: "Create rules to automatically organize and process documents.",
+                        icon: "gearshape.2"
+                    )
+                }
+            }
+        }
+        .formStyle(.grouped)
     }
 }

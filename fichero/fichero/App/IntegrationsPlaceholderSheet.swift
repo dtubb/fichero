@@ -12,6 +12,25 @@ struct IntegrationsPlaceholderSheet: View {
 
     var body: some View {
         VStack(spacing: 24) {
+            IntegrationsPlaceholderContent(title: title, description: description, icon: icon)
+
+            Button("Close") {
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(40)
+        .frame(width: 400, height: 350)
+    }
+}
+
+struct IntegrationsPlaceholderContent: View {
+    let title: String
+    let description: String
+    let icon: String
+
+    var body: some View {
+        VStack(spacing: 24) {
             Image(systemName: icon)
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
@@ -38,13 +57,7 @@ struct IntegrationsPlaceholderSheet: View {
             .padding()
             .background(.orange.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            Button("Close") {
-                dismiss()
-            }
-            .buttonStyle(.borderedProminent)
         }
-        .padding(40)
-        .frame(width: 400, height: 350)
+        .frame(maxWidth: .infinity)
     }
 }

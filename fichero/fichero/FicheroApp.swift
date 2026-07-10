@@ -418,36 +418,6 @@ struct FicheroApp: App {
                 }
             }
 
-            CommandGroup(after: .appSettings) {
-                Divider()
-
-                if featureManager.isMCPEnabled {
-                    Button(featureManager.badgedLabel("MCP Servers...", for: .mcpUi)) {
-                        appState.showMCPServers = true
-                    }
-                }
-
-                if featureManager.isIntegrationsEnabled {
-                    Divider()
-
-                    // Integrations submenu (Hazel-like folder/app observers)
-                    Menu(featureManager.badgedLabel("Integrations", for: .integrations)) {
-                        Button("Folder Watchers...") {
-                            appState.showFolderWatchers = true
-                        }
-
-                        Button("App Observers...") {
-                            appState.showAppObservers = true
-                        }
-
-                        Divider()
-
-                        Button(featureManager.badgedLabel("Automation Rules...", for: .automation)) {
-                            appState.showAutomationRules = true
-                        }
-                    }
-                }
-            }
         }
 
         // Duplicate Window (#2262, reform master plan §J): a value-seeded
