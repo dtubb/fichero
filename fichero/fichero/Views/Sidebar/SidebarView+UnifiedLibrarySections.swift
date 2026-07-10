@@ -170,6 +170,13 @@ extension SidebarView {
                 ),
                 content: {
                     unifiedRows(items, libraryId: libraryId)
+                        // Let the section open/close drive the reveal. If the
+                        // nested rows animate their own insertion, SwiftUI can
+                        // slide them in from the wrong lateral origin when a
+                        // disclosure expands (#3165).
+                        .transaction { transaction in
+                            transaction.animation = nil
+                        }
                 },
                 label: {
                     Label(title, systemImage: icon)

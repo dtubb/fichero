@@ -136,6 +136,14 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("sidebarMode = .research"))
     }
 
+    func testSidebarDisclosureRowsDisableNestedInsertionAnimation() throws {
+        let source = try Self.appSource("Views/Sidebar/SidebarView+UnifiedLibrarySections.swift")
+
+        XCTAssertTrue(source.contains(".transaction { transaction in"))
+        XCTAssertTrue(source.contains("transaction.animation = nil"))
+        XCTAssertTrue(source.contains("wrong lateral origin"))
+    }
+
     func testCurrentChatScopePrefersSelectionThenDetailThenVisibleCollection() {
         let folder = Document(id: "folder-1", docType: .folder, name: "Folder")
         let page = Document(id: "page-1", parentId: "folder-1", docType: .page, fileType: .pdf, name: "Page 1")
