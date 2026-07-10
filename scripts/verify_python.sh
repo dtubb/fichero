@@ -75,25 +75,9 @@ else
   echo "✅ openapi freshness"
 fi
 
-# 8. Feature-tier freshness — regenerate the Swift tier map, backend tier
-#    metadata, and the user-facing feature matrix from features.yaml, then
-#    confirm the committed artifacts are still current. Restore generated files
-#    on mismatch so the guardrail stays read-only.
-echo "── feature tier freshness ──"
-PYTHONPATH=fichero-engine/src "$PY" scripts/gen_feature_tiers.py >/dev/null 2>&1
-if ! git diff --quiet -- \
-    docs/user/features.md \
-    fichero/fichero/Models/FeatureTiers.generated.swift \
-    fichero-engine/src/fichero/api/feature_tiers_generated.py; then
-  echo "❌ feature tier freshness — generated feature-tier artifacts drifted; run ./scripts/gen_feature_tiers.py and commit"
-  git checkout -- \
-    docs/user/features.md \
-    fichero/fichero/Models/FeatureTiers.generated.swift \
-    fichero-engine/src/fichero/api/feature_tiers_generated.py 2>/dev/null || true
-  fail=1
-else
-  echo "✅ feature tier freshness"
-fi
+# 8. Feature-tier freshness — regenerate into a temp copy and confirm the
+#    committed feature-tier artifacts still match features.yaml.
+run "feature tier freshness" "$PY" scripts/check_features_freshness.py
 
 echo
 if [ "$fail" = 0 ]; then echo "✅✅ verify_python: ALL PASS"; else echo "❌❌ verify_python: FAILURES ABOVE"; fi
