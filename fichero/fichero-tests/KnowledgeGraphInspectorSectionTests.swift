@@ -368,6 +368,31 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(storeSource.contains("func entities(forDocument documentId: String)"))
     }
 
+    func testOntologyBrowserLibraryListUsesEntityStoreAndClaimStoreActions() throws {
+        let browserSource = try Self.appSource(
+            "Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser.swift"
+        )
+        let listSource = try Self.appSource(
+            "Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser+List.swift"
+        )
+        let triageSource = try Self.appSource(
+            "Views/KnowledgeGraph/OntologyBrowser/ContradictionTriageSheet.swift"
+        )
+        let storeSource = try Self.appSource("Models/EntityStore.swift")
+
+        XCTAssertTrue(browserSource.contains("@Environment(EntityStore.self) var entityStore"))
+        XCTAssertTrue(browserSource.contains("entityStore.libraryEntities"))
+        XCTAssertTrue(listSource.contains("try await entityStore.delete(entityIds: [entityId])"))
+        XCTAssertTrue(listSource.contains("await entityStore.loadEntities(limit: Self.entityListLimit)"))
+        XCTAssertTrue(listSource.contains("await entityStore.loadEntities(query: searchText"))
+        XCTAssertFalse(listSource.contains("LibraryManager.shared.globalLibrary!"))
+        XCTAssertTrue(storeSource.contains("entityService.listEntities(query: searchQuery, limit: limit)"))
+        XCTAssertTrue(storeSource.contains("entityService.fetchClaimCounts()"))
+        XCTAssertTrue(triageSource.contains("@Environment(ClaimStore.self) private var claimStore"))
+        XCTAssertTrue(triageSource.contains("try await claimStore.patch(claimId: claimId, curationState: state)"))
+        XCTAssertFalse(triageSource.contains("library.entityService.patchClaim"))
+    }
+
     func testKnowledgeGraphTextDigestUsesStableEntryIds() throws {
         let source = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"

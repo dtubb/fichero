@@ -34,6 +34,7 @@ struct OntologyBrowser: View {
     /// Observable claim store (#1862) — its `changeToken` drives detail-panel
     /// resync, replacing the retired `.ficheroClaim*` NotificationCenter bus.
     @Environment(ClaimStore.self) var claimStore
+    @Environment(EntityStore.self) var entityStore
     /// Finder-style Open in New Tab / New Window for ontology rows (#1685).
     @Environment(\.openWindow) var openWindow
     /// Compact width (iPhone) collapses the list|detail split into a push flow (#3011).
@@ -179,13 +180,7 @@ struct OntologyBrowser: View {
         ) != nil
     }
 
-    func setHidden(_ kind: String, hidden: Bool) {
-        var set = hiddenKinds
-        if hidden { set.insert(kind) } else { set.remove(kind) }
-        hiddenKindsCSV = set.sorted().joined(separator: ",")
-    }
-
-    // ponytail: recompute inputs — loadState.entities, hiddenKindsCSV, suppressOcrGarbage
+    // ponytail: recompute inputs — entityStore.libraryEntities, hiddenKindsCSV, suppressOcrGarbage
     @State var filteredEntities: [Components.Schemas.KnowledgeEntity] = []
     @State var nonDateEntities: [Components.Schemas.KnowledgeEntity] = []
     @State var dateEntities: [Components.Schemas.KnowledgeEntity] = []
@@ -203,20 +198,16 @@ struct OntologyBrowser: View {
     // MARK: - Load-state accessors
 
     var entities: [Components.Schemas.KnowledgeEntity] {
-        get { loadState.entities }
-        nonmutating set { loadState.entities = newValue }
+        entityStore.libraryEntities
     }
     var claimCounts: [String: Int] {
-        get { loadState.claimCounts }
-        nonmutating set { loadState.claimCounts = newValue }
+        entityStore.libraryClaimCounts
     }
     var loadError: String? {
-        get { loadState.loadError }
-        nonmutating set { loadState.loadError = newValue }
+        entityStore.libraryLoadError
     }
     var isLoading: Bool {
-        get { loadState.isLoading }
-        nonmutating set { loadState.isLoading = newValue }
+        entityStore.isLoadingLibrary
     }
     var entityClaims: [Components.Schemas.KnowledgeClaim] {
         get { loadState.entityClaims }
@@ -243,7 +234,7 @@ struct OntologyBrowser: View {
             )
         )
         .onAppear { recomputeFilteredEntities() }
-        .onChange(of: loadState.entities) { _, _ in recomputeFilteredEntities() }
+        .onChange(of: entityStore.libraryEntities) { _, _ in recomputeFilteredEntities() }
         .onChange(of: hiddenKindsCSV) { _, _ in recomputeFilteredEntities() }
         .onChange(of: suppressOcrGarbage) { _, _ in recomputeFilteredEntities() }
         .onChange(of: kgFocusState.focusedEntityId) { _, entityId in
@@ -350,19 +341,13 @@ struct OntologyBrowser: View {
         }
     }
 
-    func deleteEntity(_ entity: Components.Schemas.KnowledgeEntity) async {
-        guard let library = LibraryManager.shared.globalLibrary,
-              let entityId = entity.id else { return }
-        entityPendingDeletion = nil
-        do {
-            try await library.entityService.deleteEntity(entityId)
-            entities.removeAll { $0.id == entityId }
-            if selectedEntityId == entityId {
-                selectedEntityId = nil
-            }
-        } catch {
-            loadError = "Delete failed: \(error.localizedDescription)"
-        }
+}
+
+extension OntologyBrowser {
+    func setHidden(_ kind: String, hidden: Bool) {
+        var set = hiddenKinds
+        if hidden { set.insert(kind) } else { set.remove(kind) }
+        hiddenKindsCSV = set.sorted().joined(separator: ",")
     }
 }
 

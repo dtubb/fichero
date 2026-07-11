@@ -23,6 +23,10 @@ final class EntityStore: ObservableDomainStore {
     private(set) var entities: [Components.Schemas.KnowledgeEntity] = []
     private(set) var isLoading = false
     private(set) var loadError: String?
+    private(set) var libraryEntities: [Components.Schemas.KnowledgeEntity] = []
+    private(set) var libraryClaimCounts: [String: Int] = [:]
+    private(set) var isLoadingLibrary = false
+    private(set) var libraryLoadError: String?
     private(set) var entitiesByDocumentId: [String: [Components.Schemas.KnowledgeEntity]] = [:]
     private(set) var loadingDocumentIds: Set<String> = []
     private(set) var loadErrorsByDocumentId: [String: String] = [:]
@@ -38,6 +42,7 @@ final class EntityStore: ObservableDomainStore {
     /// without thrashing each other's visible list (#1908).
     private var loadedDocumentIds: Set<String> = []
     private var lastLoadedDocumentId: String?
+    private var lastLibraryQuery: String?
 
     init(
         entityService: EntityServiceGenerated,
@@ -50,6 +55,32 @@ final class EntityStore: ObservableDomainStore {
     }
 
     // MARK: - Load (the store, not the view, owns fetching)
+
+    /// Load the library-wide ontology browser list. Document inspector panes
+    /// use `loadEntities(forDocument:)`; this is the same store-backed pattern
+    /// for the Knowledge Graph browser.
+    func loadEntities(query: String? = nil, limit: Int = 100, force: Bool = false) async {
+        let trimmedQuery = query?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let searchQuery = trimmedQuery?.isEmpty == false ? trimmedQuery : nil
+        if !force, !libraryEntities.isEmpty, libraryLoadError == nil, searchQuery == lastLibraryQuery { return }
+
+        isLoadingLibrary = true
+        libraryLoadError = nil
+        defer { isLoadingLibrary = false }
+
+        do {
+            async let loadedEntities = entityService.listEntities(query: searchQuery, limit: limit)
+            async let loadedCounts = entityService.fetchClaimCounts()
+            libraryEntities = try await loadedEntities
+            libraryClaimCounts = (try? await loadedCounts) ?? [:]
+            lastLibraryQuery = searchQuery
+        } catch is CancellationError {
+            // Superseded by a newer search/load.
+        } catch {
+            libraryEntities = []
+            libraryLoadError = "Couldn't load entities: \(error.localizedDescription)"
+        }
+    }
 
     /// Load the inspector entities for `documentId`. Idempotent: re-loading the
     /// same already-populated scope is a no-op unless `force` is set (reload
@@ -136,6 +167,10 @@ final class EntityStore: ObservableDomainStore {
         }
         guard !entityIds.isEmpty else { return }
         let targetIds = Set(entityIds)
+        for index in libraryEntities.indices {
+            guard let id = libraryEntities[index].id, targetIds.contains(id) else { continue }
+            libraryEntities[index].curationState = state
+        }
         for index in entities.indices {
             guard let id = entities[index].id, targetIds.contains(id) else { continue }
             entities[index].curationState = state
@@ -150,14 +185,22 @@ final class EntityStore: ObservableDomainStore {
             absorbingEntityId: survivorId,
             absorbedEntityIds: absorbedIds
         )
+        let absorbed = Set(absorbedIds)
+        libraryEntities.removeAll { entity in
+            entity.id.map(absorbed.contains) ?? false
+        }
         if hasDocumentScope {
             await reload()
             return
         }
 
-        let absorbed = Set(absorbedIds)
         entities.removeAll { entity in
             entity.id.map(absorbed.contains) ?? false
+        }
+        for documentId in entitiesByDocumentId.keys {
+            entitiesByDocumentId[documentId]?.removeAll { entity in
+                entity.id.map(absorbed.contains) ?? false
+            }
         }
     }
 
@@ -170,8 +213,16 @@ final class EntityStore: ObservableDomainStore {
         to newName: String
     ) async throws -> Components.Schemas.KnowledgeEntity {
         let updated = try await entityService.patchEntity(entityId, canonicalName: newName)
+        if let index = libraryEntities.firstIndex(where: { $0.id == entityId }) {
+            libraryEntities[index] = updated
+        }
         if let index = entities.firstIndex(where: { $0.id == entityId }) {
             entities[index] = updated
+        }
+        for documentId in entitiesByDocumentId.keys {
+            if let index = entitiesByDocumentId[documentId]?.firstIndex(where: { $0.id == entityId }) {
+                entitiesByDocumentId[documentId]?[index] = updated
+            }
         }
         return updated
     }
@@ -184,6 +235,9 @@ final class EntityStore: ObservableDomainStore {
         to entityType: String
     ) async throws -> Components.Schemas.KnowledgeEntity {
         let updated = try await entityService.patchEntity(entityId, entityType: entityType)
+        if let index = libraryEntities.firstIndex(where: { $0.id == entityId }) {
+            libraryEntities[index] = updated
+        }
         if hasDocumentScope {
             await reload()
         } else if let index = entities.firstIndex(where: { $0.id == entityId }) {
@@ -198,8 +252,17 @@ final class EntityStore: ObservableDomainStore {
             try await entityService.deleteEntity(entityId)
         }
         let deleted = Set(entityIds)
+        libraryEntities.removeAll { entity in
+            entity.id.map(deleted.contains) ?? false
+        }
+        libraryClaimCounts = libraryClaimCounts.filter { !deleted.contains($0.key) }
         entities.removeAll { entity in
             entity.id.map(deleted.contains) ?? false
+        }
+        for documentId in entitiesByDocumentId.keys {
+            entitiesByDocumentId[documentId]?.removeAll { entity in
+                entity.id.map(deleted.contains) ?? false
+            }
         }
     }
 
