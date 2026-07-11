@@ -71,13 +71,37 @@ final class EntitySearchState {
     }
 }
 
+/// Where a source-navigation request wants the user taken. The popover
+/// quick-look (#3449) needs neither (it renders the crop inline), but a
+/// "reveal" action states whether the center Preview pane, the full Reader,
+/// or both should follow the anchor (#2105 tier 2). Defaults to `.reader`
+/// to preserve the pre-existing jump-to-page behaviour.
+enum SourceDestination: String, Equatable, Sendable {
+    case preview
+    case reader
+    case both
+}
+
+/// The cross-cutting "trace this record back to its source" contract
+/// (#2105). Any bbox-anchored item — claim, entity mention, face,
+/// annotation, transcribed line — carries this so the inspector can both
+/// render the cropped source region (via the ephemeral-crop endpoint) and
+/// reveal the exact place on the page. `bbox`/`pageIndex` are optional so
+/// existing char-range callers keep working unchanged.
 struct ClaimSourceNavigationRequest: Equatable {
     let documentId: String
     var claimId: String?
     var claimText: String?
     var pageLabel: String?
+    var pageIndex: Int?
     var charStart: Int?
     var charEnd: Int?
+    /// Normalized [x0, y0, x1, y1] source region, matching the engine's
+    /// annotation bbox convention. Drives the cropped-source popover and
+    /// the page-highlight overlay.
+    var bbox: [Double]?
+    /// Where a reveal should take the user. Ignored by the inline popover.
+    var destination: SourceDestination = .reader
 }
 
 @Observable
