@@ -14,15 +14,15 @@ import SwiftUI
 /// graph); this shows the bibliography inside the document itself.
 struct DocumentBibliographyPanel: View {
     let documentId: String
+    @Environment(ReferenceStore.self) private var store
 
     // Live-refresh via the per-document ReferenceStore (#1999): the store owns
     // the fetch + the `reference.*` change-stream reactions. Reading the store's
     // properties in `body` registers the @Observable dependency.
-    private var store: ReferenceStore? { LibraryManager.shared.globalLibrary?.referenceStore }
-    private var references: [Components.Schemas.Reference] { store?.references ?? [] }
-    private var selfRef: Components.Schemas.Reference? { store?.selfRef }
-    private var isLoading: Bool { store?.isLoading ?? false }
-    private var loadError: String? { store?.loadError }
+    private var references: [Components.Schemas.Reference] { store.references }
+    private var selfRef: Components.Schemas.Reference? { store.selfRef }
+    private var isLoading: Bool { store.isLoading }
+    private var loadError: String? { store.loadError }
     @State private var copiedAll = false
     // Reference pending a confirmed delete (#3258 — surfaces the undoable
     // reference delete the action layer already backs).
@@ -59,7 +59,7 @@ struct DocumentBibliographyPanel: View {
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                     Button("Retry") {
-                        Task { await store?.setScope(documentId: documentId, force: true) }
+                        Task { await store.setScope(documentId: documentId, force: true) }
                     }
                         .font(.caption2).buttonStyle(.borderless)
                 }
@@ -122,7 +122,7 @@ struct DocumentBibliographyPanel: View {
                 }
             }
         }
-        .task(id: documentId) { await store?.setScope(documentId: documentId) }
+        .task(id: documentId) { await store.setScope(documentId: documentId) }
         .confirmationDialog(
             pendingDelete.map { "Delete \"\(referenceTitle($0))\"?" } ?? "Delete reference?",
             isPresented: Binding(
@@ -135,7 +135,7 @@ struct DocumentBibliographyPanel: View {
                 guard let id = ref.id else { return }
                 Task {
                     do {
-                        try await store?.deleteReference(id)
+                        try await store.deleteReference(id)
                     } catch {
                         deleteError = error.localizedDescription
                     }
@@ -195,7 +195,7 @@ struct DocumentBibliographyPanel: View {
         Task { @MainActor in
             defer { isExtracting = false }
             do {
-                try await store?.runExtractor()
+                try await store.runExtractor()
             } catch {
                 extractError = error.localizedDescription
             }
@@ -208,7 +208,7 @@ struct DocumentBibliographyPanel: View {
         Task { @MainActor in
             defer { resolvingIds.remove(id) }
             do {
-                try await store?.resolveReference(doi: ref.doi, isbn: ref.isbn)
+                try await store.resolveReference(doi: ref.doi, isbn: ref.isbn)
             } catch {
                 resolveError = error.localizedDescription
             }

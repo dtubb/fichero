@@ -10,17 +10,17 @@ import SwiftUI
 /// italic resolved doc name for outbound, source-doc name for inbound.
 struct CitationGraphPanel: View {
     let documentId: String
+    @Environment(CitationStore.self) private var store
 
     // Live-refresh via the per-document CitationStore (#1998): the store owns
     // the fetch + the `citation.*` change-stream reactions, so an edit in any
     // window updates this panel in place. Reading the store's properties in
     // `body` registers the @Observable dependency.
-    private var store: CitationStore? { LibraryManager.shared.globalLibrary?.citationStore }
-    private var inbound: [Components.Schemas.DocumentCitation] { store?.inbound ?? [] }
-    private var outbound: [Components.Schemas.DocumentCitation] { store?.outbound ?? [] }
-    private var citationUsages: [EntityCitationUsage] { store?.usages ?? [] }
-    private var isLoading: Bool { store?.isLoading ?? false }
-    private var errorMessage: String? { store?.loadError }
+    private var inbound: [Components.Schemas.DocumentCitation] { store.inbound }
+    private var outbound: [Components.Schemas.DocumentCitation] { store.outbound }
+    private var citationUsages: [EntityCitationUsage] { store.usages }
+    private var isLoading: Bool { store.isLoading }
+    private var errorMessage: String? { store.loadError }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -54,7 +54,7 @@ struct CitationGraphPanel: View {
                 }
             }
         }
-        .task(id: documentId) { await store?.setScope(documentId: documentId) }
+        .task(id: documentId) { await store.setScope(documentId: documentId) }
     }
 
     @ViewBuilder
