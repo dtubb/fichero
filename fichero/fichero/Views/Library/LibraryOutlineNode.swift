@@ -80,8 +80,8 @@ struct LibraryOutlineNode: Identifiable, Hashable {
     let count: Int
     /// Child rows. `nil` until the document's rollup has loaded (so the
     /// disclosure triangle shows but the children stream in); an empty
-    /// array means "loaded, no children". On `.childGroup` nodes this is
-    /// always `nil` (leaf).
+    /// array means "loaded, no children". On `.childGroup` nodes a non-empty
+    /// array means the aggregate row should disclose its typed children.
     var children: [LibraryOutlineNode]?
 
     /// Stable identity. Document nodes key on the document id; child-group
@@ -136,6 +136,19 @@ struct LibraryOutlineNode: Identifiable, Hashable {
         parent: Document
     ) -> LibraryOutlineNode {
         LibraryOutlineNode(kind: .claimItem(claim), document: parent, count: 0, children: nil)
+    }
+
+    /// Native outline disclosure rule: document rows always expand; aggregate
+    /// child groups expand only once real children have materialized.
+    var canExpand: Bool {
+        switch kind {
+        case .document:
+            return true
+        case .childGroup:
+            return !(children?.isEmpty ?? true)
+        case .pageItem, .artifactItem, .entityItem, .claimItem:
+            return false
+        }
     }
 }
 

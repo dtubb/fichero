@@ -173,14 +173,7 @@ extension LibraryView {
     }
 
     private func nodeCanExpand(_ node: LibraryOutlineNode) -> Bool {
-        switch node.kind {
-        case .document:
-            return true
-        case .childGroup:
-            return !(node.children?.isEmpty ?? true)
-        case .pageItem, .artifactItem, .entityItem, .claimItem:
-            return false
-        }
+        node.canExpand
     }
 
     /// Node-typed sort-order binding mapped onto the existing

@@ -213,4 +213,23 @@ struct LibraryOutlineModelTests {
         #expect(entityNode.id == "parent-3:entity:entity-x")
         #expect(claimNode.id == "parent-3:claim:claim-y")
     }
+
+    @Test("Entity and claim aggregate rows disclose only when children are loaded")
+    func aggregateRowsOnlyExpandWithRealChildren() {
+        let parent = makeDoc(id: "parent-4")
+        let unloadedGroup = LibraryOutlineNode.childGroup(.entities, document: parent, count: 2)
+        let emptyGroup = LibraryOutlineNode.childGroup(.claims, document: parent, count: 1, children: [])
+        let loadedGroup = LibraryOutlineNode.childGroup(
+            .entities,
+            document: parent,
+            count: 2,
+            children: [
+                LibraryOutlineNode.entityItem(makeEntity(id: "entity-a", name: "Ada"), parent: parent)
+            ]
+        )
+
+        #expect(unloadedGroup.canExpand == false)
+        #expect(emptyGroup.canExpand == false)
+        #expect(loadedGroup.canExpand)
+    }
 }
