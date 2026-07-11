@@ -471,4 +471,39 @@ final class EntityStoreTests: XCTestCase {
     private func jsonData(_ object: Any) -> Data {
         (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
     }
+
+    // MARK: - Folder aggregation union (#3450)
+
+    private func aggEntity(id: String?, name: String) -> Components.Schemas.KnowledgeEntity {
+        Components.Schemas.KnowledgeEntity(
+            id: id,
+            canonicalName: name,
+            entityType: .person,
+            aliases: nil,
+            description: nil,
+            language: nil,
+            metadata: nil,
+            mergedIntoId: nil
+        )
+    }
+
+    func testUnionDedupesByEntityIdPreservingFirstSeenOrder() {
+        let folder = [aggEntity(id: "e1", name: "Ada"), aggEntity(id: "e2", name: "Grace")]
+        let childA = [aggEntity(id: "e2", name: "Grace"), aggEntity(id: "e3", name: "Alan")]
+        let childB = [aggEntity(id: "e1", name: "Ada")]
+
+        let merged = EntityStore.union([folder, childA, childB])
+
+        // e1, e2, e3 — each once, in first-seen order across the folder + children.
+        XCTAssertEqual(merged.map(\.id), ["e1", "e2", "e3"])
+    }
+
+    func testUnionFallsBackToTypeNameKeyForIdlessEntities() {
+        // Two not-yet-persisted entities with the same type+name collapse to one.
+        let merged = EntityStore.union([
+            [aggEntity(id: nil, name: "Ada")],
+            [aggEntity(id: nil, name: "Ada"), aggEntity(id: nil, name: "Grace")]
+        ])
+        XCTAssertEqual(merged.map(\.canonicalName), ["Ada", "Grace"])
+    }
 }

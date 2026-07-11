@@ -31,6 +31,10 @@ struct DocumentInspectorEntitiesTab: View {
     @Environment(EntitySearchState.self) private var entitySearchState: EntitySearchState?
     /// Cross-view KG focus — drives "Show in Graph" (#3452).
     @Environment(KGFocusState.self) private var kgFocusState
+    /// Document tree — supplies a folder's children for aggregation (#3450).
+    @Environment(DocumentStore.self) private var documentStore
+    /// Shared with the KG tab: aggregate across a folder's children when on.
+    @AppStorage("inspector.scope.includeChildren") private var includeChildren = false
 
     @State private var entitySelection: Set<String> = []
     @State private var isApplyingBulkAction = false
@@ -93,6 +97,28 @@ struct DocumentInspectorEntitiesTab: View {
         entityStore.entities(forDocument: documentId)
     }
 
+    private var isFolder: Bool { document.docType == .folder }
+
+    /// Aggregate across children when a folder is inspected and the scope toggle
+    /// is on (#3450); otherwise the entities are just this document's.
+    private var aggregatingChildren: Bool { isFolder && includeChildren }
+
+    /// Load entities for the current scope: a folder's aggregated children, or a
+    /// single document. Published under `documentId`, so `scopedEntities` reads
+    /// the right set either way.
+    private func loadScopedEntities(force: Bool = false) async {
+        if aggregatingChildren {
+            let childIds = await documentStore.children(of: documentId).map(\.id)
+            await entityStore.loadAggregatedEntities(
+                forFolder: documentId,
+                childDocumentIds: childIds,
+                force: force
+            )
+        } else {
+            await entityStore.loadEntities(forDocument: documentId, force: force)
+        }
+    }
+
     private var scopedLoadError: String? {
         entityStore.loadError(forDocument: documentId)
     }
@@ -152,8 +178,9 @@ struct DocumentInspectorEntitiesTab: View {
             }
         }
         .padding(.top)
-        // The store owns fetching; the view just scopes it to this document.
-        .task(id: documentId) { await entityStore.loadEntities(forDocument: documentId) }
+        // The store owns fetching; the view just scopes it to this document
+        // (or the folder's aggregated children when the scope toggle is on).
+        .task(id: "\(documentId)-\(includeChildren)") { await loadScopedEntities() }
         .onAppear { recomputeGrouped() }
         .onChange(of: scopedEntities) { _, _ in
             recomputeGrouped()
@@ -226,7 +253,7 @@ struct DocumentInspectorEntitiesTab: View {
             filterMenu
 
             Button {
-                Task { await entityStore.loadEntities(forDocument: documentId, force: true) }
+                Task { await loadScopedEntities(force: true) }
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
@@ -309,6 +336,29 @@ struct DocumentInspectorEntitiesTab: View {
 
     private var filterMenu: some View {
         Menu {
+            // Folder aggregation scope (#3450) — only meaningful for a folder.
+            if isFolder {
+                Section("Scope") {
+                    Button {
+                        includeChildren = false
+                    } label: {
+                        HStack {
+                            Text("This folder only")
+                            Spacer(minLength: 0)
+                            if !includeChildren { Image(systemName: "checkmark") }
+                        }
+                    }
+                    Button {
+                        includeChildren = true
+                    } label: {
+                        HStack {
+                            Text("Include children")
+                            Spacer(minLength: 0)
+                            if includeChildren { Image(systemName: "checkmark") }
+                        }
+                    }
+                }
+            }
             ForEach(EntityKind.displayOrder, id: \.self) { kind in
                 let isHidden = hiddenKinds.contains(kind)
                 Button {
