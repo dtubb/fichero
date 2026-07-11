@@ -36,6 +36,10 @@ class ArtifactResponse(BaseModel):
     model: Optional[str] = None
     confidence: Optional[float] = None
     reviewed: bool
+    source_artifact_id: Optional[str] = None
+    source_document_id: Optional[str] = None
+    run_id: Optional[str] = None
+    step_name: Optional[str] = None
     created_at: str
 
 
@@ -95,6 +99,10 @@ def _artifact_response(artifact: Artifact) -> ArtifactResponse:
         model=artifact.model,
         confidence=artifact.confidence,
         reviewed=artifact.reviewed,
+        source_artifact_id=artifact.source_artifact_id,
+        source_document_id=artifact.source_document_id,
+        run_id=artifact.run_id,
+        step_name=artifact.step_name,
         created_at=artifact.created_at.isoformat() if artifact.created_at else "",
     )
 

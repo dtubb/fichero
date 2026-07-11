@@ -330,6 +330,24 @@ class TestListDocumentArtifacts:
 
 
 class TestGetArtifact:
+    def test_returns_lineage_fields(self, client, db):
+        doc = Document(name="source")
+        db.save(doc)
+        artifact = Artifact(
+            document_id=doc.id,
+            artifact_type="summary",
+            source_artifact_id="upstream",
+            source_document_id="original",
+            run_id="run-1",
+            step_name="summarize",
+        )
+        db.save(artifact)
+
+        response = client.get(f"/api/artifacts/{artifact.id}")
+        assert response.status_code == 200
+        assert response.json()["step_name"] == "summarize"
+        assert response.json()["source_artifact_id"] == "upstream"
+
     def test_returns_artifact_by_id(self, client, db):
         doc = _make_doc(db)
         a = _make_artifact(db, doc.id)
