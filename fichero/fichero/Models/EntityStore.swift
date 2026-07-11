@@ -150,7 +150,7 @@ final class EntityStore: ObservableDomainStore {
             absorbingEntityId: survivorId,
             absorbedEntityIds: absorbedIds
         )
-        if loadedDocumentId != nil {
+        if hasDocumentScope {
             await reload()
             return
         }
@@ -184,7 +184,7 @@ final class EntityStore: ObservableDomainStore {
         to entityType: String
     ) async throws -> Components.Schemas.KnowledgeEntity {
         let updated = try await entityService.patchEntity(entityId, entityType: entityType)
-        if loadedDocumentId != nil {
+        if hasDocumentScope {
             await reload()
         } else if let index = entities.firstIndex(where: { $0.id == entityId }) {
             entities[index] = updated
@@ -233,5 +233,9 @@ final class EntityStore: ObservableDomainStore {
         entities = entitiesByDocumentId[documentId] ?? []
         isLoading = loadingDocumentIds.contains(documentId)
         loadError = loadErrorsByDocumentId[documentId]
+    }
+
+    private var hasDocumentScope: Bool {
+        !loadedDocumentIds.isEmpty || lastLoadedDocumentId != nil
     }
 }
