@@ -4,6 +4,8 @@ from fichero.models import (
     ContentRepresentationRevision,
     ContentSourceAnchor,
 )
+from fichero.actions.registry import ActionContext, registry
+import fichero.api.routes.content_representations  # noqa: F401
 
 
 def test_representation_and_revision_persist(db):
@@ -22,3 +24,22 @@ def test_representation_and_revision_persist(db):
 
     assert db.get(ContentRepresentation, representation.id).source_anchor.page_id == "page-1"
     assert db.get(ContentRepresentationRevision, revision.id).representation_id == representation.id
+
+
+def test_revision_action_preserves_source_representation(db):
+    representation = ContentRepresentation(
+        document_id="doc-1",
+        kind=ContentRepresentationKind.transcription,
+        content="immutable source",
+        source_anchor=ContentSourceAnchor(document_id="doc-1"),
+    )
+    db.save(representation)
+    result = registry.invoke(
+        db,
+        "representation.revise",
+        {"representation_id": representation.id, "content": "reader correction"},
+        ActionContext(actor="reviewer"),
+    )
+    revision = db.get(ContentRepresentationRevision, result.result["id"])
+    assert revision.reviewer == "reviewer"
+    assert db.get(ContentRepresentation, representation.id).content == "immutable source"
