@@ -80,6 +80,8 @@ struct ArtifactsInspectorPane: View {
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
+    /// Per-window source-navigation bus (#3437).
+    @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
 
     /// Shared selection — the same instance the detached window observes.
     @State private var focused = FocusedArtifact.shared
@@ -253,7 +255,7 @@ struct ArtifactsInspectorPane: View {
             inspectedDocument: document,
             documentsById: knownDocumentsById
         )
-        ClaimSourceNavigationState.shared.request(
+        claimSourceNavigationState?.request(
             ClaimSourceNavigationRequest(
                 documentId: provenance.sourceDocumentId,
                 pageLabel: provenance.pageLabel

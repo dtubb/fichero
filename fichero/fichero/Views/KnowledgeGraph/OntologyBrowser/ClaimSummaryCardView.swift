@@ -23,6 +23,11 @@ struct ClaimSummaryCard: View {
     var focusedEntityId: String?
     var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
+    /// Per-window request buses (#3437); optional → safe no-op when a host
+    /// hasn't injected them. Read in the +Details.swift extension's handlers.
+    @Environment(EntitySearchState.self) var entitySearchState: EntitySearchState?
+    @Environment(ClaimSourceNavigationState.self) var claimSourceNavigationState: ClaimSourceNavigationState?
+
     /// Expanded → reveals the verbatim source excerpt + fetches
     /// contradictions + evidence-chain. Collapsed by default to keep
     /// the card tight. Was previously rendering excerpt always +

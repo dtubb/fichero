@@ -26,9 +26,13 @@ struct EntityLozenge: View {
     /// Finder filename truncation. (Daniel: 'elipses in the middle')
     var maxWidth: CGFloat = 180
 
+    /// Per-window search bus (#3437). Optional so a lozenge shown in a host that
+    /// hasn't injected the state safely no-ops instead of trapping.
+    @Environment(EntitySearchState.self) private var entitySearchState: EntitySearchState?
+
     var body: some View {
         Button {
-            EntitySearchState.shared.request(name: name, entityType: entityType)
+            entitySearchState?.request(name: name, entityType: entityType)
         } label: {
             Text(name)
                 .font(.caption2)
@@ -53,11 +57,13 @@ struct EntityLozenge: View {
     }
 }
 
+/// Per-window entity-search request bus. Scoped to the window/library via the
+/// SwiftUI environment (#3437) — NOT a process-global singleton, so a search
+/// fired in one window never drives another. `ContentView` owns one instance
+/// and injects it; producers read it from `@Environment`.
 @Observable
 @MainActor
 final class EntitySearchState {
-    static let shared = EntitySearchState()
-
     private(set) var requestID: Int = 0
     private(set) var requestedName: String?
     private(set) var requestedEntityType: String?
@@ -104,11 +110,14 @@ struct ClaimSourceNavigationRequest: Equatable {
     var destination: SourceDestination = .reader
 }
 
+/// Per-window claim/entity/citation source-navigation request bus. Scoped to
+/// the window/library via the SwiftUI environment (#3437) — NOT a process-global
+/// singleton, so a source reveal in one window never navigates another.
+/// `ContentView` owns one instance and injects it; producers read it from
+/// `@Environment` (optional, so a host that hasn't injected safely no-ops).
 @Observable
 @MainActor
 final class ClaimSourceNavigationState {
-    static let shared = ClaimSourceNavigationState()
-
     private(set) var requestID: Int = 0
     private(set) var currentRequest: ClaimSourceNavigationRequest?
 

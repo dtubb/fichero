@@ -192,7 +192,7 @@ extension ClaimSummaryCard {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         guard let library = LibraryManager.shared.globalLibrary else {
-            EntitySearchState.shared.request(name: name, entityType: nil)
+            entitySearchState?.request(name: name, entityType: nil)
             return
         }
         do {
@@ -210,12 +210,12 @@ extension ClaimSummaryCard {
         } catch {
             // Fallback to text search below.
         }
-        EntitySearchState.shared.request(name: name, entityType: nil)
+        entitySearchState?.request(name: name, entityType: nil)
     }
 
     /// Route the explicit source-line button through the typed source-open state.
     func openClaimSource() {
-        Self.postOpenClaimSource(for: claim)
+        postOpenClaimSource(for: claim)
     }
 
     static func openClaimSourceRequest(
@@ -252,16 +252,16 @@ extension ClaimSummaryCard {
         )
     }
 
-    static func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {
+    func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {
         let docId = claim.sourceDocumentId ?? ""
         guard !docId.isEmpty,
               LibraryManager.shared.globalLibrary?
                 .documentStore
                 .currentDocuments
                 .contains(where: { $0.id == docId }) == true,
-              let request = openClaimSourceRequest(for: claim)
+              let request = Self.openClaimSourceRequest(for: claim)
         else { return }
-        ClaimSourceNavigationState.shared.request(request)
+        claimSourceNavigationState?.request(request)
     }
 
     private func navigateToSource() {

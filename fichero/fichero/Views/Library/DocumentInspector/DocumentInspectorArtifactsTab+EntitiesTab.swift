@@ -26,6 +26,8 @@ struct DocumentInspectorEntitiesTab: View {
     /// store (and, once it emits, the change-stream) republishes the list.
     @Environment(EntityStore.self) private var entityStore
     @Environment(EntityServiceGenerated.self) private var entityService
+    /// Per-window entity-search bus (#3437).
+    @Environment(EntitySearchState.self) private var entitySearchState: EntitySearchState?
 
     @State private var entitySelection: Set<String> = []
     @State private var isApplyingBulkAction = false
@@ -906,7 +908,7 @@ struct DocumentInspectorEntitiesTab: View {
         for entity: Components.Schemas.KnowledgeEntity,
         kind: EntityKind
     ) {
-        EntitySearchState.shared.request(
+        entitySearchState?.request(
             name: entity.canonicalName,
             entityType: kind.searchScope
         )

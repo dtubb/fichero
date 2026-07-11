@@ -15,6 +15,10 @@ struct SearchView: View {
     @Binding var queryText: String
     @State var searchScopeSelection: SearchScopeSelection = .all
 
+    /// Per-window source-navigation bus (#3437); optional → safe no-op if a host
+    /// hasn't injected it.
+    @Environment(ClaimSourceNavigationState.self) var claimSourceNavigationState: ClaimSourceNavigationState?
+
     /// Token used to debounce live-as-you-type search. Each keystroke
     /// schedules a query and stamps a fresh UUID; the scheduled task only
     /// runs the search if its captured token matches the latest. Avoids

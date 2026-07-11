@@ -11,6 +11,9 @@ import SwiftUI
 /// lozenges use. Aliases / page reference / context render as plain
 /// selectable text below for ⌘C. (#882)
 struct EntityKindRow: View {
+    /// Per-window entity-search bus (#3437); optional → safe no-op if a host
+    /// hasn't injected it.
+    @Environment(EntitySearchState.self) private var entitySearchState: EntitySearchState?
     let item: GroupedItem
     let kind: EntityKind
     var claimById: [String: Components.Schemas.KnowledgeClaim] = [:]
@@ -285,7 +288,7 @@ struct EntityKindRow: View {
                excerpt != context,
                excerpt != item.displayName {
                 Button {
-                    EntitySearchState.shared.request(name: excerpt, entityType: nil)
+                    entitySearchState?.request(name: excerpt, entityType: nil)
                 } label: {
                     Text("\u{201C}\(excerpt)\u{201D}")
                         .font(secondaryTextFont)

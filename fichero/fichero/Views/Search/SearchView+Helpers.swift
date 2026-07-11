@@ -183,6 +183,6 @@ extension SearchView {
             return
         }
 
-        ClaimSourceNavigationState.shared.request(request)
+        claimSourceNavigationState?.request(request)
     }
 }
