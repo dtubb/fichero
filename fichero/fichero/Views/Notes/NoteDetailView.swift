@@ -1,24 +1,6 @@
 import FicheroAPIClient
 import SwiftUI
 
-struct NoteUpdateActionParams: Encodable {
-    let noteId: String
-    let update: Components.Schemas.NotePatchRequest
-
-    enum CodingKeys: String, CodingKey {
-        case noteId = "note_id"
-        case update
-    }
-}
-
-struct NoteDeleteActionParams: Encodable {
-    let noteId: String
-
-    enum CodingKeys: String, CodingKey {
-        case noteId = "note_id"
-    }
-}
-
 /// Shared renderer for one note.
 struct NoteDetailView: View {
     let item: NoteSelectionItem?

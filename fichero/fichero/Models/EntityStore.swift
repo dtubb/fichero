@@ -123,6 +123,60 @@ final class EntityStore: ObservableDomainStore {
         }
     }
 
+    /// Aggregate entities across a folder's children in memory (#3450). Fetches
+    /// the folder's own inspector entities plus each child's and unions them by
+    /// stable identity, so the folder view can review/filter/merge/split/delete
+    /// across children. Published under the folder's own id scope, so
+    /// `entities(forDocument: folderId)` returns the aggregate and the list
+    /// updates in place (stable ids, no wholesale re-render).
+    ///
+    /// Client-side: fine for review-scale folders. A server-side aggregation
+    /// endpoint is the scale path — see the deferred successor noted on #3450.
+    func loadAggregatedEntities(
+        forFolder folderId: String,
+        childDocumentIds: [String],
+        force: Bool = false
+    ) async {
+        if !force, loadedDocumentIds.contains(folderId), loadErrorsByDocumentId[folderId] == nil {
+            syncLegacyScope(documentId: folderId)
+            return
+        }
+
+        lastLoadedDocumentId = folderId
+        loadingDocumentIds.insert(folderId)
+        loadErrorsByDocumentId[folderId] = nil
+        syncLegacyScope(documentId: folderId)
+        defer {
+            loadingDocumentIds.remove(folderId)
+            syncLegacyScope(documentId: folderId)
+        }
+
+        // Folder-level entities first, then each child — union preserves that order.
+        let scopeIds = [folderId] + childDocumentIds
+        var lists: [[Components.Schemas.KnowledgeEntity]] = []
+        var lastError: Error?
+        for docId in scopeIds {
+            do {
+                lists.append(try await entityService.listInspectorEntitiesForDocument(documentId: docId))
+            } catch is CancellationError {
+                return  // superseded by a newer selection — keep current state
+            } catch {
+                lastError = error  // partial aggregation beats none; remember for the all-failed case
+            }
+        }
+
+        if lists.isEmpty, let lastError {
+            entitiesByDocumentId[folderId] = []
+            loadErrorsByDocumentId[folderId] = "Couldn't load entities: \(lastError.localizedDescription)"
+            loadedDocumentIds.remove(folderId)
+        } else {
+            entitiesByDocumentId[folderId] = EntityStore.union(lists)
+            loadErrorsByDocumentId.removeValue(forKey: folderId)
+            loadedDocumentIds.insert(folderId)
+        }
+        syncLegacyScope(documentId: folderId)
+    }
+
     /// Re-fetch the current document scope (post-mutation / reconnect resync).
     func reload() async {
         let documentIds = loadedDocumentIds.isEmpty
@@ -135,6 +189,30 @@ final class EntityStore: ObservableDomainStore {
 
     func entities(forDocument documentId: String) -> [Components.Schemas.KnowledgeEntity] {
         entitiesByDocumentId[documentId] ?? []
+    }
+
+    /// Union entity lists (folder's own + each child's) preserving first-seen
+    /// order, deduped by stable identity so the same entity referenced by
+    /// multiple children collapses to one row (#3450). Pure + testable.
+    static func union(
+        _ lists: [[Components.Schemas.KnowledgeEntity]]
+    ) -> [Components.Schemas.KnowledgeEntity] {
+        var merged: [String: Components.Schemas.KnowledgeEntity] = [:]
+        var order: [String] = []
+        for list in lists {
+            for entity in list {
+                let key = aggregationKey(for: entity)
+                if merged[key] == nil { order.append(key) }
+                merged[key] = entity
+            }
+        }
+        return order.compactMap { merged[$0] }
+    }
+
+    /// Dedup key for aggregation: the global entity id, else a type:name fallback
+    /// for not-yet-persisted entities (mirrors the row's stable identity).
+    static func aggregationKey(for entity: Components.Schemas.KnowledgeEntity) -> String {
+        entity.id ?? "\(entity.entityType?.rawValue ?? "other"):\(entity.canonicalName)"
     }
 
     func isLoading(forDocument documentId: String) -> Bool {

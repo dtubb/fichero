@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import XCTest
 
 @MainActor
@@ -211,5 +212,69 @@ final class DocumentInspectorTests: XCTestCase {
 
         XCTAssertFalse(source.contains("SourceOutlineView(documentId: doc.id)"))
         XCTAssertFalse(source.contains(".outline"))
+    }
+
+    // MARK: - Multi-level undo walk (#3444)
+
+    private func auditEntry(
+        _ id: String,
+        undone: Bool = false,
+        inverseOf: String? = nil,
+        undoable: Bool = true
+    ) -> Components.Schemas.AuditLogEntry {
+        Components.Schemas.AuditLogEntry(
+            id: id,
+            actionName: "entity.merge",
+            actor: "human",
+            targetIds: [],
+            createdAt: "t",
+            undone: undone,
+            inverseOf: inverseOf,
+            undoable: undoable
+        )
+    }
+
+    func testNextUndoableWalksToMostRecentForwardUndoableAction() {
+        // Newest-first: an inverse (redo target), an already-undone action, then
+        // two live forward actions. The walk targets the newest live forward one.
+        let entries = [
+            auditEntry("inv", inverseOf: "c"),   // skip — an inverse/redo row
+            auditEntry("c", undone: true),        // skip — already undone
+            auditEntry("b"),                      // <- next undo target
+            auditEntry("a")
+        ]
+        XCTAssertEqual(AuditStore.nextUndoable(in: entries)?.id, "b")
+    }
+
+    func testNextUndoableSkipsNonUndoableRows() {
+        let entries = [auditEntry("x", undoable: false), auditEntry("y")]
+        XCTAssertEqual(AuditStore.nextUndoable(in: entries)?.id, "y")
+    }
+
+    func testNextUndoableNilWhenNothingReversible() {
+        XCTAssertNil(AuditStore.nextUndoable(in: []))
+        XCTAssertNil(AuditStore.nextUndoable(in: [auditEntry("z", undone: true)]))
+    }
+
+    // MARK: - Switcher section mapping (#3457)
+
+    func testSwitcherMapsEachTabToItsSection() {
+        // doc = nil → all tabs available, so this is the pure section mapping the
+        // top-icon-row switcher uses (no doc-type clamping).
+        XCTAssertEqual(DocumentInspector.section(for: .content, in: nil), .source)
+        XCTAssertEqual(DocumentInspector.section(for: .info, in: nil), .source)
+        XCTAssertEqual(DocumentInspector.section(for: .artifacts, in: nil), .artifacts)
+        XCTAssertEqual(DocumentInspector.section(for: .entities, in: nil), .knowledge)
+        XCTAssertEqual(DocumentInspector.section(for: .knowledgeGraph, in: nil), .knowledge)
+        XCTAssertEqual(DocumentInspector.section(for: .citations, in: nil), .knowledge)
+        XCTAssertEqual(DocumentInspector.section(for: .notes, in: nil), .notes)
+        XCTAssertEqual(DocumentInspector.section(for: .annotations, in: nil), .notes)
+        XCTAssertEqual(DocumentInspector.section(for: .interpretations, in: nil), .notes)
+    }
+
+    func testSwitcherFallsBackToSourceForEdits() {
+        // Edits left the inspector (#3434), so it maps to no section and the
+        // switcher clamps to Source rather than showing a dead segment.
+        XCTAssertEqual(DocumentInspector.section(for: .edits, in: nil), .source)
     }
 }
