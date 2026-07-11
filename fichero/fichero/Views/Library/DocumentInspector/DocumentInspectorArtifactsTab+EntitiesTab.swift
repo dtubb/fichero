@@ -17,6 +17,7 @@ private let inspectorEntitiesLogger = Logger(
 struct DocumentInspectorEntitiesTab: View {
     let document: Document
     let documentId: String
+    var selectedEntityId: String?
     var onEntitySelect: ((String) -> Void)?
 
     /// The single endpoint accessor for this document's entities (#1885). The
@@ -24,6 +25,7 @@ struct DocumentInspectorEntitiesTab: View {
     /// observes the store and routes mutations through its named actions; the
     /// store (and, once it emits, the change-stream) republishes the list.
     @Environment(EntityStore.self) private var entityStore
+    @Environment(EntityServiceGenerated.self) private var entityService
 
     @State private var entitySelection: Set<String> = []
     @State private var isApplyingBulkAction = false
@@ -75,6 +77,11 @@ struct DocumentInspectorEntitiesTab: View {
         orderedEntities.filter { entitySelection.contains($0.stableInspectorId) }
     }
 
+    private var selectedEntity: Components.Schemas.KnowledgeEntity? {
+        guard entitySelection.count == 1 else { return nil }
+        return selectedEntities.first
+    }
+
     private var bulkActionScopeLabel: String {
         document.docType == .page ? "This page only" : "This folder only"
     }
@@ -111,12 +118,16 @@ struct DocumentInspectorEntitiesTab: View {
             } else if grouped.isEmpty {
                 emptyVisibleGroupsState
             } else {
-                List(selection: $entitySelection) {
-                    ForEach(grouped, id: \.0) { kind, items in
-                        entityKindSection(kind: kind, entities: items)
+                PlatformVSplitView {
+                    List(selection: $entitySelection) {
+                        ForEach(grouped, id: \.0) { kind, items in
+                            entityKindSection(kind: kind, entities: items)
+                        }
                     }
+                    .listStyle(.plain)
+
+                    entityDetailPane
                 }
-                .listStyle(.plain)
             }
         }
         .padding(.top)
@@ -126,6 +137,12 @@ struct DocumentInspectorEntitiesTab: View {
         .onChange(of: entityStore.entities) { _, _ in
             recomputeGrouped()
             syncSelectionToLoadedEntities()
+        }
+        .onChange(of: entitySelection) { _, _ in
+            routeSelectionToInspector()
+        }
+        .onChange(of: selectedEntityId, initial: true) { _, _ in
+            syncSelectionToFocusedEntity()
         }
         .onChange(of: hiddenKindsCSV) { _, _ in recomputeGrouped() }
         .alert(
@@ -181,6 +198,28 @@ struct DocumentInspectorEntitiesTab: View {
             .buttonStyle(.plain)
             .help("Reload entities")
             .accessibilityLabel("Reload entities")
+        }
+    }
+
+    @ViewBuilder
+    private var entityDetailPane: some View {
+        if let entity = selectedEntity {
+            EntityDigestContent(entity: entity, entityService: entityService)
+                .frame(minHeight: 180, maxHeight: .infinity)
+        } else if entitySelection.count > 1 {
+            ContentUnavailableView(
+                "Multiple Entities Selected",
+                systemImage: "person.2",
+                description: Text("Select a single entity to inspect it below.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ContentUnavailableView(
+                "No Entity Selected",
+                systemImage: "person.crop.circle",
+                description: Text("Select an entity above to inspect it below.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -557,6 +596,22 @@ struct DocumentInspectorEntitiesTab: View {
     private func syncSelectionToLoadedEntities() {
         let validIds = Set(orderedEntities.map(\.stableInspectorId))
         entitySelection = entitySelection.intersection(validIds)
+        syncSelectionToFocusedEntity()
+    }
+
+    private func syncSelectionToFocusedEntity() {
+        guard let selectedEntityId,
+              let entity = orderedEntities.first(where: { $0.id == selectedEntityId }) else { return }
+        let stableId = entity.stableInspectorId
+        guard entitySelection != [stableId] else { return }
+        entitySelection = [stableId]
+    }
+
+    private func routeSelectionToInspector() {
+        guard entitySelection.count == 1,
+              let entity = selectedEntities.first,
+              let id = entity.id else { return }
+        onEntitySelect?(id)
     }
 
     private func applyBulkAction(

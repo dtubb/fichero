@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Notes inspector built as List + detail. Mirrors `CitationsInspectorPane` /
 /// `ArtifactsInspectorPane` / `AnnotationsInspectorPane`: a vertical list/detail
-/// stack that fits the narrow document inspector column.
+/// split that fits the narrow document inspector column.
 struct NotesInspectorPane: View {
     let notes: [NoteSelectionItem]
     let selectionResetToken: String
@@ -25,7 +25,7 @@ struct NotesInspectorPane: View {
             if let loadError = noteStore.loadError {
                 errorBox(loadError)
             }
-            VStack(spacing: 0) {
+            PlatformVSplitView {
                 NoteListView(
                     notes: notes,
                     focused: focused,

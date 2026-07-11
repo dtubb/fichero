@@ -46,4 +46,12 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(source.contains(".onChange(of: executionObserver.workflowCompletedCount)"))
         XCTAssertTrue(source.contains("Task { await store.reload() }"))
     }
+
+    func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {
+        let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
+
+        XCTAssertTrue(source.contains("selectedTab = .entities"))
+        XCTAssertTrue(source.contains("selectedEntityId: kgFocusState.focusedEntityId"))
+        XCTAssertFalse(source.contains("Label(\"Back to document\", systemImage: \"chevron.left\")"))
+    }
 }

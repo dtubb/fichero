@@ -39,21 +39,20 @@ final class AnnotationServiceTests: XCTestCase {
         XCTAssertFalse(source.contains("URL(string:"))
     }
 
-    func testInspectorListDetailPanesUseVerticalStacks() throws {
-        let panePaths = [
-            "Views/Library/Inspector/ArtifactsInspectorPane.swift",
-            "Views/Library/Inspector/CitationsInspectorPane.swift",
-            "Views/Library/Inspector/AnnotationsInspectorPane.swift",
-            "Views/Notes/NotesInspectorPane.swift"
-        ]
+    func testInspectorListDetailPanesUseExpectedSplitLayout() throws {
+        let artifactsSource = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+        let citationsSource = try Self.appSource("Views/Library/Inspector/CitationsInspectorPane.swift")
+        let annotationsSource = try Self.appSource("Views/Library/Inspector/AnnotationsInspectorPane.swift")
+        let notesSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
 
-        for path in panePaths {
-            let source = try Self.appSource(path)
-            XCTAssertTrue(source.contains("VStack(spacing: 0)"), path)
-            XCTAssertTrue(source.contains("Divider()"), path)
-            XCTAssertFalse(source.contains("PlatformHSplitView {"), path)
-            XCTAssertFalse(source.contains("PlatformVSplitView {"), path)
-        }
+        XCTAssertTrue(artifactsSource.contains("PlatformHSplitView {"))
+        XCTAssertTrue(citationsSource.contains("PlatformHSplitView {"))
+        XCTAssertTrue(annotationsSource.contains("PlatformVSplitView {"))
+        XCTAssertTrue(notesSource.contains("PlatformVSplitView {"))
+        XCTAssertFalse(artifactsSource.contains("PlatformVSplitView {"))
+        XCTAssertFalse(citationsSource.contains("PlatformVSplitView {"))
+        XCTAssertFalse(annotationsSource.contains("PlatformHSplitView {"))
+        XCTAssertFalse(notesSource.contains("PlatformHSplitView {"))
     }
 
     func testInspectorEmptyStatesAreTopAligned() throws {
