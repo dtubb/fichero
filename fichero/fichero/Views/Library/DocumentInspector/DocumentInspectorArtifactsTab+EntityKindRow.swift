@@ -363,6 +363,11 @@ struct EntityKindRow: View {
                 Button("Edit claim…") {
                     loadClaimForEditing()
                 }
+                if let entityId = item.entityId {
+                    Button("Show in Graph") {
+                        kgFocusState.requestGraphReveal(entityId: entityId)
+                    }
+                }
             }
         }
     }

@@ -16,6 +16,19 @@ final class KGFocusState {
     var sourceDocumentId: String?
     var sourcePageLabel: String?
 
+    /// A request to reveal an entity in the full Knowledge Graph force graph
+    /// (#3452). Inspector "Show in Graph" affordances call ``requestGraphReveal``;
+    /// ContentView watches ``graphRevealRequestToken`` and switches to the
+    /// Knowledge Graph mode focused on ``focusedEntityId``. The token makes
+    /// repeat reveals of the same entity still fire.
+    private(set) var graphRevealRequestToken = 0
+
+    /// Focus `entityId` and ask the shell to switch into the force-graph view.
+    func requestGraphReveal(entityId: String) {
+        focusEntity(entityId: entityId)
+        graphRevealRequestToken &+= 1
+    }
+
     func focusEntity(
         entityId: String?,
         sourceDocumentId: String? = nil,

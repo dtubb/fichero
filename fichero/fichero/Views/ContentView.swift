@@ -590,6 +590,12 @@ struct ContentView: View {
             .onChange(of: kgFocusState.sourcePageLabel) { _, _ in
                 handleKGFocusChanged()
             }
+            // "Show in Graph" from the inspector switches to the Knowledge Graph
+            // force graph, focused on the requested entity (#3452). The focus is
+            // already set by requestGraphReveal; we just flip the mode.
+            .onChange(of: kgFocusState.graphRevealRequestToken) { _, _ in
+                sidebarMode = .knowledgeGraph
+            }
             .onChange(of: viewDisplayMode) { _, newMode in
                 handleViewDisplayModeChange(newMode)
             }

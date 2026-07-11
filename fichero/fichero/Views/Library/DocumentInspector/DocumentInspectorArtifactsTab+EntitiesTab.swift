@@ -28,6 +28,8 @@ struct DocumentInspectorEntitiesTab: View {
     @Environment(EntityServiceGenerated.self) private var entityService
     /// Per-window entity-search bus (#3437).
     @Environment(EntitySearchState.self) private var entitySearchState: EntitySearchState?
+    /// Cross-view KG focus — drives "Show in Graph" (#3452).
+    @Environment(KGFocusState.self) private var kgFocusState
 
     @State private var entitySelection: Set<String> = []
     @State private var isApplyingBulkAction = false
@@ -493,6 +495,11 @@ struct DocumentInspectorEntitiesTab: View {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(entity.canonicalName, forType: .string)
             #endif
+        }
+        if let entityId = entity.id {
+            Button("Show in Graph") {
+                kgFocusState.requestGraphReveal(entityId: entityId)
+            }
         }
         Divider()
 
