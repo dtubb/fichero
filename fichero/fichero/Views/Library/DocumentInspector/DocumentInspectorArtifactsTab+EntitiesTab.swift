@@ -139,9 +139,11 @@ struct DocumentInspectorEntitiesTab: View {
                                 entityKindSection(kind: kind, entities: items)
                             }
                         }
-                        .listStyle(.plain)
+                        .listStyle(.inset)
+                        .frame(minHeight: 140, idealHeight: 180)
 
                         entityDetailPane
+                            .frame(minHeight: 240, idealHeight: 360)
                     }
                     Divider()
                     entitiesMiniToolbar
@@ -341,7 +343,7 @@ struct DocumentInspectorEntitiesTab: View {
                 List(selection: $entitySelection) {
                     entityKindSection(kind: .other, entities: scopedEntities)
                 }
-                .listStyle(.plain)
+                .listStyle(.inset)
                 .frame(maxHeight: .infinity)
             }
         }
@@ -423,7 +425,7 @@ struct DocumentInspectorEntitiesTab: View {
         }
         .padding(.vertical, 4)
         .background(dropTargetHighlight(for: entity))
-        .contentShape(Rectangle())
+        .inspectorListRowTarget()
         .tag(entity.stableInspectorId)
         .draggable(InspectorEntityDragID(id: entity.stableInspectorId))
         .dropDestination(

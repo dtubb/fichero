@@ -57,7 +57,7 @@ struct CitationListView: View {
     private func row(for item: CitationItem) -> some View {
         CitationRow(item: item)
             .tag(item.id)
-            .contentShape(Rectangle())
+            .inspectorListRowTarget()
             .contextMenu {
                 if let onOpenInWindow {
                     Button("Open in Window") {
@@ -111,7 +111,7 @@ private struct CitationRow: View {
             }
         }
         .padding(.vertical, 2)
-        .contentShape(Rectangle())
+        .inspectorListRowTarget()
     }
 
     private var subtitle: String? {

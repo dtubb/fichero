@@ -63,12 +63,20 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertFalse(source.contains("private var includesDescendantArtifacts"))
     }
 
-    func testEntitiesInspectorUsesSharedBottomMiniToolbar() throws {
+    func testInspectorListPanesUseSharedBottomMiniToolbar() throws {
         let inspectorSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
         let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+        let artifactsSource = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+        let citationsSource = try Self.appSource("Views/Library/Inspector/CitationsInspectorPane.swift")
+        let annotationsSource = try Self.appSource("Views/Library/Inspector/AnnotationsInspectorPane.swift")
+        let notesSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
 
         XCTAssertTrue(inspectorSource.contains("struct InspectorBottomMiniToolbar"))
         XCTAssertTrue(entitiesSource.contains("InspectorBottomMiniToolbar(statusText: entitiesToolbarStatusText)"))
+        XCTAssertTrue(artifactsSource.contains("InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText)"))
+        XCTAssertTrue(citationsSource.contains("InspectorBottomMiniToolbar(statusText: citationsToolbarStatusText)"))
+        XCTAssertTrue(annotationsSource.contains("InspectorBottomMiniToolbar(statusText: annotationsToolbarStatusText)"))
+        XCTAssertTrue(notesSource.contains("InspectorBottomMiniToolbar(statusText: notesToolbarStatusText)"))
     }
 
     func testEntitySearchRoutingUsesTypedStateInsteadOfNotificationBus() throws {
@@ -154,15 +162,19 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testInspectorListsUseFullRowContentShapes() throws {
+        let inspectorSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
         let artifactList = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
         let annotationList = try Self.appSource("Views/Library/Inspector/AnnotationListView.swift")
         let citationList = try Self.appSource("Views/Library/Inspector/CitationListView.swift")
         let noteList = try Self.appSource("Views/Notes/NoteListView.swift")
+        let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
 
-        XCTAssertTrue(artifactList.contains(".contentShape(Rectangle())"))
-        XCTAssertTrue(annotationList.contains(".contentShape(Rectangle())"))
-        XCTAssertTrue(citationList.contains(".contentShape(Rectangle())"))
-        XCTAssertTrue(noteList.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(inspectorSource.contains("func inspectorListRowTarget()"))
+        XCTAssertTrue(artifactList.contains(".inspectorListRowTarget()"))
+        XCTAssertTrue(annotationList.contains(".inspectorListRowTarget()"))
+        XCTAssertTrue(citationList.contains(".inspectorListRowTarget()"))
+        XCTAssertTrue(noteList.contains(".inspectorListRowTarget()"))
+        XCTAssertTrue(entitiesSource.contains(".inspectorListRowTarget()"))
     }
 
     func testDocumentInspectorNoLongerIncludesOutlineTabSurface() throws {

@@ -27,6 +27,12 @@ extension View {
     func inspectorGlassStrip() -> some View {
         modifier(InspectorGlassStrip())
     }
+
+    /// Make custom list rows behave like full-width native hit targets.
+    func inspectorListRowTarget() -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+    }
 }
 
 /// Shared bottom mini-toolbar shell for list-style inspector panes (#3414).

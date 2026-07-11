@@ -35,17 +35,40 @@ struct CitationsInspectorPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            CitationListView(
-                store: store,
-                focused: focused,
-                onOpenInWindow: openDetailWindow
-            )
-            .frame(minHeight: 120, idealHeight: 200)
+            PlatformVSplitView {
+                CitationListView(
+                    store: store,
+                    focused: focused,
+                    onOpenInWindow: openDetailWindow
+                )
+                .frame(minHeight: 140, idealHeight: 180)
 
+                Divider()
+
+                CitationDetailView(item: selectedItem, usages: store.usages)
+                    .frame(minHeight: 240, idealHeight: 360)
+            }
             Divider()
+            InspectorBottomMiniToolbar(statusText: citationsToolbarStatusText) {
+                Button {
+                    Task { await store.reload() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .help("Reload citations")
+                .accessibilityLabel("Reload citations")
 
-            CitationDetailView(item: selectedItem, usages: store.usages)
-                .frame(minHeight: 160)
+                Button {
+                    openDetailWindow()
+                } label: {
+                    Image(systemName: "macwindow.badge.plus")
+                }
+                .buttonStyle(.plain)
+                .help("Open the selected citation in a separate window")
+                .accessibilityLabel("Open selected citation in window")
+                .disabled(focused.id == nil)
+            }
         }
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -63,6 +86,19 @@ struct CitationsInspectorPane: View {
             focused.documentName = document.name
             await store.setScope(documentId: document.id, force: true)
         }
+        .onChange(of: focused.id) { _, _ in
+            focused.resolve(in: items)
+        }
+        .onChange(of: store.outbound) { _, _ in focused.resolve(in: items) }
+        .onChange(of: store.inbound) { _, _ in focused.resolve(in: items) }
+    }
+
+    private var citationsToolbarStatusText: String {
+        if let selectedItem {
+            let text = selectedItem.citation.targetCitationText
+            return text.isEmpty ? "Citation selected" : text
+        }
+        return "\(items.count) citations"
     }
 
     private func openDetailWindow() {

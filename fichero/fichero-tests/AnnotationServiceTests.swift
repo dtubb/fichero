@@ -45,12 +45,12 @@ final class AnnotationServiceTests: XCTestCase {
         let annotationsSource = try Self.appSource("Views/Library/Inspector/AnnotationsInspectorPane.swift")
         let notesSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
 
-        XCTAssertTrue(artifactsSource.contains("PlatformHSplitView {"))
-        XCTAssertTrue(citationsSource.contains("PlatformHSplitView {"))
+        XCTAssertTrue(artifactsSource.contains("PlatformVSplitView {"))
+        XCTAssertTrue(citationsSource.contains("PlatformVSplitView {"))
         XCTAssertTrue(annotationsSource.contains("PlatformVSplitView {"))
         XCTAssertTrue(notesSource.contains("PlatformVSplitView {"))
-        XCTAssertFalse(artifactsSource.contains("PlatformVSplitView {"))
-        XCTAssertFalse(citationsSource.contains("PlatformVSplitView {"))
+        XCTAssertFalse(artifactsSource.contains("PlatformHSplitView {"))
+        XCTAssertFalse(citationsSource.contains("PlatformHSplitView {"))
         XCTAssertFalse(annotationsSource.contains("PlatformHSplitView {"))
         XCTAssertFalse(notesSource.contains("PlatformHSplitView {"))
     }

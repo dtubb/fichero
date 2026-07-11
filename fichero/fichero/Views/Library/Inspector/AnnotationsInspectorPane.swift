@@ -31,7 +31,7 @@ struct AnnotationsInspectorPane: View {
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
-                .frame(minHeight: 120, idealHeight: 200)
+                .frame(minHeight: 140, idealHeight: 180)
 
                 Divider()
 
@@ -53,7 +53,30 @@ struct AnnotationsInspectorPane: View {
                         reveal(annotation)
                     }
                 )
-                .frame(minHeight: 160)
+                .frame(minHeight: 240, idealHeight: 360)
+            }
+            Divider()
+            InspectorBottomMiniToolbar(statusText: annotationsToolbarStatusText) {
+                Button {
+                    Task {
+                        await annotationStore.loadAnnotations(for: annotationScope, force: true)
+                    }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .help("Reload annotations")
+                .accessibilityLabel("Reload annotations")
+
+                Button {
+                    openDetailWindow()
+                } label: {
+                    Image(systemName: "macwindow.badge.plus")
+                }
+                .buttonStyle(.plain)
+                .help("Open the selected annotation in a separate window")
+                .accessibilityLabel("Open selected annotation in window")
+                .disabled(focused.id == nil)
             }
         }
         .toolbar {
@@ -74,6 +97,16 @@ struct AnnotationsInspectorPane: View {
         .onChange(of: annotations) { _, items in
             focused.resolve(in: items)
         }
+    }
+
+    private var annotationsToolbarStatusText: String {
+        if let selectedAnnotation {
+            if let pageLabel = selectedAnnotation.pageLabel, !pageLabel.isEmpty {
+                return "\(selectedAnnotation.kind.label) · p. \(pageLabel)"
+            }
+            return selectedAnnotation.kind.label
+        }
+        return "\(annotations.count) annotations"
     }
 
     private func openDetailWindow() {

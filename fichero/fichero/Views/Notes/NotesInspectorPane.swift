@@ -31,7 +31,7 @@ struct NotesInspectorPane: View {
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
-                .frame(minHeight: 120, idealHeight: 200)
+                .frame(minHeight: 140, idealHeight: 180)
 
                 Divider()
 
@@ -47,7 +47,28 @@ struct NotesInspectorPane: View {
                         try? await noteStore.links(for: noteId)
                     }
                 )
-                .frame(minHeight: 160)
+                .frame(minHeight: 240, idealHeight: 360)
+            }
+            Divider()
+            InspectorBottomMiniToolbar(statusText: notesToolbarStatusText) {
+                Button {
+                    Task { await noteStore.reload() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .help("Reload notes")
+                .accessibilityLabel("Reload notes")
+
+                Button {
+                    openDetailWindow()
+                } label: {
+                    Image(systemName: "macwindow.badge.plus")
+                }
+                .buttonStyle(.plain)
+                .help("Open the selected note in a separate window")
+                .accessibilityLabel("Open selected note in window")
+                .disabled(focused.id == nil)
             }
         }
         .toolbar {
@@ -68,6 +89,13 @@ struct NotesInspectorPane: View {
         .onChange(of: notes) { _, items in
             focused.resolve(in: items)
         }
+    }
+
+    private var notesToolbarStatusText: String {
+        if let selectedNote {
+            return selectedNote.title
+        }
+        return "\(notes.count) notes"
     }
 
     private func openDetailWindow() {

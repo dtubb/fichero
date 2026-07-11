@@ -130,7 +130,7 @@ struct ArtifactListView: View {
             )
         )
             .tag(artifact.id)
-            .contentShape(Rectangle())
+            .inspectorListRowTarget()
             .onTapGesture(count: 2) {
                 guard let onOpenInWindow else { return }
                 focused.select(artifact.id, in: store.items)
@@ -270,7 +270,7 @@ private struct ArtifactRow: View {
             }
         }
         .padding(.vertical, 2)
-        .contentShape(Rectangle())
+        .inspectorListRowTarget()
     }
 
     /// Title-cased artifact type (e.g. `key_people` → "Key People"). Matches
