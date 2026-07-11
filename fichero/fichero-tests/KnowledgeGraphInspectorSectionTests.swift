@@ -916,6 +916,18 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertNil(ClaimSummaryCard.openClaimSourceRequest(for: claim))
     }
 
+    // MARK: - Cross-target drag payload (#3425)
+
+    func testInspectorEntityDragPayloadRoundTripsAcrossTargets() throws {
+        // The structured JSON representation must survive serialization so the
+        // entity drag carries its full identity across app targets/scenes.
+        let payload = InspectorEntityDragID(id: "e-1", text: "Ada Lovelace")
+        let data = try JSONEncoder().encode(payload)
+        let decoded = try JSONDecoder().decode(InspectorEntityDragID.self, from: data)
+        XCTAssertEqual(decoded.id, "e-1")
+        XCTAssertEqual(decoded.text, "Ada Lovelace")
+    }
+
     // MARK: - Native List conversion (#3425, item 14)
 
     func testKGListModeUsesNativeListSelectionWithKindSections() throws {
