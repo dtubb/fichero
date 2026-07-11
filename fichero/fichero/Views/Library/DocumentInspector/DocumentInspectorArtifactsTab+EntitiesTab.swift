@@ -774,13 +774,22 @@ struct DocumentInspectorEntitiesTab: View {
                 into: plan.survivorId
             )
             actionMessage = "Merged \(plan.entityCount) entities into \(plan.survivorName)."
-            entitySelection = []
+            restoreSelectionAfterMerge(survivorId: plan.survivorId)
         } catch {
             inspectorEntitiesLogger.error(
                 "Entity merge failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
             actionMessage = "Couldn't merge entities: \(error.localizedDescription)"
         }
+    }
+
+    private func restoreSelectionAfterMerge(survivorId: String) {
+        guard let survivor = orderedEntities.first(where: { $0.id == survivorId }) else {
+            entitySelection = []
+            return
+        }
+        entitySelection = [survivor.stableInspectorId]
+        onEntitySelect?(survivorId)
     }
 
     private func applyReclassify(_ plan: PendingEntityReclassifyPlan) async {

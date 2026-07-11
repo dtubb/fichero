@@ -318,6 +318,16 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(storeSource.contains("func reclassify("))
     }
 
+    func testInspectorEntityMergeKeepsFocusOnSurvivorAfterReload() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+
+        XCTAssertTrue(source.contains("restoreSelectionAfterMerge(survivorId: plan.survivorId)"))
+        XCTAssertTrue(source.contains("entitySelection = [survivor.stableInspectorId]"))
+        XCTAssertTrue(source.contains("onEntitySelect?(survivorId)"))
+    }
+
     func testInspectorDeleteActionsUseGeneratedEntityAndClaimClients() throws {
         let entitiesSource = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
