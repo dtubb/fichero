@@ -36,9 +36,15 @@ struct EntityKindRow: View {
 
     @Environment(ClaimFocusState.self) private var claimFocusState
     @Environment(KGFocusState.self) private var kgFocusState
+    /// Crop fetch seam for the source-provenance quick-look (#3449). Optional so
+    /// the popover is a safe no-op if a host hasn't injected the store — the
+    /// crop just resolves to "No source region" instead of crashing.
+    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
     @State private var claimForEditing: Components.Schemas.KnowledgeClaim?
     @State private var rowError: String?
+    /// Presents the source-provenance quick-look popover for the primary claim.
+    @State private var isSourcePreviewPresented = false
 
     private var bodyTextFont: Font {
         .system(size: CGFloat(defaultFontSize))
@@ -179,7 +185,6 @@ struct EntityKindRow: View {
         isPrimary: Bool
     ) -> some View {
         let claim = claimById[claimId]
-        let isSelected = selectedClaimIds.contains(claimId)
         let isFocused = claimFocusState.isClaimSelected(claimId)
 
         VStack(alignment: .leading, spacing: 0) {
@@ -261,7 +266,14 @@ struct EntityKindRow: View {
 
                 if isPrimary,
                    let sourceDocumentId,
-                   let navigate = onNavigateToSource {
+                   let navigate = onNavigateToSource,
+                   let request = sourceNavigationRequest(
+                       claimId: claimId,
+                       claim: claim,
+                       sourceDocumentId: sourceDocumentId,
+                       sourcePageLabel: sourcePageLabel,
+                       sourceExcerpt: sourceExcerpt
+                   ) {
                     Button {
                         navigate(sourceDocumentId)
                     } label: {
@@ -270,7 +282,27 @@ struct EntityKindRow: View {
                             .foregroundStyle(Color.accentColor)
                     }
                     .buttonStyle(.plain)
-                    .help("Go to source")
+                    .help("Go to source — hover to preview")
+                    // Source-provenance quick-look (#3449/#2105): hovering the
+                    // arrow previews the cropped source region + verbatim span in
+                    // a popover (reusing SourceProvenanceCard → SourceSnippet); the
+                    // popover's Reveal — or clicking the arrow — drives the Preview
+                    // pane to the page. Full keyboard (Space) preview lands with the
+                    // native-List conversion in #3425.
+                    .onHover { hovering in
+                        if hovering { isSourcePreviewPresented = true }
+                    }
+                    .popover(isPresented: $isSourcePreviewPresented, arrowEdge: .trailing) {
+                        SourceProvenanceCard(
+                            request: request,
+                            attribution: claim.map(ClaimAttribution.init(claim:)),
+                            fetch: { try await annotationStore?.cropRegion($0) ?? nil },
+                            onReveal: {
+                                isSourcePreviewPresented = false
+                                navigate(sourceDocumentId)
+                            }
+                        )
+                    }
                 }
             }
 
@@ -303,19 +335,10 @@ struct EntityKindRow: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
-        )
         .contentShape(Rectangle())
-        .onTapGesture {
-            if let claim {
-                handleClaimTap(claim)
-            }
-        }
-        // Single-click selects (above); double-click opens — focus the
-        // claim and jump to its source page, Finder-style. Matches the
-        // Entities-tab interaction. (#1864/#1865)
+        // Single-click selection + arrow-key nav are owned by the enclosing
+        // native List(selection:) (#3425). Double-click still opens — focus the
+        // claim and jump to its source page, Finder-style. (#1864/#1865)
         .simultaneousGesture(
             TapGesture(count: 2).onEnded {
                 openClaim(claimId: claimId, sourceDocumentId: sourceDocumentId)
@@ -336,6 +359,28 @@ struct EntityKindRow: View {
         }
     }
     // swiftlint:enable function_body_length cyclomatic_complexity function_parameter_count
+
+    /// Build the source anchor for the provenance popover / reveal. Prefer the
+    /// full claim (it carries char range + bbox); fall back to the grouped
+    /// item's coarser fields. Reuses `ClaimSummaryCard.openClaimSourceRequest`
+    /// so every "show me the source" surface shares one anchor builder (#2105).
+    private func sourceNavigationRequest(
+        claimId: String,
+        claim: Components.Schemas.KnowledgeClaim?,
+        sourceDocumentId: String,
+        sourcePageLabel: String?,
+        sourceExcerpt: String?
+    ) -> ClaimSourceNavigationRequest? {
+        if let claim {
+            return ClaimSummaryCard.openClaimSourceRequest(for: claim)
+        }
+        return ClaimSummaryCard.openClaimSourceRequest(
+            documentId: sourceDocumentId,
+            pageLabel: sourcePageLabel,
+            claimId: claimId,
+            excerpt: sourceExcerpt
+        )
+    }
 
     private func handleClaimTap(_ claim: Components.Schemas.KnowledgeClaim) {
         if let onClaimTap {

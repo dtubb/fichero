@@ -884,6 +884,76 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             mergedIntoId: nil
         )
     }
+
+    // MARK: - Source provenance anchor (#3449, item 12)
+
+    func testKGClaimBuildsSourceNavigationRequestWhenSourced() {
+        let claim = Components.Schemas.KnowledgeClaim(
+            id: "claim-1",
+            text: "Ada wrote the notes",
+            sourceDocumentId: "doc-9",
+            sourcePageLabel: "page 4",
+            sourceExcerpt: "the verbatim quote"
+        )
+
+        let request = ClaimSummaryCard.openClaimSourceRequest(for: claim)
+
+        XCTAssertNotNil(request, "A claim with a source document should yield a provenance anchor")
+        XCTAssertEqual(request?.documentId, "doc-9")
+        XCTAssertEqual(request?.pageLabel, "page 4")
+        XCTAssertEqual(request?.claimText, "the verbatim quote")
+        XCTAssertEqual(request?.claimId, "claim-1")
+    }
+
+    func testKGClaimWithoutSourceDocumentHasNoProvenanceAnchor() {
+        // No sourceDocumentId → no anchor, so the row shows no provenance popover
+        // (rather than a broken empty one).
+        let claim = Components.Schemas.KnowledgeClaim(
+            id: "claim-2",
+            text: "Unsourced assertion"
+        )
+
+        XCTAssertNil(ClaimSummaryCard.openClaimSourceRequest(for: claim))
+    }
+
+    // MARK: - Native List conversion (#3425, item 14)
+
+    func testKGListModeUsesNativeListSelectionWithKindSections() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
+        )
+
+        // List mode is a native List(selection:) so it gets arrow-key nav +
+        // multi-select for free, grouped into per-kind Sections, with a
+        // focus-on-single-selection seam replacing the old click reducer.
+        XCTAssertTrue(source.contains("List(selection: $claimSelection)"))
+        XCTAssertTrue(source.contains(".tag(item.claimId)"))
+        XCTAssertTrue(source.contains("focusSingleSelectedClaim"))
+        XCTAssertTrue(source.contains(".onChange(of: claimSelection)"))
+    }
+
+    func testKGListWiresSpaceKeySourceQuickLook() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
+        )
+
+        // Space on a selected claim opens the source quick-look popover, reusing
+        // the shared SourceProvenanceCard (#3449 item-12 extension).
+        XCTAssertTrue(source.contains(".onKeyPress(.space)"))
+        XCTAssertTrue(source.contains("spaceQuickLookClaimId"))
+        XCTAssertTrue(source.contains("SourceProvenanceCard("))
+    }
+
+    func testKGClaimRowDefersSingleClickSelectionToTheList() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+        )
+
+        // The row no longer owns single-click selection (the List does); it keeps
+        // the double-click-to-open gesture.
+        XCTAssertFalse(source.contains(".onTapGesture"))
+        XCTAssertTrue(source.contains("TapGesture(count: 2)"))
+    }
 }
 
 private func makeKnowledgeClaim(

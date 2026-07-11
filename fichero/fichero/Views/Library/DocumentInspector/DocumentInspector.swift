@@ -159,8 +159,8 @@ struct DocumentInspector: View {
                     } label: {
                         Label(section.rawValue, systemImage: section.icon)
                             .labelStyle(.iconOnly)
-                            .font(.body)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .font(.title3)
+                            .frame(maxWidth: .infinity, minHeight: 30)
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel(section.rawValue)
@@ -178,11 +178,6 @@ struct DocumentInspector: View {
                     .accessibilityIdentifier(section.accessibilityIdentifier)
                 }
             }
-            Text(activeSection.rawValue)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .padding(.horizontal, 6)
         }
         .frame(maxWidth: .infinity)
         .inspectorGlassStrip()
@@ -327,31 +322,30 @@ struct DocumentInspector: View {
 
     @ViewBuilder
     private func knowledgeGraphTab(for doc: Document) -> some View {
-        ScrollView {
-            KnowledgeGraphInspectorSection(
-                documentId: doc.id,
-                documentScope: doc.docType == .page ? .page : .folder,
-                entityService: entityService,
-                artifactService: artifactService,
-                kgCurationService: kgCurationService,
-                onNavigateToSource: onNavigateToSource,
-                onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
-                    // Direct observable call — no NotificationCenter round-trip
-                    // (#3034). Passes the full payload the old .claimSelectedInInspector
-                    // bus carried but the ContentView handler dropped (it forwarded
-                    // only claimId), so the other panes now get text/source/range too.
-                    claimFocusState.selectClaim(
-                        claimId: claimId,
-                        claimText: claimText,
-                        sourceDocumentId: sourceDocId,
-                        pageLabel: pageLabel,
-                        charStart: charStart,
-                        charEnd: charEnd
-                    )
-                }
-            )
-            .padding()
-        }
+        // No outer ScrollView — KnowledgeGraphInspectorSection owns its own
+        // scroll + pinned bottom mini-toolbar (#3461).
+        KnowledgeGraphInspectorSection(
+            documentId: doc.id,
+            documentScope: doc.docType == .page ? .page : .folder,
+            entityService: entityService,
+            artifactService: artifactService,
+            kgCurationService: kgCurationService,
+            onNavigateToSource: onNavigateToSource,
+            onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
+                // Direct observable call — no NotificationCenter round-trip
+                // (#3034). Passes the full payload the old .claimSelectedInInspector
+                // bus carried but the ContentView handler dropped (it forwarded
+                // only claimId), so the other panes now get text/source/range too.
+                claimFocusState.selectClaim(
+                    claimId: claimId,
+                    claimText: claimText,
+                    sourceDocumentId: sourceDocId,
+                    pageLabel: pageLabel,
+                    charStart: charStart,
+                    charEnd: charEnd
+                )
+            }
+        )
     }
 
     @ViewBuilder

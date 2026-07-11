@@ -26,16 +26,13 @@ struct NotesInspectorPane: View {
             if let loadError = noteStore.loadError {
                 errorBox(loadError)
             }
-            PlatformVSplitView {
+            InspectorListDetailSplit {
                 NoteListView(
                     notes: notes,
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
-                .frame(minHeight: 140, idealHeight: 180)
-
-                Divider()
-
+            } detail: {
                 NoteDetailView(
                     item: selectedNote,
                     onSave: { item, body in
@@ -48,7 +45,6 @@ struct NotesInspectorPane: View {
                         try? await noteStore.links(for: noteId)
                     }
                 )
-                .frame(minHeight: 240, idealHeight: 360)
             }
             Divider()
             InspectorBottomMiniToolbar(statusText: notesToolbarStatusText) {

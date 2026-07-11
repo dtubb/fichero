@@ -104,12 +104,8 @@ struct DocumentInspectorEntitiesTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            header
-                .padding(.horizontal)
-            if entitySelection.count > 1 {
-                bulkActionBar
-                    .padding(.horizontal)
-            }
+            // Top of the tab is just content — the count, filter, refresh, and
+            // selection actions all live in the bottom mini-toolbar (#3461).
             if let actionMessage {
                 Text(actionMessage)
                     .font(.caption)
@@ -135,17 +131,15 @@ struct DocumentInspectorEntitiesTab: View {
                 emptyVisibleGroupsState
             } else {
                 VStack(spacing: 0) {
-                    PlatformVSplitView {
+                    InspectorListDetailSplit {
                         List(selection: $entitySelection) {
                             ForEach(grouped, id: \.0) { kind, items in
                                 entityKindSection(kind: kind, entities: items)
                             }
                         }
                         .listStyle(.inset)
-                        .frame(minHeight: 140, idealHeight: 180)
-
+                    } detail: {
                         entityDetailPane
-                            .frame(minHeight: 240, idealHeight: 360)
                     }
                     Divider()
                     entitiesMiniToolbar
@@ -224,24 +218,6 @@ struct DocumentInspectorEntitiesTab: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            Text("\(scopedEntities.count) entities")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            filterMenu
-            Button {
-                Task { await entityStore.loadEntities(forDocument: documentId, force: true) }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.plain)
-            .help("Reload entities")
-            .accessibilityLabel("Reload entities")
-        }
-    }
-
     private var entitiesMiniToolbar: some View {
         InspectorBottomMiniToolbar(statusText: entitiesToolbarStatusText) {
             filterMenu
@@ -266,9 +242,6 @@ struct DocumentInspectorEntitiesTab: View {
     }
 
     private var entitiesToolbarStatusText: String {
-        if entitySelection.count > 1 {
-            return "\(entitySelection.count) selected"
-        }
         if let selectedEntity {
             return selectedEntity.canonicalName
         }
@@ -295,26 +268,6 @@ struct DocumentInspectorEntitiesTab: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-    }
-
-    private var bulkActionBar: some View {
-        HStack(spacing: 8) {
-            Text("\(entitySelection.count) selected")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            bulkActionMenu(title: "Approve", systemImage: "checkmark.circle", action: .approve)
-            bulkActionMenu(title: "Reject", systemImage: "xmark.circle", action: .reject)
-            bulkActionMenu(title: "Suppress", systemImage: "eye.slash", action: .suppress)
-            mergeActionMenu(targetEntities: selectedEntities, menuTitle: "Merge")
-            deleteActionButton(targetEntities: selectedEntities)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.secondary.opacity(0.08))
-        )
     }
 
     @ViewBuilder
@@ -463,23 +416,20 @@ struct DocumentInspectorEntitiesTab: View {
                 #endif
                 .onAppear { renameFieldFocused = true }
         } else {
-            Button {
-                postSearch(
-                    for: entity,
-                    kind: EntityKind(apiType: entity.entityType) ?? .other
+            // Plain, readable name — no link styling. The accent-underlined
+            // button was unreadable when the row highlight inverted, and its
+            // single-click search intercepted the row's hit target so only a
+            // narrow strip selected. The name is now plain text: the whole row
+            // selects (List + tag), double-click renames, and "Find in Library"
+            // moved to the context menu.
+            Text(entity.canonicalName)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .help("Double-click to rename \"\(entity.canonicalName)\"")
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded { beginRename(entity) }
                 )
-            } label: {
-                Text(entity.canonicalName)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.accentColor)
-                    .underline()
-            }
-            .buttonStyle(.plain)
-            .help("Search the library for \"\(entity.canonicalName)\" — double-click to rename")
-            .simultaneousGesture(
-                TapGesture(count: 2).onEnded { beginRename(entity) }
-            )
         }
     }
 
@@ -533,6 +483,17 @@ struct DocumentInspectorEntitiesTab: View {
 
         Button("Rename") { beginRename(entity) }
             .disabled(entity.id == nil)
+        Button("Find in Library") {
+            postSearch(for: entity, kind: EntityKind(apiType: entity.entityType) ?? .other)
+        }
+        // Row text can't use .textSelection (it fights row selection), so Copy
+        // is the always-available copy-paste path for a selectable row (#3461).
+        Button("Copy Name") {
+            #if canImport(AppKit)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(entity.canonicalName, forType: .string)
+            #endif
+        }
         Divider()
 
         Menu("Approve") {

@@ -120,18 +120,16 @@ struct ArtifactsInspectorPane: View {
             if let actionError {
                 errorBox(actionError)
             }
-            PlatformVSplitView {
+            InspectorListDetailSplit {
                 ArtifactListView(
                     store: store,
                     inspectedDocument: document,
                     documentsById: knownDocumentsById,
                     focused: focused,
-                    onOpenInWindow: openDetailWindow
+                    onOpenInWindow: openDetailWindow,
+                    onTranslate: { translate(to: $0) }
                 )
-                .frame(minHeight: 140, idealHeight: 180)
-
-                Divider()
-
+            } detail: {
                 ArtifactDetailView(
                     artifact: selectedArtifact,
                     provenance: selectedProvenance,
@@ -143,11 +141,9 @@ struct ArtifactsInspectorPane: View {
                         Task { await deleteArtifact(artifact) }
                     }
                 )
-                .frame(minHeight: 240, idealHeight: 360)
             }
             Divider()
             InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText) {
-                translateMenu
                 Button {
                     Task { await store.reload() }
                 } label: {
@@ -178,16 +174,9 @@ struct ArtifactsInspectorPane: View {
                 .disabled(focused.id == nil)
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                // #2254 §E: the gated, reusable detach affordance. Absent where a
-                // second window can't exist (iPhone), so the floating placement is
-                // a true macOS / multi-scene opt-in.
-                DetachInspectorButton(isEnabled: focused.id != nil) {
-                    openDetailWindow()
-                }
-            }
-        }
+        // The top-toolbar detach button was removed (#3461): the bottom
+        // mini-toolbar's "Open in window" button is the single detach affordance,
+        // keeping the top of the inspector as just the section switcher.
         .task(id: document.id) {
             // Preserve a same-document artifact selection when another pane
             // (e.g. Content / outline) routes into Artifacts; otherwise the tab
@@ -220,22 +209,6 @@ struct ArtifactsInspectorPane: View {
             return inspectorArtifactTitle(selectedArtifact)
         }
         return "\(store.items.count) artifacts"
-    }
-
-    private var translateMenu: some View {
-        Menu {
-            ForEach(TranslationLanguage.common) { lang in
-                Button(lang.name) { translate(to: lang) }
-            }
-        } label: {
-            if isTranslating {
-                ProgressView().controlSize(.small)
-            } else {
-                Label("Translate", systemImage: "character.book.closed")
-            }
-        }
-        .disabled(isTranslating)
-        .help("Translate this document into another language")
     }
 
     private func openDetailWindow() {

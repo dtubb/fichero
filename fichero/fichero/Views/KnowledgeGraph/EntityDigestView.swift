@@ -223,7 +223,7 @@ struct EntityDigestContent: View {
     let entityService: EntityServiceGenerated
 
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
-    @State private var selectedClaimIds: Set<String> = []
+    @State private var selectedClaimRowId: String?
     @State private var isLoading = false
 
     var body: some View {
@@ -309,12 +309,19 @@ struct EntityDigestContent: View {
                 let grouped = Dictionary(grouping: claims, by: { $0.sourceDocumentId ?? "" })
                 let sortedDocIds = grouped.keys.sorted()
 
-                List(selection: $selectedClaimIds) {
+                // Single-selection List with STABLE, non-optional tags. The old
+                // `.tag(claim.id)` was `String?` while the selection was
+                // `Set<String>` — the type mismatch collapsed identity so
+                // clicking one row highlighted them all. A `String?` selection
+                // matched by non-optional `String` tags fixes it, and
+                // `inspectorListRowTarget()` makes the whole row the hit target.
+                List(selection: $selectedClaimRowId) {
                     ForEach(sortedDocIds, id: \.self) { docId in
                         Section(header: Label(docName(for: docId), systemImage: "doc.text")) {
-                            ForEach(grouped[docId] ?? [], id: \.id) { claim in
+                            ForEach(Array((grouped[docId] ?? []).enumerated()), id: \.offset) { index, claim in
                                 provenanceRow(claim)
-                                    .tag(claim.id)
+                                    .inspectorListRowTarget()
+                                    .tag(claim.id ?? "\(docId)#\(index)")
                                     .listRowSeparator(.hidden)
                             }
                         }
@@ -348,9 +355,15 @@ struct EntityDigestContent: View {
         .padding(.vertical, 2)
     }
 
+    /// Human-readable name for a source document id. Searches every store the
+    /// app has loaded — current page/folder, collections, and the sidebar — not
+    /// just `currentDocuments`, so an off-page source resolves to its title
+    /// instead of a raw hash. Falls back to the id only when the document isn't
+    /// in any store (that residual case needs a title on the claim payload).
     private func docName(for docId: String) -> String {
-        LibraryManager.shared.globalLibrary?.documentStore
-            .currentDocuments.first(where: { $0.id == docId })?.name ?? docId
+        guard let store = LibraryManager.shared.globalLibrary?.documentStore else { return docId }
+        let all = store.currentDocuments + store.collections + store.sidebarDocuments
+        return all.first(where: { $0.id == docId })?.name ?? docId
     }
 
     private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
@@ -417,15 +430,15 @@ struct EntityDigestContent: View {
         defer { isLoading = false }
         guard let entityId = entity.id else {
             claims = []
-            selectedClaimIds.removeAll()
+            selectedClaimRowId = nil
             return
         }
         do {
             claims = try await entityService.listClaims(entityId: entityId, limit: 500)
-            selectedClaimIds.removeAll()
+            selectedClaimRowId = nil
         } catch {
             claims = []
-            selectedClaimIds.removeAll()
+            selectedClaimRowId = nil
         }
     }
 }
