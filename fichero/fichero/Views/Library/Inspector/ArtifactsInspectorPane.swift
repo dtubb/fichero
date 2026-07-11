@@ -178,9 +178,6 @@ struct ArtifactsInspectorPane: View {
         }
         .toolbar {
             ToolbarItem(placement: .automatic) {
-                translateMenu
-            }
-            ToolbarItem(placement: .automatic) {
                 // #2254 §E: the gated, reusable detach affordance. Absent where a
                 // second window can't exist (iPhone), so the floating placement is
                 // a true macOS / multi-scene opt-in.

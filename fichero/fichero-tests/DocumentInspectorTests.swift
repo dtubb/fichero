@@ -63,6 +63,17 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertFalse(source.contains("private var includesDescendantArtifacts"))
     }
 
+    func testArtifactsTranslateActionLivesInInspectorMiniToolbar() throws {
+        let source = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+        let listSource = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
+
+        XCTAssertTrue(source.contains("InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText)"))
+        XCTAssertTrue(source.contains("translateMenu"))
+        XCTAssertFalse(source.contains("ToolbarItem(placement: .automatic) {\n                translateMenu"))
+        XCTAssertTrue(listSource.contains("case \"translation\":"))
+        XCTAssertTrue(listSource.contains("return \"Translated\""))
+    }
+
     func testInspectorListPanesUseSharedBottomMiniToolbar() throws {
         let inspectorSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
         let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
