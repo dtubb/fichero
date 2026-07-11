@@ -205,6 +205,8 @@
 		44088B69B036974D72906372 /* ShareSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2FF20EF84262D15A268246D /* ShareSettingsView.swift */; };
 		441627D26C9932352CE1FDF1 /* CanvasItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5921F26A97AF84B80B4DCD29 /* CanvasItemStore.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
+		44FA1DBF0A63CD22C7237172 /* SourceProvenancePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC32EFF977CFA4E7D253F6A /* SourceProvenancePopover.swift */; };
+		451693E6DEA7C6AEEB8C8183 /* InspectorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5DACA616BBD1A6AA5E8518E /* InspectorSection.swift */; };
 		4521CFC5D73D8706FAE283CA /* InterpretationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42C41E0F485064FDA5EAEB9 /* InterpretationStore.swift */; };
 		48566E1CB89ED6382581A546 /* ObservableDomainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B628D9325A5B301E5827F0C1 /* ObservableDomainStore.swift */; };
 		48644281A751D62184D6C831 /* FicheroActionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A05B7F3C09F6A27BE55971 /* FicheroActionIntents.swift */; };
@@ -315,6 +317,7 @@
 		9A44B73B118219D1160AFFD3 /* ArtifactEntityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E5E81DFE56AC41F34CC4EAE /* ArtifactEntityViews.swift */; };
 		9A45089C636C56BF221BD7BC /* MiniToolbarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC02D722B13BC58D4D4B37B7 /* MiniToolbarComponents.swift */; };
 		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
+		9DD32C9E1B17D298CF3138F1 /* SourceSnippet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EC894548A8DBFA37D41557 /* SourceSnippet.swift */; };
 		9F50071471DB4B1EA1618E6E /* ActivityMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C939F2EE06FF349761CA2F /* ActivityMonitorView.swift */; };
 		9F8F3883E8324E76A746FAF8 /* BoundingBoxGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D870DB81D42B1614D58CE3F /* BoundingBoxGeometry.swift */; };
 		9FB2B2B858EA25B4757ECFEC /* EntitySourceGroupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B0073490980740B06C80D7 /* EntitySourceGroupsView.swift */; };
@@ -609,6 +612,7 @@
 
 /* Begin PBXFileReference section */
 		003E584BBE51001B1E3F6843 /* ForceDirectedGraphView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ForceDirectedGraphView.swift; sourceTree = "<group>"; };
+		00EC894548A8DBFA37D41557 /* SourceSnippet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SourceSnippet.swift; sourceTree = "<group>"; };
 		015D191B1A9A578C0A4BC6BA /* iOSLibraryPickerMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSLibraryPickerMenu.swift; sourceTree = "<group>"; };
 		032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotatableTextView.swift; sourceTree = "<group>"; };
 		034677F6AF68D5DCA5CB3E8C /* SpeakerComparisonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpeakerComparisonView.swift; sourceTree = "<group>"; };
@@ -1028,6 +1032,7 @@
 		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
 		A5B27E2BF4EC43E993C19837 /* FeatureTiers.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTiers.generated.swift; sourceTree = "<group>"; };
 		A5C119BA4657FD54B0F01D6C /* DocumentKGSurface.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentKGSurface.swift; sourceTree = "<group>"; };
+		A5DACA616BBD1A6AA5E8518E /* InspectorSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InspectorSection.swift; sourceTree = "<group>"; };
 		A63F3EB72383ED2E5BA85C0E /* ArtifactListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactListView.swift; sourceTree = "<group>"; };
 		A68A831B2F81707B5E082D6F /* OpenAffordances.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenAffordances.swift; sourceTree = "<group>"; };
 		A698478801C79143E8D71A65 /* ContentView+KnowledgeSurface.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+KnowledgeSurface.swift"; sourceTree = "<group>"; };
@@ -1150,6 +1155,7 @@
 		E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorMetadataTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorMetadataTab.swift; sourceTree = SOURCE_ROOT; };
 		E80DDED3870C2457BFD97D1E /* DocumentKGWebPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentKGWebPane.swift; sourceTree = "<group>"; };
 		E9506E8C3C8030EE3075E9A0 /* EntityDetailView+Metadata.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Metadata.swift"; sourceTree = "<group>"; };
+		EAC32EFF977CFA4E7D253F6A /* SourceProvenancePopover.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SourceProvenancePopover.swift; sourceTree = "<group>"; };
 		EAF964748FC3450263DCB1D1 /* CaptureSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaptureSettingsView.swift; sourceTree = "<group>"; };
 		EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Operations.swift"; sourceTree = "<group>"; };
 		EE609F48196839FAA6981CFF /* SearchStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchStore.swift; sourceTree = "<group>"; };
@@ -2123,6 +2129,9 @@
 				B20829DBAC5757AEA6096835 /* FocusedNote.swift */,
 				F447E424F3A26C138C9BB99D /* InspectorTab.swift */,
 				FFC6B695132C68202062560A /* InspectorPresenter.swift */,
+				00EC894548A8DBFA37D41557 /* SourceSnippet.swift */,
+				A5DACA616BBD1A6AA5E8518E /* InspectorSection.swift */,
+				EAC32EFF977CFA4E7D253F6A /* SourceProvenancePopover.swift */,
 			);
 			path = Inspector;
 			sourceTree = "<group>";
@@ -3031,6 +3040,9 @@
 				527561D7A2B768C662B2D74E /* PaneVisibility.swift in Sources */,
 				40B4487F9C8C03F6518A8988 /* PageImageGrid.swift in Sources */,
 				2FA0C9F98B2B1A0A35107B07 /* ChainStore.swift in Sources */,
+				9DD32C9E1B17D298CF3138F1 /* SourceSnippet.swift in Sources */,
+				451693E6DEA7C6AEEB8C8183 /* InspectorSection.swift in Sources */,
+				44FA1DBF0A63CD22C7237172 /* SourceProvenancePopover.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -3433,7 +3445,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				REGISTER_APP_GROUPS = YES;
@@ -3505,7 +3517,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3584,7 +3596,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3663,7 +3675,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3698,7 +3710,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3721,7 +3733,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3737,7 +3749,7 @@
 				CURRENT_PROJECT_VERSION = 2026071101;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3753,7 +3765,7 @@
 				CURRENT_PROJECT_VERSION = 2026071101;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3812,7 +3824,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				REGISTER_APP_GROUPS = YES;
@@ -3884,7 +3896,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3963,7 +3975,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -4042,7 +4054,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
