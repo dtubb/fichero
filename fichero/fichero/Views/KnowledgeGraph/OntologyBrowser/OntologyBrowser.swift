@@ -114,6 +114,8 @@ struct OntologyBrowser: View {
     @State var toolStatus: String?
     @State var pendingPredictions: Components.Schemas.HeuristicPredictionsResponse?
     @State var showCreateSheet = false
+    /// Presents the W3C SPARQL query console (#3298).
+    @State var showSparqlConsole = false
     @State var entityPendingDeletion: Components.Schemas.KnowledgeEntity?
     @State var entityPendingEdit: Components.Schemas.KnowledgeEntity?
     @State var entityPendingMerge: Components.Schemas.KnowledgeEntity?

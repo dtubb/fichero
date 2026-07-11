@@ -942,6 +942,23 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertEqual(decoded.text, "Ada Lovelace")
     }
 
+    // MARK: - SPARQL console (#3298)
+
+    func testSparqlConsoleUsesTypedQueryOpsThroughAStore() throws {
+        let source = try Self.appSource(
+            "Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser+Sheets.swift"
+        )
+
+        // The console routes the W3C query layer through KGQueryStore on the
+        // typed generated ops — seeded from /examples, run via /query/sparql —
+        // not a hand-rolled URL, and surfaces the truncation flag (#3298).
+        XCTAssertTrue(source.contains("final class KGQueryStore"))
+        XCTAssertTrue(source.contains("sparqlQueryApiKgQuerySparqlPost"))
+        XCTAssertTrue(source.contains("sparqlExamplesApiKgQueryExamplesGet"))
+        XCTAssertTrue(source.contains("response.truncated"))
+        XCTAssertFalse(source.contains("URLSession"))
+    }
+
     // MARK: - OntologyBrowser store routing (#3300)
 
     func testOntologyBrowserEntityClaimsRouteThroughClaimStore() throws {
