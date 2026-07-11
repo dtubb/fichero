@@ -774,7 +774,7 @@ struct DocumentInspectorEntitiesTab: View {
                 into: plan.survivorId
             )
             actionMessage = "Merged \(plan.entityCount) entities into \(plan.survivorName)."
-            restoreSelectionAfterMerge(survivorId: plan.survivorId)
+            restoreSelectionAfterEntityRefresh(entityId: plan.survivorId)
         } catch {
             inspectorEntitiesLogger.error(
                 "Entity merge failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
@@ -783,13 +783,13 @@ struct DocumentInspectorEntitiesTab: View {
         }
     }
 
-    private func restoreSelectionAfterMerge(survivorId: String) {
-        guard let survivor = orderedEntities.first(where: { $0.id == survivorId }) else {
+    private func restoreSelectionAfterEntityRefresh(entityId: String) {
+        guard let entity = orderedEntities.first(where: { $0.id == entityId }) else {
             entitySelection = []
             return
         }
-        entitySelection = [survivor.stableInspectorId]
-        onEntitySelect?(survivorId)
+        entitySelection = [entity.stableInspectorId]
+        onEntitySelect?(entityId)
     }
 
     private func applyReclassify(_ plan: PendingEntityReclassifyPlan) async {
@@ -801,6 +801,7 @@ struct DocumentInspectorEntitiesTab: View {
         do {
             try await entityStore.reclassify(entityId: plan.entityId, to: plan.entityType)
             actionMessage = "Changed \(plan.entityName) to \(plan.targetLabel.lowercased())."
+            restoreSelectionAfterEntityRefresh(entityId: plan.entityId)
         } catch {
             inspectorEntitiesLogger.error(
                 "Entity type change failed for \(plan.entityId, privacy: .public): \(error.localizedDescription, privacy: .public)"
