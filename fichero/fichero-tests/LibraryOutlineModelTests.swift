@@ -38,13 +38,41 @@ struct LibraryOutlineModelTests {
     }
 
     /// Build a rollup via JSON so we're robust to generated-type field ordering.
-    private func makeRollup(pages: Int = 0, artifacts: Int = 0) throws -> Components.Schemas.DocumentRollupResponse {
+    private func makeRollup(
+        pages: Int = 0,
+        artifacts: Int = 0,
+        entities: Int = 0,
+        claims: Int = 0
+    ) throws -> Components.Schemas.DocumentRollupResponse {
         let json = """
-        {"document_id":"any","pages":\(pages),"artifacts":\(artifacts),"entities":0,"notes":0,"claims":0}
+        {"document_id":"any","pages":\(pages),"artifacts":\(artifacts),"entities":\(entities),"notes":0,"claims":\(claims)}
         """
         return try JSONDecoder().decode(
             Components.Schemas.DocumentRollupResponse.self,
             from: Data(json.utf8)
+        )
+    }
+
+    private func makeEntity(id: String, name: String) -> Components.Schemas.KnowledgeEntity {
+        Components.Schemas.KnowledgeEntity(
+            id: id,
+            canonicalName: name,
+            entityType: .person,
+            aliases: nil,
+            description: nil,
+            language: nil,
+            metadata: nil,
+            mergedIntoId: nil
+        )
+    }
+
+    private func makeClaim(id: String, text: String) -> Components.Schemas.KnowledgeClaim {
+        Components.Schemas.KnowledgeClaim(
+            id: id,
+            text: text,
+            subjectCanonical: nil,
+            predicateVerb: nil,
+            objectPhrase: nil
         )
     }
 
@@ -74,15 +102,15 @@ struct LibraryOutlineModelTests {
         model.pagesByParentId["pdf-1"] = [
             makePage(id: "p3", parentId: "pdf-1", sequence: 3),
             makePage(id: "p1", parentId: "pdf-1", sequence: 1),
-            makePage(id: "p2", parentId: "pdf-1", sequence: 2),
+            makePage(id: "p2", parentId: "pdf-1", sequence: 2)
         ]
 
         let children = model.childNodes(for: doc) ?? []
-        let seqs = children.compactMap { n -> Int? in
-            guard case .pageItem(let p) = n.kind else { return nil }
-            return p.sequence
+        let sequences = children.compactMap { node -> Int? in
+            guard case .pageItem(let page) = node.kind else { return nil }
+            return page.sequence
         }
-        #expect(seqs == [1, 2, 3])
+        #expect(sequences == [1, 2, 3])
     }
 
     @Test("Page item count matches loaded pages")
@@ -92,7 +120,7 @@ struct LibraryOutlineModelTests {
         model.rollups["pdf-2"] = try makeRollup(pages: 2)
         model.pagesByParentId["pdf-2"] = [
             makePage(id: "pa", parentId: "pdf-2", sequence: 1),
-            makePage(id: "pb", parentId: "pdf-2", sequence: 2),
+            makePage(id: "pb", parentId: "pdf-2", sequence: 2)
         ]
 
         let pageItems = model.childNodes(for: doc)?.filter {
@@ -121,7 +149,7 @@ struct LibraryOutlineModelTests {
         model.rollups["doc-d"] = try makeRollup(artifacts: 2)
         model.artifactsByDocumentId["doc-d"] = [
             makeArtifact(id: "art-1", documentId: "doc-d"),
-            makeArtifact(id: "art-2", documentId: "doc-d"),
+            makeArtifact(id: "art-2", documentId: "doc-d")
         ]
 
         let children = model.childNodes(for: doc) ?? []
@@ -145,5 +173,63 @@ struct LibraryOutlineModelTests {
         let art = makeArtifact(id: "art-z", documentId: "parent-2")
         let node = LibraryOutlineNode.artifactItem(art, parent: parent)
         #expect(node.id == "parent-2:artifact:art-z")
+    }
+
+    @Test("Entity and claim groups expose loaded children instead of leaf count rows")
+    @MainActor func entityAndClaimGroupsExposeChildren() throws {
+        let model = makeModel()
+        let doc = makeDoc(id: "doc-e")
+        model.rollups["doc-e"] = try makeRollup(entities: 2, claims: 1)
+        model.entitiesByDocumentId["doc-e"] = [
+            makeEntity(id: "entity-1", name: "Ada"),
+            makeEntity(id: "entity-2", name: "Grace")
+        ]
+        model.claimsByDocumentId["doc-e"] = [
+            makeClaim(id: "claim-1", text: "Ada cites Grace")
+        ]
+
+        let children = model.childNodes(for: doc) ?? []
+        let entityGroup = children.first {
+            if case .childGroup(.entities) = $0.kind { return true }
+            return false
+        }
+        let claimGroup = children.first {
+            if case .childGroup(.claims) = $0.kind { return true }
+            return false
+        }
+
+        #expect(entityGroup?.count == 2)
+        #expect(entityGroup?.children?.count == 2)
+        #expect(claimGroup?.count == 1)
+        #expect(claimGroup?.children?.count == 1)
+    }
+
+    @Test("Entity and claim child node IDs are stable")
+    func entityAndClaimNodeIdsAreStable() {
+        let parent = makeDoc(id: "parent-3")
+        let entityNode = LibraryOutlineNode.entityItem(makeEntity(id: "entity-x", name: "Ada"), parent: parent)
+        let claimNode = LibraryOutlineNode.claimItem(makeClaim(id: "claim-y", text: "Ada cites Grace"), parent: parent)
+
+        #expect(entityNode.id == "parent-3:entity:entity-x")
+        #expect(claimNode.id == "parent-3:claim:claim-y")
+    }
+
+    @Test("Entity and claim aggregate rows disclose only when children are loaded")
+    func aggregateRowsOnlyExpandWithRealChildren() {
+        let parent = makeDoc(id: "parent-4")
+        let unloadedGroup = LibraryOutlineNode.childGroup(.entities, document: parent, count: 2)
+        let emptyGroup = LibraryOutlineNode.childGroup(.claims, document: parent, count: 1, children: [])
+        let loadedGroup = LibraryOutlineNode.childGroup(
+            .entities,
+            document: parent,
+            count: 2,
+            children: [
+                LibraryOutlineNode.entityItem(makeEntity(id: "entity-a", name: "Ada"), parent: parent)
+            ]
+        )
+
+        #expect(unloadedGroup.canExpand == false)
+        #expect(emptyGroup.canExpand == false)
+        #expect(loadedGroup.canExpand)
     }
 }

@@ -83,4 +83,30 @@ struct ArtifactSelectionTests {
         #expect(focused.documentName == "Document 42")
         #expect(focused.artifact?.id == "artifact-1")
     }
+
+    @Test("artifacts pane preserves selection when routing within the same document")
+    func artifactsPanePreservesSameDocumentSelection() {
+        #expect(
+            ArtifactInspectorFocusRouting.shouldClearSelection(
+                focusedDocumentId: "doc-42",
+                inspectedDocumentId: "doc-42"
+            ) == false
+        )
+    }
+
+    @Test("artifacts pane clears selection when switching documents")
+    func artifactsPaneClearsCrossDocumentSelection() {
+        #expect(
+            ArtifactInspectorFocusRouting.shouldClearSelection(
+                focusedDocumentId: "doc-42",
+                inspectedDocumentId: "doc-99"
+            )
+        )
+        #expect(
+            ArtifactInspectorFocusRouting.shouldClearSelection(
+                focusedDocumentId: nil,
+                inspectedDocumentId: "doc-99"
+            ) == false
+        )
+    }
 }

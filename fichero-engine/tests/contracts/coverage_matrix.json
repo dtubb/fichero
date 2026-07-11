@@ -243,12 +243,12 @@
     },
     {
       "domain": "documents",
-      "total": 31,
+      "total": 32,
       "swiftui_wired": 22,
-      "swiftui_unwired": 9,
-      "swiftui_allowlisted": 11,
-      "swiftui_coverage": 0.7097,
-      "cli_wired": 31,
+      "swiftui_unwired": 10,
+      "swiftui_allowlisted": 13,
+      "swiftui_coverage": 0.6875,
+      "cli_wired": 32,
       "cli_untested": 0,
       "cli_allowlisted": 0,
       "cli_coverage": 1.0

@@ -73,6 +73,13 @@ final class NoteServiceTests: XCTestCase {
         XCTAssertTrue(source.contains("await loadNotes()"))
     }
 
+    func testNotesInspectorUsesLowerDetailSplit() throws {
+        let source = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
+
+        XCTAssertTrue(source.contains("PlatformVSplitView {"))
+        XCTAssertFalse(source.contains("PlatformHSplitView {"))
+    }
+
     func testNotesBrowserShowsScopeLabelsForScopedNotes() throws {
         // scopeLabel is a computed property on FocusedNote; NotesBrowserView consumes it.
         let viewSource = try Self.appSource("Views/Notes/NotesBrowserView.swift")

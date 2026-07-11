@@ -109,25 +109,22 @@ final class EntityStore: ObservableDomainStore {
         }
     }
 
-    /// Merge `absorbedIds` into `survivorId`, then update the loaded rows in
-    /// place. If the survivor refresh fails, keep the structural update and
-    /// leave the row data as-is rather than reloading the whole list.
+    /// Merge `absorbedIds` into `survivorId`, then re-fetch the active
+    /// document-scoped inspector list so every surface sees the canonical
+    /// post-merge rows from the backend.
     func merge(absorbedIds: [String], into survivorId: String) async throws {
         _ = try await entityService.mergeEntities(
             absorbingEntityId: survivorId,
             absorbedEntityIds: absorbedIds
         )
-        let absorbed = Set(absorbedIds)
-        entities.removeAll { entity in
-            entity.id.map(absorbed.contains) ?? false
-        }
-
-        guard let survivorIndex = entities.firstIndex(where: { $0.id == survivorId }) else {
+        if loadedDocumentId != nil {
+            await reload()
             return
         }
 
-        if let refreshed = try? await entityService.getEntity(survivorId) {
-            entities[survivorIndex] = refreshed
+        let absorbed = Set(absorbedIds)
+        entities.removeAll { entity in
+            entity.id.map(absorbed.contains) ?? false
         }
     }
 
@@ -141,6 +138,22 @@ final class EntityStore: ObservableDomainStore {
     ) async throws -> Components.Schemas.KnowledgeEntity {
         let updated = try await entityService.patchEntity(entityId, canonicalName: newName)
         if let index = entities.firstIndex(where: { $0.id == entityId }) {
+            entities[index] = updated
+        }
+        return updated
+    }
+
+    /// Change an entity's type, then re-fetch the active inspector scope so
+    /// grouped sections and row placement stay canonical.
+    @discardableResult
+    func reclassify(
+        entityId: String,
+        to entityType: String
+    ) async throws -> Components.Schemas.KnowledgeEntity {
+        let updated = try await entityService.patchEntity(entityId, entityType: entityType)
+        if loadedDocumentId != nil {
+            await reload()
+        } else if let index = entities.firstIndex(where: { $0.id == entityId }) {
             entities[index] = updated
         }
         return updated

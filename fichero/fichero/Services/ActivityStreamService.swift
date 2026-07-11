@@ -32,6 +32,10 @@ final class ActivityStreamService {
     /// transient drop (retry with backoff).
     private enum StreamError: Error { case accessDenied }
 
+    static func shouldSurfaceUnavailable(failureCount: Int) -> Bool {
+        failureCount >= 2
+    }
+
     init(activityService: ActivityServiceGenerated) {
         self.activityService = activityService
     }
@@ -58,9 +62,12 @@ final class ActivityStreamService {
 
     private func runLoop(onEvent: @escaping @MainActor (ActivityItem) -> Void) async {
         var backoffNanos: UInt64 = 1_000_000_000
+        var consecutiveUnavailableCycles = 0
         while !Task.isCancelled {
+            var cycleEndedWithError = false
             do {
                 try await subscribeOnce(onEvent: onEvent)
+                consecutiveUnavailableCycles = 0
                 backoffNanos = 1_000_000_000
             } catch StreamError.accessDenied {
                 // 403: no role on this library. Retrying can't fix authorization —
@@ -73,13 +80,21 @@ final class ActivityStreamService {
                 return
             } catch {
                 if !Task.isCancelled {
+                    cycleEndedWithError = true
                     log.error("activity stream dropped: \(error.localizedDescription, privacy: .public)")
-                    liveUpdatesUnavailable = true
+                    consecutiveUnavailableCycles += 1
+                    liveUpdatesUnavailable = Self.shouldSurfaceUnavailable(
+                        failureCount: consecutiveUnavailableCycles
+                    )
                 }
             }
             if Task.isCancelled { break }
-            // A clean close (no throw) also means events stopped until reconnect.
-            liveUpdatesUnavailable = true
+            if !cycleEndedWithError {
+                consecutiveUnavailableCycles += 1
+                liveUpdatesUnavailable = Self.shouldSurfaceUnavailable(
+                    failureCount: consecutiveUnavailableCycles
+                )
+            }
             try? await Task.sleep(nanoseconds: backoffNanos)
             backoffNanos = min(backoffNanos * 2, 30_000_000_000)
         }

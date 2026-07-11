@@ -1,4 +1,5 @@
 import SwiftUI
+// swiftlint:disable file_length
 
 // MARK: - Table + Map Display Modes
 
@@ -78,11 +79,7 @@ extension LibraryView {
             outlineColumns
         } rows: {
             ForEach(outlineNodes) { node in
-                DisclosureTableRow(node, isExpanded: expansionBinding(for: node)) {
-                    ForEach(node.children ?? []) { child in
-                        TableRow(child)
-                    }
-                }
+                outlineTableRow(node)
             }
         }
         .onChange(of: selection) { _, newSelection in
@@ -97,32 +94,86 @@ extension LibraryView {
                     documentName: artifactSelection.document.name,
                     in: [artifactSelection.artifact]
                 )
+            } else if let entitySelection = entitySelectionForNodeId(nodeId) {
+                detailDocument = entitySelection.document
+                if let entityId = entitySelection.entity.id {
+                    kgFocusState.focusEntity(entityId: entityId)
+                }
+            } else if let claimSelection = claimSelectionForNodeId(nodeId) {
+                detailDocument = claimSelection.document
+                if let claimId = claimSelection.claim.id {
+                    kgFocusState.focusClaim(
+                        claimId: claimId,
+                        entityId: claimSelection.claim.entityIds?.first,
+                        sourceDocumentId: claimSelection.claim.sourceDocumentId
+                    )
+                }
             }
         }
     }
 
-    /// Search the current outline nodes' children for a `.pageItem` matching
-    /// the given node id. Used to fire `onPageFocus` on page-row selection.
-    private func pageDocumentForNodeId(_ nodeId: String) -> Document? {
-        for node in outlineNodes {
-            for child in node.children ?? [] {
-                if child.id == nodeId, case .pageItem(let page) = child.kind {
-                    return page
+    @ViewBuilder
+    private func outlineTableRow(_ node: LibraryOutlineNode) -> some View {
+        if nodeCanExpand(node) {
+            DisclosureTableRow(node, isExpanded: expansionBinding(for: node)) {
+                ForEach(node.children ?? []) { child in
+                    outlineTableRow(child)
                 }
             }
+        } else {
+            TableRow(node)
+        }
+    }
+
+    /// Search the current outline nodes recursively for a `.pageItem` matching
+    /// the given node id. Used to fire `onPageFocus` on page-row selection.
+    private func pageDocumentForNodeId(_ nodeId: String) -> Document? {
+        if let node = findNode(withId: nodeId, in: outlineNodes),
+           case .pageItem(let page) = node.kind {
+            return page
         }
         return nil
     }
 
     private func artifactSelectionForNodeId(_ nodeId: String) -> (document: Document, artifact: Artifact)? {
-        for node in outlineNodes {
-            for child in node.children ?? [] {
-                if child.id == nodeId, case .artifactItem(let artifact) = child.kind {
-                    return (node.document, artifact)
-                }
+        if let node = findNode(withId: nodeId, in: outlineNodes),
+           case .artifactItem(let artifact) = node.kind {
+            return (node.document, artifact)
+        }
+        return nil
+    }
+
+    private func entitySelectionForNodeId(_ nodeId: String) -> (document: Document, entity: Components.Schemas.KnowledgeEntity)? {
+        if let node = findNode(withId: nodeId, in: outlineNodes),
+           case .entityItem(let entity) = node.kind {
+            return (node.document, entity)
+        }
+        return nil
+    }
+
+    private func claimSelectionForNodeId(_ nodeId: String) -> (document: Document, claim: Components.Schemas.KnowledgeClaim)? {
+        if let node = findNode(withId: nodeId, in: outlineNodes),
+           case .claimItem(let claim) = node.kind {
+            return (node.document, claim)
+        }
+        return nil
+    }
+
+    private func findNode(withId nodeId: String, in nodes: [LibraryOutlineNode]) -> LibraryOutlineNode? {
+        for node in nodes {
+            if node.id == nodeId {
+                return node
+            }
+            if let children = node.children,
+               let found = findNode(withId: nodeId, in: children) {
+                return found
             }
         }
         return nil
+    }
+
+    private func nodeCanExpand(_ node: LibraryOutlineNode) -> Bool {
+        node.canExpand
     }
 
     /// Node-typed sort-order binding mapped onto the existing
@@ -187,8 +238,8 @@ extension LibraryView {
         }
     }
 
-    /// Expansion binding for a document row. Flipping it open kicks the
-    /// document's rollup + artifact fetch so child rows materialise (#2405).
+    /// Expansion binding for an outline row. Opening a document row kicks the
+    /// document's rollup + typed-child fetches so child rows materialise.
     private func expansionBinding(for node: LibraryOutlineNode) -> Binding<Bool> {
         Binding(
             get: { outlineExpanded.contains(node.id) },
@@ -196,9 +247,13 @@ extension LibraryView {
                 if isOpen {
                     outlineExpanded.insert(node.id)
                     let docId = node.document.id
-                    Task {
-                        await outlineModel?.loadRollup(for: docId)
-                        await outlineModel?.loadArtifacts(for: docId)
+                    if case .document = node.kind {
+                        Task {
+                            await outlineModel?.loadRollup(for: docId)
+                            await outlineModel?.loadArtifacts(for: docId)
+                            await outlineModel?.loadEntities(for: docId)
+                            await outlineModel?.loadClaims(for: docId)
+                        }
                     }
                 } else {
                     outlineExpanded.remove(node.id)
@@ -322,6 +377,14 @@ extension LibraryView {
             )
             .font(.subheadline)
             .foregroundStyle(.primary)
+        case .entityItem(let entity):
+            Label(entity.canonicalName, systemImage: "person.crop.circle")
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+        case .claimItem(let claim):
+            Label(claim.displayMergeName, systemImage: "quote.bubble")
+                .font(.subheadline)
+                .foregroundStyle(.primary)
         }
     }
 
@@ -332,7 +395,7 @@ extension LibraryView {
         switch node.kind {
         case .document:
             tableCellView(for: columnId, document: node.document)
-        case .childGroup, .pageItem, .artifactItem:
+        case .childGroup, .pageItem, .artifactItem, .entityItem, .claimItem:
             EmptyView()
         }
     }

@@ -193,4 +193,11 @@ struct LibraryChangeStreamTransportTests {
         #expect(LibraryChangeStream.nextBackoffNanos(after: 20_000_000_000) == 30_000_000_000)
         #expect(LibraryChangeStream.nextBackoffNanos(after: 30_000_000_000) == 30_000_000_000)
     }
+
+    @Test("paused pill stays hidden until the second consecutive missed cycle")
+    func pausedPillThreshold() {
+        #expect(LibraryChangeStream.shouldSurfaceUnavailable(failureCount: 0) == false)
+        #expect(LibraryChangeStream.shouldSurfaceUnavailable(failureCount: 1) == false)
+        #expect(LibraryChangeStream.shouldSurfaceUnavailable(failureCount: 2) == true)
+    }
 }

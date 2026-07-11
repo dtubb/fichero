@@ -9,12 +9,11 @@ import Testing
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab includes content/artifacts/outline/annotations/notes/interpretation/entities/kg/citations/edits/info")
+    @Test("InspectorTab includes content/artifacts/annotations/notes/interpretation/entities/kg/citations/edits/info")
     func allCases() {
-        #expect(InspectorTab.allCases.count == 11)
+        #expect(InspectorTab.allCases.count == 10)
         #expect(InspectorTab.allCases.contains(.content))
         #expect(InspectorTab.allCases.contains(.artifacts))
-        #expect(InspectorTab.allCases.contains(.outline))
         #expect(InspectorTab.allCases.contains(.annotations))
         #expect(InspectorTab.allCases.contains(.notes))
         #expect(InspectorTab.allCases.contains(.interpretations))
@@ -24,10 +23,10 @@ struct InspectorTabTests {
         #expect(InspectorTab.allCases.contains(.edits))
         #expect(InspectorTab.allCases.contains(.info))
     }
-    @Test("InspectorTab order: content, artifacts, outline, annotations, notes, interpretation, entities, kg, citations, edits, info")
+    @Test("InspectorTab order: content, artifacts, annotations, notes, interpretation, entities, kg, citations, edits, info")
     func ordering() {
         let expected: [InspectorTab] = [
-            .content, .artifacts, .outline, .annotations, .notes, .interpretations, .entities, .knowledgeGraph,
+            .content, .artifacts, .annotations, .notes, .interpretations, .entities, .knowledgeGraph,
             .citations, .edits, .info
         ]
         #expect(InspectorTab.allCases == expected)
@@ -44,7 +43,6 @@ struct InspectorTabTests {
     func icons() {
         #expect(InspectorTab.content.icon == "doc.text")
         #expect(InspectorTab.artifacts.icon == "shippingbox")
-        #expect(InspectorTab.outline.icon == "list.bullet.indent")
         #expect(InspectorTab.annotations.icon == "highlighter")
         #expect(InspectorTab.notes.icon == "pencil.and.scribble")
         #expect(InspectorTab.interpretations.icon == "quote.bubble")
@@ -58,7 +56,6 @@ struct InspectorTabTests {
     func rawValues() {
         #expect(InspectorTab.content.rawValue == "Content")
         #expect(InspectorTab.artifacts.rawValue == "Artifacts")
-        #expect(InspectorTab.outline.rawValue == "Outline")
         #expect(InspectorTab.annotations.rawValue == "Annotations")
         #expect(InspectorTab.notes.rawValue == "Notes")
         #expect(InspectorTab.interpretations.rawValue == "Interpretation")

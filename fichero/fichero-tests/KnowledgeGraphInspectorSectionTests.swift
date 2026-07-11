@@ -103,6 +103,29 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(source.contains("Loaded \\(entityStore.entities.count) entities, but none mapped into a visible section."))
     }
 
+    func testInspectorListRowsUseFullRowHitTargets() throws {
+        let entitiesSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+        let artifactSource = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
+        let citationSource = try Self.appSource("Views/Library/Inspector/CitationListView.swift")
+        let annotationSource = try Self.appSource("Views/Library/Inspector/AnnotationListView.swift")
+
+        XCTAssertTrue(entitiesSource.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(entitiesSource.contains(".tag(entity.stableInspectorId)"))
+        XCTAssertTrue(artifactSource.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(citationSource.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(annotationSource.contains(".contentShape(Rectangle())"))
+    }
+
+    func testDocumentInspectorArtifactPanelsRouteSelectionIntoArtifactInspector() throws {
+        let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorContentV2.swift")
+
+        XCTAssertTrue(source.contains("FocusedArtifact.shared.select("))
+        XCTAssertTrue(source.contains("documentId: document.id"))
+        XCTAssertTrue(source.contains(".onTapGesture"))
+    }
+
     func testInspectorEntitySelectionReducerPlainClickReplacesSelection() {
         let result = InspectorEntityBulkSelection.reduceTap(
             tappedId: "b",
@@ -276,6 +299,41 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertFalse(source.contains("URLRequest"))
         XCTAssertFalse(source.contains("URL(string:"))
         XCTAssertTrue(serviceSource.contains("batchSetEntityCurationStateApiKgEntitiesBatchCurationPatch"))
+    }
+
+    func testInspectorEntitiesTabSupportsOwnProcessDragDropAndTypeChange() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+        let sharedSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Shared.swift"
+        )
+        let storeSource = try Self.appSource("Models/EntityStore.swift")
+
+        XCTAssertTrue(source.contains(".draggable(InspectorEntityDragID(id: entity.stableInspectorId))"))
+        XCTAssertTrue(source.contains(".dropDestination("))
+        XCTAssertTrue(source.contains("pendingMergePlan = plan"))
+        XCTAssertTrue(source.contains("pendingReclassifyPlan = PendingEntityReclassifyPlan("))
+        XCTAssertTrue(sharedSource.contains("var apiTypeId: String?"))
+        XCTAssertTrue(storeSource.contains("func reclassify("))
+    }
+
+    func testInspectorEntityMergeKeepsFocusOnSurvivorAfterReload() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+
+        XCTAssertTrue(source.contains("restoreSelectionAfterEntityRefresh(entityId: plan.survivorId)"))
+        XCTAssertTrue(source.contains("entitySelection = [entity.stableInspectorId]"))
+        XCTAssertTrue(source.contains("onEntitySelect?(entityId)"))
+    }
+
+    func testInspectorEntityReclassifyKeepsFocusAfterDropRefresh() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+
+        XCTAssertTrue(source.contains("restoreSelectionAfterEntityRefresh(entityId: plan.entityId)"))
     }
 
     func testInspectorDeleteActionsUseGeneratedEntityAndClaimClients() throws {

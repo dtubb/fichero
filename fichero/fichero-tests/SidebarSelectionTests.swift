@@ -74,6 +74,18 @@ struct SidebarSelectionTests {
         #expect(componentSource.contains("var selectedTint: Color = .accentColor"))
     }
 
+    @Test("#3406 active split drives location chrome and inspector can claim focus")
+    func splitFocusDrivesLocationChrome() throws {
+        let stateSource = try appSource("Views/ContentView+State.swift")
+        let buildersSource = try appSource("Views/ContentView+ViewBuilders.swift")
+
+        #expect(stateSource.contains("var activeLocationDocument: Document?"))
+        #expect(stateSource.contains("switch focusedPane"))
+        #expect(stateSource.contains("pageFocusDocument ?? detailDocument ?? inspectorDocument"))
+        #expect(stateSource.contains("if let page = activeLocationDocument, page.docType == .page"))
+        #expect(buildersSource.contains(".simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector })"))
+    }
+
     @Test("#2547 compact inspector sheet defaults to full-height .large")
     func compactInspectorSheetDefaultsToLarge() throws {
         // The sheet must NOT default to [.medium, .large] (which opens at 50%);

@@ -121,6 +121,7 @@ struct AnnotationRow: View {
             }
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 
     private var displayText: String {

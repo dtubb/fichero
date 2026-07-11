@@ -10,6 +10,15 @@ extension ContentView {
 
     // MARK: - Computed Properties
 
+    var activeLocationDocument: Document? {
+        switch focusedPane {
+        case .preview, .reading:
+            pageFocusDocument ?? detailDocument ?? inspectorDocument
+        case .sidebar, .content, .inspector, .none:
+            inspectorDocument
+        }
+    }
+
     /// Toolbar/window title showing only the current view/item name
     var toolbarTitle: String {
         let viewName: String
@@ -20,7 +29,7 @@ extension ContentView {
             // is in context. The parent PDF comes from `document` (the sidebar-
             // selected item). Page count shows when the browser selection has
             // more than one page document.
-            if let page = inspectorDocument, page.docType == .page {
+            if let page = activeLocationDocument, page.docType == .page {
                 let selectedPageCount = browserSelection.filter { id in
                     documentStore.currentDocuments.first(where: { $0.id == id })?.docType == .page
                 }.count
@@ -93,7 +102,7 @@ extension ContentView {
             return nil
         }
 
-        let pageLabel: String? = if let page = inspectorDocument, page.docType == .page {
+        let pageLabel: String? = if let page = activeLocationDocument, page.docType == .page {
             page.pageThumbnailLabel
         } else {
             nil
@@ -119,7 +128,7 @@ extension ContentView {
         switch viewMode {
         case .library(let document):
             guard let doc = document else { return "books.vertical" }
-            if let inspector = inspectorDocument, inspector.docType == .page {
+            if let active = activeLocationDocument, active.docType == .page {
                 return "doc.richtext"
             }
             return doc.docType == .folder ? "folder" : (doc.fileType == .pdf ? "doc.richtext" : "doc.text")
@@ -148,11 +157,11 @@ extension ContentView {
         if browserSelection.count > 1 {
             return "\(browserSelection.count) items selected"
         }
-        return inspectorDocument?.name ?? toolbarTitle
+        return activeLocationDocument?.name ?? toolbarTitle
     }
 
     var selectionPathText: String {
-        let leaf = inspectorDocument?.name ?? toolbarTitle
+        let leaf = activeLocationDocument?.name ?? toolbarTitle
         guard !breadcrumbSubtitle.isEmpty else { return leaf }
         return "\(breadcrumbSubtitle) › \(leaf)"
     }

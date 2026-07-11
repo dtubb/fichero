@@ -93,6 +93,7 @@ KNOWN_GAPS: dict[str, str] = {
     'POST /api/documents/cleanup-orphans': "#1920 baseline - cli-only",
     'POST /api/documents/pdfs/backfill-pages': "#1920 baseline - cli-only",
     'GET /api/documents/trash': "#2075 backend; UI tracked in #2077",
+    'GET /api/documents/{document_id}/outline': "#3398 retired document-inspector Outline tab; CLI/engine-only until a new outline UX is designed",
     'DELETE /api/documents/{doc_id}/notes': "#1920 baseline - cli-only",
     'DELETE /api/documents/{doc_id}/purge': "#2075 backend; UI tracked in #2077",
     'GET /api/documents/{doc_id}/annotations.jsonld': "backend/CLI annotation export; Swift store wiring tracked as annotation export UI backlog",

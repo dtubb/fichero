@@ -254,6 +254,7 @@ private struct ArtifactRow: View {
             }
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 
     /// Title-cased artifact type (e.g. `key_people` → "Key People"). Matches
