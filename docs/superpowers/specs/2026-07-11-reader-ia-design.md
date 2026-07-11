@@ -50,9 +50,16 @@ database (that routes to the Inspector) — though it hosts reading marks
 | **Digest** | Digest, Sources | WebKit HTML | "The overview." AI synthesis/summary of the document + a sources/provenance overview. Parallels Inspector **Artifacts** (derived outputs). |
 | **Notes** | Annotations (highlight/note/bookmark), reading marks | native overlay | The human/reading layer — marks anchored to the page. Parallels Inspector **Notes**. |
 
-**Switcher:** same decision as the Inspector — narrow-friendly native control
-(top icon row leaning), decided from the wireframe. Reader is the *center*
-pane (sidebar │ Reader │ Inspector), so it has more width than the Inspector.
+**Switcher (DECIDED, Daniel 2026-07-11): native tabs at the top.** The Reader
+is the center pane with room to spare, and top tabs read well.
+
+**Native chrome over WebKit content (DECIDED):** ~75% of Reader elements are
+WebKit (the HTML views — transcript, KG, entities, claims, timeline, map,
+graph, digest, sources). So the design is **native-OS chrome — top tabs,
+toolbar, loupe, page controls, selection — wrapping WebKit content.** The
+shell is native SwiftUI; the content pane is `WKWebView`. Native affordances
+(page-curl, loupe, tab switching, source-reveal) must not be re-implemented in
+HTML; they wrap the web content natively.
 
 **What reconciles/leaves:**
 - **Preview View** → the Reader is the content of the Preview shell; merge
