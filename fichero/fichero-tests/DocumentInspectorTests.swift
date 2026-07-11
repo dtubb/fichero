@@ -336,6 +336,22 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertNil(SourceOutlineNode.navigationRequest(for: noDoc))
     }
 
+    // MARK: - UX hooks for the switcher + provenance (#3457)
+
+    func testSwitcherAndProvenanceUIHooksArePresent() throws {
+        let inspector = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
+        // Top-icon-row switcher exposes per-section + bar XCUITest hooks (#3457).
+        XCTAssertTrue(inspector.contains("accessibilityIdentifier(section.accessibilityIdentifier)"))
+        XCTAssertTrue(inspector.contains("\"inspectorSectionBar\""))
+
+        // Provenance quick-look popover is wired on KG claim rows (#3449/#3457).
+        let claimRow = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+        )
+        XCTAssertTrue(claimRow.contains("SourceProvenanceCard("))
+        XCTAssertTrue(claimRow.contains(".onHover"))
+    }
+
     // MARK: - Interpretation inspector on the injected store (#3429)
 
     func testInterpretationSectionUsesInjectedStoreNotGlobalLibrary() throws {
