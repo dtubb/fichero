@@ -1,5 +1,18 @@
 import SwiftUI
 
+enum ArtifactInspectorFocusRouting {
+    /// Preserve a cross-tab artifact selection when the artifacts pane appears
+    /// for the same inspected document. A different document still resets the
+    /// shared focus to avoid selection bleed across files.
+    static func shouldClearSelection(
+        focusedDocumentId: String?,
+        inspectedDocumentId: String
+    ) -> Bool {
+        guard let focusedDocumentId else { return false }
+        return focusedDocumentId != inspectedDocumentId
+    }
+}
+
 /// Params for the audited `artifact.translate` action (#3325). Snake-case keys
 /// match the backend `ArtifactTranslateParams` pydantic model.
 struct ArtifactTranslateActionParams: Encodable {
@@ -129,8 +142,15 @@ struct ArtifactsInspectorPane: View {
             }
         }
         .task(id: document.id) {
-            // Point the shared store at this document and reset selection.
-            focused.clear()
+            // Preserve a same-document artifact selection when another pane
+            // (e.g. Content / outline) routes into Artifacts; otherwise the tab
+            // handoff clears the selected artifact before the detail can render.
+            if ArtifactInspectorFocusRouting.shouldClearSelection(
+                focusedDocumentId: focused.documentId,
+                inspectedDocumentId: document.id
+            ) {
+                focused.clear()
+            }
             focused.documentId = document.id
             focused.documentName = document.name
             await store.setScope(
@@ -138,6 +158,7 @@ struct ArtifactsInspectorPane: View {
                 includeDescendants: includesDescendantArtifacts,
                 force: true
             )
+            focused.resolve(in: store.items)
         }
         .onChange(of: executionObserver.fileCompletedCount) { _, _ in
             Task { await store.reload() }
