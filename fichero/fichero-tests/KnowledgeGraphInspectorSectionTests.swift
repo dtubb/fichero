@@ -932,6 +932,18 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(source.contains(".onChange(of: claimSelection)"))
     }
 
+    func testKGListWiresSpaceKeySourceQuickLook() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
+        )
+
+        // Space on a selected claim opens the source quick-look popover, reusing
+        // the shared SourceProvenanceCard (#3449 item-12 extension).
+        XCTAssertTrue(source.contains(".onKeyPress(.space)"))
+        XCTAssertTrue(source.contains("spaceQuickLookClaimId"))
+        XCTAssertTrue(source.contains("SourceProvenanceCard("))
+    }
+
     func testKGClaimRowDefersSingleClickSelectionToTheList() throws {
         let source = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift"

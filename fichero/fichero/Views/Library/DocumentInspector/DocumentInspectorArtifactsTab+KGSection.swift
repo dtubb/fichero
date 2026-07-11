@@ -41,9 +41,14 @@ struct KnowledgeGraphInspectorSection: View {
     /// section's resync. Replaces the retired `.ficheroClaim*` NotificationCenter
     /// bus; the inspector still owns its grouped KG read (iterate, never replace).
     @Environment(ClaimStore.self) private var claimStore
+    /// Crop fetch seam for the Space-key source quick-look (#3449/#3425). Optional
+    /// so the preview is a safe no-op if a host hasn't injected the store.
+    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
     @State private var loadState = KnowledgeGraphInspectorLoadState()
     @State private var claimSelection: Set<String> = []
     @State private var claimSelectionAnchor: String?
+    /// The claim whose source is shown in the Space-key quick-look popover.
+    @State private var spaceQuickLookClaimId: String?
     @State private var isApplyingBulkAction = false
     @State private var isPruningTrivialClaims = false
     @State private var pendingMergePlan: InspectorClaimBulkSelection.MergePlan?
@@ -404,6 +409,46 @@ struct KnowledgeGraphInspectorSection: View {
         .listStyle(.inset)
         .onChange(of: claimSelection) { _, selection in
             focusSingleSelectedClaim(selection)
+        }
+        // Quick Look: Space on the selected claim previews its source region,
+        // Xcode-console style (#3449 item 12 extension). Only fires when the
+        // claim has a resolvable source anchor, else Space falls through.
+        .onKeyPress(.space) {
+            guard claimSelection.count == 1,
+                  let id = claimSelection.first,
+                  let claim = claimsById[id],
+                  ClaimSummaryCard.openClaimSourceRequest(for: claim) != nil else {
+                return .ignored
+            }
+            spaceQuickLookClaimId = id
+            return .handled
+        }
+        .popover(isPresented: Binding(
+            get: { spaceQuickLookClaimId != nil },
+            set: { if !$0 { spaceQuickLookClaimId = nil } }
+        )) {
+            spaceQuickLookPopover
+        }
+    }
+
+    /// Source quick-look popover for the Space-selected claim — reuses the same
+    /// SourceProvenanceCard as the hover affordance; Reveal drives the Preview.
+    @ViewBuilder
+    private var spaceQuickLookPopover: some View {
+        if let id = spaceQuickLookClaimId,
+           let claim = claimsById[id],
+           let request = ClaimSummaryCard.openClaimSourceRequest(for: claim) {
+            SourceProvenanceCard(
+                request: request,
+                attribution: ClaimAttribution(claim: claim),
+                fetch: { try await annotationStore?.cropRegion($0) ?? nil },
+                onReveal: {
+                    spaceQuickLookClaimId = nil
+                    if let docId = claim.sourceDocumentId {
+                        onNavigateToSource?(docId)
+                    }
+                }
+            )
         }
     }
 
