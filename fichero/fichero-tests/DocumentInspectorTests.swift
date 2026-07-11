@@ -304,4 +304,35 @@ final class DocumentInspectorTests: XCTestCase {
     func testSourceOutlineTreeEmptyForNoRows() {
         XCTAssertTrue(SourceOutlineNode.tree(from: []).isEmpty)
     }
+
+    // MARK: - Source outline reveal anchor (#3440 + #3441)
+
+    func testOutlineNavigationRequestForRevealCapableRow() {
+        let row = Components.Schemas.DocumentOutlineRow(
+            id: "p1",
+            depth: 1,
+            kind: "page",
+            label: "Page 1",
+            count: 0,
+            sourceDocumentId: "doc-9",
+            pageLabel: "p. 1",
+            sourceCapability: "reveal"
+        )
+        let request = SourceOutlineNode.navigationRequest(for: row)
+        XCTAssertEqual(request?.documentId, "doc-9")
+        XCTAssertEqual(request?.pageLabel, "p. 1")
+    }
+
+    func testOutlineNavigationRequestNilForGroupOrAnchorlessRow() {
+        // Group/structural row without a source anchor must NOT fake one.
+        let group = Components.Schemas.DocumentOutlineRow(
+            id: "g", depth: 0, kind: "entities", label: "Entities", count: 5
+        )
+        XCTAssertNil(SourceOutlineNode.navigationRequest(for: group))
+        // Reveal capability but no document id → still nil.
+        let noDoc = Components.Schemas.DocumentOutlineRow(
+            id: "x", depth: 1, kind: "page", label: "P", count: 0, sourceCapability: "reveal"
+        )
+        XCTAssertNil(SourceOutlineNode.navigationRequest(for: noDoc))
+    }
 }
