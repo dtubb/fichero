@@ -93,6 +93,26 @@ final class AnnotationServiceTests: XCTestCase {
         XCTAssertTrue(source.contains("await annotationStore.loadAnnotations(for: annotationScope, force: true)"))
     }
 
+    func testAnnotationStoreFiltersChangeEventsByLoadedScope() throws {
+        let source = try Self.appSource("Models/AnnotationStore.swift")
+
+        XCTAssertTrue(source.contains("guard eventTouchesLoadedScope(event) else { return }"))
+        XCTAssertTrue(source.contains("case .document(let id), .page(let id), .folder(let id):"))
+        XCTAssertTrue(source.contains("return ids.contains(id)"))
+    }
+
+    func testReaderSurfacesDoNotForceReloadAfterAddNote() throws {
+        let documentReader = try Self.appSource("Views/Library/Reading/DocumentTextReader.swift")
+        let pageContent = try Self.appSource("Views/Library/Reading/PageContentPane.swift")
+        let pdfToolbar = try Self.appSource("Views/Library/Reading/PDFPageWithToolbar.swift")
+        let imageViewer = try Self.appSource("Views/Library/ImageViewer/ImageViewerComponents.swift")
+
+        XCTAssertFalse(documentReader.contains("await annotationStore.loadAnnotations(for: .document(document.id), force: true)"))
+        XCTAssertFalse(pageContent.contains("await annotationStore.loadAnnotations(for: .page(doc.id), force: true)"))
+        XCTAssertFalse(pdfToolbar.contains("await annotationStore.loadAnnotations(for: .document(documentId), force: true)"))
+        XCTAssertFalse(imageViewer.contains("await annotationStore.loadAnnotations(for: .document(documentId), force: true)"))
+    }
+
     func testFolderScopedAnnotationsHideRevealDependentActions() throws {
         // Reveal/hide logic lives in AnnotationListView after the store migration.
         let source = try Self.appSource("Views/Library/Inspector/AnnotationListView.swift")

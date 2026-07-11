@@ -76,7 +76,6 @@ struct ZoomableImagePreview: View {
                 bbox: box,
                 kind: kind
             )
-            await annotationStore.loadAnnotations(for: .document(documentId), force: true)
         }
     }
 
