@@ -614,6 +614,64 @@ class Artifact(BaseModel):
         return None
 
 
+class ContentRepresentationKind(str, Enum):
+    transcription = "transcription"
+    normalized_text = "normalized_text"
+    translation = "translation"
+    transliteration = "transliteration"
+    markdown = "markdown"
+    html = "html"
+    svg = "svg"
+
+
+class ContentReviewState(str, Enum):
+    source = "source"
+    draft = "draft"
+    reviewed = "reviewed"
+
+
+class ContentSourceAnchor(BaseModel):
+    document_id: str
+    page_id: str | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+    bbox: list[float] | None = None
+
+
+class ContentRepresentation(BaseModel):
+    """Immutable source-linked content representation (#3443 slice 1)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    document_id: str
+    kind: ContentRepresentationKind
+    content: str
+    language: str | None = None
+    script: str | None = None
+    source_anchor: ContentSourceAnchor
+    parent_representation_id: str | None = None
+    derived_from_representation_id: str | None = None
+    producer_run_id: str | None = None
+    producer_tool: str | None = None
+    producer_model: str | None = None
+    review_state: ContentReviewState = ContentReviewState.source
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ContentRepresentationRevision(BaseModel):
+    """A user-authored revision linked to an immutable representation."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    representation_id: str
+    content: str
+    reviewer: str = "human"
+    decision: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 # =============================================================================
 # Workflow - Pipeline Definition
 # =============================================================================
