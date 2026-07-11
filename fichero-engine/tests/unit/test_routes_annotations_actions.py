@@ -381,6 +381,26 @@ class TestAnnotationDeleteRestoreActions:
 
 
 class TestAnnotationRoutesWriteActionAudit:
+    def test_create_round_trips_ink_and_ocr_provenance(self, client, db):
+        doc = _mk_doc(db)
+        response = client.post(
+            "/api/annotations",
+            json={
+                "document_id": doc.id,
+                "kind": "note",
+                "anchor_kind": "paragraph",
+                "paragraph_index": 2,
+                "ink_payload": "pencilkit-data",
+                "ocr_text": "marginal note",
+                "ocr_provider": "apple",
+                "ocr_model": "vision",
+                "ocr_confidence": 0.9,
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["ink_payload"] == "pencilkit-data"
+        assert response.json()["ocr_text"] == "marginal note"
+
     def test_create_patch_delete_routes_write_action_audit(self, client, db):
         doc = _mk_doc(db)
 
