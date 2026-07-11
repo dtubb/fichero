@@ -1844,7 +1844,7 @@ final class EntityServiceGenerated {
         }
     }
 
-    /// Fetch available interpretive frameworks through the generated OpenAPI client.
+    /// GET /api/hermeneutics/frameworks through the generated OpenAPI client.
     func listFrameworks() async throws -> [Components.Schemas.InterpretiveFramework] {
         let response = try await client.api.listFrameworksApiHermeneuticsFrameworksGet(query: .init())
         switch response {
