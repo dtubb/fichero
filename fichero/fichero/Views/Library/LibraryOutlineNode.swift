@@ -27,6 +27,10 @@ struct LibraryOutlineNode: Identifiable, Hashable {
         case pageItem(Document)
         /// An individual artifact belonging to a document (#2405).
         case artifactItem(Artifact)
+        /// An individual entity belonging to a document's KG rollup.
+        case entityItem(Components.Schemas.KnowledgeEntity)
+        /// An individual claim belonging to a document's KG rollup.
+        case claimItem(Components.Schemas.KnowledgeClaim)
     }
 
     /// The typed child collections a document can disclose. Order here is
@@ -92,6 +96,10 @@ struct LibraryOutlineNode: Identifiable, Hashable {
             return "\(document.id):page:\(page.id)"
         case .artifactItem(let artifact):
             return "\(document.id):artifact:\(artifact.id)"
+        case .entityItem(let entity):
+            return "\(document.id):entity:\(entity.id ?? entity.stableInspectorId)"
+        case .claimItem(let claim):
+            return "\(document.id):claim:\(claim.id ?? claim.displayMergeName)"
         }
     }
 
@@ -99,8 +107,13 @@ struct LibraryOutlineNode: Identifiable, Hashable {
         LibraryOutlineNode(kind: .document, document: document, count: 0, children: children)
     }
 
-    static func childGroup(_ type: ChildType, document: Document, count: Int) -> LibraryOutlineNode {
-        LibraryOutlineNode(kind: .childGroup(type), document: document, count: count, children: nil)
+    static func childGroup(
+        _ type: ChildType,
+        document: Document,
+        count: Int,
+        children: [LibraryOutlineNode]? = nil
+    ) -> LibraryOutlineNode {
+        LibraryOutlineNode(kind: .childGroup(type), document: document, count: count, children: children)
     }
 
     static func pageItem(_ page: Document, parent: Document) -> LibraryOutlineNode {
@@ -109,6 +122,20 @@ struct LibraryOutlineNode: Identifiable, Hashable {
 
     static func artifactItem(_ artifact: Artifact, parent: Document) -> LibraryOutlineNode {
         LibraryOutlineNode(kind: .artifactItem(artifact), document: parent, count: 0, children: nil)
+    }
+
+    static func entityItem(
+        _ entity: Components.Schemas.KnowledgeEntity,
+        parent: Document
+    ) -> LibraryOutlineNode {
+        LibraryOutlineNode(kind: .entityItem(entity), document: parent, count: 0, children: nil)
+    }
+
+    static func claimItem(
+        _ claim: Components.Schemas.KnowledgeClaim,
+        parent: Document
+    ) -> LibraryOutlineNode {
+        LibraryOutlineNode(kind: .claimItem(claim), document: parent, count: 0, children: nil)
     }
 }
 
@@ -154,6 +181,10 @@ final class LibraryOutlineModel {
     /// Internal (not private) so tests can inject state directly.
     var artifactsByDocumentId: [String: [Artifact]] = [:]
     private var artifactRequested: Set<String> = []
+    var entitiesByDocumentId: [String: [Components.Schemas.KnowledgeEntity]] = [:]
+    private var entityRequested: Set<String> = []
+    var claimsByDocumentId: [String: [Components.Schemas.KnowledgeClaim]] = [:]
+    private var claimRequested: Set<String> = []
 
     private let service: EntityServiceGenerated
     private let artifactService: ArtifactServiceGenerated
@@ -196,6 +227,35 @@ final class LibraryOutlineModel {
         }
     }
 
+    func loadEntities(for documentId: String) async {
+        guard entitiesByDocumentId[documentId] == nil,
+              !entityRequested.contains(documentId) else { return }
+        entityRequested.insert(documentId)
+        do {
+            entitiesByDocumentId[documentId] = try await artifactService.listInspectorEntitiesForDocument(
+                documentId: documentId
+            )
+        } catch {
+            logger.debug("Entity load failed for \(documentId): \(error)")
+        }
+    }
+
+    func loadClaims(for documentId: String) async {
+        guard claimsByDocumentId[documentId] == nil,
+              !claimRequested.contains(documentId) else { return }
+        claimRequested.insert(documentId)
+        do {
+            claimsByDocumentId[documentId] = try await artifactService.listClaims(
+                sourceDocumentId: documentId,
+                includeDescendants: false,
+                limit: 500
+            )
+        } catch {
+            logger.debug("Claim load failed for \(documentId): \(error)")
+        }
+    }
+
+    // swiftlint:disable cyclomatic_complexity
     /// Build the typed child nodes for one document from its cached rollup.
     /// - Pages → individual page item rows (from pagesByParentId, already loaded).
     /// - Artifacts → individual artifact item rows once loaded; count-group fallback until then.
@@ -219,7 +279,23 @@ final class LibraryOutlineModel {
                         LibraryOutlineNode.childGroup(type, document: document, count: rollup.artifacts)
                     )
                 }
-            case .entities, .notes, .claims:
+            case .entities:
+                let count = type.count(in: rollup)
+                if let entities = entitiesByDocumentId[document.id] {
+                    let children = entities.map { LibraryOutlineNode.entityItem($0, parent: document) }
+                    nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count, children: children))
+                } else if count > 0 {
+                    nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count))
+                }
+            case .claims:
+                let count = type.count(in: rollup)
+                if let claims = claimsByDocumentId[document.id] {
+                    let children = claims.map { LibraryOutlineNode.claimItem($0, parent: document) }
+                    nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count, children: children))
+                } else if count > 0 {
+                    nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count))
+                }
+            case .notes:
                 let count = type.count(in: rollup)
                 if count > 0 {
                     nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count))
@@ -228,6 +304,7 @@ final class LibraryOutlineModel {
         }
         return nodes
     }
+    // swiftlint:enable cyclomatic_complexity
 
     /// Assemble the top-level outline nodes for the visible documents.
     /// Each document node carries whatever child nodes are already known;
