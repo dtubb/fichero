@@ -1969,6 +1969,34 @@ class PredictionModelType(str, Enum):
     hermite = "hermite"
 
 
+class PredictionReviewState(str, Enum):
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
+    deferred = "deferred"
+
+
+class KnowledgePredictionReview(BaseModel):
+    """Persisted, library-scoped human review of one predicted edge."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    run_id: str | None = None
+    source_entity_id: str
+    relation: str
+    target_entity_id: str
+    score: float
+    rank: int | None = None
+    model_id: str | None = None
+    model_config_snapshot: dict = Field(default_factory=dict)
+    state: PredictionReviewState = PredictionReviewState.pending
+    decision_note: str | None = None
+    resulting_claim_id: str | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class KnowledgePredictionRun(BaseModel):
     """Stores a PyKEEN model training run and its output predictions.
 

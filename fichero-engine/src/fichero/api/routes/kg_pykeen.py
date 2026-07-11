@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -14,6 +15,7 @@ from fichero.pykeen_inference import (
     TrainingResult,
     get_inference,
 )
+from fichero.knowledge_models import KnowledgePredictionReview, PredictionReviewState
 from fichero.models import PykeenListResponse, KGGraphListResponse
 
 logger = logging.getLogger(__name__)
@@ -134,6 +136,50 @@ class DeleteModelResponse(BaseModel):
 class VerifyPredictionRequest(BaseModel):
     verified: bool
     notes: str | None = None
+
+
+class PredictionReviewDecision(BaseModel):
+    state: PredictionReviewState
+    note: str | None = None
+    resulting_claim_id: str | None = None
+
+
+@router.post("/reviews", response_model=KnowledgePredictionReview)
+async def create_prediction_review(
+    review: KnowledgePredictionReview,
+    db: Database = Depends(get_library_database_for_write),
+) -> KnowledgePredictionReview:
+    db.save(review)
+    return review
+
+
+@router.get("/reviews", response_model=PykeenListResponse)
+async def list_prediction_reviews(
+    state: PredictionReviewState | None = None,
+    db: Database = Depends(get_library_database),
+) -> PykeenListResponse:
+    rows = db.all(KnowledgePredictionReview)
+    if state is not None:
+        rows = [row for row in rows if row.state == state]
+    rows.sort(key=lambda row: row.created_at, reverse=True)
+    return PykeenListResponse(items=rows, count=len(rows))
+
+
+@router.patch("/reviews/{review_id}", response_model=KnowledgePredictionReview)
+async def decide_prediction_review(
+    review_id: str,
+    decision: PredictionReviewDecision,
+    db: Database = Depends(get_library_database_for_write),
+) -> KnowledgePredictionReview:
+    review = db.get(KnowledgePredictionReview, review_id)
+    if review is None:
+        raise HTTPException(status_code=404, detail=f"Prediction review {review_id} not found")
+    review.state = decision.state
+    review.decision_note = decision.note
+    review.resulting_claim_id = decision.resulting_claim_id
+    review.reviewed_at = datetime.now()
+    db.save(review)
+    return review
 
 
 @router.get(
