@@ -220,23 +220,22 @@ struct DocumentKGSurface: View {
         case .transcript, .digest, .graph, .timeline, .map:
             EmptyView()
         case .claims:
-            ScrollView {
-                KnowledgeGraphInspectorSection(
-                    documentId: documentId,
-                    documentScope: documentScope,
-                    entityService: entityService,
-                    artifactService: artifactService,
-                    kgCurationService: kgCurationService,
-                    onClaimSelect: { claimId, _, sourceDocId, pageLabel, _, _ in
-                        kgFocusState.focusClaim(
-                            claimId: claimId,
-                            sourceDocumentId: sourceDocId,
-                            sourcePageLabel: pageLabel
-                        )
-                    }
-                )
-                .padding()
-            }
+            // No outer ScrollView — KnowledgeGraphInspectorSection owns its own
+            // scroll + pinned bottom mini-toolbar (#3461).
+            KnowledgeGraphInspectorSection(
+                documentId: documentId,
+                documentScope: documentScope,
+                entityService: entityService,
+                artifactService: artifactService,
+                kgCurationService: kgCurationService,
+                onClaimSelect: { claimId, _, sourceDocId, pageLabel, _, _ in
+                    kgFocusState.focusClaim(
+                        claimId: claimId,
+                        sourceDocumentId: sourceDocId,
+                        sourcePageLabel: pageLabel
+                    )
+                }
+            )
         }
     }
 
