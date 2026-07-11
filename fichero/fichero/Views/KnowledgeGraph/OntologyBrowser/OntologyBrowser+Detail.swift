@@ -62,42 +62,21 @@ extension OntologyBrowser {
     }
 
     func loadEntityClaims(entity: Components.Schemas.KnowledgeEntity) async {
-        isLoadingClaims = true
-
-        do {
-            let library = LibraryManager.shared.globalLibrary!
-            let service = library.entityService
-            guard let entityId = entity.id else {
-                entityClaims = []
-                isLoadingClaims = false
-                return
-            }
-            let sourceDocIds = Set((entity.sourceSupports ?? []).compactMap { $0.sourceDocumentId })
-            if sourceDocIds.isEmpty {
-                entityClaims = []
-                isLoadingClaims = false
-                return
-            }
-
-            var merged: [String: Components.Schemas.KnowledgeClaim] = [:]
-            for docId in sourceDocIds {
-                let response = try await service.documentKnowledgeGraph(
-                    documentId: docId,
-                    includeChildren: true
-                )
-                for claim in response.claims where (claim.entityIds ?? []).contains(entityId) {
-                    if let claimId = claim.id {
-                        merged[claimId] = claim
-                    }
-                }
-            }
-            entityClaims = merged.values.sorted {
-                ($0.createdAt ?? Date.distantPast) > ($1.createdAt ?? Date.distantPast)
-            }
-        } catch {
+        guard let entityId = entity.id else {
             entityClaims = []
+            return
         }
+        isLoadingClaims = true
+        defer { isLoadingClaims = false }
 
-        isLoadingClaims = false
+        // Route through ClaimStore — the observable data layer (#3300). One
+        // entity-scoped fetch (`listClaims(entityId:)`) instead of a per-source-
+        // document `documentKnowledgeGraph` fan-out, and no
+        // `LibraryManager.shared` singleton. The store also drives the
+        // change-stream resync this view already observes (`changeToken`).
+        await claimStore.loadClaims(forEntity: entityId, force: true)
+        entityClaims = claimStore.claims.sorted {
+            ($0.createdAt ?? Date.distantPast) > ($1.createdAt ?? Date.distantPast)
+        }
     }
 }

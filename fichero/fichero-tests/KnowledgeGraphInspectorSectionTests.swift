@@ -942,6 +942,21 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertEqual(decoded.text, "Ada Lovelace")
     }
 
+    // MARK: - OntologyBrowser store routing (#3300)
+
+    func testOntologyBrowserEntityClaimsRouteThroughClaimStore() throws {
+        let source = try Self.appSource(
+            "Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser+Detail.swift"
+        )
+
+        // The entity-detail claims load goes through ClaimStore (observable data
+        // layer), not a LibraryManager.shared singleton + per-doc
+        // documentKnowledgeGraph fan-out (#3300).
+        XCTAssertTrue(source.contains("claimStore.loadClaims(forEntity:"))
+        XCTAssertFalse(source.contains("LibraryManager.shared.globalLibrary"))
+        XCTAssertFalse(source.contains("documentKnowledgeGraph"))
+    }
+
     // MARK: - Native List conversion (#3425, item 14)
 
     func testKGListModeUsesNativeListSelectionWithKindSections() throws {
