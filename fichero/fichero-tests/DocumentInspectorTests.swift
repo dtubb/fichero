@@ -55,6 +55,19 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertFalse(source.contains("Label(\"Back to document\", systemImage: \"chevron.left\")"))
     }
 
+    func testEntityNotesAndAnnotationsUseLowerDetailPanes() throws {
+        let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+        let notesSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
+        let annotationsSource = try Self.appSource("Views/Library/Inspector/AnnotationsInspectorPane.swift")
+
+        XCTAssertTrue(entitiesSource.contains("PlatformVSplitView"))
+        XCTAssertTrue(notesSource.contains("PlatformVSplitView"))
+        XCTAssertTrue(annotationsSource.contains("PlatformVSplitView"))
+        XCTAssertFalse(entitiesSource.localizedCaseInsensitiveContains("back to document"))
+        XCTAssertFalse(notesSource.localizedCaseInsensitiveContains("back to document"))
+        XCTAssertFalse(annotationsSource.localizedCaseInsensitiveContains("back to document"))
+    }
+
     func testDocumentInspectorNoLongerIncludesOutlineTabSurface() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
 
