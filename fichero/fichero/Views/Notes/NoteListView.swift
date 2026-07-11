@@ -108,6 +108,7 @@ struct NoteListView: View {
     @ViewBuilder
     private func row(for item: NoteSelectionItem) -> some View {
         NoteRow(item: item)
+            .contentShape(Rectangle())
     }
 
     private func promptDeleteSelectedNotes() {
@@ -181,6 +182,7 @@ private struct NoteRow: View {
             }
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 
     private var metadataLine: String? {

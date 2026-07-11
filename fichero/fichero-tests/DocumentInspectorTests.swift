@@ -84,6 +84,18 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(source.contains("openWindow(id: \"artifact-detail\")"))
     }
 
+    func testInspectorListsUseFullRowContentShapes() throws {
+        let artifactList = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
+        let annotationList = try Self.appSource("Views/Library/Inspector/AnnotationListView.swift")
+        let citationList = try Self.appSource("Views/Library/Inspector/CitationListView.swift")
+        let noteList = try Self.appSource("Views/Notes/NoteListView.swift")
+
+        XCTAssertTrue(artifactList.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(annotationList.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(citationList.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(noteList.contains(".contentShape(Rectangle())"))
+    }
+
     func testDocumentInspectorNoLongerIncludesOutlineTabSurface() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
 
