@@ -137,6 +137,17 @@ rule is **the engine exposes complete typed capability through OpenAPI
 (#3442) and the UI decides what to foreground vs progressively disclose** —
 the UI must never infer omitted fields from backend internals (#1768).
 
+## Reuse beyond the document inspector
+
+Build the shared inspector chrome as **reusable components**, not
+DocumentInspector-specific ones: the switcher, list/detail split, full-row
+selection, source-navigation, action-history/undo, bottom filter mini-toolbar,
+and the entity Lozenge. `WorkflowInspector` (which already has its own
+`InspectorTab`) and other inspector contexts should adopt the same contracts
+rather than re-implementing them. Consolidation (#3454) picks the reusable
+`Inspector/*Pane` tree as the survivor precisely so these components are
+context-agnostic. Iterate on what exists; do not rewrite.
+
 ## Repo clean (this pass)
 
 - Over-engineering / dead code on the inspector surface (ponytail-audit +
