@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -93,6 +94,13 @@ def missing() -> dict[str, list[str]]:
     return out
 
 
+def is_git_ignored(path: str) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(ROOT), "check-ignore", "-q", path],
+        check=False,
+    ).returncode == 0
+
+
 def main() -> int:
     argv = sys.argv[1:]
     if any(a in ("-h", "--help") for a in argv):
@@ -136,7 +144,7 @@ def main() -> int:
         return 0
 
     new = {p: v for p, v in absent.items() if p not in allowed}
-    stale = sorted(allowed - set(absent))
+    stale = sorted(p for p in allowed - set(absent) if not is_git_ignored(p))
 
     if "--list" in argv:
         print(f"absent paths named in docs ({len(absent)}):\n")
