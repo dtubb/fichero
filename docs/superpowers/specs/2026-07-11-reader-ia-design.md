@@ -1,8 +1,10 @@
-# Reader View Information Architecture — Design DRAFT (2026-07-11)
+# Reader View Information Architecture — Design (2026-07-11)
 
-Status: **draft for review** (Daniel away; pre-agreed autonomous playbook —
-audit → synthesize 4-tab IA → wireframe; NO Reader source edits until reviewed).
-Models the Inspector 10→4 fold (see `2026-07-11-inspector-ia-design.md`).
+Status: **REVIEWED + APPROVED** (Daniel 2026-07-11). Reader folds ~10 WebKit
+modes → **3 top tabs (Page / Knowledge / Notes)**, native chrome over WebKit
+content. Models the Inspector 10→4 fold (see `2026-07-11-inspector-ia-design.md`).
+Milestone reconciliation may proceed; Reader source implementation is gated on
+Inspector reconciliation completing + a worker freeing up (2-worker cap).
 
 ## Audit — what the Reader is today
 
@@ -41,14 +43,23 @@ It reads the source and explores its knowledge *in place*; it does not edit the
 database (that routes to the Inspector) — though it hosts reading marks
 (annotations) and can reveal a claim's source.
 
-## The 4 tabs (down from ~10 modes) — parallels the Inspector
+## The 3 tabs (down from ~10 modes) — REVIEWED + APPROVED (Daniel 2026-07-11)
+
+Daniel's Q1–Q3 answers fold Digest, Timeline, and Map *into* Knowledge, so the
+Reader lands on **3 heavier top tabs** (not 4 — Knowledge does more work here
+than the Inspector's Knowledge). If image-vs-text ever needs splitting,
+Transcript could become a 4th tab, but it lives inside Page for now.
 
 | Reader tab | Absorbs | Render | Notes |
 |---|---|---|---|
-| **Page** | WebKit-PDF/Document, Transcript, page image/grid, loupe, page-curl, image edits | native PDFKit + text | "Read the source." Toggle image ↔ transcript (RTF) side-by-side; loupe; page-turn; non-destructive image edits as a tool. Parallels Inspector **Source**. |
-| **Knowledge** | Entities, Claims, Graph, KG, **Timeline**, **Map** | WebKit HTML | "Explore what we know." Entity/claim highlights overlaid on the page + a force graph; **Timeline and Map are visualization sub-modes within Knowledge, not top tabs**. Parallels Inspector **Knowledge**. |
-| **Digest** | Digest, Sources | WebKit HTML | "The overview." AI synthesis/summary of the document + a sources/provenance overview. Parallels Inspector **Artifacts** (derived outputs). |
-| **Notes** | Annotations (highlight/note/bookmark), reading marks | native overlay | The human/reading layer — marks anchored to the page. Parallels Inspector **Notes**. |
+| **Page** | WebKit-PDF/Document, Transcript, page image/grid, loupe, page-curl, image edits | native PDFKit + text | "Read the source." Image ↔ transcript (RTF) side-by-side; loupe; page-turn; non-destructive image edits as a tool. |
+| **Knowledge** | Entities, Claims, Graph, KG + **Timeline & Map (sub-modes)** + **Digest (section)** + Sources | WebKit HTML | "Explore what we know." Entity/claim highlights on the page + force graph; Timeline/Map are visualization **sub-modes**; the AI **Digest** summary + sources are a **section**, not a tab (Q1/Q2). |
+| **Notes** | Annotations (highlight/note/bookmark), reading marks | native overlay | The human/reading layer — marks anchored to the page. |
+
+**Preview stays a SEPARATE surface (Q3):** Preview is a distinct lightweight
+quick-look, *not* merged into the full WebKit Reader. Keep `Preview View` +
+`Preview View - Image Editing` as their own milestones; do not fold them into
+the Reader.
 
 **Switcher (DECIDED, Daniel 2026-07-11): native tabs at the top.** The Reader
 is the center pane with room to spare, and top tabs read well.
@@ -84,14 +95,16 @@ HTML; they wrap the web content natively.
 
 ## Milestone/issue reconciliation (PROPOSED — execute after review)
 
-Fold the ~10 near-empty Reader sub-view milestones into the 4 tabs (like the
-Inspector 23→9): **Reader View - Page** (WebKit-PDF/Document + Transcript +
-Preview + Image-Editing), **Reader View - Knowledge** (Entities + Claims +
-Graph + KG + Timeline + Map), **Reader View - Digest** (Digest + Sources),
-**Reader View - Notes** (Annotation Tools), each with an `- Engine` counterpart
-where real API work exists. Retire empties; keep Canvas/Spatial under Library.
-Priority-label the 11 real open Reader-View bugs. **Do not execute the
-destructive fold until this draft is reviewed.**
+Fold the ~10 near-empty Reader sub-view milestones into the **3 tabs**:
+**Reader View - Page** (WebKit-PDF/Document + Transcript + Image-Editing),
+**Reader View - Knowledge** (Entities + Claims + Graph + KG + Timeline + Map +
+Digest + Sources), **Reader View - Notes** (Annotation Tools), each with an
+`- Engine` counterpart where real API work exists. Retire empties. **Preview
+View + Preview View - Image Editing stay separate** (Q3). Keep Canvas/Spatial
+under Library. Priority-label the 11 real open Reader-View bugs. Plan is
+REVIEWED (Daniel 2026-07-11) — the milestone fold may execute, but **Reader
+source implementation waits until Inspector reconciliation completes and a
+worker frees up** (2-worker cap).
 
 ## Build order (after reconciliation)
 
@@ -103,10 +116,13 @@ destructive fold until this draft is reviewed.**
 - **P2:** Knowledge tab (overlays + graph + timeline/map sub-modes), Notes tab.
 - **P3:** Digest tab, progressive disclosure.
 
-## Open questions for review
+## Review outcome (Daniel 2026-07-11) — RESOLVED
 
-1. Is **Digest** a top tab, or a section within Knowledge? (It's thin alone.)
-2. Do **Timeline/Map** stay as Knowledge sub-modes, or does the corpus need
-   them as top-level exploration tabs?
-3. **Preview vs Reader**: confirm full merge (Preview = Reader's shell), or is
-   Preview a distinct quick-look surface to keep?
+1. **Digest** → a **section inside Knowledge** (not a top tab).
+2. **Timeline/Map** → **sub-modes inside Knowledge** (not top tabs).
+3. **Preview** → **kept separate** (a distinct quick-look surface, not merged
+   into the Reader).
+
+Result: **3 top tabs — Page / Knowledge / Notes**, native top tabs, native
+chrome over WebKit content. Plan approved for milestone reconciliation now;
+Reader source implementation gated on Inspector reconciliation + a free worker.
