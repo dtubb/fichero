@@ -185,7 +185,6 @@ struct EntityKindRow: View {
         isPrimary: Bool
     ) -> some View {
         let claim = claimById[claimId]
-        let isSelected = selectedClaimIds.contains(claimId)
         let isFocused = claimFocusState.isClaimSelected(claimId)
 
         VStack(alignment: .leading, spacing: 0) {
@@ -336,19 +335,10 @@ struct EntityKindRow: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
-        )
         .contentShape(Rectangle())
-        .onTapGesture {
-            if let claim {
-                handleClaimTap(claim)
-            }
-        }
-        // Single-click selects (above); double-click opens — focus the
-        // claim and jump to its source page, Finder-style. Matches the
-        // Entities-tab interaction. (#1864/#1865)
+        // Single-click selection + arrow-key nav are owned by the enclosing
+        // native List(selection:) (#3425). Double-click still opens — focus the
+        // claim and jump to its source page, Finder-style. (#1864/#1865)
         .simultaneousGesture(
             TapGesture(count: 2).onEnded {
                 openClaim(claimId: claimId, sourceDocumentId: sourceDocumentId)

@@ -257,58 +257,15 @@ struct KnowledgeGraphInspectorSection: View {
         // on-selection claim actions (#3461). The top of the tab is content
         // only; the hosts no longer wrap this in a ScrollView.
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let claimActionMessage {
-                        Text(claimActionMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if isLoading {
-                        ProgressView().padding(.vertical, 8)
-                    } else if let err = loadError {
-                        Label(err, systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    } else if grouped.isEmpty {
-                        Text("No knowledge-graph entries for this document yet.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if displayMode == .text {
-                        textDigestView
-                    } else {
-                        ForEach(grouped, id: \.0) { kind, items in
-                            EntityKindBlock(
-                                kind: kind,
-                                items: items,
-                                claimById: claimsById,
-                                selectedClaimIds: claimSelection,
-                                claimScopeLabel: documentScopeLabel,
-                                claimContextMenuTarget: contextMenuTargetClaims(for:),
-                                onClaimTap: handleClaimTap(_:),
-                                applyClaimBulkAction: applyBulkAction,
-                                requestClaimMergeAction: requestMergeAction(plan:),
-                                requestClaimDeleteAction: requestDeleteAction(for:),
-                                requestPruneTrivialAction: requestPruneTrivialAction,
-                                onNavigateToSource: onNavigateToSource,
-                                onClaimSelect: onClaimSelect
-                            )
-                        }
-                    }
-
-                    Divider()
-                        .padding(.vertical, 4)
-                    KGCurationHistorySection(entityService: entityService)
-                    // Interpretations (the user's own reading) deliberately do NOT live
-                    // here — the KG tab shows ontology + hermeneutic facts (what the AI
-                    // and the sources say), never the user's interpretation presented as
-                    // fact (AI-integrity north star). They now render in the Notes tab
-                    // ("Notes-adjacent", per Daniel) via DocumentInterpretationsSection.
-                    // #2470.
-                }
-                .padding()
+            if let claimActionMessage {
+                Text(claimActionMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
             }
+            kgContent
             Divider()
             kgMiniToolbar
         }
@@ -373,6 +330,109 @@ struct KnowledgeGraphInspectorSection: View {
         } message: { pending in
             Text(pending.message)
         }
+    }
+
+    /// Content region: a native List (keyboard nav + multi-select) in list
+    /// mode; a ScrollView for the text digest / loading / empty states.
+    @ViewBuilder
+    private var kgContent: some View {
+        if isLoading {
+            ProgressView()
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let err = loadError {
+            Label(err, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if grouped.isEmpty {
+            Text("No knowledge-graph entries for this document yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if displayMode == .text {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    textDigestView
+                    Divider().padding(.vertical, 4)
+                    KGCurationHistorySection(entityService: entityService)
+                }
+                .padding()
+            }
+        } else {
+            kgClaimList
+        }
+    }
+
+    /// Native List of claims in per-kind sections (#3425). The List owns
+    /// selection, so it provides arrow-key navigation and native multi-select
+    /// for free; selecting a single claim focuses/highlights it in Preview.
+    /// Keywords (.concept) still render as wrapping lozenges in their section.
+    /// Per-kind expand/collapse is deferred (a later enhancement).
+    private var kgClaimList: some View {
+        List(selection: $claimSelection) {
+            ForEach(grouped, id: \.0) { kind, items in
+                Section {
+                    if kind == .concept {
+                        FlowLayout(spacing: 4) {
+                            ForEach(items) { item in
+                                EntityLozenge(name: item.displayName, entityType: "keywords")
+                            }
+                        }
+                    } else {
+                        ForEach(items) { item in
+                            kgClaimRow(kind: kind, item: item)
+                                .tag(item.claimId)
+                        }
+                    }
+                } header: {
+                    Label("\(kind.label) (\(items.count))", systemImage: kind.systemImage)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            // Curation history stays a trailing section so it scrolls with the
+            // claims. Interpretations deliberately stay OUT (AI-integrity: the KG
+            // shows ontological facts, never the user's reading as fact) — they
+            // render in the Notes tab via DocumentInterpretationsSection (#2470).
+            Section {
+                KGCurationHistorySection(entityService: entityService)
+            }
+        }
+        .listStyle(.inset)
+        .onChange(of: claimSelection) { _, selection in
+            focusSingleSelectedClaim(selection)
+        }
+    }
+
+    private func kgClaimRow(kind: EntityKind, item: GroupedItem) -> some View {
+        EntityKindRow(
+            item: item,
+            kind: kind,
+            claimById: claimsById,
+            selectedClaimIds: claimSelection,
+            claimScopeLabel: documentScopeLabel,
+            claimContextMenuTarget: contextMenuTargetClaims(for:),
+            onClaimTap: nil,
+            applyClaimBulkAction: applyBulkAction,
+            requestClaimMergeAction: requestMergeAction(plan:),
+            requestClaimDeleteAction: requestDeleteAction(for:),
+            requestPruneTrivialAction: requestPruneTrivialAction,
+            onNavigateToSource: onNavigateToSource,
+            onClaimSelect: onClaimSelect
+        )
+    }
+
+    /// Focus + highlight the claim when exactly one row is selected — the native
+    /// equivalent of the old single-click-focus. Multi-select stays quiet so the
+    /// bulk actions operate on the whole set.
+    private func focusSingleSelectedClaim(_ selection: Set<String>) {
+        guard selection.count == 1,
+              let claimId = selection.first,
+              let claim = claimsById[claimId] else { return }
+        focusClaim(claim)
     }
 
     private var kgToolbarStatusText: String {
@@ -604,32 +664,10 @@ struct KnowledgeGraphInspectorSection: View {
         pendingDeleteConfirmation = PendingClaimDeleteConfirmation(claims: targetClaims)
     }
 
-    private func handleClaimTap(_ claim: Components.Schemas.KnowledgeClaim) {
-        guard let claimId = claim.id else {
-            focusClaim(claim)
-            return
-        }
-
-        let modifiers: InspectorEntitySelectionModifiers = {
-            #if os(macOS)
-            return InspectorEntitySelectionModifiers(nsEventFlags: NSEvent.modifierFlags)
-            #else
-            return InspectorEntitySelectionModifiers()
-            #endif
-        }()
-        let reduced = InspectorEntityBulkSelection.reduceTap(
-            tappedId: claimId,
-            orderedIds: orderedClaimIds,
-            selection: claimSelection,
-            anchor: claimSelectionAnchor,
-            modifiers: modifiers
-        )
-        claimSelection = reduced.selection
-        claimSelectionAnchor = reduced.anchor
-
-        guard modifiers.isEmpty else { return }
-        focusClaim(claim)
-    }
+    // The old modifier-key selection reducer (handleClaimTap) was retired with
+    // the native-List conversion (#3425): List(selection:) owns single-click,
+    // cmd/shift multi-select, and arrow-key navigation. Focus now flows from
+    // focusSingleSelectedClaim on selection change.
 
     private func focusClaim(_ claim: Components.Schemas.KnowledgeClaim) {
         guard let claimId = claim.id else { return }

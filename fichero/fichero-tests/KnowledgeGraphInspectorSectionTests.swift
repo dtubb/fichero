@@ -915,6 +915,33 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
         XCTAssertNil(ClaimSummaryCard.openClaimSourceRequest(for: claim))
     }
+
+    // MARK: - Native List conversion (#3425, item 14)
+
+    func testKGListModeUsesNativeListSelectionWithKindSections() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
+        )
+
+        // List mode is a native List(selection:) so it gets arrow-key nav +
+        // multi-select for free, grouped into per-kind Sections, with a
+        // focus-on-single-selection seam replacing the old click reducer.
+        XCTAssertTrue(source.contains("List(selection: $claimSelection)"))
+        XCTAssertTrue(source.contains(".tag(item.claimId)"))
+        XCTAssertTrue(source.contains("focusSingleSelectedClaim"))
+        XCTAssertTrue(source.contains(".onChange(of: claimSelection)"))
+    }
+
+    func testKGClaimRowDefersSingleClickSelectionToTheList() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+        )
+
+        // The row no longer owns single-click selection (the List does); it keeps
+        // the double-click-to-open gesture.
+        XCTAssertFalse(source.contains(".onTapGesture"))
+        XCTAssertTrue(source.contains("TapGesture(count: 2)"))
+    }
 }
 
 private func makeKnowledgeClaim(
