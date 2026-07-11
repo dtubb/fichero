@@ -106,6 +106,15 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertFalse(svoRenderer.contains("ficheroEntitySearchRequested"))
     }
 
+    func testVerbAndObjectChipsEnterInlineEditing() throws {
+        let source = try Self.appSource("Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCardView.swift")
+
+        XCTAssertTrue(source.contains("private func beginInlineEditing()"))
+        XCTAssertTrue(source.contains("Text(svo.verb)"))
+        XCTAssertTrue(source.contains("Text(svo.object)"))
+        XCTAssertTrue(source.contains("beginInlineEditing()"))
+    }
+
     func testExpandedDetailsShowSourceClaimText() throws {
         let source = try Self.appSource("Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCard+Details.swift")
 

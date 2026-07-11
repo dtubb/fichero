@@ -17,6 +17,7 @@ private func isOpaqueIdentifier(_ value: String) -> Bool {
     return trimmed.rangeOfCharacter(from: hexAndDashes.inverted) == nil
 }
 
+// swiftlint:disable:next type_body_length
 struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
     var focusedEntityId: String?
@@ -264,6 +265,10 @@ struct ClaimSummaryCard: View {
         focusClaim()
     }
 
+    private func beginInlineEditing() {
+        isInlineEditing = true
+    }
+
     /// The headline of the card. When SVO metadata is present, render
     /// it as three individually-tappable chips with distinct styling for
     /// subject, verb, and object. When absent, surface a "KG not generated" hint instead
@@ -291,7 +296,7 @@ struct ClaimSummaryCard: View {
 
                 // Verb chip — reveal the underlying claim in place.
                 Button(action: {
-                    revealSourceClaimInline()
+                    beginInlineEditing()
                 }, label: {
                     Text(svo.verb)
                         .font(bodyTextFont)
@@ -307,7 +312,7 @@ struct ClaimSummaryCard: View {
 
                 // Object chip — reveal the underlying claim in place.
                 Button(action: {
-                    revealSourceClaimInline()
+                    beginInlineEditing()
                 }, label: {
                     Text(svo.object)
                         .font(bodyTextFont)
