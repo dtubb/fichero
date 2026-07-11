@@ -916,6 +916,20 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertNil(ClaimSummaryCard.openClaimSourceRequest(for: claim))
     }
 
+    // MARK: - Inline S/V/O editing (#3463)
+
+    func testKGClaimRowEditsSVOInlineNotInASheet() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+        )
+
+        // "Edit S/V/O…" expands the row into the inline editor (reusing
+        // InlineClaimEditor); the old EditClaimSheet presentation is gone.
+        XCTAssertTrue(source.contains("InlineClaimEditor("))
+        XCTAssertTrue(source.contains("inlineEditingClaimId"))
+        XCTAssertFalse(source.contains("EditClaimSheet("))
+    }
+
     // MARK: - Cross-target drag payload (#3425)
 
     func testInspectorEntityDragPayloadRoundTripsAcrossTargets() throws {

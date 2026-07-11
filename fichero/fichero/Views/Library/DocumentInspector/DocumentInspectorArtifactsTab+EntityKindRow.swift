@@ -47,8 +47,8 @@ struct EntityKindRow: View {
     @AppStorage("inspector.kg.row.showPageRef") private var showPageRef = true
     @AppStorage("inspector.kg.row.showContext") private var showContext = true
     @AppStorage("inspector.kg.row.showExcerpt") private var showExcerpt = true
-    @State private var claimForEditing: Components.Schemas.KnowledgeClaim?
-    @State private var rowError: String?
+    /// The claim currently expanded into the inline S/V/O editor (#3463).
+    @State private var inlineEditingClaimId: String?
     /// Presents the source-provenance quick-look popover for the primary claim.
     @State private var isSourcePreviewPresented = false
 
@@ -101,27 +101,9 @@ struct EntityKindRow: View {
                 .padding(.leading, 8)
             }
 
-            if let rowError {
-                Text(rowError)
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-            }
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
-        .sheet(isPresented: Binding(
-            get: { claimForEditing != nil },
-            set: { if !$0 { claimForEditing = nil } }
-        )) {
-            if let claimForEditing {
-                // EditClaimSheet persists via PATCH; the backend emits
-                // `claim.updated`, the change-stream bumps ClaimStore.changeToken,
-                // and the KG section resyncs — no NotificationCenter nudge (#1862).
-                EditClaimSheet(claim: claimForEditing) { _ in
-                    self.claimForEditing = nil
-                }
-            }
-        }
     }
 
     private func focusPrimaryClaim() {
@@ -165,18 +147,6 @@ struct EntityKindRow: View {
             return "p. \(numericPart)"
         }
         return raw
-    }
-
-    private func loadClaimForEditing() {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
-        rowError = nil
-        Task {
-            do {
-                claimForEditing = try await library.entityService.getClaim(item.claimId)
-            } catch {
-                rowError = error.localizedDescription
-            }
-        }
     }
 
     // swiftlint:disable function_body_length cyclomatic_complexity function_parameter_count
@@ -340,6 +310,19 @@ struct EntityKindRow: View {
                 .buttonStyle(.plain)
                 .help("Search the library for this quote")
             }
+
+            // Inline S/V/O editor (#3463): "Edit S/V/O…" expands the row in place
+            // into editable subject / verb / object fields (reusing the shared
+            // InlineClaimEditor, which persists via the claim.patch action; the
+            // change stream refreshes the list). Primary claim only.
+            if isPrimary, inlineEditingClaimId == claimId, let claim {
+                InlineClaimEditor(
+                    claim: claim,
+                    onCancel: { inlineEditingClaimId = nil },
+                    onSave: { _ in inlineEditingClaimId = nil }
+                )
+                .padding(.top, 4)
+            }
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
@@ -360,8 +343,8 @@ struct EntityKindRow: View {
                 }
             }
             if isPrimary {
-                Button("Edit claim…") {
-                    loadClaimForEditing()
+                Button(inlineEditingClaimId == claimId ? "Done Editing" : "Edit S/V/O…") {
+                    inlineEditingClaimId = (inlineEditingClaimId == claimId) ? nil : claimId
                 }
                 if let entityId = item.entityId {
                     Button("Show in Graph") {
