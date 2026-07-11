@@ -215,6 +215,9 @@ struct KnowledgeGraphInspectorSection: View {
 
     @ViewBuilder
     private var textDigestView: some View {
+        // Prose digest is always copy-pastable (#3461/#3463). textSelection on
+        // the container propagates to every descendant Text; it is safe here
+        // (no List row to fight for the click) unlike the selectable rows.
         VStack(alignment: .leading, spacing: 10) {
             if textDigest.isEmpty {
                 Text("No knowledge-graph entries for this document yet.")
@@ -245,6 +248,7 @@ struct KnowledgeGraphInspectorSection: View {
                 }
             }
         }
+        .textSelection(.enabled)
     }
 
     var body: some View {

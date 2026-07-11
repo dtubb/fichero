@@ -486,6 +486,14 @@ struct DocumentInspectorEntitiesTab: View {
         Button("Find in Library") {
             postSearch(for: entity, kind: EntityKind(apiType: entity.entityType) ?? .other)
         }
+        // Row text can't use .textSelection (it fights row selection), so Copy
+        // is the always-available copy-paste path for a selectable row (#3461).
+        Button("Copy Name") {
+            #if canImport(AppKit)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(entity.canonicalName, forType: .string)
+            #endif
+        }
         Divider()
 
         Menu("Approve") {
