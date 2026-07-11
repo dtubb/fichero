@@ -28,11 +28,18 @@ from fichero.knowledge_models import (
     validate_annotation_color,
 )
 from fichero.utf16_offsets import utf16_range_to_codepoint_range
-from fichero.models import AnnotationListResponse, DocType, Document
+from fichero.models import DocType, Document
 from fichero.storage import resolve_source
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/annotations")
+
+
+class AnnotationListResponse(BaseModel):
+    """Typed annotation list envelope for the OpenAPI client."""
+
+    items: list[Annotation]
+    count: int
 
 
 class AnnotationCreateRequest(BaseModel):
