@@ -10,8 +10,8 @@ struct AnnotationsInspectorPane: View {
     let annotations: [DocumentAnnotation]
 
     @Environment(AnnotationStore.self) private var annotationStore
-    @Environment(LibraryManager.self) private var libraryManager
-    @Environment(WindowState.self) private var windowState
+    /// Per-window typed source-navigation bus (#3437/#3432).
+    @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
@@ -125,37 +125,30 @@ struct AnnotationsInspectorPane: View {
         }
     }
 
+    // Mutations route through the injected AnnotationStore — the sanctioned
+    // observable data layer — instead of resolving an action service through
+    // LibraryManager + WindowState (#3428). The store updates its published
+    // `annotations` in place, so the list/detail refresh without a full reload.
     private func saveAnnotation(_ annotation: DocumentAnnotation, text: String) async throws {
-        guard let library = currentLibrary else { return }
-        var update = Components.Schemas.AnnotationPatchRequest()
-        update.text = text
-        _ = try await library.actionsService.invokeAction(
-            name: "annotation.update",
-            params: AnnotationUpdateActionParams(annotationId: annotation.id, update: update)
-        )
-        await annotationStore.reload()
+        guard await annotationStore.updateText(id: annotation.id, text: text) != nil else {
+            throw AnnotationInspectorActionError.failed
+        }
         focused.resolve(in: annotationStore.annotations)
     }
 
     private func deleteAnnotation(_ annotation: DocumentAnnotation) async throws {
-        guard let library = currentLibrary else { return }
-        _ = try await library.actionsService.invokeAction(
-            name: "annotation.delete",
-            params: AnnotationDeleteActionParams(annotationId: annotation.id)
-        )
+        guard await annotationStore.delete(id: annotation.id) else {
+            throw AnnotationInspectorActionError.failed
+        }
         if focused.id == annotation.id {
             focused.clear()
         }
-        await annotationStore.reload()
     }
 
     private func promoteAnnotation(_ annotation: DocumentAnnotation) async throws {
-        guard let library = currentLibrary else { return }
-        _ = try await library.actionsService.invokeAction(
-            name: "annotation.promote_to_claim",
-            params: AnnotationPromoteActionParams(annotationId: annotation.id)
-        )
-        await annotationStore.reload()
+        guard await annotationStore.promoteToClaim(id: annotation.id) else {
+            throw AnnotationInspectorActionError.failed
+        }
         focused.resolve(in: annotationStore.annotations)
     }
 
@@ -168,22 +161,11 @@ struct AnnotationsInspectorPane: View {
         PlatformPasteboard.writeString(text)
     }
 
-    private var currentLibrary: LibraryManager.LibraryReference? {
-        libraryManager.getLibrary(id: windowState.libraryId)
-    }
-
     private func reveal(_ annotation: DocumentAnnotation) {
-        guard let documentId = annotation.documentId else { return }
-        var info: [String: Any] = ["documentId": documentId]
-        if let pageLabel = annotation.pageLabel { info["pageLabel"] = pageLabel }
-        if let bbox = annotation.bbox { info["bbox"] = bbox }
-        if let charStart = annotation.charStart { info["charStart"] = charStart }
-        if let charEnd = annotation.charEnd { info["charEnd"] = charEnd }
-        NotificationCenter.default.post(
-            name: .annotationSelectedInInspector,
-            object: nil,
-            userInfo: info
-        )
+        // Route through the typed source-navigation bus ContentView consumes
+        // (#3432), not the dead annotationSelectedInInspector notification.
+        guard let request = AnnotationSourceNavigation.request(for: annotation) else { return }
+        claimSourceNavigationState?.request(request)
     }
 
     @ViewBuilder
@@ -207,6 +189,12 @@ struct AnnotationsInspectorPane: View {
         .padding(.vertical, 8)
         .background(.orange.opacity(0.1))
     }
+}
+
+/// Raised when a store-routed annotation mutation reports failure, so the
+/// detail view's existing error handling still fires (#3428).
+enum AnnotationInspectorActionError: Error {
+    case failed
 }
 
 /// The torn-off annotation-detail window.

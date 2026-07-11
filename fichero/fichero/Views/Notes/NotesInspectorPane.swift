@@ -9,9 +9,7 @@ struct NotesInspectorPane: View {
     let selectionResetToken: String
     let documentName: String?
 
-    @Environment(LibraryManager.self) private var libraryManager
     @Environment(NoteStore.self) private var noteStore
-    @Environment(WindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
@@ -103,34 +101,21 @@ struct NotesInspectorPane: View {
         openWindow(id: "note-detail")
     }
 
+    // Mutations route through the injected NoteStore — the sanctioned observable
+    // data layer — instead of resolving an action service through LibraryManager
+    // + WindowState (#3430). The store reloads its published `notes` internally.
     private func saveNote(_ item: NoteSelectionItem, body: String) async throws {
-        guard let noteId = item.note.id,
-              let library = currentLibrary else { return }
-        var update = Components.Schemas.NotePatchRequest()
-        update.body = body
-        _ = try await library.actionsService.invokeAction(
-            name: "note.update",
-            params: NoteUpdateActionParams(noteId: noteId, update: update)
-        )
-        await noteStore.reload()
+        guard let noteId = item.note.id else { return }
+        _ = try await noteStore.update(noteId: noteId, body: body)
         focused.resolve(in: noteStore.notes.map(NoteSelectionItem.init))
     }
 
     private func deleteNote(_ item: NoteSelectionItem) async throws {
-        guard let noteId = item.note.id,
-              let library = currentLibrary else { return }
-        _ = try await library.actionsService.invokeAction(
-            name: "note.delete",
-            params: NoteDeleteActionParams(noteId: noteId)
-        )
+        guard let noteId = item.note.id else { return }
+        try await noteStore.delete(noteId: noteId)
         if focused.id == item.id {
             focused.clear()
         }
-        await noteStore.reload()
-    }
-
-    private var currentLibrary: LibraryManager.LibraryReference? {
-        libraryManager.getLibrary(id: windowState.libraryId)
     }
 
     @ViewBuilder

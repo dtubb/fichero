@@ -1,9 +1,25 @@
 import FicheroAPIClient
 import SwiftUI
 
-extension Notification.Name {
-    /// Posted when the user selects an annotation in the inspector.
-    static let annotationSelectedInInspector = Notification.Name("annotationSelectedInInspector")
+/// Maps an annotation to the shared typed source-navigation request (#3432),
+/// replacing the unconsumed `annotationSelectedInInspector` NotificationCenter
+/// bus. Pure + testable: resolves document id, page label, bbox, and character
+/// range into the `ClaimSourceNavigationRequest` that ContentView/the reader
+/// already consume. Returns nil when there's no document anchor to navigate to.
+enum AnnotationSourceNavigation {
+    static func request(for annotation: DocumentAnnotation) -> ClaimSourceNavigationRequest? {
+        guard let documentId = annotation.documentId,
+              !documentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return ClaimSourceNavigationRequest(
+            documentId: documentId,
+            pageLabel: annotation.pageLabel,
+            charStart: annotation.charStart,
+            charEnd: annotation.charEnd,
+            bbox: annotation.bbox
+        )
+    }
 }
 
 /// A native `List(selection:)` of annotations.
@@ -15,6 +31,10 @@ struct AnnotationListView: View {
     let annotations: [DocumentAnnotation]
 
     @Bindable var focused: FocusedAnnotation
+
+    /// Per-window typed source-navigation bus (#3437/#3432); optional so a host
+    /// that hasn't injected it safely no-ops instead of posting into the void.
+    @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
 
     var onOpenInWindow: (() -> Void)?
 
@@ -54,7 +74,7 @@ struct AnnotationListView: View {
             }
             focused.resolve(in: annotations)
             guard let annotation = annotations.first(where: { $0.id == newId }) else { return }
-            postRevealNotification(for: annotation)
+            navigateToSource(of: annotation)
         }
         .onChange(of: annotations) { _, items in
             focused.resolve(in: items)
@@ -77,18 +97,9 @@ struct AnnotationListView: View {
         )
     }
 
-    private func postRevealNotification(for annotation: DocumentAnnotation) {
-        guard let documentId = annotation.documentId else { return }
-        var info: [String: Any] = ["documentId": documentId]
-        if let pageLabel = annotation.pageLabel { info["pageLabel"] = pageLabel }
-        if let bbox = annotation.bbox { info["bbox"] = bbox }
-        if let charStart = annotation.charStart { info["charStart"] = charStart }
-        if let charEnd = annotation.charEnd { info["charEnd"] = charEnd }
-        NotificationCenter.default.post(
-            name: .annotationSelectedInInspector,
-            object: nil,
-            userInfo: info
-        )
+    private func navigateToSource(of annotation: DocumentAnnotation) {
+        guard let request = AnnotationSourceNavigation.request(for: annotation) else { return }
+        claimSourceNavigationState?.request(request)
     }
 }
 
