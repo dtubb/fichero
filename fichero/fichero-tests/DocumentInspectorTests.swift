@@ -71,6 +71,17 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(entitiesSource.contains("InspectorBottomMiniToolbar(statusText: entitiesToolbarStatusText)"))
     }
 
+    func testEntitySearchRoutingUsesTypedStateInsteadOfNotificationBus() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let sharedSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Shared.swift")
+        let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+
+        XCTAssertTrue(sharedSource.contains("final class EntitySearchState"))
+        XCTAssertTrue(contentSource.contains(".onChange(of: entitySearchState.requestID)"))
+        XCTAssertTrue(entitiesSource.contains("EntitySearchState.shared.request("))
+        XCTAssertFalse(sharedSource.contains("ficheroEntitySearchRequested"))
+    }
+
     func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
 

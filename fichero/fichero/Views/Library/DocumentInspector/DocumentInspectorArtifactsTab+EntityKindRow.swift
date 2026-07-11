@@ -7,7 +7,7 @@ import SwiftUI
 
 /// One row inside an EntityKindBlock. The **name** is tappable —
 /// clicking fires a scoped entity search (e.g. `person:"…"`) via the
-/// `.ficheroEntitySearchRequested` notification, same path Keyword
+/// typed `EntitySearchState` request, same path Keyword
 /// lozenges use. Aliases / page reference / context render as plain
 /// selectable text below for ⌘C. (#882)
 struct EntityKindRow: View {
@@ -285,11 +285,7 @@ struct EntityKindRow: View {
                excerpt != context,
                excerpt != item.displayName {
                 Button {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": excerpt]
-                    )
+                    EntitySearchState.shared.request(name: excerpt, entityType: nil)
                 } label: {
                     Text("\u{201C}\(excerpt)\u{201D}")
                         .font(secondaryTextFont)

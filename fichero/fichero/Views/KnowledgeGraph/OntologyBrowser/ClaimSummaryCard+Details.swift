@@ -192,11 +192,7 @@ extension ClaimSummaryCard {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         guard let library = LibraryManager.shared.globalLibrary else {
-            NotificationCenter.default.post(
-                name: .ficheroEntitySearchRequested,
-                object: nil,
-                userInfo: ["name": name]
-            )
+            EntitySearchState.shared.request(name: name, entityType: nil)
             return
         }
         do {
@@ -214,11 +210,7 @@ extension ClaimSummaryCard {
         } catch {
             // Fallback to text search below.
         }
-        NotificationCenter.default.post(
-            name: .ficheroEntitySearchRequested,
-            object: nil,
-            userInfo: ["name": name]
-        )
+        EntitySearchState.shared.request(name: name, entityType: nil)
     }
 
     /// Post ficheroOpenClaimSource for the explicit sourceLine button.

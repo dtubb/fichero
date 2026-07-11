@@ -87,9 +87,6 @@ extension Notification.Name {
     /// the library grid. object = source document id String. (#833)
     static let ficheroOpenClaimSource = Notification.Name("ficheroOpenClaimSource")
 
-    /// Posted when a KG/inspector row asks the app to navigate to entity search.
-    static let ficheroEntitySearchRequested = Notification.Name("ficheroEntitySearchRequested")
-
     /// Forwarded from `ficheroOpenClaimSource` after ContentView
     /// has resolved the source-doc id to a page number. Received by the
     /// PDF canvas so it can jump to the right page. (#833)

@@ -848,9 +848,9 @@ extension ContentView {
         }
     }
 
-    /// Handles `.onReceive` of `.ficheroEntitySearchRequested`.
+    /// Handles typed entity-search requests from inspector/KG lozenges.
     /// Fires the toolbar search for an entity-lozenge click.
-    func handleEntitySearchRequested(_ note: Notification) {
+    func handleEntitySearchRequested() {
         // Click on a blue entity lozenge anywhere in the UI fires the
         // toolbar search for that name. Same code path as typing in
         // the toolbar — creates a saved search, switches to search
@@ -862,9 +862,9 @@ extension ContentView {
         // artifact type — exactly the docs the user is asking about.
         // Free-text fallback when the type isn't tagged so older
         // call sites still work.
-        guard let name = note.userInfo?["name"] as? String,
+        guard let name = entitySearchState.requestedName,
               !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        let entityType = note.userInfo?["entityType"] as? String
+        let entityType = entitySearchState.requestedEntityType
         let query: String
         if let entityType, !entityType.isEmpty {
             let needsQuoting = name.contains(" ")

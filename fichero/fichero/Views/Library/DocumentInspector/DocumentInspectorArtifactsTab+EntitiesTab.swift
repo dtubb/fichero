@@ -894,13 +894,9 @@ struct DocumentInspectorEntitiesTab: View {
         for entity: Components.Schemas.KnowledgeEntity,
         kind: EntityKind
     ) {
-        NotificationCenter.default.post(
-            name: .ficheroEntitySearchRequested,
-            object: nil,
-            userInfo: [
-                "name": entity.canonicalName,
-                "entityType": kind.searchScope
-            ]
+        EntitySearchState.shared.request(
+            name: entity.canonicalName,
+            entityType: kind.searchScope
         )
     }
 }
