@@ -82,6 +82,16 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertFalse(sharedSource.contains("ficheroEntitySearchRequested"))
     }
 
+    func testEntityListNameUsesSearchClickWithDoubleClickRename() throws {
+        let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+
+        XCTAssertTrue(entitiesSource.contains("Button {"))
+        XCTAssertTrue(entitiesSource.contains("postSearch("))
+        XCTAssertTrue(entitiesSource.contains("Search the library for"))
+        XCTAssertTrue(entitiesSource.contains(".simultaneousGesture("))
+        XCTAssertTrue(entitiesSource.contains("TapGesture(count: 2).onEnded { beginRename(entity) }"))
+    }
+
     func testLegacyCitationInfoPanelsUseEnvironmentStores() throws {
         let citationsSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorInfoTab+Citations.swift")
         let bibliographySource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorInfoTab+Bibliography.swift")
