@@ -128,11 +128,16 @@ final class DocumentInspectorTests: XCTestCase {
     func testLegacyCitationInfoPanelsUseEnvironmentStores() throws {
         let citationsSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorInfoTab+Citations.swift")
         let bibliographySource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorInfoTab+Bibliography.swift")
+        let interpretationsSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Interpretations.swift"
+        )
 
         XCTAssertTrue(citationsSource.contains("@Environment(CitationStore.self)"))
         XCTAssertFalse(citationsSource.contains("LibraryManager.shared.globalLibrary?.citationStore"))
         XCTAssertTrue(bibliographySource.contains("@Environment(ReferenceStore.self)"))
         XCTAssertFalse(bibliographySource.contains("LibraryManager.shared.globalLibrary?.referenceStore"))
+        XCTAssertTrue(interpretationsSource.contains("@Environment(InterpretationStore.self)"))
+        XCTAssertFalse(interpretationsSource.contains("LibraryManager.shared.globalLibrary?.interpretationStore"))
     }
 
     func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {

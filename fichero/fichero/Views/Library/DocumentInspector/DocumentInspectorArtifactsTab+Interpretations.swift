@@ -8,6 +8,7 @@ import SwiftUI
 struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_body_length
     let documentId: String
     let entityService: EntityServiceGenerated
+    @Environment(InterpretationStore.self) private var store
 
     // Live-refresh via the per-document InterpretationStore (#2009): the store
     // owns the fetch + the `interpretation.*` change-stream reactions (#2008), so
@@ -16,9 +17,8 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
     // dependency. The create/edit forms below still drive `entityService`
     // directly and fall back to `store.reload()` so the list refreshes even
     // before the backend emit lane lands.
-    private var store: InterpretationStore? { LibraryManager.shared.globalLibrary?.interpretationStore }
-    private var interpretations: [Components.Schemas.Interpretation] { store?.items ?? [] }
-    private var isLoading: Bool { store?.isLoading ?? false }
+    private var interpretations: [Components.Schemas.Interpretation] { store.items }
+    private var isLoading: Bool { store.isLoading }
 
     @State private var isExpanded = false
 
@@ -104,7 +104,7 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
             }
         }
         .task(id: documentId) {
-            await store?.setScope(documentId: documentId)
+            await store.setScope(documentId: documentId)
             if !interpretations.isEmpty { isExpanded = true }
         }
     }
@@ -207,6 +207,7 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
     // MARK: - Rows
 
     @ViewBuilder
+    // swiftlint:disable:next function_body_length
     private func interpretationRow(_ interp: Components.Schemas.Interpretation) -> some View {
         let isEditing = editingInterpId == interp.id
         VStack(alignment: .leading, spacing: 3) {
