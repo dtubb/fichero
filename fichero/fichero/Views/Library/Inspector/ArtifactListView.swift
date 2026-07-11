@@ -130,7 +130,7 @@ struct ArtifactListView: View {
             )
         )
             .tag(artifact.id)
-            .contentShape(Rectangle())
+            .inspectorListRowTarget()
             .onTapGesture(count: 2) {
                 guard let onOpenInWindow else { return }
                 focused.select(artifact.id, in: store.items)
@@ -268,21 +268,47 @@ private struct ArtifactRow: View {
                     .padding(.vertical, 1)
                     .background(.quaternary, in: Capsule())
             }
+            if let translationBadgeLabel {
+                Text(translationBadgeLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(.quaternary, in: Capsule())
+            }
         }
         .padding(.vertical, 2)
-        .contentShape(Rectangle())
+        .inspectorListRowTarget()
     }
 
     /// Title-cased artifact type (e.g. `key_people` → "Key People"). Matches
     /// `ArtifactPanel.title`.
     private var title: String {
-        artifact.artifactType
-            .split(separator: "_")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-            .joined(separator: " ")
+        switch artifact.artifactType {
+        case "translation":
+            return "Translation"
+        case "translation_review":
+            return "Translation Review"
+        default:
+            return artifact.artifactType
+                .split(separator: "_")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " ")
+        }
     }
 
     private var subtitle: String? {
         provenance.rowSubtitle
+    }
+
+    private var translationBadgeLabel: String? {
+        switch artifact.artifactType {
+        case "translation":
+            return "Translated"
+        case "translation_review":
+            return "Reviewed"
+        default:
+            return nil
+        }
     }
 }

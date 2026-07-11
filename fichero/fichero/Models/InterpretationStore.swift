@@ -27,8 +27,11 @@ import OSLog
 final class InterpretationStore: ObservableDomainStore {
     // ─── Published domain state (views read these directly) ───
     private(set) var items: [Components.Schemas.Interpretation] = []
+    private(set) var frameworks: [Components.Schemas.InterpretiveFramework] = []
     private(set) var isLoading = false
+    private(set) var isLoadingFrameworks = false
     private(set) var loadError: String?
+    private(set) var frameworksError: String?
 
     /// The document whose interpretations are currently held.
     private(set) var currentDocumentId: String?
@@ -72,6 +75,54 @@ final class InterpretationStore: ObservableDomainStore {
                 "Interpretations fetch failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
         }
+    }
+
+    func loadFrameworks() async {
+        guard frameworks.isEmpty else { return }
+        isLoadingFrameworks = true
+        frameworksError = nil
+        defer { isLoadingFrameworks = false }
+        do {
+            frameworks = try await entityService.listFrameworks()
+        } catch is CancellationError {
+            // Superseded by closing the interpretation form.
+        } catch {
+            frameworksError = error.localizedDescription
+        }
+    }
+
+    @discardableResult
+    func create(
+        frameworkId: String,
+        documentId: String,
+        act: Components.Schemas.InterpretiveActType,
+        text: String,
+        confidence: Double
+    ) async throws -> Components.Schemas.Interpretation {
+        let created = try await entityService.createInterpretation(
+            frameworkId: frameworkId,
+            documentId: documentId,
+            act: act,
+            interpretationText: text,
+            confidence: confidence
+        )
+        await reload()
+        return created
+    }
+
+    @discardableResult
+    func update(
+        interpretationId: String,
+        text: String,
+        confidence: Double
+    ) async throws -> Components.Schemas.Interpretation {
+        let updated = try await entityService.updateInterpretation(
+            interpretationId: interpretationId,
+            interpretationText: text,
+            confidence: confidence
+        )
+        await reload()
+        return updated
     }
 
     // MARK: - ObservableDomainStore

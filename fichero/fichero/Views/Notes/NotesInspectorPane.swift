@@ -9,6 +9,7 @@ struct NotesInspectorPane: View {
     let selectionResetToken: String
     let documentName: String?
 
+    @Environment(LibraryManager.self) private var libraryManager
     @Environment(NoteStore.self) private var noteStore
     @Environment(WindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
@@ -31,7 +32,7 @@ struct NotesInspectorPane: View {
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
-                .frame(minHeight: 120, idealHeight: 200)
+                .frame(minHeight: 140, idealHeight: 180)
 
                 Divider()
 
@@ -47,7 +48,28 @@ struct NotesInspectorPane: View {
                         try? await noteStore.links(for: noteId)
                     }
                 )
-                .frame(minHeight: 160)
+                .frame(minHeight: 240, idealHeight: 360)
+            }
+            Divider()
+            InspectorBottomMiniToolbar(statusText: notesToolbarStatusText) {
+                Button {
+                    Task { await noteStore.reload() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .help("Reload notes")
+                .accessibilityLabel("Reload notes")
+
+                Button {
+                    openDetailWindow()
+                } label: {
+                    Image(systemName: "macwindow.badge.plus")
+                }
+                .buttonStyle(.plain)
+                .help("Open the selected note in a separate window")
+                .accessibilityLabel("Open selected note in window")
+                .disabled(focused.id == nil)
             }
         }
         .toolbar {
@@ -70,6 +92,13 @@ struct NotesInspectorPane: View {
         }
     }
 
+    private var notesToolbarStatusText: String {
+        if let selectedNote {
+            return selectedNote.title
+        }
+        return "\(notes.count) notes"
+    }
+
     private func openDetailWindow() {
         // No-op on single-window platforms (iPhone) so the button isn't a silent
         // dead affordance (#2805).
@@ -80,7 +109,7 @@ struct NotesInspectorPane: View {
 
     private func saveNote(_ item: NoteSelectionItem, body: String) async throws {
         guard let noteId = item.note.id,
-              let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+              let library = currentLibrary else { return }
         var update = Components.Schemas.NotePatchRequest()
         update.body = body
         let result = try await library.actionsService.invokeAction(
@@ -94,7 +123,7 @@ struct NotesInspectorPane: View {
 
     private func deleteNote(_ item: NoteSelectionItem) async throws {
         guard let noteId = item.note.id,
-              let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+              let library = currentLibrary else { return }
         let result = try await library.actionsService.invokeAction(
             name: "note.delete",
             params: NoteDeleteActionParams(noteId: noteId)
@@ -104,6 +133,10 @@ struct NotesInspectorPane: View {
             focused.clear()
         }
         await noteStore.reload()
+    }
+
+    private var currentLibrary: LibraryManager.LibraryReference? {
+        libraryManager.getLibrary(id: windowState.libraryId)
     }
 
     @ViewBuilder

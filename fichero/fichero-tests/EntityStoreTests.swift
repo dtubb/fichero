@@ -199,6 +199,57 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertTrue(requests.contains { $0.httpMethod == "DELETE" && $0.url?.path == "/api/entities/entity-1" })
     }
 
+    func testLibraryWideLoadOwnsOntologyBrowserEntityListAndCounts() async throws {
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "GET", path: "/api/entities",
+                    statusCode: 200,
+                    body: jsonData([
+                        "items": [
+                            makeEntityJSON(id: "entity-1", name: "Alpha")
+                        ],
+                        "total": 1
+                    ])
+                ),
+                .init(
+                    method: "GET", path: "/api/entities/claim-counts",
+                    statusCode: 200,
+                    body: jsonData([
+                        "counts": [
+                            "entity-1": 3
+                        ]
+                    ])
+                ),
+                .init(
+                    method: "GET", path: "/api/documents/doc-1/inspector",
+                    statusCode: 200,
+                    body: makeDocumentInspectorResponse(
+                        entities: [makeEntityJSON(id: "entity-2", name: "Beta")]
+                    )
+                )
+            ]
+        )
+
+        let store = makeStore()
+        await store.loadEntities(query: " Alpha ", limit: 100)
+
+        XCTAssertEqual(store.libraryEntities.compactMap(\.id), ["entity-1"])
+        XCTAssertEqual(store.libraryClaimCounts["entity-1"], 3)
+
+        await store.loadEntities(forDocument: "doc-1")
+        XCTAssertEqual(store.entities.compactMap(\.id), ["entity-2"])
+        XCTAssertEqual(store.libraryEntities.compactMap(\.id), ["entity-1"])
+
+        let requests = MockFicheroURLProtocol.recordedRequests()
+        XCTAssertTrue(requests.contains { request in
+            request.httpMethod == "GET"
+                && request.url?.path == "/api/entities"
+                && request.url?.query?.contains("q=Alpha") == true
+        })
+        XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/entities/claim-counts" })
+    }
+
     func testReclassifyReloadsCurrentInspectorScopeAfterPatch() async throws {
         MockFicheroURLProtocol.configure(
             responses: [

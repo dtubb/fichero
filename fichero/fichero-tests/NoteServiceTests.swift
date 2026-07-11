@@ -48,6 +48,9 @@ final class NoteServiceTests: XCTestCase {
 
         // The inspector pane must feed the loader (otherwise the section is dead).
         let paneSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
+        XCTAssertTrue(paneSource.contains("@Environment(LibraryManager.self) private var libraryManager"))
+        XCTAssertTrue(paneSource.contains("libraryManager.getLibrary(id: windowState.libraryId)"))
+        XCTAssertFalse(paneSource.contains("LibraryManager.shared"))
         XCTAssertTrue(paneSource.contains("onLoadLinks:"))
         XCTAssertTrue(paneSource.contains("noteStore.links(for: noteId)"))
     }

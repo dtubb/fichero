@@ -10,6 +10,7 @@ struct AnnotationsInspectorPane: View {
     let annotations: [DocumentAnnotation]
 
     @Environment(AnnotationStore.self) private var annotationStore
+    @Environment(LibraryManager.self) private var libraryManager
     @Environment(WindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
@@ -31,7 +32,7 @@ struct AnnotationsInspectorPane: View {
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
-                .frame(minHeight: 120, idealHeight: 200)
+                .frame(minHeight: 140, idealHeight: 180)
 
                 Divider()
 
@@ -53,7 +54,30 @@ struct AnnotationsInspectorPane: View {
                         reveal(annotation)
                     }
                 )
-                .frame(minHeight: 160)
+                .frame(minHeight: 240, idealHeight: 360)
+            }
+            Divider()
+            InspectorBottomMiniToolbar(statusText: annotationsToolbarStatusText) {
+                Button {
+                    Task {
+                        await annotationStore.loadAnnotations(for: annotationScope, force: true)
+                    }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .help("Reload annotations")
+                .accessibilityLabel("Reload annotations")
+
+                Button {
+                    openDetailWindow()
+                } label: {
+                    Image(systemName: "macwindow.badge.plus")
+                }
+                .buttonStyle(.plain)
+                .help("Open the selected annotation in a separate window")
+                .accessibilityLabel("Open selected annotation in window")
+                .disabled(focused.id == nil)
             }
         }
         .toolbar {
@@ -76,6 +100,16 @@ struct AnnotationsInspectorPane: View {
         }
     }
 
+    private var annotationsToolbarStatusText: String {
+        if let selectedAnnotation {
+            if let pageLabel = selectedAnnotation.pageLabel, !pageLabel.isEmpty {
+                return "\(selectedAnnotation.kind.label) · p. \(pageLabel)"
+            }
+            return selectedAnnotation.kind.label
+        }
+        return "\(annotations.count) annotations"
+    }
+
     private func openDetailWindow() {
         // No-op on single-window platforms (iPhone) so the button isn't a silent
         // dead affordance (#2805).
@@ -96,7 +130,7 @@ struct AnnotationsInspectorPane: View {
     }
 
     private func saveAnnotation(_ annotation: DocumentAnnotation, text: String) async throws {
-        guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+        guard let library = currentLibrary else { return }
         var update = Components.Schemas.AnnotationPatchRequest()
         update.text = text
         let result = try await library.actionsService.invokeAction(
@@ -109,7 +143,7 @@ struct AnnotationsInspectorPane: View {
     }
 
     private func deleteAnnotation(_ annotation: DocumentAnnotation) async throws {
-        guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+        guard let library = currentLibrary else { return }
         let result = try await library.actionsService.invokeAction(
             name: "annotation.delete",
             params: AnnotationDeleteActionParams(annotationId: annotation.id)
@@ -122,7 +156,7 @@ struct AnnotationsInspectorPane: View {
     }
 
     private func promoteAnnotation(_ annotation: DocumentAnnotation) async throws {
-        guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+        guard let library = currentLibrary else { return }
         let result = try await library.actionsService.invokeAction(
             name: "annotation.promote_to_claim",
             params: AnnotationPromoteActionParams(annotationId: annotation.id)
@@ -139,6 +173,10 @@ struct AnnotationsInspectorPane: View {
             return
         }
         PlatformPasteboard.writeString(text)
+    }
+
+    private var currentLibrary: LibraryManager.LibraryReference? {
+        libraryManager.getLibrary(id: windowState.libraryId)
     }
 
     private func reveal(_ annotation: DocumentAnnotation) {

@@ -230,21 +230,7 @@ extension OntologyBrowser {
     }
 
     func loadEntities() async {
-        isLoading = true
-        loadError = nil
-
-        do {
-            let library = LibraryManager.shared.globalLibrary!
-            let service = library.entityService
-            async let entityList = service.listEntities(limit: Self.entityListLimit)
-            async let counts = service.fetchClaimCounts()
-            entities = try await entityList
-            claimCounts = (try? await counts) ?? [:]
-        } catch {
-            loadError = error.localizedDescription
-        }
-
-        isLoading = false
+        await entityStore.loadEntities(limit: Self.entityListLimit)
     }
 
     func searchEntities() async {
@@ -253,20 +239,19 @@ extension OntologyBrowser {
             return
         }
 
-        isLoading = true
-        loadError = nil
+        await entityStore.loadEntities(query: searchText, limit: Self.entityListLimit, force: true)
+    }
 
+    func deleteEntity(_ entity: Components.Schemas.KnowledgeEntity) async {
+        guard let entityId = entity.id else { return }
+        entityPendingDeletion = nil
         do {
-            let library = LibraryManager.shared.globalLibrary!
-            let service = library.entityService
-            // EntityServiceGenerated.listEntities supports a free-text
-            // `query` filter — same as searching by canonical name or
-            // alias. No need for a separate resolve-by-value API.
-            entities = try await service.listEntities(query: searchText, limit: Self.entityListLimit)
+            try await entityStore.delete(entityIds: [entityId])
+            if selectedEntityId == entityId {
+                selectedEntityId = nil
+            }
         } catch {
-            await loadEntities()
+            toolStatus = "Delete failed: \(error.localizedDescription)"
         }
-
-        isLoading = false
     }
 }

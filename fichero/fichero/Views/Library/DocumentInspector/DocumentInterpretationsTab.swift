@@ -16,14 +16,9 @@ import SwiftUI
 struct DocumentInterpretationsTab: View {
     let document: Document
 
-    @Environment(EntityServiceGenerated.self) private var entityService
-
     var body: some View {
         ScrollView {
-            DocumentInterpretationsSection(
-                documentId: document.id,
-                entityService: entityService
-            )
+            DocumentInterpretationsSection(documentId: document.id)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)

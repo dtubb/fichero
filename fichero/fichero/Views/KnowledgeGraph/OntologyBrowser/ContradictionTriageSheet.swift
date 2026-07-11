@@ -6,6 +6,7 @@ struct ContradictionTriageSheet: View {
     let claims: [Components.Schemas.KnowledgeClaim]
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(ClaimStore.self) private var claimStore
     @State private var pairs: [Pair] = []
     @State private var isLoading = false
     @State private var selectedGroupId: String?
@@ -228,11 +229,10 @@ struct ContradictionTriageSheet: View {
     }
 
     private func setCuration(claimId: String, state: Components.Schemas.ClaimCurationState) async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
         updatingIds.insert(claimId)
         defer { updatingIds.remove(claimId) }
         do {
-            _ = try await library.entityService.patchClaim(claimId, curationState: state)
+            _ = try await claimStore.patch(claimId: claimId, curationState: state)
             statusMessage = "Saved: \(claimId) → \(state.rawValue)"
             // The backend emits `claim.updated`; the change-stream fans the
             // refresh to bound claim surfaces, so no NotificationCenter (#1862).

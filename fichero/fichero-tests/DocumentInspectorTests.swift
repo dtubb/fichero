@@ -63,12 +63,31 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertFalse(source.contains("private var includesDescendantArtifacts"))
     }
 
-    func testEntitiesInspectorUsesSharedBottomMiniToolbar() throws {
+    func testArtifactsTranslateActionLivesInInspectorMiniToolbar() throws {
+        let source = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+        let listSource = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
+
+        XCTAssertTrue(source.contains("InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText)"))
+        XCTAssertTrue(source.contains("translateMenu"))
+        XCTAssertFalse(source.contains("ToolbarItem(placement: .automatic) {\n                translateMenu"))
+        XCTAssertTrue(listSource.contains("case \"translation\":"))
+        XCTAssertTrue(listSource.contains("return \"Translated\""))
+    }
+
+    func testInspectorListPanesUseSharedBottomMiniToolbar() throws {
         let inspectorSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
         let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+        let artifactsSource = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+        let citationsSource = try Self.appSource("Views/Library/Inspector/CitationsInspectorPane.swift")
+        let annotationsSource = try Self.appSource("Views/Library/Inspector/AnnotationsInspectorPane.swift")
+        let notesSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
 
         XCTAssertTrue(inspectorSource.contains("struct InspectorBottomMiniToolbar"))
         XCTAssertTrue(entitiesSource.contains("InspectorBottomMiniToolbar(statusText: entitiesToolbarStatusText)"))
+        XCTAssertTrue(artifactsSource.contains("InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText)"))
+        XCTAssertTrue(citationsSource.contains("InspectorBottomMiniToolbar(statusText: citationsToolbarStatusText)"))
+        XCTAssertTrue(annotationsSource.contains("InspectorBottomMiniToolbar(statusText: annotationsToolbarStatusText)"))
+        XCTAssertTrue(notesSource.contains("InspectorBottomMiniToolbar(statusText: notesToolbarStatusText)"))
     }
 
     func testEntitySearchRoutingUsesTypedStateInsteadOfNotificationBus() throws {
@@ -109,11 +128,29 @@ final class DocumentInspectorTests: XCTestCase {
     func testLegacyCitationInfoPanelsUseEnvironmentStores() throws {
         let citationsSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorInfoTab+Citations.swift")
         let bibliographySource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorInfoTab+Bibliography.swift")
+        let interpretationsSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Interpretations.swift"
+        )
+        let interpretationsTabSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInterpretationsTab.swift"
+        )
+        let interpretationStoreSource = try Self.appSource("Models/InterpretationStore.swift")
+        let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
 
         XCTAssertTrue(citationsSource.contains("@Environment(CitationStore.self)"))
         XCTAssertFalse(citationsSource.contains("LibraryManager.shared.globalLibrary?.citationStore"))
         XCTAssertTrue(bibliographySource.contains("@Environment(ReferenceStore.self)"))
         XCTAssertFalse(bibliographySource.contains("LibraryManager.shared.globalLibrary?.referenceStore"))
+        XCTAssertTrue(interpretationsSource.contains("@Environment(InterpretationStore.self)"))
+        XCTAssertFalse(interpretationsSource.contains("LibraryManager.shared.globalLibrary?.interpretationStore"))
+        XCTAssertTrue(interpretationsSource.contains("try await store.create("))
+        XCTAssertTrue(interpretationsSource.contains("try await store.update("))
+        XCTAssertFalse(interpretationsSource.contains("entityService."))
+        XCTAssertFalse(interpretationsTabSource.contains("EntityServiceGenerated"))
+        XCTAssertTrue(interpretationStoreSource.contains("func loadFrameworks() async"))
+        XCTAssertTrue(serviceSource.contains("client.api.listInterpretationsApiHermeneuticsInterpretationsGet"))
+        XCTAssertTrue(serviceSource.contains("client.api.createInterpretationApiHermeneuticsInterpretationsPost"))
+        XCTAssertFalse(serviceSource.contains("endpointData(path: \"/api/kg/interpretations"))
     }
 
     func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {
@@ -154,15 +191,19 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testInspectorListsUseFullRowContentShapes() throws {
+        let inspectorSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
         let artifactList = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
         let annotationList = try Self.appSource("Views/Library/Inspector/AnnotationListView.swift")
         let citationList = try Self.appSource("Views/Library/Inspector/CitationListView.swift")
         let noteList = try Self.appSource("Views/Notes/NoteListView.swift")
+        let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
 
-        XCTAssertTrue(artifactList.contains(".contentShape(Rectangle())"))
-        XCTAssertTrue(annotationList.contains(".contentShape(Rectangle())"))
-        XCTAssertTrue(citationList.contains(".contentShape(Rectangle())"))
-        XCTAssertTrue(noteList.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(inspectorSource.contains("func inspectorListRowTarget()"))
+        XCTAssertTrue(artifactList.contains(".inspectorListRowTarget()"))
+        XCTAssertTrue(annotationList.contains(".inspectorListRowTarget()"))
+        XCTAssertTrue(citationList.contains(".inspectorListRowTarget()"))
+        XCTAssertTrue(noteList.contains(".inspectorListRowTarget()"))
+        XCTAssertTrue(entitiesSource.contains(".inspectorListRowTarget()"))
     }
 
     func testDocumentInspectorNoLongerIncludesOutlineTabSurface() throws {

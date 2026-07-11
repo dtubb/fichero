@@ -49,6 +49,13 @@ struct TranslationLanguage: Identifiable, Hashable {
     ]
 }
 
+private func inspectorArtifactTitle(_ artifact: Artifact) -> String {
+    artifact.artifactType
+        .split(separator: "_")
+        .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+        .joined(separator: " ")
+}
+
 /// The Artifacts inspector tab, rebuilt as List + detail (#2003, EPIC #2002).
 ///
 /// Replaces the old `DocumentInspectorContentV2(mode: .artifactsOnly)` stacked
@@ -111,7 +118,7 @@ struct ArtifactsInspectorPane: View {
             if let actionError {
                 errorBox(actionError)
             }
-            VStack(spacing: 0) {
+            PlatformVSplitView {
                 ArtifactListView(
                     store: store,
                     inspectedDocument: document,
@@ -119,7 +126,7 @@ struct ArtifactsInspectorPane: View {
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
-                .frame(minHeight: 120, idealHeight: 200)
+                .frame(minHeight: 140, idealHeight: 180)
 
                 Divider()
 
@@ -134,28 +141,42 @@ struct ArtifactsInspectorPane: View {
                         Task { await deleteArtifact(artifact) }
                     }
                 )
-                .frame(minHeight: 160)
+                .frame(minHeight: 240, idealHeight: 360)
+            }
+            Divider()
+            InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText) {
+                translateMenu
+                Button {
+                    Task { await store.reload() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .help("Reload artifacts")
+                .accessibilityLabel("Reload artifacts")
+
+                Button {
+                    openSelectedArtifactSource()
+                } label: {
+                    Image(systemName: "arrow.turn.down.right")
+                }
+                .buttonStyle(.plain)
+                .help("Open artifact source")
+                .accessibilityLabel("Open artifact source")
+                .disabled(selectedProvenance?.sourceDocumentId == nil)
+
+                Button {
+                    openDetailWindow()
+                } label: {
+                    Image(systemName: "macwindow.badge.plus")
+                }
+                .buttonStyle(.plain)
+                .help("Open the selected artifact in a separate window")
+                .accessibilityLabel("Open selected artifact in window")
+                .disabled(focused.id == nil)
             }
         }
         .toolbar {
-            ToolbarItem(placement: .automatic) {
-                // Translate the document into a chosen language (#3325). The
-                // result is persisted as a searchable `translation` artifact and
-                // shows up in the list via the store's change stream.
-                Menu {
-                    ForEach(TranslationLanguage.common) { lang in
-                        Button(lang.name) { translate(to: lang) }
-                    }
-                } label: {
-                    if isTranslating {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Label("Translate", systemImage: "character.book.closed")
-                    }
-                }
-                .disabled(isTranslating)
-                .help("Translate this document into another language")
-            }
             ToolbarItem(placement: .automatic) {
                 // #2254 §E: the gated, reusable detach affordance. Absent where a
                 // second window can't exist (iPhone), so the floating placement is
@@ -190,6 +211,29 @@ struct ArtifactsInspectorPane: View {
         .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
             Task { await store.reload() }
         }
+    }
+
+    private var artifactsToolbarStatusText: String {
+        if let selectedArtifact {
+            return inspectorArtifactTitle(selectedArtifact)
+        }
+        return "\(store.items.count) artifacts"
+    }
+
+    private var translateMenu: some View {
+        Menu {
+            ForEach(TranslationLanguage.common) { lang in
+                Button(lang.name) { translate(to: lang) }
+            }
+        } label: {
+            if isTranslating {
+                ProgressView().controlSize(.small)
+            } else {
+                Label("Translate", systemImage: "character.book.closed")
+            }
+        }
+        .disabled(isTranslating)
+        .help("Translate this document into another language")
     }
 
     private func openDetailWindow() {
@@ -314,7 +358,7 @@ struct ArtifactDetailWindow: View {
 
     var body: some View {
         ArtifactDetailView(artifact: shownArtifact)
-            .navigationTitle(shownArtifact.map { artifactTitle($0) } ?? "Artifact")
+            .navigationTitle(shownArtifact.map(inspectorArtifactTitle) ?? "Artifact")
             #if !os(visionOS)
             .navigationSubtitle(focused.documentName ?? "")
             #endif
@@ -342,10 +386,4 @@ struct ArtifactDetailWindow: View {
             .frame(minWidth: 360, minHeight: 320)
     }
 
-    private func artifactTitle(_ artifact: Artifact) -> String {
-        artifact.artifactType
-            .split(separator: "_")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-            .joined(separator: " ")
-    }
 }
