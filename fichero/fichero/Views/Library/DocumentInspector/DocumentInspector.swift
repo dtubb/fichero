@@ -159,8 +159,8 @@ struct DocumentInspector: View {
                     } label: {
                         Label(section.rawValue, systemImage: section.icon)
                             .labelStyle(.iconOnly)
-                            .font(.body)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .font(.title3)
+                            .frame(maxWidth: .infinity, minHeight: 30)
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel(section.rawValue)
@@ -178,11 +178,6 @@ struct DocumentInspector: View {
                     .accessibilityIdentifier(section.accessibilityIdentifier)
                 }
             }
-            Text(activeSection.rawValue)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .padding(.horizontal, 6)
         }
         .frame(maxWidth: .infinity)
         .inspectorGlassStrip()
