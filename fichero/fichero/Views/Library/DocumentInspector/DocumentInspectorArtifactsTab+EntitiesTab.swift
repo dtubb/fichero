@@ -120,15 +120,21 @@ struct DocumentInspectorEntitiesTab: View {
             } else if grouped.isEmpty {
                 emptyVisibleGroupsState
             } else {
-                PlatformVSplitView {
-                    List(selection: $entitySelection) {
-                        ForEach(grouped, id: \.0) { kind, items in
-                            entityKindSection(kind: kind, entities: items)
+                VStack(spacing: 0) {
+                    PlatformVSplitView {
+                        List(selection: $entitySelection) {
+                            ForEach(grouped, id: \.0) { kind, items in
+                                entityKindSection(kind: kind, entities: items)
+                            }
                         }
-                    }
-                    .listStyle(.plain)
+                        .listStyle(.plain)
 
-                    entityDetailPane
+                        entityDetailPane
+                    }
+                    Divider()
+                    entitiesMiniToolbar
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
                 }
             }
         }
@@ -218,6 +224,45 @@ struct DocumentInspectorEntitiesTab: View {
             .help("Reload entities")
             .accessibilityLabel("Reload entities")
         }
+    }
+
+    private var entitiesMiniToolbar: some View {
+        MiniToolbar {
+            Text(entitiesToolbarStatusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            filterMenu
+
+            Button {
+                Task { await entityStore.loadEntities(forDocument: documentId, force: true) }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .help("Reload entities")
+            .accessibilityLabel("Reload entities")
+
+            if entitySelection.count > 1 {
+                bulkActionMenu(title: "Approve", systemImage: "checkmark.circle", action: .approve)
+                bulkActionMenu(title: "Reject", systemImage: "xmark.circle", action: .reject)
+                bulkActionMenu(title: "Suppress", systemImage: "eye.slash", action: .suppress)
+                mergeActionMenu(targetEntities: selectedEntities, menuTitle: "Merge")
+                deleteActionButton(targetEntities: selectedEntities)
+            }
+        }
+    }
+
+    private var entitiesToolbarStatusText: String {
+        if entitySelection.count > 1 {
+            return "\(entitySelection.count) selected"
+        }
+        if let selectedEntity {
+            return selectedEntity.canonicalName
+        }
+        return "\(entityStore.entities.count) entities"
     }
 
     @ViewBuilder

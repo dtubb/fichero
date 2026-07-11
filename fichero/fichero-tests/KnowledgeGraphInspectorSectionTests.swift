@@ -336,6 +336,18 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(source.contains("restoreSelectionAfterEntityRefresh(entityId: plan.entityId)"))
     }
 
+    func testInspectorEntitiesTabUsesSharedBottomMiniToolbarForSelectionActions() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+
+        XCTAssertTrue(source.contains("private var entitiesMiniToolbar: some View"))
+        XCTAssertTrue(source.contains("MiniToolbar {"))
+        XCTAssertTrue(source.contains("if entitySelection.count > 1 {"))
+        XCTAssertTrue(source.contains("mergeActionMenu(targetEntities: selectedEntities, menuTitle: \"Merge\")"))
+        XCTAssertTrue(source.contains("deleteActionButton(targetEntities: selectedEntities)"))
+    }
+
     func testInspectorDeleteActionsUseGeneratedEntityAndClaimClients() throws {
         let entitiesSource = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
