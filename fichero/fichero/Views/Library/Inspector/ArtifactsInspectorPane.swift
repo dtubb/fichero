@@ -126,7 +126,8 @@ struct ArtifactsInspectorPane: View {
                     inspectedDocument: document,
                     documentsById: knownDocumentsById,
                     focused: focused,
-                    onOpenInWindow: openDetailWindow
+                    onOpenInWindow: openDetailWindow,
+                    onTranslate: { translate(to: $0) }
                 )
             } detail: {
                 ArtifactDetailView(
@@ -143,7 +144,6 @@ struct ArtifactsInspectorPane: View {
             }
             Divider()
             InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText) {
-                translateMenu
                 Button {
                     Task { await store.reload() }
                 } label: {
@@ -209,22 +209,6 @@ struct ArtifactsInspectorPane: View {
             return inspectorArtifactTitle(selectedArtifact)
         }
         return "\(store.items.count) artifacts"
-    }
-
-    private var translateMenu: some View {
-        Menu {
-            ForEach(TranslationLanguage.common) { lang in
-                Button(lang.name) { translate(to: lang) }
-            }
-        } label: {
-            if isTranslating {
-                ProgressView().controlSize(.small)
-            } else {
-                Label("Translate", systemImage: "character.book.closed")
-            }
-        }
-        .disabled(isTranslating)
-        .help("Translate this document into another language")
     }
 
     private func openDetailWindow() {

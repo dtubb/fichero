@@ -31,6 +31,11 @@ struct ArtifactListView: View {
     /// the affordance (e.g. if a host doesn't support the detached scene).
     var onOpenInWindow: (() -> Void)?
 
+    /// Translate the inspected document into a language, from the row context
+    /// menu (#3426). `nil` hides the affordance. Document-scoped, not per-artifact
+    /// — the menu is labelled "Translate Document" to make that clear.
+    var onTranslate: ((TranslationLanguage) -> Void)?
+
     /// Native multi-selection set the `List` drives (#2519). Single-click selects
     /// one (and the detail follows via `focused`); ⇧/⌘-click extend; ⌫ / the
     /// context-menu "Delete" remove the whole selection. Kept in sync with the
@@ -151,7 +156,23 @@ struct ArtifactListView: View {
                         : [artifact]
                     confirmDelete(targets)
                 }
+                translateMenuItems()
             }
+    }
+
+    /// The "Translate Document" contextual submenu (#3426). Shared by the row
+    /// context menu and the empty-state, so a document with zero artifacts can
+    /// still be translated (that is exactly when you translate to CREATE one).
+    @ViewBuilder
+    private func translateMenuItems() -> some View {
+        if let onTranslate {
+            Divider()
+            Menu("Translate Document") {
+                ForEach(TranslationLanguage.common) { lang in
+                    Button(lang.name) { onTranslate(lang) }
+                }
+            }
+        }
     }
 
     // MARK: - Multi-select delete (#2519)
@@ -192,6 +213,9 @@ struct ArtifactListView: View {
             systemImage: "sparkles",
             description: Text("Run a workflow to generate transcriptions, catalogues, or summaries.")
         )
+        // Right-click still offers Translate so an artifact-less document can be
+        // translated to create its first artifact (#3426).
+        .contextMenu { translateMenuItems() }
     }
 }
 
