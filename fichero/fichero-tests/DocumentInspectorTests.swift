@@ -54,4 +54,11 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(source.contains("selectedEntityId: kgFocusState.focusedEntityId"))
         XCTAssertFalse(source.contains("Label(\"Back to document\", systemImage: \"chevron.left\")"))
     }
+
+    func testDocumentInspectorNoLongerIncludesOutlineTabSurface() throws {
+        let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
+
+        XCTAssertFalse(source.contains("SourceOutlineView(documentId: doc.id)"))
+        XCTAssertFalse(source.contains(".outline"))
+    }
 }
