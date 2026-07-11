@@ -479,7 +479,7 @@ TOOLS: list[types.Tool] = [
     ),
     types.Tool(
         name="fichero_hm_suggest_interpretations",
-        description="Get AI-suggested interpretations for claims using available frameworks",
+        description="Reserved for grounded AI interpretation suggestions; currently unavailable",
         inputSchema={
             "type": "object",
             "properties": {

@@ -271,7 +271,7 @@ def test_circle_state_not_found(client):
 
 
 def test_interpretation_suggestions(client, db):
-    """AI interpretation suggestions return framework-based recommendations."""
+    """Suggestions are unavailable until a grounded LLM path exists."""
     # Create a framework
     fw_resp = client.post(
         "/api/hermeneutics/frameworks",
@@ -297,15 +297,12 @@ def test_interpretation_suggestions(client, db):
             "num_suggestions": 3,
         },
     )
-    assert sugg_resp.status_code == 200
-    suggestions = sugg_resp.json()
-    assert suggestions["count"] >= 1
-    assert suggestions["items"][0]["framework_id"] == fw["id"]
-    assert suggestions["items"][0]["framework_name"] == "Annales School"
+    assert sugg_resp.status_code == 501
+    assert sugg_resp.json()["detail"] == "Grounded AI interpretation suggestions are not implemented."
 
 
-def test_interpretation_suggestions_no_frameworks(client, db):
-    """Suggestions fails gracefully when no active frameworks exist."""
+def test_interpretation_suggestions_is_unavailable_without_frameworks(client, db):
+    """Unsupported suggestions never fabricate output based on framework state."""
     resp = client.post(
         "/api/hermeneutics/suggestions",
         json={
@@ -313,8 +310,8 @@ def test_interpretation_suggestions_no_frameworks(client, db):
             "num_suggestions": 3,
         },
     )
-    assert resp.status_code == 400
-    assert "No active frameworks" in resp.json()["detail"]
+    assert resp.status_code == 501
+    assert resp.json()["detail"] == "Grounded AI interpretation suggestions are not implemented."
 
 
 def test_interpretation_suggestions_invalid_num(client, db):
