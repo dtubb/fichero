@@ -47,6 +47,41 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(source.contains("Task { await store.reload() }"))
     }
 
+    func testArtifactsPaneRoutesProvenanceClicksThroughSharedSourceNavigation() throws {
+        let source = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+        let detailSource = try Self.appSource("Views/Library/Inspector/ArtifactDetailView.swift")
+
+        XCTAssertTrue(source.contains("NotificationCenter.default.post("))
+        XCTAssertTrue(source.contains("name: .ficheroOpenClaimSource"))
+        XCTAssertTrue(detailSource.contains("LabeledContent(\"Source\")"))
+    }
+
+    func testArtifactsPaneUsesOwnOnlyArtifactScope() throws {
+        let source = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+
+        XCTAssertTrue(source.contains("includeDescendants: false"))
+        XCTAssertFalse(source.contains("private var includesDescendantArtifacts"))
+    }
+
+    func testEntitiesInspectorUsesSharedBottomMiniToolbar() throws {
+        let inspectorSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
+        let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+
+        XCTAssertTrue(inspectorSource.contains("struct InspectorBottomMiniToolbar"))
+        XCTAssertTrue(entitiesSource.contains("InspectorBottomMiniToolbar(statusText: entitiesToolbarStatusText)"))
+    }
+
+    func testEntitySearchRoutingUsesTypedStateInsteadOfNotificationBus() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let sharedSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Shared.swift")
+        let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+
+        XCTAssertTrue(sharedSource.contains("final class EntitySearchState"))
+        XCTAssertTrue(contentSource.contains(".onChange(of: entitySearchState.requestID)"))
+        XCTAssertTrue(entitiesSource.contains("EntitySearchState.shared.request("))
+        XCTAssertFalse(sharedSource.contains("ficheroEntitySearchRequested"))
+    }
+
     func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
 

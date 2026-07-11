@@ -145,3 +145,83 @@ extension Artifact {
         }
     }
 }
+
+// MARK: - Inspector provenance
+
+enum ArtifactProvenanceRelation: Equatable {
+    case currentDocument
+    case currentPage
+    case descendantPage
+    case linkedDocument
+}
+
+struct ArtifactProvenanceDisplay: Equatable {
+    let sourceDocumentId: String
+    let sourceLabel: String
+    let pageLabel: String?
+    let relation: ArtifactProvenanceRelation
+    let workflowLabel: String?
+    let providerLabel: String?
+
+    var rowSubtitle: String? {
+        let parts = [sourceLabel, workflowLabel, providerLabel]
+            .compactMap { value in
+                let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return trimmed.isEmpty ? nil : trimmed
+            }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+enum ArtifactProvenance {
+    static func display(
+        for artifact: Artifact,
+        inspectedDocument: Document,
+        documentsById: [String: Document]
+    ) -> ArtifactProvenanceDisplay {
+        let sourceDocument = documentsById[artifact.documentId]
+        let pageLabel = sourceDocument?.pageThumbnailLabel
+
+        let relation: ArtifactProvenanceRelation
+        let sourceLabel: String
+        if artifact.documentId == inspectedDocument.id {
+            if inspectedDocument.docType == .page {
+                relation = .currentPage
+                sourceLabel = "This page"
+            } else {
+                relation = .currentDocument
+                sourceLabel = "This document"
+            }
+        } else if sourceDocument?.docType == .page {
+            relation = .descendantPage
+            sourceLabel = pageLabel.map { "Page \($0)" } ?? "Child page"
+        } else if let sourceDocument,
+                  !sourceDocument.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            relation = .linkedDocument
+            sourceLabel = sourceDocument.name
+        } else {
+            relation = .linkedDocument
+            sourceLabel = "Linked document"
+        }
+
+        let workflowLabel = normalized(artifact.stepName)
+        let providerLabel = [normalized(artifact.provider), normalized(artifact.model)]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+
+        return ArtifactProvenanceDisplay(
+            sourceDocumentId: artifact.documentId,
+            sourceLabel: sourceLabel,
+            pageLabel: pageLabel,
+            relation: relation,
+            workflowLabel: workflowLabel,
+            providerLabel: providerLabel.isEmpty ? nil : providerLabel
+        )
+    }
+
+    private static func normalized(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}

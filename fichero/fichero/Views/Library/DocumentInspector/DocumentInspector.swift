@@ -29,6 +29,33 @@ extension View {
     }
 }
 
+/// Shared bottom mini-toolbar shell for list-style inspector panes (#3414).
+/// Keeps the glass treatment, fixed height, and left-status / right-actions
+/// rhythm consistent while letting each pane supply its own native controls.
+struct InspectorBottomMiniToolbar<Actions: View>: View {
+    let statusText: String
+    let actions: Actions
+
+    init(statusText: String, @ViewBuilder actions: () -> Actions) {
+        self.statusText = statusText
+        self.actions = actions()
+    }
+
+    var body: some View {
+        MiniToolbar {
+            Text(statusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            actions
+        } trailing: {
+            EmptyView()
+        }
+    }
+}
+
 /// Inspector panel showing document metadata and details
 struct DocumentInspector: View {
     let document: Document?

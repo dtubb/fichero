@@ -21,6 +21,8 @@ struct ArtifactListView: View {
     /// The reactive data source — the document-scoped store (#1997). The list
     /// reads `store.items`; it never fetches independently.
     let store: ArtifactStore
+    let inspectedDocument: Document
+    let documentsById: [String: Document]
 
     /// Shared selection holder the rows write to.
     @Bindable var focused: FocusedArtifact
@@ -119,7 +121,14 @@ struct ArtifactListView: View {
     /// stays cheap for the type-checker.
     @ViewBuilder
     private func row(for artifact: Artifact) -> some View {
-        ArtifactRow(artifact: artifact)
+        ArtifactRow(
+            artifact: artifact,
+            provenance: ArtifactProvenance.display(
+                for: artifact,
+                inspectedDocument: inspectedDocument,
+                documentsById: documentsById
+            )
+        )
             .tag(artifact.id)
             .contentShape(Rectangle())
             .onTapGesture(count: 2) {
@@ -212,6 +221,7 @@ enum ArtifactSelection {
 /// detail's job), so a long document's many artifacts stay scannable.
 private struct ArtifactRow: View {
     let artifact: Artifact
+    let provenance: ArtifactProvenanceDisplay
 
     var body: some View {
         HStack(spacing: 8) {
@@ -273,9 +283,6 @@ private struct ArtifactRow: View {
     }
 
     private var subtitle: String? {
-        var parts: [String] = []
-        if let provider = artifact.provider, !provider.isEmpty { parts.append(provider) }
-        if let model = artifact.model, !model.isEmpty { parts.append(model) }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        provenance.rowSubtitle
     }
 }

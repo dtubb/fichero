@@ -213,13 +213,9 @@ struct EntityDetailView: View {
         } else {
             Button {
                 // #882 — tap canonical name to run a scoped library search.
-                NotificationCenter.default.post(
-                    name: .ficheroEntitySearchRequested,
-                    object: nil,
-                    userInfo: [
-                        "name": displayName,
-                        "entityType": entitySearchScope
-                    ]
+                EntitySearchState.shared.request(
+                    name: displayName,
+                    entityType: entitySearchScope
                 )
             } label: {
                 Text(displayName)

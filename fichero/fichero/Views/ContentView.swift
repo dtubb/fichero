@@ -99,6 +99,7 @@ struct ContentView: View {
     // Runtime state - full objects for use in views
     @State var viewMode: AppViewMode = .library(nil)
     @State var detailDocument: Document?
+    @State var entitySearchState = EntitySearchState.shared
     /// Drives the distraction-free full-window reading overlay (#2520).
     @State private var isImmersiveReading = false
     @State private var focusedDocument = FocusedDocument.shared
@@ -565,8 +566,8 @@ struct ContentView: View {
                 }
             }
             #endif
-            .onReceive(NotificationCenter.default.publisher(for: .ficheroEntitySearchRequested)) { note in
-                handleEntitySearchRequested(note)
+            .onChange(of: entitySearchState.requestID) { _, _ in
+                handleEntitySearchRequested()
             }
             .onReceive(NotificationCenter.default.publisher(for: .ficheroOpenClaimSource)) { note in
                 handleOpenClaimSource(note)

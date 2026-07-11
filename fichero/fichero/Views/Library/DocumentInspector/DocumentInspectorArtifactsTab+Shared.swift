@@ -28,22 +28,7 @@ struct EntityLozenge: View {
 
     var body: some View {
         Button {
-            // Lozenge tap → fire a global entity-search request. ContentView
-            // listens and routes the name into runToolbarSearch so we get
-            // the same path as typing into the toolbar (creates a saved
-            // search, switches sidebar to search mode, runs the query).
-            // NotificationCenter avoids prop-drilling a closure through
-            // ArtifactEntitiesView → MailStyleRow → LibraryView →
-            // ContentView (5 levels deep).
-            var userInfo: [String: Any] = ["name": name]
-            if let entityType {
-                userInfo["entityType"] = entityType
-            }
-            NotificationCenter.default.post(
-                name: .ficheroEntitySearchRequested,
-                object: nil,
-                userInfo: userInfo
-            )
+            EntitySearchState.shared.request(name: name, entityType: entityType)
         } label: {
             Text(name)
                 .font(.caption2)
@@ -68,17 +53,27 @@ struct EntityLozenge: View {
     }
 }
 
+@Observable
+@MainActor
+final class EntitySearchState {
+    static let shared = EntitySearchState()
+
+    private(set) var requestID: Int = 0
+    private(set) var requestedName: String?
+    private(set) var requestedEntityType: String?
+
+    func request(name: String, entityType: String?) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        requestedName = trimmedName
+        requestedEntityType = entityType?.trimmingCharacters(in: .whitespacesAndNewlines)
+        requestID &+= 1
+    }
+}
+
 // MARK: - Notification names
 
 extension Notification.Name {
-    /// Posted when the user taps an entity lozenge anywhere in the UI.
-    /// ContentView listens for this and routes through `runToolbarSearch`,
-    /// creating a saved search exactly the way typing in the toolbar would.
-    /// userInfo keys: "name" (String), optional "entityType" (String, e.g. "people").
-    static let ficheroEntitySearchRequested = Notification.Name(
-        "ficheroEntitySearchRequested"
-    )
-
     // The claim/entity *data-mutation* notifications (`.ficheroClaimDeleted`,
     // `.ficheroClaimUpdated`, `.ficheroEntityUpdated`) were retired in #1862.
     // Claim/entity mutations now flow through ClaimStore/EntityStore and the
