@@ -143,7 +143,9 @@ struct EntityDetailView: View {
                     possibleDuplicatesSection
                     mentionsSection
                     metadataSection
-                    claimsSection
+                    if Self.showsClaimsSection(for: entity) {
+                        claimsSection
+                    }
                     auditSection
                     EntityNotesSection(entityId: entity.id ?? "")
                 }
@@ -155,6 +157,12 @@ struct EntityDetailView: View {
                 await loadDuplicateCandidates()
             }
         }
+    }
+
+    static func showsClaimsSection(
+        for entity: Components.Schemas.KnowledgeEntity
+    ) -> Bool {
+        entity.entityType != .location
     }
 
     // MARK: - Source-groups top bar

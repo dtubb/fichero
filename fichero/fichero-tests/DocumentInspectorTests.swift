@@ -68,6 +68,34 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertFalse(annotationsSource.localizedCaseInsensitiveContains("back to document"))
     }
 
+    func testArtifactInspectorListSupportsDoubleClickOpenInWindow() throws {
+        let source = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
+
+        XCTAssertTrue(source.contains(".onTapGesture(count: 2)"))
+        XCTAssertTrue(source.contains("focused.select(artifact.id, in: store.items)"))
+        XCTAssertTrue(source.contains("onOpenInWindow()"))
+    }
+
+    func testOutlineArtifactDoubleClickOpensArtifactWindowInsteadOfParentDocument() throws {
+        let source = try Self.appSource("Views/Library/LibraryView+TableMapViews.swift")
+
+        XCTAssertTrue(source.contains("handleOutlineDoubleClickSelection()"))
+        XCTAssertTrue(source.contains("if let artifactSelection = artifactSelectionForNodeId(firstId)"))
+        XCTAssertTrue(source.contains("openWindow(id: \"artifact-detail\")"))
+    }
+
+    func testInspectorListsUseFullRowContentShapes() throws {
+        let artifactList = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
+        let annotationList = try Self.appSource("Views/Library/Inspector/AnnotationListView.swift")
+        let citationList = try Self.appSource("Views/Library/Inspector/CitationListView.swift")
+        let noteList = try Self.appSource("Views/Notes/NoteListView.swift")
+
+        XCTAssertTrue(artifactList.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(annotationList.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(citationList.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(noteList.contains(".contentShape(Rectangle())"))
+    }
+
     func testDocumentInspectorNoLongerIncludesOutlineTabSurface() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
 

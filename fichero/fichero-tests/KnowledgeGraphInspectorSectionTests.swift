@@ -336,6 +336,42 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(source.contains("restoreSelectionAfterEntityRefresh(entityId: plan.entityId)"))
     }
 
+    func testInspectorEntitiesTabUsesSharedBottomMiniToolbarForSelectionActions() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+
+        XCTAssertTrue(source.contains("private var entitiesMiniToolbar: some View"))
+        XCTAssertTrue(source.contains("MiniToolbar {"))
+        XCTAssertTrue(source.contains("if entitySelection.count > 1 {"))
+        XCTAssertTrue(source.contains("mergeActionMenu(targetEntities: selectedEntities, menuTitle: \"Merge\")"))
+        XCTAssertTrue(source.contains("deleteActionButton(targetEntities: selectedEntities)"))
+    }
+
+    func testInspectorEntitiesTabReadsPerDocumentEntityStoreBuckets() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+        let storeSource = try Self.appSource("Models/EntityStore.swift")
+
+        XCTAssertTrue(source.contains("entityStore.entities(forDocument: documentId)"))
+        XCTAssertTrue(source.contains("entityStore.loadError(forDocument: documentId)"))
+        XCTAssertTrue(source.contains("entityStore.isLoading(forDocument: documentId)"))
+        XCTAssertTrue(storeSource.contains("private(set) var entitiesByDocumentId"))
+        XCTAssertTrue(storeSource.contains("func entities(forDocument documentId: String)"))
+    }
+
+    func testKnowledgeGraphTextDigestUsesStableEntryIds() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
+        )
+
+        XCTAssertTrue(source.contains("private struct TextDigestEntry: Identifiable"))
+        XCTAssertTrue(source.contains("id: item.id"))
+        XCTAssertTrue(source.contains("ForEach(entries) { entry in"))
+        XCTAssertFalse(source.contains("ForEach(entries, id: \\.displayName)"))
+    }
+
     func testInspectorDeleteActionsUseGeneratedEntityAndClaimClients() throws {
         let entitiesSource = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"

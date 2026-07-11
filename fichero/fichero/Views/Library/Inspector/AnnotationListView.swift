@@ -64,6 +64,7 @@ struct AnnotationListView: View {
     @ViewBuilder
     private func row(for annotation: DocumentAnnotation) -> some View {
         AnnotationRow(annotation: annotation)
+            .contentShape(Rectangle())
     }
 
     private var emptyState: some View {

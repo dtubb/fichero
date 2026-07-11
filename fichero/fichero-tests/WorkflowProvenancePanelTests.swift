@@ -84,3 +84,18 @@ struct WorkflowProvenanceSortTests {
         #expect(sorted[1].startedAt == "2024-01-01T00:00:00Z")
     }
 }
+
+@Suite("WorkflowProvenancePanel error handling")
+struct WorkflowProvenanceErrorHandlingTests {
+    @Test("404 missing history maps to empty state instead of raw error")
+    func notFoundBecomesEmptyState() {
+        let error = EntityServiceGenerated.ServiceError.unexpectedResponse(404)
+        #expect(WorkflowProvenancePanel.loadErrorMessage(for: error) == nil)
+    }
+
+    @Test("non-404 responses still surface an error")
+    func otherResponsesStillSurfaceError() {
+        let error = EntityServiceGenerated.ServiceError.unexpectedResponse(500)
+        #expect(WorkflowProvenancePanel.loadErrorMessage(for: error) == error.localizedDescription)
+    }
+}

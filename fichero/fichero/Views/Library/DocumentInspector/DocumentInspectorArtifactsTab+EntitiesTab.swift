@@ -49,11 +49,11 @@ struct DocumentInspectorEntitiesTab: View {
         )
     }
 
-    // ponytail: recompute inputs — entityStore.entities, hiddenKindsCSV
+    // ponytail: recompute inputs — scopedEntities, hiddenKindsCSV
     @State private var grouped: [(EntityKind, [Components.Schemas.KnowledgeEntity])] = []
 
     private func recomputeGrouped() {
-        let dict = Dictionary(grouping: entityStore.entities) { entity in
+        let dict = Dictionary(grouping: scopedEntities) { entity in
             EntityKind(apiType: entity.entityType) ?? .other
         }
         let hidden = hiddenKinds
@@ -84,6 +84,18 @@ struct DocumentInspectorEntitiesTab: View {
         return selectedEntities.first
     }
 
+    private var scopedEntities: [Components.Schemas.KnowledgeEntity] {
+        entityStore.entities(forDocument: documentId)
+    }
+
+    private var scopedLoadError: String? {
+        entityStore.loadError(forDocument: documentId)
+    }
+
+    private var isScopedLoading: Bool {
+        entityStore.isLoading(forDocument: documentId)
+    }
+
     private var bulkActionScopeLabel: String {
         document.docType == .page ? "This page only" : "This folder only"
     }
@@ -103,16 +115,16 @@ struct DocumentInspectorEntitiesTab: View {
                     .padding(.horizontal)
             }
 
-            if entityStore.isLoading {
+            if isScopedLoading {
                 ProgressView()
                     .padding(.vertical, 8)
                     .padding(.horizontal)
-            } else if let loadError = entityStore.loadError {
+            } else if let loadError = scopedLoadError {
                 Label(loadError, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .padding(.horizontal)
-            } else if entityStore.entities.isEmpty {
+            } else if scopedEntities.isEmpty {
                 Text("No entities for this document yet.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -120,15 +132,21 @@ struct DocumentInspectorEntitiesTab: View {
             } else if grouped.isEmpty {
                 emptyVisibleGroupsState
             } else {
-                PlatformVSplitView {
-                    List(selection: $entitySelection) {
-                        ForEach(grouped, id: \.0) { kind, items in
-                            entityKindSection(kind: kind, entities: items)
+                VStack(spacing: 0) {
+                    PlatformVSplitView {
+                        List(selection: $entitySelection) {
+                            ForEach(grouped, id: \.0) { kind, items in
+                                entityKindSection(kind: kind, entities: items)
+                            }
                         }
-                    }
-                    .listStyle(.plain)
+                        .listStyle(.plain)
 
-                    entityDetailPane
+                        entityDetailPane
+                    }
+                    Divider()
+                    entitiesMiniToolbar
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
                 }
             }
         }
@@ -136,7 +154,7 @@ struct DocumentInspectorEntitiesTab: View {
         // The store owns fetching; the view just scopes it to this document.
         .task(id: documentId) { await entityStore.loadEntities(forDocument: documentId) }
         .onAppear { recomputeGrouped() }
-        .onChange(of: entityStore.entities) { _, _ in
+        .onChange(of: scopedEntities) { _, _ in
             recomputeGrouped()
             syncSelectionToLoadedEntities()
         }
@@ -204,7 +222,7 @@ struct DocumentInspectorEntitiesTab: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text("\(entityStore.entities.count) entities")
+            Text("\(scopedEntities.count) entities")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -218,6 +236,45 @@ struct DocumentInspectorEntitiesTab: View {
             .help("Reload entities")
             .accessibilityLabel("Reload entities")
         }
+    }
+
+    private var entitiesMiniToolbar: some View {
+        MiniToolbar {
+            Text(entitiesToolbarStatusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            filterMenu
+
+            Button {
+                Task { await entityStore.loadEntities(forDocument: documentId, force: true) }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .help("Reload entities")
+            .accessibilityLabel("Reload entities")
+
+            if entitySelection.count > 1 {
+                bulkActionMenu(title: "Approve", systemImage: "checkmark.circle", action: .approve)
+                bulkActionMenu(title: "Reject", systemImage: "xmark.circle", action: .reject)
+                bulkActionMenu(title: "Suppress", systemImage: "eye.slash", action: .suppress)
+                mergeActionMenu(targetEntities: selectedEntities, menuTitle: "Merge")
+                deleteActionButton(targetEntities: selectedEntities)
+            }
+        }
+    }
+
+    private var entitiesToolbarStatusText: String {
+        if entitySelection.count > 1 {
+            return "\(entitySelection.count) selected"
+        }
+        if let selectedEntity {
+            return selectedEntity.canonicalName
+        }
+        return "\(scopedEntities.count) entities"
     }
 
     @ViewBuilder
@@ -266,7 +323,7 @@ struct DocumentInspectorEntitiesTab: View {
     private var emptyVisibleGroupsState: some View {
         if hasActiveKindFilter {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Loaded \(entityStore.entities.count) entities, but the current filter hides every kind.")
+                Text("Loaded \(scopedEntities.count) entities, but the current filter hides every kind.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("Show all kinds") {
@@ -280,7 +337,7 @@ struct DocumentInspectorEntitiesTab: View {
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 Label(
-                    "Loaded \(entityStore.entities.count) entities, but none mapped into a visible section.",
+                    "Loaded \(scopedEntities.count) entities, but none mapped into a visible section.",
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.caption)
@@ -288,7 +345,7 @@ struct DocumentInspectorEntitiesTab: View {
                 .padding(.horizontal)
 
                 List(selection: $entitySelection) {
-                    entityKindSection(kind: .other, entities: entityStore.entities)
+                    entityKindSection(kind: .other, entities: scopedEntities)
                 }
                 .listStyle(.plain)
                 .frame(maxHeight: .infinity)

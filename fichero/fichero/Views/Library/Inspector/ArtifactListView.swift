@@ -121,6 +121,12 @@ struct ArtifactListView: View {
     private func row(for artifact: Artifact) -> some View {
         ArtifactRow(artifact: artifact)
             .tag(artifact.id)
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) {
+                guard let onOpenInWindow else { return }
+                focused.select(artifact.id, in: store.items)
+                onOpenInWindow()
+            }
             .contextMenu {
                 if let onOpenInWindow {
                     Button("Open in Window") {

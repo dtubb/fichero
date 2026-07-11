@@ -4,6 +4,7 @@ import Foundation
 import XCTest
 
 @MainActor
+// swiftlint:disable:next type_body_length
 final class ClaimSummaryCardTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
@@ -103,6 +104,15 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertTrue(svoRenderer.contains("revealSourceClaimInline()"))
         XCTAssertFalse(svoRenderer.contains("focusEntityLozenge"))
         XCTAssertFalse(svoRenderer.contains("ficheroEntitySearchRequested"))
+    }
+
+    func testVerbAndObjectChipsEnterInlineEditing() throws {
+        let source = try Self.appSource("Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCardView.swift")
+
+        XCTAssertTrue(source.contains("private func beginInlineEditing()"))
+        XCTAssertTrue(source.contains("Text(svo.verb)"))
+        XCTAssertTrue(source.contains("Text(svo.object)"))
+        XCTAssertTrue(source.contains("beginInlineEditing()"))
     }
 
     func testExpandedDetailsShowSourceClaimText() throws {
@@ -342,6 +352,14 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertEqual(candidates.first?.score, 0.91)
         XCTAssertEqual(candidates.last?.name, "Andagoia")    // "name" fallback when no canonical_name
         XCTAssertTrue(EntityDetailView.parseDuplicateCandidates(Data(), excluding: "x").isEmpty)
+    }
+
+    func testLocationEntitiesHideGenericClaimsSection() {
+        let location = makeKnowledgeEntity(id: "entity-1", name: "Andagoya", type: .location)
+        let person = makeKnowledgeEntity(id: "entity-2", name: "Crawfurd", type: .person)
+
+        XCTAssertFalse(EntityDetailView.showsClaimsSection(for: location))
+        XCTAssertTrue(EntityDetailView.showsClaimsSection(for: person))
     }
 
     private func decodeClaim(_ json: String) throws -> Components.Schemas.KnowledgeClaim {

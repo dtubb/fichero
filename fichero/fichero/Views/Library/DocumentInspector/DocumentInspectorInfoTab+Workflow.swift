@@ -9,6 +9,7 @@ import SwiftUI
 struct WorkflowProvenancePanel: View {
     let documentId: String
 
+    @Environment(EntityServiceGenerated.self) private var entityService
     @State private var runs: [Components.Schemas.WorkflowRunProvenanceResponse] = []
     @State private var isLoading = false
     @State private var loadError: String?
@@ -85,15 +86,14 @@ struct WorkflowProvenancePanel: View {
     }
 
     private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
         isLoading = true
         loadError = nil
         defer { isLoading = false }
         do {
-            let fetched = try await library.entityService.listDocumentWorkflowRuns(documentId: documentId)
+            let fetched = try await entityService.listDocumentWorkflowRuns(documentId: documentId)
             runs = WorkflowProvenancePanel.sortNewestFirst(fetched)
         } catch {
-            loadError = error.localizedDescription
+            loadError = Self.loadErrorMessage(for: error)
         }
     }
 
@@ -109,6 +109,13 @@ struct WorkflowProvenancePanel: View {
             let rhsDate = rhs.startedAt.flatMap { fmt.date(from: $0) } ?? .distantPast
             return lhsDate > rhsDate
         }
+    }
+
+    static func loadErrorMessage(for error: Error) -> String? {
+        if case EntityServiceGenerated.ServiceError.unexpectedResponse(404) = error {
+            return nil
+        }
+        return error.localizedDescription
     }
 }
 

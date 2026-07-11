@@ -3,6 +3,7 @@ import FicheroAPIClient
 import Foundation
 import XCTest
 
+// swiftlint:disable file_length
 @MainActor
 // swiftlint:disable:next type_body_length
 final class EntityStoreTests: XCTestCase {
@@ -292,6 +293,37 @@ final class EntityStoreTests: XCTestCase {
         )
     }
 
+    func testDocumentBucketsKeepSeparateInspectorScopesPerDocument() async throws {
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "GET", path: "/api/documents/doc-1/inspector",
+                    statusCode: 200,
+                    body: makeDocumentInspectorResponse(
+                        documentId: "doc-1",
+                        entities: [makeEntityJSON(id: "entity-1", name: "Alpha")]
+                    )
+                ),
+                .init(
+                    method: "GET", path: "/api/documents/doc-2/inspector",
+                    statusCode: 200,
+                    body: makeDocumentInspectorResponse(
+                        documentId: "doc-2",
+                        entities: [makeEntityJSON(id: "entity-2", name: "Beta")]
+                    )
+                )
+            ]
+        )
+
+        let store = makeStore()
+        await store.loadEntities(forDocument: "doc-1")
+        await store.loadEntities(forDocument: "doc-2")
+
+        XCTAssertEqual(store.entities(forDocument: "doc-1").map(\.canonicalName), ["Alpha"])
+        XCTAssertEqual(store.entities(forDocument: "doc-2").map(\.canonicalName), ["Beta"])
+        XCTAssertEqual(store.entities.map(\.canonicalName), ["Beta"])
+    }
+
     private func makeStore() -> EntityStore {
         let client = FicheroClient(baseURL: URL(string: "https://127.0.0.1:8765")!, libraryPath: "/tmp/test.fichero")
         let entityService = EntityServiceGenerated(ficheroClient: client)
@@ -317,9 +349,12 @@ final class EntityStoreTests: XCTestCase {
         try? Data("test-token\n".utf8).write(to: tokenFile, options: [.atomic])
     }
 
-    private func makeDocumentInspectorResponse(entities: [[String: Any]]) -> Data {
+    private func makeDocumentInspectorResponse(
+        documentId: String = "doc-1",
+        entities: [[String: Any]]
+    ) -> Data {
         let payload: [String: Any] = [
-            "document_id": "doc-1",
+            "document_id": documentId,
             "document": [:],
             "source_metadata": [:],
             "claim_count": 0,
