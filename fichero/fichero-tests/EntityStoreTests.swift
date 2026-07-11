@@ -506,4 +506,10 @@ final class EntityStoreTests: XCTestCase {
         ])
         XCTAssertEqual(merged.map(\.canonicalName), ["Ada", "Grace"])
     }
+
+    func testAggregationKeyPrefersIdThenTypeNameFallback() {
+        XCTAssertEqual(EntityStore.aggregationKey(for: aggEntity(id: "e1", name: "Ada")), "e1")
+        // No id → stable type:name key (aggEntity uses .person).
+        XCTAssertEqual(EntityStore.aggregationKey(for: aggEntity(id: nil, name: "Ada")), "person:Ada")
+    }
 }
