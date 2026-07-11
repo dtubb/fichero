@@ -41,6 +41,12 @@ struct EntityKindRow: View {
     /// crop just resolves to "No source region" instead of crashing.
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
+    // Configurable row metadata (#3466), Xcode-console-style — the mini-toolbar's
+    // "Row Detail" menu flips these, persisted so the choice sticks across docs.
+    @AppStorage("inspector.kg.row.showConfidence") private var showConfidence = true
+    @AppStorage("inspector.kg.row.showPageRef") private var showPageRef = true
+    @AppStorage("inspector.kg.row.showContext") private var showContext = true
+    @AppStorage("inspector.kg.row.showExcerpt") private var showExcerpt = true
     @State private var claimForEditing: Components.Schemas.KnowledgeClaim?
     @State private var rowError: String?
     /// Presents the source-provenance quick-look popover for the primary claim.
@@ -135,7 +141,7 @@ struct EntityKindRow: View {
     /// sitting beside the tappable name on line 1.
     private var trailingText: Text {
         let aliasesText = item.aliases.isEmpty ? "" : " (aka \(item.aliases.joined(separator: ", ")))"
-        let pageRefText = pageReference.map { "  (\($0))" } ?? ""
+        let pageRefText = (showPageRef ? pageReference : nil).map { "  (\($0))" } ?? ""
         if !item.aliases.isEmpty {
             return Text("\(aliasesText)\(pageRefText)")
                 .font(secondaryTextFont)
@@ -219,7 +225,7 @@ struct EntityKindRow: View {
                     ClaimCurationBadge(state: curationState)
                 }
 
-                if let confidence {
+                if showConfidence, let confidence {
                     Text(String(format: "%.2f", confidence))
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
@@ -306,7 +312,8 @@ struct EntityKindRow: View {
                 }
             }
 
-            if !context.isEmpty,
+            if showContext,
+               !context.isEmpty,
                context != item.displayName,
                !item.displayName.contains(context) {
                 Text(context)
@@ -315,7 +322,8 @@ struct EntityKindRow: View {
                     .textSelection(.enabled)
             }
 
-            if let excerpt = sourceExcerpt,
+            if showExcerpt,
+               let excerpt = sourceExcerpt,
                !excerpt.isEmpty,
                excerpt != context,
                excerpt != item.displayName {
