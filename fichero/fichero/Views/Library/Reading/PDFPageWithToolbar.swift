@@ -156,7 +156,6 @@ struct PDFPageWithToolbar: View {
                 pageIndex: pageIndex,
                 kind: kind
             )
-            await annotationStore.loadAnnotations(for: .document(documentId), force: true)
         }
     }
 

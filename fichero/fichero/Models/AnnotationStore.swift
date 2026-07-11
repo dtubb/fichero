@@ -148,6 +148,7 @@ final class AnnotationStore: ObservableDomainStore {
     nonisolated var changeDomain: String { "annotation" }
 
     func apply(_ event: ChangeEvent) {
+        guard eventTouchesLoadedScope(event) else { return }
         changeToken &+= 1
         switch event.verb {
         case "created", "updated", "deleted":
@@ -161,4 +162,14 @@ final class AnnotationStore: ObservableDomainStore {
     /// (called above for create/update/delete) and `resync()` are provided by the
     /// `ObservableDomainStore` extension — no per-store copies.
     let reloadDebouncer = ReloadDebouncer()
+
+    private func eventTouchesLoadedScope(_ event: ChangeEvent) -> Bool {
+        guard let loadedScope else { return false }
+        let ids = Set(event.documentIds)
+        if ids.isEmpty { return true }
+        switch loadedScope {
+        case .document(let id), .page(let id), .folder(let id):
+            return ids.contains(id)
+        }
+    }
 }

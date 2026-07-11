@@ -82,6 +82,16 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertFalse(sharedSource.contains("ficheroEntitySearchRequested"))
     }
 
+    func testLegacyCitationInfoPanelsUseEnvironmentStores() throws {
+        let citationsSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorInfoTab+Citations.swift")
+        let bibliographySource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorInfoTab+Bibliography.swift")
+
+        XCTAssertTrue(citationsSource.contains("@Environment(CitationStore.self)"))
+        XCTAssertFalse(citationsSource.contains("LibraryManager.shared.globalLibrary?.citationStore"))
+        XCTAssertTrue(bibliographySource.contains("@Environment(ReferenceStore.self)"))
+        XCTAssertFalse(bibliographySource.contains("LibraryManager.shared.globalLibrary?.referenceStore"))
+    }
+
     func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
 

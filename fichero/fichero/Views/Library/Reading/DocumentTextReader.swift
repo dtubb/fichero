@@ -157,7 +157,6 @@ struct DocumentTextReader: View {
                 charEnd: range.upperBound,
                 kind: .highlight
             )
-            await annotationStore.loadAnnotations(for: .document(document.id), force: true)
         }
     }
 
@@ -179,7 +178,6 @@ struct DocumentTextReader: View {
                 charEnd: range?.upperBound,
                 kind: .note
             )
-            await annotationStore.loadAnnotations(for: .document(document.id), force: true)
         }
     }
 

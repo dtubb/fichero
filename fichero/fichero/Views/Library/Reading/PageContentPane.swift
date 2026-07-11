@@ -345,7 +345,6 @@ extension PageContentPane {
                 charEnd: range.upperBound,
                 kind: .highlight
             )
-            await annotationStore.loadAnnotations(for: .page(doc.id), force: true)
         }
     }
 
@@ -368,7 +367,6 @@ extension PageContentPane {
                 charEnd: range?.upperBound,
                 kind: .note
             )
-            await annotationStore.loadAnnotations(for: .page(doc.id), force: true)
         }
     }
 
