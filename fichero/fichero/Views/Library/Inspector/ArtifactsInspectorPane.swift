@@ -120,7 +120,7 @@ struct ArtifactsInspectorPane: View {
             if let actionError {
                 errorBox(actionError)
             }
-            PlatformVSplitView {
+            InspectorListDetailSplit {
                 ArtifactListView(
                     store: store,
                     inspectedDocument: document,
@@ -128,10 +128,7 @@ struct ArtifactsInspectorPane: View {
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
-                .frame(minHeight: 140, idealHeight: 180)
-
-                Divider()
-
+            } detail: {
                 ArtifactDetailView(
                     artifact: selectedArtifact,
                     provenance: selectedProvenance,
@@ -143,7 +140,6 @@ struct ArtifactsInspectorPane: View {
                         Task { await deleteArtifact(artifact) }
                     }
                 )
-                .frame(minHeight: 240, idealHeight: 360)
             }
             Divider()
             InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText) {

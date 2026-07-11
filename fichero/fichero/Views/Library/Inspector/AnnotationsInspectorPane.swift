@@ -26,16 +26,13 @@ struct AnnotationsInspectorPane: View {
             if let loadError = annotationStore.loadError {
                 errorBox(loadError)
             }
-            PlatformVSplitView {
+            InspectorListDetailSplit {
                 AnnotationListView(
                     annotations: annotations,
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
-                .frame(minHeight: 140, idealHeight: 180)
-
-                Divider()
-
+            } detail: {
                 AnnotationDetailView(
                     annotation: selectedAnnotation,
                     onSave: { annotation, text in
@@ -54,7 +51,6 @@ struct AnnotationsInspectorPane: View {
                         reveal(annotation)
                     }
                 )
-                .frame(minHeight: 240, idealHeight: 360)
             }
             Divider()
             InspectorBottomMiniToolbar(statusText: annotationsToolbarStatusText) {

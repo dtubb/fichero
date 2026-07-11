@@ -135,17 +135,15 @@ struct DocumentInspectorEntitiesTab: View {
                 emptyVisibleGroupsState
             } else {
                 VStack(spacing: 0) {
-                    PlatformVSplitView {
+                    InspectorListDetailSplit {
                         List(selection: $entitySelection) {
                             ForEach(grouped, id: \.0) { kind, items in
                                 entityKindSection(kind: kind, entities: items)
                             }
                         }
                         .listStyle(.inset)
-                        .frame(minHeight: 140, idealHeight: 180)
-
+                    } detail: {
                         entityDetailPane
-                            .frame(minHeight: 240, idealHeight: 360)
                     }
                     Divider()
                     entitiesMiniToolbar

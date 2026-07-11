@@ -35,18 +35,14 @@ struct CitationsInspectorPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PlatformVSplitView {
+            InspectorListDetailSplit {
                 CitationListView(
                     store: store,
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
-                .frame(minHeight: 140, idealHeight: 180)
-
-                Divider()
-
+            } detail: {
                 CitationDetailView(item: selectedItem, usages: store.usages)
-                    .frame(minHeight: 240, idealHeight: 360)
             }
             Divider()
             InspectorBottomMiniToolbar(statusText: citationsToolbarStatusText) {

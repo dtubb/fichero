@@ -112,3 +112,33 @@ struct PlatformVSplitView<Content: View>: View {
 }
 
 #endif
+
+/// Vertical **list-over-detail** layout shared by every inspector pane
+/// (#3434 4-section inspector, #3458). The top list defaults to ~1/3 of the
+/// available height and the detail fills the remaining ~2/3.
+///
+/// Why not `VSplitView` directly: a SwiftUI `List` is infinitely greedy
+/// vertically, so inside a `VSplitView` the top list ballooned to ~3/4 and
+/// squished the detail. A fixed fraction of the container height pins the list
+/// short regardless of the List's greed — the same behaviour on macOS and iOS.
+struct InspectorListDetailSplit<TopList: View, Detail: View>: View {
+    /// Fraction of the container height given to the top list; detail takes the rest.
+    var listFraction: CGFloat = 1.0 / 3.0
+    @ViewBuilder var list: () -> TopList
+    @ViewBuilder var detail: () -> Detail
+
+    var body: some View {
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                list()
+                    // ponytail: fixed fraction, not a draggable divider — the ask
+                    // was a 1/3 default. Swap in a resizable+remembered split if a
+                    // user actually wants to drag it.
+                    .frame(height: max(120, proxy.size.height * listFraction))
+                Divider()
+                detail()
+                    .frame(maxHeight: .infinity)
+            }
+        }
+    }
+}
