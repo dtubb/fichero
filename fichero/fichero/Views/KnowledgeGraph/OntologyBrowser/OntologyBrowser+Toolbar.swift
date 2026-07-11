@@ -65,6 +65,13 @@ extension OntologyBrowser {
             }
             .buttonStyle(.plain)
             .help("New entity (#916)")
+            Button {
+                showSparqlConsole = true
+            } label: {
+                Image(systemName: "chevron.left.forwardslash.chevron.right")
+            }
+            .buttonStyle(.plain)
+            .help("SPARQL console — query the knowledge graph (W3C, #3298)")
             toolsMenu
             filterMenu
             // The List/Graph/Chart/Timeline/Map switcher is NOT a row of icons
