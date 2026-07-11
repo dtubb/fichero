@@ -53,7 +53,6 @@ RULES = (("notif", _NC_APP_RE), ("shared", _SHARED_RE))
 
 # Grandfathered offenders (hash -> human location). Seed with --generate (#3040).
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "ca362056aacf": '[notif] fichero/fichero/Views/ContentView.swift:536: .onReceive(NotificationCenter.default.publisher(for: .ficheroEntitySearchRequested)) { not',
     "666c9a648422": '[notif] fichero/fichero/Views/ContentView.swift:539: .onReceive(NotificationCenter.default.publisher(for: .ficheroOpenClaimSource)) { note in',
     "9ea6545b396b": '[notif] fichero/fichero/Views/ContentView.swift:542: .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { n',
     "745fa9e2e206": '[notif] fichero/fichero/Views/ContentView.swift:545: .onReceive(NotificationCenter.default.publisher(for: .ficheroShowPanelRequested)) { note i',
