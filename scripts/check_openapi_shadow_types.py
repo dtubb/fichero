@@ -123,7 +123,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/SpatialLibraryProjector.swift::Document": "#2712 — local projector display model; consume generated Components.Schemas.Document when Spatial folds into the library",
     "Services/WorkflowRunResponse.swift::WorkflowRunResponse": "§6b baseline — struct shadows Components.Schemas.WorkflowRunResponse",
     "Services/WorkflowStreamTypes.swift::ExecuteAcceptedResponse": "§6b baseline — struct shadows Components.Schemas.ExecuteAcceptedResponse",
-    "Views/Library/DocumentInspector/SourceOutlineView.swift::DocumentOutlineRow": "§6b baseline — struct shadows Components.Schemas.DocumentOutlineRow",
     "Views/Library/Workspace/WorkspaceItemPicker.swift::WorkspaceCuratedItem": "#2649 — local curated-item projection for picker state, distinct from the wire payload",
     "Views/Settings/AIDefaults.swift::AIDefaults": "§6b baseline — struct shadows Components.Schemas.AIDefaults",
     "Views/Workflow/WorkflowOutputLog+Models.swift::StepStatus": "§6b baseline — enum shadows Components.Schemas.StepStatus",
