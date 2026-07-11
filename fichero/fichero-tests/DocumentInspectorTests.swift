@@ -335,4 +335,18 @@ final class DocumentInspectorTests: XCTestCase {
         )
         XCTAssertNil(SourceOutlineNode.navigationRequest(for: noDoc))
     }
+
+    // MARK: - Content-tab artifacts on the store (#3427)
+
+    func testDisplayAttributesStripObservesArtifactStoreNotService() throws {
+        let source = try Self.appSource("Views/Library/DisplayAttributesStrip.swift")
+
+        // The content-tab strip reads the shared ArtifactStore, not a view-local
+        // ArtifactServiceGenerated fetch (#3427).
+        XCTAssertTrue(source.contains("@Environment(ArtifactStore.self)"))
+        XCTAssertTrue(source.contains("artifactStore.items"))
+        XCTAssertTrue(source.contains("artifactStore.setScope("))
+        XCTAssertFalse(source.contains("@Environment(ArtifactServiceGenerated.self)"))
+        XCTAssertFalse(source.contains("artifactService.getArtifacts"))
+    }
 }

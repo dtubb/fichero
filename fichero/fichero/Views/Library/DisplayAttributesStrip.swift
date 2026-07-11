@@ -14,7 +14,7 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     // Artifacts are loaded lazily so the user can opt to surface them as rows
     // (#1229 part 2). The same per-document, non-descendant scope the Artifacts
     // tab uses (#721) — a page shows only its own artifacts.
-    @Environment(ArtifactServiceGenerated.self) private var artifactService
+    @Environment(ArtifactStore.self) private var artifactStore
 
     /// Which fixed attributes the user has *hidden*, comma-joined raw values.
     /// Persisted as a global display preference (not per-window scene state) —
@@ -45,7 +45,9 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     /// Knowledge-graph reads come from the same service the KG tab uses.
     @Environment(EntityServiceGenerated.self) private var entityService
 
-    @State private var artifacts: [Artifact] = []
+    /// Generated artifacts for this document, observed from the shared
+    /// ArtifactStore rather than a view-local fetch (#3427).
+    private var artifacts: [Artifact] { artifactStore.items }
     /// KG counts for this document, nil until loaded (or on load failure).
     /// Drives the opt-in Entities/Claims rows (#1246).
     @State private var entityCount: Int?
@@ -398,16 +400,10 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     }
 
     private func loadArtifacts() async {
-        do {
-            artifacts = try await artifactService.getArtifacts(
-                forDocumentId: document.id,
-                includeDescendants: false
-            )
-        } catch {
-            // Artifacts are optional context — fall back to an empty list so
-            // the fixed attribute rows still render.
-            artifacts = []
-        }
+        // Scope the shared store to this document (own artifacts only, a page
+        // shows just its own); the strip reads `artifactStore.items` reactively
+        // and live-updates on artifact.* change events (#3427).
+        await artifactStore.setScope(documentId: document.id, includeDescendants: false)
     }
 
     /// Load KG counts for the opt-in Entities/Claims rows. Mirrors the KG
