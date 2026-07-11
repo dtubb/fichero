@@ -113,6 +113,26 @@ final class OntologyBrowserFilterTests: XCTestCase {
         XCTAssertFalse(OntologyBrowser.isOcrGarbage("COVID-19"))
     }
 
+    // MARK: - Truncation warning
+
+    func testTruncationMessageHiddenBelowCap() {
+        XCTAssertNil(OntologyBrowser.truncationMessage(entityCount: 99, searchText: ""))
+    }
+
+    func testTruncationMessageWarnsForUnfilteredListAtCap() {
+        XCTAssertEqual(
+            OntologyBrowser.truncationMessage(entityCount: 100, searchText: ""),
+            "Showing the first 100 entities. Refine the list to narrow the graph."
+        )
+    }
+
+    func testTruncationMessageWarnsForSearchResultsAtCap() {
+        XCTAssertEqual(
+            OntologyBrowser.truncationMessage(entityCount: 100, searchText: "paris"),
+            "Showing the first 100 matching entities. Refine the search to narrow the list."
+        )
+    }
+
     // MARK: - EntityRow display-label fallback
 
     func testEntityRowFallbackForEmptyCanonicalName() {

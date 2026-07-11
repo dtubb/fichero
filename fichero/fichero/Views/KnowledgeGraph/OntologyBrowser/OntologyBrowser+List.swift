@@ -4,11 +4,38 @@ import SwiftUI
 // Entity list sidebar, search bar, list rows, and navigation for
 // OntologyBrowser (#1703).
 extension OntologyBrowser {
+    static let entityListLimit = 100
+
     // MARK: - Entity List Sidebar
+
+    static func truncationMessage(
+        entityCount: Int,
+        searchText: String,
+        limit: Int = entityListLimit
+    ) -> String? {
+        guard entityCount >= limit else { return nil }
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Showing the first \(limit) entities. Refine the list to narrow the graph."
+        }
+        return "Showing the first \(limit) matching entities. Refine the search to narrow the list."
+    }
+
+    var entityTruncationMessage: String? {
+        Self.truncationMessage(entityCount: entities.count, searchText: searchText)
+    }
 
     var entityListSidebar: some View {
         VStack(spacing: 0) {
             searchBar
+            if let entityTruncationMessage {
+                Divider()
+                Text(entityTruncationMessage)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+            }
             Divider()
             entityList
                 .frame(maxWidth: .infinity)  // fill the column, don't anchor left (#981)
@@ -209,7 +236,7 @@ extension OntologyBrowser {
         do {
             let library = LibraryManager.shared.globalLibrary!
             let service = library.entityService
-            async let entityList = service.listEntities(limit: 100)
+            async let entityList = service.listEntities(limit: Self.entityListLimit)
             async let counts = service.fetchClaimCounts()
             entities = try await entityList
             claimCounts = (try? await counts) ?? [:]
@@ -235,7 +262,7 @@ extension OntologyBrowser {
             // EntityServiceGenerated.listEntities supports a free-text
             // `query` filter — same as searching by canonical name or
             // alias. No need for a separate resolve-by-value API.
-            entities = try await service.listEntities(query: searchText, limit: 100)
+            entities = try await service.listEntities(query: searchText, limit: Self.entityListLimit)
         } catch {
             await loadEntities()
         }
