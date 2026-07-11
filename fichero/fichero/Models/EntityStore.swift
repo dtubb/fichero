@@ -23,6 +23,9 @@ final class EntityStore: ObservableDomainStore {
     private(set) var entities: [Components.Schemas.KnowledgeEntity] = []
     private(set) var isLoading = false
     private(set) var loadError: String?
+    private(set) var entitiesByDocumentId: [String: [Components.Schemas.KnowledgeEntity]] = [:]
+    private(set) var loadingDocumentIds: Set<String> = []
+    private(set) var loadErrorsByDocumentId: [String: String] = [:]
 
     // ─── Transport: the EXISTING generated wrappers, unchanged ───
     private let entityService: EntityServiceGenerated
@@ -30,9 +33,11 @@ final class EntityStore: ObservableDomainStore {
     private let libraryPath: String
     private let log = Logger(subsystem: "app.fichero.fichero", category: "EntityStore")
 
-    /// Per-document scoping cache — the inspector loads "entities for THIS
-    /// document". `loadEntities` is idempotent against it unless forced.
-    private var loadedDocumentId: String?
+    /// Document scopes that have been loaded successfully. Multiple inspector
+    /// windows on the same library can keep different document buckets warm
+    /// without thrashing each other's visible list (#1908).
+    private var loadedDocumentIds: Set<String> = []
+    private var lastLoadedDocumentId: String?
 
     init(
         entityService: EntityServiceGenerated,
@@ -50,25 +55,37 @@ final class EntityStore: ObservableDomainStore {
     /// same already-populated scope is a no-op unless `force` is set (reload
     /// button / post-mutation refresh).
     func loadEntities(forDocument documentId: String, force: Bool = false) async {
-        if !force, loadedDocumentId == documentId, !entities.isEmpty { return }
-        isLoading = true
-        loadError = nil
-        defer { isLoading = false }
+        if !force, loadedDocumentIds.contains(documentId), loadErrorsByDocumentId[documentId] == nil {
+            syncLegacyScope(documentId: documentId)
+            return
+        }
+
+        lastLoadedDocumentId = documentId
+        loadingDocumentIds.insert(documentId)
+        loadErrorsByDocumentId[documentId] = nil
+        syncLegacyScope(documentId: documentId)
+        defer {
+            loadingDocumentIds.remove(documentId)
+            syncLegacyScope(documentId: documentId)
+        }
         do {
             let loaded = try await entityService.listInspectorEntitiesForDocument(
                 documentId: documentId
             )
-            entities = loaded
-            loadedDocumentId = documentId
+            entitiesByDocumentId[documentId] = loaded
+            loadErrorsByDocumentId.removeValue(forKey: documentId)
+            loadedDocumentIds.insert(documentId)
+            syncLegacyScope(documentId: documentId)
             log.debug(
                 "Loaded \(loaded.count, privacy: .public) entities for \(documentId, privacy: .public)"
             )
         } catch is CancellationError {
             // Superseded by a newer document selection — keep current state.
         } catch {
-            loadError = "Couldn't load entities: \(error.localizedDescription)"
-            entities = []
-            loadedDocumentId = documentId
+            entitiesByDocumentId[documentId] = []
+            loadErrorsByDocumentId[documentId] = "Couldn't load entities: \(error.localizedDescription)"
+            loadedDocumentIds.remove(documentId)
+            syncLegacyScope(documentId: documentId)
             log.error(
                 "Failed to load entities for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
@@ -77,8 +94,24 @@ final class EntityStore: ObservableDomainStore {
 
     /// Re-fetch the current document scope (post-mutation / reconnect resync).
     func reload() async {
-        guard let documentId = loadedDocumentId else { return }
-        await loadEntities(forDocument: documentId, force: true)
+        let documentIds = loadedDocumentIds.isEmpty
+            ? (lastLoadedDocumentId.map { [$0] } ?? [])
+            : Array(loadedDocumentIds)
+        for documentId in documentIds {
+            await loadEntities(forDocument: documentId, force: true)
+        }
+    }
+
+    func entities(forDocument documentId: String) -> [Components.Schemas.KnowledgeEntity] {
+        entitiesByDocumentId[documentId] ?? []
+    }
+
+    func isLoading(forDocument documentId: String) -> Bool {
+        loadingDocumentIds.contains(documentId)
+    }
+
+    func loadError(forDocument documentId: String) -> String? {
+        loadErrorsByDocumentId[documentId]
     }
 
     // MARK: - Named actions (map 1:1 to the audited action layer, #1848)
@@ -195,4 +228,10 @@ final class EntityStore: ObservableDomainStore {
     /// (called above for non-delete verbs) and `resync()` are provided by the
     /// `ObservableDomainStore` extension — no per-store copies.
     let reloadDebouncer = ReloadDebouncer()
+
+    private func syncLegacyScope(documentId: String) {
+        entities = entitiesByDocumentId[documentId] ?? []
+        isLoading = loadingDocumentIds.contains(documentId)
+        loadError = loadErrorsByDocumentId[documentId]
+    }
 }

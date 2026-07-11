@@ -348,6 +348,19 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(source.contains("deleteActionButton(targetEntities: selectedEntities)"))
     }
 
+    func testInspectorEntitiesTabReadsPerDocumentEntityStoreBuckets() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+        let storeSource = try Self.appSource("Models/EntityStore.swift")
+
+        XCTAssertTrue(source.contains("entityStore.entities(forDocument: documentId)"))
+        XCTAssertTrue(source.contains("entityStore.loadError(forDocument: documentId)"))
+        XCTAssertTrue(source.contains("entityStore.isLoading(forDocument: documentId)"))
+        XCTAssertTrue(storeSource.contains("private(set) var entitiesByDocumentId"))
+        XCTAssertTrue(storeSource.contains("func entities(forDocument documentId: String)"))
+    }
+
     func testInspectorDeleteActionsUseGeneratedEntityAndClaimClients() throws {
         let entitiesSource = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
