@@ -917,6 +917,10 @@ extension ContentView {
             if let pageLabel = request.pageLabel { info["pageLabel"] = pageLabel }
             if let charStart = request.charStart { info["charStart"] = charStart }
             if let charEnd = request.charEnd { info["charEnd"] = charEnd }
+            // Forward the source region so the page reader can highlight the
+            // exact bbox — the "reveal in Preview + highlight" tier (#2105/#3449).
+            // Only present when the anchor actually carries a bbox.
+            if let bbox = request.bbox, !bbox.isEmpty { info["bbox"] = bbox }
             NotificationCenter.default.post(
                 name: .ficheroNavigateToPage,
                 object: nil,

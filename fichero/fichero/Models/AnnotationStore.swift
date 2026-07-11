@@ -126,6 +126,12 @@ final class AnnotationStore: ObservableDomainStore {
         await annotationService.cropAnnotation(id: id)
     }
 
+    /// Fetch the cropped source region (image or text) for any bbox/char anchor
+    /// (#2105) — powers SourceSnippet / the provenance popover.
+    func cropRegion(_ request: SourceCropRequest) async throws -> SourceCrop? {
+        try await annotationService.cropRegion(request)
+    }
+
     /// Promote a highlight/note to a KnowledgeClaim and refresh.
     @discardableResult
     func promoteToClaim(id: String) async -> Bool {

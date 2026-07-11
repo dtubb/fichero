@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.7.3b1"
+    "version": "0.1.0.dev1"
   },
   "paths": {
     "/api/health": {
@@ -2377,10 +2377,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Cropped source region: PNG bytes for an image / PDF bbox, or the verbatim substring for a text char-range.",
             "content": {
               "application/json": {
                 "schema": {}
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -2403,7 +2414,7 @@
           "annotations"
         ],
         "summary": "Ephemeral crop for an unsaved region (no annotation persisted)",
-        "description": "Crops a document to a transient region (bbox / char range) and returns the content \u2014 substring for text, PNG bytes for image / PDF \u2014 WITHOUT creating an annotation. The reader uses this to feed only the region under consideration to a provider before the user commits. (#2256)",
+        "description": "Crops a document to a transient region (bbox / char range) and returns the content \u2014 substring for text, PNG bytes for image / PDF \u2014 WITHOUT creating an annotation. The inspector's source popover (#2105/#3449) renders the returned PNG to show the cropped evidence for any bbox-anchored claim/entity/annotation. (#2256)",
         "operationId": "crop_ephemeral_api_annotations_crop_post",
         "requestBody": {
           "content": {
@@ -2417,10 +2428,21 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Cropped source region: PNG bytes for an image / PDF bbox, or the verbatim substring for a text char-range.",
             "content": {
               "application/json": {
                 "schema": {}
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },

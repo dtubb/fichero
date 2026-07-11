@@ -130,6 +130,17 @@ extension ClaimSummaryCard {
             .buttonStyle(.plain)
             .help("Open the source page and highlight this annotation")
         }
+        // Source-region quick-look (#2105/#3449): the cropped evidence + verbatim
+        // span + attribution in a popover, and a Reveal that drives the Preview
+        // pane to the page/bbox. Only when we can build a source anchor.
+        if let request = Self.openClaimSourceRequest(for: claim) {
+            SourceProvenanceChip(
+                request: request,
+                attribution: ClaimAttribution(claim: claim),
+                fetch: { try await annotationStore?.cropRegion($0) ?? nil },
+                onReveal: { openClaimSource() }
+            )
+        }
         if isLoadingDetails {
             HStack {
                 ProgressView().scaleEffect(0.6)
@@ -233,7 +244,8 @@ extension ClaimSummaryCard {
         charStart: Int? = nil,
         charEnd: Int? = nil,
         claimId: String? = nil,
-        excerpt: String? = nil
+        excerpt: String? = nil,
+        bbox: [Double]? = nil
     ) -> ClaimSourceNavigationRequest? {
         guard !documentId.isEmpty else { return nil }
         let cleanedPageLabel = pageLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -244,7 +256,8 @@ extension ClaimSummaryCard {
             claimText: cleanedExcerpt?.isEmpty == false ? cleanedExcerpt : nil,
             pageLabel: cleanedPageLabel?.isEmpty == false ? cleanedPageLabel : nil,
             charStart: charStart,
-            charEnd: charEnd
+            charEnd: charEnd,
+            bbox: bbox.flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 
@@ -257,7 +270,8 @@ extension ClaimSummaryCard {
             charStart: claim.sourceCharStart,
             charEnd: claim.sourceCharEnd,
             claimId: claim.id,
-            excerpt: claim.sourceExcerpt
+            excerpt: claim.sourceExcerpt,
+            bbox: claim.sourceBbox
         )
     }
 

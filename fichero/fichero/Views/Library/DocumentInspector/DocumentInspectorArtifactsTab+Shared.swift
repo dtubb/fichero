@@ -102,9 +102,9 @@ struct ClaimSourceNavigationRequest: Equatable {
     var pageIndex: Int?
     var charStart: Int?
     var charEnd: Int?
-    /// Normalized [x0, y0, x1, y1] source region, matching the engine's
-    /// annotation bbox convention. Drives the cropped-source popover and
-    /// the page-highlight overlay.
+    /// Normalized [x, y, w, h] source region (top-left origin), matching the
+    /// engine's annotation bbox convention (crop_pdf_page / crop_image). Drives
+    /// the cropped-source popover and the page-highlight overlay.
     var bbox: [Double]?
     /// Where a reveal should take the user. Ignored by the inline popover.
     var destination: SourceDestination = .reader

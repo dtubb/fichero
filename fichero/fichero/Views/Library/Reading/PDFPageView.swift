@@ -494,6 +494,29 @@ private func applyHighlightSpan(
         page.removeAnnotation(existing)
     }
 
+    // Most precise anchor: a normalized [x, y, w, h] bbox (engine convention,
+    // top-left origin — the same array crop_pdf_page uses). Draw the region
+    // highlight directly, flipping y into PDFKit's bottom-left page space so the
+    // highlight lands exactly where the crop was taken (#2105/#3449).
+    if let bbox = info["bbox"] as? [Double], bbox.count == 4 {
+        let b = page.bounds(for: .cropBox)
+        let rect = CGRect(
+            x: b.minX + bbox[0] * b.width,
+            y: b.minY + (1 - bbox[1] - bbox[3]) * b.height,
+            width: bbox[2] * b.width,
+            height: bbox[3] * b.height
+        )
+        let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
+        #if canImport(AppKit)
+        annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
+        #else
+        annotation.color = UIColor.systemYellow.withAlphaComponent(0.35)
+        #endif
+        annotation.userName = "fichero.claim-source"
+        page.addAnnotation(annotation)
+        return
+    }
+
     var selection: PDFSelection?
 
     if let excerpt = info["excerpt"] as? String, !excerpt.isEmpty {
@@ -803,6 +826,29 @@ private func applyHighlightSpan(
 
     for existing in page.annotations where existing.userName == "fichero.claim-source" {
         page.removeAnnotation(existing)
+    }
+
+    // Most precise anchor: a normalized [x, y, w, h] bbox (engine convention,
+    // top-left origin — the same array crop_pdf_page uses). Draw the region
+    // highlight directly, flipping y into PDFKit's bottom-left page space so the
+    // highlight lands exactly where the crop was taken (#2105/#3449).
+    if let bbox = info["bbox"] as? [Double], bbox.count == 4 {
+        let b = page.bounds(for: .cropBox)
+        let rect = CGRect(
+            x: b.minX + bbox[0] * b.width,
+            y: b.minY + (1 - bbox[1] - bbox[3]) * b.height,
+            width: bbox[2] * b.width,
+            height: bbox[3] * b.height
+        )
+        let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
+        #if canImport(AppKit)
+        annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
+        #else
+        annotation.color = UIColor.systemYellow.withAlphaComponent(0.35)
+        #endif
+        annotation.userName = "fichero.claim-source"
+        page.addAnnotation(annotation)
+        return
     }
 
     var selection: PDFSelection?

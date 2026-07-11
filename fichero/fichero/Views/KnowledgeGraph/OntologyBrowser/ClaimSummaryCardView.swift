@@ -27,6 +27,9 @@ struct ClaimSummaryCard: View {
     /// hasn't injected them. Read in the +Details.swift extension's handlers.
     @Environment(EntitySearchState.self) var entitySearchState: EntitySearchState?
     @Environment(ClaimSourceNavigationState.self) var claimSourceNavigationState: ClaimSourceNavigationState?
+    /// For the source-region crop popover (#2105/#3449); optional so hosts that
+    /// don't inject it degrade gracefully.
+    @Environment(AnnotationStore.self) var annotationStore: AnnotationStore?
 
     /// Expanded → reveals the verbatim source excerpt + fetches
     /// contradictions + evidence-chain. Collapsed by default to keep

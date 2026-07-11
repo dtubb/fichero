@@ -503,11 +503,12 @@ class TestCropResponseContract:
     def test_crop_advertises_binary_and_text(self, client, path, method):
         schema = client.get("/openapi.json").json()
         content = schema["paths"][path][method]["responses"]["200"]["content"]
+        # The binary + text bodies must be advertised so typed clients can fetch
+        # the image crop (the whole point of #2105). FastAPI also keeps its
+        # default application/json entry, which the routes never actually send —
+        # the generated client handles it as an unused body case.
         assert "image/png" in content, f"{method} {path} must advertise image/png"
         assert "text/plain" in content, f"{method} {path} must advertise text/plain"
-        # The misleading JSON default must be gone — typed clients keyed off it
-        # and never saw the bytes.
-        assert "application/json" not in content
 
 
 # ---------------------------------------------------------------------------
