@@ -22937,7 +22937,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HermeneuticsListResponse"
+                  "$ref": "#/components/schemas/FrameworkListResponse"
                 }
               }
             }
@@ -23213,7 +23213,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HermeneuticsListResponse"
+                  "$ref": "#/components/schemas/InterpretationListResponse"
                 }
               }
             }
@@ -23429,7 +23429,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HermeneuticsListResponse"
+                  "$ref": "#/components/schemas/PatternListResponse"
                 }
               }
             }
@@ -23686,7 +23686,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HermeneuticsListResponse"
+                  "$ref": "#/components/schemas/CircleStateListResponse"
                 }
               }
             }
@@ -24009,7 +24009,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HermeneuticsListResponse"
+                  "$ref": "#/components/schemas/FrameworkListResponse"
                 }
               }
             }
@@ -24285,7 +24285,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HermeneuticsListResponse"
+                  "$ref": "#/components/schemas/InterpretationListResponse"
                 }
               }
             }
@@ -24501,7 +24501,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HermeneuticsListResponse"
+                  "$ref": "#/components/schemas/PatternListResponse"
                 }
               }
             }
@@ -24758,7 +24758,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HermeneuticsListResponse"
+                  "$ref": "#/components/schemas/CircleStateListResponse"
                 }
               }
             }
@@ -36304,6 +36304,27 @@
         ],
         "title": "CircleStateCreateRequest"
       },
+      "CircleStateListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HermeneuticCircleState"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "CircleStateListResponse"
+      },
       "CircleStateNavigateRequest": {
         "properties": {
           "direction": {
@@ -42738,6 +42759,27 @@
         ],
         "title": "FrameworkDeactivatedResponse"
       },
+      "FrameworkListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InterpretiveFramework"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "FrameworkListResponse"
+      },
       "FrameworkType": {
         "type": "string",
         "enum": [
@@ -43213,30 +43255,57 @@
         "title": "HermeneuticCircleState",
         "description": "Tracks navigation between parts and wholes in interpretive analysis.\n\nThe hermeneutic circle describes the iterative process of understanding:\nunderstanding parts through wholes, and wholes through parts.\nThis model tracks where the analyst is in that navigation."
       },
-      "HermeneuticsListResponse": {
+      "HermesSuggestion": {
         "properties": {
-          "items": {
-            "items": {},
-            "type": "array",
-            "title": "Items"
+          "framework_id": {
+            "type": "string",
+            "title": "Framework Id"
           },
-          "count": {
-            "type": "integer",
-            "title": "Count"
+          "framework_name": {
+            "type": "string",
+            "title": "Framework Name"
+          },
+          "interpretation_text": {
+            "type": "string",
+            "title": "Interpretation Text"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "reasoning": {
+            "type": "string",
+            "title": "Reasoning"
+          },
+          "act": {
+            "$ref": "#/components/schemas/InterpretiveActType"
+          },
+          "key_insights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Insights"
           }
         },
         "type": "object",
         "required": [
-          "items",
-          "count"
+          "framework_id",
+          "framework_name",
+          "interpretation_text",
+          "confidence",
+          "reasoning",
+          "act"
         ],
-        "title": "HermeneuticsListResponse",
-        "description": "Standardized envelope for hermeneutics list endpoints."
+        "title": "HermesSuggestion",
+        "description": "A single AI-generated interpretation suggestion."
       },
       "HermesSuggestionListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/HermesSuggestion"
+            },
             "type": "array",
             "title": "Items"
           },
@@ -43250,8 +43319,7 @@
           "items",
           "count"
         ],
-        "title": "HermesSuggestionListResponse",
-        "description": "Standardized envelope for hermeneutics suggestion endpoints."
+        "title": "HermesSuggestionListResponse"
       },
       "HermesSuggestionRequest": {
         "properties": {
@@ -44035,6 +44103,27 @@
           "act"
         ],
         "title": "InterpretationCreateRequest"
+      },
+      "InterpretationListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Interpretation"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "InterpretationListResponse"
       },
       "InterpretationUpdateRequest": {
         "properties": {
@@ -50565,6 +50654,27 @@
         ],
         "title": "PatternInstance",
         "description": "A recognized pattern occurring across multiple claims or documents.\n\nPatterns are recurring structures, motifs, or relationships observed\nin the evidence. Example: \"cyclical theory of history\" appearing\nacross multiple historiographical claims."
+      },
+      "PatternListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PatternInstance"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "PatternListResponse"
       },
       "PatternStatus": {
         "type": "string",

@@ -1825,13 +1825,6 @@ class EntityAuditListResponse(BaseModel):
     count: int
 
 
-class HermeneuticsListResponse(BaseModel):
-    """Standardized envelope for hermeneutics list endpoints."""
-
-    items: list[Any]  # Interpretations, Frameworks, Patterns, or HermeneuticCircleState
-    count: int
-
-
 class IntegrationListResponse(BaseModel):
     """Standardized envelope for GET /api/integrations list endpoints."""
 
@@ -2042,13 +2035,6 @@ class ProjectInclusionListResponse(BaseModel):
     count: int
 
 
-class HermesSuggestionListResponse(BaseModel):
-    """Standardized envelope for hermeneutics suggestion endpoints."""
-
-    items: list[Any]  # Typically HermesSuggestion
-    count: int
-
-
 # =============================================================================
 # Action layer audit (EPIC #1848 / #2013)
 # =============================================================================
@@ -2196,7 +2182,6 @@ __all__ = [
     "EntityDocumentListResponse",
     "EntityAuditListResponse",
     "ClaimCountsResponse",
-    "HermeneuticsListResponse",
     "IntegrationListResponse",
     "KGInclusionListResponse",
     "KGPredictionListResponse",

@@ -3366,7 +3366,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "HermeneuticsListResponse"
+        "response_model": "CircleStateListResponse"
       },
       {
         "method": "POST",
@@ -3433,7 +3433,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "HermeneuticsListResponse"
+        "response_model": "FrameworkListResponse"
       },
       {
         "method": "POST",
@@ -3510,7 +3510,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "HermeneuticsListResponse"
+        "response_model": "InterpretationListResponse"
       },
       {
         "method": "POST",
@@ -3570,7 +3570,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "HermeneuticsListResponse"
+        "response_model": "PatternListResponse"
       },
       {
         "method": "POST",
@@ -4731,7 +4731,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "HermeneuticsListResponse"
+        "response_model": "CircleStateListResponse"
       },
       {
         "method": "POST",
@@ -4798,7 +4798,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "HermeneuticsListResponse"
+        "response_model": "FrameworkListResponse"
       },
       {
         "method": "POST",
@@ -4875,7 +4875,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "HermeneuticsListResponse"
+        "response_model": "InterpretationListResponse"
       },
       {
         "method": "POST",
@@ -4935,7 +4935,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "HermeneuticsListResponse"
+        "response_model": "PatternListResponse"
       },
       {
         "method": "POST",

@@ -1826,50 +1826,36 @@ final class EntityServiceGenerated {
 
     // MARK: - Hermeneutics interpretations per document
 
-    /// Fetch interpretations for a document via GET /api/hermeneutics/interpretations?document_id=...
-    /// Uses direct URLRequest because HermeneuticsListResponse.items is [OpenAPIValueContainer].
+    /// Fetch interpretations for a document through the generated OpenAPI client.
     func listDocumentInterpretations(
         documentId: String
     ) async throws -> [Components.Schemas.Interpretation] {
-        guard let lib = client.currentLibraryPath else {
-            throw ServiceError.validationError("No library selected")
+        let response = try await client.api.listInterpretationsApiHermeneuticsInterpretationsGet(
+            query: .init(documentId: documentId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
         }
-        let docEncoded = documentId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? documentId
-        guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/interpretations?document_id=\(docEncoded)") else {
-            throw ServiceError.validationError("Invalid interpretations URL")
-        }
-        var req = URLRequest(url: url)
-        req.addEngineAuth(libraryPath: lib)
-        // Non-silent: surface backend/decode failures instead of empty hermeneutics (#1671).
-        let (data, response) = try await RemoteCertificatePinning.configuredSession().data(for: req)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw ServiceError.unexpectedResponse(http.statusCode)
-        }
-        struct Envelope: Decodable {
-            let items: [Components.Schemas.Interpretation]
-        }
-        return try JSONDecoder().decode(Envelope.self, from: data).items
     }
 
-    /// Fetch available interpretive frameworks via GET /api/hermeneutics/frameworks
+    /// Fetch available interpretive frameworks through the generated OpenAPI client.
     func listFrameworks() async throws -> [Components.Schemas.InterpretiveFramework] {
-        guard let lib = client.currentLibraryPath else {
-            throw ServiceError.validationError("No library selected")
+        let response = try await client.api.listFrameworksApiHermeneuticsFrameworksGet(query: .init())
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
         }
-        guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/frameworks") else {
-            throw ServiceError.validationError("Invalid frameworks URL")
-        }
-        var req = URLRequest(url: url)
-        req.addEngineAuth(libraryPath: lib)
-        // Non-silent: surface backend/decode failures instead of empty frameworks (#1671).
-        let (data, response) = try await RemoteCertificatePinning.configuredSession().data(for: req)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw ServiceError.unexpectedResponse(http.statusCode)
-        }
-        struct Envelope: Decodable {
-            let items: [Components.Schemas.InterpretiveFramework]
-        }
-        return try JSONDecoder().decode(Envelope.self, from: data).items
     }
 
     /// PATCH /api/hermeneutics/interpretations/{id} — update text and/or confidence.
@@ -1879,22 +1865,19 @@ final class EntityServiceGenerated {
         interpretationText: String,
         confidence: Double
     ) async throws -> Components.Schemas.Interpretation {
-        guard let lib = client.currentLibraryPath else { throw ServiceError.unexpectedResponse(0) }
-        let encoded = interpretationId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? interpretationId
-        guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/interpretations/\(encoded)") else {
-            throw ServiceError.unexpectedResponse(0)
+        let response = try await client.api.updateInterpretationApiHermeneuticsInterpretationsInterpretationIdPatch(
+            path: .init(interpretationId: interpretationId),
+            body: .json(.init(interpretationText: interpretationText, confidence: confidence))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
         }
-        var req = URLRequest(url: url)
-        req.httpMethod = "PATCH"
-        req.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.addEngineAuth(libraryPath: lib)
-        let body: [String: Any] = [
-            "interpretation_text": interpretationText,
-            "confidence": confidence
-        ]
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
-        return try JSONDecoder().decode(Components.Schemas.Interpretation.self, from: data)
     }
 
     /// POST /api/hermeneutics/interpretations — create a human interpretation on a document.
@@ -1906,144 +1889,25 @@ final class EntityServiceGenerated {
         interpretationText: String,
         confidence: Double = 0.8
     ) async throws -> Components.Schemas.Interpretation {
-        guard let lib = client.currentLibraryPath else { throw ServiceError.unexpectedResponse(0) }
-        guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/interpretations") else {
-            throw ServiceError.unexpectedResponse(0)
+        let response = try await client.api.createInterpretationApiHermeneuticsInterpretationsPost(
+            body: .json(.init(
+                frameworkId: frameworkId,
+                documentId: documentId,
+                interpretationText: interpretationText,
+                act: act,
+                confidence: confidence,
+                createdBy: "human"
+            ))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
         }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.addEngineAuth(libraryPath: lib)
-        let body: [String: Any] = [
-            "framework_id": frameworkId,
-            "document_id": documentId,
-            "act": act.rawValue,
-            "interpretation_text": interpretationText,
-            "confidence": confidence,
-            "created_by": "human"
-        ]
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
-        return try JSONDecoder().decode(Components.Schemas.Interpretation.self, from: data)
-    }
-
-    // MARK: - Hermeneutics endpoint wiring (#1423)
-
-    func createCircleState(_ body: [String: Any]) async throws -> Data {
-        try await endpointData(path: "/api/hermeneutics/circle-state", method: "POST", jsonBody: body)
-    }
-
-    func listCircleStates(limit: Int = 100, offset: Int = 0) async throws -> Data {
-        try await endpointData(
-            path: "/api/hermeneutics/circle-state",
-            queryItems: [
-                URLQueryItem(name: "limit", value: "\(limit)"),
-                URLQueryItem(name: "offset", value: "\(offset)")
-            ]
-        )
-    }
-
-    func getCircleState(_ stateId: String) async throws -> Data {
-        try await endpointData(path: "/api/hermeneutics/circle-state/\(stateId)")
-    }
-
-    func backtrackCircleState(_ stateId: String, steps: Int = 1) async throws -> Data {
-        try await endpointData(
-            path: "/api/hermeneutics/circle-state/\(stateId)/backtrack",
-            method: "POST",
-            jsonBody: ["steps": steps]
-        )
-    }
-
-    func navigateCircleState(_ stateId: String, body: [String: Any]) async throws -> Data {
-        try await endpointData(
-            path: "/api/hermeneutics/circle-state/\(stateId)/navigate",
-            method: "POST",
-            jsonBody: body
-        )
-    }
-
-    func createFramework(_ body: [String: Any]) async throws -> Data {
-        try await endpointData(path: "/api/hermeneutics/frameworks", method: "POST", jsonBody: body)
-    }
-
-    func getFramework(_ frameworkId: String) async throws -> Data {
-        try await endpointData(path: "/api/hermeneutics/frameworks/\(frameworkId)")
-    }
-
-    func patchFramework(_ frameworkId: String, patch: [String: Any]) async throws -> Data {
-        try await endpointData(
-            path: "/api/hermeneutics/frameworks/\(frameworkId)",
-            method: "PATCH",
-            jsonBody: patch
-        )
-    }
-
-    func deleteFramework(_ frameworkId: String) async throws {
-        _ = try await endpointData(path: "/api/hermeneutics/frameworks/\(frameworkId)", method: "DELETE")
-    }
-
-    func listInterpretations(limit: Int = 100, offset: Int = 0) async throws -> Data {
-        try await endpointData(
-            path: "/api/hermeneutics/interpretations",
-            queryItems: [
-                URLQueryItem(name: "limit", value: "\(limit)"),
-                URLQueryItem(name: "offset", value: "\(offset)")
-            ]
-        )
-    }
-
-    func getInterpretation(_ interpretationId: String) async throws -> Data {
-        try await endpointData(path: "/api/hermeneutics/interpretations/\(interpretationId)")
-    }
-
-    func patchInterpretation(_ interpretationId: String, patch: [String: Any]) async throws -> Data {
-        try await endpointData(
-            path: "/api/hermeneutics/interpretations/\(interpretationId)",
-            method: "PATCH",
-            jsonBody: patch
-        )
-    }
-
-    func createPattern(_ body: [String: Any]) async throws -> Data {
-        try await endpointData(path: "/api/hermeneutics/patterns", method: "POST", jsonBody: body)
-    }
-
-    func listPatterns(limit: Int = 100, offset: Int = 0) async throws -> Data {
-        try await endpointData(
-            path: "/api/hermeneutics/patterns",
-            queryItems: [
-                URLQueryItem(name: "limit", value: "\(limit)"),
-                URLQueryItem(name: "offset", value: "\(offset)")
-            ]
-        )
-    }
-
-    func getPattern(_ patternId: String) async throws -> Data {
-        try await endpointData(path: "/api/hermeneutics/patterns/\(patternId)")
-    }
-
-    func patchPattern(_ patternId: String, patch: [String: Any]) async throws -> Data {
-        try await endpointData(
-            path: "/api/hermeneutics/patterns/\(patternId)",
-            method: "PATCH",
-            jsonBody: patch
-        )
-    }
-
-    func addClaimToPattern(patternId: String, claimId: String) async throws -> Data {
-        try await endpointData(
-            path: "/api/hermeneutics/patterns/\(patternId)/claims/\(claimId)",
-            method: "POST"
-        )
-    }
-
-    func suggestInterpretations(_ body: [String: Any]) async throws -> Data {
-        try await endpointData(path: "/api/hermeneutics/suggestions", method: "POST", jsonBody: body)
-    }
-
-    func hermeneuticsTaxonomyMethods() async throws -> Data {
-        try await endpointData(path: "/api/hermeneutics/taxonomy/methods")
     }
 
     // MARK: - Knowledge Graph endpoint wiring (#1422)
@@ -2152,131 +2016,6 @@ final class EntityServiceGenerated {
 
     func listKGInclusions() async throws -> Data {
         try await endpointData(path: "/api/kg/inclusion")
-    }
-
-    func createKGCircleState(_ body: [String: Any]) async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/circle-state", method: "POST", jsonBody: body)
-    }
-
-    func listKGCircleStates(limit: Int = 100, offset: Int = 0) async throws -> Data {
-        try await endpointData(
-            path: "/api/kg/interpretations/circle-state",
-            queryItems: [
-                URLQueryItem(name: "limit", value: "\(limit)"),
-                URLQueryItem(name: "offset", value: "\(offset)")
-            ]
-        )
-    }
-
-    func getKGCircleState(_ stateId: String) async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/circle-state/\(stateId)")
-    }
-
-    func backtrackKGCircleState(_ stateId: String, steps: Int = 1) async throws -> Data {
-        try await endpointData(
-            path: "/api/kg/interpretations/circle-state/\(stateId)/backtrack",
-            method: "POST",
-            jsonBody: ["steps": steps]
-        )
-    }
-
-    func navigateKGCircleState(_ stateId: String, body: [String: Any]) async throws -> Data {
-        try await endpointData(
-            path: "/api/kg/interpretations/circle-state/\(stateId)/navigate",
-            method: "POST",
-            jsonBody: body
-        )
-    }
-
-    func createKGFramework(_ body: [String: Any]) async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/frameworks", method: "POST", jsonBody: body)
-    }
-
-    func listKGFrameworks() async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/frameworks")
-    }
-
-    func getKGFramework(_ frameworkId: String) async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/frameworks/\(frameworkId)")
-    }
-
-    func patchKGFramework(_ frameworkId: String, patch: [String: Any]) async throws -> Data {
-        try await endpointData(
-            path: "/api/kg/interpretations/frameworks/\(frameworkId)",
-            method: "PATCH",
-            jsonBody: patch
-        )
-    }
-
-    func deleteKGFramework(_ frameworkId: String) async throws {
-        _ = try await endpointData(path: "/api/kg/interpretations/frameworks/\(frameworkId)", method: "DELETE")
-    }
-
-    func createKGInterpretation(_ body: [String: Any]) async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/interpretations", method: "POST", jsonBody: body)
-    }
-
-    func listKGInterpretations(limit: Int = 100, offset: Int = 0) async throws -> Data {
-        try await endpointData(
-            path: "/api/kg/interpretations/interpretations",
-            queryItems: [
-                URLQueryItem(name: "limit", value: "\(limit)"),
-                URLQueryItem(name: "offset", value: "\(offset)")
-            ]
-        )
-    }
-
-    func getKGInterpretation(_ interpretationId: String) async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/interpretations/\(interpretationId)")
-    }
-
-    func patchKGInterpretation(_ interpretationId: String, patch: [String: Any]) async throws -> Data {
-        try await endpointData(
-            path: "/api/kg/interpretations/interpretations/\(interpretationId)",
-            method: "PATCH",
-            jsonBody: patch
-        )
-    }
-
-    func createKGPattern(_ body: [String: Any]) async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/patterns", method: "POST", jsonBody: body)
-    }
-
-    func listKGPatterns(limit: Int = 100, offset: Int = 0) async throws -> Data {
-        try await endpointData(
-            path: "/api/kg/interpretations/patterns",
-            queryItems: [
-                URLQueryItem(name: "limit", value: "\(limit)"),
-                URLQueryItem(name: "offset", value: "\(offset)")
-            ]
-        )
-    }
-
-    func getKGPattern(_ patternId: String) async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/patterns/\(patternId)")
-    }
-
-    func patchKGPattern(_ patternId: String, patch: [String: Any]) async throws -> Data {
-        try await endpointData(
-            path: "/api/kg/interpretations/patterns/\(patternId)",
-            method: "PATCH",
-            jsonBody: patch
-        )
-    }
-
-    func addClaimToKGPattern(patternId: String, claimId: String) async throws -> Data {
-        try await endpointData(
-            path: "/api/kg/interpretations/patterns/\(patternId)/claims/\(claimId)",
-            method: "POST"
-        )
-    }
-
-    func suggestKGInterpretations(_ body: [String: Any]) async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/suggestions", method: "POST", jsonBody: body)
-    }
-
-    func kgInterpretationTaxonomyMethods() async throws -> Data {
-        try await endpointData(path: "/api/kg/interpretations/taxonomy/methods")
     }
 
     func kgMutations(limit: Int = 50) async throws -> Data {

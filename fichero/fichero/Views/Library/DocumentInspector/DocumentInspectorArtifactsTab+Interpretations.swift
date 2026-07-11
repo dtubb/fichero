@@ -7,24 +7,22 @@ import SwiftUI
 /// Always visible so the user can create the first interpretation even when none exist.
 struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_body_length
     let documentId: String
-    let entityService: EntityServiceGenerated
     @Environment(InterpretationStore.self) private var store
 
     // Live-refresh via the per-document InterpretationStore (#2009): the store
     // owns the fetch + the `interpretation.*` change-stream reactions (#2008), so
     // a create/edit in any window (chat, another window, this one) updates this
     // panel in place. Reading `store.items` in `body` registers the @Observable
-    // dependency. The create/edit forms below still drive `entityService`
-    // directly and fall back to `store.reload()` so the list refreshes even
-    // before the backend emit lane lands.
+    // dependency. The form actions also route through the store, keeping this
+    // inspector surface on the same observable update path.
     private var interpretations: [Components.Schemas.Interpretation] { store.items }
     private var isLoading: Bool { store.isLoading }
+    private var frameworks: [Components.Schemas.InterpretiveFramework] { store.frameworks }
 
     @State private var isExpanded = false
 
     // Create form
     @State private var showingCreateForm = false
-    @State private var frameworks: [Components.Schemas.InterpretiveFramework] = []
     @State private var selectedFrameworkId: String = ""
     @State private var selectedAct: Components.Schemas.InterpretiveActType = .reading
     @State private var newInterpretationText: String = ""
@@ -117,11 +115,15 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
             Divider()
 
             // Framework picker — required for the backend
-            if frameworks.isEmpty {
+            if store.isLoadingFrameworks {
                 HStack(spacing: 6) {
                     ProgressView().scaleEffect(0.55)
                     Text("Loading frameworks…").font(.caption2).foregroundStyle(.secondary)
                 }
+            } else if let frameworksError = store.frameworksError {
+                Text(frameworksError).font(.caption2).foregroundStyle(.red)
+            } else if frameworks.isEmpty {
+                Text("No frameworks available.").font(.caption2).foregroundStyle(.secondary)
             } else {
                 Picker("Framework", selection: $selectedFrameworkId) {
                     ForEach(frameworks, id: \.id) { framework in
@@ -324,9 +326,8 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
     // MARK: - Load / Submit
 
     private func loadFrameworks() async {
-        let loaded = (try? await entityService.listFrameworks()) ?? []
-        frameworks = loaded
-        if let first = loaded.first, let fwId = first.id {
+        await store.loadFrameworks()
+        if let first = store.frameworks.first, let fwId = first.id {
             selectedFrameworkId = fwId
         }
     }
@@ -338,17 +339,13 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
         submitError = nil
         defer { isSubmitting = false }
         do {
-            _ = try await entityService.createInterpretation(
+            try await store.create(
                 frameworkId: selectedFrameworkId,
                 documentId: documentId,
                 act: selectedAct,
-                interpretationText: text,
+                text: text,
                 confidence: newConfidence
             )
-            // The `interpretation.*` change-stream event (#2008) refreshes the
-            // store in every window; reload() is the synchronous fallback so the
-            // list updates immediately even before that backend lane lands.
-            await store?.reload()
             isExpanded = true
             withAnimation { showingCreateForm = false }
             resetForm()
@@ -364,14 +361,11 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
         editError = nil
         defer { isSavingEdit = false }
         do {
-            _ = try await entityService.updateInterpretation(
+            try await store.update(
                 interpretationId: interpId,
-                interpretationText: text,
+                text: text,
                 confidence: editConfidence
             )
-            // Same as create: the change-stream refreshes every window; reload()
-            // is the synchronous fallback until the #2008 emit lane lands.
-            await store?.reload()
             editingInterpId = nil
         } catch {
             editError = error.localizedDescription

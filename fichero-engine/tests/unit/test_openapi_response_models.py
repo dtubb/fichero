@@ -46,3 +46,23 @@ def test_consistency_audit_batch_routes_have_explicit_response_models() -> None:
     assert _response_schema("get", "/api/providers/{provider_id}")["$ref"].endswith("ProviderResponse")
     assert _response_schema("patch", "/api/providers/{provider_id}")["$ref"].endswith("ProviderResponse")
     assert _response_schema("delete", "/api/providers/{provider_id}")["$ref"].endswith("DeletedResponse")
+
+
+def test_hermeneutics_list_routes_have_typed_item_envelopes() -> None:
+    cases = {
+        "/api/hermeneutics/frameworks": ("FrameworkListResponse", "InterpretiveFramework"),
+        "/api/hermeneutics/interpretations": ("InterpretationListResponse", "Interpretation"),
+        "/api/hermeneutics/patterns": ("PatternListResponse", "PatternInstance"),
+        "/api/hermeneutics/circle-state": ("CircleStateListResponse", "HermeneuticCircleState"),
+    }
+    spec = app.openapi()
+    schemas = spec["components"]["schemas"]
+    for path, (envelope, item) in cases.items():
+        assert _response_schema("get", path)["$ref"].endswith(envelope)
+        assert schemas[envelope]["properties"]["items"]["items"]["$ref"].endswith(item)
+    assert _response_schema("post", "/api/hermeneutics/suggestions")["$ref"].endswith(
+        "HermesSuggestionListResponse"
+    )
+    assert schemas["HermesSuggestionListResponse"]["properties"]["items"]["items"]["$ref"].endswith(
+        "HermesSuggestion"
+    )

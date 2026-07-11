@@ -131,6 +131,11 @@ final class DocumentInspectorTests: XCTestCase {
         let interpretationsSource = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Interpretations.swift"
         )
+        let interpretationsTabSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInterpretationsTab.swift"
+        )
+        let interpretationStoreSource = try Self.appSource("Models/InterpretationStore.swift")
+        let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
 
         XCTAssertTrue(citationsSource.contains("@Environment(CitationStore.self)"))
         XCTAssertFalse(citationsSource.contains("LibraryManager.shared.globalLibrary?.citationStore"))
@@ -138,6 +143,14 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertFalse(bibliographySource.contains("LibraryManager.shared.globalLibrary?.referenceStore"))
         XCTAssertTrue(interpretationsSource.contains("@Environment(InterpretationStore.self)"))
         XCTAssertFalse(interpretationsSource.contains("LibraryManager.shared.globalLibrary?.interpretationStore"))
+        XCTAssertTrue(interpretationsSource.contains("try await store.create("))
+        XCTAssertTrue(interpretationsSource.contains("try await store.update("))
+        XCTAssertFalse(interpretationsSource.contains("entityService."))
+        XCTAssertFalse(interpretationsTabSource.contains("EntityServiceGenerated"))
+        XCTAssertTrue(interpretationStoreSource.contains("func loadFrameworks() async"))
+        XCTAssertTrue(serviceSource.contains("client.api.listInterpretationsApiHermeneuticsInterpretationsGet"))
+        XCTAssertTrue(serviceSource.contains("client.api.createInterpretationApiHermeneuticsInterpretationsPost"))
+        XCTAssertFalse(serviceSource.contains("endpointData(path: \"/api/kg/interpretations"))
     }
 
     func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {
