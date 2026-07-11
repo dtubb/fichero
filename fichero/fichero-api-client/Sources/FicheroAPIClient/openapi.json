@@ -20660,6 +20660,140 @@
         }
       }
     },
+    "/api/kg/pykeen/reviews": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Create Prediction Review",
+        "operationId": "create_prediction_review_api_kg_pykeen_reviews_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgePredictionReview"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgePredictionReview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Prediction Reviews",
+        "operationId": "list_prediction_reviews_api_kg_pykeen_reviews_get",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PredictionReviewState",
+              "nullable": true,
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PykeenListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/pykeen/reviews/{review_id}": {
+      "patch": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Decide Prediction Review",
+        "operationId": "decide_prediction_review_api_kg_pykeen_reviews__review_id__patch",
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Review Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionReviewDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgePredictionReview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/pykeen/training-jobs": {
       "get": {
         "tags": [
@@ -34118,6 +34252,26 @@
             "type": "boolean",
             "title": "Reviewed"
           },
+          "source_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Artifact Id"
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "step_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Step Name"
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -40398,6 +40552,26 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          },
+          "page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Label"
+          },
+          "source_capability": {
+            "type": "string",
+            "title": "Source Capability",
+            "default": "reveal"
           }
         },
         "type": "object",
@@ -45719,6 +45893,85 @@
           "target_id"
         ],
         "title": "KnowledgeGraphInclusion"
+      },
+      "KnowledgePredictionReview": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "source_entity_id": {
+            "type": "string",
+            "title": "Source Entity Id"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          },
+          "target_entity_id": {
+            "type": "string",
+            "title": "Target Entity Id"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "rank": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Rank"
+          },
+          "model_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Id"
+          },
+          "model_config_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Model Config Snapshot"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PredictionReviewState",
+            "default": "pending"
+          },
+          "decision_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Decision Note"
+          },
+          "resulting_claim_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Resulting Claim Id"
+          },
+          "reviewed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Reviewed At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "source_entity_id",
+          "relation",
+          "target_entity_id",
+          "score"
+        ],
+        "title": "KnowledgePredictionReview",
+        "description": "Persisted, library-scoped human review of one predicted edge."
       },
       "KnownLibrary": {
         "properties": {
@@ -51351,6 +51604,38 @@
         ],
         "title": "PredictionResult",
         "description": "Single link prediction result."
+      },
+      "PredictionReviewDecision": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/PredictionReviewState"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          },
+          "resulting_claim_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Resulting Claim Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "title": "PredictionReviewDecision"
+      },
+      "PredictionReviewState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "rejected",
+          "deferred"
+        ],
+        "title": "PredictionReviewState"
       },
       "PredictionType": {
         "type": "string",

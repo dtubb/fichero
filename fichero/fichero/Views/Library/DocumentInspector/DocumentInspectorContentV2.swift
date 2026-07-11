@@ -428,6 +428,22 @@ struct SourceOutlineNode: Identifiable, Hashable {
 
         return parse(atDepth: minDepth)
     }
+
+    /// The source anchor for an outline row, or nil for a group/structural row
+    /// that isn't a source anchor (#3440 + #3441). Page/structural rows the
+    /// engine marks reveal-capable (`sourceCapability == "reveal"`) with a
+    /// document id route through the shared source-navigation contract; group
+    /// rows (no anchor) deliberately return nil rather than fake one. Pure +
+    /// testable.
+    static func navigationRequest(
+        for row: Components.Schemas.DocumentOutlineRow
+    ) -> ClaimSourceNavigationRequest? {
+        guard row.sourceCapability == "reveal",
+              let documentId = row.sourceDocumentId,
+              !documentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        return ClaimSourceNavigationRequest(documentId: documentId, pageLabel: row.pageLabel)
+    }
 }
 
 /// Native document outline (#3440): the generated source hierarchy rendered as a
@@ -441,6 +457,9 @@ struct SourceOutlineView: View {
     let documentId: String
 
     @Environment(DocumentServiceGenerated.self) private var documentService
+    /// Per-window typed source-navigation bus (#3437) — reveal-capable outline
+    /// rows route their source anchor through it, same contract as claims (#3440).
+    @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
     @State private var store = DocumentOutlineStore()
     @State private var selection: String?
 
@@ -478,6 +497,14 @@ struct SourceOutlineView: View {
         }
         .task(id: documentId) {
             await store.load(documentId: documentId, using: documentService)
+        }
+        // Selecting a reveal-capable page/structural row drives the reader to its
+        // source via the shared contract (#3440/#3441); group rows no-op.
+        .onChange(of: selection) { _, newSelection in
+            guard let newSelection,
+                  let row = store.rows.first(where: { $0.id == newSelection }),
+                  let request = SourceOutlineNode.navigationRequest(for: row) else { return }
+            claimSourceNavigationState?.request(request)
         }
     }
 
