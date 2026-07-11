@@ -301,6 +301,23 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(serviceSource.contains("batchSetEntityCurationStateApiKgEntitiesBatchCurationPatch"))
     }
 
+    func testInspectorEntitiesTabSupportsOwnProcessDragDropAndTypeChange() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+        let sharedSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Shared.swift"
+        )
+        let storeSource = try Self.appSource("Models/EntityStore.swift")
+
+        XCTAssertTrue(source.contains(".draggable(InspectorEntityDragID(id: entity.stableInspectorId))"))
+        XCTAssertTrue(source.contains(".dropDestination("))
+        XCTAssertTrue(source.contains("pendingMergePlan = plan"))
+        XCTAssertTrue(source.contains("pendingReclassifyPlan = PendingEntityReclassifyPlan("))
+        XCTAssertTrue(sharedSource.contains("var apiTypeId: String?"))
+        XCTAssertTrue(storeSource.contains("func reclassify("))
+    }
+
     func testInspectorDeleteActionsUseGeneratedEntityAndClaimClients() throws {
         let entitiesSource = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"

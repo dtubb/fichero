@@ -30,8 +30,10 @@ struct DocumentInspectorEntitiesTab: View {
     @State private var entitySelection: Set<String> = []
     @State private var isApplyingBulkAction = false
     @State private var pendingMergePlan: InspectorEntityBulkSelection.MergePlan?
+    @State private var pendingReclassifyPlan: PendingEntityReclassifyPlan?
     @State private var pendingDeleteConfirmation: PendingEntityDeleteConfirmation?
     @State private var actionMessage: String?
+    @State private var dropTargetEntityId: String?
     /// In-place rename state — the id of the entity whose name is being
     /// edited inline, plus the draft text. (#1865)
     @State private var renamingEntityId: String?
@@ -163,6 +165,23 @@ struct DocumentInspectorEntitiesTab: View {
             }
         } message: { plan in
             Text("This keeps \(plan.survivorName) as the canonical entity and folds the others into it.")
+        }
+        .alert(
+            pendingReclassifyPlan?.title ?? "Change entity type?",
+            isPresented: Binding(
+                get: { pendingReclassifyPlan != nil },
+                set: { if !$0 { pendingReclassifyPlan = nil } }
+            ),
+            presenting: pendingReclassifyPlan
+        ) { plan in
+            Button("Change Type") {
+                Task { await applyReclassify(plan) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingReclassifyPlan = nil
+            }
+        } message: { plan in
+            Text(plan.message)
         }
         .alert(
             pendingDeleteConfirmation?.title ?? "Delete entity?",
@@ -352,8 +371,17 @@ struct DocumentInspectorEntitiesTab: View {
             }
         }
         .padding(.vertical, 4)
+        .background(dropTargetHighlight(for: entity))
         .contentShape(Rectangle())
         .tag(entity.stableInspectorId)
+        .draggable(InspectorEntityDragID(id: entity.stableInspectorId))
+        .dropDestination(
+            for: InspectorEntityDragID.self,
+            action: { payloads, _ in
+                handleEntityDrop(payloads: payloads, onto: entity)
+            },
+            isTargeted: dropTargetBinding(for: entity)
+        )
         .simultaneousGesture(
             TapGesture(count: 2).onEnded { openEntity(entity) }
         )
@@ -614,6 +642,82 @@ struct DocumentInspectorEntitiesTab: View {
         onEntitySelect?(id)
     }
 
+    private func dropTargetBinding(
+        for entity: Components.Schemas.KnowledgeEntity
+    ) -> Binding<Bool> {
+        Binding(
+            get: { dropTargetEntityId == entity.stableInspectorId },
+            set: { isTargeted in
+                if isTargeted {
+                    dropTargetEntityId = entity.stableInspectorId
+                } else if dropTargetEntityId == entity.stableInspectorId {
+                    dropTargetEntityId = nil
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func dropTargetHighlight(
+        for entity: Components.Schemas.KnowledgeEntity
+    ) -> some View {
+        RoundedRectangle(cornerRadius: 8)
+            .fill(
+                dropTargetEntityId == entity.stableInspectorId
+                    ? Color.accentColor.opacity(0.14)
+                    : Color.clear
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        dropTargetEntityId == entity.stableInspectorId
+                            ? Color.accentColor
+                            : Color.clear,
+                        lineWidth: 1
+                    )
+            )
+            .allowsHitTesting(false)
+    }
+
+    private func handleEntityDrop(
+        payloads: [InspectorEntityDragID],
+        onto target: Components.Schemas.KnowledgeEntity
+    ) -> Bool {
+        dropTargetEntityId = nil
+        guard let payload = payloads.first,
+              payload.id != target.stableInspectorId,
+              let dragged = orderedEntities.first(where: { $0.stableInspectorId == payload.id }) else {
+            return false
+        }
+
+        let draggedKind = EntityKind(apiType: dragged.entityType) ?? .other
+        let targetKind = EntityKind(apiType: target.entityType) ?? .other
+
+        if draggedKind == targetKind,
+           let targetId = target.id,
+           let plan = InspectorEntityBulkSelection.mergePlan(
+                for: [dragged, target],
+                survivorId: targetId
+           ) {
+            pendingMergePlan = plan
+            return true
+        }
+
+        guard let draggedId = dragged.id,
+              let targetType = targetKind.apiTypeId,
+              draggedKind.apiTypeId != targetType else {
+            return false
+        }
+
+        pendingReclassifyPlan = PendingEntityReclassifyPlan(
+            entityId: draggedId,
+            entityName: dragged.canonicalName,
+            entityType: targetType,
+            targetLabel: targetKind.label
+        )
+        return true
+    }
+
     private func applyBulkAction(
         _ action: InspectorEntityBulkAction,
         scope: InspectorEntityBulkActionScope,
@@ -679,6 +783,23 @@ struct DocumentInspectorEntitiesTab: View {
         }
     }
 
+    private func applyReclassify(_ plan: PendingEntityReclassifyPlan) async {
+        isApplyingBulkAction = true
+        actionMessage = nil
+        pendingReclassifyPlan = nil
+        defer { isApplyingBulkAction = false }
+
+        do {
+            try await entityStore.reclassify(entityId: plan.entityId, to: plan.entityType)
+            actionMessage = "Changed \(plan.entityName) to \(plan.targetLabel.lowercased())."
+        } catch {
+            inspectorEntitiesLogger.error(
+                "Entity type change failed for \(plan.entityId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            actionMessage = "Couldn't change entity type: \(error.localizedDescription)"
+        }
+    }
+
     private func applyDelete(_ pending: PendingEntityDeleteConfirmation) async {
         let entityIds = pending.entities.compactMap(\.id)
         let missingIdCount = pending.entities.count - entityIds.count
@@ -730,6 +851,15 @@ struct DocumentInspectorEntitiesTab: View {
 extension Components.Schemas.KnowledgeEntity {
     var stableInspectorId: String {
         id ?? "\(entityType?.rawValue ?? "other"):\(canonicalName)"
+    }
+}
+
+struct InspectorEntityDragID: Transferable {
+    let id: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        ProxyRepresentation(exporting: \.id)
+            .visibility(.ownProcess)
     }
 }
 
@@ -945,6 +1075,19 @@ struct PendingEntityDeleteConfirmation: Identifiable {
             return "This removes the entity and any claims that reference it from the knowledge graph."
         }
         return "This removes the selected entities and any claims that reference them from the knowledge graph."
+    }
+}
+
+struct PendingEntityReclassifyPlan: Identifiable {
+    let entityId: String
+    let entityName: String
+    let entityType: String
+    let targetLabel: String
+
+    var id: String { "\(entityId):\(entityType)" }
+    var title: String { "Change \"\(entityName)\" to \(targetLabel)?" }
+    var message: String {
+        "This changes the dragged entity's type to match the drop target."
     }
 }
 

@@ -143,6 +143,22 @@ final class EntityStore: ObservableDomainStore {
         return updated
     }
 
+    /// Change an entity's type, then re-fetch the active inspector scope so
+    /// grouped sections and row placement stay canonical.
+    @discardableResult
+    func reclassify(
+        entityId: String,
+        to entityType: String
+    ) async throws -> Components.Schemas.KnowledgeEntity {
+        let updated = try await entityService.patchEntity(entityId, entityType: entityType)
+        if loadedDocumentId != nil {
+            await reload()
+        } else if let index = entities.firstIndex(where: { $0.id == entityId }) {
+            entities[index] = updated
+        }
+        return updated
+    }
+
     /// Delete the given entities, then remove the matching rows in place.
     func delete(entityIds: [String]) async throws {
         for entityId in entityIds {

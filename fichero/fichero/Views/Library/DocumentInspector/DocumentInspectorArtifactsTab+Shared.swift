@@ -169,6 +169,17 @@ enum EntityKind: String, Hashable, CaseIterable {
         }
     }
 
+    var apiTypeId: String? {
+        switch self {
+        case .person: return "person"
+        case .location: return "location"
+        case .organization: return "organization"
+        case .event: return "event"
+        case .concept: return "concept"
+        case .date, .other: return nil
+        }
+    }
+
     static var displayOrder: [EntityKind] {
         // Keywords (concept) up top — densest summary, scan first.
         // Named entities next; events then dates (events carry their own dates

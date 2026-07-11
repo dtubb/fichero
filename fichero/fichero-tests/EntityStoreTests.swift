@@ -198,6 +198,50 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertTrue(requests.contains { $0.httpMethod == "DELETE" && $0.url?.path == "/api/entities/entity-1" })
     }
 
+    func testReclassifyReloadsCurrentInspectorScopeAfterPatch() async throws {
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "GET", path: "/api/documents/doc-1/inspector",
+                    statusCode: 200,
+                    body: makeDocumentInspectorResponse(
+                        entities: [
+                            makeEntityJSON(id: "entity-1", name: "Alpha", type: "location")
+                        ]
+                    )
+                ),
+                .init(
+                    method: "PATCH", path: "/api/entities/entity-1",
+                    statusCode: 200,
+                    body: makeEntityResponse(id: "entity-1", name: "Alpha", type: "person")
+                ),
+                .init(
+                    method: "GET", path: "/api/documents/doc-1/inspector",
+                    statusCode: 200,
+                    body: makeDocumentInspectorResponse(
+                        entities: [
+                            makeEntityJSON(id: "entity-1", name: "Alpha", type: "person")
+                        ]
+                    )
+                )
+            ]
+        )
+
+        let store = makeStore()
+        await store.loadEntities(forDocument: "doc-1")
+
+        _ = try await store.reclassify(entityId: "entity-1", to: "person")
+
+        XCTAssertEqual(store.entities.first?.entityType, .person)
+
+        let requests = MockFicheroURLProtocol.recordedRequests()
+        XCTAssertTrue(requests.contains { $0.httpMethod == "PATCH" && $0.url?.path == "/api/entities/entity-1" })
+        XCTAssertGreaterThanOrEqual(
+            requests.filter { $0.httpMethod == "GET" && $0.url?.path == "/api/documents/doc-1/inspector" }.count,
+            2
+        )
+    }
+
     func testMergeReloadsCurrentInspectorScopeAfterBackendMerge() async throws {
         MockFicheroURLProtocol.configure(
             responses: [
@@ -291,8 +335,8 @@ final class EntityStoreTests: XCTestCase {
         return jsonData(payload)
     }
 
-    private func makeEntityResponse(id: String, name: String) -> Data {
-        jsonData(makeEntityJSON(id: id, name: name))
+    private func makeEntityResponse(id: String, name: String, type: String? = nil) -> Data {
+        jsonData(makeEntityJSON(id: id, name: name, type: type))
     }
 
     private func makeBatchCurationResponse(updated: Int, entityIDs: [String]) -> Data {
@@ -320,6 +364,7 @@ final class EntityStoreTests: XCTestCase {
     private func makeEntityJSON(
         id: String,
         name: String,
+        type: String? = nil,
         curationState: Components.Schemas.EntityCurationState? = nil
     ) -> [String: Any] {
         var payload: [String: Any] = [
@@ -328,6 +373,9 @@ final class EntityStoreTests: XCTestCase {
             "created_at": Self.isoFormatter.string(from: Date(timeIntervalSince1970: 1_700_000_000)),
             "updated_at": Self.isoFormatter.string(from: Date(timeIntervalSince1970: 1_700_000_000))
         ]
+        if let type {
+            payload["entity_type"] = type
+        }
         if let curationState {
             payload["curation_state"] = curationState.rawValue
         }
