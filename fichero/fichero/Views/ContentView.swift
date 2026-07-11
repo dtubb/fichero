@@ -6,12 +6,15 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Content
 // swiftlint:disable file_length
 
 private enum ContentToolbarID {
-    static let navigationHistory = "fichero.nav.history"
+    static let navigationBack = "fichero.nav.back"
+    static let navigationForward = "fichero.nav.forward"
     static let inspectorToggle = "fichero.inspectorToggle"
     static let compactInspectorToggle = "fichero.inspectorToggle.compact"
     static let activityStatus = "fichero.activityStatus"
     static let viewMenu = "fichero.viewMenu"
-    static let contentPaneToggles = "fichero.contentPane.toggles"
+    static let viewDisplayMode = "fichero.viewDisplayMode"
+    static let previewPaneToggle = "fichero.previewPane.toggle"
+    static let readingPaneToggle = "fichero.readingPane.toggle"
     static let breadcrumb = "fichero.breadcrumb"
 }
 
@@ -699,27 +702,15 @@ extension ContentView {
     }
 
     // MARK: Zoned toolbar (Mail-style)
-    //
-    // The window toolbar is organised into ACTION zones separated by flexible
-    // spacers, modelled on Apple Mail (#2032). Presentation controls ("how it's
-    // shown" — layout/view-mode pickers, library/canvas/reading pane toggles)
-    // do NOT live here; they are in the View menu (ViewMenuCommands:
-    // LibraryLayoutSection / PreviewModeSection / PaneVisibilitySection). The
-    // main toolbar is verbs only.
-    //
-    // `mainToolbarContent` is a thin dispatcher to three bounded
-    // `@ToolbarContentBuilder` sub-properties so no single builder grows large
-    // enough to risk a type-check timeout.
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
-        // LEADING zone — back/forward history (content-column toolbar).
         leadingToolbarContent
     }
 
     /// LEADING zone: back/forward history navigation in the content-column toolbar.
     @ToolbarContentBuilder
     private var leadingToolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .navigation) {
+        ToolbarItem(id: ContentToolbarID.navigationBack, placement: .navigation) {
             Button {
                 navigateBack()
             } label: {
@@ -728,7 +719,9 @@ extension ContentView {
             .help("Back (⌘')")
             .keyboardShortcut("'", modifiers: [.command])
             .disabled(!navigationHistory.canGoBack)
+        }
 
+        ToolbarItem(id: ContentToolbarID.navigationForward, placement: .navigation) {
             Button {
                 navigateForward()
             } label: {
@@ -786,18 +779,22 @@ extension ContentView {
         // hidden (#2813).
         if supportsReadingWorkspace
             && !Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
-            ToolbarItemGroup(placement: .automatic) {
-                if showViewModePicker && availableViewDisplayModes.count > 1 {
+            if showViewModePicker && availableViewDisplayModes.count > 1 {
+                ToolbarItem(id: ContentToolbarID.viewDisplayMode, placement: .automatic) {
                     viewDisplayModeMenu
                 }
+            }
 
+            ToolbarItem(id: ContentToolbarID.previewPaneToggle, placement: .automatic) {
                 Button {
                     setCanvasPaneVisible(!showDocumentCanvas)
                 } label: {
                     Label("Preview Pane", systemImage: showDocumentCanvas ? "rectangle.center.inset.filled" : "rectangle")
                 }
                 .help(showDocumentCanvas ? "Hide preview pane" : "Show preview pane")
+            }
 
+            ToolbarItem(id: ContentToolbarID.readingPaneToggle, placement: .automatic) {
                 Button {
                     setReadingPaneVisible(!showReadingPane)
                 } label: {
