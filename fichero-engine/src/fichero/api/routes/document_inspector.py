@@ -58,6 +58,10 @@ class DocumentOutlineRow(BaseModel):
     kind: str
     label: str
     count: int
+    parent_id: str | None = None
+    source_document_id: str | None = None
+    page_label: str | None = None
+    source_capability: str = "reveal"
 
 
 class DocumentOutlineResponse(BaseModel):
@@ -255,6 +259,9 @@ async def document_outline(
                     + artifact_count_by_doc.get(page.id, 0)
                     + citation_count_by_doc.get(page.id, 0)
                 ),
+                parent_id=document_id,
+                source_document_id=page.id,
+                page_label=str(page.sequence) if page.sequence is not None else None,
             )
         )
 
@@ -271,6 +278,8 @@ async def document_outline(
                     + artifact_count_by_doc.get(chunk.id, 0)
                     + citation_count_by_doc.get(chunk.id, 0)
                 ),
+                parent_id=chunk.parent_id,
+                source_document_id=chunk.parent_id or document_id,
             )
         )
 
@@ -292,6 +301,7 @@ async def document_outline(
                 kind=node.kind,
                 label=node.title,
                 count=sum(claim_count_by_doc.get(pid, 0) for pid in in_range_doc_ids),
+                source_document_id=document_id,
             )
         )
 
@@ -312,6 +322,8 @@ async def document_outline(
             kind="annotation-group",
             label="Annotations",
             count=len(annotations),
+            parent_id=document_id,
+            source_capability="group",
         )
     )
     rows.append(
@@ -321,6 +333,8 @@ async def document_outline(
             kind="entity-group",
             label="Entities",
             count=len(entities),
+            parent_id=document_id,
+            source_capability="group",
         )
     )
 
