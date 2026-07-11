@@ -10,7 +10,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, EntityType
-from fichero.models import Document, DocType
+from fichero.models import ActionAudit, Document, DocType
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ class TestGenerateEntityBio:
         # LLM was called once
         mock_chat.assert_called_once()
 
-    def test_regenerates_existing_description(self, client, db):
+    def test_preserves_existing_human_description(self, client, db):
         entity = _make_entity(db)
         entity.description = "Old description."
         db.save(entity)
@@ -100,7 +100,10 @@ class TestGenerateEntityBio:
         assert r.status_code == 200
         assert r.json()["biography"] == new_bio
         refreshed = db.get(KnowledgeEntity, entity.id)
-        assert refreshed.description == new_bio
+        assert refreshed.description == "Old description."
+        assert refreshed.metadata["ai_biography"] == new_bio
+        assert refreshed.metadata["biography_provenance"]["claim_ids"] == []
+        assert any(a.action_name == "entity.update" for a in db.all(ActionAudit))
 
     def test_no_claims_still_calls_llm(self, client, db):
         entity = _make_entity(db, "Unknown Person")

@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.api.auth import action_context
+from fichero.actions.registry import ActionContext, registry
 from fichero.db import Database
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.llm import LLMConfig, chat
@@ -101,14 +103,16 @@ def _build_bio_prompt(entity: KnowledgeEntity, claims: list[KnowledgeClaim]) -> 
 async def generate_entity_bio(
     entity_id: str,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> EntityBioResponse:
     """Generate a prose biography from SVO claims and persist as entity.description."""
     entity = db.get(KnowledgeEntity, entity_id)
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
-    all_claims: list[KnowledgeClaim] = db.all(KnowledgeClaim)
-    entity_claims = [c for c in all_claims if entity_id in c.entity_ids]
+    from fichero.api.routes.entities import _claims_referencing_entity_ids
+
+    entity_claims = _claims_referencing_entity_ids(db, [entity_id])
     entity_claims.sort(key=lambda c: c.created_at)
 
     prompt = _build_bio_prompt(entity, entity_claims)
@@ -130,8 +134,31 @@ async def generate_entity_bio(
     if not isinstance(biography, str):
         biography = str(biography)
 
-    entity.description = biography
-    entity.updated_at = datetime.now()
-    db.save(entity)
+    metadata = dict(entity.metadata or {})
+    ai_owned = bool(metadata.get("biography_provenance"))
+    metadata["biography_provenance"] = {
+        "provider": llm_config.provider,
+        "model": llm_config.model,
+        "generated_at": datetime.now().isoformat(),
+        "claim_ids": [claim.id for claim in entity_claims],
+    }
+    description = biography if entity.description is None or ai_owned else entity.description
+    if description != biography:
+        metadata["ai_biography"] = biography
+    registry.invoke(
+        db,
+        "entity.update",
+        {
+            "entity_id": entity.id,
+            "canonical_name": entity.canonical_name,
+            "entity_type": entity.entity_type,
+            "aliases": entity.aliases,
+            "description": description,
+            "language": entity.language,
+            "metadata": metadata,
+            "source_document_ids": entity.source_document_ids,
+        },
+        ctx,
+    )
 
     return EntityBioResponse(entity_id=entity_id, biography=biography)
