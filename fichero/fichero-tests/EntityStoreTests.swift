@@ -198,7 +198,7 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertTrue(requests.contains { $0.httpMethod == "DELETE" && $0.url?.path == "/api/entities/entity-1" })
     }
 
-    func testMergeRemovesAbsorbedRowsAndRefreshesSurvivorInPlace() async throws {
+    func testMergeReloadsCurrentInspectorScopeAfterBackendMerge() async throws {
         MockFicheroURLProtocol.configure(
             responses: [
                 .init(
@@ -221,9 +221,13 @@ final class EntityStoreTests: XCTestCase {
                     )
                 ),
                 .init(
-                    method: "GET", path: "/api/entities/entity-1",
+                    method: "GET", path: "/api/documents/doc-1/inspector",
                     statusCode: 200,
-                    body: makeEntityResponse(id: "entity-1", name: "Alpha Prime")
+                    body: makeDocumentInspectorResponse(
+                        entities: [
+                            makeEntityJSON(id: "entity-1", name: "Alpha Prime")
+                        ]
+                    )
                 )
             ]
         )
@@ -238,7 +242,10 @@ final class EntityStoreTests: XCTestCase {
 
         let requests = MockFicheroURLProtocol.recordedRequests()
         XCTAssertTrue(requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/kg/entity-curation/merge" })
-        XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/entities/entity-1" })
+        XCTAssertGreaterThanOrEqual(
+            requests.filter { $0.httpMethod == "GET" && $0.url?.path == "/api/documents/doc-1/inspector" }.count,
+            2
+        )
     }
 
     private func makeStore() -> EntityStore {
