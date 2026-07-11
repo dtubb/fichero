@@ -2408,6 +2408,7 @@ def _write_kg_rows(
         # on disk + page number.
         char_start: int | None = None
         char_end: int | None = None
+        source_bbox = item.get("source_bbox")
         if source_text and page_excerpt:
             idx = page_excerpt.find(source_text)
             if idx >= 0:
@@ -2674,6 +2675,7 @@ def _write_kg_rows(
             source_page_label=page_label,
             source_char_start=char_start,
             source_char_end=char_end,
+            source_bbox=source_bbox,
             claim_type=ctype or ClaimType.fact,
             metadata=meta,
             epistemic_status=epistemic,

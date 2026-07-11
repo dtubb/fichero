@@ -896,3 +896,18 @@ def test_claim_writer_cleans_escaped_text_and_deletion_markers(db, container_doc
 
     claim = db.query(KnowledgeClaim, source_document_id=container_doc.id)[0]
     assert claim.text == 'Rosario contains La parte "limpia".'
+
+
+def test_claim_writer_preserves_source_bbox(db, container_doc):
+    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+    section = next(s for s in _SECTIONS if s["name"] == "places_extract")
+    _write_kg_rows(
+        db,
+        section,
+        [{"name": "Rosario", "verb": "is", "object": "a street", "source_bbox": [0.1, 0.2, 0.3, 0.4]}],
+        container_doc.id,
+    )
+    claim = db.query(KnowledgeClaim, source_document_id=container_doc.id)[0]
+    assert claim.source_bbox == [0.1, 0.2, 0.3, 0.4]
