@@ -178,15 +178,11 @@ extension SearchView {
     }
 
     func openExcerpt(_ result: SearchResult) {
-        guard let info = SearchResultRowFromAPI.navigationUserInfo(for: result) else {
+        guard let request = SearchResultRowFromAPI.navigationRequest(for: result) else {
             loadDocument(result.documentId)
             return
         }
 
-        NotificationCenter.default.post(
-            name: .ficheroOpenClaimSource,
-            object: nil,
-            userInfo: info
-        )
+        ClaimSourceNavigationState.shared.request(request)
     }
 }

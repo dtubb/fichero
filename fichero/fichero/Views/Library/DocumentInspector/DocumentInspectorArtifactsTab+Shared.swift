@@ -71,6 +71,30 @@ final class EntitySearchState {
     }
 }
 
+struct ClaimSourceNavigationRequest: Equatable {
+    let documentId: String
+    var claimId: String?
+    var claimText: String?
+    var pageLabel: String?
+    var charStart: Int?
+    var charEnd: Int?
+}
+
+@Observable
+@MainActor
+final class ClaimSourceNavigationState {
+    static let shared = ClaimSourceNavigationState()
+
+    private(set) var requestID: Int = 0
+    private(set) var currentRequest: ClaimSourceNavigationRequest?
+
+    func request(_ request: ClaimSourceNavigationRequest) {
+        guard !request.documentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        currentRequest = request
+        requestID &+= 1
+    }
+}
+
 // MARK: - Notification names
 
 extension Notification.Name {
@@ -81,13 +105,7 @@ extension Notification.Name {
     // to every window's stores. Only *navigation* signals remain — those are
     // not data mutations and stay out of the change-stream (spec §4.3).
 
-    /// Posted when the user taps a source-doc citation on a claim card
-    /// (the small arrow in EntityKindRow). ContentView listens and either
-    /// opens the source document in the reading pane or navigates to it in
-    /// the library grid. object = source document id String. (#833)
-    static let ficheroOpenClaimSource = Notification.Name("ficheroOpenClaimSource")
-
-    /// Forwarded from `ficheroOpenClaimSource` after ContentView
+    /// Forwarded from the typed source-open request after ContentView
     /// has resolved the source-doc id to a page number. Received by the
     /// PDF canvas so it can jump to the right page. (#833)
     static let ficheroNavigateToPage = Notification.Name("ficheroNavigateToPage")

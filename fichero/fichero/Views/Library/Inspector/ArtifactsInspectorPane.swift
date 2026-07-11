@@ -209,14 +209,11 @@ struct ArtifactsInspectorPane: View {
             inspectedDocument: document,
             documentsById: knownDocumentsById
         )
-        var info: [String: Any] = ["documentId": provenance.sourceDocumentId]
-        if let pageLabel = provenance.pageLabel {
-            info["pageLabel"] = pageLabel
-        }
-        NotificationCenter.default.post(
-            name: .ficheroOpenClaimSource,
-            object: nil,
-            userInfo: info
+        ClaimSourceNavigationState.shared.request(
+            ClaimSourceNavigationRequest(
+                documentId: provenance.sourceDocumentId,
+                pageLabel: provenance.pageLabel
+            )
         )
     }
 

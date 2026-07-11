@@ -213,39 +213,36 @@ extension ClaimSummaryCard {
         EntitySearchState.shared.request(name: name, entityType: nil)
     }
 
-    /// Post ficheroOpenClaimSource for the explicit sourceLine button.
+    /// Route the explicit source-line button through the typed source-open state.
     func openClaimSource() {
         Self.postOpenClaimSource(for: claim)
     }
 
-    static func openClaimSourceUserInfo(
+    static func openClaimSourceRequest(
         documentId: String,
         pageLabel: String? = nil,
         charStart: Int? = nil,
         charEnd: Int? = nil,
         claimId: String? = nil,
         excerpt: String? = nil
-    ) -> [String: Any]? {
+    ) -> ClaimSourceNavigationRequest? {
         guard !documentId.isEmpty else { return nil }
-        var info: [String: Any] = ["documentId": documentId]
-        if let pageLabel = pageLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !pageLabel.isEmpty {
-            info["pageLabel"] = pageLabel
-        }
-        if let charStart { info["charStart"] = charStart }
-        if let charEnd { info["charEnd"] = charEnd }
-        if let claimId { info["claimId"] = claimId }
-        if let excerpt = excerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !excerpt.isEmpty {
-            info["excerpt"] = excerpt
-        }
-        return info
+        let cleanedPageLabel = pageLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedExcerpt = excerpt?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ClaimSourceNavigationRequest(
+            documentId: documentId,
+            claimId: claimId,
+            claimText: cleanedExcerpt?.isEmpty == false ? cleanedExcerpt : nil,
+            pageLabel: cleanedPageLabel?.isEmpty == false ? cleanedPageLabel : nil,
+            charStart: charStart,
+            charEnd: charEnd
+        )
     }
 
-    static func openClaimSourceUserInfo(
+    static func openClaimSourceRequest(
         for claim: Components.Schemas.KnowledgeClaim
-    ) -> [String: Any]? {
-        openClaimSourceUserInfo(
+    ) -> ClaimSourceNavigationRequest? {
+        openClaimSourceRequest(
             documentId: claim.sourceDocumentId ?? "",
             pageLabel: claim.sourcePageLabel,
             charStart: claim.sourceCharStart,
@@ -262,13 +259,9 @@ extension ClaimSummaryCard {
                 .documentStore
                 .currentDocuments
                 .contains(where: { $0.id == docId }) == true,
-              let info = openClaimSourceUserInfo(for: claim)
+              let request = openClaimSourceRequest(for: claim)
         else { return }
-        NotificationCenter.default.post(
-            name: .ficheroOpenClaimSource,
-            object: nil,
-            userInfo: info
-        )
+        ClaimSourceNavigationState.shared.request(request)
     }
 
     private func navigateToSource() {

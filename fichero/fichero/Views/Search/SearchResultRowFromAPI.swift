@@ -183,14 +183,14 @@ struct SearchResultRowFromAPI: View {
         return nil
     }
 
-    static func navigationUserInfo(for result: SearchResult) -> [String: Any]? {
+    static func navigationRequest(for result: SearchResult) -> ClaimSourceNavigationRequest? {
         if let excerpt = result.transcriptExcerpts.first {
-            return [
-                "documentId": excerpt.anchor.documentId,
-                "excerpt": excerpt.text,
-                "charStart": excerpt.anchor.charStart,
-                "charEnd": excerpt.anchor.charEnd
-            ]
+            return ClaimSourceNavigationRequest(
+                documentId: excerpt.anchor.documentId,
+                claimText: excerpt.text,
+                charStart: excerpt.anchor.charStart,
+                charEnd: excerpt.anchor.charEnd
+            )
         }
 
         let excerpt = metadataString(
@@ -201,21 +201,13 @@ struct SearchResultRowFromAPI: View {
             return nil
         }
 
-        var info: [String: Any] = [
-            "documentId": result.documentId,
-            "excerpt": cleaned
-        ]
-
-        if let pageLabel = metadataString(from: result, keys: ["source_page_label", "page_label"]) {
-            info["pageLabel"] = pageLabel
-        }
-        if let charStart = metadataInt(from: result, keys: ["source_char_start", "char_start"]) {
-            info["charStart"] = charStart
-        }
-        if let charEnd = metadataInt(from: result, keys: ["source_char_end", "char_end"]) {
-            info["charEnd"] = charEnd
-        }
-        return info
+        return ClaimSourceNavigationRequest(
+            documentId: result.documentId,
+            claimText: cleaned,
+            pageLabel: metadataString(from: result, keys: ["source_page_label", "page_label"]),
+            charStart: metadataInt(from: result, keys: ["source_char_start", "char_start"]),
+            charEnd: metadataInt(from: result, keys: ["source_char_end", "char_end"])
+        )
     }
 
     /// Build an AttributedString with `**...**` spans highlighted.
