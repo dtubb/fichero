@@ -861,6 +861,7 @@ extension ContentView {
         inspectorView
             // Focus tracking without .focusable() — avoids swallowing first click
             .overlay { paneFocusIndicator(for: .inspector) }
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.bar)
     }
@@ -919,7 +920,7 @@ extension ContentView {
             documentStore.currentDocuments.first { $0.id == parentId }
                 ?? documentStore.collections.first { $0.id == parentId }
         }
-        let pageLabel: String? = if let page = inspectorDocument, page.docType == .page {
+        let pageLabel: String? = if let page = activeLocationDocument, page.docType == .page {
             page.pageThumbnailLabel
         } else {
             nil
