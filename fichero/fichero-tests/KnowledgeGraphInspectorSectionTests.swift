@@ -107,15 +107,17 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let entitiesSource = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
         )
+        let inspectorSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
         let artifactSource = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
         let citationSource = try Self.appSource("Views/Library/Inspector/CitationListView.swift")
         let annotationSource = try Self.appSource("Views/Library/Inspector/AnnotationListView.swift")
 
-        XCTAssertTrue(entitiesSource.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(inspectorSource.contains("func inspectorListRowTarget()"))
+        XCTAssertTrue(entitiesSource.contains(".inspectorListRowTarget()"))
         XCTAssertTrue(entitiesSource.contains(".tag(entity.stableInspectorId)"))
-        XCTAssertTrue(artifactSource.contains(".contentShape(Rectangle())"))
-        XCTAssertTrue(citationSource.contains(".contentShape(Rectangle())"))
-        XCTAssertTrue(annotationSource.contains(".contentShape(Rectangle())"))
+        XCTAssertTrue(artifactSource.contains(".inspectorListRowTarget()"))
+        XCTAssertTrue(citationSource.contains(".inspectorListRowTarget()"))
+        XCTAssertTrue(annotationSource.contains(".inspectorListRowTarget()"))
     }
 
     func testDocumentInspectorArtifactPanelsRouteSelectionIntoArtifactInspector() throws {
@@ -124,6 +126,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(source.contains("FocusedArtifact.shared.select("))
         XCTAssertTrue(source.contains("documentId: document.id"))
         XCTAssertTrue(source.contains(".onTapGesture"))
+        XCTAssertTrue(source.contains("@Environment(ArtifactStore.self)"))
+        XCTAssertFalse(source.contains("@Environment(ArtifactServiceGenerated.self)"))
+        XCTAssertTrue(source.contains("await artifactStore.setScope("))
+        XCTAssertTrue(source.contains("await artifactStore.delete([artifact])"))
+        XCTAssertTrue(source.contains("try await artifactStore.update("))
     }
 
     func testInspectorEntitySelectionReducerPlainClickReplacesSelection() {

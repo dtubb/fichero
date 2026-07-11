@@ -23,18 +23,27 @@ struct DocumentInspectorContentV2: View {
     let document: Document
     var mode: Mode = .all
 
-    @Environment(ArtifactServiceGenerated.self) private var artifactService
+    @Environment(ArtifactStore.self) private var artifactStore
     @Environment(DocumentServiceGenerated.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
-    @State private var artifacts: [Artifact] = []
-    @State private var isLoading = false
-    @State private var loadError: String?
     @State private var actionError: String?
 
     private var liveDocument: Document {
         Self.refreshedDocument(document, in: documentStore.currentDocuments)
+    }
+
+    private var artifacts: [Artifact] {
+        artifactStore.items
+    }
+
+    private var isLoading: Bool {
+        artifactStore.isLoading
+    }
+
+    private var loadError: String? {
+        artifactStore.loadError
     }
 
     var body: some View {
@@ -62,17 +71,15 @@ struct DocumentInspectorContentV2: View {
             }
         }
         .task(id: document.id) {
-            await loadArtifacts()
+            await syncArtifactScope(force: true)
         }
         .onChange(of: executionObserver.fileCompletedCount) { _, _ in
             Task { await refreshVisibleDocument() }
-            // Refresh after individual file completions — but don't compete
-            // with an in-flight load.
-            Task { await loadArtifacts() }
+            Task { await syncArtifactScope(force: true) }
         }
         .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
             Task { await refreshVisibleDocument() }
-            Task { await loadArtifacts() }
+            Task { await syncArtifactScope(force: true) }
         }
     }
 
@@ -169,7 +176,7 @@ struct DocumentInspectorContentV2: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Button("Retry") {
-                Task { await loadArtifacts() }
+                Task { await syncArtifactScope(force: true) }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -213,49 +220,28 @@ struct DocumentInspectorContentV2: View {
         return count
     }
 
-    private func loadArtifacts() async {
+    private func syncArtifactScope(force: Bool) async {
         // The page-content-only tab never renders artifacts (the artifact list
         // is gated by `mode != .pageContentOnly`), so fetching them on every
         // document selection is wasted work — and it flashed a stray "Loading
         // artifacts…" spinner over the page editor (#3186).
         guard mode != .pageContentOnly else { return }
-        guard !isLoading else { return }
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            // V2 usually wants strict per-document scope — see #696/V2
-            // redesign. Parent PDFs are the exception: extraction workflows
-            // write per-page entity artifacts to page children, and the
-            // parent inspector must surface those raw page outputs.
-            artifacts = try await artifactService.getArtifacts(
-                forDocumentId: document.id,
-                forceRefresh: true,
-                includeDescendants: Self.shouldIncludeDescendantArtifacts(
-                    for: document,
-                    mode: mode
-                )
-            )
-            loadError = nil
-        } catch is CancellationError {
-            // Task superseded by a newer page selection — not a load failure.
-        } catch {
-            loadError = "Couldn't load artifacts: \(error.localizedDescription)"
-        }
+        await artifactStore.setScope(
+            documentId: document.id,
+            includeDescendants: Self.shouldIncludeDescendantArtifacts(
+                for: document,
+                mode: mode
+            ),
+            force: force
+        )
     }
 
     private func deleteArtifact(_ artifact: Artifact) async {
-        // Optimistic remove (#705 pattern). The artifact panel disappears
-        // immediately; rollback if the backend rejects the delete.
-        let snapshot = artifacts
-        artifacts.removeAll { $0.id == artifact.id }
-        do {
-            try await artifactService.deleteArtifact(
-                id: artifact.id, documentId: document.id
-            )
+        let failedDeletes = await artifactStore.delete([artifact])
+        if failedDeletes == 0 {
             actionError = nil
-        } catch {
-            artifacts = snapshot
-            actionError = "Couldn't delete: \(error.localizedDescription)"
+        } else {
+            actionError = "Couldn't delete artifact."
         }
     }
 
@@ -304,16 +290,17 @@ struct DocumentInspectorContentV2: View {
 
     private func saveArtifact(_ artifact: Artifact, content: String) async {
         do {
-            let updated = try await artifactService.updateArtifact(
+            let updated = try await artifactStore.update(
                 id: artifact.id,
-                documentId: document.id,
+                documentId: artifact.documentId,
                 content: content
             )
-            // Replace in local list so the read view picks up the new text
-            // immediately; the next loadArtifacts will reconcile if needed.
-            if let index = artifacts.firstIndex(where: { $0.id == updated.id }) {
-                artifacts[index] = updated
-            }
+            FocusedArtifact.shared.select(
+                updated.id,
+                documentId: document.id,
+                documentName: document.name,
+                in: artifactStore.items
+            )
             actionError = nil
         } catch {
             actionError = "Couldn't save: \(error.localizedDescription)"
