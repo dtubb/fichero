@@ -10,6 +10,8 @@ struct AnnotationsInspectorPane: View {
     let annotations: [DocumentAnnotation]
 
     @Environment(AnnotationStore.self) private var annotationStore
+    /// Per-window typed source-navigation bus (#3437/#3432).
+    @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
@@ -160,17 +162,10 @@ struct AnnotationsInspectorPane: View {
     }
 
     private func reveal(_ annotation: DocumentAnnotation) {
-        guard let documentId = annotation.documentId else { return }
-        var info: [String: Any] = ["documentId": documentId]
-        if let pageLabel = annotation.pageLabel { info["pageLabel"] = pageLabel }
-        if let bbox = annotation.bbox { info["bbox"] = bbox }
-        if let charStart = annotation.charStart { info["charStart"] = charStart }
-        if let charEnd = annotation.charEnd { info["charEnd"] = charEnd }
-        NotificationCenter.default.post(
-            name: .annotationSelectedInInspector,
-            object: nil,
-            userInfo: info
-        )
+        // Route through the typed source-navigation bus ContentView consumes
+        // (#3432), not the dead annotationSelectedInInspector notification.
+        guard let request = AnnotationSourceNavigation.request(for: annotation) else { return }
+        claimSourceNavigationState?.request(request)
     }
 
     @ViewBuilder

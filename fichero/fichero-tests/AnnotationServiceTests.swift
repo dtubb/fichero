@@ -164,4 +164,31 @@ final class AnnotationServiceTests: XCTestCase {
         )
         XCTAssertFalse(AnnotationService.matchesSearch(annotation, query: "mining"))
     }
+
+    // MARK: - Source-navigation mapping (#3432)
+
+    func testAnnotationSourceNavigationMapsFullAnchor() throws {
+        let annotation = DocumentAnnotation(
+            id: "a1",
+            documentId: "doc-9",
+            pageLabel: "p. 4",
+            charStart: 10,
+            charEnd: 25,
+            bbox: [0.1, 0.2, 0.3, 0.4]
+        )
+
+        let request = try XCTUnwrap(AnnotationSourceNavigation.request(for: annotation))
+        XCTAssertEqual(request.documentId, "doc-9")
+        XCTAssertEqual(request.pageLabel, "p. 4")
+        XCTAssertEqual(request.charStart, 10)
+        XCTAssertEqual(request.charEnd, 25)
+        XCTAssertEqual(request.bbox, [0.1, 0.2, 0.3, 0.4])
+    }
+
+    func testAnnotationSourceNavigationNilWithoutDocumentAnchor() {
+        // No document id → no anchor, so selection/reveal is a safe no-op rather
+        // than routing an unresolvable request.
+        let annotation = DocumentAnnotation(id: "a2", pageLabel: "p. 1")
+        XCTAssertNil(AnnotationSourceNavigation.request(for: annotation))
+    }
 }
