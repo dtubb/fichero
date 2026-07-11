@@ -719,7 +719,7 @@ extension ContentView {
     /// LEADING zone: back/forward history navigation in the content-column toolbar.
     @ToolbarContentBuilder
     private var leadingToolbarContent: some ToolbarContent {
-        ToolbarItemGroup(id: ContentToolbarID.navigationHistory, placement: .navigation) {
+        ToolbarItemGroup(placement: .navigation) {
             Button {
                 navigateBack()
             } label: {
@@ -786,7 +786,7 @@ extension ContentView {
         // hidden (#2813).
         if supportsReadingWorkspace
             && !Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
-            ToolbarItemGroup(id: ContentToolbarID.contentPaneToggles, placement: .automatic) {
+            ToolbarItemGroup(placement: .automatic) {
                 if showViewModePicker && availableViewDisplayModes.count > 1 {
                     viewDisplayModeMenu
                 }

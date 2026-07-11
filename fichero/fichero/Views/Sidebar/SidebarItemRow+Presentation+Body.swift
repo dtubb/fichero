@@ -148,7 +148,7 @@ extension SidebarItemRow {
     /// SwiftUI's tap-vs-drag disambiguation (#711 follow-up).
     private var leafLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted)
+            .sidebarDropHighlight(isDropTargeted, stronger: false)
             .onDrop(
                 of: [UTType.utf8PlainText, UTType.item],
                 isTargeted: $isDropTargeted
