@@ -69,13 +69,18 @@ def validate_port_connection(source_port: PortDef, target_port: PortDef) -> bool
 
 
 def validate_node_connections(
-    node: NodeDef, tool_def: ToolDef | None = None
+    node: NodeDef,
+    tool_def: ToolDef | None = None,
+    edge_target_ports: set[str] | None = None,
 ) -> list[str]:
     """Validate all connections for a node.
 
     Args:
         node: The node to validate
         tool_def: Optional tool definition for additional validation
+        edge_target_ports: Optional set of port ids on this node that are fed
+            by an incoming workflow edge (satisfies required-port checks the
+            same way an input mapping does)
 
     Returns:
         List of error messages (empty if valid)
@@ -92,11 +97,12 @@ def validate_node_connections(
     # Check required input ports
     required_inputs = [p for p in tool_def.input_ports if p.required]
     for port in required_inputs:
-        # Check if port has a mapping or the port has data
+        # Check if port has a mapping, an incoming edge, or the port has data
         has_mapping = any(m.port_id == port.id for m in node.input_mappings)
+        has_edge = bool(edge_target_ports) and port.id in edge_target_ports
         has_default = port.default is not None
 
-        if not has_mapping and not has_default:
+        if not has_mapping and not has_edge and not has_default:
             errors.append(
                 f"Required input port '{port.id}' on node '{node.id}' has no mapping or default value"
             )
@@ -129,9 +135,17 @@ def validate_workflow_connections(workflow: WorkflowDef) -> list[str]:
     for node in workflow.nodes:
         enriched_nodes[node.id] = enrich_node_with_ports(node)
 
+    # Build a map of node_id -> set of input port ids fed by an incoming edge,
+    # so an edge satisfies a required-port check the same way a mapping does.
+    edge_targets_by_node: dict[str, set[str]] = {}
+    for edge in workflow.edges:
+        edge_targets_by_node.setdefault(edge.target, set()).add(edge.target_port)
+
     # Validate each node
     for node in workflow.nodes:
-        node_errors = validate_node_connections(node)
+        node_errors = validate_node_connections(
+            node, edge_target_ports=edge_targets_by_node.get(node.id)
+        )
         errors.extend(node_errors)
 
     # Validate each edge
