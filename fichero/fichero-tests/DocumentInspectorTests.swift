@@ -336,6 +336,24 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertNil(SourceOutlineNode.navigationRequest(for: noDoc))
     }
 
+    // MARK: - Interpretation inspector on the injected store (#3429)
+
+    func testInterpretationSectionUsesInjectedStoreNotGlobalLibrary() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Interpretations.swift"
+        )
+
+        // #3429: the interpretation inspector reads InterpretationStore from the
+        // environment and drives scope + create/edit through it — never the
+        // LibraryManager.shared globalLibrary singleton. This guard fails if the
+        // singleton reach-through is ever reintroduced.
+        XCTAssertTrue(source.contains("@Environment(InterpretationStore.self)"))
+        XCTAssertTrue(source.contains("store.setScope(documentId:"))
+        XCTAssertTrue(source.contains("store.create("))
+        XCTAssertFalse(source.contains("LibraryManager.shared"))
+        XCTAssertFalse(source.contains("globalLibrary"))
+    }
+
     // MARK: - Content-tab artifacts on the store (#3427)
 
     func testDisplayAttributesStripObservesArtifactStoreNotService() throws {
