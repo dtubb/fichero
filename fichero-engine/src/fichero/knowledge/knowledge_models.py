@@ -1348,6 +1348,12 @@ class Annotation(BaseModel):
     # 0-indexed paragraph within the page, set when anchor_kind == "paragraph"
     # (paragraph checkmarks). Resolved against page_content paragraph offsets.
     paragraph_index: int | None = None
+    ink_payload: str | None = None
+    ocr_text: str | None = None
+    ocr_provider: str | None = None
+    ocr_model: str | None = None
+    ocr_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    ocr_recorded_at: datetime | None = None
 
     kind: AnnotationKind
     text: str | None = None  # note body / comment text / bookmark label

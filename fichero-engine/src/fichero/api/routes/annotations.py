@@ -47,6 +47,12 @@ class AnnotationCreateRequest(BaseModel):
     bbox: list[float] | None = None
     anchor_kind: str | None = None
     paragraph_index: int | None = None
+    ink_payload: str | None = None
+    ocr_text: str | None = None
+    ocr_provider: str | None = None
+    ocr_model: str | None = None
+    ocr_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    ocr_recorded_at: datetime | None = None
     text: str | None = None
     rating: int | None = Field(default=None, ge=1, le=5)
     color: str | None = None
@@ -248,6 +254,13 @@ class AnnotationPatchRequest(BaseModel):
     char_end: int | None = None
     bbox: list[float] | None = None
     anchor_kind: str | None = None
+    paragraph_index: int | None = None
+    ink_payload: str | None = None
+    ocr_text: str | None = None
+    ocr_provider: str | None = None
+    ocr_model: str | None = None
+    ocr_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    ocr_recorded_at: datetime | None = None
     paragraph_index: int | None = None
     metadata: dict[str, Any] | None = None
 
