@@ -7,8 +7,7 @@ how that actually works, as the concrete process
 the project follows. It is grounded in the workflow files that live in the
 repository: `AGENTS.md` (the canonical agent constitution + operational manual),
 `CLAUDE.md`, `MEMORY.md`, `agents/ROADMAP.md`, and the skills under
-`agents/skills/`, with older background notes still preserved under
-`agent-work/agent-workflow/`.
+`agents/skills/`.
 
 ## Why document this
 
@@ -21,8 +20,7 @@ unreviewed code.
 ## The two core roles
 
 Work is organized around a **manager / worker** split. In the current repo, the
-canonical reusable skills live under `agents/skills/`, with older workflow
-notes and templates still preserved under `agent-work/agent-workflow/`:
+canonical reusable skills live under `agents/skills/`:
 
 - **Manager** (`session-start-manager`): the control lane. It reads project
   state and the roadmap, triages GitHub issues, decides what to do next, and
@@ -72,14 +70,11 @@ A few hard rules keep the machine usable while agents run:
   the full Xcode build, the full `FicheroTests` run, and the cross-stack
   verification gate before merge.
 - Build, lint, and test logs are pushed **off** the lead agent's context: the
-  lead reads a pass/fail verdict, not the full log. This is the "the lead reads a
-  verdict, not a log" rule from `agent-work/agent-workflow/parallel-execution.md`.
+  lead reads a pass/fail verdict, not the full log.
 
 ## Three execution modes
 
-The workflow picks the lightest tool that fits the task
-(`agent-work/agent-workflow/parallel-execution.md` remains the detailed
-reference note for that pattern):
+The workflow picks the lightest tool that fits the task:
 
 | Mode | What it is | Use when |
 |---|---|---|
@@ -120,6 +115,5 @@ those lessons down at the end of a working session.
 ---
 
 *This page describes the development workflow, not a feature of the app. For
-the detailed operating rules, see `AGENTS.md`, the current skills under
-`agents/skills/`, and the longer background notes in
-`agent-work/agent-workflow/`.*
+the detailed operating rules, see `AGENTS.md` and the current skills under
+`agents/skills/`.*
