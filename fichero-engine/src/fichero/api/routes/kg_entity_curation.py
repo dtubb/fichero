@@ -202,6 +202,8 @@ def merge_entities_impl(
                 status_code=404, detail=f"Absorbed entity not found: {eid}"
             )
         if ent.merged_into_id is not None:
+            if ent.merged_into_id == absorber.id:
+                continue
             raise HTTPException(
                 status_code=409,
                 detail=f"Entity {eid} was already merged into {ent.merged_into_id}",
