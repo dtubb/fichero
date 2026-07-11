@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 /// V2 inspector Content tab. Tinderbox-style layout:
@@ -347,4 +348,207 @@ func persistPageContent(
     return await documentStore.savePageContent(documentId: id) {
         try await documentService.updateDocument(id, pageContent: content)
     }
+}
+
+// MARK: - Source outline (#3440)
+
+/// Document-scoped observable store for the generated source outline (#3440).
+///
+/// Wraps `GET /api/documents/{id}/outline` through the injected
+/// `DocumentServiceGenerated` — no hand-rolled URL, no view-owned fetch. Holds
+/// the flat, depth-ordered rows; the view folds them into a hierarchy.
+///
+/// Source **anchors** for reveal-in-Preview are engine work (#3441): today the
+/// rows carry only id / depth / kind / label / count, so this is a native
+/// hierarchy/drill-down mode, and rows do not pretend to be source anchors.
+@MainActor
+@Observable
+final class DocumentOutlineStore {
+    private(set) var rows: [Components.Schemas.DocumentOutlineRow] = []
+    private(set) var isLoading = false
+    private(set) var loadError: String?
+    private(set) var loadedDocumentId: String?
+
+    func load(
+        documentId: String,
+        using service: DocumentServiceGenerated,
+        force: Bool = false
+    ) async {
+        if !force, loadedDocumentId == documentId, loadError == nil { return }
+        isLoading = true
+        loadError = nil
+        defer { isLoading = false }
+        do {
+            rows = try await service.documentOutline(documentId)
+            loadedDocumentId = documentId
+        } catch is CancellationError {
+            // Superseded by a newer selection — keep current state.
+        } catch {
+            rows = []
+            loadError = error.localizedDescription
+            loadedDocumentId = nil
+        }
+    }
+}
+
+/// One node in the source-outline tree — the flat depth-list folded into a
+/// hierarchy for the native `OutlineGroup` (#3440).
+struct SourceOutlineNode: Identifiable, Hashable {
+    let row: Components.Schemas.DocumentOutlineRow
+    var children: [SourceOutlineNode]?
+
+    var id: String { row.id }
+
+    /// Fold a flat, depth-ordered row list into a tree. Rows arrive depth-first
+    /// (a parent immediately followed by its deeper descendants), with `depth`
+    /// giving the level, so a recursive descent reconstructs the hierarchy.
+    /// `children` is `nil` (not `[]`) for leaves, so the native outline shows a
+    /// disclosure triangle only where there is something to expand. Pure + testable.
+    static func tree(
+        from rows: [Components.Schemas.DocumentOutlineRow]
+    ) -> [SourceOutlineNode] {
+        guard let minDepth = rows.map(\.depth).min() else { return [] }
+        var index = 0
+
+        func parse(atDepth depth: Int) -> [SourceOutlineNode] {
+            var nodes: [SourceOutlineNode] = []
+            while index < rows.count, rows[index].depth == depth {
+                let row = rows[index]
+                index += 1
+                let children: [SourceOutlineNode]?
+                if index < rows.count, rows[index].depth > depth {
+                    children = parse(atDepth: depth + 1)
+                } else {
+                    children = nil
+                }
+                nodes.append(SourceOutlineNode(row: row, children: children))
+            }
+            return nodes
+        }
+
+        return parse(atDepth: minDepth)
+    }
+}
+
+/// Native document outline (#3440): the generated source hierarchy rendered as a
+/// SwiftUI `List` with disclosure, so keyboard navigation, VoiceOver, and
+/// full-row selection come from the platform. A deliberate hierarchy MODE inside
+/// the Source section (see ``SourceSectionView``), not a permanent tab.
+///
+/// Source reveal for page/structural rows lands with #3441 (stable anchors);
+/// until then this is drill-down/overview only.
+struct SourceOutlineView: View {
+    let documentId: String
+
+    @Environment(DocumentServiceGenerated.self) private var documentService
+    @State private var store = DocumentOutlineStore()
+    @State private var selection: String?
+
+    var body: some View {
+        Group {
+            if store.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let loadError = store.loadError {
+                ContentUnavailableView {
+                    Label("Couldn’t load outline", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(loadError)
+                } actions: {
+                    Button("Retry") {
+                        Task { await store.load(documentId: documentId, using: documentService, force: true) }
+                    }
+                }
+            } else if store.rows.isEmpty {
+                ContentUnavailableView(
+                    "No outline",
+                    systemImage: "list.bullet.indent",
+                    description: Text("This document has no structural outline yet.")
+                )
+            } else {
+                List(
+                    SourceOutlineNode.tree(from: store.rows),
+                    children: \.children,
+                    selection: $selection
+                ) { node in
+                    outlineRow(node.row)
+                }
+                .listStyle(.inset)
+            }
+        }
+        .task(id: documentId) {
+            await store.load(documentId: documentId, using: documentService)
+        }
+    }
+
+    private func outlineRow(_ row: Components.Schemas.DocumentOutlineRow) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: Self.icon(forKind: row.kind))
+                .foregroundStyle(.secondary)
+                .font(.caption)
+            Text(row.label)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            if row.count > 0 {
+                Text("\(row.count)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .inspectorListRowTarget()
+        .help(row.label)
+    }
+
+    /// SF Symbol for an outline row kind. Falls back to a generic marker so a new
+    /// backend kind still renders (rather than a blank row).
+    static func icon(forKind kind: String) -> String {
+        switch kind.lowercased() {
+        case "document", "file": return "doc.text"
+        case "folder", "collection": return "folder"
+        case "page": return "doc"
+        case "section", "chunk": return "text.alignleft"
+        case "entity", "person", "place", "organization": return "person.crop.circle"
+        case "claim": return "quote.bubble"
+        default: return "circle.fill"
+        }
+    }
+}
+
+/// The Source section body: a deliberate **mode** toggle between the page
+/// Content view and the native document Outline (#3440) — Outline is a hierarchy
+/// mode within Source, not another permanent inspector tab.
+struct SourceSectionView: View {
+    let document: Document
+
+    @SceneStorage("inspector.source.mode") private var mode: SourceSectionMode = .content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("Source view", selection: $mode) {
+                Text("Content").tag(SourceSectionMode.content)
+                Text("Outline").tag(SourceSectionMode.outline)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            Divider()
+
+            switch mode {
+            case .content:
+                DisplayAttributesStrip(document: document)
+                Divider()
+                DocumentInspectorContentV2(document: document, mode: .pageContentOnly)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .outline:
+                SourceOutlineView(documentId: document.id)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+}
+
+enum SourceSectionMode: String, CaseIterable {
+    case content
+    case outline
 }
