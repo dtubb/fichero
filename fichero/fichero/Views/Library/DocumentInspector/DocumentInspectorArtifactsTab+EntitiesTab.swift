@@ -380,7 +380,7 @@ struct DocumentInspectorEntitiesTab: View {
             action: { payloads, _ in
                 handleEntityDrop(payloads: payloads, onto: entity)
             },
-            isTargeted: dropTargetBinding(for: entity)
+            isTargeted: dropTargetHandler(for: entity)
         )
         .simultaneousGesture(
             TapGesture(count: 2).onEnded { openEntity(entity) }
@@ -642,19 +642,16 @@ struct DocumentInspectorEntitiesTab: View {
         onEntitySelect?(id)
     }
 
-    private func dropTargetBinding(
+    private func dropTargetHandler(
         for entity: Components.Schemas.KnowledgeEntity
-    ) -> Binding<Bool> {
-        Binding(
-            get: { dropTargetEntityId == entity.stableInspectorId },
-            set: { isTargeted in
-                if isTargeted {
-                    dropTargetEntityId = entity.stableInspectorId
-                } else if dropTargetEntityId == entity.stableInspectorId {
-                    dropTargetEntityId = nil
-                }
+    ) -> (Bool) -> Void {
+        { isTargeted in
+            if isTargeted {
+                dropTargetEntityId = entity.stableInspectorId
+            } else if dropTargetEntityId == entity.stableInspectorId {
+                dropTargetEntityId = nil
             }
-        )
+        }
     }
 
     @ViewBuilder

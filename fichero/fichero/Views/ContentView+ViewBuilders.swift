@@ -799,7 +799,7 @@ extension ContentView {
                     }
                 }
             )
-            .environment(documentService)
+            .environment(documentStore.documentService)
             .environment(artifactService)
             .environment(entityService)
             .environment(kgCurationService)

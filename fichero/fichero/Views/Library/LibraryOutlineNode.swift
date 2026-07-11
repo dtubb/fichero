@@ -245,7 +245,7 @@ final class LibraryOutlineModel {
               !entityRequested.contains(documentId) else { return }
         entityRequested.insert(documentId)
         do {
-            entitiesByDocumentId[documentId] = try await artifactService.listInspectorEntitiesForDocument(
+            entitiesByDocumentId[documentId] = try await service.listInspectorEntitiesForDocument(
                 documentId: documentId
             )
         } catch {
@@ -258,7 +258,7 @@ final class LibraryOutlineModel {
               !claimRequested.contains(documentId) else { return }
         claimRequested.insert(documentId)
         do {
-            claimsByDocumentId[documentId] = try await artifactService.listClaims(
+            claimsByDocumentId[documentId] = try await service.listClaims(
                 sourceDocumentId: documentId,
                 includeDescendants: false,
                 limit: 500

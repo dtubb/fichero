@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 // swiftlint:disable file_length
 
@@ -79,7 +80,23 @@ extension LibraryView {
             outlineColumns
         } rows: {
             ForEach(outlineNodes) { node in
-                outlineTableRow(node)
+                if nodeCanExpand(node) {
+                    DisclosureTableRow(node, isExpanded: expansionBinding(for: node)) {
+                        ForEach(node.children ?? []) { childGroup in
+                            if nodeCanExpand(childGroup) {
+                                DisclosureTableRow(childGroup, isExpanded: expansionBinding(for: childGroup)) {
+                                    ForEach(childGroup.children ?? []) { child in
+                                        TableRow(child)
+                                    }
+                                }
+                            } else {
+                                TableRow(childGroup)
+                            }
+                        }
+                    }
+                } else {
+                    TableRow(node)
+                }
             }
         }
         .onChange(of: selection) { _, newSelection in
@@ -109,19 +126,6 @@ extension LibraryView {
                     )
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private func outlineTableRow(_ node: LibraryOutlineNode) -> some View {
-        if nodeCanExpand(node) {
-            DisclosureTableRow(node, isExpanded: expansionBinding(for: node)) {
-                ForEach(node.children ?? []) { child in
-                    outlineTableRow(child)
-                }
-            }
-        } else {
-            TableRow(node)
         }
     }
 
