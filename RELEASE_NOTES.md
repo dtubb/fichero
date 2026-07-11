@@ -2,6 +2,37 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.11-beta
+
+Inspector and startup hardening after the first notarized beta.
+
+### Improved
+
+**Document Inspector.** Artifact, entity, claim, citation, annotation, note, and
+knowledge-graph inspector paths are more consistent. Inspector selections now
+preserve focus across tab routing, entity merges, and refreshes. Artifact clicks
+route into inspector detail, entity names route into library search, and the
+knowledge-graph browser warns when a cap truncates results.
+
+**Mac shell polish.** Toolbar IDs, mini-toolbar chrome, split focus, sidebar PDF
+drop targeting, empty activity windows, and live-update pause behavior were
+tightened for the internal Mac test build.
+
+**Connection and launch recovery.** Startup errors are classified more clearly,
+library live-update streams wait until the backend is ready, and sandbox token
+sync handles the UUID container path used by signed/sandboxed app launches.
+
+### Fixed
+
+- Fixed several inspector regressions around artifact selection, entity merge
+  refresh, lower-detail layout, outline disclosure, and source routing.
+- Fixed catalogue/page-level workflow output refresh so inspector content tracks
+  page-scoped workflow results.
+- Fixed local pairing QR PIN lookup and kept the shared engine bound to
+  loopback unless sharing is intentionally enabled.
+- Repaired Swift build and guardrail drift after the inspector and feature-tier
+  batches.
+
 ## 2026.07.10-beta
 
 The first notarized build, auto-updating via Sparkle.

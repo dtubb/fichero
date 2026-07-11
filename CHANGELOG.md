@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-07-11
+
+**Fixes**
+
+- Harden the Document Inspector after the first notarized beta: route artifact
+  and entity selections correctly, preserve focus across refreshes and merges,
+  keep lower-detail layouts stable, and remove the dead outline inspector path.
+- Repair Mac shell regressions around split focus, toolbar IDs, sidebar PDF
+  drops, live-update pause behavior, and empty activity windows.
+- Stabilize startup and connection paths: clearer engine-startup recovery,
+  deferred library streams until backend readiness, sandbox bootstrap-token sync,
+  local pairing QR lookup, and loopback-only shared engine defaults.
+
+**Tests**
+
+- Add inspector, artifact-selection, sidebar/drop, feature-tier, workflow-output,
+  progress-view, FocusedValue, and shell-chrome guardrail coverage for the new
+  internal beta surface.
+
+**Release**
+
+- Stamp and package the 2026.07.11 beta for GitHub/Sparkle and iOS TestFlight.
+
+---
+
 ## 2026-07-10
 
 **Features**
