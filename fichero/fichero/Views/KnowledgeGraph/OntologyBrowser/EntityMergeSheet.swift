@@ -6,9 +6,10 @@ import SwiftUI
 /// On confirm this routes through the audited action choke point —
 /// `POST /api/actions/invoke` with `name: "entity.merge"` (#1848 exhibit A) —
 /// so the UI merge button runs the *same* named, audited action the chat agent,
-/// App Intents, and tests use. The returned `audit_id` is captured on
-/// `LastAction.shared` to seed a future ⌘Z (`audit/{id}/undo`). The observable
-/// change stream still emits `entity.merged`, so the list refresh is unchanged.
+/// App Intents, and tests use. The `invokeAction` central seam records the
+/// returned `audit_id` on the per-library `LastAction` to seed ⌘Z
+/// (`audit/{id}/undo`). The observable change stream still emits `entity.merged`,
+/// so the list refresh is unchanged.
 struct EntityMergeSheet: View {
     /// The entity that will absorb others.
     let absorbingEntity: Components.Schemas.KnowledgeEntity
@@ -115,12 +116,10 @@ struct EntityMergeSheet: View {
                     absorbedEntityIds: Array(selectedIds),
                     mergedDescription: desc.isEmpty ? nil : desc
                 )
-                let result = try await library.actionsService.invokeAction(
+                _ = try await library.actionsService.invokeAction(
                     name: "entity.merge",
                     params: params
                 )
-                // Capture the audit id so a future ⌘Z can reverse this merge.
-                LastAction.shared.record(auditId: result.auditId, actionName: "entity.merge")
                 onMerge()
                 dismiss()
             } catch {

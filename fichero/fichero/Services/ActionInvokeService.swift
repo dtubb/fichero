@@ -64,7 +64,7 @@ extension ActionLibraryService {
             // sites that recorded explicitly. Single-level (overwrites the prior
             // entry); guarded on success so a reported failure never seeds undo.
             if result.succeeded {
-                LastAction.shared.record(auditId: result.auditId, actionName: name)
+                lastAction.record(auditId: result.auditId, actionName: name)
             }
             invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
             return result
@@ -252,15 +252,13 @@ struct AclSetParams: Encodable {
 ///
 /// Holds the `audit_id` returned by `/api/actions/invoke` so a future Undo
 /// command can call `POST /api/actions/audit/{id}/undo`. Kept deliberately
-/// small for the exhibit-A slice; per-window scoping (one holder per window,
-/// injected via `@Environment`) is a follow-up — for now a single shared holder
-/// records every invocation so the id is never lost.
+/// Per-library holder for the most-recent audited action, powering single-level
+/// ⌘Z (#3444/#2015). Owned by `ActionLibraryService` (one per library) — NOT a
+/// process-global singleton, so an undo in one library can't reverse another's
+/// action. The `invokeAction` central seam records EVERY audited mutation here,
+/// so ⌘Z reaches all registry actions, not just the explicit inspector sites.
 @Observable
 final class LastAction {
-    /// Shared holder. Replace with per-window `@Environment(LastAction.self)`
-    /// injection when the ⌘Z command surface lands.
-    @MainActor static let shared = LastAction()
-
     /// Audit id of the last invoked action (the row `audit/{id}/undo` reverses).
     var auditId: String?
     /// Name of the last invoked action, for menu labelling ("Undo Merge").

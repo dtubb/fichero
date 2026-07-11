@@ -303,7 +303,7 @@ struct ArtifactsInspectorPane: View {
         Task { @MainActor in
             defer { isTranslating = false }
             do {
-                let result = try await actionsService.invokeAction(
+                _ = try await actionsService.invokeAction(
                     name: "artifact.translate",
                     params: ArtifactTranslateActionParams(
                         documentId: document.id,
@@ -312,7 +312,6 @@ struct ArtifactsInspectorPane: View {
                         provider: nil
                     )
                 )
-                LastAction.shared.record(auditId: result.auditId, actionName: "artifact.translate")
                 actionError = nil
                 // The new translation artifact also arrives via the change stream;
                 // reload so it shows immediately in the list.

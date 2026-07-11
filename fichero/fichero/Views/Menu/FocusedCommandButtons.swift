@@ -361,9 +361,13 @@ struct FocusedNewScheduleButton: View {
 /// `.undoRedo` menu items so there is exactly one "Undo", and so the view-local
 /// `UndoManager` isn't fighting the audited backend undo.
 struct UndoLastActionButton: View {
-    /// `@State` over the `@Observable` shared holder so the menu item's title +
-    /// enabled state track the last recorded action without manual republishing.
-    @State private var lastAction = LastAction.shared
+    /// The active library's audited-action holder (#3444 — per library, not a
+    /// process-global singleton). Reading `.actionName`/`.auditId` in the body
+    /// registers an @Observable dependency, so the menu item's title + enabled
+    /// state track the last recorded action without manual republishing.
+    private var lastAction: LastAction? {
+        LibraryManager.shared.globalLibrary?.actionsService.lastAction
+    }
     @FocusedValue(\.navigationUndoAction) private var navigationUndoAction
 
     private var logger: Logger {
@@ -383,12 +387,12 @@ struct UndoLastActionButton: View {
         if navigationUndoAction != nil {
             return "Undo"
         }
-        guard let name = lastAction.actionName else { return "Undo" }
+        guard let name = lastAction?.actionName else { return "Undo" }
         return "Undo \(Self.menuLabel(for: name))"
     }
 
     private var isEnabled: Bool {
-        navigationUndoAction?.isEnabled == true || lastAction.auditId != nil
+        navigationUndoAction?.isEnabled == true || lastAction?.auditId != nil
     }
 
     /// `"entity.merge"` → `"Merge"`. Falls back to the raw name if unverbed.
@@ -403,7 +407,8 @@ struct UndoLastActionButton: View {
             navigationUndoAction.run()
             return
         }
-        guard let auditId = lastAction.auditId,
+        guard let lastAction,
+              let auditId = lastAction.auditId,
               let service = LibraryManager.shared.globalLibrary?.actionsService else { return }
         let previousActionName = lastAction.actionName
         // Clear up front so a second ⌘Z can't replay the inverse of the same row

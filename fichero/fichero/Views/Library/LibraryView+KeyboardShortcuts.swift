@@ -163,11 +163,10 @@ extension LibraryView {
         guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
         for doc in documentsToDelete {
             do {
-                let result = try await library.actionsService.invokeAction(
+                _ = try await library.actionsService.invokeAction(
                     name: "document.delete",
                     params: DocumentDeleteActionParams(docId: doc.id)
                 )
-                LastAction.shared.record(auditId: result.auditId, actionName: "document.delete")
             } catch {
                 ErrorService.shared.reportError(
                     ErrorModel.fileSystemError(

@@ -102,11 +102,10 @@ extension SidebarView {
         do {
             switch item.itemType {
             case .document(let doc):
-                let result = try await library.actionsService.invokeAction(
+                _ = try await library.actionsService.invokeAction(
                     name: "document.delete",
                     params: DocumentDeleteActionParams(docId: doc.id)
                 )
-                LastAction.shared.record(auditId: result.auditId, actionName: "document.delete")
                 undoManager?.registerUndo(withTarget: library.documentStore) { store in
                     Task { @MainActor in
                         do {

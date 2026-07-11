@@ -301,11 +301,10 @@ extension ClaimSummaryCard {
         guard let library = LibraryManager.shared.getLibrary(id: libraryId) else { return }
         Task {
             do {
-                let result = try await library.actionsService.invokeAction(
+                _ = try await library.actionsService.invokeAction(
                     name: "claim.delete",
                     params: ClaimDeleteActionParams(claimId: claimId)
                 )
-                LastAction.shared.record(auditId: result.auditId, actionName: "claim.delete")
             } catch {
                 mutationError = error.localizedDescription
             }
