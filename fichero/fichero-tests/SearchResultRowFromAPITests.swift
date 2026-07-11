@@ -136,7 +136,7 @@ final class SearchResultRowFromAPITests: XCTestCase {
         XCTAssertEqual(row.preferredExcerptText, "Specific matched excerpt")
     }
 
-    func testNavigationUserInfoUsesMetadataWhenTranscriptExcerptMissing() {
+    func testNavigationRequestUsesMetadataWhenTranscriptExcerptMissing() {
         let result = makeResult(
             metadata: [
                 "source_excerpt": AnyCodable("Specific matched excerpt"),
@@ -146,12 +146,12 @@ final class SearchResultRowFromAPITests: XCTestCase {
             ]
         )
 
-        let info = SearchResultRowFromAPI.navigationUserInfo(for: result)
-        XCTAssertEqual(info?["documentId"] as? String, "doc-1")
-        XCTAssertEqual(info?["excerpt"] as? String, "Specific matched excerpt")
-        XCTAssertEqual(info?["pageLabel"] as? String, "12")
-        XCTAssertEqual(info?["charStart"] as? Int, 45)
-        XCTAssertEqual(info?["charEnd"] as? Int, 61)
+        let request = SearchResultRowFromAPI.navigationRequest(for: result)
+        XCTAssertEqual(request?.documentId, "doc-1")
+        XCTAssertEqual(request?.claimText, "Specific matched excerpt")
+        XCTAssertEqual(request?.pageLabel, "12")
+        XCTAssertEqual(request?.charStart, 45)
+        XCTAssertEqual(request?.charEnd, 61)
     }
 
     func testSearchServiceConversionPreservesTranscriptExcerptsWiring() throws {

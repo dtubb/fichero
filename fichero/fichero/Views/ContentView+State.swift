@@ -878,18 +878,18 @@ extension ContentView {
         runToolbarSearch(query)
     }
 
-    /// Handles `.onReceive` of `.ficheroOpenClaimSource`.
+    /// Handles typed source-open requests from inspector/KG/search surfaces.
     /// Navigates to a claim's source document with the page scrolled into view.
-    func handleOpenClaimSource(_ note: Notification) {
+    func handleOpenClaimSource() {
         // Claim card source-doc link → navigate to the document
-        // with the page scrolled into view. userInfo carries
+        // with the page scrolled into view. The typed request carries
         // documentId (required) + pageLabel / charStart / charEnd /
         // claimId (all optional). For now this lights up doc
         // selection + posts an internal navigation event the
         // PDF preview will consume to scroll to pageLabel. The
         // highlight-span overlay lands in a later phase (#995). (#978/#979/#982)
-        guard let info = note.userInfo,
-              let docId = info["documentId"] as? String else { return }
+        guard let request = claimSourceNavigationState.currentRequest else { return }
+        let docId = request.documentId
         // Switch to library view if we're in another mode (KG /
         // Activity / Workflow) — the source preview lives there.
         if sidebarMode != .library {
@@ -897,14 +897,14 @@ extension ContentView {
         }
         showInspectorSidebar = true
         focusedPane = .inspector
-        if let claimId = info["claimId"] as? String {
+        if let claimId = request.claimId {
             claimFocusState.selectClaim(
                 claimId: claimId,
-                claimText: (info["claimText"] as? String) ?? (info["excerpt"] as? String),
+                claimText: request.claimText,
                 sourceDocumentId: docId,
-                pageLabel: info["pageLabel"] as? String,
-                charStart: info["charStart"] as? Int,
-                charEnd: info["charEnd"] as? Int
+                pageLabel: request.pageLabel,
+                charStart: request.charStart,
+                charEnd: request.charEnd
             )
         }
         // Resolve page-child source documents to their parent file and
@@ -912,6 +912,11 @@ extension ContentView {
         // PDFPageView consumes for scrolling/highlighting.
         Task { @MainActor in
             await navigateToSourcePage(docId)
+            var info: [String: Any] = ["documentId": docId]
+            if let claimId = request.claimId { info["claimId"] = claimId }
+            if let pageLabel = request.pageLabel { info["pageLabel"] = pageLabel }
+            if let charStart = request.charStart { info["charStart"] = charStart }
+            if let charEnd = request.charEnd { info["charEnd"] = charEnd }
             NotificationCenter.default.post(
                 name: .ficheroNavigateToPage,
                 object: nil,

@@ -591,7 +591,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         private func postOpenClaimSource(
             sourceDocumentId: String, pageLabel: String?, entityId: String?, claimId: String?, body: [String: Any]
         ) {
-            guard var info = ClaimSummaryCard.openClaimSourceUserInfo(
+            guard let request = ClaimSummaryCard.openClaimSourceRequest(
                 documentId: sourceDocumentId,
                 pageLabel: pageLabel,
                 charStart: body["charStart"] as? Int,
@@ -599,10 +599,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
                 claimId: claimId,
                 excerpt: body["excerpt"] as? String
             ) else { return }
-            if let entityId, !entityId.isEmpty {
-                info["entityId"] = entityId
-            }
-            NotificationCenter.default.post(name: .ficheroOpenClaimSource, object: nil, userInfo: info)
+            _ = entityId
+            ClaimSourceNavigationState.shared.request(request)
         }
 
         private func pageLabel(from body: [String: Any]) -> String? {
@@ -949,7 +947,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
         private func postOpenClaimSource(
             sourceDocumentId: String, pageLabel: String?, entityId: String?, claimId: String?, body: [String: Any]
         ) {
-            guard var info = ClaimSummaryCard.openClaimSourceUserInfo(
+            guard let request = ClaimSummaryCard.openClaimSourceRequest(
                 documentId: sourceDocumentId,
                 pageLabel: pageLabel,
                 charStart: body["charStart"] as? Int,
@@ -957,10 +955,8 @@ struct DocumentKGWebPane: UIViewRepresentable {
                 claimId: claimId,
                 excerpt: body["excerpt"] as? String
             ) else { return }
-            if let entityId, !entityId.isEmpty {
-                info["entityId"] = entityId
-            }
-            NotificationCenter.default.post(name: .ficheroOpenClaimSource, object: nil, userInfo: info)
+            _ = entityId
+            ClaimSourceNavigationState.shared.request(request)
         }
 
         private func pageLabel(from body: [String: Any]) -> String? {

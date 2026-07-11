@@ -51,8 +51,8 @@ final class DocumentInspectorTests: XCTestCase {
         let source = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
         let detailSource = try Self.appSource("Views/Library/Inspector/ArtifactDetailView.swift")
 
-        XCTAssertTrue(source.contains("NotificationCenter.default.post("))
-        XCTAssertTrue(source.contains("name: .ficheroOpenClaimSource"))
+        XCTAssertTrue(source.contains("ClaimSourceNavigationState.shared.request("))
+        XCTAssertTrue(source.contains("ClaimSourceNavigationRequest("))
         XCTAssertTrue(detailSource.contains("LabeledContent(\"Source\")"))
     }
 
@@ -80,6 +80,30 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(contentSource.contains(".onChange(of: entitySearchState.requestID)"))
         XCTAssertTrue(entitiesSource.contains("EntitySearchState.shared.request("))
         XCTAssertFalse(sharedSource.contains("ficheroEntitySearchRequested"))
+    }
+
+    func testClaimSourceRoutingUsesTypedStateInsteadOfNotificationBus() throws {
+        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let sharedSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Shared.swift")
+        let artifactsSource = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+        let searchSource = try Self.appSource("Views/Search/SearchView+Helpers.swift")
+
+        XCTAssertTrue(sharedSource.contains("final class ClaimSourceNavigationState"))
+        XCTAssertTrue(contentSource.contains(".onChange(of: claimSourceNavigationState.requestID)"))
+        XCTAssertTrue(artifactsSource.contains("ClaimSourceNavigationState.shared.request("))
+        XCTAssertTrue(searchSource.contains("ClaimSourceNavigationState.shared.request(request)"))
+        XCTAssertFalse(contentSource.contains(".ficheroOpenClaimSource"))
+        XCTAssertFalse(sharedSource.contains("static let ficheroOpenClaimSource"))
+    }
+
+    func testEntityListNameUsesSearchClickWithDoubleClickRename() throws {
+        let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+
+        XCTAssertTrue(entitiesSource.contains("Button {"))
+        XCTAssertTrue(entitiesSource.contains("postSearch("))
+        XCTAssertTrue(entitiesSource.contains("Search the library for"))
+        XCTAssertTrue(entitiesSource.contains(".simultaneousGesture("))
+        XCTAssertTrue(entitiesSource.contains("TapGesture(count: 2).onEnded { beginRename(entity) }"))
     }
 
     func testLegacyCitationInfoPanelsUseEnvironmentStores() throws {

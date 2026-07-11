@@ -459,13 +459,23 @@ struct DocumentInspectorEntitiesTab: View {
                 #endif
                 .onAppear { renameFieldFocused = true }
         } else {
-            Text(entity.canonicalName)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.primary)
-                .highPriorityGesture(
-                    TapGesture(count: 2).onEnded { beginRename(entity) }
+            Button {
+                postSearch(
+                    for: entity,
+                    kind: EntityKind(apiType: entity.entityType) ?? .other
                 )
+            } label: {
+                Text(entity.canonicalName)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.accentColor)
+                    .underline()
+            }
+            .buttonStyle(.plain)
+            .help("Search the library for \"\(entity.canonicalName)\" — double-click to rename")
+            .simultaneousGesture(
+                TapGesture(count: 2).onEnded { beginRename(entity) }
+            )
         }
     }
 
