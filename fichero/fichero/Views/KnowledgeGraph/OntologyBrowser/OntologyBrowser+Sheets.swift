@@ -65,20 +65,18 @@ private struct OntologyCreateEditSheetsModifier: ViewModifier {
                 set: { browser.showCreateSheet = $0 }
             )) {
                 NewEntitySheet { newEntity in
-                    browser.entities.insert(newEntity, at: 0)
                     browser.selectedEntityId = newEntity.id
                     browser.showCreateSheet = false
+                    Task { await browser.loadEntities() }
                 }
             }
             .sheet(item: Binding(
                 get: { browser.entityPendingEdit.map(IdentifiedEntity.init) },
                 set: { browser.entityPendingEdit = $0?.entity }
             )) { wrapped in
-                NewEntitySheet(editing: wrapped.entity) { updated in
-                    if let idx = browser.entities.firstIndex(where: { $0.id == updated.id }) {
-                        browser.entities[idx] = updated
-                    }
+                NewEntitySheet(editing: wrapped.entity) { _ in
                     browser.entityPendingEdit = nil
+                    Task { await browser.loadEntities() }
                 }
             }
     }

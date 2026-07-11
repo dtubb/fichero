@@ -121,7 +121,8 @@ struct DocumentInspector: View {
         // tab's concern, and it shouldn't crowd the Knowledge Graph /
         // Citations / Info tabs. (#1228)
         return VStack(spacing: 0) {
-            tabBar
+            sectionBar
+            facetPicker(for: doc, selectedTab: effectiveTab)
             Divider()
             tabContent(for: doc, selectedTab: effectiveTab)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -135,68 +136,113 @@ struct DocumentInspector: View {
         }
     }
 
-    /// Xcode-style icon-only facet selector, grouped into a single segmented
-    /// control: one rounded capsule with hairline dividers between segments and
-    /// a selected-segment fill, so the row reads as ONE control rather than a
-    /// loose row of N buttons (#1228). Stays icon-only buttons (not a native
-    /// `.segmented` Picker) so the per-tab `.help` tooltips and `.accessibility
-    /// Identifier` XCUITest hooks (#1230) attach to individual segments — a
-    /// `.segmented` Picker swallows those per-segment modifiers.
+    /// The four-section top icon row — the approved IA switcher (#3434, top icon
+    /// row chosen 2026-07-11): Source / Artifacts / Knowledge / Notes. One
+    /// grouped capsule with a selected-segment fill, reading as ONE control.
+    /// Stays icon-only buttons (not a `.segmented` Picker) so per-section `.help`
+    /// tooltips and `.accessibilityIdentifier` XCUITest hooks attach per segment.
+    /// Multi-facet sections reveal a sub-picker below (see ``facetPicker``).
     @ViewBuilder
-    private var tabBar: some View {
-        let tabs = availableTabs(for: document)
-        let selectedTabTitle = Self.clampedSelectedTab(selectedTab, for: document).rawValue
+    private var sectionBar: some View {
+        let sections = availableSections(for: document)
+        let activeSection = Self.section(for: selectedTab, in: document)
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 0) {
-                ForEach(Array(tabs.enumerated()), id: \.element) { index, tab in
+                ForEach(Array(sections.enumerated()), id: \.element) { index, section in
                     if index > 0 {
-                        // Hairline divider between segments — hidden adjacent to the
-                        // selected segment so its fill reads as one continuous pill.
                         Divider()
                             .frame(height: 14)
-                            .opacity(selectedTab == tab || selectedTab == tabs[index - 1] ? 0 : 1)
+                            .opacity(activeSection == section || activeSection == sections[index - 1] ? 0 : 1)
                     }
                     Button {
-                        selectTab(tab)
+                        selectSection(section)
                     } label: {
-                        Label(tab.rawValue, systemImage: tab.icon)
+                        Label(section.rawValue, systemImage: section.icon)
                             .labelStyle(.iconOnly)
                             .font(.body)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel(tab.rawValue)
+                    .accessibilityLabel(section.rawValue)
                     .buttonStyle(.plain)
                     .background(
                         RoundedRectangle(cornerRadius: 5)
-                            .fill(selectedTab == tab
+                            .fill(activeSection == section
                                     ? Color.accentColor.opacity(0.18)
                                     : Color.clear)
                             .padding(2)
                     )
-                    .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
-                    .help(tab.helpText)
-                    // Stable per-tab XCUITest hook, e.g. "inspectorTab-Content" (#1230).
-                    .accessibilityIdentifier("inspectorTab-\(tab.rawValue)")
+                    .foregroundStyle(activeSection == section ? Color.accentColor : Color.secondary)
+                    .help(section.helpText)
+                    // Stable per-section XCUITest hook, e.g. "inspectorSection-Source".
+                    .accessibilityIdentifier(section.accessibilityIdentifier)
                 }
             }
-            Text(selectedTabTitle)
+            Text(activeSection.rawValue)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .padding(.horizontal, 6)
         }
         .frame(maxWidth: .infinity)
-        // Grouped facet capsule now on the shared Tahoe glass treatment (#3061 /
-        // #2550), replacing the hand-rolled quaternary fill + hairline border, so
-        // the strip matches SidebarModeBar / the pane mini-toolbars. The
-        // per-segment selection fill above is unchanged.
         .inspectorGlassStrip()
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
-        // XCUITest hook for the inspector tab bar (#1230).
-        .accessibilityIdentifier("inspectorTabBar")
+        .accessibilityIdentifier("inspectorSectionBar")
+    }
+
+    /// Sub-facet selector shown only when the active section absorbs more than
+    /// one legacy facet (Knowledge = entities/graph/citations; Notes =
+    /// notes/annotations/interpretation). A native segmented picker over the
+    /// section's facets — each facet body is reused unchanged (iterate, not
+    /// replace). Single-facet sections (Artifacts) show nothing here.
+    @ViewBuilder
+    private func facetPicker(for doc: Document, selectedTab tab: InspectorTab) -> some View {
+        let section = Self.section(for: tab, in: doc)
+        let facets = facets(in: section, for: doc)
+        if facets.count > 1 {
+            Picker("Facet", selection: facetSelection) {
+                ForEach(facets) { facet in
+                    Text(facet.rawValue).tag(facet)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 8)
+            .padding(.bottom, 6)
+            .accessibilityIdentifier("inspectorFacetPicker")
+        }
+    }
+
+    private var facetSelection: Binding<InspectorTab> {
+        Binding(
+            get: { Self.clampedSelectedTab(selectedTab, for: document) },
+            set: { selectTab($0) }
+        )
+    }
+
+    /// The section for a facet, clamped to something valid for this document.
+    static func section(for tab: InspectorTab, in doc: Document?) -> InspectorSection {
+        InspectorSection.section(for: clampedSelectedTab(tab, for: doc)) ?? .source
+    }
+
+    /// The legacy facets of `section` that are available for this document.
+    private func facets(in section: InspectorSection, for doc: Document?) -> [InspectorTab] {
+        let available = Set(Self.availableTabs(for: doc))
+        return section.facets.filter { available.contains($0) }
+    }
+
+    private func availableSections(for doc: Document?) -> [InspectorSection] {
+        InspectorSection.allCases.filter { !facets(in: $0, for: doc).isEmpty }
+    }
+
+    /// Switch top section: jump to its first facet unless already inside it.
+    private func selectSection(_ section: InspectorSection) {
+        guard Self.section(for: selectedTab, in: document) != section else { return }
+        if let first = facets(in: section, for: document).first {
+            selectTab(first)
+        }
     }
 
     /// Switch the inspector tab, first persisting any in-flight Page Content
@@ -240,10 +286,6 @@ struct DocumentInspector: View {
         }
     }
 
-    private func availableTabs(for doc: Document?) -> [InspectorTab] {
-        Self.availableTabs(for: doc)
-    }
-
     static func clampedSelectedTab(_ selectedTab: InspectorTab, for doc: Document?) -> InspectorTab {
         let tabs = availableTabs(for: doc)
         return tabs.contains(selectedTab) ? selectedTab : .content
@@ -251,13 +293,12 @@ struct DocumentInspector: View {
 
     private static func availableTabs(for doc: Document?) -> [InspectorTab] {
         guard let doc else { return InspectorTab.allCases }
+        // Image Edits left the inspector for the dedicated editor / Reader canvas
+        // (#3434) — it is intentionally not a facet here.
         var tabs: [InspectorTab] = [
             .content, .artifacts, .annotations, .notes, .interpretations, .knowledgeGraph,
             .entities, .citations
         ]
-        if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
-            tabs.append(.edits)
-        }
         tabs.append(.info)
         return tabs
     }

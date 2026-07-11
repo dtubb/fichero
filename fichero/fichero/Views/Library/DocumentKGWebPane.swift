@@ -323,6 +323,10 @@ struct DocumentKGWebPane: NSViewRepresentable {
     /// Zoom level applied via WKWebView.pageZoom. 1.0 = 100%. (#2316)
     var zoom: Double = 1.0
     @Environment(KGFocusState.self) private var kgFocusState
+    /// Per-window source-navigation bus (#3437). Captured into the coordinator
+    /// in `updateNSView` — a WKScriptMessageHandler callback fires async, outside
+    /// view evaluation, where reading `@Environment` directly is unsafe.
+    @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -370,6 +374,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
     func updateNSView(_ webView: GuardedWKWebView, context: Context) {
         context.coordinator.parent = self
+        context.coordinator.claimSourceNavigationState = claimSourceNavigationState
         context.coordinator.injectContext(into: webView)
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)
@@ -381,6 +386,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: DocumentKGWebPane
+        /// Per-window source-navigation bus, captured from the environment each
+        /// `updateNSView` so async bridge callbacks route to THIS window (#3437).
+        var claimSourceNavigationState: ClaimSourceNavigationState?
         /// Retained weakly so the Coordinator can apply zoom without a full updateNSView cycle.
         weak var webView: GuardedWKWebView?
 
@@ -600,7 +608,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
                 excerpt: body["excerpt"] as? String
             ) else { return }
             _ = entityId
-            ClaimSourceNavigationState.shared.request(request)
+            claimSourceNavigationState?.request(request)
         }
 
         private func pageLabel(from body: [String: Any]) -> String? {
@@ -665,6 +673,9 @@ struct DocumentKGWebPane: UIViewRepresentable {
     var scrollSync: DocumentScrollSyncState
     var zoom: Double = 1.0
     @Environment(KGFocusState.self) private var kgFocusState
+    /// Per-window source-navigation bus (#3437); captured into the coordinator
+    /// in `updateUIView` for the async bridge callback.
+    @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -715,6 +726,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
 
     func updateUIView(_ webView: GuardedWKWebView, context: Context) {
         context.coordinator.parent = self
+        context.coordinator.claimSourceNavigationState = claimSourceNavigationState
         context.coordinator.injectContext(into: webView)
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)
@@ -723,6 +735,8 @@ struct DocumentKGWebPane: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: DocumentKGWebPane
+        /// Per-window source-navigation bus, captured each `updateUIView` (#3437).
+        var claimSourceNavigationState: ClaimSourceNavigationState?
         weak var webView: GuardedWKWebView?
 
         private var lastLoadedDocumentId: String?
@@ -956,7 +970,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
                 excerpt: body["excerpt"] as? String
             ) else { return }
             _ = entityId
-            ClaimSourceNavigationState.shared.request(request)
+            claimSourceNavigationState?.request(request)
         }
 
         private func pageLabel(from body: [String: Any]) -> String? {

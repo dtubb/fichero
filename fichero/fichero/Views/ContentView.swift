@@ -99,8 +99,10 @@ struct ContentView: View {
     // Runtime state - full objects for use in views
     @State var viewMode: AppViewMode = .library(nil)
     @State var detailDocument: Document?
-    @State var entitySearchState = EntitySearchState.shared
-    @State var claimSourceNavigationState = ClaimSourceNavigationState.shared
+    // Per-window instances (NOT `.shared`) so a search / source reveal in one
+    // window never drives another (#3437). Injected into the subtree below.
+    @State var entitySearchState = EntitySearchState()
+    @State var claimSourceNavigationState = ClaimSourceNavigationState()
     /// Drives the distraction-free full-window reading overlay (#2520).
     @State private var isImmersiveReading = false
     @State private var focusedDocument = FocusedDocument.shared
@@ -573,6 +575,9 @@ struct ContentView: View {
             .onChange(of: claimSourceNavigationState.requestID) { _, _ in
                 handleOpenClaimSource()
             }
+            // Scope both request buses to this window's subtree (#3437).
+            .environment(entitySearchState)
+            .environment(claimSourceNavigationState)
             .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { note in
                 handleAppleScriptSelectDocument(note)
             }

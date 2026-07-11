@@ -179,7 +179,9 @@ final class ClaimStore: ObservableDomainStore {
         curationState: Components.Schemas.ClaimCurationState? = nil,
         claimType: Components.Schemas.ClaimType? = nil,
         epistemicStatus: Components.Schemas.EpistemicStatus? = nil,
-        confidence: Double? = nil
+        confidence: Double? = nil,
+        speakerName: String? = nil,
+        speakerEntityId: String? = nil
     ) async throws -> Components.Schemas.KnowledgeClaim {
         let updated = try await entityService.patchClaim(
             claimId,
@@ -191,7 +193,9 @@ final class ClaimStore: ObservableDomainStore {
             curationState: curationState,
             claimType: claimType,
             epistemicStatus: epistemicStatus,
-            confidence: confidence
+            confidence: confidence,
+            speakerName: speakerName,
+            speakerEntityId: speakerEntityId
         )
         await reload()
         return updated

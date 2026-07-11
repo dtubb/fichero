@@ -97,7 +97,13 @@ private struct ArtifactProvenanceSection: View {
                     Button(action: onOpenSource) {
                         Text(provenance.sourceLabel)
                     }
+                    // `.link` is macOS-only; `.borderless` is the cross-platform
+                    // accent-tinted equivalent on iOS/iPadOS (iOS build gate).
+                    #if os(macOS)
                     .buttonStyle(.link)
+                    #else
+                    .buttonStyle(.borderless)
+                    #endif
                     .accessibilityLabel("Open artifact source")
                 } else {
                     Text(provenance.sourceLabel)

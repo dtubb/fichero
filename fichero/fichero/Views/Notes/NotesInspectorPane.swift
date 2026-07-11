@@ -112,11 +112,10 @@ struct NotesInspectorPane: View {
               let library = currentLibrary else { return }
         var update = Components.Schemas.NotePatchRequest()
         update.body = body
-        let result = try await library.actionsService.invokeAction(
+        _ = try await library.actionsService.invokeAction(
             name: "note.update",
             params: NoteUpdateActionParams(noteId: noteId, update: update)
         )
-        LastAction.shared.record(auditId: result.auditId, actionName: "note.update")
         await noteStore.reload()
         focused.resolve(in: noteStore.notes.map(NoteSelectionItem.init))
     }
@@ -124,11 +123,10 @@ struct NotesInspectorPane: View {
     private func deleteNote(_ item: NoteSelectionItem) async throws {
         guard let noteId = item.note.id,
               let library = currentLibrary else { return }
-        let result = try await library.actionsService.invokeAction(
+        _ = try await library.actionsService.invokeAction(
             name: "note.delete",
             params: NoteDeleteActionParams(noteId: noteId)
         )
-        LastAction.shared.record(auditId: result.auditId, actionName: "note.delete")
         if focused.id == item.id {
             focused.clear()
         }

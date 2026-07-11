@@ -9,6 +9,8 @@ struct EntityDetailView: View {
     /// Entity rename routes through the store (#1862/#1865); the change-stream's
     /// `entity.updated` event fans the refresh, retiring `.ficheroEntityUpdated`.
     @Environment(EntityStore.self) var entityStore
+    /// Per-window entity-search bus (#3437).
+    @Environment(EntitySearchState.self) private var entitySearchState: EntitySearchState?
     let entity: Components.Schemas.KnowledgeEntity
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool
@@ -213,7 +215,7 @@ struct EntityDetailView: View {
         } else {
             Button {
                 // #882 — tap canonical name to run a scoped library search.
-                EntitySearchState.shared.request(
+                entitySearchState?.request(
                     name: displayName,
                     entityType: entitySearchScope
                 )

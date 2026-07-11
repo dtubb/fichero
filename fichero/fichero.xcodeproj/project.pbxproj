@@ -65,6 +65,7 @@
 		127F8AA713B90A0B24269C98 /* DocumentInspectorAnnotationsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB786740043A3DAB4CDBFD6F /* DocumentInspectorAnnotationsTab.swift */; };
 		129B66EC2432B98151597597 /* FocusedArtifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74949C6AC5364C768581B8CE /* FocusedArtifact.swift */; };
 		136B9D5C51C43F1243329476 /* CitationListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866758A89BA93E91F5E4DCC5 /* CitationListView.swift */; };
+		1486B30165EDCB5BEA7FB912 /* PredictionReviewRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 922F1C3A60B09659F020877C /* PredictionReviewRow.swift */; };
 		150 /* ChainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151 /* ChainEditorView.swift */; };
 		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
 		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
@@ -205,6 +206,8 @@
 		44088B69B036974D72906372 /* ShareSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2FF20EF84262D15A268246D /* ShareSettingsView.swift */; };
 		441627D26C9932352CE1FDF1 /* CanvasItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5921F26A97AF84B80B4DCD29 /* CanvasItemStore.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
+		44FA1DBF0A63CD22C7237172 /* SourceProvenancePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC32EFF977CFA4E7D253F6A /* SourceProvenancePopover.swift */; };
+		451693E6DEA7C6AEEB8C8183 /* InspectorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5DACA616BBD1A6AA5E8518E /* InspectorSection.swift */; };
 		4521CFC5D73D8706FAE283CA /* InterpretationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42C41E0F485064FDA5EAEB9 /* InterpretationStore.swift */; };
 		48566E1CB89ED6382581A546 /* ObservableDomainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B628D9325A5B301E5827F0C1 /* ObservableDomainStore.swift */; };
 		48644281A751D62184D6C831 /* FicheroActionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A05B7F3C09F6A27BE55971 /* FicheroActionIntents.swift */; };
@@ -258,6 +261,7 @@
 		6C79AC237DF842B5E8AE31E7 /* CitationsInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C3B5A53041FFAA09E0221 /* CitationsInspectorPane.swift */; };
 		6CBF2E328348510A4B781B7C /* SidebarView+PinnedNavigationRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0DFC89B8C073DBEE0A743F /* SidebarView+PinnedNavigationRows.swift */; };
 		6EF56175D31C5732E5A0D119 /* OntologyBrowserGraphModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18ABABDD0527530DA73B5C7 /* OntologyBrowserGraphModel.swift */; };
+		6FC9AFB7D35EBFB12E9F8225 /* CitationExportButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79192DB989A34D1DBEEF3E34 /* CitationExportButton.swift */; };
 		6FE4896A20BB18BC70193BB7 /* BackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C062A29951726302108FD2 /* BackupStore.swift */; };
 		718AAD56294BDA27EFF854ED /* BoundingBoxOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCDF89C1460FA69DB0A0630 /* BoundingBoxOverlay.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
@@ -315,6 +319,7 @@
 		9A44B73B118219D1160AFFD3 /* ArtifactEntityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E5E81DFE56AC41F34CC4EAE /* ArtifactEntityViews.swift */; };
 		9A45089C636C56BF221BD7BC /* MiniToolbarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC02D722B13BC58D4D4B37B7 /* MiniToolbarComponents.swift */; };
 		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
+		9DD32C9E1B17D298CF3138F1 /* SourceSnippet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EC894548A8DBFA37D41557 /* SourceSnippet.swift */; };
 		9F50071471DB4B1EA1618E6E /* ActivityMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C939F2EE06FF349761CA2F /* ActivityMonitorView.swift */; };
 		9F8F3883E8324E76A746FAF8 /* BoundingBoxGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D870DB81D42B1614D58CE3F /* BoundingBoxGeometry.swift */; };
 		9FB2B2B858EA25B4757ECFEC /* EntitySourceGroupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B0073490980740B06C80D7 /* EntitySourceGroupsView.swift */; };
@@ -424,6 +429,7 @@
 		A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */; };
 		A48C3E366EB68F5DFBD38499 /* ThinkingModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */; };
 		A6400FE26A8158543B1FD124 /* SplittablePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0B24DE95228CEA6B853324 /* SplittablePane.swift */; };
+		A78E883CED66AEE3DC11477B /* ClaimAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16AE4AAB56FEB5190D97239 /* ClaimAttributionView.swift */; };
 		A98A6F971E62F9DA640BCA54 /* ResearchWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B8B6B4FF52EDA955679CF0 /* ResearchWorkspaceView.swift */; };
 		AA10000000000000000031B0 /* LocalInferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A0 /* LocalInferenceStore.swift */; };
 		AA10000000000000000031B1 /* AppleAvailabilityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A1 /* AppleAvailabilityStore.swift */; };
@@ -609,6 +615,7 @@
 
 /* Begin PBXFileReference section */
 		003E584BBE51001B1E3F6843 /* ForceDirectedGraphView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ForceDirectedGraphView.swift; sourceTree = "<group>"; };
+		00EC894548A8DBFA37D41557 /* SourceSnippet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SourceSnippet.swift; sourceTree = "<group>"; };
 		015D191B1A9A578C0A4BC6BA /* iOSLibraryPickerMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSLibraryPickerMenu.swift; sourceTree = "<group>"; };
 		032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotatableTextView.swift; sourceTree = "<group>"; };
 		034677F6AF68D5DCA5CB3E8C /* SpeakerComparisonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpeakerComparisonView.swift; sourceTree = "<group>"; };
@@ -876,6 +883,7 @@
 		753C4D174F9A42A6593BECC6 /* PageImageGrid.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PageImageGrid.swift; sourceTree = "<group>"; };
 		75558D1F0B1D0F65CEFF577C /* PDFReadingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFReadingView.swift; sourceTree = "<group>"; };
 		772A6A57C4986C2765A174EE /* PlatformPasteboard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlatformPasteboard.swift; sourceTree = "<group>"; };
+		79192DB989A34D1DBEEF3E34 /* CitationExportButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CitationExportButton.swift; sourceTree = "<group>"; };
 		7A5517E790C3AF9853989225 /* LibraryWorkspaceRoot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryWorkspaceRoot.swift; sourceTree = "<group>"; };
 		7AA64CFDF3C633C03CCE24A6 /* FicheroWebView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroWebView.swift; sourceTree = "<group>"; };
 		7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditorView.swift; sourceTree = "<group>"; };
@@ -902,6 +910,7 @@
 		9037096857E2AE5F3339A8DC /* DocumentInspectorInfoTab+Workflow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorInfoTab+Workflow.swift"; sourceTree = "<group>"; };
 		91100495C9D776E200E2F9C0 /* BackupsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackupsView.swift; sourceTree = "<group>"; };
 		9195539F44B4ADCA2A3C9974 /* AISettingsView+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AISettingsView+Helpers.swift"; sourceTree = "<group>"; };
+		922F1C3A60B09659F020877C /* PredictionReviewRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PredictionReviewRow.swift; sourceTree = "<group>"; };
 		923BD592D3257176C51CAC1C /* ContentView+WorkflowActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+WorkflowActions.swift"; sourceTree = "<group>"; };
 		92773EAEE52587BBA8DEDC9F /* LibraryView+TableMapViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "LibraryView+TableMapViews.swift"; sourceTree = "<group>"; };
 		93D0A22B5A712240EAE78053 /* PDFPageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFPageView.swift; sourceTree = "<group>"; };
@@ -1028,6 +1037,7 @@
 		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
 		A5B27E2BF4EC43E993C19837 /* FeatureTiers.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTiers.generated.swift; sourceTree = "<group>"; };
 		A5C119BA4657FD54B0F01D6C /* DocumentKGSurface.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentKGSurface.swift; sourceTree = "<group>"; };
+		A5DACA616BBD1A6AA5E8518E /* InspectorSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InspectorSection.swift; sourceTree = "<group>"; };
 		A63F3EB72383ED2E5BA85C0E /* ArtifactListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactListView.swift; sourceTree = "<group>"; };
 		A68A831B2F81707B5E082D6F /* OpenAffordances.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenAffordances.swift; sourceTree = "<group>"; };
 		A698478801C79143E8D71A65 /* ContentView+KnowledgeSurface.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+KnowledgeSurface.swift"; sourceTree = "<group>"; };
@@ -1047,6 +1057,7 @@
 		B00A8552DEACF83751D617C6 /* DocumentNotesTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentNotesTab.swift; sourceTree = "<group>"; };
 		B0E93BA60F99453057135B99 /* SidebarView+ActivityRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+ActivityRows.swift"; sourceTree = "<group>"; };
 		B12109CF3A70EB2ACA74B24D /* ActionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActionStore.swift; sourceTree = "<group>"; };
+		B16AE4AAB56FEB5190D97239 /* ClaimAttributionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClaimAttributionView.swift; sourceTree = "<group>"; };
 		B20829DBAC5757AEA6096835 /* FocusedNote.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FocusedNote.swift; sourceTree = "<group>"; };
 		B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Label.swift"; sourceTree = "<group>"; };
 		B2A0010200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+DropHandlers.swift"; sourceTree = "<group>"; };
@@ -1150,6 +1161,7 @@
 		E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorMetadataTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorMetadataTab.swift; sourceTree = SOURCE_ROOT; };
 		E80DDED3870C2457BFD97D1E /* DocumentKGWebPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentKGWebPane.swift; sourceTree = "<group>"; };
 		E9506E8C3C8030EE3075E9A0 /* EntityDetailView+Metadata.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Metadata.swift"; sourceTree = "<group>"; };
+		EAC32EFF977CFA4E7D253F6A /* SourceProvenancePopover.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SourceProvenancePopover.swift; sourceTree = "<group>"; };
 		EAF964748FC3450263DCB1D1 /* CaptureSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaptureSettingsView.swift; sourceTree = "<group>"; };
 		EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Operations.swift"; sourceTree = "<group>"; };
 		EE609F48196839FAA6981CFF /* SearchStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchStore.swift; sourceTree = "<group>"; };
@@ -2123,6 +2135,12 @@
 				B20829DBAC5757AEA6096835 /* FocusedNote.swift */,
 				F447E424F3A26C138C9BB99D /* InspectorTab.swift */,
 				FFC6B695132C68202062560A /* InspectorPresenter.swift */,
+				00EC894548A8DBFA37D41557 /* SourceSnippet.swift */,
+				A5DACA616BBD1A6AA5E8518E /* InspectorSection.swift */,
+				EAC32EFF977CFA4E7D253F6A /* SourceProvenancePopover.swift */,
+				B16AE4AAB56FEB5190D97239 /* ClaimAttributionView.swift */,
+				79192DB989A34D1DBEEF3E34 /* CitationExportButton.swift */,
+				922F1C3A60B09659F020877C /* PredictionReviewRow.swift */,
 			);
 			path = Inspector;
 			sourceTree = "<group>";
@@ -3031,6 +3049,12 @@
 				527561D7A2B768C662B2D74E /* PaneVisibility.swift in Sources */,
 				40B4487F9C8C03F6518A8988 /* PageImageGrid.swift in Sources */,
 				2FA0C9F98B2B1A0A35107B07 /* ChainStore.swift in Sources */,
+				9DD32C9E1B17D298CF3138F1 /* SourceSnippet.swift in Sources */,
+				451693E6DEA7C6AEEB8C8183 /* InspectorSection.swift in Sources */,
+				44FA1DBF0A63CD22C7237172 /* SourceProvenancePopover.swift in Sources */,
+				A78E883CED66AEE3DC11477B /* ClaimAttributionView.swift in Sources */,
+				6FC9AFB7D35EBFB12E9F8225 /* CitationExportButton.swift in Sources */,
+				1486B30165EDCB5BEA7FB912 /* PredictionReviewRow.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -3433,7 +3457,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				REGISTER_APP_GROUPS = YES;
@@ -3505,7 +3529,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3584,7 +3608,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3663,7 +3687,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3698,7 +3722,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3721,7 +3745,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3737,7 +3761,7 @@
 				CURRENT_PROJECT_VERSION = 2026071101;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3753,7 +3777,7 @@
 				CURRENT_PROJECT_VERSION = 2026071101;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -3812,7 +3836,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				REGISTER_APP_GROUPS = YES;
@@ -3884,7 +3908,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3963,7 +3987,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -4042,7 +4066,7 @@
 					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2026.07.11-beta;
+				MARKETING_VERSION = "2026.07.11-beta";
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
 				PRODUCT_NAME = Fichero;
 				PROVISIONING_PROFILE_SPECIFIER = "";

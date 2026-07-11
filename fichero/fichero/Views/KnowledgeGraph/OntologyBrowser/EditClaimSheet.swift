@@ -131,11 +131,10 @@ struct EditClaimSheet: View {
                 patch.sourcePageLabel = trimmedOrNil(sourcePageLabel)
                 patch.claimType = typeEnum
                 patch.epistemicStatus = statusEnum
-                let result = try await library.actionsService.invokeAction(
+                _ = try await library.actionsService.invokeAction(
                     name: "claim.patch",
                     params: ClaimPatchActionParams(claimId: claimId, patch: patch)
                 )
-                LastAction.shared.record(auditId: result.auditId, actionName: "claim.patch")
                 dismiss()
             } catch {
                 errorText = error.localizedDescription
@@ -234,11 +233,10 @@ struct InlineClaimEditor: View {
                 patch.sourcePageLabel = trimmedOrNil(sourcePageLabel)
                 patch.claimType = Components.Schemas.ClaimType(rawValue: claimType)
                 patch.epistemicStatus = Components.Schemas.EpistemicStatus(rawValue: epistemicStatus)
-                let result = try await library.actionsService.invokeAction(
+                _ = try await library.actionsService.invokeAction(
                     name: "claim.patch",
                     params: ClaimPatchActionParams(claimId: claimId, patch: patch)
                 )
-                LastAction.shared.record(auditId: result.auditId, actionName: "claim.patch")
                 onSave(claim)
             } catch {
                 errorText = error.localizedDescription

@@ -90,6 +90,15 @@ extension ClaimSummaryCard {
     @ViewBuilder
     var expandedDetailSection: some View {
         Divider()
+        // Who asserts this claim — the document itself or a person in the
+        // archive — surfaced + editable (#3448).
+        ClaimAttributionView(
+            attribution: ClaimAttribution(claim: claim),
+            onSetSpeaker: { name in
+                guard let claimId = claim.id else { return }
+                _ = try? await claimStore.patch(claimId: claimId, speakerName: name)
+            }
+        )
         if let claimText = cleanedDisplayText(claim.text) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Source claim")
@@ -120,6 +129,17 @@ extension ClaimSummaryCard {
             }
             .buttonStyle(.plain)
             .help("Open the source page and highlight this annotation")
+        }
+        // Source-region quick-look (#2105/#3449): the cropped evidence + verbatim
+        // span + attribution in a popover, and a Reveal that drives the Preview
+        // pane to the page/bbox. Only when we can build a source anchor.
+        if let request = Self.openClaimSourceRequest(for: claim) {
+            SourceProvenanceChip(
+                request: request,
+                attribution: ClaimAttribution(claim: claim),
+                fetch: { try await annotationStore?.cropRegion($0) ?? nil },
+                onReveal: { openClaimSource() }
+            )
         }
         if isLoadingDetails {
             HStack {
@@ -192,7 +212,7 @@ extension ClaimSummaryCard {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         guard let library = LibraryManager.shared.globalLibrary else {
-            EntitySearchState.shared.request(name: name, entityType: nil)
+            entitySearchState?.request(name: name, entityType: nil)
             return
         }
         do {
@@ -210,12 +230,12 @@ extension ClaimSummaryCard {
         } catch {
             // Fallback to text search below.
         }
-        EntitySearchState.shared.request(name: name, entityType: nil)
+        entitySearchState?.request(name: name, entityType: nil)
     }
 
     /// Route the explicit source-line button through the typed source-open state.
     func openClaimSource() {
-        Self.postOpenClaimSource(for: claim)
+        postOpenClaimSource(for: claim)
     }
 
     static func openClaimSourceRequest(
@@ -224,7 +244,8 @@ extension ClaimSummaryCard {
         charStart: Int? = nil,
         charEnd: Int? = nil,
         claimId: String? = nil,
-        excerpt: String? = nil
+        excerpt: String? = nil,
+        bbox: [Double]? = nil
     ) -> ClaimSourceNavigationRequest? {
         guard !documentId.isEmpty else { return nil }
         let cleanedPageLabel = pageLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -235,7 +256,8 @@ extension ClaimSummaryCard {
             claimText: cleanedExcerpt?.isEmpty == false ? cleanedExcerpt : nil,
             pageLabel: cleanedPageLabel?.isEmpty == false ? cleanedPageLabel : nil,
             charStart: charStart,
-            charEnd: charEnd
+            charEnd: charEnd,
+            bbox: bbox.flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 
@@ -248,20 +270,21 @@ extension ClaimSummaryCard {
             charStart: claim.sourceCharStart,
             charEnd: claim.sourceCharEnd,
             claimId: claim.id,
-            excerpt: claim.sourceExcerpt
+            excerpt: claim.sourceExcerpt,
+            bbox: claim.sourceBbox
         )
     }
 
-    static func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {
+    func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {
         let docId = claim.sourceDocumentId ?? ""
         guard !docId.isEmpty,
               LibraryManager.shared.globalLibrary?
                 .documentStore
                 .currentDocuments
                 .contains(where: { $0.id == docId }) == true,
-              let request = openClaimSourceRequest(for: claim)
+              let request = Self.openClaimSourceRequest(for: claim)
         else { return }
-        ClaimSourceNavigationState.shared.request(request)
+        claimSourceNavigationState?.request(request)
     }
 
     private func navigateToSource() {
@@ -278,11 +301,10 @@ extension ClaimSummaryCard {
         guard let library = LibraryManager.shared.getLibrary(id: libraryId) else { return }
         Task {
             do {
-                let result = try await library.actionsService.invokeAction(
+                _ = try await library.actionsService.invokeAction(
                     name: "claim.delete",
                     params: ClaimDeleteActionParams(claimId: claimId)
                 )
-                LastAction.shared.record(auditId: result.auditId, actionName: "claim.delete")
             } catch {
                 mutationError = error.localizedDescription
             }

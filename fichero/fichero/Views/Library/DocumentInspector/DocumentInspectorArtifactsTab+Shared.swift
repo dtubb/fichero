@@ -26,9 +26,13 @@ struct EntityLozenge: View {
     /// Finder filename truncation. (Daniel: 'elipses in the middle')
     var maxWidth: CGFloat = 180
 
+    /// Per-window search bus (#3437). Optional so a lozenge shown in a host that
+    /// hasn't injected the state safely no-ops instead of trapping.
+    @Environment(EntitySearchState.self) private var entitySearchState: EntitySearchState?
+
     var body: some View {
         Button {
-            EntitySearchState.shared.request(name: name, entityType: entityType)
+            entitySearchState?.request(name: name, entityType: entityType)
         } label: {
             Text(name)
                 .font(.caption2)
@@ -53,11 +57,13 @@ struct EntityLozenge: View {
     }
 }
 
+/// Per-window entity-search request bus. Scoped to the window/library via the
+/// SwiftUI environment (#3437) — NOT a process-global singleton, so a search
+/// fired in one window never drives another. `ContentView` owns one instance
+/// and injects it; producers read it from `@Environment`.
 @Observable
 @MainActor
 final class EntitySearchState {
-    static let shared = EntitySearchState()
-
     private(set) var requestID: Int = 0
     private(set) var requestedName: String?
     private(set) var requestedEntityType: String?
@@ -71,20 +77,47 @@ final class EntitySearchState {
     }
 }
 
+/// Where a source-navigation request wants the user taken. The popover
+/// quick-look (#3449) needs neither (it renders the crop inline), but a
+/// "reveal" action states whether the center Preview pane, the full Reader,
+/// or both should follow the anchor (#2105 tier 2). Defaults to `.reader`
+/// to preserve the pre-existing jump-to-page behaviour.
+enum SourceDestination: String, Equatable, Sendable {
+    case preview
+    case reader
+    case both
+}
+
+/// The cross-cutting "trace this record back to its source" contract
+/// (#2105). Any bbox-anchored item — claim, entity mention, face,
+/// annotation, transcribed line — carries this so the inspector can both
+/// render the cropped source region (via the ephemeral-crop endpoint) and
+/// reveal the exact place on the page. `bbox`/`pageIndex` are optional so
+/// existing char-range callers keep working unchanged.
 struct ClaimSourceNavigationRequest: Equatable {
     let documentId: String
     var claimId: String?
     var claimText: String?
     var pageLabel: String?
+    var pageIndex: Int?
     var charStart: Int?
     var charEnd: Int?
+    /// Normalized [x, y, w, h] source region (top-left origin), matching the
+    /// engine's annotation bbox convention (crop_pdf_page / crop_image). Drives
+    /// the cropped-source popover and the page-highlight overlay.
+    var bbox: [Double]?
+    /// Where a reveal should take the user. Ignored by the inline popover.
+    var destination: SourceDestination = .reader
 }
 
+/// Per-window claim/entity/citation source-navigation request bus. Scoped to
+/// the window/library via the SwiftUI environment (#3437) — NOT a process-global
+/// singleton, so a source reveal in one window never navigates another.
+/// `ContentView` owns one instance and injects it; producers read it from
+/// `@Environment` (optional, so a host that hasn't injected safely no-ops).
 @Observable
 @MainActor
 final class ClaimSourceNavigationState {
-    static let shared = ClaimSourceNavigationState()
-
     private(set) var requestID: Int = 0
     private(set) var currentRequest: ClaimSourceNavigationRequest?
 

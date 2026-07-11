@@ -347,6 +347,24 @@ async def delete_annotation(
     registry.invoke(db, "annotation.delete", {"annotation_id": annotation_id}, ctx)
 
 
+# The crop routes return PNG bytes (image / PDF region) or a text substring —
+# never JSON. Declare the real media types so the generated OpenAPI client
+# exposes a binary body variant instead of defaulting to application/json (the
+# old default silently hid image crops from typed clients — #2105, #3442).
+_CROP_RESPONSES = {
+    200: {
+        "content": {
+            "image/png": {"schema": {"type": "string", "format": "binary"}},
+            "text/plain": {"schema": {"type": "string"}},
+        },
+        "description": (
+            "Cropped source region: PNG bytes for an image / PDF bbox, or the "
+            "verbatim substring for a text char-range."
+        ),
+    },
+}
+
+
 def _crop_response(db: Database, ann: Annotation):
     """Resolve an annotation's cropped content to an HTTP response.
 
@@ -396,6 +414,7 @@ def _crop_response(db: Database, ann: Annotation):
         "Workflow tools call this to feed only the highlighted region "
         "to vision / LLM providers instead of the whole document. (#914)"
     ),
+    responses=_CROP_RESPONSES,
 )
 async def get_crop(
     annotation_id: str,
@@ -430,9 +449,11 @@ class EphemeralCropRequest(BaseModel):
     description=(
         "Crops a document to a transient region (bbox / char range) and returns "
         "the content — substring for text, PNG bytes for image / PDF — WITHOUT "
-        "creating an annotation. The reader uses this to feed only the region "
-        "under consideration to a provider before the user commits. (#2256)"
+        "creating an annotation. The inspector's source popover (#2105/#3449) "
+        "renders the returned PNG to show the cropped evidence for any "
+        "bbox-anchored claim/entity/annotation. (#2256)"
     ),
+    responses=_CROP_RESPONSES,
 )
 async def crop_ephemeral(
     request: EphemeralCropRequest,

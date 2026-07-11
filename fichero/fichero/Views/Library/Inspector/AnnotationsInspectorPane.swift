@@ -133,22 +133,20 @@ struct AnnotationsInspectorPane: View {
         guard let library = currentLibrary else { return }
         var update = Components.Schemas.AnnotationPatchRequest()
         update.text = text
-        let result = try await library.actionsService.invokeAction(
+        _ = try await library.actionsService.invokeAction(
             name: "annotation.update",
             params: AnnotationUpdateActionParams(annotationId: annotation.id, update: update)
         )
-        LastAction.shared.record(auditId: result.auditId, actionName: "annotation.update")
         await annotationStore.reload()
         focused.resolve(in: annotationStore.annotations)
     }
 
     private func deleteAnnotation(_ annotation: DocumentAnnotation) async throws {
         guard let library = currentLibrary else { return }
-        let result = try await library.actionsService.invokeAction(
+        _ = try await library.actionsService.invokeAction(
             name: "annotation.delete",
             params: AnnotationDeleteActionParams(annotationId: annotation.id)
         )
-        LastAction.shared.record(auditId: result.auditId, actionName: "annotation.delete")
         if focused.id == annotation.id {
             focused.clear()
         }
@@ -157,11 +155,10 @@ struct AnnotationsInspectorPane: View {
 
     private func promoteAnnotation(_ annotation: DocumentAnnotation) async throws {
         guard let library = currentLibrary else { return }
-        let result = try await library.actionsService.invokeAction(
+        _ = try await library.actionsService.invokeAction(
             name: "annotation.promote_to_claim",
             params: AnnotationPromoteActionParams(annotationId: annotation.id)
         )
-        LastAction.shared.record(auditId: result.auditId, actionName: "annotation.promote_to_claim")
         await annotationStore.reload()
         focused.resolve(in: annotationStore.annotations)
     }

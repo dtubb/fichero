@@ -439,7 +439,7 @@ final class WorkflowStore: ChangeEventConsumer {
     // accessor, which is illegal on a computed/lazy property.
     @ObservationIgnored
     private lazy var executionService: WorkflowExecutionService = {
-        WorkflowExecutionService(libraryPath: ficheroClient.currentLibraryPath)
+        WorkflowExecutionService(ficheroClient: ficheroClient)
     }()
 
     /// Execute a saved workflow by ID
