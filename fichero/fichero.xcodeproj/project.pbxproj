@@ -65,6 +65,7 @@
 		127F8AA713B90A0B24269C98 /* DocumentInspectorAnnotationsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB786740043A3DAB4CDBFD6F /* DocumentInspectorAnnotationsTab.swift */; };
 		129B66EC2432B98151597597 /* FocusedArtifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74949C6AC5364C768581B8CE /* FocusedArtifact.swift */; };
 		136B9D5C51C43F1243329476 /* CitationListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866758A89BA93E91F5E4DCC5 /* CitationListView.swift */; };
+		1486B30165EDCB5BEA7FB912 /* PredictionReviewRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 922F1C3A60B09659F020877C /* PredictionReviewRow.swift */; };
 		150 /* ChainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151 /* ChainEditorView.swift */; };
 		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
 		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
@@ -909,6 +910,7 @@
 		9037096857E2AE5F3339A8DC /* DocumentInspectorInfoTab+Workflow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorInfoTab+Workflow.swift"; sourceTree = "<group>"; };
 		91100495C9D776E200E2F9C0 /* BackupsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackupsView.swift; sourceTree = "<group>"; };
 		9195539F44B4ADCA2A3C9974 /* AISettingsView+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AISettingsView+Helpers.swift"; sourceTree = "<group>"; };
+		922F1C3A60B09659F020877C /* PredictionReviewRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PredictionReviewRow.swift; sourceTree = "<group>"; };
 		923BD592D3257176C51CAC1C /* ContentView+WorkflowActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+WorkflowActions.swift"; sourceTree = "<group>"; };
 		92773EAEE52587BBA8DEDC9F /* LibraryView+TableMapViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "LibraryView+TableMapViews.swift"; sourceTree = "<group>"; };
 		93D0A22B5A712240EAE78053 /* PDFPageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFPageView.swift; sourceTree = "<group>"; };
@@ -2138,6 +2140,7 @@
 				EAC32EFF977CFA4E7D253F6A /* SourceProvenancePopover.swift */,
 				B16AE4AAB56FEB5190D97239 /* ClaimAttributionView.swift */,
 				79192DB989A34D1DBEEF3E34 /* CitationExportButton.swift */,
+				922F1C3A60B09659F020877C /* PredictionReviewRow.swift */,
 			);
 			path = Inspector;
 			sourceTree = "<group>";
@@ -3051,6 +3054,7 @@
 				44FA1DBF0A63CD22C7237172 /* SourceProvenancePopover.swift in Sources */,
 				A78E883CED66AEE3DC11477B /* ClaimAttributionView.swift in Sources */,
 				6FC9AFB7D35EBFB12E9F8225 /* CitationExportButton.swift in Sources */,
+				1486B30165EDCB5BEA7FB912 /* PredictionReviewRow.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
