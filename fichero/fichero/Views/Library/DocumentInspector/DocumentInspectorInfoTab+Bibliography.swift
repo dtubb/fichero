@@ -44,6 +44,35 @@ struct DocumentBibliographyPanel: View {
         return parts.joined(separator: "\n\n")
     }
 
+    private var deleteDialogTitle: String {
+        pendingDelete.map { "Delete \"\(referenceTitle($0))\"?" } ?? "Delete reference?"
+    }
+
+    private var deleteErrorMessage: String { deleteError ?? "" }
+    private var extractErrorMessage: String { extractError ?? "" }
+    private var resolveErrorMessage: String { resolveError ?? "" }
+
+    private var isShowingDeleteError: Binding<Bool> {
+        Binding(
+            get: { deleteError != nil },
+            set: { if !$0 { deleteError = nil } }
+        )
+    }
+
+    private var isShowingExtractError: Binding<Bool> {
+        Binding(
+            get: { extractError != nil },
+            set: { if !$0 { extractError = nil } }
+        )
+    }
+
+    private var isShowingResolveError: Binding<Bool> {
+        Binding(
+            get: { resolveError != nil },
+            set: { if !$0 { resolveError = nil } }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if isLoading && references.isEmpty && loadError == nil {
@@ -124,7 +153,7 @@ struct DocumentBibliographyPanel: View {
         }
         .task(id: documentId) { await store.setScope(documentId: documentId) }
         .confirmationDialog(
-            pendingDelete.map { "Delete \"\(referenceTitle($0))\"?" } ?? "Delete reference?",
+            deleteDialogTitle,
             isPresented: Binding(
                 get: { pendingDelete != nil },
                 set: { if !$0 { pendingDelete = nil } }
@@ -147,40 +176,31 @@ struct DocumentBibliographyPanel: View {
         }
         .alert(
             "Couldn't delete reference",
-            isPresented: Binding(
-                get: { deleteError != nil },
-                set: { if !$0 { deleteError = nil } }
-            )
+            isPresented: isShowingDeleteError
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(deleteError ?? "")
+            Text(deleteErrorMessage)
         }
         .alert(
             "Couldn't extract bibliography",
-            isPresented: Binding(
-                get: { extractError != nil },
-                set: { if !$0 { extractError = nil } }
-            )
+            isPresented: isShowingExtractError
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(extractError ?? "")
+            Text(extractErrorMessage)
         }
         .alert(
             "Couldn't resolve reference",
-            isPresented: Binding(
-                get: { resolveError != nil },
-                set: { if !$0 { resolveError = nil } }
-            )
+            isPresented: isShowingResolveError
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(resolveError ?? "")
+            Text(resolveErrorMessage)
         }
         .sheet(item: $editing) { editing in
             ReferenceEditSheet(reference: editing.ref) { patch in
-                try await store?.patchReference(editing.id, patch: patch)
+                try await store.patchReference(editing.id, patch: patch)
             }
         }
     }
