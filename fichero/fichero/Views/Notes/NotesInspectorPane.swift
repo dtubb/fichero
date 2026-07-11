@@ -9,6 +9,7 @@ struct NotesInspectorPane: View {
     let selectionResetToken: String
     let documentName: String?
 
+    @Environment(LibraryManager.self) private var libraryManager
     @Environment(NoteStore.self) private var noteStore
     @Environment(WindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
@@ -108,7 +109,7 @@ struct NotesInspectorPane: View {
 
     private func saveNote(_ item: NoteSelectionItem, body: String) async throws {
         guard let noteId = item.note.id,
-              let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+              let library = currentLibrary else { return }
         var update = Components.Schemas.NotePatchRequest()
         update.body = body
         let result = try await library.actionsService.invokeAction(
@@ -122,7 +123,7 @@ struct NotesInspectorPane: View {
 
     private func deleteNote(_ item: NoteSelectionItem) async throws {
         guard let noteId = item.note.id,
-              let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+              let library = currentLibrary else { return }
         let result = try await library.actionsService.invokeAction(
             name: "note.delete",
             params: NoteDeleteActionParams(noteId: noteId)
@@ -132,6 +133,10 @@ struct NotesInspectorPane: View {
             focused.clear()
         }
         await noteStore.reload()
+    }
+
+    private var currentLibrary: LibraryManager.LibraryReference? {
+        libraryManager.getLibrary(id: windowState.libraryId)
     }
 
     @ViewBuilder
