@@ -1,13 +1,8 @@
 """Security tests for Phase 2 Hermeneutics components.
 
-These tests verify that hermeneutics endpoints are secure and document
-future LLM injection risks when LiteLLM integration is added.
+These tests verify that hermeneutics endpoints are secure and do not fabricate
+LLM output.
 """
-
-import re
-from unittest.mock import MagicMock, patch
-
-import pytest
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -70,14 +65,10 @@ class TestFrameworkSecurity:
 
 
 class TestLLMInjectionFutureRisk:
-    """Test future LLM injection risks (placeholder code)."""
+    """Test the unavailable suggestion path and future prompt inputs."""
 
-    def test_suggestions_endpoint_is_placeholder(self, client):
-        """MEDIUM-1: /suggestions should be placeholder (no live LLM).
-
-        Verifies that the suggestions endpoint returns mock data
-        rather than calling an actual LLM.
-        """
+    def test_suggestions_endpoint_is_explicitly_unavailable(self, client):
+        """MEDIUM-1: /suggestions does not present placeholder text as AI output."""
         from fichero.hermeneutics_models import HermesSuggestionRequest
 
         # Create a framework first
@@ -102,11 +93,8 @@ class TestLLMInjectionFutureRisk:
             ).model_dump(),
         )
 
-        assert resp.status_code == 200
-        suggestions = resp.json()
-
-        # Should return suggestions (mock data currently)
-        assert len(suggestions) >= 0
+        assert resp.status_code == 501
+        assert resp.json()["detail"] == "Grounded AI interpretation suggestions are not implemented."
 
     def test_framework_injection_markers_detected(self):
         """MEDIUM-1: Framework fields could contain injection markers.
@@ -136,18 +124,3 @@ class TestLLMInjectionFutureRisk:
             # Should store without modification
             # Future: should sanitize before LLM prompt
             assert pattern in framework.name or pattern in framework.description
-
-    def test_suggestions_need_sanitization_when_llm_added(self):
-        """MEDIUM-1: Future LLM integration requires prompt sanitization.
-
-        This test documents the requirement for prompt sanitization
-        when LiteLLM is integrated into /suggestions.
-        """
-        # Document required sanitization patterns
-        required_sanitization = [
-            r"ignore\s+(previous|all|prior)\s+instructions",
-            r"system\s+prompt",
-            r"you\s+are\s+now",
-            r"disregard",
-            r"<",
-        ]

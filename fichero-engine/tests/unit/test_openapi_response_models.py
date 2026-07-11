@@ -60,9 +60,3 @@ def test_hermeneutics_list_routes_have_typed_item_envelopes() -> None:
     for path, (envelope, item) in cases.items():
         assert _response_schema("get", path)["$ref"].endswith(envelope)
         assert schemas[envelope]["properties"]["items"]["items"]["$ref"].endswith(item)
-    assert _response_schema("post", "/api/hermeneutics/suggestions")["$ref"].endswith(
-        "HermesSuggestionListResponse"
-    )
-    assert schemas["HermesSuggestionListResponse"]["properties"]["items"]["items"]["$ref"].endswith(
-        "HermesSuggestion"
-    )

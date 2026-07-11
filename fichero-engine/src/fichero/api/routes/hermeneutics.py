@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database, get_library_database_for_write
@@ -14,7 +14,6 @@ from fichero.hermeneutics_models import (
     CircleNavigationDirection,
     FrameworkType,
     HermeneuticCircleState,
-    HermesSuggestion,
     HermesSuggestionRequest,
     Interpretation,
     InterpretiveActType,
@@ -164,11 +163,6 @@ class PatternListResponse(BaseModel):
 
 class CircleStateListResponse(BaseModel):
     items: list[HermeneuticCircleState]
-    count: int
-
-
-class HermesSuggestionListResponse(BaseModel):
-    items: list[HermesSuggestion]
     count: int
 
 
@@ -745,59 +739,19 @@ async def backtrack_circle(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AI Interpretation Suggestions (placeholder — requires LLM provider integration)
+# AI Interpretation Suggestions
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/suggestions", response_model=HermesSuggestionListResponse)
+@router.post("/suggestions", status_code=status.HTTP_501_NOT_IMPLEMENTED)
 async def suggest_interpretations(
     request: HermesSuggestionRequest,
-    db: Database = Depends(get_library_database),
-) -> HermesSuggestionListResponse:
-    """Generate AI interpretation suggestions for claims.
-
-    Uses the configured LLM providers (via LangChain) to suggest how
-    frameworks might be applied to the given claims. Returns ranked
-    suggestions.
-    """
-    if request.num_suggestions < 1 or request.num_suggestions > 10:
-        raise HTTPException(
-            status_code=400, detail="num_suggestions must be between 1 and 10"
-        )
-
-    # Load requested frameworks (or all active if none specified)
-    if request.framework_ids:
-        frameworks = [
-            db.get(InterpretiveFramework, fid) for fid in request.framework_ids
-        ]
-        frameworks = [f for f in frameworks if f and f.is_active]
-    else:
-        frameworks = [f for f in db.all(InterpretiveFramework) if f.is_active]
-
-    if not frameworks:
-        raise HTTPException(status_code=400, detail="No active frameworks available")
-
-    suggestions: list[HermesSuggestion] = []
-
-    for framework in frameworks[: request.num_suggestions]:
-        suggestion = HermesSuggestion(
-            framework_id=framework.id,
-            framework_name=framework.name,
-            interpretation_text=(
-                f"Apply {framework.name} ({framework.framework_type.value}) framework: "
-                f"{framework.description[:200]}..."
-            ),
-            confidence=0.5,
-            reasoning=(
-                f"Framework '{framework.name}' is relevant based on its "
-                f"core questions: {'; '.join(framework.core_questions[:2])}"
-            ),
-            act=InterpretiveActType.contextualizing,
-            key_insights=framework.key_concepts[:3],
-        )
-        suggestions.append(suggestion)
-
-    return HermesSuggestionListResponse(items=suggestions, count=len(suggestions))
+) -> None:
+    """Report that grounded interpretation suggestions are not available yet."""
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Grounded AI interpretation suggestions are not implemented.",
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
