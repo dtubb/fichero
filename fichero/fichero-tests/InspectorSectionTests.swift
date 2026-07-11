@@ -51,4 +51,18 @@ final class InspectorSectionTests: XCTestCase {
         // a tab of their own.
         XCTAssertEqual(InspectorSection.section(for: .citations), .knowledge)
     }
+
+    // MARK: - XCUITest a11y hook contract (#3456/#3457)
+
+    func testAccessibilityIdentifierIsStableAndUniquePerSection() {
+        // The top-icon-row switcher exposes one stable per-section id that the
+        // UX/XCUITest layer targets — locking the format guards those tests.
+        XCTAssertEqual(InspectorSection.source.accessibilityIdentifier, "inspectorSection-Source")
+        XCTAssertEqual(InspectorSection.artifacts.accessibilityIdentifier, "inspectorSection-Artifacts")
+        XCTAssertEqual(InspectorSection.knowledge.accessibilityIdentifier, "inspectorSection-Knowledge")
+        XCTAssertEqual(InspectorSection.notes.accessibilityIdentifier, "inspectorSection-Notes")
+
+        let ids = InspectorSection.allCases.map(\.accessibilityIdentifier)
+        XCTAssertEqual(Set(ids).count, InspectorSection.allCases.count, "each section needs a unique hook")
+    }
 }
