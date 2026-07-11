@@ -368,6 +368,12 @@ struct UndoLastActionButton: View {
     private var lastAction: LastAction? {
         LibraryManager.shared.globalLibrary?.actionsService.lastAction
     }
+    /// The active library's audit log — the source of truth for multi-level undo
+    /// (#3444). ⌘Z walks it row by row instead of only reversing the single
+    /// last-recorded action.
+    private var auditStore: AuditStore? {
+        LibraryManager.shared.globalLibrary?.auditStore
+    }
     @FocusedValue(\.navigationUndoAction) private var navigationUndoAction
 
     private var logger: Logger {
@@ -382,17 +388,22 @@ struct UndoLastActionButton: View {
         .disabled(!isEnabled)
     }
 
-    /// "Undo Merge" when an action is recorded, plain "Undo" otherwise.
+    /// "Undo Merge" when the next undoable action is known, plain "Undo"
+    /// otherwise. Prefers the audit log's next target (multi-level, #3444);
+    /// falls back to the last-recorded action before the log has loaded.
     private var undoTitle: String {
         if navigationUndoAction != nil {
             return "Undo"
         }
-        guard let name = lastAction?.actionName else { return "Undo" }
+        let name = auditStore?.nextUndoableEntry?.actionName ?? lastAction?.actionName
+        guard let name else { return "Undo" }
         return "Undo \(Self.menuLabel(for: name))"
     }
 
     private var isEnabled: Bool {
-        navigationUndoAction?.isEnabled == true || lastAction?.auditId != nil
+        navigationUndoAction?.isEnabled == true
+            || auditStore?.nextUndoableEntry != nil
+            || lastAction?.auditId != nil
     }
 
     /// `"entity.merge"` → `"Merge"`. Falls back to the raw name if unverbed.
@@ -407,26 +418,35 @@ struct UndoLastActionButton: View {
             navigationUndoAction.run()
             return
         }
-        guard let lastAction,
-              let auditId = lastAction.auditId,
-              let service = LibraryManager.shared.globalLibrary?.actionsService else { return }
-        let previousActionName = lastAction.actionName
-        // Clear up front so a second ⌘Z can't replay the inverse of the same row
-        // (single-level undo). Re-records nothing: redo is a follow-up.
-        lastAction.auditId = nil
-        lastAction.actionName = nil
+        guard let auditStore else { return }
         Task {
-            do {
-                _ = try await service.undoAction(auditId: auditId)
-                logger.info("⌘Z undo of audit \(auditId) succeeded")
-            } catch {
-                // A failed undo must not leave the user with nothing undone AND
-                // Undo silently disabled (#3302 / raise-not-silent). Restore the
-                // holder so ⌘Z can retry, and surface the failure.
-                lastAction.auditId = auditId
-                lastAction.actionName = previousActionName
-                logger.error("⌘Z undo of audit \(auditId) failed: \(error.localizedDescription)")
-                presentUndoError(error)
+            // Multi-level: walk the audit log and reverse the most-recent
+            // still-undoable forward action. `undoLast()` loads the log if
+            // needed and reloads after, so a repeated ⌘Z steps further back.
+            let didUndo = await auditStore.undoLast()
+            if didUndo {
+                logger.info("⌘Z multi-level undo succeeded")
+                // Keep the single-level signal in sync: once the log has no more
+                // undoable forward actions, drop it so Undo disables cleanly.
+                if auditStore.nextUndoableEntry == nil {
+                    lastAction?.auditId = nil
+                    lastAction?.actionName = nil
+                }
+            } else {
+                // Nothing left to undo, or the reversal failed — clear the signal
+                // and surface any message (raise-not-silent, #3302).
+                lastAction?.auditId = nil
+                lastAction?.actionName = nil
+                logger.error("⌘Z undo found nothing to reverse or failed")
+                if let message = auditStore.statusMessage, message != "Nothing to undo" {
+                    presentUndoError(
+                        NSError(
+                            domain: "app.fichero.undo",
+                            code: 0,
+                            userInfo: [NSLocalizedDescriptionKey: message]
+                        )
+                    )
+                }
             }
         }
     }

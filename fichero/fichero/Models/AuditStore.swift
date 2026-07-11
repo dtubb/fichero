@@ -106,4 +106,37 @@ final class AuditStore {
     func canUndo(_ entry: Components.Schemas.AuditLogEntry) -> Bool {
         entry.undoable && !entry.undone
     }
+
+    // MARK: - Multi-level undo (#3444)
+
+    /// The next target for a multi-level ⌘Z that walks the audit log: the
+    /// most-recent *forward* action that can still be reversed. Entries are
+    /// newest-first, so this steps backward one action per undo. Rows that are
+    /// themselves inverses (`inverseOf` set) are skipped — those are redo
+    /// targets, not further undos — as are already-undone rows.
+    var nextUndoableEntry: Components.Schemas.AuditLogEntry? {
+        entries.first { $0.undoable && !$0.undone && $0.inverseOf == nil }
+    }
+
+    /// Pure walk helper (testable without the network): the newest forward,
+    /// still-undoable entry in a given list.
+    static func nextUndoable(
+        in entries: [Components.Schemas.AuditLogEntry]
+    ) -> Components.Schemas.AuditLogEntry? {
+        entries.first { $0.undoable && !$0.undone && $0.inverseOf == nil }
+    }
+
+    /// Undo the most-recent still-undoable forward action, walking the audit log
+    /// (#3444 multi-level undo). Loads the log first if it hasn't been fetched,
+    /// so ⌘Z works without the Audit History view being open. `undo(_:)` reloads
+    /// afterwards, so a repeated call naturally steps one action further back.
+    @discardableResult
+    func undoLast() async -> Bool {
+        if entries.isEmpty { await load() }
+        guard let entry = nextUndoableEntry else {
+            statusMessage = "Nothing to undo"
+            return false
+        }
+        return await undo(entry.id)
+    }
 }
