@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "0.1.0.dev1"
+    "version": "2026.7.3b1"
   },
   "paths": {
     "/api/health": {
@@ -2495,6 +2495,158 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PromoteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content-representations/document/{document_id}": {
+      "get": {
+        "tags": [
+          "content-representations"
+        ],
+        "summary": "List Representations",
+        "operationId": "list_representations_api_content_representations_document__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContentRepresentation"
+                  },
+                  "title": "Response List Representations Api Content Representations Document  Document Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content-representations/{representation_id}/revisions": {
+      "get": {
+        "tags": [
+          "content-representations"
+        ],
+        "summary": "List Revisions",
+        "operationId": "list_revisions_api_content_representations__representation_id__revisions_get",
+        "parameters": [
+          {
+            "name": "representation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Representation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContentRepresentationRevision"
+                  },
+                  "title": "Response List Revisions Api Content Representations  Representation Id  Revisions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "content-representations"
+        ],
+        "summary": "Create Revision",
+        "operationId": "create_revision_api_content_representations__representation_id__revisions_post",
+        "parameters": [
+          {
+            "name": "representation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Representation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepresentationRevisionParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentRepresentationRevision"
                 }
               }
             }
@@ -20469,6 +20621,16 @@
               "type": "string",
               "title": "Entity Id"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "responses": {
@@ -24022,7 +24184,7 @@
           "knowledge-graph"
         ],
         "summary": "Suggest Interpretations",
-        "description": "Generate AI interpretation suggestions for claims.\n\nUses the configured LLM providers (via LangChain) to suggest how\nframeworks might be applied to the given claims. Returns ranked\nsuggestions.",
+        "description": "Report that grounded interpretation suggestions are not available yet.",
         "operationId": "suggest_interpretations_api_hermeneutics_suggestions_post",
         "requestBody": {
           "content": {
@@ -24035,13 +24197,11 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "501": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HermesSuggestionListResponse"
-                }
+                "schema": {}
               }
             }
           },
@@ -25094,7 +25254,7 @@
           "knowledge-graph"
         ],
         "summary": "Suggest Interpretations",
-        "description": "Generate AI interpretation suggestions for claims.\n\nUses the configured LLM providers (via LangChain) to suggest how\nframeworks might be applied to the given claims. Returns ranked\nsuggestions.",
+        "description": "Report that grounded interpretation suggestions are not available yet.",
         "operationId": "suggest_interpretations_api_kg_interpretations_suggestions_post",
         "requestBody": {
           "content": {
@@ -25107,13 +25267,11 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "501": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HermesSuggestionListResponse"
-                }
+                "schema": {}
               }
             }
           },
@@ -33461,6 +33619,39 @@
             "nullable": true,
             "title": "Paragraph Index"
           },
+          "ink_payload": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ink Payload"
+          },
+          "ocr_text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Text"
+          },
+          "ocr_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Provider"
+          },
+          "ocr_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Model"
+          },
+          "ocr_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Ocr Confidence"
+          },
+          "ocr_recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Ocr Recorded At"
+          },
           "kind": {
             "$ref": "#/components/schemas/AnnotationKind"
           },
@@ -33597,6 +33788,39 @@
             "nullable": true,
             "title": "Paragraph Index"
           },
+          "ink_payload": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ink Payload"
+          },
+          "ocr_text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Text"
+          },
+          "ocr_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Provider"
+          },
+          "ocr_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Model"
+          },
+          "ocr_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Ocr Confidence"
+          },
+          "ocr_recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Ocr Recorded At"
+          },
           "text": {
             "type": "string",
             "nullable": true,
@@ -33674,7 +33898,9 @@
       "AnnotationListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/Annotation"
+            },
             "type": "array",
             "title": "Items"
           },
@@ -33689,7 +33915,7 @@
           "count"
         ],
         "title": "AnnotationListResponse",
-        "description": "Standardized envelope for GET /api/annotations list endpoints."
+        "description": "Typed annotation list envelope for the OpenAPI client."
       },
       "AnnotationPatchRequest": {
         "properties": {
@@ -33784,6 +34010,39 @@
             "type": "integer",
             "nullable": true,
             "title": "Paragraph Index"
+          },
+          "ink_payload": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ink Payload"
+          },
+          "ocr_text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Text"
+          },
+          "ocr_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Provider"
+          },
+          "ocr_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ocr Model"
+          },
+          "ocr_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Ocr Confidence"
+          },
+          "ocr_recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Ocr Recorded At"
           },
           "metadata": {
             "additionalProperties": true,
@@ -38449,6 +38708,177 @@
         ],
         "title": "ConnectionTestResponse",
         "description": "Result of a provider connection test."
+      },
+      "ContentRepresentation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ContentRepresentationKind"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script"
+          },
+          "source_anchor": {
+            "$ref": "#/components/schemas/ContentSourceAnchor"
+          },
+          "parent_representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Representation Id"
+          },
+          "derived_from_representation_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Derived From Representation Id"
+          },
+          "producer_run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Run Id"
+          },
+          "producer_tool": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Tool"
+          },
+          "producer_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Model"
+          },
+          "review_state": {
+            "$ref": "#/components/schemas/ContentReviewState",
+            "default": "source"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "kind",
+          "content",
+          "source_anchor"
+        ],
+        "title": "ContentRepresentation",
+        "description": "Immutable source-linked content representation (#3443 slice 1)."
+      },
+      "ContentRepresentationKind": {
+        "type": "string",
+        "enum": [
+          "transcription",
+          "normalized_text",
+          "translation",
+          "transliteration",
+          "markdown",
+          "html",
+          "svg"
+        ],
+        "title": "ContentRepresentationKind"
+      },
+      "ContentRepresentationRevision": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "representation_id": {
+            "type": "string",
+            "title": "Representation Id"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "reviewer": {
+            "type": "string",
+            "title": "Reviewer",
+            "default": "human"
+          },
+          "decision": {
+            "type": "string",
+            "nullable": true,
+            "title": "Decision"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "representation_id",
+          "content"
+        ],
+        "title": "ContentRepresentationRevision",
+        "description": "A user-authored revision linked to an immutable representation."
+      },
+      "ContentReviewState": {
+        "type": "string",
+        "enum": [
+          "source",
+          "draft",
+          "reviewed"
+        ],
+        "title": "ContentReviewState"
+      },
+      "ContentSourceAnchor": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bbox"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id"
+        ],
+        "title": "ContentSourceAnchor"
       },
       "ContradictionEvidence": {
         "properties": {
@@ -43450,72 +43880,6 @@
         ],
         "title": "HermeneuticCircleState",
         "description": "Tracks navigation between parts and wholes in interpretive analysis.\n\nThe hermeneutic circle describes the iterative process of understanding:\nunderstanding parts through wholes, and wholes through parts.\nThis model tracks where the analyst is in that navigation."
-      },
-      "HermesSuggestion": {
-        "properties": {
-          "framework_id": {
-            "type": "string",
-            "title": "Framework Id"
-          },
-          "framework_name": {
-            "type": "string",
-            "title": "Framework Name"
-          },
-          "interpretation_text": {
-            "type": "string",
-            "title": "Interpretation Text"
-          },
-          "confidence": {
-            "type": "number",
-            "title": "Confidence"
-          },
-          "reasoning": {
-            "type": "string",
-            "title": "Reasoning"
-          },
-          "act": {
-            "$ref": "#/components/schemas/InterpretiveActType"
-          },
-          "key_insights": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Key Insights"
-          }
-        },
-        "type": "object",
-        "required": [
-          "framework_id",
-          "framework_name",
-          "interpretation_text",
-          "confidence",
-          "reasoning",
-          "act"
-        ],
-        "title": "HermesSuggestion",
-        "description": "A single AI-generated interpretation suggestion."
-      },
-      "HermesSuggestionListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/HermesSuggestion"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "count"
-        ],
-        "title": "HermesSuggestionListResponse"
       },
       "HermesSuggestionRequest": {
         "properties": {
@@ -53625,6 +53989,30 @@
           "count"
         ],
         "title": "ReorderResponse"
+      },
+      "RepresentationRevisionParams": {
+        "properties": {
+          "representation_id": {
+            "type": "string",
+            "title": "Representation Id"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "decision": {
+            "type": "string",
+            "nullable": true,
+            "title": "Decision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "representation_id",
+          "content"
+        ],
+        "title": "RepresentationRevisionParams"
       },
       "ResearchChecklist": {
         "properties": {
