@@ -43,3 +43,16 @@ def test_revision_action_preserves_source_representation(db):
     revision = db.get(ContentRepresentationRevision, result.result["id"])
     assert revision.reviewer == "reviewer"
     assert db.get(ContentRepresentation, representation.id).content == "immutable source"
+
+
+def test_representation_read_routes(client, db):
+    representation = ContentRepresentation(
+        document_id="doc-api",
+        kind=ContentRepresentationKind.markdown,
+        content="# source",
+        source_anchor=ContentSourceAnchor(document_id="doc-api"),
+    )
+    db.save(representation)
+    response = client.get(f"/api/content-representations/document/{representation.document_id}")
+    assert response.status_code == 200
+    assert response.json()[0]["id"] == representation.id

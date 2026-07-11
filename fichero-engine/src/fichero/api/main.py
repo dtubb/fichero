@@ -1315,6 +1315,7 @@ from fichero.api.routes import (  # noqa: E402
     citation_usages,
     citation_rendering,
     citations,
+    content_representations,
     claim_curation,
     claim_links,
     claims,
@@ -1394,6 +1395,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # unconditionally.
     (changes.router, "/api", ["changes"]),
     (annotations.router, "/api", ["annotations"]),
+    (content_representations.router, "/api", ["content-representations"]),
     (notes.router, "/api", ["notes"]),
     (projects.router, "/api", ["projects"]),
     (artifacts.router, "/api/artifacts", ["artifacts"]),
