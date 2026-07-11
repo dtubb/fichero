@@ -916,6 +916,32 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertNil(ClaimSummaryCard.openClaimSourceRequest(for: claim))
     }
 
+    // MARK: - Inline S/V/O editing (#3463)
+
+    func testKGClaimRowEditsSVOInlineNotInASheet() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+        )
+
+        // "Edit S/V/O…" expands the row into the inline editor (reusing
+        // InlineClaimEditor); the old EditClaimSheet presentation is gone.
+        XCTAssertTrue(source.contains("InlineClaimEditor("))
+        XCTAssertTrue(source.contains("inlineEditingClaimId"))
+        XCTAssertFalse(source.contains("EditClaimSheet("))
+    }
+
+    // MARK: - Cross-target drag payload (#3425)
+
+    func testInspectorEntityDragPayloadRoundTripsAcrossTargets() throws {
+        // The structured JSON representation must survive serialization so the
+        // entity drag carries its full identity across app targets/scenes.
+        let payload = InspectorEntityDragID(id: "e-1", text: "Ada Lovelace")
+        let data = try JSONEncoder().encode(payload)
+        let decoded = try JSONDecoder().decode(InspectorEntityDragID.self, from: data)
+        XCTAssertEqual(decoded.id, "e-1")
+        XCTAssertEqual(decoded.text, "Ada Lovelace")
+    }
+
     // MARK: - Native List conversion (#3425, item 14)
 
     func testKGListModeUsesNativeListSelectionWithKindSections() throws {

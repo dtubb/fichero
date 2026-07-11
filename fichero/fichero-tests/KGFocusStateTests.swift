@@ -80,4 +80,29 @@ final class KGFocusStateTests: XCTestCase {
         state.syncPushedEntity("e-2")
         XCTAssertEqual(state.focusedEntityId, "e-2")
     }
+
+    // MARK: - Graph reveal request (#3452)
+
+    /// "Show in Graph" focuses the entity and bumps the reveal token so
+    /// ContentView switches into the force graph.
+    func testRequestGraphRevealFocusesEntityAndBumpsToken() {
+        let state = KGFocusState()
+        let before = state.graphRevealRequestToken
+
+        state.requestGraphReveal(entityId: "e-9")
+
+        XCTAssertEqual(state.focusedEntityId, "e-9")
+        XCTAssertEqual(state.graphRevealRequestToken, before + 1)
+    }
+
+    /// Revealing the SAME entity twice still bumps the token, so a repeat
+    /// "Show in Graph" re-triggers the mode switch.
+    func testRepeatGraphRevealStillBumpsToken() {
+        let state = KGFocusState()
+        state.requestGraphReveal(entityId: "e-1")
+        let afterFirst = state.graphRevealRequestToken
+
+        state.requestGraphReveal(entityId: "e-1")
+        XCTAssertEqual(state.graphRevealRequestToken, afterFirst + 1)
+    }
 }

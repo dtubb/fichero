@@ -83,6 +83,12 @@ struct KnowledgeGraphInspectorSection: View {
     /// "Include children" scope toggle and badged ("Includes children") when on.
     @AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = false
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
+    // Configurable per-row metadata (#3466). Shared keys with EntityKindRow so the
+    // "Row Detail" menu below toggles exactly what each row renders.
+    @AppStorage("inspector.kg.row.showConfidence") private var rowShowConfidence = true
+    @AppStorage("inspector.kg.row.showPageRef") private var rowShowPageRef = true
+    @AppStorage("inspector.kg.row.showContext") private var rowShowContext = true
+    @AppStorage("inspector.kg.row.showExcerpt") private var rowShowExcerpt = true
 
     private var bodyTextFont: Font {
         .system(size: CGFloat(defaultFontSize))
@@ -519,6 +525,10 @@ struct KnowledgeGraphInspectorSection: View {
             .help("List view — entities as grouped, expandable rows you can click through to the source")
             .accessibilityLabel("List view")
 
+            if displayMode == .list {
+                rowDetailMenu
+            }
+
             Button {
                 Task { await loadStatements() }
             } label: {
@@ -536,6 +546,24 @@ struct KnowledgeGraphInspectorSection: View {
                 deleteActionButton(targetClaims: selectedClaims)
             }
         }
+    }
+
+    /// "Row Detail" menu (#3466), Xcode-console-style: toggle which metadata each
+    /// claim row renders. Persisted via @AppStorage (shared keys with EntityKindRow).
+    private var rowDetailMenu: some View {
+        Menu {
+            Toggle("Confidence", isOn: $rowShowConfidence)
+            Toggle("Page reference", isOn: $rowShowPageRef)
+            Toggle("Context", isOn: $rowShowContext)
+            Toggle("Source excerpt", isOn: $rowShowExcerpt)
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Row detail — choose which metadata each claim row shows")
+        .accessibilityLabel("Row detail")
     }
 
     // Filter Menu — Tinderbox-style "displayed attributes" picker. Each entity

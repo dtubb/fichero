@@ -5,6 +5,7 @@ import AppKit
 import FicheroAPIClient
 import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Document Entities Tab
 
@@ -28,6 +29,8 @@ struct DocumentInspectorEntitiesTab: View {
     @Environment(EntityServiceGenerated.self) private var entityService
     /// Per-window entity-search bus (#3437).
     @Environment(EntitySearchState.self) private var entitySearchState: EntitySearchState?
+    /// Cross-view KG focus — drives "Show in Graph" (#3452).
+    @Environment(KGFocusState.self) private var kgFocusState
 
     @State private var entitySelection: Set<String> = []
     @State private var isApplyingBulkAction = false
@@ -382,7 +385,7 @@ struct DocumentInspectorEntitiesTab: View {
         .background(dropTargetHighlight(for: entity))
         .inspectorListRowTarget()
         .tag(entity.stableInspectorId)
-        .draggable(InspectorEntityDragID(id: entity.stableInspectorId))
+        .draggable(InspectorEntityDragID(id: entity.stableInspectorId, text: entity.canonicalName))
         .dropDestination(
             for: InspectorEntityDragID.self,
             action: { payloads, _ in
@@ -493,6 +496,11 @@ struct DocumentInspectorEntitiesTab: View {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(entity.canonicalName, forType: .string)
             #endif
+        }
+        if let entityId = entity.id {
+            Button("Show in Graph") {
+                kgFocusState.requestGraphReveal(entityId: entityId)
+            }
         }
         Divider()
 
@@ -883,12 +891,21 @@ extension Components.Schemas.KnowledgeEntity {
     }
 }
 
-struct InspectorEntityDragID: Transferable {
+/// The drag payload for an inspector entity (#3425). Carries the stable id (for
+/// in-app entity merge / reclassify drops) plus the canonical name, and defines
+/// cross-target pasteboard semantics so a dragged entity behaves natively no
+/// matter where it lands:
+///   - a structured JSON representation that survives across the app's targets
+///     and scenes (the in-app drop destinations decode this), and
+///   - a plain-text representation (the entity name) so dragging an entity into
+///     a text field, note, or another app pastes something meaningful.
+struct InspectorEntityDragID: Codable, Transferable {
     let id: String
+    var text: String = ""
 
     static var transferRepresentation: some TransferRepresentation {
-        ProxyRepresentation(exporting: \.id)
-            .visibility(.ownProcess)
+        CodableRepresentation(contentType: .json)
+        ProxyRepresentation(exporting: \.text)
     }
 }
 
