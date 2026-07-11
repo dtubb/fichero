@@ -2297,6 +2297,8 @@ def _write_kg_rows(
     )
     invariant_violations: list[str] = []
 
+    antecedent: str | None = None
+    pronouns = {"he", "she", "it", "they", "él", "ella", "ellos", "ellas"}
     for item in items:
         if not isinstance(item, dict):
             # Keywords come through as bare strings — wrap minimally.
@@ -2322,6 +2324,10 @@ def _write_kg_rows(
             or item.get("fecha")
             or ""
         )
+        if canonical.casefold() in pronouns and antecedent:
+            canonical = antecedent
+        elif canonical:
+            antecedent = canonical
         # SVO predicate (new schema). `verb` + `object` compose the
         # claim text as a real sentence; the legacy `context` is still
         # accepted for any in-flight cache hits or human-authored items
