@@ -277,4 +277,31 @@ final class DocumentInspectorTests: XCTestCase {
         // switcher clamps to Source rather than showing a dead segment.
         XCTAssertEqual(DocumentInspector.section(for: .edits, in: nil), .source)
     }
+
+    // MARK: - Source outline tree fold (#3440)
+
+    private func outlineRow(_ id: String, depth: Int) -> Components.Schemas.DocumentOutlineRow {
+        Components.Schemas.DocumentOutlineRow(id: id, depth: depth, kind: "section", label: id, count: 0)
+    }
+
+    func testSourceOutlineTreeFoldsFlatDepthRowsIntoHierarchy() {
+        // Flat depth-first rows: doc(0) → [ pageA(1) → [ chunk(2) ], pageB(1) ].
+        let rows = [
+            outlineRow("doc", depth: 0),
+            outlineRow("pageA", depth: 1),
+            outlineRow("chunk", depth: 2),
+            outlineRow("pageB", depth: 1)
+        ]
+        let tree = SourceOutlineNode.tree(from: rows)
+
+        XCTAssertEqual(tree.map(\.id), ["doc"])
+        XCTAssertEqual(tree.first?.children?.map(\.id), ["pageA", "pageB"])
+        XCTAssertEqual(tree.first?.children?.first?.children?.map(\.id), ["chunk"])
+        // A leaf has nil children (so the outline shows no empty disclosure).
+        XCTAssertNil(tree.first?.children?.last?.children)
+    }
+
+    func testSourceOutlineTreeEmptyForNoRows() {
+        XCTAssertTrue(SourceOutlineNode.tree(from: []).isEmpty)
+    }
 }

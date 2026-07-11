@@ -178,6 +178,28 @@ class DocumentServiceGenerated {
         }
     }
 
+    /// Hierarchical source outline for a document (#3440). Flat depth-ordered
+    /// rows (id/depth/kind/label/count) the inspector folds into a native
+    /// OutlineView. Typed OpenAPI op — no hand-rolled URL. Source anchors for
+    /// reveal are added by #3441.
+    func documentOutline(_ id: String) async throws -> [Components.Schemas.DocumentOutlineRow] {
+        logger.info("Fetching outline for document: \(id)")
+
+        let response = try await client.api.documentOutlineApiDocumentsDocumentIdOutlineGet(.init(
+            path: .init(documentId: id)
+        ))
+
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json.rows
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     /// Export the library (or a subtree) as an Eleventy (11ty) static site
     /// (#3055 / #2755 remnant). Routed through the generated, tokened client with
     /// typed errors (no hand-rolled URLSession).

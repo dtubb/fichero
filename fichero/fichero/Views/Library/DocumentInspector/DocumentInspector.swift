@@ -300,12 +300,9 @@ struct DocumentInspector: View {
 
     @ViewBuilder
     private func contentTab(for doc: Document) -> some View {
-        VStack(spacing: 0) {
-            DisplayAttributesStrip(document: doc)
-            Divider()
-            DocumentInspectorContentV2(document: doc, mode: .pageContentOnly)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
+        // Source section = a Content / Outline mode toggle (#3440). The native
+        // document Outline is a hierarchy mode within Source, not a new tab.
+        SourceSectionView(document: doc)
     }
 
     @ViewBuilder
