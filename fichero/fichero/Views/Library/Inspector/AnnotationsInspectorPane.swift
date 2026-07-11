@@ -10,6 +10,7 @@ struct AnnotationsInspectorPane: View {
     let annotations: [DocumentAnnotation]
 
     @Environment(AnnotationStore.self) private var annotationStore
+    @Environment(LibraryManager.self) private var libraryManager
     @Environment(WindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
@@ -129,7 +130,7 @@ struct AnnotationsInspectorPane: View {
     }
 
     private func saveAnnotation(_ annotation: DocumentAnnotation, text: String) async throws {
-        guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+        guard let library = currentLibrary else { return }
         var update = Components.Schemas.AnnotationPatchRequest()
         update.text = text
         let result = try await library.actionsService.invokeAction(
@@ -142,7 +143,7 @@ struct AnnotationsInspectorPane: View {
     }
 
     private func deleteAnnotation(_ annotation: DocumentAnnotation) async throws {
-        guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+        guard let library = currentLibrary else { return }
         let result = try await library.actionsService.invokeAction(
             name: "annotation.delete",
             params: AnnotationDeleteActionParams(annotationId: annotation.id)
@@ -155,7 +156,7 @@ struct AnnotationsInspectorPane: View {
     }
 
     private func promoteAnnotation(_ annotation: DocumentAnnotation) async throws {
-        guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+        guard let library = currentLibrary else { return }
         let result = try await library.actionsService.invokeAction(
             name: "annotation.promote_to_claim",
             params: AnnotationPromoteActionParams(annotationId: annotation.id)
@@ -172,6 +173,10 @@ struct AnnotationsInspectorPane: View {
             return
         }
         PlatformPasteboard.writeString(text)
+    }
+
+    private var currentLibrary: LibraryManager.LibraryReference? {
+        libraryManager.getLibrary(id: windowState.libraryId)
     }
 
     private func reveal(_ annotation: DocumentAnnotation) {
