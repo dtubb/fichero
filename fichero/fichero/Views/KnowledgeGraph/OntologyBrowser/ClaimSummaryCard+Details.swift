@@ -90,6 +90,15 @@ extension ClaimSummaryCard {
     @ViewBuilder
     var expandedDetailSection: some View {
         Divider()
+        // Who asserts this claim — the document itself or a person in the
+        // archive — surfaced + editable (#3448).
+        ClaimAttributionView(
+            attribution: ClaimAttribution(claim: claim),
+            onSetSpeaker: { name in
+                guard let claimId = claim.id else { return }
+                _ = try? await claimStore.patch(claimId: claimId, speakerName: name)
+            }
+        )
         if let claimText = cleanedDisplayText(claim.text) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Source claim")

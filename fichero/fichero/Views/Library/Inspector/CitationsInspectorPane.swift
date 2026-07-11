@@ -50,6 +50,13 @@ struct CitationsInspectorPane: View {
             }
             Divider()
             InspectorBottomMiniToolbar(statusText: citationsToolbarStatusText) {
+                if !items.isEmpty {
+                    // Copy / share / drag the citations out as BibTeX (#3451).
+                    CitationExportButton(fetch: { try await store.exportBibTeX() })
+                        .labelStyle(.iconOnly)
+                        .id(document.id)
+                }
+
                 Button {
                     Task { await store.reload() }
                 } label: {

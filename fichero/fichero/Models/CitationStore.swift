@@ -76,6 +76,15 @@ final class CitationStore: ObservableDomainStore {
         }
     }
 
+    // MARK: - Export
+
+    /// BibTeX for the current document scope, for copy / share / drag-out to a
+    /// citation manager (#3451). Empty string when nothing is scoped.
+    func exportBibTeX() async throws -> String {
+        guard let documentId = currentDocumentId else { return "" }
+        return try await entityService.exportCitationsBibtex(documentIds: [documentId])
+    }
+
     // MARK: - ObservableDomainStore
 
     nonisolated var changeDomain: String { "citation" }
