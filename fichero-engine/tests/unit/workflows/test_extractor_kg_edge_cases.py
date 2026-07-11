@@ -911,3 +911,20 @@ def test_claim_writer_preserves_source_bbox(db, container_doc):
     )
     claim = db.query(KnowledgeClaim, source_document_id=container_doc.id)[0]
     assert claim.source_bbox == [0.1, 0.2, 0.3, 0.4]
+
+
+def test_hermeneutics_stage_persists_svo_claim(db, container_doc):
+    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+    section = next(s for s in _SECTIONS if s["name"] == "hermeneutics_extract")
+    _write_kg_rows(
+        db,
+        section,
+        [{"name": "Land tenure", "verb": "reveals", "object": "colonial power", "source_text": "The deed reveals colonial power."}],
+        container_doc.id,
+    )
+    claim = db.query(KnowledgeClaim, source_document_id=container_doc.id)[0]
+    assert (claim.subject_canonical, claim.predicate_verb, claim.object_phrase) == (
+        "Land tenure", "reveals", "colonial power"
+    )

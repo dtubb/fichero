@@ -26,6 +26,7 @@ EXTRACTOR_NAMES = [
     "properties_extract",
     "legal_references_extract",
     "citation_usage_extract",
+    "hermeneutics_extract",
     "keywords_extract",
     "quotes_extract",
 ]
@@ -234,6 +235,6 @@ class TestSectionConfig:
         # Artifact types must match what DocumentInspectorArtifactsTab renders.
         known = {"people", "places", "organizations", "dates", "rivers",
                  "events", "mines", "properties", "legal_references",
-                 "citation_usages", "keywords", "quotes"}
+                 "citation_usages", "hermeneutics", "keywords", "quotes"}
         for section in _SECTIONS:
             assert section["artifact"] in known

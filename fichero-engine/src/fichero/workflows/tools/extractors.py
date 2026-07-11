@@ -384,6 +384,22 @@ _SECTIONS: list[dict[str, Any]] = [
         ),
     },
     {
+        "name": "hermeneutics_extract",
+        "display": "Extract Interpretations",
+        "artifact": "hermeneutics",
+        "entity_type": EntityType.concept,
+        "icon": "text.quote",
+        "color": "purple",
+        "schema_key": "hermeneutics",
+        "item_shape": '{"name": "...", "verb": "...", "object": "..."}',
+        "instruction": (
+            "Extract only interpretive claims the document itself supports. "
+            "Name the interpreted theme, practice, or concept; split the "
+            "interpretation into verb and object; include the shortest "
+            "supporting source_text. Do not turn unstated speculation into fact."
+        ),
+    },
+    {
         "name": "quotes_extract",
         "display": "Extract Quotes",
         "artifact": "quotes",
@@ -877,6 +893,7 @@ _SECTION_SCHEMAS: dict[str, type[BaseModel]] = {
     "properties": _make_section_schema(_SectionProperty, "properties"),
     "legal_references": _make_section_schema(_SectionLegalReference, "legal_references"),
     "citation_usages": _make_section_schema(_SectionCitationUsage, "citation_usages"),
+    "hermeneutics": _make_section_schema(_SectionLegalReference, "hermeneutics"),
     "quotes": _make_section_schema(_SectionQuote, "quotes"),
 }
 
