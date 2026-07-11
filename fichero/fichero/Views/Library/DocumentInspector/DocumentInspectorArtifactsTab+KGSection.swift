@@ -182,7 +182,8 @@ struct KnowledgeGraphInspectorSection: View {
 
     // MARK: - Text digest data
 
-    private struct TextDigestEntry {
+    private struct TextDigestEntry: Identifiable {
+        let id: String
         let displayName: String
         let kind: EntityKind
         // Each element is "verb objectPhrase" or bare claim text.
@@ -199,7 +200,12 @@ struct KnowledgeGraphInspectorSection: View {
         grouped.map { kind, items in
             let entries = items.map { item in
                 let lines = [item.context] + item.extraClaims.map(\.context)
-                return TextDigestEntry(displayName: item.displayName, kind: kind, svoLines: lines)
+                return TextDigestEntry(
+                    id: item.id,
+                    displayName: item.displayName,
+                    kind: kind,
+                    svoLines: lines
+                )
             }
             return (kind, entries)
         }
@@ -221,7 +227,7 @@ struct KnowledgeGraphInspectorSection: View {
                             .font(typeLabelFont)
                             .foregroundStyle(.secondary)
 
-                        ForEach(entries, id: \.displayName) { entry in
+                        ForEach(entries) { entry in
                             let prose = entry.svoLines.joined(separator: "; ")
                             // SwiftUI markdown bold for the entity name.
                             let raw = "**\(entry.displayName)** \(prose)"

@@ -361,6 +361,17 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(storeSource.contains("func entities(forDocument documentId: String)"))
     }
 
+    func testKnowledgeGraphTextDigestUsesStableEntryIds() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
+        )
+
+        XCTAssertTrue(source.contains("private struct TextDigestEntry: Identifiable"))
+        XCTAssertTrue(source.contains("id: item.id"))
+        XCTAssertTrue(source.contains("ForEach(entries) { entry in"))
+        XCTAssertFalse(source.contains("ForEach(entries, id: \\.displayName)"))
+    }
+
     func testInspectorDeleteActionsUseGeneratedEntityAndClaimClients() throws {
         let entitiesSource = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
