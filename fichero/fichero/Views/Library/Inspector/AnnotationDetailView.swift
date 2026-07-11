@@ -1,32 +1,6 @@
 import FicheroAPIClient
 import SwiftUI
 
-struct AnnotationUpdateActionParams: Encodable {
-    let annotationId: String
-    let update: Components.Schemas.AnnotationPatchRequest
-
-    enum CodingKeys: String, CodingKey {
-        case annotationId = "annotation_id"
-        case update
-    }
-}
-
-struct AnnotationDeleteActionParams: Encodable {
-    let annotationId: String
-
-    enum CodingKeys: String, CodingKey {
-        case annotationId = "annotation_id"
-    }
-}
-
-struct AnnotationPromoteActionParams: Encodable {
-    let annotationId: String
-
-    enum CodingKeys: String, CodingKey {
-        case annotationId = "annotation_id"
-    }
-}
-
 /// The shared renderer for one annotation.
 ///
 /// Reuses the existing row-style presentation, then layers the edit / delete /
