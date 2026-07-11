@@ -49,6 +49,16 @@ def _make_svo_claim(
 
 
 class TestSparqlSafety:
+    def test_rdf_cache_is_bounded(self):
+        from fichero.api.routes import kg_sparql
+
+        cache = kg_sparql._RDF_CACHE
+        cache.clear()
+        cache.update({str(index): ((index,), object()) for index in range(8)})
+        cache.pop(next(iter(cache)))
+        cache["new"] = ((9,), object())
+        assert len(cache) == kg_sparql._RDF_CACHE_MAX_ENTRIES
+
     """Mutating SPARQL verbs are rejected."""
 
     @pytest.mark.parametrize("verb", [

@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+import asyncio
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -188,7 +189,14 @@ async def sparql_query(
         ) from exc
 
     try:
-        raw_rows = triples_module.sparql(graph, request.query)
+        raw_rows = await asyncio.wait_for(
+            asyncio.to_thread(triples_module.sparql, graph, request.query), timeout=5
+        )
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="SPARQL query exceeded the 5 second execution limit.",
+        ) from exc
     except Exception as exc:
         logger.warning("SPARQL parse/execution failed: %s", exc)
         raise HTTPException(
@@ -307,6 +315,7 @@ def _term_to_json(term: Any) -> Any:
 # Cuts SPARQL latency from ~3-4s to ~50ms on warm cache at 200K triples.
 # (#992 — scaling-review bottleneck 3)
 _RDF_CACHE: dict[str, tuple[tuple, Any]] = {}
+_RDF_CACHE_MAX_ENTRIES = 8
 
 
 def _cached_rdf_graph(db: Database) -> Any:
@@ -329,5 +338,7 @@ def _cached_rdf_graph(db: Database) -> Any:
         db.query(KnowledgeEntity),
         db.query(KnowledgeClaim),
     )
+    if len(_RDF_CACHE) >= _RDF_CACHE_MAX_ENTRIES and key not in _RDF_CACHE:
+        _RDF_CACHE.pop(next(iter(_RDF_CACHE)))
     _RDF_CACHE[key] = (signature, graph)
     return graph
