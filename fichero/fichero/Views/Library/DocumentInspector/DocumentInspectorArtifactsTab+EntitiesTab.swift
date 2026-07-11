@@ -461,23 +461,20 @@ struct DocumentInspectorEntitiesTab: View {
                 #endif
                 .onAppear { renameFieldFocused = true }
         } else {
-            Button {
-                postSearch(
-                    for: entity,
-                    kind: EntityKind(apiType: entity.entityType) ?? .other
+            // Plain, readable name — no link styling. The accent-underlined
+            // button was unreadable when the row highlight inverted, and its
+            // single-click search intercepted the row's hit target so only a
+            // narrow strip selected. The name is now plain text: the whole row
+            // selects (List + tag), double-click renames, and "Find in Library"
+            // moved to the context menu.
+            Text(entity.canonicalName)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .help("Double-click to rename \"\(entity.canonicalName)\"")
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded { beginRename(entity) }
                 )
-            } label: {
-                Text(entity.canonicalName)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.accentColor)
-                    .underline()
-            }
-            .buttonStyle(.plain)
-            .help("Search the library for \"\(entity.canonicalName)\" — double-click to rename")
-            .simultaneousGesture(
-                TapGesture(count: 2).onEnded { beginRename(entity) }
-            )
         }
     }
 
@@ -531,6 +528,9 @@ struct DocumentInspectorEntitiesTab: View {
 
         Button("Rename") { beginRename(entity) }
             .disabled(entity.id == nil)
+        Button("Find in Library") {
+            postSearch(for: entity, kind: EntityKind(apiType: entity.entityType) ?? .other)
+        }
         Divider()
 
         Menu("Approve") {
