@@ -17,38 +17,50 @@ import SwiftUI
 struct ArtifactDetailView: View {
     /// The artifact to render. `nil` shows the empty state (nothing selected).
     let artifact: Artifact?
+    var provenance: ArtifactProvenanceDisplay? = nil
+    var onOpenSource: (() -> Void)? = nil
 
     /// Persist edited content. `nil` → read-only (the `AttributedTextEditor`
     /// becomes non-editable, matching `ArtifactPanel`'s `onSave == nil` path).
-    var onSave: ((Artifact, String) async -> Void)?
+    var onSave: ((Artifact, String) async -> Void)? = nil
 
     /// Delete this artifact. `nil` hides the trash affordance.
-    var onDelete: ((Artifact) -> Void)?
+    var onDelete: ((Artifact) -> Void)? = nil
 
     var body: some View {
         Group {
             if let artifact {
-                // #2495: the selected artifact's text must fill the full
-                // available inspector height — not sit at intrinsic height in a
-                // scroll view (the old "small bottom strip" whose size tracked
-                // panel content). `fillsHeight` makes the editor claim all
-                // remaining vertical space; every content path (editor /
-                // read-only Text / structured JSON) already scrolls internally,
-                // so no outer ScrollView is needed — and a nested ScrollView
-                // wrapping a maxHeight:.infinity editor would fight over height.
-                ArtifactPanel(
-                    kind: .artifact(artifact),
-                    // The detail always shows its body — there's no sibling
-                    // competing for height, so default to expanded.
-                    defaultExpanded: true,
-                    fillsHeight: true,
-                    onDelete: onDelete.map { delete in { delete(artifact) } },
-                    onSave: onSave.map { save in
-                        { content in await save(artifact, content) }
+                VStack(spacing: 0) {
+                    if let provenance {
+                        ArtifactProvenanceSection(
+                            provenance: provenance,
+                            onOpenSource: onOpenSource
+                        )
+                        Divider()
                     }
-                )
-                .padding(.horizontal, 4)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                    // #2495: the selected artifact's text must fill the full
+                    // available inspector height — not sit at intrinsic height in a
+                    // scroll view (the old "small bottom strip" whose size tracked
+                    // panel content). `fillsHeight` makes the editor claim all
+                    // remaining vertical space; every content path (editor /
+                    // read-only Text / structured JSON) already scrolls internally,
+                    // so no outer ScrollView is needed — and a nested ScrollView
+                    // wrapping a maxHeight:.infinity editor would fight over height.
+                    ArtifactPanel(
+                        kind: .artifact(artifact),
+                        // The detail always shows its body — there's no sibling
+                        // competing for height, so default to expanded.
+                        defaultExpanded: true,
+                        fillsHeight: true,
+                        onDelete: onDelete.map { delete in { delete(artifact) } },
+                        onSave: onSave.map { save in
+                            { content in await save(artifact, content) }
+                        }
+                    )
+                    .padding(.horizontal, 4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
             } else {
                 emptyState
             }
@@ -71,5 +83,46 @@ struct ArtifactDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.vertical, 32)
+    }
+}
+
+private struct ArtifactProvenanceSection: View {
+    let provenance: ArtifactProvenanceDisplay
+    var onOpenSource: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            LabeledContent("Source") {
+                if let onOpenSource {
+                    Button(action: onOpenSource) {
+                        Text(provenance.sourceLabel)
+                    }
+                    .buttonStyle(.link)
+                    .accessibilityLabel("Open artifact source")
+                } else {
+                    Text(provenance.sourceLabel)
+                        .textSelection(.enabled)
+                }
+            }
+
+            if let workflowLabel = provenance.workflowLabel {
+                LabeledContent("Workflow") {
+                    Text(workflowLabel)
+                        .textSelection(.enabled)
+                }
+            }
+
+            if let providerLabel = provenance.providerLabel {
+                LabeledContent("Provider") {
+                    Text(providerLabel)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .font(.caption)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.35))
     }
 }

@@ -86,6 +86,26 @@ struct ArtifactsInspectorPane: View {
         focused.id.flatMap { id in store.items.first { $0.id == id } }
     }
 
+    private var knownDocumentsById: [String: Document] {
+        (
+            documentStore.collections
+                + documentStore.currentDocuments
+                + documentStore.sidebarDocuments
+                + [document]
+        ).reduce(into: [String: Document]()) { result, item in
+            result[item.id] = item
+        }
+    }
+
+    private var selectedProvenance: ArtifactProvenanceDisplay? {
+        guard let selectedArtifact else { return nil }
+        return ArtifactProvenance.display(
+            for: selectedArtifact,
+            inspectedDocument: document,
+            documentsById: knownDocumentsById
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if let actionError {
@@ -94,6 +114,8 @@ struct ArtifactsInspectorPane: View {
             VStack(spacing: 0) {
                 ArtifactListView(
                     store: store,
+                    inspectedDocument: document,
+                    documentsById: knownDocumentsById,
                     focused: focused,
                     onOpenInWindow: openDetailWindow
                 )
@@ -103,6 +125,8 @@ struct ArtifactsInspectorPane: View {
 
                 ArtifactDetailView(
                     artifact: selectedArtifact,
+                    provenance: selectedProvenance,
+                    onOpenSource: openSelectedArtifactSource,
                     onSave: { artifact, content in
                         await saveArtifact(artifact, content: content)
                     },
@@ -185,6 +209,24 @@ struct ArtifactsInspectorPane: View {
         // Make sure the snapshot is current before the window reads it.
         focused.resolve(in: store.items)
         openWindow(id: "artifact-detail")
+    }
+
+    private func openSelectedArtifactSource() {
+        guard let selectedArtifact else { return }
+        let provenance = ArtifactProvenance.display(
+            for: selectedArtifact,
+            inspectedDocument: document,
+            documentsById: knownDocumentsById
+        )
+        var info: [String: Any] = ["documentId": provenance.sourceDocumentId]
+        if let pageLabel = provenance.pageLabel {
+            info["pageLabel"] = pageLabel
+        }
+        NotificationCenter.default.post(
+            name: .ficheroOpenClaimSource,
+            object: nil,
+            userInfo: info
+        )
     }
 
     // MARK: - Mutations

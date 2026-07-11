@@ -47,6 +47,15 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(source.contains("Task { await store.reload() }"))
     }
 
+    func testArtifactsPaneRoutesProvenanceClicksThroughSharedSourceNavigation() throws {
+        let source = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+        let detailSource = try Self.appSource("Views/Library/Inspector/ArtifactDetailView.swift")
+
+        XCTAssertTrue(source.contains("NotificationCenter.default.post("))
+        XCTAssertTrue(source.contains("name: .ficheroOpenClaimSource"))
+        XCTAssertTrue(detailSource.contains("LabeledContent(\"Source\")"))
+    }
+
     func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
 

@@ -22,6 +22,24 @@ struct ArtifactSelectionTests {
         [artifact("a"), artifact("b"), artifact("c")]
     }
 
+    private func document(
+        _ id: String,
+        parentId: String? = nil,
+        docType: DocType = .file,
+        name: String,
+        sequence: Int? = nil
+    ) -> Document {
+        Document(
+            id: id,
+            parentId: parentId,
+            docType: docType,
+            fileType: docType == .file ? .pdf : nil,
+            name: name,
+            sequence: sequence,
+            status: .completed
+        )
+    }
+
     // MARK: - resolve (delete acts on the full selection)
 
     @Test("resolve returns every selected artifact, in list order")
@@ -108,5 +126,66 @@ struct ArtifactSelectionTests {
                 inspectedDocumentId: "doc-99"
             ) == false
         )
+    }
+
+    @Test("artifact provenance marks descendant page outputs with page labels")
+    func artifactProvenanceDescendantPage() {
+        let pdf = document("doc-parent", name: "Notebook.pdf")
+        let page = document("page-3", parentId: pdf.id, docType: .page, name: "page_0003", sequence: 3)
+        let artifact = artifact("artifact-1", documentId: page.id)
+
+        let display = ArtifactProvenance.display(
+            for: artifact,
+            inspectedDocument: pdf,
+            documentsById: [pdf.id: pdf, page.id: page]
+        )
+
+        #expect(display.sourceLabel == "Page 3")
+        #expect(display.pageLabel == "3")
+        #expect(display.relation == .descendantPage)
+    }
+
+    @Test("artifact provenance marks same-document outputs as local")
+    func artifactProvenanceCurrentDocument() {
+        let pdf = document("doc-parent", name: "Notebook.pdf")
+        let artifact = artifact("artifact-1", documentId: pdf.id)
+
+        let display = ArtifactProvenance.display(
+            for: artifact,
+            inspectedDocument: pdf,
+            documentsById: [pdf.id: pdf]
+        )
+
+        #expect(display.sourceLabel == "This document")
+        #expect(display.relation == .currentDocument)
+    }
+
+    @Test("artifact provenance row subtitle joins source workflow and provider")
+    func artifactProvenanceRowSubtitle() {
+        let pdf = document("doc-parent", name: "Notebook.pdf")
+        let artifact = Artifact(
+            id: "artifact-1",
+            documentId: pdf.id,
+            sourceArtifactId: nil,
+            version: 1,
+            artifactType: "transcription",
+            content: nil,
+            data: nil,
+            runId: nil,
+            provider: "OpenAI",
+            model: "gpt-4.1",
+            stepName: "OCR",
+            confidence: nil,
+            reviewed: false,
+            createdAt: Date()
+        )
+
+        let display = ArtifactProvenance.display(
+            for: artifact,
+            inspectedDocument: pdf,
+            documentsById: [pdf.id: pdf]
+        )
+
+        #expect(display.rowSubtitle == "This document · OCR · OpenAI · gpt-4.1")
     }
 }
