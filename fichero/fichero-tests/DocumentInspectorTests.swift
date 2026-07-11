@@ -255,4 +255,26 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertNil(AuditStore.nextUndoable(in: []))
         XCTAssertNil(AuditStore.nextUndoable(in: [auditEntry("z", undone: true)]))
     }
+
+    // MARK: - Switcher section mapping (#3457)
+
+    func testSwitcherMapsEachTabToItsSection() {
+        // doc = nil → all tabs available, so this is the pure section mapping the
+        // top-icon-row switcher uses (no doc-type clamping).
+        XCTAssertEqual(DocumentInspector.section(for: .content, in: nil), .source)
+        XCTAssertEqual(DocumentInspector.section(for: .info, in: nil), .source)
+        XCTAssertEqual(DocumentInspector.section(for: .artifacts, in: nil), .artifacts)
+        XCTAssertEqual(DocumentInspector.section(for: .entities, in: nil), .knowledge)
+        XCTAssertEqual(DocumentInspector.section(for: .knowledgeGraph, in: nil), .knowledge)
+        XCTAssertEqual(DocumentInspector.section(for: .citations, in: nil), .knowledge)
+        XCTAssertEqual(DocumentInspector.section(for: .notes, in: nil), .notes)
+        XCTAssertEqual(DocumentInspector.section(for: .annotations, in: nil), .notes)
+        XCTAssertEqual(DocumentInspector.section(for: .interpretations, in: nil), .notes)
+    }
+
+    func testSwitcherFallsBackToSourceForEdits() {
+        // Edits left the inspector (#3434), so it maps to no section and the
+        // switcher clamps to Source rather than showing a dead segment.
+        XCTAssertEqual(DocumentInspector.section(for: .edits, in: nil), .source)
+    }
 }
