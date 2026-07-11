@@ -884,6 +884,37 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             mergedIntoId: nil
         )
     }
+
+    // MARK: - Source provenance anchor (#3449, item 12)
+
+    func testKGClaimBuildsSourceNavigationRequestWhenSourced() {
+        let claim = Components.Schemas.KnowledgeClaim(
+            id: "claim-1",
+            text: "Ada wrote the notes",
+            sourceDocumentId: "doc-9",
+            sourcePageLabel: "page 4",
+            sourceExcerpt: "the verbatim quote"
+        )
+
+        let request = ClaimSummaryCard.openClaimSourceRequest(for: claim)
+
+        XCTAssertNotNil(request, "A claim with a source document should yield a provenance anchor")
+        XCTAssertEqual(request?.documentId, "doc-9")
+        XCTAssertEqual(request?.pageLabel, "page 4")
+        XCTAssertEqual(request?.claimText, "the verbatim quote")
+        XCTAssertEqual(request?.claimId, "claim-1")
+    }
+
+    func testKGClaimWithoutSourceDocumentHasNoProvenanceAnchor() {
+        // No sourceDocumentId → no anchor, so the row shows no provenance popover
+        // (rather than a broken empty one).
+        let claim = Components.Schemas.KnowledgeClaim(
+            id: "claim-2",
+            text: "Unsourced assertion"
+        )
+
+        XCTAssertNil(ClaimSummaryCard.openClaimSourceRequest(for: claim))
+    }
 }
 
 private func makeKnowledgeClaim(
