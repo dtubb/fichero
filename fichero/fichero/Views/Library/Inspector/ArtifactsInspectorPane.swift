@@ -179,7 +179,7 @@ struct ArtifactsInspectorPane: View {
             focused.documentName = document.name
             await store.setScope(
                 documentId: document.id,
-                includeDescendants: includesDescendantArtifacts,
+                includeDescendants: false,
                 force: true
             )
             focused.resolve(in: store.items)
@@ -190,15 +190,6 @@ struct ArtifactsInspectorPane: View {
         .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
             Task { await store.reload() }
         }
-    }
-
-    /// A parent PDF's extractor workflows write per-page entity artifacts to its
-    /// page children, so this pane must surface those descendant outputs — the
-    /// behavior the old `DocumentInspectorContentV2(mode: .artifactsOnly)` had via
-    /// `shouldIncludeDescendantArtifacts` and that was dropped when this pane took
-    /// over (#3186). Restored now that `ArtifactStore` carries the scope flag.
-    private var includesDescendantArtifacts: Bool {
-        document.docType == .file && document.fileType == .pdf
     }
 
     private func openDetailWindow() {

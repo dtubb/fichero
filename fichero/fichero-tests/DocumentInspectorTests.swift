@@ -56,6 +56,13 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(detailSource.contains("LabeledContent(\"Source\")"))
     }
 
+    func testArtifactsPaneUsesOwnOnlyArtifactScope() throws {
+        let source = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
+
+        XCTAssertTrue(source.contains("includeDescendants: false"))
+        XCTAssertFalse(source.contains("private var includesDescendantArtifacts"))
+    }
+
     func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
 
