@@ -343,6 +343,11 @@ class TestDocumentOutline:
         assert result.document_id == doc.id
         kinds = {row.kind for row in result.rows}
         assert {"page", "chapter", "section", "chunk", "annotation-group", "entity-group"} <= kinds
+        rows = {row.id: row for row in result.rows}
+        assert rows[page1.id].parent_id == doc.id
+        assert rows[page1.id].source_document_id == page1.id
+        assert rows[chunk.id].parent_id == page1.id
+        assert rows[f"{doc.id}:annotations"].source_capability == "group"
         chapter_row = next(row for row in result.rows if row.kind == "chapter")
         assert chapter_row.label == "Chapter 1"
         assert chapter_row.depth == 1
