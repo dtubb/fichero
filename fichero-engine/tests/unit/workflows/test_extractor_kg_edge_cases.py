@@ -861,3 +861,38 @@ class TestInvariantViolationLogging:
                     f"{entity.canonical_name!r} description echoes name: "
                     f"{entity.description!r}"
                 )
+
+
+def test_pronoun_subject_reuses_preceding_entity(db, container_doc):
+    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+    section = next(s for s in _SECTIONS if s["name"] == "places_extract")
+    _write_kg_rows(
+        db,
+        section,
+        [
+            {"name": "Rosario", "verb": "is", "object": "a street"},
+            {"name": "they", "verb": "contains", "object": "a straw house"},
+        ],
+        container_doc.id,
+    )
+
+    claims = db.query(KnowledgeClaim, source_document_id=container_doc.id)
+    assert {claim.subject_canonical for claim in claims} == {"Rosario"}
+
+
+def test_claim_writer_cleans_escaped_text_and_deletion_markers(db, container_doc):
+    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+    section = next(s for s in _SECTIONS if s["name"] == "places_extract")
+    _write_kg_rows(
+        db,
+        section,
+        [{"name": "Rosario", "verb": "contains", "object": 'La parte\\\\r\\\\n[deleted: Miqué] \\\\"limpia\\\\"'}],
+        container_doc.id,
+    )
+
+    claim = db.query(KnowledgeClaim, source_document_id=container_doc.id)[0]
+    assert claim.text == 'Rosario contains La parte "limpia".'

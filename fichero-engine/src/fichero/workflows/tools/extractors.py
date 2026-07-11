@@ -2297,6 +2297,16 @@ def _write_kg_rows(
     )
     invariant_violations: list[str] = []
 
+    antecedent: str | None = None
+    pronouns = {"he", "she", "it", "they", "él", "ella", "ellos", "ellas"}
+
+    def clean_claim_text(value: Any) -> str:
+        text = str(value or "")
+        text = text.replace("\\\\r\\\\n", " ").replace("\\\\n", " ").replace("\\\\r", " ")
+        text = text.replace('\\\\"', '"')
+        text = _re.sub(r"\[deleted:\s*[^\]]*\]", "", text, flags=_re.IGNORECASE)
+        return " ".join(text.split())
+
     for item in items:
         if not isinstance(item, dict):
             # Keywords come through as bare strings — wrap minimally.
@@ -2322,6 +2332,10 @@ def _write_kg_rows(
             or item.get("fecha")
             or ""
         )
+        if canonical.casefold() in pronouns and antecedent:
+            canonical = antecedent
+        elif canonical:
+            antecedent = canonical
         # SVO predicate (new schema). `verb` + `object` compose the
         # claim text as a real sentence; the legacy `context` is still
         # accepted for any in-flight cache hits or human-authored items
@@ -2331,6 +2345,7 @@ def _write_kg_rows(
         legacy_context = (
             item.get("context") or item.get("contexto") or ""
         ).strip()
+        verb, obj, legacy_context = map(clean_claim_text, (verb, obj, legacy_context))
         # First-person rewrite — when the doc has a known author and the
         # extractor surfaced "me / my / our" (typical for academic
         # prefaces describing the author's own life), substitute the

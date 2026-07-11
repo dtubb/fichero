@@ -231,6 +231,16 @@ class TestMergeEntities:
         )
         assert r.status_code == 409
 
+    def test_merge_retry_into_same_absorber_is_idempotent(self, client, db):
+        absorber = _make_entity(db, "Alice")
+        absorbed = _make_entity(db, "Alicia")
+        payload = {
+            "absorbing_entity_id": absorber.id,
+            "absorbed_entity_ids": [absorbed.id],
+        }
+        assert client.post("/api/kg/entity-curation/merge", json=payload).status_code == 200
+        assert client.post("/api/kg/entity-curation/merge", json=payload).status_code == 200
+
     def test_merge_with_custom_description(self, client, db):
         absorber = _make_entity(db, "Alice")
         absorbed = _make_entity(db, "Alicia")
