@@ -35,12 +35,30 @@ extension LibraryView {
             }
         }
         .onTapGesture(count: 2) {
-            if let firstId = selection.first,
-               let doc = filteredDocuments.first(where: { $0.id == documentId(forNodeId: firstId) }) {
-                handleDoubleClick(doc)
-            }
+            handleOutlineDoubleClickSelection()
         }
         .padding(.leading, browserLeadingInset)
+    }
+
+    private func handleOutlineDoubleClickSelection() {
+        guard let firstId = selection.first else { return }
+        if let artifactSelection = artifactSelectionForNodeId(firstId) {
+            openArtifactDetailWindow(for: artifactSelection)
+            return
+        }
+        if let doc = filteredDocuments.first(where: { $0.id == documentId(forNodeId: firstId) }) {
+            handleDoubleClick(doc)
+        }
+    }
+
+    private func openArtifactDetailWindow(for selection: (document: Document, artifact: Artifact)) {
+        FocusedArtifact.shared.select(
+            selection.artifact.id,
+            documentId: selection.document.id,
+            documentName: selection.document.name,
+            in: [selection.artifact]
+        )
+        openWindow(id: "artifact-detail")
     }
 
     /// Strip a child-group node's `:type` suffix back to the document id.
