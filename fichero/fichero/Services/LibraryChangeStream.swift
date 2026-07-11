@@ -246,6 +246,10 @@ final class LibraryChangeStream {
         min(current * 2, 30_000_000_000)
     }
 
+    static func shouldSurfaceUnavailable(failureCount: Int) -> Bool {
+        failureCount >= 2
+    }
+
     // MARK: - Internals
 
     /// Distinguishes an authorization failure (terminal — don't retry) from a
@@ -255,10 +259,13 @@ final class LibraryChangeStream {
     private func runLoop() async {
         var backoffNanos = Self.initialBackoffNanos
         var hasConnectedBefore = false
+        var consecutiveUnavailableCycles = 0
         while !Task.isCancelled {
+            var cycleEndedWithError = false
             do {
                 try await subscribeOnce(resyncOnConnect: hasConnectedBefore)
                 hasConnectedBefore = true
+                consecutiveUnavailableCycles = 0
                 backoffNanos = Self.initialBackoffNanos  // clean end → reset backoff
             } catch StreamError.accessDenied {
                 // 403: no role on this library. Retrying can't fix authorization —
@@ -272,21 +279,25 @@ final class LibraryChangeStream {
                 return
             } catch {
                 if !Task.isCancelled {
-                    // No-silent-fallback (#2518): a failed connect/stream means
-                    // live updates are NOT arriving. Log at .error and flag it so
-                    // the UI can show "live updates unavailable" instead of
-                    // silently presenting stale data. The retry below still runs.
+                    cycleEndedWithError = true
+                    // ponytail: require a second consecutive miss before surfacing
+                    // the paused pill; one dropped cycle often self-heals on the
+                    // next backoff tick and should stay invisible to the user.
                     changeStreamLogger.error(
                         "change-stream dropped: \(error.localizedDescription, privacy: .public)"
                     )
-                    liveUpdatesUnavailable = true
+                    consecutiveUnavailableCycles += 1
+                    liveUpdatesUnavailable = Self.shouldSurfaceUnavailable(
+                        failureCount: consecutiveUnavailableCycles
+                    )
                 }
             }
             isConnected = false
-            if !Task.isCancelled {
-                // A clean server-side close (no throw) also means we are no
-                // longer receiving live updates until the reconnect below lands.
-                liveUpdatesUnavailable = true
+            if !Task.isCancelled, !cycleEndedWithError {
+                consecutiveUnavailableCycles += 1
+                liveUpdatesUnavailable = Self.shouldSurfaceUnavailable(
+                    failureCount: consecutiveUnavailableCycles
+                )
             }
             if Task.isCancelled { break }
             try? await Task.sleep(nanoseconds: backoffNanos)
