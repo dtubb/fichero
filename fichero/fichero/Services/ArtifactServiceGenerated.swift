@@ -761,7 +761,9 @@ final class EntityServiceGenerated {
         curationState: Components.Schemas.ClaimCurationState? = nil,
         claimType: Components.Schemas.ClaimType? = nil,
         epistemicStatus: Components.Schemas.EpistemicStatus? = nil,
-        confidence: Double? = nil
+        confidence: Double? = nil,
+        speakerName: String? = nil,
+        speakerEntityId: String? = nil
     ) async throws -> Components.Schemas.KnowledgeClaim {
         var body = Components.Schemas.ClaimPatchRequest()
         body.text = text
@@ -773,6 +775,8 @@ final class EntityServiceGenerated {
         body.claimType = claimType
         body.epistemicStatus = epistemicStatus
         body.confidence = confidence
+        body.speakerName = speakerName
+        body.speakerEntityId = speakerEntityId
         let response = try await client.api.patchClaimApiClaimsClaimIdPatch(
             path: .init(claimId: claimId),
             body: .json(body)
