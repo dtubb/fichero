@@ -63,6 +63,14 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertFalse(source.contains("private var includesDescendantArtifacts"))
     }
 
+    func testEntitiesInspectorUsesSharedBottomMiniToolbar() throws {
+        let inspectorSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
+        let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+
+        XCTAssertTrue(inspectorSource.contains("struct InspectorBottomMiniToolbar"))
+        XCTAssertTrue(entitiesSource.contains("InspectorBottomMiniToolbar(statusText: entitiesToolbarStatusText)"))
+    }
+
     func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
 

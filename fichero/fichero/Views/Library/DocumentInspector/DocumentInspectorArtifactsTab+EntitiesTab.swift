@@ -239,13 +239,7 @@ struct DocumentInspectorEntitiesTab: View {
     }
 
     private var entitiesMiniToolbar: some View {
-        MiniToolbar {
-            Text(entitiesToolbarStatusText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
+        InspectorBottomMiniToolbar(statusText: entitiesToolbarStatusText) {
             filterMenu
 
             Button {
