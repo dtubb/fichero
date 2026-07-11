@@ -483,6 +483,34 @@ class TestEphemeralCrop:
 
 
 # ---------------------------------------------------------------------------
+# #2105 / #3442: crop routes must advertise their real media types so the
+# generated OpenAPI client can fetch PNG bytes (not silently decode JSON).
+# ---------------------------------------------------------------------------
+
+
+class TestCropResponseContract:
+    """The crop routes return PNG bytes or a text substring — the OpenAPI
+    schema must say so, or typed clients can never render the image crop
+    (the old application/json default hid it)."""
+
+    @pytest.mark.parametrize(
+        "path,method",
+        [
+            ("/api/annotations/{annotation_id}/crop", "get"),
+            ("/api/annotations/crop", "post"),
+        ],
+    )
+    def test_crop_advertises_binary_and_text(self, client, path, method):
+        schema = client.get("/openapi.json").json()
+        content = schema["paths"][path][method]["responses"]["200"]["content"]
+        assert "image/png" in content, f"{method} {path} must advertise image/png"
+        assert "text/plain" in content, f"{method} {path} must advertise text/plain"
+        # The misleading JSON default must be gone — typed clients keyed off it
+        # and never saw the bytes.
+        assert "application/json" not in content
+
+
+# ---------------------------------------------------------------------------
 # #3263 regression: created_by is set from the acting user
 # ---------------------------------------------------------------------------
 
