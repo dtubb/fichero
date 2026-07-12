@@ -1028,4 +1028,44 @@ private func makeKnowledgeClaim(
         objectPhrase: object
     )
 }
+// MARK: - Entity reconciliation grouping (#3318)
+
+final class EntityReconciliationTests: XCTestCase {
+    func testParsesCandidatePairsFromEngineEnvelope() throws {
+        // The /api/kg/entity-curation/candidates envelope: { items: [pairs], count }.
+        let json = Data("""
+        {"count": 2, "items": [
+          {"entity_a_id": "a", "entity_a_name": "Pedro", "entity_b_id": "b",
+           "entity_b_name": "Pedro de la Vega", "jaccard": 0.82, "shared_neighbors": 5,
+           "entity_type": "person"},
+          {"entity_a_id": "x", "entity_a_name": "x", "entity_b_id": "x",
+           "entity_b_name": "x", "jaccard": 0.9}
+        ]}
+        """.utf8)
+        let pairs = EntityStore.parseReconciliationCandidates(json)
+        // The self-pair (a==b) is dropped; the real pair is parsed.
+        XCTAssertEqual(pairs.count, 1)
+        let pair = try XCTUnwrap(pairs.first)
+        XCTAssertEqual(pair.entityAId, "a")
+        XCTAssertEqual(pair.entityBName, "Pedro de la Vega")
+        XCTAssertEqual(pair.jaccard, 0.82, accuracy: 0.001)
+        XCTAssertEqual(pair.entityType, "person")
+        XCTAssertEqual(pair.id, "a|b")
+    }
+
+    func testParsesEmptyOrMalformedEnvelopeToNoPairs() {
+        XCTAssertTrue(EntityStore.parseReconciliationCandidates(Data("null".utf8)).isEmpty)
+        XCTAssertTrue(EntityStore.parseReconciliationCandidates(Data("{\"count\":0,\"items\":[]}".utf8)).isEmpty)
+    }
+
+    func testScopeAvailabilityMatchesTheShippedScopes() {
+        // Folder + Library ship now; cross-library (#3527) + external (#3528) are
+        // deferred and must render disabled.
+        XCTAssertTrue(EntityReconciliationScope.folder.isAvailable)
+        XCTAssertTrue(EntityReconciliationScope.library.isAvailable)
+        XCTAssertFalse(EntityReconciliationScope.crossLibrary.isAvailable)
+        XCTAssertFalse(EntityReconciliationScope.external.isAvailable)
+    }
+}
+
 // swiftlint:enable file_length type_body_length

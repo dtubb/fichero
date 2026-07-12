@@ -16,7 +16,7 @@ import SwiftUI
 ///
 /// Preview stays a SEPARATE quick-look surface (Q3) and Canvas/Spatial stay
 /// Library view modes — neither folds in here.
-enum ReaderTab: String, CaseIterable, Identifiable {
+enum ReaderTab: String, CaseIterable, Identifiable, SurfaceTab {
     case page
     case knowledge
     case notes
@@ -117,36 +117,8 @@ enum ReaderNotesMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// Native top-tab switcher for the Reader. The reader is the center pane with
-/// room to spare, and top tabs read well — the DECIDED switcher style (Daniel
-/// 2026-07-11): native chrome over the WebKit/native content beneath. A
-/// segmented `Picker` is the native, keyboard- and accessibility-friendly
-/// top-tab control; it never scrolls with the content (fixed chrome).
-struct ReaderTabBar: View {
-    @Binding var selection: ReaderTab
-    /// On compact width (iPhone / narrow iPad) the segmented tabs show icons
-    /// only so all three stay reachable without clipping; regular width keeps
-    /// the labelled tabs (#3522). macOS reports `.regular`.
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    private var isCompact: Bool { horizontalSizeClass == .compact }
-
-    var body: some View {
-        let picker = Picker("Reader view", selection: $selection) {
-            ForEach(ReaderTab.allCases) { tab in
-                Label(tab.title, systemImage: tab.icon)
-                    .help(tab.help)
-                    .tag(tab)
-            }
-        }
-        .pickerStyle(.segmented)
-        .accessibilityIdentifier("readerTabBar")
-
-        // Distinct label styles are distinct types, so branch rather than
-        // ternary; the style propagates to the segment Labels via environment.
-        if isCompact {
-            picker.labelStyle(.iconOnly)
-        } else {
-            picker.labelStyle(.titleAndIcon)
-        }
-    }
-}
+// The Reader's top-tab switcher is now the shared `SurfaceTabBar` (#3530) —
+// the same icon-button row the Inspector uses — so both surfaces read as one
+// system. `ReaderTab` conforms to `SurfaceTab` above; the reader constructs
+// `SurfaceTabBar(tabs: ReaderTab.allCases, selection:)` at its call site. The
+// bespoke segmented `ReaderTabBar` view was retired in the extraction.
