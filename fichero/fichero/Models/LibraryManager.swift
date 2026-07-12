@@ -168,6 +168,10 @@ class LibraryManager {
         /// list; save/list/delete route through `chatServiceGenerated`.
         @ObservationIgnored lazy var workspaceStore: WorkspaceStore = WorkspaceStore(chatService: chatServiceGenerated)
 
+        /// Per-library workflow batch runs (#3536). Owns the batch list + the
+        /// folder-fan-out create; routes through `batchService`.
+        @ObservationIgnored lazy var batchStore: BatchStore = BatchStore(batchService: batchService)
+
         /// Per-library search store (#1903). Wraps `searchService`, owns the
         /// current result set and index stats, and invalidates stale results on
         /// `document.*` change events.

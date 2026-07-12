@@ -115,6 +115,7 @@ struct DocumentDetailWindow: View {
             .environment(library.conversationServiceGenerated)
             .environment(library.chatServiceGenerated)
             .environment(library.workspaceStore)
+            .environment(library.batchStore)
             .environment(library.workflowServiceGenerated)
             .environment(library.workflowStreamService)
             .environment(library.importService)
