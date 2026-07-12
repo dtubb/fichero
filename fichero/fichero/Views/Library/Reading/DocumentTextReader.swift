@@ -95,10 +95,17 @@ struct DocumentTextReader: View {
     @State private var isComposingNote = false
     @State private var noteDraft = ""
 
+    /// Decoded, display-ready text — RTF source resolves to plain text so the
+    /// reader never shows raw escape codes (#2317). Annotation ranges and
+    /// selection all index into this same decoded string.
+    private var displayText: String {
+        ArtifactRichTextCodec.plainText(content)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             AnnotatableTextView(
-                text: content,
+                text: displayText,
                 highlights: highlightRanges,
                 selection: $selectionRange
             )
@@ -131,7 +138,7 @@ struct DocumentTextReader: View {
     private var highlightRanges: [Range<Int>] {
         AnnotationHighlight.ranges(
             for: documentAnnotations,
-            inUTF16Count: (content as NSString).length
+            inUTF16Count: (displayText as NSString).length
         )
     }
 
@@ -140,7 +147,7 @@ struct DocumentTextReader: View {
     }
 
     private func selectedText(_ range: Range<Int>) -> String {
-        let nsContent = content as NSString
+        let nsContent = displayText as NSString
         let nsRange = NSRange(location: range.lowerBound, length: range.count)
         guard NSMaxRange(nsRange) <= nsContent.length else { return "" }
         return nsContent.substring(with: nsRange)

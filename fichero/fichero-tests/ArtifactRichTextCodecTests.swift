@@ -92,6 +92,29 @@ final class ArtifactRichTextCodecTests: XCTestCase {
         XCTAssertEqual(String(decoded.characters), "the user typed a fresh sentence")
     }
 
+    // MARK: - Plain-text projection (#2317)
+
+    /// THE #2317 bug: page content stored as RTF must render as resolved text in
+    /// the native reader — accented escapes (`\'e1` → á, `\'f1` → ñ) resolved and
+    /// no stray control words / backslashes leaking through.
+    func testPlainTextResolvesRTFEscapes() {
+        let rtf = "{\\rtf1\\ansi C\\'e1rmen se\\'f1or Jos\\'e9}"
+        let plain = ArtifactRichTextCodec.plainText(rtf)
+        XCTAssertTrue(plain.contains("Cármen"), "\\'e1 must resolve to á")
+        XCTAssertTrue(plain.contains("señor"), "\\'f1 must resolve to ñ")
+        XCTAssertTrue(plain.contains("José"), "\\'e9 must resolve to é")
+        XCTAssertFalse(plain.contains("\\'"), "no raw escape codes may leak")
+        XCTAssertFalse(plain.contains("\\rtf"), "no RTF control words may leak")
+    }
+
+    /// Plain text short-circuits unchanged — the common (non-RTF) case pays no
+    /// decode cost and is returned verbatim, backslashes and all.
+    func testPlainTextPassesNonRTFThrough() {
+        let plain = "just plain text with a \\ backslash and no rtf header"
+        XCTAssertEqual(ArtifactRichTextCodec.plainText(plain), plain)
+        XCTAssertEqual(ArtifactRichTextCodec.plainText(""), "")
+    }
+
     // MARK: - Save path (stubbed service)
 
     /// An edit fires the save with the *encoded* content, and that encoded
