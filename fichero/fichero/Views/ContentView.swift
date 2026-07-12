@@ -464,6 +464,16 @@ struct ContentView: View {
                 \.navigationUndoAction,
                 FocusedLibraryAction(isEnabled: navigationHistory.canGoBack, run: navigateBack)
             )
+            // Back/Forward menu items (#3581) — own focused values so they don't
+            // ride the ⌘Z fallback; per-window scope matches the toolbar buttons.
+            .focusedSceneValue(
+                \.navigateBackAction,
+                FocusedLibraryAction(isEnabled: navigationHistory.canGoBack, run: navigateBack)
+            )
+            .focusedSceneValue(
+                \.navigateForwardAction,
+                FocusedLibraryAction(isEnabled: navigationHistory.canGoForward, run: navigateForward)
+            )
     }
 
     /// NavigationSplitView + the FIRST half of its modifier chain.

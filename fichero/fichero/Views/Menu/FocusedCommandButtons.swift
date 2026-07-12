@@ -129,6 +129,17 @@ struct NavigationUndoActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
+/// FocusedValue keys for the per-window back/forward history (#3581). Distinct
+/// from `navigationUndoAction` — that stays the ⌘Z audited-undo fallback; these
+/// drive the ⌘'/⌘⇧' menu items that mirror the content-column toolbar buttons.
+struct NavigateBackActionKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
+struct NavigateForwardActionKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
 extension FocusedValues {
     var imageZoomActions: ImageZoomActionsKey.Value? {
         get { self[ImageZoomActionsKey.self] }
@@ -188,6 +199,16 @@ extension FocusedValues {
     var navigationUndoAction: NavigationUndoActionKey.Value? {
         get { self[NavigationUndoActionKey.self] }
         set { self[NavigationUndoActionKey.self] = newValue }
+    }
+
+    var navigateBackAction: NavigateBackActionKey.Value? {
+        get { self[NavigateBackActionKey.self] }
+        set { self[NavigateBackActionKey.self] = newValue }
+    }
+
+    var navigateForwardAction: NavigateForwardActionKey.Value? {
+        get { self[NavigateForwardActionKey.self] }
+        set { self[NavigateForwardActionKey.self] = newValue }
     }
 
 }
@@ -360,6 +381,34 @@ struct FocusedNewScheduleButton: View {
 /// log row by row — is a deliberate follow-up. This replaces SwiftUI's default
 /// `.undoRedo` menu items so there is exactly one "Undo", and so the view-local
 /// `UndoManager` isn't fighting the audited backend undo.
+/// View-menu "Back" — steps the focused window's navigation history back one
+/// entry (#3581). Mirrors the content-column toolbar button's ⌘' shortcut and
+/// enabled state; disabled when there's no focused window or nothing to go back to.
+struct NavigateBackButton: View {
+    @FocusedValue(\.navigateBackAction) private var navigateBackAction
+
+    var body: some View {
+        Button("Back") {
+            navigateBackAction?.run()
+        }
+        .keyboardShortcut("'", modifiers: [.command])
+        .disabled(!(navigateBackAction?.isEnabled ?? false))
+    }
+}
+
+/// View-menu "Forward" — the ⌘⇧' counterpart to `NavigateBackButton` (#3581).
+struct NavigateForwardButton: View {
+    @FocusedValue(\.navigateForwardAction) private var navigateForwardAction
+
+    var body: some View {
+        Button("Forward") {
+            navigateForwardAction?.run()
+        }
+        .keyboardShortcut("'", modifiers: [.command, .shift])
+        .disabled(!(navigateForwardAction?.isEnabled ?? false))
+    }
+}
+
 struct UndoLastActionButton: View {
     /// The active library's audited-action holder (#3444 — per library, not a
     /// process-global singleton). Reading `.actionName`/`.auditId` in the body
