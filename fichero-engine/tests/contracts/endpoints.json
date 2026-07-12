@@ -3954,6 +3954,30 @@
         ],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/images/{document_id}/split",
+        "operation_id": "split_image_api_images__document_id__split_post",
+        "summary": "Split Image",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "ImageSplitRequest",
+        "response_model": "ImageSplitResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/images/{document_id}/unsplit",
+        "operation_id": "unsplit_image_api_images__document_id__unsplit_post",
+        "summary": "Unsplit Image",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ImageUnsplitResponse"
       }
     ],
     "ingest": [
