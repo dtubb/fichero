@@ -64,7 +64,7 @@ def _mutating_handlers_with_read_dependency() -> list[tuple[str, str]]:
     return offenders
 
 
-def test_mutating_library_routes_use_write_authorized_db_dependency() -> None:
+def test_all_mutating_routes_use_write_authorized_db_dependency() -> None:
     offenders = _mutating_handlers_with_read_dependency()
     unexpected = [
         offender_with_line
@@ -72,7 +72,7 @@ def test_mutating_library_routes_use_write_authorized_db_dependency() -> None:
         if offender_key not in READ_ONLY_MUTATING_VERB_ALLOWLIST
     ]
     lines = [
-        "Mutating route handlers must depend on get_library_database_for_write, "
+        "Every mutating handler under api/routes must depend on get_library_database_for_write, "
         "not the read-only get_library_database. This keeps viewers read-only "
         "when FICHERO_MULTIUSER is enabled.",
         "",
