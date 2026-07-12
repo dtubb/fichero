@@ -37,6 +37,12 @@ private struct ReadingPaneView: View {
     private var readerTabBinding: Binding<ReaderTab> {
         Binding(get: { readerTab }, set: { readerTabRaw = $0.rawValue })
     }
+    /// Page-tab layout: source / split / transcript (#3502). Per-window.
+    @SceneStorage("reader.page.layout") private var pageLayoutRaw = ReaderPageLayout.source.rawValue
+    private var pageLayout: ReaderPageLayout { ReaderPageLayout(rawValue: pageLayoutRaw) ?? .source }
+    private var pageLayoutBinding: Binding<ReaderPageLayout> {
+        Binding(get: { pageLayout }, set: { pageLayoutRaw = $0.rawValue })
+    }
 
     private var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
     private var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
@@ -198,28 +204,67 @@ private struct ReadingPaneView: View {
         }
     }
 
-    /// Page tab — the source. A PDF (or a page of one) renders in the native
-    /// `PDFPageWithToolbar`, which carries the bottom loupe control (#2419) and
-    /// page navigation; an image renders through `DocumentCanvas` (storage
-    /// HTTP, never a local path); anything else falls back to the transcript.
-    /// The image↔transcript side-by-side toggle is the #3502 follow-up.
+    /// Page tab — read the source. A source/split/transcript toggle (#3502) lays
+    /// out the page image and its transcript alone or side by side. The source is
+    /// a PDF page in the native `PDFPageWithToolbar` (bottom loupe #2419 + page
+    /// nav) or an image via `DocumentCanvas` (storage HTTP, never a local path);
+    /// the transcript is the annotatable `PageContentPane`.
     @ViewBuilder
     private var pageTabContent: some View {
         if let doc = effectiveDocument {
-            if doc.docType == .page, let parentId = doc.parentId {
-                PDFPageWithToolbar(documentId: parentId, pageIndex: max(0, (doc.sequence ?? 1) - 1))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if doc.fileType == .pdf {
-                PDFPageWithToolbar(documentId: doc.id, pageIndex: 0)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if doc.fileType == .image {
-                DocumentCanvas(content: .imageStorageDisplay(documentId: doc.id))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                PageContentPane(document: doc)
+            VStack(spacing: 0) {
+                Picker("Page layout", selection: pageLayoutBinding) {
+                    ForEach(ReaderPageLayout.allCases) { layout in
+                        Label(layout.title, systemImage: layout.icon)
+                            .help(layout.help)
+                            .tag(layout)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelStyle(.iconOnly)
+                .fixedSize()
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .accessibilityIdentifier("readerPageLayout")
+
+                Divider()
+
+                switch pageLayout {
+                case .source:
+                    pageSource(for: doc)
+                case .transcript:
+                    PageContentPane(document: doc)
+                case .split:
+                    HStack(spacing: 0) {
+                        pageSource(for: doc)
+                            .frame(maxWidth: .infinity)
+                        Divider()
+                        PageContentPane(document: doc)
+                            .frame(width: 320)
+                    }
+                }
             }
         } else {
             readerEmptyState
+        }
+    }
+
+    /// The page's source rendering: a PDF page (loupe #2419 + page nav via
+    /// `PDFPageWithToolbar`), an image (`DocumentCanvas`, storage HTTP), or the
+    /// transcript as a last resort for text-only documents.
+    @ViewBuilder
+    private func pageSource(for doc: Document) -> some View {
+        if doc.docType == .page, let parentId = doc.parentId {
+            PDFPageWithToolbar(documentId: parentId, pageIndex: max(0, (doc.sequence ?? 1) - 1))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if doc.fileType == .pdf {
+            PDFPageWithToolbar(documentId: doc.id, pageIndex: 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if doc.fileType == .image {
+            DocumentCanvas(content: .imageStorageDisplay(documentId: doc.id))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            PageContentPane(document: doc)
         }
     }
 
