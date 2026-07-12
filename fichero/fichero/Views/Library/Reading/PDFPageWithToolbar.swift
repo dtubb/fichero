@@ -63,6 +63,17 @@ struct PDFPageWithToolbar: View {
     /// and right splits are tracked independently (mirrors per-instance pin).
     @State private var surfaceId = SurfaceID()
 
+    /// Open-in-new-tab/window plumbing for the pane's title-bar context menu
+    /// (#3582, browser-tab metaphor). Reuses the shared WindowOpener path.
+    @Environment(\.openWindow) private var openWindow
+
+    /// Open THIS pane's document in a native tab (`asTab`) or a new window,
+    /// via the same Safari-style path library rows use.
+    private func openThisDocumentInNewWindow(asTab: Bool) {
+        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
+        WindowOpener.open(libraryId: libraryId, documentId: effectiveDocumentId, asTab: asTab, using: openWindow)
+    }
+
     // Bounding-box annotation state (#2458). `isDrawingRegion` arms a region
     // drag on the page; `pendingTool` carries the kind into the saved box.
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
@@ -185,6 +196,16 @@ struct PDFPageWithToolbar: View {
                     Rectangle()
                         .fill(isActiveSurface ? Color.accentColor : Color.clear)
                         .frame(height: 2)
+                }
+                // Title-bar "Open in New Tab/Window" (#3582). Right-click the
+                // pane's toolbar to pop THIS document out — the browser-tab
+                // metaphor. Reuses the shared OpenInMenuItems (no "Open": the
+                // pane already shows the document).
+                .contextMenu {
+                    OpenInMenuItems(
+                        openInNewTab: { openThisDocumentInNewWindow(asTab: true) },
+                        openInNewWindow: { openThisDocumentInNewWindow(asTab: false) }
+                    )
                 }
         }
         // A direct click anywhere in this pane makes it the active surface

@@ -195,6 +195,18 @@ struct ClaimSummaryCard: View {
                     openInNewTab: { openClaimInNewWindow(asTab: true) },
                     openInNewWindow: { openClaimInNewWindow(asTab: false) }
                 )
+                // Open the claim's SOURCE document itself in a new tab/window
+                // (#3582). Nested under "Open Source" so its New Tab/New Window
+                // items don't collide with the claim's above; reuses the shared
+                // OpenInMenuItems rather than hand-rolling menu items.
+                if let sourceDocId = claim.sourceDocumentId, !sourceDocId.isEmpty {
+                    Menu("Open Source") {
+                        OpenInMenuItems(
+                            openInNewTab: { openSourceInNewWindow(sourceDocId, asTab: true) },
+                            openInNewWindow: { openSourceInNewWindow(sourceDocId, asTab: false) }
+                        )
+                    }
+                }
                 Divider()
                 // Status sub-menu — set epistemic_status via PATCH.
                 // Confirmed / Tentative / Rejected are the three states the
@@ -258,6 +270,13 @@ struct ClaimSummaryCard: View {
 
     /// Open this claim in a new tab/window (#1685). Reuses the Safari
     /// new-window path; the shared `KGFocusState` carries the focus.
+    /// Open the claim's SOURCE document in a native tab (`asTab`) or a new
+    /// window (#3582) — the browser-tab metaphor applied to a reveal menu.
+    private func openSourceInNewWindow(_ documentId: String, asTab: Bool) {
+        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
+        WindowOpener.open(libraryId: libraryId, documentId: documentId, asTab: asTab, using: openWindow)
+    }
+
     private func openClaimInNewWindow(asTab: Bool) {
         // Follow-up (#1685): like entities, a brand-new window only reacts to
         // focusedClaimId via .onChange, so deterministic auto-focus on first
