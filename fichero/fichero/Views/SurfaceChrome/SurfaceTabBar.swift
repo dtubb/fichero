@@ -33,6 +33,9 @@ extension SurfaceTab {
 struct SurfaceTabBar<Tab: SurfaceTab>: View {
     let tabs: [Tab]
     @Binding var selection: Tab
+    /// Container XCUITest hook. Defaults to `surfaceTabBar`; adopters override to
+    /// preserve an existing hook (e.g. the inspector's `inspectorSectionBar`).
+    var accessibilityID: String = "surfaceTabBar"
 
     var body: some View {
         HStack(spacing: 0) {
@@ -50,7 +53,7 @@ struct SurfaceTabBar<Tab: SurfaceTab>: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
-        .accessibilityIdentifier("surfaceTabBar")
+        .accessibilityIdentifier(accessibilityID)
     }
 
     /// Hide the divider adjacent to the active tab (matches the inspector look).

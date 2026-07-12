@@ -63,3 +63,11 @@ enum InspectorSection: String, CaseIterable, Identifiable {
         allCases.first { $0.facets.contains(tab) }
     }
 }
+
+/// Adopt the shared top-tab chrome (#3530): the inspector section bar is now a
+/// `SurfaceTabBar<InspectorSection>`, the same icon row the Reader uses.
+extension InspectorSection: SurfaceTab {
+    var title: String { rawValue }
+    var help: String { helpText }
+    var accessibilityID: String { accessibilityIdentifier }
+}

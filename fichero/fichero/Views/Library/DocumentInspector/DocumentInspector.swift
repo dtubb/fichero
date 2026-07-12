@@ -142,49 +142,25 @@ struct DocumentInspector: View {
     /// Stays icon-only buttons (not a `.segmented` Picker) so per-section `.help`
     /// tooltips and `.accessibilityIdentifier` XCUITest hooks attach per segment.
     /// Multi-facet sections reveal a sub-picker below (see ``facetPicker``).
-    @ViewBuilder
+    /// The shared `SurfaceTabBar` (#3530) — the same icon-button row the Reader
+    /// uses — over the document's available sections. Per-section help + XCUITest
+    /// hooks (`inspectorSection-Source`, …) and the container `inspectorSectionBar`
+    /// hook are preserved via `InspectorSection: SurfaceTab` + the container id.
     private var sectionBar: some View {
-        let sections = availableSections(for: document)
-        let activeSection = Self.section(for: selectedTab, in: document)
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 0) {
-                ForEach(Array(sections.enumerated()), id: \.element) { index, section in
-                    if index > 0 {
-                        Divider()
-                            .frame(height: 14)
-                            .opacity(activeSection == section || activeSection == sections[index - 1] ? 0 : 1)
-                    }
-                    Button {
-                        selectSection(section)
-                    } label: {
-                        Label(section.rawValue, systemImage: section.icon)
-                            .labelStyle(.iconOnly)
-                            .font(.title3)
-                            .frame(maxWidth: .infinity, minHeight: 30)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel(section.rawValue)
-                    .buttonStyle(.plain)
-                    .background(
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(activeSection == section
-                                    ? Color.accentColor.opacity(0.18)
-                                    : Color.clear)
-                            .padding(2)
-                    )
-                    .foregroundStyle(activeSection == section ? Color.accentColor : Color.secondary)
-                    .help(section.helpText)
-                    // Stable per-section XCUITest hook, e.g. "inspectorSection-Source".
-                    .accessibilityIdentifier(section.accessibilityIdentifier)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .inspectorGlassStrip()
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
-        .accessibilityIdentifier("inspectorSectionBar")
+        SurfaceTabBar(
+            tabs: availableSections(for: document),
+            selection: sectionSelectionBinding,
+            accessibilityID: "inspectorSectionBar"
+        )
+    }
+
+    /// Active section ↔ selected facet: reads the section the current tab belongs
+    /// to; selecting a section switches to its first facet (unchanged behaviour).
+    private var sectionSelectionBinding: Binding<InspectorSection> {
+        Binding(
+            get: { Self.section(for: selectedTab, in: document) },
+            set: { selectSection($0) }
+        )
     }
 
     /// Sub-facet selector shown only when the active section absorbs more than
