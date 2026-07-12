@@ -3,6 +3,7 @@ import SwiftUI
 
 // MARK: - ReadingPaneView
 
+// swiftlint:disable type_body_length
 /// Self-contained knowledge/WebKit reading surface with its own pin state.
 /// Extracting this to a separate View (rather than inline in widescreenReadingPane)
 /// gives each SplittablePane instance its own independent @State, so left and
@@ -27,7 +28,9 @@ private struct ReadingPaneView: View {
     @State private var pinnedActivePageNumber: Int?
     @State private var pinnedPageCount: Int?
     @State private var webZoom: Double = 1.0
-    @State private var activeTab: KGSurfaceTab = .transcript
+    // The KG surface sub-mode. Defaults to Graph — transcript moved to the Page
+    // tab, so the Knowledge surface opens on a "what we know" view.
+    @State private var activeTab: KGSurfaceTab = .graph
     /// The reader's top-level tab (Page/Knowledge/Notes) — the reader IA fold
     /// (2026-07-11 design). Per-window via @SceneStorage. Defaults to Knowledge
     /// so this pane's long-standing default (the WebKit knowledge surface) is
@@ -37,6 +40,20 @@ private struct ReadingPaneView: View {
     private var readerTabBinding: Binding<ReaderTab> {
         Binding(get: { readerTab }, set: { readerTabRaw = $0.rawValue })
     }
+    /// Page-tab layout: source / split / transcript (#3502). Per-window.
+    @SceneStorage("reader.page.layout") private var pageLayoutRaw = ReaderPageLayout.source.rawValue
+    private var pageLayout: ReaderPageLayout { ReaderPageLayout(rawValue: pageLayoutRaw) ?? .source }
+    private var pageLayoutBinding: Binding<ReaderPageLayout> {
+        Binding(get: { pageLayout }, set: { pageLayoutRaw = $0.rawValue })
+    }
+    /// Page-turn animation for image-sequence navigation in the Page tab (#2485).
+    /// Shares the reader.pageTurnAnimated key with the immersive reader so the
+    /// setting is unified; reduce-motion falls back to a crossfade.
+    @AppStorage("reader.pageTurnAnimated") private var pageTurnAnimated = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Direction of the last page change, tracked from the page sequence so the
+    /// image swap curls the right way.
+    @State private var pageTurnForward = true
 
     private var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
     private var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
@@ -192,34 +209,129 @@ private struct ReadingPaneView: View {
         case .page:
             pageTabContent
         case .knowledge:
-            surfaceView
+            knowledgeTabContent
         case .notes:
             notesTabContent
         }
     }
 
-    /// Page tab — the source. A PDF (or a page of one) renders in the native
-    /// `PDFPageWithToolbar`, which carries the bottom loupe control (#2419) and
-    /// page navigation; an image renders through `DocumentCanvas` (storage
-    /// HTTP, never a local path); anything else falls back to the transcript.
-    /// The image↔transcript side-by-side toggle is the #3502 follow-up.
+    /// Knowledge tab — explore what we know. A native sub-mode switcher folds the
+    /// KG views (Graph, Claims, Timeline, Map) plus the Digest section into one
+    /// tab (#3504/#3505): Timeline and Map are sub-modes, not top tabs, and the
+    /// digest is reachable here rather than as its own tab. Transcript is
+    /// excluded — it now lives in the Page tab. The surface itself is the shared
+    /// `DocumentKGSurface` WebKit view, driven by `activeTab`.
+    @ViewBuilder
+    private var knowledgeTabContent: some View {
+        VStack(spacing: 0) {
+            Picker("Knowledge view", selection: knowledgeSubModeBinding) {
+                ForEach(Self.knowledgeSubModes) { mode in
+                    Label(mode.title, systemImage: mode.icon)
+                        .help(mode.helpText)
+                        .tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelStyle(.iconOnly)
+            .fixedSize()
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .accessibilityIdentifier("readerKnowledgeSubMode")
+
+            Divider()
+
+            surfaceView
+        }
+    }
+
+    /// The KG sub-modes surfaced inside the Knowledge tab. Transcript is a Page
+    /// concern; Graph/Claims/Timeline/Map/Digest are the "what we know" views.
+    private static let knowledgeSubModes: [KGSurfaceTab] = [.graph, .claims, .timeline, .map, .digest]
+
+    /// Binds the Knowledge sub-mode picker to `activeTab`, clamping any non-
+    /// knowledge value (e.g. a stale `.transcript`) to Graph so the picker and
+    /// the surface never disagree.
+    private var knowledgeSubModeBinding: Binding<KGSurfaceTab> {
+        Binding(
+            get: { Self.knowledgeSubModes.contains(activeTab) ? activeTab : .graph },
+            set: { activeTab = $0 }
+        )
+    }
+
+    /// Page tab — read the source. A source/split/transcript toggle (#3502) lays
+    /// out the page image and its transcript alone or side by side. The source is
+    /// a PDF page in the native `PDFPageWithToolbar` (bottom loupe #2419 + page
+    /// nav) or an image via `DocumentCanvas` (storage HTTP, never a local path);
+    /// the transcript is the annotatable `PageContentPane`.
     @ViewBuilder
     private var pageTabContent: some View {
         if let doc = effectiveDocument {
-            if doc.docType == .page, let parentId = doc.parentId {
-                PDFPageWithToolbar(documentId: parentId, pageIndex: max(0, (doc.sequence ?? 1) - 1))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if doc.fileType == .pdf {
-                PDFPageWithToolbar(documentId: doc.id, pageIndex: 0)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if doc.fileType == .image {
-                DocumentCanvas(content: .imageStorageDisplay(documentId: doc.id))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                PageContentPane(document: doc)
+            VStack(spacing: 0) {
+                Picker("Page layout", selection: pageLayoutBinding) {  // #3502
+                    ForEach(ReaderPageLayout.allCases) { layout in
+                        Label(layout.title, systemImage: layout.icon)
+                            .help(layout.help)
+                            .tag(layout)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelStyle(.iconOnly)
+                .fixedSize()
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .accessibilityIdentifier("readerPageLayout")
+
+                Divider()
+
+                switch pageLayout {
+                case .source:
+                    pageSource(for: doc)
+                case .transcript:
+                    PageContentPane(document: doc)
+                case .split:
+                    HStack(spacing: 0) {
+                        pageSource(for: doc)
+                            .frame(maxWidth: .infinity)
+                        Divider()
+                        PageContentPane(document: doc)
+                            .frame(width: 320)
+                    }
+                }
+            }
+            // Track page-turn direction from the sequence so the image swap
+            // curls the right way (#2485).
+            .onChange(of: doc.sequence ?? -1) { oldSeq, newSeq in
+                if oldSeq != -1, newSeq != -1 { pageTurnForward = newSeq >= oldSeq }
             }
         } else {
             readerEmptyState
+        }
+    }
+
+    /// The page's source rendering: a PDF page (loupe #2419 + page nav via
+    /// `PDFPageWithToolbar`), an image (`DocumentCanvas`, storage HTTP), or the
+    /// transcript as a last resort for text-only documents.
+    ///
+    /// The page-turn (#2485) rides only the image branch: each image page is its
+    /// own document, so an id-swap animates cleanly. PDFs page *inside*
+    /// `PDFPageWithToolbar` (PDFKit owns rendering) — forcing an id-swap there
+    /// would reload the whole PDF each turn, so it keeps stable identity.
+    @ViewBuilder
+    private func pageSource(for doc: Document) -> some View {
+        if doc.docType == .page, let parentId = doc.parentId {
+            PDFPageWithToolbar(documentId: parentId, pageIndex: max(0, (doc.sequence ?? 1) - 1))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if doc.fileType == .pdf {
+            PDFPageWithToolbar(documentId: doc.id, pageIndex: 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if doc.fileType == .image {
+            DocumentCanvas(content: .imageStorageDisplay(documentId: doc.id))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .id(doc.id)
+                .transition(pageTurnTransition)
+                .animation(pageTurnAnimation, value: doc.id)
+        } else {
+            PageContentPane(document: doc)
         }
     }
 
@@ -232,6 +344,19 @@ private struct ReadingPaneView: View {
         } else {
             readerEmptyState
         }
+    }
+
+    /// Page-turn transition for the Page tab's image navigation (#2485). Off ⇒
+    /// no transition; reduce-motion ⇒ crossfade; otherwise the 3D page-turn.
+    private var pageTurnTransition: AnyTransition {
+        guard pageTurnAnimated else { return .identity }
+        guard !reduceMotion else { return .opacity }
+        return .pageTurn(forward: pageTurnForward)
+    }
+
+    private var pageTurnAnimation: Animation? {
+        guard pageTurnAnimated else { return nil }
+        return .easeInOut(duration: reduceMotion ? 0.2 : 0.45)
     }
 
     private var readerEmptyState: some View {
@@ -258,7 +383,7 @@ private struct ReadingPaneView: View {
                 onPageSelected: isPinned ? { _ in } : onPageSelected,
                 scrollSync: scrollSync,
                 zoom: webZoom,
-                externalActiveTab: activeTab,
+                externalActiveTab: knowledgeSubModeBinding.wrappedValue,
                 onTabSelected: { activeTab = $0 }
             )
         } else {
@@ -270,6 +395,7 @@ private struct ReadingPaneView: View {
         }
     }
 }
+// swiftlint:enable type_body_length
 
 // MARK: - ContentView View Builders Extension
 // Agent: ViewBuilderAgent
