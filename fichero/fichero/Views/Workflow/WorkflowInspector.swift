@@ -3,6 +3,7 @@ import SwiftUI
 
 let workflowInspectorLogger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowInspector")
 
+// swiftlint:disable type_body_length
 /// Inspector panel for workflow editor - shows available blocks to drag onto canvas
 struct WorkflowInspector: View {
     @Binding var workflow: Workflow
@@ -52,6 +53,40 @@ struct WorkflowInspector: View {
         }
     }
 
+    /// Top-level workflow detail tabs (#3531): the tool palette, the workflow's
+    /// step chain, and this workflow's runs. Shares the `SurfaceTab` chrome.
+    enum WorkflowSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
+        case tools
+        case chain
+        case run
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .tools: return "Tools"
+            case .chain: return "Chain"
+            case .run: return "Run"
+            }
+        }
+        var icon: String {
+            switch self {
+            case .tools: return "wrench.and.screwdriver"
+            case .chain: return "arrow.triangle.branch"
+            case .run: return "play.circle"
+            }
+        }
+        var help: String {
+            switch self {
+            case .tools: return "Tools — the palette of built-in, MCP, and agent tools"
+            case .chain: return "Chain — the workflow's ordered steps"
+            case .run: return "Run — this workflow's executions"
+            }
+        }
+    }
+
+    @State private var surfaceTab: WorkflowSurfaceTab = .tools
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver
+
     private var availableTabs: [WorkflowInspectorTab] {
         var tabs: [WorkflowInspectorTab] = [.builtin]
         if featureManager.isWorkflowToolsMCPEnabled {
@@ -69,33 +104,24 @@ struct WorkflowInspector: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Shared top-tab chrome (#3530) — the same SurfaceTabBar icon row the
-            // Reader and Document Inspector use.
+            // Top-level workflow tabs (Tools / Chain / Run) in the shared chrome
+            // (#3531) — the same SurfaceTabBar the Reader and Inspector use.
             SurfaceTabBar(
-                tabs: availableTabs,
-                selection: $selectedTab,
-                accessibilityID: "workflowInspectorTabBar"
+                tabs: WorkflowSurfaceTab.allCases,
+                selection: $surfaceTab,
+                accessibilityID: "workflowSurfaceTabBar"
             )
 
             Divider()
 
-            // Content based on selected tab
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    switch selectedTab {
-                    case .builtin:
-                        builtinToolsSection
-                    case .mcp:
-                        mcpToolsSection
-                    case .agents:
-                        agentsSection
-                    }
-
-                    Spacer()
-                }
-                .padding()
+            switch surfaceTab {
+            case .tools: toolsContent
+            case .chain: chainContent
+            case .run: runContent
             }
-            .background(Color(.windowBackgroundColor))
+
+            Divider()
+            bottomBar
         }
         .task {
             guard !Task.isCancelled else { return }
@@ -112,6 +138,122 @@ struct WorkflowInspector: View {
             if !availableTabs.contains(selectedTab) {
                 selectedTab = .builtin
             }
+        }
+    }
+
+    /// Tools tab — the tool palette, with Built-in / MCP / Agents as sub-tabs
+    /// (the existing palette, now nested under the Tools top tab). (#3531)
+    private var toolsContent: some View {
+        VStack(spacing: 0) {
+            SurfaceTabBar(
+                tabs: availableTabs,
+                selection: $selectedTab,
+                accessibilityID: "workflowToolsTabBar"
+            )
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    switch selectedTab {
+                    case .builtin:
+                        builtinToolsSection
+                    case .mcp:
+                        mcpToolsSection
+                    case .agents:
+                        agentsSection
+                    }
+                    Spacer()
+                }
+                .padding()
+            }
+            .background(Color(.windowBackgroundColor))
+        }
+    }
+
+    /// Chain tab — the workflow's ordered steps. Each node is a tool (#2441);
+    /// this lists them in order (editing the node config stays in the editor).
+    @ViewBuilder
+    private var chainContent: some View {
+        if workflow.nodes.isEmpty {
+            ContentUnavailableView(
+                "No steps",
+                systemImage: "arrow.triangle.branch",
+                description: Text("This workflow has no steps yet. Add tools from the Tools tab.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List(Array(workflow.nodes.enumerated()), id: \.element.id) { index, node in
+                HStack(spacing: 8) {
+                    Text("\(index + 1)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, alignment: .trailing)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(node.label ?? node.tool).font(.body).lineLimit(1)
+                        Text(node.tool).font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .listStyle(.inset)
+        }
+    }
+
+    /// Run tab — this workflow's executions (active + completed), newest first.
+    @ViewBuilder
+    private var runContent: some View {
+        if workflowRuns.isEmpty {
+            ContentUnavailableView(
+                "No runs",
+                systemImage: "play.slash",
+                description: Text("This workflow hasn't been run yet.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List(workflowRuns) { run in
+                HStack(spacing: 8) {
+                    Image(systemName: run.isRunning ? "play.circle.fill" : "checkmark.circle")
+                        .foregroundStyle(run.isRunning ? Color.accentColor : .secondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(run.name).font(.body).lineLimit(1)
+                        Text("\(run.processedFiles)/\(run.totalFiles) · \(String(describing: run.status))")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .listStyle(.inset)
+        }
+    }
+
+    /// This workflow's executions from the shared observer, running first.
+    private var workflowRuns: [WorkflowExecution] {
+        let all = Array(executionObserver.activeExecutions.values)
+            + Array(executionObserver.completedExecutions.values)
+        return all
+            .filter { $0.id == workflow.id }
+            .sorted { $0.startTime > $1.startTime }
+    }
+
+    /// Shared bottom mini-toolbar (#3531) — a per-tab status line.
+    private var bottomBar: some View {
+        MiniToolbar {
+            Text(bottomStatus)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var bottomStatus: String {
+        switch surfaceTab {
+        case .tools:
+            return "Tools"
+        case .chain:
+            let count = workflow.nodes.count
+            return "\(count) step\(count == 1 ? "" : "s")"
+        case .run:
+            let count = workflowRuns.count
+            return count == 0 ? "No runs" : "\(count) run\(count == 1 ? "" : "s")"
         }
     }
 
@@ -218,6 +360,7 @@ struct WorkflowInspector: View {
     }
 
 }
+// swiftlint:enable type_body_length
 
 // ToolBlockView and MCPToolBlockView are in WorkflowToolBlocks.swift
 
