@@ -518,14 +518,24 @@ private extension ImageEditorView {
                 }
             } else {
                 // Single-mode: DocumentCanvas gives zoom/loupe/magnifier (#1402).
-                // Shows last rendered frame while loading (model.preview?.image may
-                // be nil briefly after an op; canvas retains the stale frame).
-                DocumentCanvas(
-                    content: .imageRendered(
-                        image: model.preview?.image,
-                        documentId: activeDocumentID
+                if let rendered = model.preview?.image {
+                    DocumentCanvas(
+                        content: .imageRendered(
+                            image: rendered,
+                            documentId: activeDocumentID
+                        )
                     )
-                )
+                } else {
+                    // No rendered frame yet — entering edit clears `preview` and
+                    // then awaits the (heavier) apply_edits render, so driving the
+                    // canvas with a nil rendered image left it blank/black on enter
+                    // (#3593). Fall back to the known-good source display image (the
+                    // exact canvas view mode already uses) so the pane shows the
+                    // picture immediately and swaps to the edited frame once it lands.
+                    DocumentCanvas(
+                        content: .imageStorageDisplay(documentId: activeDocument.id)
+                    )
+                }
             }
 
             // Busy overlay for any in-flight edit/load, in every compare mode
