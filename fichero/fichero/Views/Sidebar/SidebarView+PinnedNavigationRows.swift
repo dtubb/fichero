@@ -67,15 +67,6 @@ extension SidebarView {
         )
     }
 
-    private func comparisonNavigationRow() -> some View {
-        pinnedNavigationRow(
-            "Model Comparison",
-            systemImage: "rectangle.split.2x1",
-            tag: .browser(.comparison),
-            help: "Open the model comparison workspace"
-        )
-    }
-
     private func chatWithDocsNavigationRow() -> some View {
         Button {
             onOpenChatWithCurrentScope?()
@@ -169,9 +160,9 @@ extension SidebarView {
             workflowsNavigationRow()
         }
 
-        if FeatureManager.shared.isChatEnabled {
-            comparisonNavigationRow()
-        }
+        // Model Comparison is no longer a standalone top-level mode — it folded
+        // into the Chat surface's Compare facet (#3532 slice 2 / #3540). The
+        // sidebar entry is retired; open Compare from within the chat.
 
         if FeatureManager.shared.isChatEnabled {
             chatWithDocsNavigationRow()
