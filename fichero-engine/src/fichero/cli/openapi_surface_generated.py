@@ -5492,6 +5492,74 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='images')
         existing_apps['images'] = target_app
 
+    @target_app.command("batch-crop")
+    def images_batch_crop_post(
+        ctx: typer.Context,
+        auto_orient: Optional[bool] = typer.Option(None, "--auto-orient/--no-auto-orient", help="Request field: auto_orient."),
+        document_ids: str = typer.Option(..., "--document-ids", help="Request field: document_ids."),
+        height: int = typer.Option(..., "--height", help="Request field: height."),
+        left: int = typer.Option(..., "--left", help="Request field: left."),
+        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        top: int = typer.Option(..., "--top", help="Request field: top."),
+        width: int = typer.Option(..., "--width", help="Request field: width."),
+    ) -> None:
+        """Batch Crop Images (POST /api/images/crops/batch)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/images/crops/batch"
+            params = None
+            payload = _build_json_payload({
+                "auto_orient": auto_orient,
+                "document_ids": document_ids,
+                "height": height,
+                "left": left,
+                "page": page,
+                "top": top,
+                "width": width,
+            }, {
+                "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
+                "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Document Ids', 'x-cli-required': True},
+                "height": {'type': 'integer', 'title': 'Height', 'x-cli-required': True},
+                "left": {'type': 'integer', 'title': 'Left', 'x-cli-required': True},
+                "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "top": {'type': 'integer', 'title': 'Top', 'x-cli-required': True},
+                "width": {'type': 'integer', 'title': 'Width', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("crop-child")
+    def images_crop_child_post(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        auto_orient: Optional[bool] = typer.Option(None, "--auto-orient/--no-auto-orient", help="Request field: auto_orient."),
+        height: int = typer.Option(..., "--height", help="Request field: height."),
+        left: int = typer.Option(..., "--left", help="Request field: left."),
+        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        top: int = typer.Option(..., "--top", help="Request field: top."),
+        width: int = typer.Option(..., "--width", help="Request field: width."),
+    ) -> None:
+        """Crop Image Child (POST /api/images/{document_id}/crop)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/images/{document_id}/crop"
+            params = None
+            payload = _build_json_payload({
+                "auto_orient": auto_orient,
+                "height": height,
+                "left": left,
+                "page": page,
+                "top": top,
+                "width": width,
+            }, {
+                "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
+                "height": {'type': 'integer', 'title': 'Height', 'x-cli-required': True},
+                "left": {'type': 'integer', 'title': 'Left', 'x-cli-required': True},
+                "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "top": {'type': 'integer', 'title': 'Top', 'x-cli-required': True},
+                "width": {'type': 'integer', 'title': 'Width', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("delete-edit-chain")
     def images_delete_edit_chain_delete(
         ctx: typer.Context,
@@ -5729,6 +5797,18 @@ def register_generated_openapi_commands(
                 "bboxes": {'items': {'prefixItems': [{'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}], 'type': 'array', 'maxItems': 4, 'minItems': 4}, 'type': 'array', 'nullable': True, 'title': 'Bboxes', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("uncrop-child")
+    def images_uncrop_child_post(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+    ) -> None:
+        """Uncrop Image Child (POST /api/images/{document_id}/uncrop)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/images/{document_id}/uncrop"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("unsplit")

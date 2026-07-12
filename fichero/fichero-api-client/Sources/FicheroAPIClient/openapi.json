@@ -11775,6 +11775,179 @@
         }
       }
     },
+    "/api/images/crops/batch": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Batch Crop Images",
+        "description": "Apply one crop region to many images as independent derived children.",
+        "operationId": "batch_crop_images_api_images_crops_batch_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageBatchCropRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageBatchCropResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/{document_id}/crop": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Crop Image Child",
+        "description": "Crop an image into a non-destructive derived child node.",
+        "operationId": "crop_image_child_api_images__document_id__crop_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CropOperationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageCropResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/{document_id}/uncrop": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Uncrop Image Child",
+        "description": "Soft-delete one crop child through the existing reversible document action.",
+        "operationId": "uncrop_image_child_api_images__document_id__uncrop_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageCropResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/images/{document_id}/split": {
       "post": {
         "tags": [
@@ -44627,6 +44800,86 @@
         },
         "type": "object",
         "title": "HeuristicRequest"
+      },
+      "ImageBatchCropRequest": {
+        "properties": {
+          "left": {
+            "type": "integer",
+            "title": "Left"
+          },
+          "top": {
+            "type": "integer",
+            "title": "Top"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "auto_orient": {
+            "type": "boolean",
+            "title": "Auto Orient",
+            "default": true
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "default": 1
+          },
+          "document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Document Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "left",
+          "top",
+          "width",
+          "height",
+          "document_ids"
+        ],
+        "title": "ImageBatchCropRequest"
+      },
+      "ImageBatchCropResponse": {
+        "properties": {
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/ImageCropResponse"
+            },
+            "type": "array",
+            "title": "Children"
+          }
+        },
+        "type": "object",
+        "required": [
+          "children"
+        ],
+        "title": "ImageBatchCropResponse"
+      },
+      "ImageCropResponse": {
+        "properties": {
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "child": {
+            "$ref": "#/components/schemas/Document"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_document_id",
+          "child"
+        ],
+        "title": "ImageCropResponse"
       },
       "ImageEditChainResponse": {
         "properties": {
