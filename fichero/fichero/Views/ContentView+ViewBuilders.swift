@@ -26,6 +26,12 @@ private struct ReadingPaneView: View {
     /// Per-window source-navigation bus (#2105/#3437). A reveal brings the reader
     /// to the Page tab so the highlighted source is visible (#3521).
     @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
+    /// Per-window active-surface marker (#3579). A direct click in this pane
+    /// makes it active; the MiniToolbar draws an accent hairline when it is.
+    @Environment(ActiveSurfaceState.self) private var activeSurfaceState: ActiveSurfaceState?
+    /// Stable identity for THIS pane instance — minted once at mount, so left
+    /// and right splits are tracked independently (mirrors per-instance pin).
+    @State private var surfaceId = SurfaceID()
     /// Shared annotation focus for the Notes tab's list ↔ detail selection.
     @State private var focusedAnnotation = FocusedAnnotation.shared
     /// Notes-tab sub-mode: anchored marks vs free-text notes (#3513). Per-window.
@@ -159,12 +165,29 @@ private struct ReadingPaneView: View {
                 .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
                 .help(isPinned ? "Unpin — follow current selection" : "Pin to current document")
             })
+            // Active-surface indicator (#3579): accent hairline on the toolbar
+            // strip when this pane is the active one. Additive overlay — flips
+            // one pane's fill, no relayout.
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(isActiveSurface ? Color.accentColor : Color.clear)
+                    .frame(height: 2)
+            }
         }
+        // A direct click anywhere in this pane makes it the active surface
+        // (#3579). simultaneousGesture runs alongside PDF/WebKit hit-testing so
+        // it never steals the click — same pattern as focusedPane tracking.
+        .simultaneousGesture(TapGesture().onEnded { activeSurfaceState?.activeSurfaceId = surfaceId })
         // A source reveal (#2105) brings the reader to the Page tab so the
         // highlighted / scrolled-to source is actually visible (#3521).
         .onChange(of: claimSourceNavigationState?.requestID) { _, newID in
             if newID != nil { revealSourceInPageTab() }
         }
+    }
+
+    /// True when this pane instance is the window's active surface (#3579).
+    private var isActiveSurface: Bool {
+        activeSurfaceState?.activeSurfaceId == surfaceId
     }
 
     /// Switch the reader to the Page tab and, if it's showing only the source,

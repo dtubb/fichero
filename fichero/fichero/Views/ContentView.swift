@@ -103,6 +103,9 @@ struct ContentView: View {
     // window never drives another (#3437). Injected into the subtree below.
     @State var entitySearchState = EntitySearchState()
     @State var claimSourceNavigationState = ClaimSourceNavigationState()
+    /// Which Preview/Reader pane updates on the next library click (#3579).
+    /// Per-window like the others; injected below, read by the pane views.
+    @State var activeSurfaceState = ActiveSurfaceState()
     /// Drives the distraction-free full-window reading overlay (#2520).
     @State private var isImmersiveReading = false
     @State private var focusedDocument = FocusedDocument.shared
@@ -588,6 +591,7 @@ struct ContentView: View {
             // Scope both request buses to this window's subtree (#3437).
             .environment(entitySearchState)
             .environment(claimSourceNavigationState)
+            .environment(activeSurfaceState)
             .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { note in
                 handleAppleScriptSelectDocument(note)
             }

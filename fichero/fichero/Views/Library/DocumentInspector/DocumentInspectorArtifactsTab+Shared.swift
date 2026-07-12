@@ -128,6 +128,27 @@ final class ClaimSourceNavigationState {
     }
 }
 
+// MARK: - Active surface (#3579)
+
+/// Stable identity for one Preview/Reader pane instance. A fresh value is
+/// minted at pane mount (`@State private var surfaceId = SurfaceID()`), so left
+/// and right split panes qualify independently — mirroring the per-instance
+/// `isPinned` design (#3579, §0.2).
+struct SurfaceID: Hashable {
+    private let id = UUID()
+}
+
+/// Per-window "which pane updates on the next library click" marker (#3579).
+/// Scoped to the window/library via the SwiftUI environment (NOT `.shared`),
+/// matching `ClaimSourceNavigationState` and the #3437 scoping invariant locked
+/// by `InspectorNavigationScopingTests`. A direct click inside a Preview/Reader
+/// pane writes its `SurfaceID` here; the active pane draws an accent hairline.
+@Observable
+@MainActor
+final class ActiveSurfaceState {
+    var activeSurfaceId: SurfaceID?
+}
+
 // MARK: - Notification names
 
 extension Notification.Name {

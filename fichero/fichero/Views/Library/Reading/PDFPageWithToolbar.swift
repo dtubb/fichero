@@ -56,6 +56,13 @@ struct PDFPageWithToolbar: View {
     @State private var isPinned = false
     @State private var pinnedDocumentId: String?
 
+    /// Per-window active-surface marker (#3579). A direct click in this pane
+    /// makes it active; the reader toolbar draws an accent hairline when it is.
+    @Environment(ActiveSurfaceState.self) private var activeSurfaceState: ActiveSurfaceState?
+    /// Stable identity for THIS pane instance — minted once at mount, so left
+    /// and right splits are tracked independently (mirrors per-instance pin).
+    @State private var surfaceId = SurfaceID()
+
     // Bounding-box annotation state (#2458). `isDrawingRegion` arms a region
     // drag on the page; `pendingTool` carries the kind into the saved box.
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
@@ -172,7 +179,23 @@ struct PDFPageWithToolbar: View {
             pageContent
             Divider()
             readerToolbar
+                // Active-surface indicator (#3579): accent hairline on the
+                // toolbar strip when this pane is active. Additive, no relayout.
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(isActiveSurface ? Color.accentColor : Color.clear)
+                        .frame(height: 2)
+                }
         }
+        // A direct click anywhere in this pane makes it the active surface
+        // (#3579). simultaneousGesture runs alongside PDFKit hit-testing so it
+        // never steals the click — same pattern as focusedPane tracking.
+        .simultaneousGesture(TapGesture().onEnded { activeSurfaceState?.activeSurfaceId = surfaceId })
+    }
+
+    /// True when this pane instance is the window's active surface (#3579).
+    private var isActiveSurface: Bool {
+        activeSurfaceState?.activeSurfaceId == surfaceId
     }
 
     private var pageContent: some View {
