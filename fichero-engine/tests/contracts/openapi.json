@@ -5164,6 +5164,248 @@
         }
       }
     },
+    "/api/chat/conversations/{conversation_id}/workspace": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Save Conversation As Workspace",
+        "description": "Explicitly save a non-empty chat session as an undoable workspace node.",
+        "operationId": "save_conversation_as_workspace_api_chat_conversations__conversation_id__workspace_post",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentWorkspaceSaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentWorkspace"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/workspaces": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "List Agent Workspaces",
+        "description": "List explicit agent-session workspace nodes in the current library.",
+        "operationId": "list_agent_workspaces_api_chat_workspaces_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentWorkspaceListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/workspaces/{workspace_id}": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Get Agent Workspace",
+        "description": "Reload a saved session, including its conversation history and members.",
+        "operationId": "get_agent_workspace_api_chat_workspaces__workspace_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentWorkspace"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Delete Agent Workspace",
+        "description": "Soft-delete a workspace node through the existing undoable document action.",
+        "operationId": "delete_agent_workspace_api_chat_workspaces__workspace_id__delete",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentWorkspaceDeletedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/workspaces/{workspace_id}/members": {
+      "patch": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Patch Agent Workspace Members",
+        "description": "Add or remove source, entity, claim, or note references from a workspace.",
+        "operationId": "patch_agent_workspace_members_api_chat_workspaces__workspace_id__members_patch",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentWorkspaceMembershipPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentWorkspace"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chat/conversations/{conversation_id}": {
       "get": {
         "tags": [
@@ -8807,6 +9049,95 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrphanCleanupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/groups": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Create Document Group",
+        "description": "Create a reversible logical stack without modifying source children.",
+        "operationId": "create_document_group_api_documents_groups_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentGroupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/groups/{group_id}/ungroup": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Ungroup Document",
+        "description": "Restore every stack member to its original parent and order.",
+        "operationId": "ungroup_document_api_documents_groups__group_id__ungroup_post",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Document"
+                  },
+                  "title": "Response Ungroup Document Api Documents Groups  Group Id  Ungroup Post"
                 }
               }
             }
@@ -33297,6 +33628,147 @@
         "title": "AgentNoteSourceAnchor",
         "description": "User-visible provenance anchor for AI working-memory notes (#2152)."
       },
+      "AgentWorkspace": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "message_history_ref": {
+            "type": "string",
+            "title": "Message History Ref"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array",
+            "title": "Messages"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceCuratedItem"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "scoped_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scoped Document Ids"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "message_history_ref",
+          "messages",
+          "members",
+          "scoped_document_ids",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentWorkspace",
+        "description": "A persisted agent session represented by a normal workspace node."
+      },
+      "AgentWorkspaceDeletedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "id"
+        ],
+        "title": "AgentWorkspaceDeletedResponse"
+      },
+      "AgentWorkspaceListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentWorkspace"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "AgentWorkspaceListResponse"
+      },
+      "AgentWorkspaceMembershipPatch": {
+        "properties": {
+          "add": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceCuratedItem"
+            },
+            "type": "array",
+            "title": "Add"
+          },
+          "remove_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Remove Ids"
+          }
+        },
+        "type": "object",
+        "title": "AgentWorkspaceMembershipPatch",
+        "description": "Add or remove the curated source, entity, claim, and note references."
+      },
+      "AgentWorkspaceSaveRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": true,
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "title": "AgentWorkspaceSaveRequest",
+        "description": "Optional title for an explicit, on-demand conversation workspace save."
+      },
       "AgentWriteRecordResponse": {
         "properties": {
           "id": {
@@ -40762,6 +41234,29 @@
           "success"
         ],
         "title": "DocumentFetchResponse"
+      },
+      "DocumentGroupRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name"
+          },
+          "child_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 2,
+            "title": "Child Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "child_ids"
+        ],
+        "title": "DocumentGroupRequest"
       },
       "DocumentInspectorResponse": {
         "properties": {

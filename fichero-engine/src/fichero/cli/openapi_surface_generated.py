@@ -2477,6 +2477,24 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("save-conversation-as-workspace")
+    def chat_save_conversation_as_workspace_post(
+        ctx: typer.Context,
+        conversation_id: str = typer.Argument(..., help="Path parameter: conversation_id."),
+        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
+    ) -> None:
+        """Save Conversation As Workspace (POST /api/chat/conversations/{conversation_id}/workspace)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/chat/conversations/{conversation_id}/workspace"
+            params = None
+            payload = _build_json_payload({
+                "title": title,
+            }, {
+                "title": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'Title', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("extract-text")
     def chat_extract_text_post(
         ctx: typer.Context,
@@ -2506,6 +2524,65 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/chat/providers"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-agent-workspaces")
+    def chat_list_agent_workspaces_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Agent Workspaces (GET /api/chat/workspaces)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/chat/workspaces"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-agent-workspace")
+    def chat_delete_agent_workspace_delete(
+        ctx: typer.Context,
+        workspace_id: str = typer.Argument(..., help="Path parameter: workspace_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Delete Agent Workspace (DELETE /api/chat/workspaces/{workspace_id})."""
+        if not yes:
+            typer.confirm("Delete chat?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/chat/workspaces/{workspace_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-agent-workspace")
+    def chat_get_agent_workspace_get(
+        ctx: typer.Context,
+        workspace_id: str = typer.Argument(..., help="Path parameter: workspace_id."),
+    ) -> None:
+        """Get Agent Workspace (GET /api/chat/workspaces/{workspace_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/chat/workspaces/{workspace_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("patch-agent-workspace-members")
+    def chat_patch_agent_workspace_members_patch(
+        ctx: typer.Context,
+        workspace_id: str = typer.Argument(..., help="Path parameter: workspace_id."),
+        add: Optional[str] = typer.Option(None, "--add", help="Request field: add."),
+        remove_ids: Optional[str] = typer.Option(None, "--remove-ids", help="Request field: remove_ids."),
+    ) -> None:
+        """Patch Agent Workspace Members (PATCH /api/chat/workspaces/{workspace_id}/members)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/chat/workspaces/{workspace_id}/members"
+            params = None
+            payload = _build_json_payload({
+                "add": add,
+                "remove_ids": remove_ids,
+            }, {
+                "add": {'items': {'$ref': '#/components/schemas/WorkspaceCuratedItem'}, 'type': 'array', 'title': 'Add', 'x-cli-required': False},
+                "remove_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Remove Ids', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('citation-usages')
@@ -3725,6 +3802,38 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/documents/collections"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-group")
+    def documents_create_group_post(
+        ctx: typer.Context,
+        child_ids: str = typer.Option(..., "--child-ids", help="Request field: child_ids."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+    ) -> None:
+        """Create Document Group (POST /api/documents/groups)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/groups"
+            params = None
+            payload = _build_json_payload({
+                "child_ids": child_ids,
+                "name": name,
+            }, {
+                "child_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 2, 'title': 'Child Ids', 'x-cli-required': True},
+                "name": {'type': 'string', 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("ungroup")
+    def documents_ungroup_post(
+        ctx: typer.Context,
+        group_id: str = typer.Argument(..., help="Path parameter: group_id."),
+    ) -> None:
+        """Ungroup Document (POST /api/documents/groups/{group_id}/ungroup)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/groups/{group_id}/ungroup"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("import-file")
