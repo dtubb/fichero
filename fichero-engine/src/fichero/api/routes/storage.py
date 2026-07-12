@@ -149,7 +149,7 @@ async def get_thumbnail(
             # Warm the companion display image so both formats exist after the
             # first access — avoids the asymmetry where only the requested format
             # is created lazily (#2216/#2217).
-            if thumb_path and not get_display(doc, package_path):
+            if thumb_path and not get_display(doc, package_path, db=db):
                 background_tasks.add_task(
                     asyncio.to_thread, ensure_display, doc,
                     package_path=package_path, db=db,
@@ -197,7 +197,7 @@ async def get_display_image(
     from fichero.storage import get_display, ensure_display, get_thumbnail, ensure_thumbnail
 
     # Try to get existing display image (with package path for library isolation)
-    display_path = get_display(doc, package_path)
+    display_path = get_display(doc, package_path, db=db)
 
     # If no display image, try to generate one
     if not display_path:

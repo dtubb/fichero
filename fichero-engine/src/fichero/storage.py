@@ -263,7 +263,11 @@ def _resolve_thumbnail_cache_candidate(
     """Resolve the active thumbnail cache file and supporting source paths."""
     size = size or settings.thumb_size
     alias_path = _thumb_path(doc.id, package_path)
-    source = resolve_source(doc, library_root=package_path)
+    source = (
+        resolve_edited_source(doc, db)
+        if db is not None
+        else resolve_source(doc, library_root=package_path)
+    )
     pdf_render = _resolve_pdf_render_source(doc, db=db, library_root=package_path)
 
     if not source and not pdf_render:
@@ -423,6 +427,38 @@ def resolve_source(
     return None
 
 
+def resolve_edited_source(
+    doc: "Document", db: "Database", *, page: int = 1
+) -> Path | None:
+    """Return the cached replay of a document's saved edit chain, if any."""
+    from fichero.image_ops import apply_operation
+    from fichero.models import ImageEditChain
+
+    source = resolve_source(doc, library_root=db.path.parent)
+    if source is None:
+        return None
+    chains = list(db.query(ImageEditChain, document_id=doc.id))
+    if not chains:
+        return source
+    chain = chains[0]
+    operations = [op for op in chain.operations if int(op.get("page", page)) == page]
+    if not operations:
+        return source
+    version = int(chain.updated_at.timestamp() * 1_000_000)
+    cache = db.path.parent / "storage" / "edited" / doc.id[:2] / f"{doc.id}__p{page}__{version}.png"
+    if cache.exists():
+        return cache
+    if Image is None:
+        raise RuntimeError("Pillow is required to render saved image edits")
+    with Image.open(source) as opened:
+        image = ImageOps.exif_transpose(opened).copy()
+    for op in operations:
+        image = apply_operation(image, op)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    image.save(cache, format="PNG")
+    return cache
+
+
 def _get_bookmark(doc: "Document") -> bytes | None:
     """Extract bookmark data from document metadata."""
     if not doc.metadata:
@@ -564,7 +600,11 @@ def ensure_display(
         return None
 
     path = _display_path(doc.id, package_path)
-    source = resolve_source(doc, library_root=package_path)
+    source = (
+        resolve_edited_source(doc, db)
+        if db is not None
+        else resolve_source(doc, library_root=package_path)
+    )
     pdf_render = _resolve_pdf_render_source(
         doc, db=db, library_root=package_path
     )
@@ -1157,7 +1197,9 @@ def get_thumbnail(
     return path
 
 
-def get_display(doc: "Document", package_path: Path | None = None) -> Path | None:
+def get_display(
+    doc: "Document", package_path: Path | None = None, db: "Database | None" = None
+) -> Path | None:
     """Get display image path if it exists, else None.
 
     Args:
@@ -1165,7 +1207,12 @@ def get_display(doc: "Document", package_path: Path | None = None) -> Path | Non
         package_path: Path to .fichero package (if None, uses global base_path)
     """
     path = _display_path(doc.id, package_path)
-    return path if path.exists() else None
+    source = (
+        resolve_edited_source(doc, db)
+        if db is not None
+        else resolve_source(doc, library_root=package_path)
+    )
+    return path if path.exists() and source and path.stat().st_mtime_ns >= source.stat().st_mtime_ns else None
 
 
 # =============================================================================

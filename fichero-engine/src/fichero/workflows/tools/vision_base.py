@@ -1700,6 +1700,20 @@ async def process_vision(
                 values.append(None)
                 return _outcome()
             doc_id_for_file = _page_doc_id or resolve_path_to_doc(path_to_doc, file_path)
+            if library_path and doc_id_for_file:
+                from fichero.db import db_manager
+                from fichero.models import Document
+                from fichero.storage import resolve_edited_source
+
+                live_doc = db_manager.get_database(library_path).get(Document, doc_id_for_file)
+                if live_doc:
+                    edited = resolve_edited_source(
+                        live_doc,
+                        db_manager.get_database(library_path),
+                        page=(requested_page_index or 0) + 1,
+                    )
+                    if edited:
+                        file_path = str(edited)
             if return_boxes:
                 if vision_mode != "llm":
                     raise ValueError(

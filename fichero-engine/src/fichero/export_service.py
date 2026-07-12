@@ -23,7 +23,7 @@ from fichero.models import (
     KnowledgeClaim,
     KnowledgeEntity,
 )
-from fichero.storage import get_display, resolve_source
+from fichero.storage import resolve_edited_source
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +244,7 @@ def export_eleventy_site(
         asset_refs: list[_AssetRef] = []
         if _is_image_document(doc):
             assets_dir.mkdir(exist_ok=True)
-            asset_refs = _copy_document_assets(doc, assets_dir, package)
+            asset_refs = _copy_document_assets(db, doc, assets_dir, package)
 
         used = used_per_dir.setdefault(str(doc_dir), set())
         filename = _unique_filename(_slugify(doc.name), used, ".md")
@@ -992,7 +992,7 @@ def export_markdown_folder(
         filename = _unique_filename(_slugify(doc.name), used_names, ".md")
         doc_path = output_dir / filename
         asset_refs = (
-            _copy_document_assets(doc, assets_dir, package) if include_assets else []
+            _copy_document_assets(db, doc, assets_dir, package) if include_assets else []
         )
         body = _render_document_markdown(db, doc, asset_refs)
         doc_path.write_text(body, encoding="utf-8")
@@ -1047,7 +1047,7 @@ def export_word_docx(
 
     for index, doc in enumerate(documents, start=1):
         text = _document_text(db, doc)
-        image_source = _docx_image_source(doc, package)
+        image_source = _docx_image_source(db, doc, package)
         if image_source:
             rel_id = f"rIdImage{index}"
             media_name = f"image{index}{image_source.suffix.lower() or '.jpg'}"
@@ -1353,6 +1353,7 @@ def _text_artifacts(db: Database, document_id: str) -> list[Artifact]:
 
 
 def _copy_document_assets(
+    db: Database,
     doc: Document,
     assets_dir: Path,
     package_path: Path | None,
@@ -1360,7 +1361,7 @@ def _copy_document_assets(
     if not _is_image_document(doc):
         return []
 
-    source = _require_image_source(doc, package_path)
+    source = _require_image_source(db, doc, package_path)
 
     suffix = source.suffix.lower() or ".jpg"
     filename = _unique_filename(
@@ -1372,16 +1373,14 @@ def _copy_document_assets(
     return [_AssetRef(path=str(dest), markdown_path=f"assets/{filename}")]
 
 
-def _docx_image_source(doc: Document, package_path: Path | None) -> Path | None:
+def _docx_image_source(db: Database, doc: Document, package_path: Path | None) -> Path | None:
     if not _is_image_document(doc):
         return None
-    return _require_image_source(doc, package_path)
+    return _require_image_source(db, doc, package_path)
 
 
-def _require_image_source(doc: Document, package_path: Path | None) -> Path:
-    source = get_display(doc, package_path=package_path) or resolve_source(
-        doc, library_root=package_path
-    )
+def _require_image_source(db: Database, doc: Document, package_path: Path | None) -> Path:
+    source = resolve_edited_source(doc, db)
     if source is not None and source.exists() and source.is_file():
         return source
     message = (
