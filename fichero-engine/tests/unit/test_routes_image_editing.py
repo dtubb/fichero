@@ -314,6 +314,56 @@ class TestReversibleImageSplit:
         assert overlapping.status_code == 422
 
 
+class TestReversibleImageCrop:
+    def test_crop_child_preserves_source_then_uncrop(self, client, db, tmp_path):
+        source = _make_image_doc(db, tmp_path, size=(100, 80))
+        source_before = db.get(Document, source.id).model_dump(mode="json")
+
+        cropped = client.post(
+            f"/api/images/{source.id}/crop",
+            json={"left": 10, "top": 15, "width": 50, "height": 40},
+        )
+        assert cropped.status_code == 200
+        child = cropped.json()["child"]
+        assert child["bbox"] == [10, 15, 50, 40]
+        assert child["metadata"]["derived_from"] == source.id
+        assert db.get(Document, source.id).model_dump(mode="json") == source_before
+
+        uncropped = client.post(f"/api/images/{child['id']}/uncrop")
+        assert uncropped.status_code == 200
+        assert db.get(Document, child["id"]).deleted_at is not None
+        assert db.get(Document, source.id).model_dump(mode="json") == source_before
+
+    def test_batch_crop_applies_one_spec_to_each_source(self, client, db, tmp_path):
+        first = _make_image_doc(db, tmp_path, name="first.jpg", size=(100, 80))
+        second = _make_image_doc(db, tmp_path, name="second.jpg", size=(100, 80))
+
+        response = client.post(
+            "/api/images/crops/batch",
+            json={
+                "document_ids": [first.id, second.id],
+                "left": 5,
+                "top": 10,
+                "width": 40,
+                "height": 30,
+            },
+        )
+        assert response.status_code == 200
+        assert [item["source_document_id"] for item in response.json()["children"]] == [
+            first.id,
+            second.id,
+        ]
+
+    def test_crop_rejects_out_of_bounds_bbox(self, client, db, tmp_path):
+        source = _make_image_doc(db, tmp_path, size=(100, 80))
+
+        response = client.post(
+            f"/api/images/{source.id}/crop",
+            json={"left": 80, "top": 20, "width": 30, "height": 40},
+        )
+        assert response.status_code == 422
+
+
 class TestImagePreviewRoute:
     def test_preview_resolves_library_relative_source_path(
         self, client, db, test_package
