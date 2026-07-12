@@ -1,13 +1,37 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import sys
 
 import pytest
 
 from fichero.api import main as api_main
 from fichero.workflows.activity_store import ActivityStore
+
+
+def test_startup_library_recovery_does_not_import_typer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The bundled engine can recover libraries without the CLI dependency."""
+    library = tmp_path / "Documents" / "Recovered.fichero"
+    library.mkdir(parents=True)
+    monkeypatch.delitem(sys.modules, "fichero.library_discovery", raising=False)
+    monkeypatch.delitem(sys.modules, "fichero.__main__", raising=False)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    real_import = builtins.__import__
+
+    def bundled_import(name, *args, **kwargs):
+        if name == "typer" or name.startswith("typer."):
+            raise ModuleNotFoundError("No module named 'typer'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", bundled_import)
+
+    assert api_main._discover_known_library_paths() == [str(library.resolve())]
+    assert "fichero.__main__" not in sys.modules
 
 
 async def _wait_for_recovered(store: ActivityStore, thread_id: str):
