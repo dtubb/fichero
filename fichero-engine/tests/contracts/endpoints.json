@@ -4421,6 +4421,11 @@
         "path_params": [],
         "query_params": [
           {
+            "name": "folder_id",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "min_jaccard",
             "required": false,
             "type": "number"
@@ -4429,6 +4434,11 @@
             "name": "same_type_only",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "scope",
+            "required": false,
+            "type": "string"
           },
           {
             "name": "top_k",

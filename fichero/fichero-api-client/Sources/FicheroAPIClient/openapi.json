@@ -22897,6 +22897,30 @@
               "default": true,
               "title": "Same Type Only"
             }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "library",
+                "folder"
+              ],
+              "type": "string",
+              "default": "library",
+              "title": "Scope"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Folder Id"
+            }
           }
         ],
         "responses": {
