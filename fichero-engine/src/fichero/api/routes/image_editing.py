@@ -549,9 +549,9 @@ def _render_preview(
     chain = _get_chain(db, document_id) if apply_edits else None
     version = chain.updated_at.isoformat() if chain else "raw"
     key = hashlib.sha256(f"{document_id}:{page}:{apply_edits}:{version}".encode()).hexdigest()
-    cache_dir = db.path.parent / "storage" / "preview-cache" / document_id / f"page-{page}"
-    cache_path = cache_dir / f"{key}.bin"
-    media_path = cache_dir / f"{key}.type"
+    preview_dir = db.path.parent / "storage" / "preview-cache" / document_id / f"page-{page}"
+    cache_path = preview_dir / f"{key}.bin"
+    media_path = preview_dir / f"{key}.type"
     if cache_path.exists() and media_path.exists():
         return cache_path.read_bytes(), media_path.read_text()
 
@@ -563,11 +563,11 @@ def _render_preview(
     buffer = io.BytesIO()
     image_format, media_type = _image_response_format(image)
     image.save(buffer, format=image_format, **({"quality": 92} if image_format == "JPEG" else {}))
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    preview_dir.mkdir(parents=True, exist_ok=True)
     cache_path.write_bytes(buffer.getvalue())
     media_path.write_text(media_type)
     # ponytail: four revisions/page; increase only if users visibly revisit more history.
-    for stale in sorted(cache_dir.glob("*.bin"), key=lambda path: path.stat().st_mtime, reverse=True)[4:]:
+    for stale in sorted(preview_dir.glob("*.bin"), key=lambda path: path.stat().st_mtime, reverse=True)[4:]:
         stale.unlink(missing_ok=True)
         stale.with_suffix(".type").unlink(missing_ok=True)
     return buffer.getvalue(), media_type
