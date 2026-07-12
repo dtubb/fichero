@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import SwiftUI
 
 /// Distraction-free full-window reading (#2520): black background, just the
@@ -38,6 +39,17 @@ struct ImmersiveReaderView: View {
     var onNavigate: ((Document) -> Void)?
 
     @Environment(WindowState.self) private var windowState
+    /// Reduce-motion falls back from the page-turn to a plain crossfade (#2485).
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Optional page-curl-style turn animation when paging (#2485). On by
+    /// default (Daniel: "books has page curls I like"); a fast non-animated mode
+    /// is the toggle off. Persists per the @AppStorage key across launches.
+    @AppStorage("reader.pageTurnAnimated") private var pageTurnAnimated = true
+    /// Direction of the last page turn, captured in `navigate` before the parent
+    /// swaps `document`, so the transition that plays on the re-render curls the
+    /// right way (forward = turning to the next page).
+    @State private var turnForward = true
 
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
@@ -68,8 +80,15 @@ struct ImmersiveReaderView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
+            // Keying the canvas on the page id makes a prev/next navigation a
+            // view-identity swap, which the page-turn transition animates. A
+            // representation change (Source/Diplomatic/translation) keeps the
+            // same id, so it updates in place with no turn. (#2485)
             DocumentCanvas(content: canvasContent)
                 .ignoresSafeArea()
+                .id(document.id)
+                .transition(pageTurnTransition)
+                .animation(pageTurnAnimation, value: document.id)
 
             if controlsVisible {
                 controlsOverlay
@@ -266,8 +285,27 @@ struct ImmersiveReaderView: View {
         guard let index = siblingIndex else { return }
         let target = index + offset
         guard siblings.indices.contains(target) else { return }
+        // Capture the turn direction BEFORE the parent swaps `document` so the
+        // transition on the next render curls the right way (#2485).
+        turnForward = offset > 0
         onNavigate?(siblings[target])
         revealControls()
+    }
+
+    /// The page-turn transition for a prev/next swap. Off ⇒ no visual transition
+    /// (fast mode); reduce-motion ⇒ a plain crossfade; otherwise a 3D page-turn
+    /// hinged on the spine edge (leading when going forward). (#2485)
+    private var pageTurnTransition: AnyTransition {
+        guard pageTurnAnimated else { return .identity }
+        guard !reduceMotion else { return .opacity }
+        return .pageTurn(forward: turnForward)
+    }
+
+    /// Animation timing paired with `pageTurnTransition`. Nil ⇒ instant swap
+    /// (fast mode); shorter under reduce-motion.
+    private var pageTurnAnimation: Animation? {
+        guard pageTurnAnimated else { return nil }
+        return .easeInOut(duration: reduceMotion ? 0.2 : 0.45)
     }
 
     private func revealControls() {
@@ -285,6 +323,52 @@ struct ImmersiveReaderView: View {
     private func exit() {
         hideTask?.cancel()
         isPresented = false
+    }
+}
+
+// MARK: - Page-turn transition (#2485)
+
+/// A book-style page-turn: the page rotates in 3D around its spine edge with a
+/// little perspective, so paging reads like turning a page rather than a hard
+/// cut. Reusable across the reading surfaces (the folder-image reader here; the
+/// PDF/Page-tab reader can adopt it once the 4-tab restructure lands and owns a
+/// single page renderer). Pure SwiftUI — no Metal / CATransition / parallel
+/// renderer — so it survives the restructure and needs no platform fork.
+struct PageTurnModifier: ViewModifier {
+    /// Rotation at the "away" end of the turn, in degrees. 0 is flat/on-screen.
+    let angle: Double
+    /// The hinge the page rotates around — the spine edge.
+    let anchor: UnitPoint
+
+    func body(content: Content) -> some View {
+        content
+            .rotation3DEffect(
+                .degrees(angle),
+                axis: (x: 0, y: 1, z: 0),
+                anchor: anchor,
+                perspective: 0.5
+            )
+            // Fade the swinging page so the incoming/outgoing pages cross
+            // cleanly instead of both rendering opaque mid-turn.
+            .opacity(angle == 0 ? 1 : 0)
+    }
+}
+
+extension AnyTransition {
+    /// A page-turn keyed to direction: forward hinges on the leading (spine)
+    /// edge with the incoming page swinging in from the right and the outgoing
+    /// page flipping left; backward mirrors it on the trailing edge. (#2485)
+    static func pageTurn(forward: Bool) -> AnyTransition {
+        let hinge: UnitPoint = forward ? .leading : .trailing
+        let insertion = AnyTransition.modifier(
+            active: PageTurnModifier(angle: forward ? -90 : 90, anchor: hinge),
+            identity: PageTurnModifier(angle: 0, anchor: hinge)
+        )
+        let removal = AnyTransition.modifier(
+            active: PageTurnModifier(angle: forward ? 90 : -90, anchor: hinge),
+            identity: PageTurnModifier(angle: 0, anchor: hinge)
+        )
+        return .asymmetric(insertion: insertion, removal: removal)
     }
 }
 
