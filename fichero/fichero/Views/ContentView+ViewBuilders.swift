@@ -28,6 +28,15 @@ private struct ReadingPaneView: View {
     @State private var pinnedPageCount: Int?
     @State private var webZoom: Double = 1.0
     @State private var activeTab: KGSurfaceTab = .transcript
+    /// The reader's top-level tab (Page/Knowledge/Notes) — the reader IA fold
+    /// (2026-07-11 design). Per-window via @SceneStorage. Defaults to Knowledge
+    /// so this pane's long-standing default (the WebKit knowledge surface) is
+    /// unchanged; Page and Notes are now reachable as native top tabs.
+    @SceneStorage("reader.topTab") private var readerTabRaw = ReaderTab.knowledge.rawValue
+    private var readerTab: ReaderTab { ReaderTab(rawValue: readerTabRaw) ?? .knowledge }
+    private var readerTabBinding: Binding<ReaderTab> {
+        Binding(get: { readerTab }, set: { readerTabRaw = $0.rawValue })
+    }
 
     private var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
     private var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
@@ -46,7 +55,14 @@ private struct ReadingPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            surfaceView
+            // Native top tabs (Page/Knowledge/Notes) — fixed chrome over the
+            // WebKit/native content beneath (reader IA fold, 2026-07-11).
+            ReaderTabBar(selection: readerTabBinding)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+            Divider()
+
+            readerTabContent
 
             PaneFilterBar { Spacer(minLength: 0) }
 
@@ -164,6 +180,66 @@ private struct ReadingPaneView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+    }
+
+    /// Routes the selected reader tab to its content, native chrome over the
+    /// WebKit/native surfaces (reader IA fold). Page = read the source (image /
+    /// PDF with loupe #2419 / transcript); Knowledge = the WebKit KG surface;
+    /// Notes = the reading layer (highlights/notes/bookmarks).
+    @ViewBuilder
+    private var readerTabContent: some View {
+        switch readerTab {
+        case .page:
+            pageTabContent
+        case .knowledge:
+            surfaceView
+        case .notes:
+            notesTabContent
+        }
+    }
+
+    /// Page tab — the source. A PDF (or a page of one) renders in the native
+    /// `PDFPageWithToolbar`, which carries the bottom loupe control (#2419) and
+    /// page navigation; an image renders through `DocumentCanvas` (storage
+    /// HTTP, never a local path); anything else falls back to the transcript.
+    /// The image↔transcript side-by-side toggle is the #3502 follow-up.
+    @ViewBuilder
+    private var pageTabContent: some View {
+        if let doc = effectiveDocument {
+            if doc.docType == .page, let parentId = doc.parentId {
+                PDFPageWithToolbar(documentId: parentId, pageIndex: max(0, (doc.sequence ?? 1) - 1))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if doc.fileType == .pdf {
+                PDFPageWithToolbar(documentId: doc.id, pageIndex: 0)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if doc.fileType == .image {
+                DocumentCanvas(content: .imageStorageDisplay(documentId: doc.id))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                PageContentPane(document: doc)
+            }
+        } else {
+            readerEmptyState
+        }
+    }
+
+    /// Notes tab — the human reading layer (highlights / notes / bookmarks
+    /// anchored to the page), via the existing document notes surface.
+    @ViewBuilder
+    private var notesTabContent: some View {
+        if let doc = effectiveDocument {
+            DocumentNotesTab(document: doc)
+        } else {
+            readerEmptyState
+        }
+    }
+
+    private var readerEmptyState: some View {
+        Text("No selection")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.textBackgroundColor))
     }
 
     @ViewBuilder
