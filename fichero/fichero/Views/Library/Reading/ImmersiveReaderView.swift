@@ -31,6 +31,7 @@ struct TranslationRep: Identifiable {
     }
 }
 
+// swiftlint:disable:next type_body_length
 struct ImmersiveReaderView: View {
     let document: Document
     @Binding var isPresented: Bool
@@ -41,6 +42,11 @@ struct ImmersiveReaderView: View {
     @Environment(WindowState.self) private var windowState
     /// Reduce-motion falls back from the page-turn to a plain crossfade (#2485).
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Reading-mark store for the immersive star/bookmark (#3548). Optional so
+    /// the full-screen reader is safe if a host doesn't inject it.
+    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
+    /// Transient confirmation after a page mark is saved.
+    @State private var markConfirmation: String?
 
     /// Optional page-curl-style turn animation when paging (#2485). On by
     /// default (Daniel: "books has page curls I like"); a fast non-animated mode
@@ -94,7 +100,19 @@ struct ImmersiveReaderView: View {
                 controlsOverlay
                     .transition(.opacity)
             }
+
+            if let markConfirmation {
+                Text(markConfirmation)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: markConfirmation)
         .background(KeyboardExitCatcher { exit() })
         .task(id: document.id) { await loadTranslations() }
         .onContinuousHover { phase in
@@ -190,6 +208,28 @@ struct ImmersiveReaderView: View {
                 }
                 .disabled(siblingIndex == nil || siblingIndex == siblings.count - 1)
                 .accessibilityLabel("Next page")
+
+                // Reading-mark palette (#2516 / #3548): star + bookmark the
+                // current page without leaving full screen.
+                Divider().frame(height: 16).overlay(Color.white.opacity(0.3))
+
+                Button {
+                    markCurrentPage(kind: .rating, label: "Starred")
+                } label: {
+                    Image(systemName: "star")
+                }
+                .disabled(annotationStore == nil)
+                .accessibilityLabel("Star this page")
+                .help("Star this page as a reading mark")
+
+                Button {
+                    markCurrentPage(kind: .bookmark, label: "Bookmarked")
+                } label: {
+                    Image(systemName: "bookmark")
+                }
+                .disabled(annotationStore == nil)
+                .accessibilityLabel("Bookmark this page")
+                .help("Bookmark this page")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.white)
@@ -278,6 +318,20 @@ struct ImmersiveReaderView: View {
             if !translations.contains(where: { $0.lang == lang }) {
                 representationKey = "source"
             }
+        }
+    }
+
+    /// Add a page-scoped reading mark (star / bookmark) for the current page
+    /// without leaving full screen (#3548). Page-anchored, so it persists as a
+    /// reading mark in the Notes layer regardless of re-layout.
+    private func markCurrentPage(kind: AnnotationKind, label: String) {
+        guard let store = annotationStore else { return }
+        Task {
+            _ = await store.addNote(scope: .page(document.id), text: "", kind: kind)
+            markConfirmation = label
+            revealControls()
+            try? await Task.sleep(for: .seconds(1.5))
+            if markConfirmation == label { markConfirmation = nil }
         }
     }
 
