@@ -1,9 +1,18 @@
 import SwiftUI
 
 /// Chat pane embedded in a research project workspace.
-/// Reuses ChatView, but scopes its saved conversation list to the research
-/// project's folder path (`/research/{project_id}`) so each workspace keeps
-/// its own thread shelf without forking the chat surface.
+///
+/// Research keeps its 3-pane layout (chat | browser | tasks), but the
+/// conversation component IS the one unified chat surface — this embeds the
+/// shared `ChatView` (the SurfaceTabBar Conversation / Sources / Knowledge /
+/// Compare surface from #3532 slices 1-2), never a separate chat
+/// implementation. That completes the chat / research / agent unification
+/// (#3532 / #3540: "just one chat interface… always an agent with MCP tools").
+///
+/// The only Research-specific bit is scoping: the saved-conversation shelf is
+/// pinned to the project's folder path (`/research/{project_id}`), so each
+/// workspace keeps its own threads without forking the surface (Research =
+/// workspace, ties #3533).
 struct ResearchChatPane: View {
     var project: ResearchProject
     @Environment(ConversationServiceGenerated.self) var conversationServiceGenerated
