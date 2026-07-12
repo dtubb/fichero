@@ -277,6 +277,8 @@ class TestGlobalRegistryHeaderless:
         lib_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
         lib_path.mkdir(parents=True, exist_ok=True)
         global_client.post("/api/registry/add", params={"path": str(lib_path)})
+        from fichero.db_manager import db_manager
+        db_manager.get_database(lib_path)
 
         db_manager.close_database(str(lib_path))
         normalized = unicodedata.normalize("NFC", str(lib_path))
@@ -500,10 +502,12 @@ class TestGlobalRegistryHeaderless:
     def test_remove_handles_spaces(self, global_client, tmp_path):
         """DELETE /api/registry/{path} works for a path containing spaces."""
         from urllib.parse import quote
+        from fichero.db_manager import db_manager
 
         lib_path = tmp_path / "My Marshall Library.fichero"
         lib_path.mkdir(parents=True, exist_ok=True)
         global_client.post("/api/registry/add", params={"path": str(lib_path)})
+        db_manager.get_database(lib_path)
 
         encoded = quote(str(lib_path.resolve()), safe="")
         removed = global_client.delete(f"/api/registry/{encoded}")
@@ -514,6 +518,11 @@ class TestGlobalRegistryHeaderless:
         listed = global_client.get("/api/registry")
         paths = [lib["path"] for lib in listed.json()["libraries"]]
         assert str(lib_path.resolve()) not in paths
+
+        assert str(lib_path.resolve()) not in db_manager._databases
+        db_manager.get_database(lib_path)
+        assert str(lib_path.resolve()) in db_manager._databases
+        db_manager.close_database(lib_path)
 
     def test_remove_is_idempotent(self, global_client, tmp_path):
         """Removing an unregistered library is a 200 no-op, not a 404."""
