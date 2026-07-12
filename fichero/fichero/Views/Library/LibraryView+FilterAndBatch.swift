@@ -475,6 +475,27 @@ extension LibraryView {
             Label("Bookmark…", systemImage: "bookmark")
         }
 
+        // Image stack/group (#3535): combine 2+ selected images into ONE
+        // reversible group node (e.g. two pages of one letter); ungroup fully
+        // restores them. The inverse of the reversible split (#1595).
+        let stackTargets = imageStackTargets(for: document)
+        if stackTargets.count >= 2 {
+            Divider()
+            Button {
+                groupAsStack(stackTargets)
+            } label: {
+                Label("Group as Stack", systemImage: "square.stack")
+            }
+        }
+        if document.docType == .group {
+            Divider()
+            Button {
+                ungroupStack(document)
+            } label: {
+                Label("Ungroup", systemImage: "square.stack.3d.up.slash")
+            }
+        }
+
         Button {
             Task {
                 await toggleExcludeFromProcessing(
@@ -588,6 +609,49 @@ extension LibraryView {
         let targetIds = selection.isEmpty ? [document.id] : Array(selection)
         let selectedDocuments = documents.filter { targetIds.contains($0.id) }
         return selectedDocuments.isEmpty ? [document] : selectedDocuments
+    }
+
+    /// The image documents this right-click would stack (#3535): the current
+    /// multi-selection when it includes this row, else just this document —
+    /// filtered to images (only images stack).
+    private func imageStackTargets(for document: Document) -> [Document] {
+        let targetIds = (selection.contains(document.id) && selection.count > 1)
+            ? Array(selection)
+            : [document.id]
+        return documents.filter { targetIds.contains($0.id) && $0.fileType == .image }
+    }
+
+    /// Group the selected images into one reversible stack node, then refresh so
+    /// the stack appears as a single expandable node (#3535).
+    private func groupAsStack(_ targets: [Document]) {
+        guard targets.count >= 2, let library = activeLibraryReference else { return }
+        let childIds = targets.map(\.id)
+        Task {
+            do {
+                _ = try await library.documentServiceGenerated.createGroup(
+                    name: "Stack of \(childIds.count)",
+                    childIds: childIds
+                )
+                selection.removeAll()
+                await documentStore.refresh()
+            } catch {
+                documentStore.error = error
+            }
+        }
+    }
+
+    /// Ungroup a stack — the engine restores each child to its original parent
+    /// and order (#3535). Refresh to reflect the reversal.
+    private func ungroupStack(_ group: Document) {
+        guard let library = activeLibraryReference else { return }
+        Task {
+            do {
+                try await library.documentServiceGenerated.ungroupDocument(groupId: group.id)
+                await documentStore.refresh()
+            } catch {
+                documentStore.error = error
+            }
+        }
     }
 
     @MainActor
