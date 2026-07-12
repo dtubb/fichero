@@ -11775,6 +11775,115 @@
         }
       }
     },
+    "/api/images/batch-apply": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Batch Apply Image Operation",
+        "description": "Apply one reversible crop or split spec to every image under a folder.",
+        "operationId": "batch_apply_image_operation_api_images_batch_apply_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchImageApplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/batch-apply/{batch_id}/undo": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Undo Batch Image Operation",
+        "description": "Reverse every completed derived child recorded by an image batch.",
+        "operationId": "undo_batch_image_operation_api_images_batch_apply__batch_id__undo_post",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchImageUndoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/images/crops/batch": {
       "post": {
         "tags": [
@@ -35785,6 +35894,94 @@
           "updated"
         ],
         "title": "BatchEntityCurationResponse"
+      },
+      "BatchImageApplyRequest": {
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "crop",
+              "split"
+            ],
+            "title": "Operation"
+          },
+          "bbox": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "nullable": true,
+            "title": "Bbox"
+          },
+          "bboxes": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array",
+              "maxItems": 4,
+              "minItems": 4
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bboxes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder_id",
+          "operation"
+        ],
+        "title": "BatchImageApplyRequest"
+      },
+      "BatchImageUndoResponse": {
+        "properties": {
+          "batch_id": {
+            "type": "string",
+            "title": "Batch Id"
+          },
+          "deleted_child_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted Child Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "batch_id",
+          "deleted_child_ids"
+        ],
+        "title": "BatchImageUndoResponse"
       },
       "BatchItemResponse": {
         "properties": {
