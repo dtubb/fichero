@@ -440,12 +440,12 @@ def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     if name == "rotate":
         angle = float(params.get("angle", 0))
         expand = bool(params.get("expand", True))
-        return image.rotate(angle, expand=expand)
+        return image.rotate(angle, expand=expand, resample=Image.Resampling.BICUBIC, fillcolor="white")
 
     if name == "straighten":
         angle = float(params.get("angle", 0))
         expand = bool(params.get("expand", True))
-        return image.rotate(angle, expand=expand)
+        return image.rotate(angle, expand=expand, resample=Image.Resampling.BICUBIC, fillcolor="white")
 
     if name == "crop":
         auto_orient = bool(params.get("auto_orient", True))

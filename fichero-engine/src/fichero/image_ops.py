@@ -67,7 +67,12 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     if not isinstance(params, dict):
         raise HTTPException(400, f"Invalid params for operation: {name}")
     if name in {"rotate", "straighten"}:
-        return image.rotate(float(params.get("angle", 0)), expand=bool(params.get("expand", True)))
+        return image.rotate(
+            float(params.get("angle", 0)),
+            expand=bool(params.get("expand", True)),
+            resample=Image.Resampling.BICUBIC,
+            fillcolor="white",
+        )
     if name == "crop":
         base = ImageOps.exif_transpose(image) if bool(params.get("auto_orient", True)) else image
         left, top = int(params.get("left", 0)), int(params.get("top", 0))
