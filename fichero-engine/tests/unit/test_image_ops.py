@@ -16,3 +16,10 @@ def test_rotate_and_straighten_use_bicubic_white_fill(monkeypatch):
     for operation in ("rotate", "straighten"):
         apply_operation(image, {"op": operation, "params": {"angle": 3}})
     assert all(item["resample"] == Image.Resampling.BICUBIC and item["fillcolor"] == "white" for item in seen)
+
+
+def test_denoise_replays_deterministically():
+    image = Image.new("RGB", (9, 9), "white")
+    image.putpixel((4, 4), (0, 0, 0))
+    operation = {"op": "denoise", "params": {"radius": 3}}
+    assert apply_operation(image, operation).tobytes() == apply_operation(image, operation).tobytes()

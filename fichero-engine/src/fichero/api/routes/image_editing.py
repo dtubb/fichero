@@ -93,12 +93,18 @@ class FuzzyCleanOperationRequest(BaseModel):
     page: int = Field(1, ge=1)
 
 
+class DenoiseOperationRequest(BaseModel):
+    radius: int = Field(3, ge=3, le=5)
+    page: int = Field(1, ge=1)
+
+
 _OPERATION_MODELS = {
     "crop": CropOperationRequest, "rotate": RotateOperationRequest,
     "straighten": StraightenOperationRequest, "enhance": EnhanceOperationRequest,
     "remove_background": RemoveBackgroundOperationRequest, "segment": SegmentOperationRequest,
     "brightness": FactorOperationRequest, "contrast": FactorOperationRequest,
     "sharpen": FactorOperationRequest, "fuzzy_clean": FuzzyCleanOperationRequest,
+    "denoise": DenoiseOperationRequest,
 }
 _PARAMETERLESS_OPERATIONS = {"flip_horizontal", "flip_vertical", "auto_levels", "grayscale"}
 
