@@ -373,7 +373,14 @@ struct FicheroApp: App {
                 ActivityWindowMenuButton()
             }
 
-            CommandGroup(replacing: .sidebar) { }
+            // View menu: back/forward history (#3581). Slotted into the emptied
+            // `.sidebar` group so it costs no @CommandsBuilder arity (already at
+            // the 10-entry limit, #3347). Surfaces the per-window AppNavigation
+            // history that the toolbar's ⌘'/⌘⇧' buttons already drive.
+            CommandGroup(replacing: .sidebar) {
+                NavigateBackButton()
+                NavigateForwardButton()
+            }
 
             // Data menu — declared after View, before Format
             CommandMenu("Data") {
