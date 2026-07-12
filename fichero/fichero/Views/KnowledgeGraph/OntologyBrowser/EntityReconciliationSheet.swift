@@ -1,4 +1,3 @@
-import FicheroAPIClient
 import SwiftUI
 
 /// Reconciliation scope (#3318): the USER explicitly chooses where to look for
@@ -45,18 +44,12 @@ enum EntityReconciliationScope: String, CaseIterable, Identifiable {
     }
 }
 
-/// A set of entities the reconciliation pass flagged as likely duplicates. The
-/// user picks the survivor; the rest merge into it.
-struct EntityReconciliationGroup: Identifiable {
-    let id: String
-    let entities: [Components.Schemas.KnowledgeEntity]
-}
-
 /// User-driven entity reconciliation (#3318). The user chooses a scope, the
-/// sheet lists duplicate-entity candidate groups for that scope, and each group
-/// merges via the shared `EntityStore.merge` action (audited + undoable) — the
-/// same merge the per-entity "Possible Duplicates" affordance uses (#3317). The
-/// system never merges automatically.
+/// sheet lists the graph-context duplicate candidate PAIRS the engine returns
+/// for that scope (`/api/kg/entity-curation/candidates`, Jaccard over
+/// co-occurrence), and each pair merges via the shared `EntityStore.merge`
+/// action (audited + undoable) — the same merge the per-entity "Possible
+/// Duplicates" affordance uses (#3317). The system never merges automatically.
 struct EntityReconciliationSheet: View {
     /// The document/folder in focus — the target of `.folder` scope.
     let documentId: String
@@ -65,7 +58,7 @@ struct EntityReconciliationSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var scope: EntityReconciliationScope = .folder
-    @State private var groups: [EntityReconciliationGroup] = []
+    @State private var candidates: [EntityReconciliationCandidate] = []
     @State private var isLoading = false
     @State private var message: String?
 
@@ -124,7 +117,7 @@ struct EntityReconciliationSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
         }
-        if groups.isEmpty && !isLoading {
+        if candidates.isEmpty && !isLoading {
             ContentUnavailableView(
                 "No likely duplicates",
                 systemImage: "checkmark.seal",
@@ -132,40 +125,42 @@ struct EntityReconciliationSheet: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            List(groups) { group in
-                groupSection(group)
+            List(candidates) { candidate in
+                candidateRow(candidate)
             }
             .listStyle(.inset)
         }
     }
 
     @ViewBuilder
-    private func groupSection(_ group: EntityReconciliationGroup) -> some View {
-        Section {
-            ForEach(group.entities, id: \.id) { entity in
-                HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(entity.canonicalName).font(.body).lineLimit(1)
-                        if let type = entity.entityType?.rawValue {
-                            Text(type.capitalized).font(.caption2).foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer(minLength: 8)
-                    Button("Keep") { merge(group: group, survivor: entity) }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .help("Keep \"\(entity.canonicalName)\" and merge the rest of this group into it")
+    private func candidateRow(_ candidate: EntityReconciliationCandidate) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(candidate.entityAName)  ↔  \(candidate.entityBName)")
+                    .font(.body).lineLimit(1)
+                if let type = candidate.entityType {
+                    Text(type.capitalized).font(.caption2).foregroundStyle(.secondary)
                 }
             }
-        } header: {
-            Text("\(group.entities.count) possible duplicates")
-                .font(.caption)
+            Spacer(minLength: 8)
+            Text("\(Int((candidate.jaccard * 100).rounded()))%")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(candidate.jaccard >= 0.7 ? Color.orange : .secondary)
+                .help("Graph-context similarity (Jaccard)")
+            Menu {
+                Button("Keep \"\(candidate.entityAName)\"") { merge(candidate, keepA: true) }
+                Button("Keep \"\(candidate.entityBName)\"") { merge(candidate, keepA: false) }
+            } label: {
+                Label("Merge", systemImage: "arrow.triangle.merge").font(.caption)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
         }
     }
 
     private var footer: some View {
         HStack {
-            Text(groups.isEmpty ? "" : "\(groups.count) group\(groups.count == 1 ? "" : "s")")
+            Text(candidates.isEmpty ? "" : "\(candidates.count) pair\(candidates.count == 1 ? "" : "s")")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -177,63 +172,35 @@ struct EntityReconciliationSheet: View {
 
     // MARK: - Data
 
-    /// Load the scope's entities and group likely duplicates.
-    ///
-    /// INTERIM candidate source: normalized-name grouping over the scope's
-    /// entities (works today with data the app already holds). codex's scoped
-    /// reconciliation endpoint (#3318 engine) — semantic/fuzzy matching with
-    /// confidence — will replace `Self.groupDuplicates` here once it lands in
-    /// the OpenAPI client; the scope picker + merge UI stay as-is.
+    /// Load the graph-context candidate pairs for the chosen scope from the
+    /// engine (`/api/kg/entity-curation/candidates`) via the store. Folder scope
+    /// passes the focused document as `folder_id`; library scope passes none.
     private func load() async {
-        guard scope.isAvailable else { groups = []; return }
+        guard scope.isAvailable else { candidates = []; return }
         isLoading = true
         defer { isLoading = false }
         message = nil
-        let entities: [Components.Schemas.KnowledgeEntity]
-        switch scope {
-        case .folder:
-            await entityStore.loadEntities(forDocument: documentId)
-            entities = entityStore.entitiesByDocumentId[documentId] ?? []
-        case .library:
-            await entityStore.loadEntities(force: false)
-            entities = entityStore.libraryEntities
-        case .crossLibrary, .external:
-            entities = []
+        do {
+            candidates = try await entityStore.reconciliationCandidates(
+                scope: scope == .folder ? "folder" : "library",
+                folderId: scope == .folder ? documentId : nil
+            )
+        } catch {
+            candidates = []
+            message = "Couldn't load candidates: \(error.localizedDescription)"
         }
-        groups = Self.groupDuplicates(entities)
     }
 
-    /// Group entities whose normalized canonical name (or a shared alias)
-    /// collides — the cheap, exact-ish duplicate signal. Exposed for tests.
-    static func groupDuplicates(
-        _ entities: [Components.Schemas.KnowledgeEntity]
-    ) -> [EntityReconciliationGroup] {
-        var byKey: [String: [Components.Schemas.KnowledgeEntity]] = [:]
-        for entity in entities {
-            let key = normalizedKey(entity.canonicalName)
-            guard !key.isEmpty else { continue }
-            byKey[key, default: []].append(entity)
-        }
-        return byKey
-            .filter { $0.value.count >= 2 }
-            .map { EntityReconciliationGroup(id: $0.key, entities: $0.value) }
-            .sorted { $0.entities.count > $1.entities.count }
-    }
-
-    static func normalizedKey(_ name: String) -> String {
-        name.nfcNormalized
-            .lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func merge(group: EntityReconciliationGroup, survivor: Components.Schemas.KnowledgeEntity) {
-        guard let survivorId = survivor.id else { return }
-        let absorbed = group.entities.compactMap(\.id).filter { $0 != survivorId }
-        guard !absorbed.isEmpty else { return }
+    /// Merge a candidate pair, keeping A or B as the survivor (user's choice) via
+    /// the shared audited/undoable `EntityStore.merge`.
+    private func merge(_ candidate: EntityReconciliationCandidate, keepA: Bool) {
+        let survivorId = keepA ? candidate.entityAId : candidate.entityBId
+        let absorbedId = keepA ? candidate.entityBId : candidate.entityAId
+        let survivorName = keepA ? candidate.entityAName : candidate.entityBName
         Task {
             do {
-                try await entityStore.merge(absorbedIds: absorbed, into: survivorId)
-                message = "Merged \(absorbed.count) into \"\(survivor.canonicalName)\"."
+                try await entityStore.merge(absorbedIds: [absorbedId], into: survivorId)
+                message = "Merged into \"\(survivorName)\"."
                 await load()
             } catch {
                 message = "Merge failed: \(error.localizedDescription)"

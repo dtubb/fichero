@@ -1,7 +1,23 @@
+// swiftlint:disable file_length
 import FicheroAPIClient
 import Foundation
 import Observation
 import OSLog
+
+/// One graph-context merge-candidate pair (#3318) from
+/// `/api/kg/entity-curation/candidates` — two entities whose claim-neighborhoods
+/// overlap (Jaccard), surfaced for user-confirmed merge. Never merged
+/// automatically.
+struct EntityReconciliationCandidate: Identifiable, Hashable {
+    let entityAId: String
+    let entityAName: String
+    let entityBId: String
+    let entityBName: String
+    let jaccard: Double
+    let entityType: String?
+
+    var id: String { "\(entityAId)|\(entityBId)" }
+}
 
 /// Observable domain store for knowledge entities (#1885, keystone template).
 ///
@@ -18,6 +34,7 @@ import OSLog
 /// (registered on `LibraryReference`), shared across that library's windows.
 @MainActor
 @Observable
+// swiftlint:disable:next type_body_length
 final class EntityStore: ObservableDomainStore {
     // ─── Published domain state (views read these directly) ───
     private(set) var entities: [Components.Schemas.KnowledgeEntity] = []
@@ -252,6 +269,38 @@ final class EntityStore: ObservableDomainStore {
         for index in entities.indices {
             guard let id = entities[index].id, targetIds.contains(id) else { continue }
             entities[index].curationState = state
+        }
+    }
+
+    /// Graph-context duplicate candidate pairs for a reconciliation scope
+    /// (#3318), from `/api/kg/entity-curation/candidates`. The store is the only
+    /// endpoint accessor; the reconciliation sheet reads these.
+    func reconciliationCandidates(
+        scope: String,
+        folderId: String?
+    ) async throws -> [EntityReconciliationCandidate] {
+        let data = try await entityService.reconciliationCandidates(scope: scope, folderId: folderId)
+        return Self.parseReconciliationCandidates(data)
+    }
+
+    /// Parse the candidate-pairs envelope (`{ items: [...], count }`) into typed
+    /// pairs. The OpenAPI `items` schema is freeform, so parse defensively.
+    /// Exposed for tests.
+    static func parseReconciliationCandidates(_ data: Data) -> [EntityReconciliationCandidate] {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let items = obj["items"] as? [[String: Any]] else { return [] }
+        return items.compactMap { item -> EntityReconciliationCandidate? in
+            guard let aId = item["entity_a_id"] as? String,
+                  let bId = item["entity_b_id"] as? String,
+                  aId != bId else { return nil }
+            return EntityReconciliationCandidate(
+                entityAId: aId,
+                entityAName: item["entity_a_name"] as? String ?? aId,
+                entityBId: bId,
+                entityBName: item["entity_b_name"] as? String ?? bId,
+                jaccard: (item["jaccard"] as? Double) ?? 0,
+                entityType: item["entity_type"] as? String
+            )
         }
     }
 

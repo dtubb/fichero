@@ -1031,37 +1031,31 @@ private func makeKnowledgeClaim(
 // MARK: - Entity reconciliation grouping (#3318)
 
 final class EntityReconciliationTests: XCTestCase {
-    private func entity(_ id: String, _ name: String) -> Components.Schemas.KnowledgeEntity {
-        Components.Schemas.KnowledgeEntity(
-            id: id,
-            canonicalName: name,
-            entityType: .person,
-            aliases: nil,
-            description: nil,
-            language: nil,
-            metadata: nil,
-            mergedIntoId: nil
-        )
+    func testParsesCandidatePairsFromEngineEnvelope() throws {
+        // The /api/kg/entity-curation/candidates envelope: { items: [pairs], count }.
+        let json = Data("""
+        {"count": 2, "items": [
+          {"entity_a_id": "a", "entity_a_name": "Pedro", "entity_b_id": "b",
+           "entity_b_name": "Pedro de la Vega", "jaccard": 0.82, "shared_neighbors": 5,
+           "entity_type": "person"},
+          {"entity_a_id": "x", "entity_a_name": "x", "entity_b_id": "x",
+           "entity_b_name": "x", "jaccard": 0.9}
+        ]}
+        """.utf8)
+        let pairs = EntityStore.parseReconciliationCandidates(json)
+        // The self-pair (a==b) is dropped; the real pair is parsed.
+        XCTAssertEqual(pairs.count, 1)
+        let pair = try XCTUnwrap(pairs.first)
+        XCTAssertEqual(pair.entityAId, "a")
+        XCTAssertEqual(pair.entityBName, "Pedro de la Vega")
+        XCTAssertEqual(pair.jaccard, 0.82, accuracy: 0.001)
+        XCTAssertEqual(pair.entityType, "person")
+        XCTAssertEqual(pair.id, "a|b")
     }
 
-    func testGroupsNormalizedNameDuplicatesAndSkipsSingletons() {
-        let entities = [
-            entity("1", "Ada Lovelace"),
-            entity("2", "ada lovelace"),   // case variant → same group as 1
-            entity("3", "  Ada Lovelace "), // whitespace variant → same group
-            entity("4", "Charles Babbage")  // unique → no group
-        ]
-        let groups = EntityReconciliationSheet.groupDuplicates(entities)
-        XCTAssertEqual(groups.count, 1, "only the Ada Lovelace variants form a group")
-        XCTAssertEqual(groups.first?.entities.count, 3)
-        XCTAssertEqual(Set(groups.first?.entities.compactMap(\.id) ?? []), ["1", "2", "3"])
-    }
-
-    func testNormalizedKeyFoldsCaseAndWhitespace() {
-        XCTAssertEqual(
-            EntityReconciliationSheet.normalizedKey("  Popayán "),
-            EntityReconciliationSheet.normalizedKey("popayán")
-        )
+    func testParsesEmptyOrMalformedEnvelopeToNoPairs() {
+        XCTAssertTrue(EntityStore.parseReconciliationCandidates(Data("null".utf8)).isEmpty)
+        XCTAssertTrue(EntityStore.parseReconciliationCandidates(Data("{\"count\":0,\"items\":[]}".utf8)).isEmpty)
     }
 
     func testScopeAvailabilityMatchesTheShippedScopes() {

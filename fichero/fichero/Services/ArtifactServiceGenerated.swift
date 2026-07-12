@@ -579,6 +579,21 @@ final class EntityServiceGenerated {
         }
     }
 
+    /// Graph-context merge candidate pairs (Jaccard over co-occurrence
+    /// neighborhoods) for the chosen scope. Backed by
+    /// `/api/kg/entity-curation/candidates` (#3318). Returns the raw JSON so the
+    /// store parses the freeform `items` (the OpenAPI envelope is untyped).
+    func reconciliationCandidates(scope: String, folderId: String?) async throws -> Data {
+        var items = [URLQueryItem(name: "scope", value: scope)]
+        if let folderId, !folderId.isEmpty {
+            items.append(URLQueryItem(name: "folder_id", value: folderId))
+        }
+        return try await endpointData(
+            path: "/api/kg/entity-curation/candidates",
+            queryItems: items
+        )
+    }
+
     /// Merge multiple entities into a single absorbing entity with audit.
     /// Backed by `/api/kg/entity-curation/merge`.
     func mergeEntities(
