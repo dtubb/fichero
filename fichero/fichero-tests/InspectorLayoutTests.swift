@@ -531,6 +531,39 @@ struct KGSurfaceTabTests {
     }
 }
 
+// MARK: - Reader Tab Tests (reader IA fold 2026-07-11)
+
+struct ReaderTabTests {
+
+    @Test("ReaderTab folds the reader into Page, Knowledge, Notes in order")
+    func orderingAndCount() {
+        // Order drives the native top tab bar's left-to-right layout.
+        #expect(ReaderTab.allCases == [.page, .knowledge, .notes])
+    }
+
+    @Test("ReaderTab id equals rawValue")
+    func idEqualsRawValue() {
+        for tab in ReaderTab.allCases {
+            #expect(tab.id == tab.rawValue)
+        }
+    }
+
+    @Test("ReaderTab titles are the approved human-readable labels")
+    func titles() {
+        #expect(ReaderTab.page.title == "Page")
+        #expect(ReaderTab.knowledge.title == "Knowledge")
+        #expect(ReaderTab.notes.title == "Notes")
+    }
+
+    @Test("Every ReaderTab has a non-empty SF Symbol and help text")
+    func iconsAndHelp() {
+        for tab in ReaderTab.allCases {
+            #expect(!tab.icon.isEmpty, "\(tab.rawValue) should have an icon")
+            #expect(!tab.help.isEmpty, "\(tab.rawValue) should have help text")
+        }
+    }
+}
+
 // MARK: - PDF Loupe Tracking-Area Selector Guard (#1228)
 
 @MainActor
