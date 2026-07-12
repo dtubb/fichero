@@ -8,6 +8,7 @@ enum ChatSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
     case conversation
     case sources
     case knowledge
+    case compare
 
     var id: String { rawValue }
     var title: String {
@@ -15,6 +16,7 @@ enum ChatSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
         case .conversation: return "Conversation"
         case .sources: return "Sources"
         case .knowledge: return "Knowledge"
+        case .compare: return "Compare"
         }
     }
     var icon: String {
@@ -22,6 +24,7 @@ enum ChatSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
         case .conversation: return "bubble.left.and.bubble.right"
         case .sources: return "doc.on.doc"
         case .knowledge: return "point.3.connected.trianglepath.dotted"
+        case .compare: return "rectangle.split.2x1"
         }
     }
     var help: String {
@@ -29,6 +32,7 @@ enum ChatSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
         case .conversation: return "Conversation — the chat messages"
         case .sources: return "Sources — documents scoped into this conversation"
         case .knowledge: return "Knowledge — entities and claims surfaced from this conversation"
+        case .compare: return "Compare — run the same prompt across multiple agents/models side by side"
         }
     }
 }
@@ -120,6 +124,7 @@ struct ChatView: View {
             case .conversation: conversationTabContent
             case .sources: sourcesTabContent
             case .knowledge: knowledgeTabContent
+            case .compare: compareTabContent
             }
 
             Divider()
@@ -185,6 +190,14 @@ struct ChatView: View {
         )
     }
 
+    /// Compare tab — the folded-in ModelComparison capability (#3532 slice 2):
+    /// run one prompt across multiple agents/models side by side, now a facet of
+    /// the one chat surface rather than a standalone top-level mode. Reuses
+    /// `ModelComparisonView` verbatim (it is self-contained).
+    private var compareTabContent: some View {
+        ModelComparisonView()
+    }
+
     /// Knowledge tab — entities/claims surfaced from the conversation. The chrome
     /// facet lands now; wiring the conversation-scoped KG content is a later
     /// #3532 slice (no chat-knowledge component to reuse yet).
@@ -243,6 +256,8 @@ struct ChatView: View {
             return count == 0 ? "No sources pinned" : "\(count) source\(count == 1 ? "" : "s")"
         case .knowledge:
             return "Knowledge"
+        case .compare:
+            return "Compare agents / models"
         }
     }
 
