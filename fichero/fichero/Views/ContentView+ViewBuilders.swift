@@ -84,11 +84,10 @@ private struct ReadingPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Native top tabs (Page/Knowledge/Notes) — fixed chrome over the
+            // Shared top-tab chrome (Page/Knowledge/Notes) — the same
+            // SurfaceTabBar icon row the Inspector uses (#3530), fixed over the
             // WebKit/native content beneath (reader IA fold, 2026-07-11).
-            ReaderTabBar(selection: readerTabBinding)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+            SurfaceTabBar(tabs: ReaderTab.allCases, selection: readerTabBinding)
             Divider()
 
             readerTabContent

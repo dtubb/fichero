@@ -568,6 +568,35 @@ struct ReaderTabTests {
     }
 }
 
+// MARK: - Shared SurfaceChrome (#3530)
+
+private enum SampleSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
+    case alpha, beta
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+    var icon: String { "circle" }
+    var help: String { "\(title) help" }
+}
+
+struct SurfaceChromeTests {
+    @Test("SurfaceTab derives a default accessibility id from the title")
+    func defaultAccessibilityID() {
+        #expect(SampleSurfaceTab.alpha.accessibilityID == "surfaceTab-Alpha")
+    }
+
+    @Test("ReaderTab conforms to SurfaceTab with complete metadata")
+    func readerTabConformsToSurfaceTab() {
+        let tabs: [any SurfaceTab] = ReaderTab.allCases
+        #expect(tabs.count == 3)
+        for tab in ReaderTab.allCases {
+            #expect(!tab.title.isEmpty)
+            #expect(!tab.icon.isEmpty)
+            #expect(!tab.help.isEmpty)
+            #expect(!tab.accessibilityID.isEmpty)
+        }
+    }
+}
+
 // MARK: - PDF Loupe Tracking-Area Selector Guard (#1228)
 
 @MainActor
