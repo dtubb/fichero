@@ -1,5 +1,38 @@
 import SwiftUI
 
+/// The chat surface's top-level tabs on the shared chrome (#3532 phase 1):
+/// Conversation (messages), Sources (scoped documents), Knowledge (entities /
+/// claims surfaced from the conversation). Compare + research/agent folds are
+/// later slices. `chat = agent = workspace` (Daniel #3540).
+enum ChatSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
+    case conversation
+    case sources
+    case knowledge
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .conversation: return "Conversation"
+        case .sources: return "Sources"
+        case .knowledge: return "Knowledge"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .conversation: return "bubble.left.and.bubble.right"
+        case .sources: return "doc.on.doc"
+        case .knowledge: return "point.3.connected.trianglepath.dotted"
+        }
+    }
+    var help: String {
+        switch self {
+        case .conversation: return "Conversation — the chat messages"
+        case .sources: return "Sources — documents scoped into this conversation"
+        case .knowledge: return "Knowledge — entities and claims surfaced from this conversation"
+        }
+    }
+}
+
 /// RAG-style chat view for conversing with documents
 struct ChatView: View {
     let conversation: Conversation?
@@ -34,6 +67,13 @@ struct ChatView: View {
     @Environment(ChatServiceGenerated.self) var chatService
     @Environment(ConversationServiceGenerated.self) var conversationService
 
+    /// Per-window chat tab (#3532), like the document inspector's @SceneStorage.
+    @SceneStorage("chat.surfaceTab") private var chatTabRaw = ChatSurfaceTab.conversation.rawValue
+    private var chatTab: ChatSurfaceTab { ChatSurfaceTab(rawValue: chatTabRaw) ?? .conversation }
+    private var chatTabBinding: Binding<ChatSurfaceTab> {
+        Binding(get: { chatTab }, set: { chatTabRaw = $0.rawValue })
+    }
+
     init(
         conversation: Conversation?,
         selectedDocuments: Binding<Set<String>>,
@@ -51,7 +91,7 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // View-specific toolbar at top
+            // View-specific toolbar at top (conversation switcher / provider).
             ChatViewToolbar(
                 conversationTitle: currentConversation.title,
                 conversations: visibleConversations,
@@ -65,26 +105,23 @@ struct ChatView: View {
                 onNewChat: startNewChat
             )
 
-            Divider()
-
-            // Messages list
-            ChatMessagesList(
-                conversation: currentConversation,
-                isLoading: isLoading,
-                errorMessage: errorMessage,
-                inputText: $inputText
+            // Shared top-tab chrome (#3532): Conversation / Sources / Knowledge.
+            SurfaceTabBar(
+                tabs: ChatSurfaceTab.allCases,
+                selection: chatTabBinding,
+                accessibilityID: "chatSurfaceTabBar"
             )
 
             Divider()
 
-            // Input area
-            ChatInputView(
-                inputText: $inputText,
-                isLoading: isLoading,
-                onSend: sendMessage
-            ) {
-                composerAttachMenu
+            switch chatTab {
+            case .conversation: conversationTabContent
+            case .sources: sourcesTabContent
+            case .knowledge: knowledgeTabContent
             }
+
+            Divider()
+            chatBottomBar
         }
         .sheet(isPresented: $showAttachSheet) {
             chatAttachSheet
@@ -113,6 +150,74 @@ struct ChatView: View {
             conversationService.conversations,
             folderPath: conversationFolderPath
         )
+    }
+
+    /// Conversation tab — the messages plus the composer (#3532).
+    private var conversationTabContent: some View {
+        VStack(spacing: 0) {
+            ChatMessagesList(
+                conversation: currentConversation,
+                isLoading: isLoading,
+                errorMessage: errorMessage,
+                inputText: $inputText
+            )
+            Divider()
+            ChatInputView(
+                inputText: $inputText,
+                isLoading: isLoading,
+                onSend: sendMessage
+            ) {
+                composerAttachMenu
+            }
+        }
+    }
+
+    /// Sources tab — the scoped-documents surface, reusing the existing
+    /// `ChatInspector` inline (previously only shown in the attach sheet), bound
+    /// to the same `selectedDocuments` so scope stays in one place (#3532).
+    private var sourcesTabContent: some View {
+        ChatInspector(
+            selectedDocuments: $selectedDocuments,
+            suggestedDocumentIDs: [],
+            onAddSuggestedDocuments: nil
+        )
+    }
+
+    /// Knowledge tab — entities/claims surfaced from the conversation. The chrome
+    /// facet lands now; wiring the conversation-scoped KG content is a later
+    /// #3532 slice (no chat-knowledge component to reuse yet).
+    private var knowledgeTabContent: some View {
+        ContentUnavailableView(
+            "Knowledge",
+            systemImage: "point.3.connected.trianglepath.dotted",
+            description: Text("Entities and claims surfaced from this conversation will appear here.")
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Shared bottom mini-toolbar (#3532) — a per-tab status line. A
+    /// "Save as workspace" affordance (chat = workspace, #3547 backend) is a
+    /// deferred follow-up (#3533): wire the workspace save/list endpoints here.
+    private var chatBottomBar: some View {
+        MiniToolbar {
+            Text(chatBottomStatus)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var chatBottomStatus: String {
+        switch chatTab {
+        case .conversation:
+            let count = currentConversation.messages.count
+            return "\(count) message\(count == 1 ? "" : "s")"
+        case .sources:
+            let count = selectedDocuments.count
+            return count == 0 ? "No sources pinned" : "\(count) source\(count == 1 ? "" : "s")"
+        case .knowledge:
+            return "Knowledge"
+        }
     }
 
     /// Composer pin menu (#2449 hybrid step 3): the chat is already grounded on
