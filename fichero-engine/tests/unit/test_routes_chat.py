@@ -624,6 +624,113 @@ class TestDeleteConversation:
 
 
 # ---------------------------------------------------------------------------
+# Agent workspace nodes (#3547)
+# ---------------------------------------------------------------------------
+
+
+class TestAgentWorkspaceNodes:
+    def test_save_list_reload_and_soft_delete_round_trip(self, client, db):
+        conversation = _make_conv("workspace-conversation", "Letter investigation")
+        conversation.provider = "openai"
+        conversation.model = "gpt-4o-mini"
+        conversation.document_ids = ["source-a"]
+        conversation.messages = [
+            {"role": "user", "content": "What does this letter say?"},
+            {"role": "assistant", "content": "It concerns the 1844 petition."},
+        ]
+        db.save(conversation)
+
+        saved = client.post(
+            f"/api/chat/conversations/{conversation.id}/workspace",
+            json={"title": "Petition workspace"},
+        )
+        assert saved.status_code == 200
+        workspace = saved.json()
+        assert workspace["title"] == "Petition workspace"
+        assert workspace["model"] == "gpt-4o-mini"
+        assert workspace["message_history_ref"] == conversation.id
+        assert workspace["members"][0]["id"] == "source:source-a"
+        assert workspace["members"][0]["target_type"] == "document"
+        assert workspace["members"][0]["target_id"] == "source-a"
+        assert workspace["members"][0]["role"] == "scoped_source"
+        assert workspace["members"][0]["added_at"]
+
+        listed = client.get("/api/chat/workspaces")
+        assert listed.status_code == 200
+        assert [item["id"] for item in listed.json()["items"]] == [workspace["id"]]
+
+        reloaded = client.get(f"/api/chat/workspaces/{workspace['id']}")
+        assert reloaded.status_code == 200
+        assert reloaded.json()["messages"] == conversation.messages
+
+        deleted = client.delete(f"/api/chat/workspaces/{workspace['id']}")
+        assert deleted.status_code == 200
+        assert deleted.json() == {"status": "deleted", "id": workspace["id"]}
+        assert db.get(Document, workspace["id"]).deleted_at is not None
+        assert db.get(Conversation, conversation.id) is not None
+
+    def test_membership_add_and_remove(self, client, db):
+        conversation = _make_conv("workspace-members", "Members")
+        conversation.messages = [{"role": "user", "content": "Find relevant claims."}]
+        db.save(conversation)
+        workspace_id = client.post(
+            f"/api/chat/conversations/{conversation.id}/workspace", json={}
+        ).json()["id"]
+
+        added = client.patch(
+            f"/api/chat/workspaces/{workspace_id}/members",
+            json={
+                "add": [
+                    {
+                        "id": "entity:rosario",
+                        "target_type": "entity",
+                        "target_id": "rosario",
+                        "role": "surfaced_entity",
+                    },
+                    {
+                        "id": "claim:petition",
+                        "target_type": "claim",
+                        "target_id": "petition",
+                        "role": "surfaced_claim",
+                    },
+                    {
+                        "id": "note:question",
+                        "target_type": "note",
+                        "target_id": "question",
+                        "notes": "Check the date against the ledger.",
+                    },
+                ]
+            },
+        )
+        assert added.status_code == 200
+        assert {item["id"] for item in added.json()["members"]} == {
+            "entity:rosario",
+            "claim:petition",
+            "note:question",
+        }
+
+        removed = client.patch(
+            f"/api/chat/workspaces/{workspace_id}/members",
+            json={"remove_ids": ["claim:petition"]},
+        )
+        assert removed.status_code == 200
+        assert {item["id"] for item in removed.json()["members"]} == {
+            "entity:rosario",
+            "note:question",
+        }
+
+    def test_empty_conversation_cannot_be_saved(self, client, db):
+        conversation = _make_conv("workspace-empty", "Empty")
+        db.save(conversation)
+
+        response = client.post(
+            f"/api/chat/conversations/{conversation.id}/workspace", json={}
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"] == "Cannot save an empty conversation"
+
+
+# ---------------------------------------------------------------------------
 # POST /api/chat/conversations/reorder
 # ---------------------------------------------------------------------------
 

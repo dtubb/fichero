@@ -1760,6 +1760,18 @@
       },
       {
         "method": "POST",
+        "path": "/chat/conversations/{conversation_id}/workspace",
+        "operation_id": "save_conversation_as_workspace_api_chat_conversations__conversation_id__workspace_post",
+        "summary": "Save Conversation As Workspace",
+        "path_params": [
+          "conversation_id"
+        ],
+        "query_params": [],
+        "request_model": "AgentWorkspaceSaveRequest",
+        "response_model": "AgentWorkspace"
+      },
+      {
+        "method": "POST",
         "path": "/chat/extract-text",
         "operation_id": "extract_text_api_chat_extract_text_post",
         "summary": "Extract Text",
@@ -1777,6 +1789,52 @@
         "query_params": [],
         "request_model": null,
         "response_model": "ChatProviderListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chat/workspaces",
+        "operation_id": "list_agent_workspaces_api_chat_workspaces_get",
+        "summary": "List Agent Workspaces",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AgentWorkspaceListResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/chat/workspaces/{workspace_id}",
+        "operation_id": "delete_agent_workspace_api_chat_workspaces__workspace_id__delete",
+        "summary": "Delete Agent Workspace",
+        "path_params": [
+          "workspace_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AgentWorkspaceDeletedResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chat/workspaces/{workspace_id}",
+        "operation_id": "get_agent_workspace_api_chat_workspaces__workspace_id__get",
+        "summary": "Get Agent Workspace",
+        "path_params": [
+          "workspace_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AgentWorkspace"
+      },
+      {
+        "method": "PATCH",
+        "path": "/chat/workspaces/{workspace_id}/members",
+        "operation_id": "patch_agent_workspace_members_api_chat_workspaces__workspace_id__members_patch",
+        "summary": "Patch Agent Workspace Members",
+        "path_params": [
+          "workspace_id"
+        ],
+        "query_params": [],
+        "request_model": "AgentWorkspaceMembershipPatch",
+        "response_model": "AgentWorkspace"
       }
     ],
     "citation-usages": [
@@ -2523,6 +2581,28 @@
         "query_params": [],
         "request_model": null,
         "response_model": "fichero__models__DocumentListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/groups",
+        "operation_id": "create_document_group_api_documents_groups_post",
+        "summary": "Create Document Group",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "DocumentGroupRequest",
+        "response_model": "Document"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/groups/{group_id}/ungroup",
+        "operation_id": "ungroup_document_api_documents_groups__group_id__ungroup_post",
+        "summary": "Ungroup Document",
+        "path_params": [
+          "group_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[Document]"
       },
       {
         "method": "POST",

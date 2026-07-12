@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero.actions.registry import ActionContext, ChangeSpec, action
+from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.auth import action_context
 from fichero.api.change_stream import emit_change
 from fichero.api.routes.claims import _descendant_doc_ids
@@ -28,6 +28,7 @@ from fichero.models import (
     Model as ModelModel,
     Provider as ProviderModel,
 )
+from fichero.api.routes.documents import WorkspaceCuratedItem, WorkspacePatchRequest
 from fichero.keychain import has_api_key
 from fichero.llm import LLMConfig, get_langchain_model
 from fichero.node_aliases import DanglingAliasError, is_alias, resolve_alias
@@ -192,6 +193,107 @@ class ConversationHistory(BaseModel):
     updated_at: str
     folder_path: str = "/"
     sort_order: int = 0
+
+
+class AgentWorkspaceSaveRequest(BaseModel):
+    """Optional title for an explicit, on-demand conversation workspace save."""
+
+    title: str | None = Field(default=None, min_length=1)
+
+
+class AgentWorkspaceMembershipPatch(BaseModel):
+    """Add or remove the curated source, entity, claim, and note references."""
+
+    add: list[WorkspaceCuratedItem] = Field(default_factory=list)
+    remove_ids: list[str] = Field(default_factory=list)
+
+
+class AgentWorkspace(BaseModel):
+    """A persisted agent session represented by a normal workspace node."""
+
+    id: str
+    title: str
+    provider: str | None = None
+    model: str | None = None
+    message_history_ref: str
+    messages: list[ChatMessage]
+    members: list[WorkspaceCuratedItem]
+    scoped_document_ids: list[str]
+    created_at: str
+    updated_at: str
+
+
+class AgentWorkspaceListResponse(BaseModel):
+    items: list[AgentWorkspace]
+    count: int
+
+
+class AgentWorkspaceDeletedResponse(BaseModel):
+    status: str
+    id: str
+
+
+_AGENT_WORKSPACE_KIND = "agent"
+
+
+def _workspace_metadata(document: Document) -> dict[str, Any]:
+    return document.metadata if isinstance(document.metadata, dict) else {}
+
+
+def _is_agent_workspace(document: Document) -> bool:
+    return (
+        document.doc_type == DocType.folder
+        and document.node_kind == "workspace"
+        and document.deleted_at is None
+        and _workspace_metadata(document).get("workspace_kind") == _AGENT_WORKSPACE_KIND
+    )
+
+
+def _agent_workspace_or_404(db: Database, workspace_id: str) -> Document:
+    workspace = db.get(Document, workspace_id)
+    if not workspace or not _is_agent_workspace(workspace):
+        raise HTTPException(status_code=404, detail="Agent workspace not found")
+    return workspace
+
+
+def _agent_workspace_response(db: Database, workspace: Document) -> AgentWorkspace:
+    metadata = _workspace_metadata(workspace)
+    conversation_id = str(metadata.get("message_history_ref") or "")
+    conversation = db.get(Conversation, conversation_id)
+    if not conversation:
+        raise HTTPException(status_code=409, detail="Workspace conversation is missing")
+    members = [
+        WorkspaceCuratedItem.model_validate(item)
+        for item in workspace.curated_items
+        if isinstance(item, dict)
+    ]
+    return AgentWorkspace(
+        id=workspace.id,
+        title=workspace.name,
+        provider=metadata.get("provider"),
+        model=metadata.get("model"),
+        message_history_ref=conversation_id,
+        messages=[ChatMessage.model_validate(message) for message in conversation.messages],
+        members=members,
+        scoped_document_ids=list(metadata.get("scoped_document_ids") or []),
+        created_at=_safe_isoformat(workspace.created_at),
+        updated_at=_safe_isoformat(workspace.updated_at),
+    )
+
+
+def _conversation_scoped_members(conversation: Conversation) -> list[WorkspaceCuratedItem]:
+    document_ids = list(conversation.document_ids)
+    if conversation.scope_document_id and conversation.scope_document_id not in document_ids:
+        document_ids.append(conversation.scope_document_id)
+    return [
+        WorkspaceCuratedItem(
+            id=f"source:{document_id}",
+            target_type="document",
+            target_id=document_id,
+            role="scoped_source",
+        )
+        for document_id in document_ids
+    ]
 
 
 # Note: Providers and models now come from the database (configured via Providers UI)
@@ -533,6 +635,123 @@ async def list_conversations(
     result.sort(key=lambda x: (x["sort_order"], x["updated_at"]), reverse=False)
 
     return ChatConversationListResponse(items=result, count=len(result))
+
+
+@router.post(
+    "/conversations/{conversation_id}/workspace", response_model=AgentWorkspace
+)
+async def save_conversation_as_workspace(
+    conversation_id: str,
+    request: AgentWorkspaceSaveRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> AgentWorkspace:
+    """Explicitly save a non-empty chat session as an undoable workspace node."""
+    conversation = db.get(Conversation, conversation_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if not conversation.messages:
+        raise HTTPException(status_code=422, detail="Cannot save an empty conversation")
+
+    existing = next(
+        (
+            document
+            for document in db.query(Document)
+            if _is_agent_workspace(document)
+            and _workspace_metadata(document).get("message_history_ref") == conversation.id
+        ),
+        None,
+    )
+    if existing:
+        return _agent_workspace_response(db, existing)
+
+    scoped_members = _conversation_scoped_members(conversation)
+    result = registry.invoke(
+        db,
+        "document.create",
+        {
+            "name": request.title or conversation.title,
+            "doc_type": DocType.folder.value,
+            "node_kind": "workspace",
+            "metadata": {
+                "workspace_kind": _AGENT_WORKSPACE_KIND,
+                "message_history_ref": conversation.id,
+                "provider": conversation.provider,
+                "model": conversation.model,
+                "scoped_document_ids": [member.target_id for member in scoped_members],
+            },
+        },
+        ctx,
+    )
+    workspace = Document.model_validate(result.result)
+    registry.invoke(
+        db,
+        "document.patch_workspace",
+        {
+            "doc_id": workspace.id,
+            "patch": WorkspacePatchRequest(add=scoped_members).model_dump(mode="json"),
+        },
+        ctx,
+    )
+    return _agent_workspace_response(db, _agent_workspace_or_404(db, workspace.id))
+
+
+@router.get("/workspaces", response_model=AgentWorkspaceListResponse)
+async def list_agent_workspaces(
+    db: Database = Depends(get_library_database),
+) -> AgentWorkspaceListResponse:
+    """List explicit agent-session workspace nodes in the current library."""
+    items = [
+        _agent_workspace_response(db, workspace)
+        for workspace in db.query(Document)
+        if _is_agent_workspace(workspace)
+    ]
+    items.sort(key=lambda workspace: workspace.updated_at, reverse=True)
+    return AgentWorkspaceListResponse(items=items, count=len(items))
+
+
+@router.get("/workspaces/{workspace_id}", response_model=AgentWorkspace)
+async def get_agent_workspace(
+    workspace_id: str,
+    db: Database = Depends(get_library_database),
+) -> AgentWorkspace:
+    """Reload a saved session, including its conversation history and members."""
+    return _agent_workspace_response(db, _agent_workspace_or_404(db, workspace_id))
+
+
+@router.patch("/workspaces/{workspace_id}/members", response_model=AgentWorkspace)
+async def patch_agent_workspace_members(
+    workspace_id: str,
+    request: AgentWorkspaceMembershipPatch,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> AgentWorkspace:
+    """Add or remove source, entity, claim, or note references from a workspace."""
+    _agent_workspace_or_404(db, workspace_id)
+    registry.invoke(
+        db,
+        "document.patch_workspace",
+        {
+            "doc_id": workspace_id,
+            "patch": WorkspacePatchRequest(
+                add=request.add, remove_ids=request.remove_ids
+            ).model_dump(mode="json"),
+        },
+        ctx,
+    )
+    return _agent_workspace_response(db, _agent_workspace_or_404(db, workspace_id))
+
+
+@router.delete("/workspaces/{workspace_id}", response_model=AgentWorkspaceDeletedResponse)
+async def delete_agent_workspace(
+    workspace_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> AgentWorkspaceDeletedResponse:
+    """Soft-delete a workspace node through the existing undoable document action."""
+    _agent_workspace_or_404(db, workspace_id)
+    registry.invoke(db, "document.delete", {"doc_id": workspace_id}, ctx)
+    return AgentWorkspaceDeletedResponse(status="deleted", id=workspace_id)
 
 
 @router.get("/conversations/{conversation_id}")
