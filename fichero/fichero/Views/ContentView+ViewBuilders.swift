@@ -177,7 +177,17 @@ private struct ReadingPaneView: View {
         // A direct click anywhere in this pane makes it the active surface
         // (#3579). simultaneousGesture runs alongside PDF/WebKit hit-testing so
         // it never steals the click — same pattern as focusedPane tracking.
-        .simultaneousGesture(TapGesture().onEnded { activeSurfaceState?.activeSurfaceId = surfaceId })
+        .simultaneousGesture(TapGesture().onEnded { activeSurfaceState?.activate(surfaceId) })
+        // Join/leave the active-surface pool (#3580). Registering when it appears
+        // makes a sole pane auto-active; toggling on isPinned clears active if it
+        // pointed here (pinned panes never follow selection) and hands a lone
+        // survivor the active slot.
+        .onAppear { activeSurfaceState?.registerUnpinned(surfaceId) }
+        .onDisappear { activeSurfaceState?.unregister(surfaceId) }
+        .onChange(of: isPinned) { _, pinned in
+            if pinned { activeSurfaceState?.unregister(surfaceId) }
+            else { activeSurfaceState?.registerUnpinned(surfaceId) }
+        }
         // A source reveal (#2105) brings the reader to the Page tab so the
         // highlighted / scrolled-to source is actually visible (#3521).
         .onChange(of: claimSourceNavigationState?.requestID) { _, newID in

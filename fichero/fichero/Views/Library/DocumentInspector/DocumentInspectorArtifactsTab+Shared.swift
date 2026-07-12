@@ -146,7 +146,47 @@ struct SurfaceID: Hashable {
 @Observable
 @MainActor
 final class ActiveSurfaceState {
-    var activeSurfaceId: SurfaceID?
+    /// The pane that updates on the next library click, or nil when no unpinned
+    /// Preview/Reader pane exists. All mutation flows through the methods below
+    /// so the pin ⇄ active invariants (#3580, §2.3) hold in one place.
+    private(set) var activeSurfaceId: SurfaceID?
+
+    /// Currently-mounted, UNPINNED Preview/Reader panes (#3580). A pane can't
+    /// tell on its own whether it's "the only unpinned one", so the set lives
+    /// here — the minimal shared state needed to kill the dead-active case.
+    private var unpinnedSurfaces: Set<SurfaceID> = []
+
+    /// A pane appears (or unpins): it joins the pool and, if it's now the sole
+    /// unpinned pane, silently becomes active — no dead state (§2.3).
+    func registerUnpinned(_ id: SurfaceID) {
+        unpinnedSurfaces.insert(id)
+        resolveSoleActive()
+    }
+
+    /// A pane pins, disappears, or its split collapses: it leaves the pool. If
+    /// it was the active one, active clears; a lone survivor then auto-activates.
+    func unregister(_ id: SurfaceID) {
+        unpinnedSurfaces.remove(id)
+        if activeSurfaceId == id { activeSurfaceId = nil }
+        resolveSoleActive()
+    }
+
+    /// A direct click picks this pane as active — unless it's pinned, in which
+    /// case it's skipped (§2.1: a pinned pane is never a NEW active target).
+    func activate(_ id: SurfaceID) {
+        guard unpinnedSurfaces.contains(id) else { return }
+        activeSurfaceId = id
+    }
+
+    /// No dead state: exactly one unpinned pane ⇒ it is active. If the active id
+    /// no longer names an unpinned pane, clear it.
+    private func resolveSoleActive() {
+        if unpinnedSurfaces.count == 1 {
+            activeSurfaceId = unpinnedSurfaces.first
+        } else if let active = activeSurfaceId, !unpinnedSurfaces.contains(active) {
+            activeSurfaceId = nil
+        }
+    }
 }
 
 // MARK: - Notification names
