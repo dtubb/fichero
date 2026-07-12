@@ -52,6 +52,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     case claims
     case timeline
     case map
+    case entities
 
     var id: String { rawValue }
 
@@ -64,6 +65,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .claims: return "Claims"
         case .timeline: return "Timeline"
         case .map: return "Map"
+        case .entities: return "Entities"
         }
     }
 
@@ -76,6 +78,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .claims: return "quote.bubble"
         case .timeline: return "calendar.badge.clock"
         case .map: return "map"
+        case .entities: return "circle.grid.2x2"
         }
     }
 
@@ -88,6 +91,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .claims: return "Claims — statements extracted from the document, grouped by source"
         case .timeline: return "Timeline — dated entities and events in chronological order"
         case .map: return "Map — entities laid out on a visual canvas"
+        case .entities: return "Entities — the people, places, and things named in the document"
         }
     }
 
@@ -102,14 +106,16 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .claims: return "4"
         case .timeline: return "5"
         case .map: return "6"
+        case .entities: return "7"
         }
     }
 
-    /// True for tabs rendered inside the shared WKWebView (#1346).
+    /// True for tabs rendered inside the shared WKWebView (#1346). Entities and
+    /// claims render natively (inspector components), so the WebKit pane hides.
     var usesWebKit: Bool {
         switch self {
         case .transcript, .digest, .graph, .timeline, .map: return true
-        case .claims: return false
+        case .claims, .entities: return false
         }
     }
 }
@@ -154,6 +160,10 @@ struct DocumentKGSurface: View {
     /// `= nil` is load-bearing: KnowledgeSurface call site omits these args.
     var externalActiveTab: KGSurfaceTab? = nil // swiftlint:disable:this implicit_optional_initialization
     var onTabSelected: ((KGSurfaceTab) -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
+    /// The full Document, supplied by callers that expose the native Entities
+    /// sub-mode (#3503). When nil the surface resolves it from the DocumentStore.
+    /// `= nil` is load-bearing: the KnowledgeSurface call site omits it.
+    var document: Document? = nil // swiftlint:disable:this implicit_optional_initialization
 
     @State private var internalActiveTab: KGSurfaceTab = .transcript
     private var activeTab: KGSurfaceTab { externalActiveTab ?? internalActiveTab }
@@ -170,6 +180,9 @@ struct DocumentKGSurface: View {
     @Environment(EntityServiceGenerated.self) private var entityService
     @Environment(ArtifactServiceGenerated.self) private var artifactService
     @Environment(KGCurationServiceGenerated.self) private var kgCurationService
+    // For resolving the Document the native Entities sub-mode needs (#3503) when
+    // the caller doesn't supply one via `document`.
+    @Environment(DocumentStore.self) private var documentStore
 
     var body: some View {
         // The representation switcher (Transcript/Digest/Graph/Claims/Timeline/
@@ -266,6 +279,23 @@ struct DocumentKGSurface: View {
                     )
                 }
             )
+        case .entities:
+            // Native document-scoped entity list, reusing the inspector's
+            // entities surface (#3503). Selecting an entity drives KG focus so
+            // the graph / transcript highlight follows.
+            if let doc = document ?? documentStore.currentDocuments.first(where: { $0.id == documentId }) {
+                DocumentInspectorEntitiesTab(
+                    document: doc,
+                    documentId: documentId,
+                    selectedEntityId: selectedEntityId,
+                    onEntitySelect: { entityId in kgFocusState.focusEntity(entityId: entityId) }
+                )
+            } else {
+                Text("Select a document to see its entities.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 

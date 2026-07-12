@@ -478,10 +478,10 @@ struct PageContentPaneEditStateTests {
 
 struct KGSurfaceTabTests {
 
-    @Test("KGSurfaceTab has transcript, digest, graph, claims, timeline, map in order")
+    @Test("KGSurfaceTab has transcript, digest, graph, claims, timeline, map, entities in order")
     func orderingAndCount() {
         // Order drives the native toolbar's left-to-right button layout.
-        #expect(KGSurfaceTab.allCases == [.transcript, .digest, .graph, .claims, .timeline, .map])
+        #expect(KGSurfaceTab.allCases == [.transcript, .digest, .graph, .claims, .timeline, .map, .entities])
     }
 
     @Test("KGSurfaceTab rawValues match the JS tab ids in document_view.html")
@@ -521,6 +521,8 @@ struct KGSurfaceTabTests {
         #expect(KGSurfaceTab.timeline.usesWebKit)
         #expect(KGSurfaceTab.map.usesWebKit)
         #expect(!KGSurfaceTab.claims.usesWebKit)
+        // Entities render natively (inspector list), not in the WebKit pane (#3503).
+        #expect(!KGSurfaceTab.entities.usesWebKit)
     }
 
     @Test("Every KGSurfaceTab has a non-empty SF Symbol")

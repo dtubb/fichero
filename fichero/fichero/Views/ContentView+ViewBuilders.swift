@@ -274,27 +274,27 @@ private struct ReadingPaneView: View {
     }
 
     /// The KG exploration sub-modes in the Knowledge tab. Transcript is a Page
-    /// concern; Digest is a separate section (below). Graph/Claims/Timeline/Map
-    /// are the "what we know" visualization views.
-    private static let knowledgeVizModes: [KGSurfaceTab] = [.graph, .claims, .timeline, .map]
+    /// concern; Digest is a separate section (below). Entities/Claims are native
+    /// lists; Graph/Timeline/Map are the WebKit visualization views (#3503).
+    private static let knowledgeVizModes: [KGSurfaceTab] = [.entities, .claims, .graph, .timeline, .map]
 
     /// Binds the exploration sub-mode picker to `activeTab`. When the Digest
     /// section is active (`activeTab == .digest`) the selection is nil so no viz
-    /// segment is highlighted; any stale non-knowledge value clamps to Graph.
+    /// segment is highlighted; any stale non-knowledge value clamps to Entities.
     private var knowledgeVizBinding: Binding<KGSurfaceTab?> {
         Binding(
             get: {
                 if Self.knowledgeVizModes.contains(activeTab) { return activeTab }
-                return activeTab == .digest ? nil : .graph
+                return activeTab == .digest ? nil : .entities
             },
             set: { if let mode = $0 { activeTab = mode } }
         )
     }
 
     /// The KG tab actually shown: a valid viz sub-mode or the digest section;
-    /// anything else (e.g. a stale `.transcript`) falls back to Graph.
+    /// anything else (e.g. a stale `.transcript`) falls back to Entities.
     private var effectiveKnowledgeTab: KGSurfaceTab {
-        (Self.knowledgeVizModes.contains(activeTab) || activeTab == .digest) ? activeTab : .graph
+        (Self.knowledgeVizModes.contains(activeTab) || activeTab == .digest) ? activeTab : .entities
     }
 
     /// Page tab — read the source. A source/split/transcript toggle (#3502) lays
@@ -465,7 +465,8 @@ private struct ReadingPaneView: View {
                 scrollSync: scrollSync,
                 zoom: webZoom,
                 externalActiveTab: effectiveKnowledgeTab,
-                onTabSelected: { activeTab = $0 }
+                onTabSelected: { activeTab = $0 },
+                document: doc
             )
         } else {
             Text("No selection")
