@@ -1,6 +1,11 @@
 # Navigation System — Design (2026-07-12)
 
-Status: proposed direction (Daniel, 2026-07-12). Scope: cross-cutting
+Status: **IMPLEMENTED (2026-07-12, 8/8 slices merged)** — Location model + engine
+resolve endpoint (#3576), MCP reveal tool (#3578), Swift source-reveal rewire
+(#3577), ActiveSurfaceState (#3579), pin⇄active reconciliation (#3580), menu-bar
+Back/Forward (#3581), Open-in-tab/window on panes (#3582), DocumentTabView
+documented (#3583). Plus a regen toolchain fix (numeric→boolean exclusiveMinimum).
+Original proposed direction (Daniel, 2026-07-12) preserved below. Scope: cross-cutting
 navigation for the three separate surfaces — Preview (source), Reader
 (derived knowledge), Inspector (edit) — plus window/tab management,
 active-surface tracking, pinning, addressable locations, and back/forward
@@ -38,10 +43,13 @@ and must be extended, not duplicated.
   `reader.topTab`, `reader.page.layout`, `reader.pageLayout`, `reader.notes.mode` (all in
   `ContentView+ViewBuilders.swift` / `PDFPageWithToolbar.swift`). Each window/tab genuinely
   has independent state today.
-- `fichero/fichero/Views/Shell/DocumentTabView.swift` is a **legacy/parallel** tab abstraction
-  (`FicheroDocument.viewMode` switch with placeholder Workflow/Chat/Search tab views) that
-  predates the current `WindowGroup`+native-tabs model. It is largely dead weight — most of
-  its cases are `ContentUnavailableView` placeholders. Treat it as deprecated; do not extend it.
+- `fichero/fichero/Views/Shell/DocumentTabView.swift` — **CORRECTION (#3583): this view is
+  LIVE, not dead.** `LibraryWorkspaceRoot` mounts one per window; its load-bearing job is to
+  gate on `appState.isBackendRunning` (showing `BackendConnectionView` until the engine is up)
+  and forward the per-library `@Environment` services into `ContentView()`. Do NOT delete it.
+  Only its internal `document.viewMode` **switch** is the legacy pre-`WindowGroup` abstraction
+  (placeholder Workflow/Chat/Search cases) — that switch is deprecated; do not extend it. The
+  earlier "largely dead weight" characterization was wrong.
 
 ### 0.2 The pin button — FOUND, and it already IS a per-surface-pane pin
 
