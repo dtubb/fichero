@@ -67,6 +67,7 @@ struct LibraryWorkspaceRoot: View {
             .environment(library.conversationServiceGenerated)
             .environment(library.chatServiceGenerated)
             .environment(library.workspaceStore)
+            .environment(library.batchStore)
             .environment(library.workflowStore)
             .environment(library.workflowServiceGenerated)
             .environment(library.workflowStreamService)

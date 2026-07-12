@@ -192,6 +192,8 @@
 		2FA0C9F98B2B1A0A35107B07 /* ChainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41994E6C746A0B0171534212 /* ChainStore.swift */; };
 		300ED1FDA9255CD4182A3664 /* ForceDirectedGraphView+Render.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE62C7312D0E473288483C9 /* ForceDirectedGraphView+Render.swift */; };
 		342DA5972C51F45081E9FB80 /* EntityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B118FE1DE4F78C0EE238539 /* EntityStore.swift */; };
+		FEEDDEAD000000000000000A /* BatchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDDEAD0000000000000009 /* BatchStore.swift */; };
+		FEEDDEAD000000000000000C /* BatchRunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDDEAD000000000000000B /* BatchRunView.swift */; };
 		FEEDDEAD0000000000000008 /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDDEAD0000000000000007 /* WorkspaceStore.swift */; };
 		34F019EE1DA4E427EF3674EC /* OpenAffordances.swift in Sources */ = {isa = PBXBuildFile; fileRef = A68A831B2F81707B5E082D6F /* OpenAffordances.swift */; };
 		3591D3E8CE619A9731DF2242 /* CanvasDetailTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80920949B39DD526745B0BF2 /* CanvasDetailTier.swift */; };
@@ -631,6 +633,8 @@
 		09D8F04A6421AEC5B5370E92 /* CanvasDropOutcome.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasDropOutcome.swift; sourceTree = "<group>"; };
 		0A4F63C0FA3C779A6BA5B655 /* EngineSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EngineSettingsView.swift; sourceTree = "<group>"; };
 		0B118FE1DE4F78C0EE238539 /* EntityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EntityStore.swift; sourceTree = "<group>"; };
+		FEEDDEAD0000000000000009 /* BatchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BatchStore.swift; path = fichero/Models/BatchStore.swift; sourceTree = SOURCE_ROOT; };
+		FEEDDEAD000000000000000B /* BatchRunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BatchRunView.swift; path = fichero/Views/Workflow/BatchRunView.swift; sourceTree = SOURCE_ROOT; };
 		FEEDDEAD0000000000000007 /* WorkspaceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
 		0BE6CF3DE02E1F999AE8F1A9 /* SidebarItemRow+Presentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Presentation.swift"; sourceTree = "<group>"; };
 		0EBBA30F68AE440FAF4DC1E4 /* SpatialView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialView.swift; sourceTree = "<group>"; };
@@ -1664,6 +1668,8 @@
 				D82A9BAC0F995F9199F94B69 /* KGFocusState.swift */,
 				E5C0909F7C7B21871D35EB5C /* SpatialModels+Links.swift */,
 				0B118FE1DE4F78C0EE238539 /* EntityStore.swift */,
+				FEEDDEAD0000000000000009 /* BatchStore.swift */,
+				FEEDDEAD000000000000000B /* BatchRunView.swift */,
 				FEEDDEAD0000000000000007 /* WorkspaceStore.swift */,
 				1C527476477074D83F628468 /* ClaimStore.swift */,
 				EFA65406167827DCB144E3E2 /* NoteStore.swift */,
@@ -2905,6 +2911,8 @@
 				B82F169352D7D0876DE0FCF9 /* EntityDetailView+Sections.swift in Sources */,
 				417694AF6ACC5AEEF6E2E4B9 /* ClaimSummaryCard+Provenance.swift in Sources */,
 				342DA5972C51F45081E9FB80 /* EntityStore.swift in Sources */,
+				FEEDDEAD000000000000000A /* BatchStore.swift in Sources */,
+				FEEDDEAD000000000000000C /* BatchRunView.swift in Sources */,
 				FEEDDEAD0000000000000008 /* WorkspaceStore.swift in Sources */,
 				E9DCE0BB3E64AD1549E6F117 /* LibraryChangeStream.swift in Sources */,
 				57EFBE5436C18075ECE90EFC /* ClaimStore.swift in Sources */,

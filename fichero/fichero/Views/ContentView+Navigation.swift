@@ -225,11 +225,9 @@ extension ContentView {
             }
 
         case .batches:
-            ContentUnavailableView(
-                "Batches",
-                systemImage: "square.stack.3d.up",
-                description: Text("Batch queue surface is feature-gated and shown independently.")
-            )
+            // Batch-mode GUI (#3536): run a workflow across many folders
+            // separately — one run per folder, each tracked in Activity.
+            BatchRunView()
 
         case .batch:
             ContentUnavailableView(
