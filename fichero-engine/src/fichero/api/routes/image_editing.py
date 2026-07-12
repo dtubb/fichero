@@ -6,6 +6,7 @@ Stores per-document non-destructive edit chains and renders previews on demand.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import tempfile
 from datetime import datetime, timezone
@@ -538,6 +539,38 @@ def _write_derived_image(document_id: str, page: int, image: Image.Image) -> str
     save_kwargs = {"quality": 92} if image_format == "JPEG" else {}
     image.save(out_path, format=image_format, **save_kwargs)
     return str(out_path)
+
+
+def _render_preview(
+    db: Database, document_id: str, apply_edits: bool, page: int
+) -> tuple[bytes, str]:
+    """Render one preview in a worker thread; cached renders are disposable."""
+    doc = _get_or_404_document(db, document_id)
+    chain = _get_chain(db, document_id) if apply_edits else None
+    version = chain.updated_at.isoformat() if chain else "raw"
+    key = hashlib.sha256(f"{document_id}:{page}:{apply_edits}:{version}".encode()).hexdigest()
+    cache_dir = db.path.parent / "storage" / "preview-cache" / document_id / f"page-{page}"
+    cache_path = cache_dir / f"{key}.bin"
+    media_path = cache_dir / f"{key}.type"
+    if cache_path.exists() and media_path.exists():
+        return cache_path.read_bytes(), media_path.read_text()
+
+    image = _load_source_image(_resolve_source_or_404(db, doc), page=page)
+    if chain:
+        for op in chain.operations:
+            if int(op.get("page", page)) == page:
+                image = apply_operation(image, op)
+    buffer = io.BytesIO()
+    image_format, media_type = _image_response_format(image)
+    image.save(buffer, format=image_format, **({"quality": 92} if image_format == "JPEG" else {}))
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path.write_bytes(buffer.getvalue())
+    media_path.write_text(media_type)
+    # ponytail: four revisions/page; increase only if users visibly revisit more history.
+    for stale in sorted(cache_dir.glob("*.bin"), key=lambda path: path.stat().st_mtime, reverse=True)[4:]:
+        stale.unlink(missing_ok=True)
+        stale.with_suffix(".type").unlink(missing_ok=True)
+    return buffer.getvalue(), media_type
 
 
 def _append_operation(
@@ -1288,25 +1321,10 @@ async def preview_image(
     page: int = Query(1, ge=1, description="PDF page number (1-indexed)"),
     db: Database = Depends(get_library_database),
 ) -> Response:
-    doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
-
-    image = _load_source_image(source_path, page=page)
-    if apply_edits:
-        chain = _get_chain(db, document_id)
-        if chain:
-            for op in chain.operations:
-                op_page = int(op.get("page", page))
-                if op_page != page:
-                    continue
-                image = _apply_operation(image, op)
-
-    buffer = io.BytesIO()
-    image_format, media_type = _image_response_format(image)
-    save_kwargs = {"quality": 92} if image_format == "JPEG" else {}
-    image.save(buffer, format=image_format, **save_kwargs)
-    buffer.seek(0)
-    return Response(content=buffer.getvalue(), media_type=media_type)
+    content, media_type = await asyncio.to_thread(
+        _render_preview, db, document_id, apply_edits, page
+    )
+    return Response(content=content, media_type=media_type)
 
 
 # ---------------------------------------------------------------------------
