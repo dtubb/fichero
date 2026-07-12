@@ -113,8 +113,14 @@ extension ContentView {
             target = source
         }
 
-        // Open the containing folder so target shows up in the grid; if
-        // target has no parent (top-level), just point sidebar at it.
+        await navigateToResolvedSource(target)
+    }
+
+    /// Open the containing folder so `target` shows up in the grid and select
+    /// it; if `target` is top-level, just point the sidebar at it. Shared by the
+    /// engine-resolved reveal (#3577) and the legacy client-side resolver above.
+    @MainActor
+    func navigateToResolvedSource(_ target: Document) async {
         if let folderId = target.parentId, !folderId.isEmpty {
             do {
                 let folder = try await documentStore.documentService.getDocument(folderId)
@@ -126,6 +132,24 @@ extension ContentView {
             }
         } else {
             navigateToDocument(target)
+        }
+    }
+
+    /// Resolve a source anchor to its parent document + page through the ONE
+    /// engine route (#3577) — page-child → parent resolution no longer lives in
+    /// the app — then select it. Falls back to the legacy client-side walk if
+    /// the engine resolve fails so a reveal never breaks (no regression).
+    @MainActor
+    func revealResolvedSource(_ request: ClaimSourceNavigationRequest) async {
+        do {
+            let resolved = try await documentStore.locationService.resolve(request.asLocation)
+            let target = try await documentStore.documentService.getDocument(resolved.resolvedDocumentId)
+            await navigateToResolvedSource(target)
+        } catch {
+            workflowLogger.warning(
+                "revealResolvedSource: engine resolve failed (\(error.localizedDescription)); falling back to client-side navigateToSourcePage"
+            )
+            await navigateToSourcePage(request.documentId)
         }
     }
 

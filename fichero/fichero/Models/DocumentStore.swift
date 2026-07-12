@@ -99,6 +99,12 @@ final class DocumentStore {
     @ObservationIgnored
     let documentService: DocumentServiceGenerated
 
+    /// Typed locations client (#3577). Shares `api`'s FicheroClient. Resolves a
+    /// navigation `Location` (page-child → parent, page range) through the one
+    /// engine route so the UI doesn't re-implement that resolution.
+    @ObservationIgnored
+    let locationService: LocationServiceGenerated
+
     /// Publish a document change event.
     func publish(_ change: DocumentChange) {
         documentChanges.send(change)
@@ -165,6 +171,7 @@ final class DocumentStore {
     init(apiClient: APIClient) {
         self.api = apiClient
         self.documentService = DocumentServiceGenerated(ficheroClient: apiClient.client)
+        self.locationService = LocationServiceGenerated(ficheroClient: apiClient.client)
     }
 
     // MARK: - Connection
