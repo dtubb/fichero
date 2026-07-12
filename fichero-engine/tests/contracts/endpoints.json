@@ -6046,6 +6046,18 @@
         "response_model": "fichero__models__DeleteModelResponse"
       }
     ],
+    "locations": [
+      {
+        "method": "POST",
+        "path": "/locations/resolve",
+        "operation_id": "resolve_location_api_locations_resolve_post",
+        "summary": "Resolve Location",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "Location",
+        "response_model": "ResolvedLocation"
+      }
+    ],
     "mcp": [
       {
         "method": "GET",

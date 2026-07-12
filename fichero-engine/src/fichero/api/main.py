@@ -1353,6 +1353,7 @@ from fichero.api.routes import (  # noqa: E402
     library_registry,
     local_inference,
     local_models,
+    locations,
     mcp_servers,
     mcp_tools,
     pairing,
@@ -1422,6 +1423,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (folders.router, "/api/folders", ["folders"]),
     (ingest.router, "/api/ingest", ["ingest"]),
     (image_editing.router, "/api", ["images"]),
+    (locations.router, "/api", ["locations"]),
     # /api/library — bootstrap a fresh .fichero package from the CLI
     # without going through SwiftUI's NSDocument flow (#1075 follow-up).
     (library.router, "/api", ["library"]),

@@ -46,6 +46,7 @@ EXPECTED_TOOLS = {
     "fichero_workspace_remove_source",
     "fichero_workspace_surface_claim",
     "fichero_workspace_add_note",
+    "fichero_reveal_location",
 }
 
 
@@ -233,6 +234,15 @@ def test_auth_and_library_headers_are_set(monkeypatch):
     assert seen[0].headers["x-fichero-library-path"] == quote(
         "/tmp/Lib.fichero", safe="/"
     )
+
+
+def test_reveal_location_hits_typed_resolver(monkeypatch):
+    with _mock_client(monkeypatch) as seen:
+        mcp_server.fichero_reveal_location("page-1", page=2, bbox=[0, 0, 1, 1])
+    assert seen[0].url.path == "/api/locations/resolve"
+    assert json.loads(seen[0].content) == {
+        "documentId": "page-1", "page": 2, "bbox": [0, 0, 1, 1], "surface": "both"
+    }
 
 
 @pytest.mark.parametrize(

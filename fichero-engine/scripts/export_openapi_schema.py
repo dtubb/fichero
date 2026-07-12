@@ -81,6 +81,21 @@ def convert_nullable_schemas(obj: dict | list) -> dict | list:
     return result
 
 
+def convert_exclusive_bounds(obj: Any) -> Any:
+    """Down-convert Pydantic numeric exclusive bounds for OpenAPI 3.0."""
+    if isinstance(obj, list):
+        return [convert_exclusive_bounds(item) for item in obj]
+    if not isinstance(obj, dict):
+        return obj
+    result = {key: convert_exclusive_bounds(value) for key, value in obj.items()}
+    for exclusive, inclusive in (("exclusiveMinimum", "minimum"), ("exclusiveMaximum", "maximum")):
+        value = result.get(exclusive)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            result[inclusive] = value
+            result[exclusive] = True
+    return result
+
+
 def _replace_schema_refs(obj: Any, ref_map: dict[str, str]) -> Any:
     """Recursively replace component $ref targets with canonical names."""
     if isinstance(obj, list):
@@ -295,6 +310,7 @@ def build_openapi_schema() -> dict:
 
     # Step 4: Convert nullable schemas for Swift compatibility
     openapi_schema = convert_nullable_schemas(openapi_schema)
+    openapi_schema = convert_exclusive_bounds(openapi_schema)
 
     # Step 5: Use OpenAPI 3.0.3 for better Swift compatibility (nullable is a 3.0 feature)
     openapi_schema["openapi"] = "3.0.3"

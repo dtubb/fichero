@@ -12241,6 +12241,49 @@
         }
       }
     },
+    "/api/locations/resolve": {
+      "post": {
+        "tags": [
+          "locations",
+          "locations"
+        ],
+        "summary": "Resolve Location",
+        "description": "Resolve a page-child anchor once, for every UI/MCP caller.",
+        "operationId": "resolve_location_api_locations_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Location"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedLocation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/library": {
       "post": {
         "tags": [
@@ -37305,6 +37348,26 @@
         ],
         "title": "ChainStepResultInfo"
       },
+      "CharacterRange": {
+        "properties": {
+          "start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "CharacterRange"
+      },
       "ChatConversationListResponse": {
         "properties": {
           "items": {
@@ -40648,19 +40711,25 @@
         "properties": {
           "left": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Left"
           },
           "top": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Top"
           },
           "width": {
             "type": "integer",
-            "title": "Width"
+            "exclusiveMinimum": true,
+            "title": "Width",
+            "minimum": 0.0
           },
           "height": {
             "type": "integer",
-            "title": "Height"
+            "exclusiveMinimum": true,
+            "title": "Height",
+            "minimum": 0.0
           },
           "auto_orient": {
             "type": "boolean",
@@ -45002,19 +45071,25 @@
         "properties": {
           "left": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Left"
           },
           "top": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Top"
           },
           "width": {
             "type": "integer",
-            "title": "Width"
+            "exclusiveMinimum": true,
+            "title": "Width",
+            "minimum": 0.0
           },
           "height": {
             "type": "integer",
-            "title": "Height"
+            "exclusiveMinimum": true,
+            "title": "Height",
+            "minimum": 0.0
           },
           "auto_orient": {
             "type": "boolean",
@@ -49017,6 +49092,64 @@
         ],
         "title": "LocalServiceState",
         "description": "Lifecycle state for an app-managed local inference service."
+      },
+      "Location": {
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Documentid"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Page"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "nullable": true,
+            "title": "Bbox"
+          },
+          "charRange": {
+            "$ref": "#/components/schemas/CharacterRange",
+            "nullable": true
+          },
+          "claimId": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claimid"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entityid"
+          },
+          "surface": {
+            "$ref": "#/components/schemas/LocationSurface",
+            "default": "both"
+          }
+        },
+        "type": "object",
+        "required": [
+          "documentId"
+        ],
+        "title": "Location"
+      },
+      "LocationSurface": {
+        "type": "string",
+        "enum": [
+          "preview",
+          "reader",
+          "inspector",
+          "both"
+        ],
+        "title": "LocationSurface"
       },
       "LoginRequest": {
         "properties": {
@@ -55624,6 +55757,64 @@
         "type": "object",
         "title": "ResolveRequest"
       },
+      "ResolvedLocation": {
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Documentid"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Page"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "nullable": true,
+            "title": "Bbox"
+          },
+          "charRange": {
+            "$ref": "#/components/schemas/CharacterRange",
+            "nullable": true
+          },
+          "claimId": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claimid"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entityid"
+          },
+          "surface": {
+            "$ref": "#/components/schemas/LocationSurface",
+            "default": "both"
+          },
+          "resolvedDocumentId": {
+            "type": "string",
+            "title": "Resolveddocumentid"
+          },
+          "resolvedPage": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Resolvedpage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "documentId",
+          "resolvedDocumentId"
+        ],
+        "title": "ResolvedLocation"
+      },
       "ResumeWorkflowRequest": {
         "properties": {
           "inputs": {
@@ -55811,6 +56002,8 @@
         "properties": {
           "angle": {
             "type": "number",
+            "maximum": 360.0,
+            "minimum": -360.0,
             "title": "Angle"
           },
           "expand": {

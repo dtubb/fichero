@@ -190,7 +190,17 @@ struct PDFPageWithToolbar: View {
         // A direct click anywhere in this pane makes it the active surface
         // (#3579). simultaneousGesture runs alongside PDFKit hit-testing so it
         // never steals the click — same pattern as focusedPane tracking.
-        .simultaneousGesture(TapGesture().onEnded { activeSurfaceState?.activeSurfaceId = surfaceId })
+        .simultaneousGesture(TapGesture().onEnded { activeSurfaceState?.activate(surfaceId) })
+        // Join/leave the active-surface pool (#3580). Registering when it appears
+        // makes a sole pane auto-active; toggling on isPinned clears active if it
+        // pointed here (pinned panes never follow selection) and hands a lone
+        // survivor the active slot.
+        .onAppear { activeSurfaceState?.registerUnpinned(surfaceId) }
+        .onDisappear { activeSurfaceState?.unregister(surfaceId) }
+        .onChange(of: isPinned) { _, pinned in
+            if pinned { activeSurfaceState?.unregister(surfaceId) }
+            else { activeSurfaceState?.registerUnpinned(surfaceId) }
+        }
     }
 
     /// True when this pane instance is the window's active surface (#3579).
