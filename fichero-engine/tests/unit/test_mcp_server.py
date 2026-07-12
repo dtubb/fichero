@@ -42,6 +42,10 @@ EXPECTED_TOOLS = {
     "fichero_artifact_get",
     "fichero_search",
     "fichero_activity",
+    "fichero_workspace_add_source",
+    "fichero_workspace_remove_source",
+    "fichero_workspace_surface_claim",
+    "fichero_workspace_add_note",
 }
 
 
@@ -229,6 +233,45 @@ def test_auth_and_library_headers_are_set(monkeypatch):
     assert seen[0].headers["x-fichero-library-path"] == quote(
         "/tmp/Lib.fichero", safe="/"
     )
+
+
+@pytest.mark.parametrize(
+    ("tool", "params", "action", "action_params"),
+    [
+        (
+            mcp_server.fichero_workspace_add_source,
+            ("workspace-1", "doc-1"),
+            "workspace.add_source",
+            {"workspace_id": "workspace-1", "document_id": "doc-1"},
+        ),
+        (
+            mcp_server.fichero_workspace_remove_source,
+            ("workspace-1", "doc-1"),
+            "workspace.remove_source",
+            {"workspace_id": "workspace-1", "document_id": "doc-1"},
+        ),
+        (
+            mcp_server.fichero_workspace_surface_claim,
+            ("workspace-1", "claim-1"),
+            "workspace.surface_claim",
+            {"workspace_id": "workspace-1", "claim_id": "claim-1"},
+        ),
+        (
+            mcp_server.fichero_workspace_add_note,
+            ("workspace-1", "Remember this"),
+            "workspace.add_note",
+            {"workspace_id": "workspace-1", "text": "Remember this"},
+        ),
+    ],
+)
+def test_workspace_tools_invoke_audited_action(
+    monkeypatch, tool, params, action, action_params
+):
+    with _mock_client(monkeypatch) as seen:
+        monkeypatch.setattr(mcp_server, "_agent_client", mcp_server._client)
+        tool(*params)
+    assert seen[0].url.path == "/api/actions/invoke"
+    assert json.loads(seen[0].content) == {"name": action, "params": action_params}
 
 
 def test_create_note_hits_core_notes_endpoint(monkeypatch):
