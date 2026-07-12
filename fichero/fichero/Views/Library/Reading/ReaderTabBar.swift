@@ -86,6 +86,37 @@ enum ReaderPageLayout: String, CaseIterable, Identifiable {
     }
 }
 
+/// Notes-tab sub-mode (#3513): the anchored reading marks (highlights / notes /
+/// bookmarks) or free-text document notes. Both live under Notes so the reading
+/// layer and loose notes share one tab.
+enum ReaderNotesMode: String, CaseIterable, Identifiable {
+    case annotations
+    case notes
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .annotations: return "Marks"
+        case .notes: return "Notes"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .annotations: return "highlighter"
+        case .notes: return "note.text"
+        }
+    }
+
+    var help: String {
+        switch self {
+        case .annotations: return "Highlights, notes, and bookmarks anchored to the page"
+        case .notes: return "Free-text notes about this document"
+        }
+    }
+}
+
 /// Native top-tab switcher for the Reader. The reader is the center pane with
 /// room to spare, and top tabs read well — the DECIDED switcher style (Daniel
 /// 2026-07-11): native chrome over the WebKit/native content beneath. A

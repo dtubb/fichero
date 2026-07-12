@@ -25,6 +25,12 @@ private struct ReadingPaneView: View {
     @Environment(\.splitAxisActions) private var splitAxisActions
     /// Shared annotation focus for the Notes tab's list ↔ detail selection.
     @State private var focusedAnnotation = FocusedAnnotation.shared
+    /// Notes-tab sub-mode: anchored marks vs free-text notes (#3513). Per-window.
+    @SceneStorage("reader.notes.mode") private var notesModeRaw = ReaderNotesMode.annotations.rawValue
+    private var notesMode: ReaderNotesMode { ReaderNotesMode(rawValue: notesModeRaw) ?? .annotations }
+    private var notesModeBinding: Binding<ReaderNotesMode> {
+        Binding(get: { notesMode }, set: { notesModeRaw = $0.rawValue })
+    }
 
     @State private var isPinned = false
     @State private var pinnedDocument: Document?
@@ -368,20 +374,44 @@ private struct ReadingPaneView: View {
         }
     }
 
-    /// Notes tab — the human reading layer: highlights / notes / bookmarks
-    /// anchored to the page, via the shared `AnnotationsInspectorPane`
-    /// (AnnotationStore-backed, list + detail, reveal-in-source, promote-to-claim).
-    /// The parent loads the document-scoped slice; the pane owns the mutations.
+    /// Notes tab — the human reading layer. A sub-mode toggle (#3513) switches
+    /// between anchored **Marks** (highlights / notes / bookmarks via the shared
+    /// `AnnotationsInspectorPane`) and free-text document **Notes** (NoteStore
+    /// via `DocumentNotesTab`), so both loose notes and page-anchored marks live
+    /// under one tab.
     @ViewBuilder
     private var notesTabContent: some View {
         if let doc = effectiveDocument {
-            AnnotationsInspectorPane(
-                document: doc,
-                annotations: annotationStore.annotations,
-                focused: focusedAnnotation
-            )
-            .task(id: doc.id) {
-                await annotationStore.loadAnnotations(for: annotationScope(for: doc), force: true)
+            VStack(spacing: 0) {
+                Picker("Notes mode", selection: notesModeBinding) {
+                    ForEach(ReaderNotesMode.allCases) { mode in
+                        Label(mode.title, systemImage: mode.icon)
+                            .help(mode.help)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelStyle(.titleAndIcon)
+                .fixedSize()
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .accessibilityIdentifier("readerNotesMode")
+
+                Divider()
+
+                switch notesMode {
+                case .annotations:
+                    AnnotationsInspectorPane(
+                        document: doc,
+                        annotations: annotationStore.annotations,
+                        focused: focusedAnnotation
+                    )
+                    .task(id: doc.id) {
+                        await annotationStore.loadAnnotations(for: annotationScope(for: doc), force: true)
+                    }
+                case .notes:
+                    DocumentNotesTab(document: doc)
+                }
             }
         } else {
             readerEmptyState
