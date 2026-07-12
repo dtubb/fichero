@@ -120,3 +120,7 @@ agent-work/
 HISTORY.md
 HISTORY*.md
 .build-ios/
+
+# agent worker briefs (internal, per-worktree)
+.inspector-worker-brief.md
+.worker-brief.md
