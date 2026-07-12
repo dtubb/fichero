@@ -42,6 +42,8 @@ struct DocumentInspectorEntitiesTab: View {
     @State private var pendingReclassifyPlan: PendingEntityReclassifyPlan?
     @State private var pendingDeleteConfirmation: PendingEntityDeleteConfirmation?
     @State private var actionMessage: String?
+    /// Presents the user-driven reconciliation scope picker + merge (#3318).
+    @State private var showReconcile = false
     @State private var dropTargetEntityId: String?
     /// In-place rename state — the id of the entity whose name is being
     /// edited inline, plus the draft text. (#1865)
@@ -181,6 +183,9 @@ struct DocumentInspectorEntitiesTab: View {
         // The store owns fetching; the view just scopes it to this document
         // (or the folder's aggregated children when the scope toggle is on).
         .task(id: "\(documentId)-\(includeChildren)") { await loadScopedEntities() }
+        .sheet(isPresented: $showReconcile) {
+            EntityReconciliationSheet(documentId: documentId)
+        }
         .onAppear { recomputeGrouped() }
         .onChange(of: scopedEntities) { _, _ in
             recomputeGrouped()
@@ -260,6 +265,15 @@ struct DocumentInspectorEntitiesTab: View {
             .buttonStyle(.plain)
             .help("Reload entities")
             .accessibilityLabel("Reload entities")
+
+            Button {
+                showReconcile = true
+            } label: {
+                Image(systemName: "arrow.triangle.merge")
+            }
+            .buttonStyle(.plain)
+            .help("Reconcile duplicate entities — choose a scope (folder or library)")
+            .accessibilityLabel("Reconcile entities")
 
             if entitySelection.count > 1 {
                 bulkActionMenu(title: "Approve", systemImage: "checkmark.circle", action: .approve)

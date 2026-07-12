@@ -1028,4 +1028,50 @@ private func makeKnowledgeClaim(
         objectPhrase: object
     )
 }
+// MARK: - Entity reconciliation grouping (#3318)
+
+final class EntityReconciliationTests: XCTestCase {
+    private func entity(_ id: String, _ name: String) -> Components.Schemas.KnowledgeEntity {
+        Components.Schemas.KnowledgeEntity(
+            id: id,
+            canonicalName: name,
+            entityType: .person,
+            aliases: nil,
+            description: nil,
+            language: nil,
+            metadata: nil,
+            mergedIntoId: nil
+        )
+    }
+
+    func testGroupsNormalizedNameDuplicatesAndSkipsSingletons() {
+        let entities = [
+            entity("1", "Ada Lovelace"),
+            entity("2", "ada lovelace"),   // case variant → same group as 1
+            entity("3", "  Ada Lovelace "), // whitespace variant → same group
+            entity("4", "Charles Babbage")  // unique → no group
+        ]
+        let groups = EntityReconciliationSheet.groupDuplicates(entities)
+        XCTAssertEqual(groups.count, 1, "only the Ada Lovelace variants form a group")
+        XCTAssertEqual(groups.first?.entities.count, 3)
+        XCTAssertEqual(Set(groups.first?.entities.compactMap(\.id) ?? []), ["1", "2", "3"])
+    }
+
+    func testNormalizedKeyFoldsCaseAndWhitespace() {
+        XCTAssertEqual(
+            EntityReconciliationSheet.normalizedKey("  Popayán "),
+            EntityReconciliationSheet.normalizedKey("popayán")
+        )
+    }
+
+    func testScopeAvailabilityMatchesTheShippedScopes() {
+        // Folder + Library ship now; cross-library (#3527) + external (#3528) are
+        // deferred and must render disabled.
+        XCTAssertTrue(EntityReconciliationScope.folder.isAvailable)
+        XCTAssertTrue(EntityReconciliationScope.library.isAvailable)
+        XCTAssertFalse(EntityReconciliationScope.crossLibrary.isAvailable)
+        XCTAssertFalse(EntityReconciliationScope.external.isAvailable)
+    }
+}
+
 // swiftlint:enable file_length type_body_length
