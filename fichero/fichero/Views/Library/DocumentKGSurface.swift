@@ -111,13 +111,14 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         }
     }
 
-    /// True for tabs rendered inside the shared WKWebView (#1346). Entities,
-    /// claims, and the force graph render natively (inspector / OntologyBrowser
-    /// components), so the WebKit pane hides for them.
+    /// True for tabs rendered inside the shared WKWebView (#1346). The KG
+    /// visualizations (Entities, Claims, Graph, Timeline, Map) render natively
+    /// via inspector / OntologyBrowser components; only the transcript and the
+    /// digest summary remain WebKit HTML.
     var usesWebKit: Bool {
         switch self {
-        case .transcript, .digest, .timeline, .map: return true
-        case .claims, .entities, .graph: return false
+        case .transcript, .digest: return true
+        case .claims, .entities, .graph, .timeline, .map: return false
         }
     }
 }
@@ -285,13 +286,27 @@ struct DocumentKGSurface: View {
     @ViewBuilder
     private var nativeTabContent: some View {
         switch activeTab {
-        case .transcript, .digest, .timeline, .map:
+        case .transcript, .digest:
             EmptyView()
         case .graph:
             // Native force-directed graph (OntologyBrowser component) over the
             // document's entities — no WebKit (#3503). Nodes are entities, edges
             // their claim co-occurrence; selecting a node drives KG focus.
             ForceDirectedGraphView(
+                entities: documentEntities,
+                selectedEntityId: selectedEntityBinding
+            )
+        case .timeline:
+            // Native timeline (OntologyBrowser component): the document's
+            // entities' dated claims on a time axis (#3503).
+            KGTimelineView(
+                entities: documentEntities,
+                selectedEntityId: selectedEntityBinding
+            )
+        case .map:
+            // Native map (OntologyBrowser component): the document's entities'
+            // geo-located claims (#3503).
+            KGMapView(
                 entities: documentEntities,
                 selectedEntityId: selectedEntityBinding
             )
