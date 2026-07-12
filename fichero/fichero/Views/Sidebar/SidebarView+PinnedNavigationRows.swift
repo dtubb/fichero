@@ -100,6 +100,43 @@ extension SidebarView {
         )
     }
 
+    /// Research / Workspaces section (#3533 / #3540): saved agent workspaces
+    /// listed under Research. Selecting one reopens its chat/agent session in the
+    /// unified Chat surface (the workspace's `messageHistoryRef` is the
+    /// conversation id → the existing `.chat(id)` routing). Delete is
+    /// reversible-safe per the backend. The store is the only endpoint accessor.
+    @ViewBuilder
+    func workspacesSection() -> some View {
+        if FeatureManager.shared.isChatEnabled, let store = workspaceStore {
+            Text("Workspaces")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 2, trailing: 8))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .selectionDisabled()
+                .task { await store.load() }
+
+            ForEach(store.workspaces, id: \.id) { workspace in
+                Label(workspace.title, systemImage: "bubble.left.and.text.bubble.right")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .tag(SidebarDestination.chat(workspace.messageHistoryRef))
+                    .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 0, trailing: 8))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .help("Reopen this saved workspace chat")
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            Task { await store.delete(id: workspace.id) }
+                        } label: {
+                            Label("Delete Workspace", systemImage: "trash")
+                        }
+                    }
+            }
+        }
+    }
+
     private func entitiesNavigationRow() -> some View {
         pinnedNavigationRow(
             "Entities",
@@ -143,6 +180,8 @@ extension SidebarView {
         if FeatureManager.shared.isResearchEnabled {
             researchNavigationRow()
         }
+
+        workspacesSection()
 
         if FeatureManager.shared.isKnowledgeGraphEnabled {
             entitiesNavigationRow()
