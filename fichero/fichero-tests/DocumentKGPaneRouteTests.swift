@@ -167,13 +167,20 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertFalse(source.contains("webView.evaluateJavaScript(script)"))
     }
 
-    func testScrollSyncUsesTranscriptPageAnchors() {
+    func testScrollSyncUsesMeasuredTranscriptPageAnchors() {
         let script = DocumentKGPaneRoute.scrollSyncScript(pageCount: 3)
 
-        XCTAssertTrue(script.contains("IntersectionObserver"))
+        // Real per-page DOM anchors, measured (not a proportional estimate):
+        // offsets come from getBoundingClientRect/scrollTop, scroll→page maps by
+        // range containment, and page→scroll uses scrollIntoView (#3226).
         XCTAssertTrue(script.contains("data-page"))
+        XCTAssertTrue(script.contains("getBoundingClientRect"))
+        XCTAssertTrue(script.contains("pageForScroll"))
         XCTAssertTrue(script.contains("scrollIntoView"))
+        XCTAssertTrue(script.contains("addEventListener('scroll'"))
+        // No proportional scroll↔page estimation may creep back in.
         XCTAssertFalse(script.contains("progress * maxScroll"))
         XCTAssertFalse(script.contains("scrollTop / maxScroll"))
+        XCTAssertFalse(script.contains("maxScroll"))
     }
 }

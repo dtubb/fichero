@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import WebKit
 
+// swiftlint:disable:next type_body_length
 enum DocumentKGPaneRoute {
     static let globalKGDocumentID = "__kg_global__"
 
@@ -250,6 +251,39 @@ enum DocumentKGPaneRoute {
                 });
                 return pageAnchors();
             }
+            // Measured per-page offset table: each anchor marks a page's real
+            // start, so its measured scroll offset is that page's top and the
+            // next anchor's offset is its bottom. Real DOM measurement (never a
+            // proportional scrollTop/maxScroll estimate) is what makes the map
+            // exact when pages have unequal transcript heights (#3226).
+            function pageOffsets() {
+                var root = scroller();
+                var anchors = installPageAnchors();
+                if (!root || anchors.length === 0) { return []; }
+                var rootTop = (root === document.scrollingElement)
+                    ? 0
+                    : root.getBoundingClientRect().top;
+                var offsets = anchors.map(function(anchor) {
+                    var rect = anchor.getBoundingClientRect();
+                    return { page: Number(anchor.dataset.page), top: rect.top - rootTop + root.scrollTop };
+                }).filter(function(entry) { return Number.isFinite(entry.page); });
+                offsets.sort(function(a, b) { return a.top - b.top; });
+                return offsets;
+            }
+            // The page whose measured [top, nextTop) offset range contains the
+            // current reading line — a line a little below the viewport top, so a
+            // page's body wins over the trailing sliver of the previous page.
+            function pageForScroll() {
+                var root = scroller();
+                var offsets = pageOffsets();
+                if (!root || offsets.length === 0) { return null; }
+                var readingLine = root.scrollTop + Math.min(root.clientHeight * 0.25, 80);
+                var current = offsets[0].page;
+                for (var i = 0; i < offsets.length; i++) {
+                    if (offsets[i].top <= readingLine) { current = offsets[i].page; } else { break; }
+                }
+                return current;
+            }
             window.ficheroScrollToPage = function(pageNumber, pageCount) {
                 var count = pageCount || window.ficheroPageCount || 0;
                 var page = Number(pageNumber);
@@ -260,37 +294,49 @@ enum DocumentKGPaneRoute {
                     anchor = document.querySelector('.transcript [data-page="' + page + '"]');
                 }
                 if (!anchor || !root || count <= 1 || !Number.isFinite(page)) { return; }
+                // Bump the sequence + arm the echo guard so the programmatic
+                // scroll this triggers doesn't post the same page straight back
+                // (the feedback loop the Swift time-windows used to mask). The
+                // guard clears once the scroll has settled (two frames).
                 window.ficheroScrollSyncSequence += 1;
+                window.ficheroSuppressScrollPost = true;
+                window.ficheroScrollSyncLastPage = page;
                 anchor.scrollIntoView({ block: 'start', inline: 'nearest' });
+                window.requestAnimationFrame(function() {
+                    window.requestAnimationFrame(function() {
+                        window.ficheroSuppressScrollPost = false;
+                    });
+                });
             };
             function postPage(page) {
                 var count = window.ficheroPageCount || 0;
                 var handler = window.webkit?.messageHandlers?.ficheroBridge;
-                if (!handler || count <= 1 || page === window.ficheroScrollSyncLastPage) { return; }
+                if (!handler || count <= 1 || page === null || page === window.ficheroScrollSyncLastPage) { return; }
                 window.ficheroScrollSyncLastPage = page;
                 handler.postMessage({ kind: 'pageSelected', pageNumber: page });
             }
-            function observePageAnchors() {
-                var root = scroller();
-                var anchors = installPageAnchors();
-                var count = window.ficheroPageCount || 0;
-                if (!root || count <= 1 || anchors.length === 0) { return; }
-                if (window.ficheroScrollSyncObserver) {
-                    window.ficheroScrollSyncObserver.disconnect();
-                }
-                window.ficheroScrollSyncObserver = new IntersectionObserver(function(entries) {
-                    var visible = entries
-                        .filter(function(entry) { return entry.isIntersecting; })
-                        .sort(function(a, b) {
-                            return Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top);
-                        });
-                    if (visible.length === 0) { return; }
-                    var page = Number(visible[0].target.dataset.page);
-                    if (Number.isFinite(page)) { postPage(page); }
-                }, { root: root === document.scrollingElement ? null : root, rootMargin: '0px 0px -70% 0px' });
-                anchors.forEach(function(anchor) { window.ficheroScrollSyncObserver.observe(anchor); });
+            function onScroll() {
+                if (window.ficheroSuppressScrollPost || window.ficheroScrollRAF) { return; }
+                window.ficheroScrollRAF = window.requestAnimationFrame(function() {
+                    window.ficheroScrollRAF = null;
+                    var page = pageForScroll();
+                    if (page !== null) { postPage(page); }
+                });
             }
-            observePageAnchors();
+            function installScrollSync() {
+                var root = scroller();
+                var count = window.ficheroPageCount || 0;
+                installPageAnchors();
+                if (!root || count <= 1) { return; }
+                var target = (root === document.scrollingElement) ? document : root;
+                if (window.ficheroScrollTarget && window.ficheroScrollHandler) {
+                    window.ficheroScrollTarget.removeEventListener('scroll', window.ficheroScrollHandler);
+                }
+                window.ficheroScrollTarget = target;
+                window.ficheroScrollHandler = onScroll;
+                target.addEventListener('scroll', onScroll, { passive: true });
+            }
+            installScrollSync();
         })();
         """
     }
