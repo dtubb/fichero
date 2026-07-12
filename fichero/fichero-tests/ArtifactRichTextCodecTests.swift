@@ -146,6 +146,54 @@ final class ArtifactRichTextCodecTests: XCTestCase {
                       "the saved content must preserve bold (#2494)")
     }
 
+    // MARK: - RTF transcript edit round-trip (#2416)
+
+    /// End-to-end regression for #2416: editing an RTF-seeded transcript in the
+    /// inspector must persist cleanly to the focused page. Mirrors the exact
+    /// composition `ArtifactPanel` performs — seed via `decodeAttributed`
+    /// (`.task(id:)`), the user edits the `AttributedString`, `performSave`
+    /// re-encodes via `encodeAttributed` and hands it to the store's
+    /// page-content save. Asserts the persisted payload targets the right
+    /// document, keeps the edit, resolves the RTF accent escapes (no raw
+    /// `\'xx`), and preserves bold formatting through the round-trip.
+    func testRTFTranscriptEditPersistsToFocusedPage() async throws {
+        // A page stored as RTF with an accented escape and a bold word — the
+        // shape #2416/#2317 describes.
+        let storedRTF = "{\\rtf1\\ansi Se\\'f1or {\\b Jos\\'e9} note}"
+
+        // Seed: exactly what ArtifactPanel's `.task(id:)` does.
+        var draft = ArtifactRichTextCodec.decodeAttributed(storedRTF)
+        XCTAssertTrue(String(draft.characters).contains("Señor"), "seed must resolve \\'f1 → ñ")
+        XCTAssertTrue(String(draft.characters).contains("José"), "seed must resolve \\'e9 → é")
+
+        // User edit: append a word to the transcript.
+        draft.append(AttributedString(" edited"))
+
+        // Save: exactly what ArtifactPanel.performSave hands to onSave.
+        let encoded = ArtifactRichTextCodec.encodeAttributed(draft)
+
+        let captured = Captured()
+        let store = DocumentStore(apiClient: APIClient())
+        let error = await store.savePageContent(documentId: "page-7") {
+            captured.set(encoded)
+            return Document(id: "page-7", parentId: "doc-1", docType: .page, name: "Page 7")
+        }
+
+        XCTAssertNil(error, "the RTF transcript save must succeed")
+        let sent = try XCTUnwrap(captured.value, "the save closure must have fired for the focused page")
+        XCTAssertEqual(sent, encoded, "the focused page must receive the encoded edit verbatim")
+
+        // Decoded (what the reader/inspector actually shows) resolves accents
+        // and carries both the original text and the new edit. The stored form
+        // stays valid RTF (bold present), so accents legitimately live as \'xx
+        // escapes there — the contract is that the DECODED text is clean.
+        let readBack = ArtifactRichTextCodec.decode(sent)
+        XCTAssertTrue(readBack.string.contains("Señor"), "original accented text must survive the edit")
+        XCTAssertTrue(readBack.string.contains("edited"), "the user's edit must persist")
+        XCTAssertTrue(fontTrait(readBack, word: "José", trait: .boldFontMask),
+                      "bold formatting must round-trip through the RTF transcript edit (#2416)")
+    }
+
     // MARK: - Helpers
 
     private func fontTrait(_ attr: NSAttributedString, word: String, trait: NSFontTraitMask) -> Bool {
