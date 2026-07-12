@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
 from fichero.api.auth import action_context
@@ -77,6 +77,40 @@ class SegmentOperationRequest(BaseModel):
     page: int = Field(1, ge=1)
 
 
+class ImageSplitRequest(BaseModel):
+    """Explicit source-image regions to expose as reversible child nodes."""
+
+    bboxes: list[tuple[int, int, int, int]] | None = None
+
+    @field_validator("bboxes")
+    @classmethod
+    def validate_bboxes(
+        cls, bboxes: list[tuple[int, int, int, int]] | None
+    ) -> list[tuple[int, int, int, int]] | None:
+        if bboxes is None:
+            return bboxes
+        if not bboxes:
+            raise ValueError("at least one bbox is required")
+        for x, y, width, height in bboxes:
+            if x < 0 or y < 0 or width <= 0 or height <= 0:
+                raise ValueError("bbox coordinates must be non-negative with positive width and height")
+        for index, (x, y, width, height) in enumerate(bboxes):
+            for other_x, other_y, other_width, other_height in bboxes[index + 1 :]:
+                if x < other_x + other_width and other_x < x + width and y < other_y + other_height and other_y < y + height:
+                    raise ValueError("split bboxes must not overlap")
+        return bboxes
+
+
+class ImageSplitResponse(BaseModel):
+    source_document_id: str
+    children: list[Document]
+
+
+class ImageUnsplitResponse(BaseModel):
+    source_document_id: str
+    deleted_child_ids: list[str]
+
+
 def _get_or_404_document(db: Database, document_id: str) -> Document:
     doc = db.get(Document, document_id)
     if not doc:
@@ -125,6 +159,36 @@ def _load_source_image(path: Path, page: int = 1) -> Image.Image:
         return oriented.copy()
 
 
+def _remove_black_background_opencv(image: Image.Image) -> Image.Image:
+    """Port the archive contour-mask and crop path for black scanner borders."""
+    import cv2  # type: ignore[import-not-found]
+    import numpy as np
+
+    rgb = np.array(image.convert("RGB"))
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    if np.count_nonzero(gray < 80) / gray.size < 0.01:
+        return image.convert("RGBA")
+    _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return image.convert("RGBA")
+    areas = [cv2.contourArea(contour) for contour in contours]
+    largest = max(areas)
+    mask = np.zeros_like(binary)
+    for contour, area in zip(contours, areas):
+        if area >= largest * 0.2:
+            cv2.drawContours(mask, [contour], -1, 255, thickness=-1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    mask = cv2.GaussianBlur(mask, (21, 21), 0)
+    ys, xs = np.nonzero(mask)
+    if not len(xs):
+        return image.convert("RGBA")
+    rgba = image.convert("RGBA")
+    rgba.putalpha(Image.fromarray(mask))
+    return rgba.crop((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
+
+
 def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Image:
     method = str(params.get("method", "opencv")).strip().lower()
     if method == "rembg":
@@ -143,16 +207,8 @@ def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Imag
         except ImportError:
             method = "threshold"
         else:
-            rgb = np.array(image.convert("RGB"))
-            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-            _, mask = cv2.threshold(
-                gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
-            )
-            kernel = np.ones((3, 3), np.uint8)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-            rgba = image.convert("RGBA")
-            rgba.putalpha(Image.fromarray(mask))
-            return rgba
+            del cv2, np
+            return _remove_black_background_opencv(image)
 
     if method == "threshold":
         threshold = int(params.get("threshold", 28))
@@ -457,6 +513,97 @@ def _create_segment_documents(
     return child_ids
 
 
+def _split_children(db: Database, source_id: str) -> list[Document]:
+    return [
+        document
+        for document in db.query(Document, parent_id=source_id)
+        if document.deleted_at is None
+        and isinstance(document.metadata, dict)
+        and document.metadata.get("split_source_id") == source_id
+    ]
+
+
+def _archive_split_bboxes(image: Image.Image) -> list[tuple[int, int, int, int]]:
+    """Port the archive OpenCV centre-gutter detector as non-destructive regions."""
+    try:
+        import cv2  # type: ignore[import-not-found]
+        import numpy as np
+    except ImportError as exc:
+        raise HTTPException(status_code=501, detail="OpenCV is required for auto split") from exc
+
+    width, height = image.size
+    aspect_ratio = width / height
+    if aspect_ratio < 1.2 or width < 1000:
+        raise HTTPException(status_code=422, detail="Image is not a split-page candidate")
+
+    gray = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
+    centre = width // 2
+    deviation = int(width * (0.1 if aspect_ratio > 1.6 else 0.2))
+    start, end = centre - deviation, centre + deviation
+    column_means = gray.mean(axis=0)
+    split_x = start + int(np.argmin(column_means[start:end]))
+    neighbours = np.concatenate(
+        (column_means[max(start, split_x - 3) : split_x], column_means[split_x + 1 : min(end, split_x + 4)])
+    )
+    darkness_difference = float(neighbours.mean() - column_means[split_x]) if len(neighbours) else 0.0
+    if darkness_difference <= (5.0 if aspect_ratio > 1.65 else 8.0):
+        raise HTTPException(status_code=422, detail="No archive-style page gutter detected")
+    return [(0, 0, split_x, height), (split_x, 0, width - split_x, height)]
+
+
+def split_image_impl(
+    db: Database, source_id: str, request: ImageSplitRequest
+) -> list[Document]:
+    """Create region child nodes without modifying the source image."""
+    source = _get_or_404_document(db, source_id)
+    if _split_children(db, source.id):
+        raise HTTPException(status_code=409, detail="Source image already has split children")
+
+    bboxes = request.bboxes
+    if bboxes is None:
+        source_path = _resolve_source_or_404(db, source)
+        bboxes = _archive_split_bboxes(_load_source_image(source_path))
+
+    children: list[Document] = []
+    for index, bbox in enumerate(bboxes, start=1):
+        child = Document(
+            parent_id=source.id,
+            doc_type=DocType.chunk,
+            file_type=source.file_type,
+            name=f"{source.name} region {index}",
+            path=source.path,
+            sequence=index,
+            bbox=bbox,
+            metadata={
+                "derived_from": source.id,
+                "split_source_id": source.id,
+                "source_bbox": list(bbox),
+                "view_kind": "image_region",
+            },
+            source_authority=source.source_authority,
+            source_metadata=source.source_metadata,
+            provenance_chain=source.provenance_chain.copy(),
+            image_provenance=source.image_provenance,
+        )
+        db.save(child)
+        children.append(child)
+    return children
+
+
+def unsplit_image_impl(db: Database, source_id: str) -> list[Document]:
+    """Soft-delete only the derived region children, preserving their source."""
+    _get_or_404_document(db, source_id)
+    children = _split_children(db, source_id)
+    if not children:
+        raise HTTPException(status_code=404, detail="Source image has no split children")
+    deleted_at = datetime.now()
+    for child in children:
+        child.deleted_at = deleted_at
+        child.updated_at = deleted_at
+        db.save(child)
+    return children
+
+
 # ---------------------------------------------------------------------------
 # Extracted mutation logic (`*_impl`) — the proven business logic each route
 # already ran, lifted into plain functions so BOTH the route handler AND the
@@ -756,6 +903,41 @@ async def segment_image(
     return ImageEditChainResponse.model_validate(result.result)
 
 
+@router.post("/{document_id}/split", response_model=ImageSplitResponse)
+async def split_image(
+    document_id: str,
+    request: ImageSplitRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> ImageSplitResponse:
+    """Create non-destructive derived region children for an image source."""
+    result = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "image.split",
+        {"source_id": document_id, **request.model_dump(mode="json")},
+        ctx,
+    )
+    return ImageSplitResponse.model_validate(result.result)
+
+
+@router.post("/{document_id}/unsplit", response_model=ImageUnsplitResponse)
+async def unsplit_image(
+    document_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> ImageUnsplitResponse:
+    """Reverse a split by soft-deleting its derived children only."""
+    result = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "image.unsplit",
+        {"source_id": document_id},
+        ctx,
+    )
+    return ImageUnsplitResponse.model_validate(result.result)
+
+
 @router.delete("/{document_id}/edits", status_code=204)
 async def delete_edit_chain(
     document_id: str,
@@ -860,6 +1042,14 @@ class RemoveBackgroundImageActionParams(RemoveBackgroundOperationRequest):
 
 class SegmentImageActionParams(SegmentOperationRequest):
     document_id: str
+
+
+class SplitImageActionParams(ImageSplitRequest):
+    source_id: str
+
+
+class UnsplitImageActionParams(BaseModel):
+    source_id: str
 
 
 def _chain_ops_snapshot(db: Database, document_id: str) -> list[dict[str, Any]]:
@@ -1064,4 +1254,62 @@ def _action_segment(
         domains=["image", "document"],
         emit_type="image.segmented",
         extra_document_ids=child_ids,
+    )
+
+
+def _invert_unsplit_image(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("document.restore", {"documents": before.get("children", [])})
+
+
+@action(
+    "image.split",
+    SplitImageActionParams,
+    domains=["image", "document"],
+    undoable=True,
+    invert=lambda _before, after, _ctx: (
+        ("image.unsplit", {"source_id": after["source_id"]}) if after else None
+    ),
+)
+def _action_split_image(
+    db: Database, params: SplitImageActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    children = split_image_impl(db, params.source_id, params)
+    result = ImageSplitResponse(source_document_id=params.source_id, children=children)
+    return result.model_dump(mode="json"), ChangeSpec(
+        domains=["image", "document"],
+        target_ids=[params.source_id, *[child.id for child in children]],
+        after={"source_id": params.source_id, "child_ids": [child.id for child in children]},
+        emit_type="image.split",
+        document_ids=[params.source_id, *[child.id for child in children]],
+    )
+
+
+@action(
+    "image.unsplit",
+    UnsplitImageActionParams,
+    domains=["image", "document"],
+    undoable=True,
+    invert=_invert_unsplit_image,
+)
+def _action_unsplit_image(
+    db: Database, params: UnsplitImageActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    snapshots = [
+        child.model_dump(mode="json") for child in _split_children(db, params.source_id)
+    ]
+    children = unsplit_image_impl(db, params.source_id)
+    result = ImageUnsplitResponse(
+        source_document_id=params.source_id,
+        deleted_child_ids=[child.id for child in children],
+    )
+    return result.model_dump(mode="json"), ChangeSpec(
+        domains=["image", "document"],
+        target_ids=[params.source_id, *result.deleted_child_ids],
+        before={"children": snapshots},
+        emit_type="image.unsplit",
+        document_ids=[params.source_id, *result.deleted_child_ids],
     )
