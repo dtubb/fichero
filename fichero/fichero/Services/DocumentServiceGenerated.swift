@@ -547,6 +547,42 @@ class DocumentServiceGenerated {
         }
     }
 
+    /// Combine documents into ONE reversible group/stack node (#3535) — the
+    /// inverse of the reversible split (#1595). The children reference the new
+    /// group as parent; each stays independently workable. POST
+    /// /api/documents/groups
+    func createGroup(name: String, childIds: [String]) async throws -> Document {
+        isProcessing = true
+        defer { isProcessing = false }
+        logger.info("Grouping \(childIds.count) documents into a stack")
+        let request = Components.Schemas.DocumentGroupRequest(name: name, childIds: childIds)
+        let response = try await client.api.createDocumentGroupApiDocumentsGroupsPost(
+            body: .json(request)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try convertToDocument(try okResponse.body.json)
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
+    /// Reverse a group/stack — the engine restores each child to its original
+    /// parent and order (#3535). POST /api/documents/groups/{group_id}/ungroup
+    func ungroupDocument(groupId: String) async throws {
+        isProcessing = true
+        defer { isProcessing = false }
+        logger.info("Ungrouping stack \(groupId)")
+        let response = try await client.api
+            .ungroupDocumentApiDocumentsGroupsGroupIdUngroupPost(path: .init(groupId: groupId))
+        switch response {
+        case .ok:
+            return
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     /// Move document to a different parent
     /// - Parameters:
     ///   - id: Document ID to move
