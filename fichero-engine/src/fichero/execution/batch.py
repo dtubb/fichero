@@ -24,6 +24,7 @@ import duckdb
 
 from fichero.workflows.runtime import create_compiled_app, build_initial_state
 from fichero.workflows.activity import get_activity_tracker
+from fichero.workflows.activity_store import duckdb_connection_lock
 from fichero.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)
@@ -288,10 +289,11 @@ class BatchManager:
         """Save batch state to database."""
 
         def _save():
-            conn = duckdb.connect(self.db_path)
-            try:
-                # Save batch
-                conn.execute(
+            with duckdb_connection_lock(self.db_path):
+                conn = duckdb.connect(self.db_path)
+                try:
+                    # Save batch
+                    conn.execute(
                     """
                     INSERT OR REPLACE INTO batches
                     (batch_id, workflow_id, status, max_concurrent, created_at, started_at, completed_at, error_message)
@@ -309,10 +311,10 @@ class BatchManager:
                     ],
                 )
 
-                # Save items
-                for item in batch.items:
+                    # Save items
+                    for item in batch.items:
 
-                    conn.execute(
+                        conn.execute(
                         """
                         INSERT OR REPLACE INTO batch_items
                         (batch_id, thread_id, item_index, inputs, status, error, started_at, completed_at)
@@ -328,9 +330,9 @@ class BatchManager:
                             item.started_at,
                             item.completed_at,
                         ],
-                    )
-            finally:
-                conn.close()
+                        )
+                finally:
+                    conn.close()
 
         await asyncio.to_thread(_save)
 

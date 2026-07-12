@@ -656,23 +656,17 @@ def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:
             # Fire-and-forget: wrap in try/except so a DB error never blocks
             # library-open or startup.
             try:
-                import asyncio
-
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.ensure_future(
-                        _recover_stale_runs_bg(tracker, db_path),
-                        loop=loop,
-                    )
-                else:
-                    logger.debug(
-                        "recover_stale_runs skipped for %s: no running event loop",
-                        db_path,
-                    )
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                logger.debug(
+                    "recover_stale_runs skipped for %s: no running event loop", db_path
+                )
             except Exception:
                 logger.exception(
                     "recover_stale_runs scheduling failed for %s (ignored)", db_path
                 )
+            else:
+                loop.create_task(_recover_stale_runs_bg(tracker, db_path))
         else:
             logger.debug(f"Reusing existing ActivityTracker for: {db_path}")
         return _activity_trackers[db_path]

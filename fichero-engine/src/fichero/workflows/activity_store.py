@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -24,6 +25,15 @@ from fichero.workflows.activity_types import (
 )
 
 logger = logging.getLogger(__name__)
+
+_connection_locks: dict[str, threading.RLock] = {}
+_connection_locks_guard = threading.Lock()
+
+
+def duckdb_connection_lock(db_path: str) -> threading.RLock:
+    """Return the process-local lock for independent DuckDB connections."""
+    with _connection_locks_guard:
+        return _connection_locks.setdefault(str(db_path), threading.RLock())
 
 
 # Columns of workflow_runs in the canonical CREATE TABLE order. Used by the
@@ -647,9 +657,10 @@ class ActivityStore:
 
         def _save():
             logger.info(f"ActivityStore.save: connecting to {self.db_path}")
-            conn = duckdb.connect(self.db_path)
-            try:
-                conn.execute(
+            with duckdb_connection_lock(self.db_path):
+                conn = duckdb.connect(self.db_path)
+                try:
+                    conn.execute(
                     """
                     INSERT INTO activities
                     (id, type, level, timestamp, message, workflow_id, batch_id,
@@ -671,12 +682,12 @@ class ActivityStore:
                         activity.error,
                     ],
                 )
-                logger.info(f"ActivityStore.save: INSERT successful for {activity.id}")
-            except Exception as e:
-                logger.error(f"ActivityStore.save: INSERT failed: {e}")
-                raise
-            finally:
-                conn.close()
+                    logger.info(f"ActivityStore.save: INSERT successful for {activity.id}")
+                except Exception as e:
+                    logger.error(f"ActivityStore.save: INSERT failed: {e}")
+                    raise
+                finally:
+                    conn.close()
 
         await asyncio.to_thread(_save)
 
