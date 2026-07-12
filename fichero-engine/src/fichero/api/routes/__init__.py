@@ -19,6 +19,7 @@ __all__ = [
     "kg_curation_rules",
     "library_links",
     "local_models",
+    "locations",
     "mcp_servers",
     "mcp_tools",
     "migrations",

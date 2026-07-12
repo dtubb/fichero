@@ -5556,11 +5556,11 @@ def register_generated_openapi_commands(
             }, {
                 "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
                 "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Document Ids', 'x-cli-required': True},
-                "height": {'type': 'integer', 'title': 'Height', 'x-cli-required': True},
-                "left": {'type': 'integer', 'title': 'Left', 'x-cli-required': True},
+                "height": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Height', 'x-cli-required': True},
+                "left": {'type': 'integer', 'minimum': 0.0, 'title': 'Left', 'x-cli-required': True},
                 "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
-                "top": {'type': 'integer', 'title': 'Top', 'x-cli-required': True},
-                "width": {'type': 'integer', 'title': 'Width', 'x-cli-required': True},
+                "top": {'type': 'integer', 'minimum': 0.0, 'title': 'Top', 'x-cli-required': True},
+                "width": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Width', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -5589,11 +5589,11 @@ def register_generated_openapi_commands(
                 "width": width,
             }, {
                 "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
-                "height": {'type': 'integer', 'title': 'Height', 'x-cli-required': True},
-                "left": {'type': 'integer', 'title': 'Left', 'x-cli-required': True},
+                "height": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Height', 'x-cli-required': True},
+                "left": {'type': 'integer', 'minimum': 0.0, 'title': 'Left', 'x-cli-required': True},
                 "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
-                "top": {'type': 'integer', 'title': 'Top', 'x-cli-required': True},
-                "width": {'type': 'integer', 'title': 'Width', 'x-cli-required': True},
+                "top": {'type': 'integer', 'minimum': 0.0, 'title': 'Top', 'x-cli-required': True},
+                "width": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Width', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -5667,11 +5667,11 @@ def register_generated_openapi_commands(
                 "width": width,
             }, {
                 "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
-                "height": {'type': 'integer', 'title': 'Height', 'x-cli-required': True},
-                "left": {'type': 'integer', 'title': 'Left', 'x-cli-required': True},
+                "height": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Height', 'x-cli-required': True},
+                "left": {'type': 'integer', 'minimum': 0.0, 'title': 'Left', 'x-cli-required': True},
                 "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
-                "top": {'type': 'integer', 'title': 'Top', 'x-cli-required': True},
-                "width": {'type': 'integer', 'title': 'Width', 'x-cli-required': True},
+                "top": {'type': 'integer', 'minimum': 0.0, 'title': 'Top', 'x-cli-required': True},
+                "width": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Width', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -5747,7 +5747,7 @@ def register_generated_openapi_commands(
                 "expand": expand,
                 "page": page,
             }, {
-                "angle": {'type': 'number', 'title': 'Angle', 'x-cli-required': True},
+                "angle": {'type': 'number', 'maximum': 360.0, 'minimum': -360.0, 'title': 'Angle', 'x-cli-required': True},
                 "expand": {'type': 'boolean', 'title': 'Expand', 'default': True, 'x-cli-required': False},
                 "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
             }, required=True)
@@ -8564,6 +8564,47 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/local-models/{model_type}/{model_id}"
             params = None
             return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('locations')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for locations endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='locations')
+        existing_apps['locations'] = target_app
+
+    @target_app.command("resolve")
+    def locations_resolve_post(
+        ctx: typer.Context,
+        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
+        charRange: Optional[str] = typer.Option(None, "--charRange", help="Request field: charRange."),
+        claimId: Optional[str] = typer.Option(None, "--claimId", help="Request field: claimId."),
+        documentId: str = typer.Option(..., "--documentId", help="Request field: documentId."),
+        entityId: Optional[str] = typer.Option(None, "--entityId", help="Request field: entityId."),
+        page: Optional[int] = typer.Option(None, "--page", help="Request field: page."),
+        surface: Optional[str] = typer.Option(None, "--surface", help="Request field: surface."),
+    ) -> None:
+        """Resolve Location (POST /api/locations/resolve)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/locations/resolve"
+            params = None
+            payload = _build_json_payload({
+                "bbox": bbox,
+                "charRange": charRange,
+                "claimId": claimId,
+                "documentId": documentId,
+                "entityId": entityId,
+                "page": page,
+                "surface": surface,
+            }, {
+                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'maxItems': 4, 'minItems': 4, 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
+                "charRange": {'properties': {'start': {'type': 'integer', 'minimum': 0.0, 'title': 'Start'}, 'end': {'type': 'integer', 'minimum': 0.0, 'title': 'End'}}, 'type': 'object', 'required': ['start', 'end'], 'title': 'CharacterRange', 'x-cli-required': False},
+                "claimId": {'type': 'string', 'nullable': True, 'title': 'Claimid', 'x-cli-required': False},
+                "documentId": {'type': 'string', 'minLength': 1, 'title': 'Documentid', 'x-cli-required': True},
+                "entityId": {'type': 'string', 'nullable': True, 'title': 'Entityid', 'x-cli-required': False},
+                "page": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Page', 'x-cli-required': False},
+                "surface": {'type': 'string', 'enum': ['preview', 'reader', 'inspector', 'both'], 'title': 'LocationSurface', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('mcp')
