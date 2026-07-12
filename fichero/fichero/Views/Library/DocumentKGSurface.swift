@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Observation
 import SwiftUI
 
@@ -110,12 +111,13 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         }
     }
 
-    /// True for tabs rendered inside the shared WKWebView (#1346). Entities and
-    /// claims render natively (inspector components), so the WebKit pane hides.
+    /// True for tabs rendered inside the shared WKWebView (#1346). Entities,
+    /// claims, and the force graph render natively (inspector / OntologyBrowser
+    /// components), so the WebKit pane hides for them.
     var usesWebKit: Bool {
         switch self {
-        case .transcript, .digest, .graph, .timeline, .map: return true
-        case .claims, .entities: return false
+        case .transcript, .digest, .timeline, .map: return true
+        case .claims, .entities, .graph: return false
         }
     }
 }
@@ -183,6 +185,24 @@ struct DocumentKGSurface: View {
     // For resolving the Document the native Entities sub-mode needs (#3503) when
     // the caller doesn't supply one via `document`.
     @Environment(DocumentStore.self) private var documentStore
+    // Document-scoped entities feed the native Graph/Timeline/Map sub-modes (#3503).
+    @Environment(EntityStore.self) private var entityStore
+
+    /// The document's entities for the native KG visualizations.
+    private var documentEntities: [Components.Schemas.KnowledgeEntity] {
+        entityStore.entitiesByDocumentId[documentId] ?? []
+    }
+
+    /// Entity selection bound to KG focus so picking a node drives the shared
+    /// highlight (the same focus the transcript / claims views observe).
+    private var selectedEntityBinding: Binding<String?> {
+        Binding(
+            get: { selectedEntityId },
+            set: { newId in
+                if let id = newId { kgFocusState.focusEntity(entityId: id) }
+            }
+        )
+    }
 
     var body: some View {
         // The representation switcher (Transcript/Digest/Graph/Claims/Timeline/
@@ -255,13 +275,26 @@ struct DocumentKGSurface: View {
         .onChange(of: activeTab.usesWebKit) { _, usesWebKit in
             if usesWebKit { everShownWebKit = true }
         }
+        // Load the document's entities for the native Graph/Timeline/Map
+        // sub-modes (idempotent + cached in the store). (#3503)
+        .task(id: documentId) {
+            await entityStore.loadEntities(forDocument: documentId)
+        }
     }
 
     @ViewBuilder
     private var nativeTabContent: some View {
         switch activeTab {
-        case .transcript, .digest, .graph, .timeline, .map:
+        case .transcript, .digest, .timeline, .map:
             EmptyView()
+        case .graph:
+            // Native force-directed graph (OntologyBrowser component) over the
+            // document's entities — no WebKit (#3503). Nodes are entities, edges
+            // their claim co-occurrence; selecting a node drives KG focus.
+            ForceDirectedGraphView(
+                entities: documentEntities,
+                selectedEntityId: selectedEntityBinding
+            )
         case .claims:
             // No outer ScrollView — KnowledgeGraphInspectorSection owns its own
             // scroll + pinned bottom mini-toolbar (#3461).

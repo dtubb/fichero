@@ -513,16 +513,17 @@ struct KGSurfaceTabTests {
         #expect(KGSurfaceTab.map.title == "Map")
     }
 
-    @Test("Timeline and Map tabs stay inside the shared WebKit pane")
+    @Test("Timeline and Map stay WebKit; Entities/Claims/Graph render natively")
     func webKitTabs() {
         #expect(KGSurfaceTab.transcript.usesWebKit)
         #expect(KGSurfaceTab.digest.usesWebKit)
-        #expect(KGSurfaceTab.graph.usesWebKit)
         #expect(KGSurfaceTab.timeline.usesWebKit)
         #expect(KGSurfaceTab.map.usesWebKit)
         #expect(!KGSurfaceTab.claims.usesWebKit)
-        // Entities render natively (inspector list), not in the WebKit pane (#3503).
+        // Entities (inspector list) + Graph (OntologyBrowser force graph) render
+        // natively, not in the WebKit pane (#3503).
         #expect(!KGSurfaceTab.entities.usesWebKit)
+        #expect(!KGSurfaceTab.graph.usesWebKit)
     }
 
     @Test("Every KGSurfaceTab has a non-empty SF Symbol")
