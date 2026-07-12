@@ -2074,6 +2074,23 @@ class Database(DatabaseEmbeddingMixin):
             )
         return out
 
+    def query_page(self, model: Type[T], *, limit: int, offset: int = 0) -> list[T]:
+        """Return a stable, bounded page without hydrating the whole table."""
+        if limit < 1 or offset < 0:
+            raise ValueError("limit must be positive and offset must not be negative")
+
+        sql_table = self._sql_table_name(model)
+        self._ensure_table(model)
+        rows, columns = self._execute_fetch_with_columns(
+            f"SELECT * FROM {sql_table} ORDER BY id LIMIT $limit OFFSET $offset",
+            {"limit": limit, "offset": offset},
+        )
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(model, columns, row)) is not None
+        ]
+
     def commit(self) -> None:
         """Commit pending DuckDB work through the typed DB wrapper."""
         self.conn.commit()

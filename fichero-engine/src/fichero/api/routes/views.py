@@ -20,6 +20,7 @@ router = APIRouter(prefix="/view", tags=["views"])
 _TEMPLATES = Jinja2Templates(
     directory=str(Path(__file__).resolve().parents[1] / "templates")
 )
+_GLOBAL_KG_LIMIT = 250
 
 
 def _json_for_script(payload: object) -> str:
@@ -223,9 +224,11 @@ async def global_kg_view(
     Used by OntologyBrowser graph mode so sidebar + inspector run through the
     same WebKit renderer path.
     """
-    entities = db.query(KnowledgeEntity)
+    entity_count = db.count(KnowledgeEntity)
+    claim_count = db.count(KnowledgeClaim)
+    entities = db.query_page(KnowledgeEntity, limit=_GLOBAL_KG_LIMIT)
     entities_by_id = {entity.id: entity for entity in entities}
-    claims = db.query(KnowledgeClaim)
+    claims = db.query_page(KnowledgeClaim, limit=_GLOBAL_KG_LIMIT)
 
     document_payload = {
         "id": "__kg_global__",
@@ -233,6 +236,12 @@ async def global_kg_view(
         "doc_type": "kg",
         "file_type": None,
         "page_content": "",
+        "graph_summary": {
+            "shown_entities": len(entities),
+            "total_entities": entity_count,
+            "shown_claims": len(claims),
+            "total_claims": claim_count,
+        },
     }
     entity_payload = [
         {

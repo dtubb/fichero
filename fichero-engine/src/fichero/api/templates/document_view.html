@@ -445,6 +445,7 @@
 const documentData = {{ document_json|safe }};
 const entities = {{ entities_json|safe }};
 const claims = {{ claims_json|safe }};
+const graphSummary = documentData.graph_summary || null;
 
 const state = {
     tab: "transcript",
@@ -858,6 +859,10 @@ function renderGraph() {
         : (pageScoped
             ? `Showing page ${state.activePage} claims.`
             : `Showing all claims in this document.`);
+    const summary = graphSummary && (
+        graphSummary.shown_entities < graphSummary.total_entities ||
+        graphSummary.shown_claims < graphSummary.total_claims
+    ) ? ` Showing ${graphSummary.shown_entities} of ${graphSummary.total_entities} entities and ${graphSummary.shown_claims} of ${graphSummary.total_claims} claims; select a node to load its neighborhood.` : "";
     const toggle = state.activePage == null ? "" : `
         <button type="button" class="graph-scope-toggle" data-graph-scope-toggle="true">
             ${state.showAllClaims ? "Show current page only" : "Show all claims"}
@@ -866,7 +871,7 @@ function renderGraph() {
     if (nodes.length === 0) {
         panel.innerHTML = `
             <div class="graph-toolbar">
-                <span>${escapeHtml(scopeLabel)}</span>
+                <span>${escapeHtml(scopeLabel + summary)}</span>
                 ${toggle}
             </div>
             <div class="empty">No entities yet for this ${pageScoped ? "page" : "document"}.</div>
@@ -878,7 +883,7 @@ function renderGraph() {
     const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
     panel.innerHTML = `
         <div class="graph-toolbar">
-            <span>${escapeHtml(scopeLabel)} ${nodes.length} node${nodes.length === 1 ? "" : "s"}.</span>
+            <span>${escapeHtml(scopeLabel + summary)} ${nodes.length} node${nodes.length === 1 ? "" : "s"}.</span>
             ${toggle}
         </div>
         <div class="graph-wrap">

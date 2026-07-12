@@ -273,3 +273,40 @@ class TestDocumentViewRoute:
         assert "<title>Knowledge Graph</title>" in response.text
         assert '"id": "entity-global-1"' in response.text
         assert '"id": "claim-global-1"' in response.text
+
+    def test_global_kg_view_caps_embedded_graph_payload(self, client, db, monkeypatch):
+        db.save(
+            KnowledgeEntity(
+                id="global-capped-entity",
+                canonical_name="Global Capped Entity",
+                entity_type=EntityType.person,
+            )
+        )
+        calls: list[tuple[type, int]] = []
+        original_query_page = Database.query_page
+        original_count = Database.count
+
+        def counting_query_page(self, model, *, limit, offset=0):
+            calls.append((model, limit))
+            return original_query_page(self, model, limit=limit, offset=offset)
+
+        def large_count(self, model, **filters):
+            if model is KnowledgeEntity:
+                return 251
+            return original_count(self, model, **filters)
+
+        from fichero.api.routes.views import _GLOBAL_KG_LIMIT
+
+        monkeypatch.setattr(Database, "query_page", counting_query_page)
+        monkeypatch.setattr(Database, "count", large_count)
+
+        response = client.get("/view/kg/global")
+
+        assert response.status_code == 200
+        assert calls == [
+            (KnowledgeEntity, _GLOBAL_KG_LIMIT),
+            (KnowledgeClaim, _GLOBAL_KG_LIMIT),
+        ]
+        assert '"shown_entities": 1' in response.text
+        assert '"total_entities": 251' in response.text
+        assert "select a node to load its neighborhood" in response.text
