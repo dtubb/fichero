@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -28,7 +29,12 @@ from fichero.models import (
     Model as ModelModel,
     Provider as ProviderModel,
 )
-from fichero.api.routes.documents import WorkspaceCuratedItem, WorkspacePatchRequest
+from fichero.api.routes.documents import (
+    WorkspaceCuratedItem,
+    WorkspacePatchRequest,
+    patch_workspace_items_impl,
+)
+from fichero.knowledge_models import KnowledgeClaim
 from fichero.keychain import has_api_key
 from fichero.llm import LLMConfig, get_langchain_model
 from fichero.node_aliases import DanglingAliasError, is_alias, resolve_alias
@@ -231,6 +237,21 @@ class AgentWorkspaceListResponse(BaseModel):
 class AgentWorkspaceDeletedResponse(BaseModel):
     status: str
     id: str
+
+
+class WorkspaceSourceActionParams(BaseModel):
+    workspace_id: str
+    document_id: str
+
+
+class WorkspaceClaimActionParams(BaseModel):
+    workspace_id: str
+    claim_id: str
+
+
+class WorkspaceNoteActionParams(BaseModel):
+    workspace_id: str
+    text: str = Field(min_length=1)
 
 
 _AGENT_WORKSPACE_KIND = "agent"
@@ -1265,3 +1286,136 @@ def _action_restore_conversation(
         emit_type="conversation.updated" if before else "conversation.created",
     )
     return after, spec
+
+
+def _invert_workspace_membership(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("document.restore", {"documents": [before]})
+
+
+def _mutate_agent_workspace(
+    db: Database, workspace_id: str, patch: WorkspacePatchRequest
+) -> tuple[dict, ChangeSpec]:
+    workspace = _agent_workspace_or_404(db, workspace_id)
+    updated, before = patch_workspace_items_impl(db, workspace.id, patch)
+    return (
+        {"workspace_id": updated.id, "items": updated.curated_items},
+        ChangeSpec(
+            domains=["document"],
+            target_ids=[updated.id],
+            before=before,
+            after=updated.model_dump(mode="json"),
+            emit_type="document.updated",
+            document_ids=[updated.id],
+        ),
+    )
+
+
+@action(
+    "workspace.add_source",
+    WorkspaceSourceActionParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_workspace_membership,
+)
+def _action_workspace_add_source(
+    db: Database, params: WorkspaceSourceActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    if db.get(Document, params.document_id) is None:
+        raise HTTPException(status_code=404, detail="Source document not found")
+    return _mutate_agent_workspace(
+        db,
+        params.workspace_id,
+        WorkspacePatchRequest(
+            add=[
+                WorkspaceCuratedItem(
+                    id=f"source:{params.document_id}",
+                    target_type="document",
+                    target_id=params.document_id,
+                    role="agent_source",
+                )
+            ]
+        ),
+    )
+
+
+@action(
+    "workspace.remove_source",
+    WorkspaceSourceActionParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_workspace_membership,
+)
+def _action_workspace_remove_source(
+    db: Database, params: WorkspaceSourceActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    workspace = _agent_workspace_or_404(db, params.workspace_id)
+    item_id = f"source:{params.document_id}"
+    if not any(item.get("id") == item_id for item in workspace.curated_items):
+        raise HTTPException(status_code=404, detail="Workspace source not found")
+    return _mutate_agent_workspace(
+        db, params.workspace_id, WorkspacePatchRequest(remove_ids=[item_id])
+    )
+
+
+@action(
+    "workspace.surface_claim",
+    WorkspaceClaimActionParams,
+    domains=["document", "claim"],
+    undoable=True,
+    invert=_invert_workspace_membership,
+)
+def _action_workspace_surface_claim(
+    db: Database, params: WorkspaceClaimActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    if db.get(KnowledgeClaim, params.claim_id) is None:
+        raise HTTPException(status_code=404, detail="Knowledge claim not found")
+    result, spec = _mutate_agent_workspace(
+        db,
+        params.workspace_id,
+        WorkspacePatchRequest(
+            add=[
+                WorkspaceCuratedItem(
+                    id=f"claim:{params.claim_id}",
+                    target_type="claim",
+                    target_id=params.claim_id,
+                    role="surfaced_claim",
+                )
+            ]
+        ),
+    )
+    spec.claim_ids = [params.claim_id]
+    return result, spec
+
+
+@action(
+    "workspace.add_note",
+    WorkspaceNoteActionParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_workspace_membership,
+)
+def _action_workspace_add_note(
+    db: Database, params: WorkspaceNoteActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    item_id = f"note:{uuid4().hex}"
+    result, spec = _mutate_agent_workspace(
+        db,
+        params.workspace_id,
+        WorkspacePatchRequest(
+            add=[
+                WorkspaceCuratedItem(
+                    id=item_id,
+                    target_type="note",
+                    target_id=item_id,
+                    role="agent_note",
+                    notes=params.text,
+                )
+            ]
+        ),
+    )
+    result["item_id"] = item_id
+    return result, spec
