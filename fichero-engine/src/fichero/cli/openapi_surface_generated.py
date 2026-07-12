@@ -968,11 +968,17 @@ def register_generated_openapi_commands(
         color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
         document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
         folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
+        ink_payload: Optional[str] = typer.Option(None, "--ink-payload", help="Request field: ink_payload."),
         kind: str = typer.Option(..., "--kind", help="Request field: kind."),
         linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
         linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
         linked_note_ids: Optional[str] = typer.Option(None, "--linked-note-ids", help="Request field: linked_note_ids."),
         metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        ocr_confidence: Optional[float] = typer.Option(None, "--ocr-confidence", help="Request field: ocr_confidence."),
+        ocr_model: Optional[str] = typer.Option(None, "--ocr-model", help="Request field: ocr_model."),
+        ocr_provider: Optional[str] = typer.Option(None, "--ocr-provider", help="Request field: ocr_provider."),
+        ocr_recorded_at: Optional[str] = typer.Option(None, "--ocr-recorded-at", help="Request field: ocr_recorded_at."),
+        ocr_text: Optional[str] = typer.Option(None, "--ocr-text", help="Request field: ocr_text."),
         page_id: Optional[str] = typer.Option(None, "--page-id", help="Request field: page_id."),
         page_index: Optional[int] = typer.Option(None, "--page-index", help="Request field: page_index."),
         page_label: Optional[str] = typer.Option(None, "--page-label", help="Request field: page_label."),
@@ -993,11 +999,17 @@ def register_generated_openapi_commands(
                 "color": color,
                 "document_id": document_id,
                 "folder_id": folder_id,
+                "ink_payload": ink_payload,
                 "kind": kind,
                 "linked_claim_ids": linked_claim_ids,
                 "linked_entity_ids": linked_entity_ids,
                 "linked_note_ids": linked_note_ids,
                 "metadata": metadata,
+                "ocr_confidence": ocr_confidence,
+                "ocr_model": ocr_model,
+                "ocr_provider": ocr_provider,
+                "ocr_recorded_at": ocr_recorded_at,
+                "ocr_text": ocr_text,
                 "page_id": page_id,
                 "page_index": page_index,
                 "page_label": page_label,
@@ -1013,11 +1025,17 @@ def register_generated_openapi_commands(
                 "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
                 "document_id": {'type': 'string', 'nullable': True, 'title': 'Document Id', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'x-cli-required': False},
+                "ink_payload": {'type': 'string', 'nullable': True, 'title': 'Ink Payload', 'x-cli-required': False},
                 "kind": {'type': 'string', 'enum': ['highlight', 'note', 'rating', 'bookmark', 'comment'], 'title': 'AnnotationKind', 'description': 'User annotation kinds (#914).\n\nEach kind has slightly different rendering + payload conventions:\n- highlight: coloured tint over a span; ``color`` + ``rating`` carry weight\n- note: margin/sticky note; ``text`` is the body\n- rating: 1-5 importance flag; ``rating`` carries weight\n- bookmark: navigation marker; ``text`` optional label\n- comment: threaded discussion (future); ``text`` is the body', 'x-cli-required': True},
                 "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Claim Ids', 'default': [], 'x-cli-required': False},
                 "linked_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Entity Ids', 'default': [], 'x-cli-required': False},
                 "linked_note_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Note Ids', 'default': [], 'x-cli-required': False},
                 "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'default': {}, 'x-cli-required': False},
+                "ocr_confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Ocr Confidence', 'x-cli-required': False},
+                "ocr_model": {'type': 'string', 'nullable': True, 'title': 'Ocr Model', 'x-cli-required': False},
+                "ocr_provider": {'type': 'string', 'nullable': True, 'title': 'Ocr Provider', 'x-cli-required': False},
+                "ocr_recorded_at": {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Ocr Recorded At', 'x-cli-required': False},
+                "ocr_text": {'type': 'string', 'nullable': True, 'title': 'Ocr Text', 'x-cli-required': False},
                 "page_id": {'type': 'string', 'nullable': True, 'title': 'Page Id', 'x-cli-required': False},
                 "page_index": {'type': 'integer', 'nullable': True, 'title': 'Page Index', 'x-cli-required': False},
                 "page_label": {'type': 'string', 'nullable': True, 'title': 'Page Label', 'x-cli-required': False},
@@ -1105,10 +1123,16 @@ def register_generated_openapi_commands(
         color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
         document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
         folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Request field: folder_id."),
+        ink_payload: Optional[str] = typer.Option(None, "--ink-payload", help="Request field: ink_payload."),
         linked_claim_ids: Optional[str] = typer.Option(None, "--linked-claim-ids", help="Request field: linked_claim_ids."),
         linked_entity_ids: Optional[str] = typer.Option(None, "--linked-entity-ids", help="Request field: linked_entity_ids."),
         linked_note_ids: Optional[str] = typer.Option(None, "--linked-note-ids", help="Request field: linked_note_ids."),
         metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
+        ocr_confidence: Optional[float] = typer.Option(None, "--ocr-confidence", help="Request field: ocr_confidence."),
+        ocr_model: Optional[str] = typer.Option(None, "--ocr-model", help="Request field: ocr_model."),
+        ocr_provider: Optional[str] = typer.Option(None, "--ocr-provider", help="Request field: ocr_provider."),
+        ocr_recorded_at: Optional[str] = typer.Option(None, "--ocr-recorded-at", help="Request field: ocr_recorded_at."),
+        ocr_text: Optional[str] = typer.Option(None, "--ocr-text", help="Request field: ocr_text."),
         page_id: Optional[str] = typer.Option(None, "--page-id", help="Request field: page_id."),
         paragraph_index: Optional[int] = typer.Option(None, "--paragraph-index", help="Request field: paragraph_index."),
         rating: Optional[int] = typer.Option(None, "--rating", help="Request field: rating."),
@@ -1127,10 +1151,16 @@ def register_generated_openapi_commands(
                 "color": color,
                 "document_id": document_id,
                 "folder_id": folder_id,
+                "ink_payload": ink_payload,
                 "linked_claim_ids": linked_claim_ids,
                 "linked_entity_ids": linked_entity_ids,
                 "linked_note_ids": linked_note_ids,
                 "metadata": metadata,
+                "ocr_confidence": ocr_confidence,
+                "ocr_model": ocr_model,
+                "ocr_provider": ocr_provider,
+                "ocr_recorded_at": ocr_recorded_at,
+                "ocr_text": ocr_text,
                 "page_id": page_id,
                 "paragraph_index": paragraph_index,
                 "rating": rating,
@@ -1144,10 +1174,16 @@ def register_generated_openapi_commands(
                 "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
                 "document_id": {'type': 'string', 'nullable': True, 'title': 'Document Id', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'x-cli-required': False},
+                "ink_payload": {'type': 'string', 'nullable': True, 'title': 'Ink Payload', 'x-cli-required': False},
                 "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Claim Ids', 'x-cli-required': False},
                 "linked_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Entity Ids', 'x-cli-required': False},
                 "linked_note_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Linked Note Ids', 'x-cli-required': False},
                 "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
+                "ocr_confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Ocr Confidence', 'x-cli-required': False},
+                "ocr_model": {'type': 'string', 'nullable': True, 'title': 'Ocr Model', 'x-cli-required': False},
+                "ocr_provider": {'type': 'string', 'nullable': True, 'title': 'Ocr Provider', 'x-cli-required': False},
+                "ocr_recorded_at": {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Ocr Recorded At', 'x-cli-required': False},
+                "ocr_text": {'type': 'string', 'nullable': True, 'title': 'Ocr Text', 'x-cli-required': False},
                 "page_id": {'type': 'string', 'nullable': True, 'title': 'Page Id', 'x-cli-required': False},
                 "paragraph_index": {'type': 'integer', 'nullable': True, 'title': 'Paragraph Index', 'x-cli-required': False},
                 "rating": {'type': 'integer', 'maximum': 5.0, 'minimum': 1.0, 'nullable': True, 'title': 'Rating', 'x-cli-required': False},
@@ -3497,6 +3533,60 @@ def register_generated_openapi_commands(
                 "sort_order": {'type': 'integer', 'nullable': True, 'title': 'Sort Order', 'x-cli-required': False},
             }, required=True)
             return client.request("PATCH", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('content-representations')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for content-representations endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='content-representations')
+        existing_apps['content-representations'] = target_app
+
+    @target_app.command("list")
+    def content_representations_list_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+    ) -> None:
+        """List Representations (GET /api/content-representations/document/{document_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/content-representations/document/{document_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-revisions")
+    def content_representations_list_revisions_get(
+        ctx: typer.Context,
+        representation_id: str = typer.Argument(..., help="Path parameter: representation_id."),
+    ) -> None:
+        """List Revisions (GET /api/content-representations/{representation_id}/revisions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/content-representations/{representation_id}/revisions"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-revision")
+    def content_representations_create_revision_post(
+        ctx: typer.Context,
+        representation_id: str = typer.Argument(..., help="Path parameter: representation_id."),
+        content: str = typer.Option(..., "--content", help="Request field: content."),
+        decision: Optional[str] = typer.Option(None, "--decision", help="Request field: decision."),
+        representation_id_2: str = typer.Option(..., "--representation-id", help="Request field: representation_id."),
+    ) -> None:
+        """Create Revision (POST /api/content-representations/{representation_id}/revisions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/content-representations/{representation_id}/revisions"
+            params = None
+            payload = _build_json_payload({
+                "content": content,
+                "decision": decision,
+                "representation_id": representation_id,
+            }, {
+                "content": {'type': 'string', 'minLength': 1, 'title': 'Content', 'x-cli-required': True},
+                "decision": {'type': 'string', 'nullable': True, 'title': 'Decision', 'x-cli-required': False},
+                "representation_id": {'type': 'string', 'title': 'Representation Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('documents')
@@ -7264,6 +7354,100 @@ def register_generated_openapi_commands(
                 "top_k": top_k,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-prediction-reviews")
+    def kg_list_prediction_reviews_get(
+        ctx: typer.Context,
+        state: Optional[str] = typer.Option(None, "--state", help="Query parameter: state."),
+    ) -> None:
+        """List Prediction Reviews (GET /api/kg/pykeen/reviews)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/pykeen/reviews"
+            params = {
+                "state": state,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-prediction-review")
+    def kg_create_prediction_review_post(
+        ctx: typer.Context,
+        created_at: Optional[str] = typer.Option(None, "--created-at", help="Request field: created_at."),
+        decision_note: Optional[str] = typer.Option(None, "--decision-note", help="Request field: decision_note."),
+        id: Optional[str] = typer.Option(None, "--id", help="Request field: id."),
+        model_config_snapshot: Optional[str] = typer.Option(None, "--model-config-snapshot", help="Request field: model_config_snapshot."),
+        model_id: Optional[str] = typer.Option(None, "--model-id", help="Request field: model_id."),
+        rank: Optional[int] = typer.Option(None, "--rank", help="Request field: rank."),
+        relation: str = typer.Option(..., "--relation", help="Request field: relation."),
+        resulting_claim_id: Optional[str] = typer.Option(None, "--resulting-claim-id", help="Request field: resulting_claim_id."),
+        reviewed_at: Optional[str] = typer.Option(None, "--reviewed-at", help="Request field: reviewed_at."),
+        run_id: Optional[str] = typer.Option(None, "--run-id", help="Request field: run_id."),
+        score: float = typer.Option(..., "--score", help="Request field: score."),
+        source_entity_id: str = typer.Option(..., "--source-entity-id", help="Request field: source_entity_id."),
+        state: Optional[str] = typer.Option(None, "--state", help="Request field: state."),
+        target_entity_id: str = typer.Option(..., "--target-entity-id", help="Request field: target_entity_id."),
+    ) -> None:
+        """Create Prediction Review (POST /api/kg/pykeen/reviews)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/pykeen/reviews"
+            params = None
+            payload = _build_json_payload({
+                "created_at": created_at,
+                "decision_note": decision_note,
+                "id": id,
+                "model_config_snapshot": model_config_snapshot,
+                "model_id": model_id,
+                "rank": rank,
+                "relation": relation,
+                "resulting_claim_id": resulting_claim_id,
+                "reviewed_at": reviewed_at,
+                "run_id": run_id,
+                "score": score,
+                "source_entity_id": source_entity_id,
+                "state": state,
+                "target_entity_id": target_entity_id,
+            }, {
+                "created_at": {'type': 'string', 'format': 'date-time', 'title': 'Created At', 'x-cli-required': False},
+                "decision_note": {'type': 'string', 'nullable': True, 'title': 'Decision Note', 'x-cli-required': False},
+                "id": {'type': 'string', 'title': 'Id', 'x-cli-required': False},
+                "model_config_snapshot": {'additionalProperties': True, 'type': 'object', 'title': 'Model Config Snapshot', 'x-cli-required': False},
+                "model_id": {'type': 'string', 'nullable': True, 'title': 'Model Id', 'x-cli-required': False},
+                "rank": {'type': 'integer', 'nullable': True, 'title': 'Rank', 'x-cli-required': False},
+                "relation": {'type': 'string', 'title': 'Relation', 'x-cli-required': True},
+                "resulting_claim_id": {'type': 'string', 'nullable': True, 'title': 'Resulting Claim Id', 'x-cli-required': False},
+                "reviewed_at": {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Reviewed At', 'x-cli-required': False},
+                "run_id": {'type': 'string', 'nullable': True, 'title': 'Run Id', 'x-cli-required': False},
+                "score": {'type': 'number', 'title': 'Score', 'x-cli-required': True},
+                "source_entity_id": {'type': 'string', 'title': 'Source Entity Id', 'x-cli-required': True},
+                "state": {'type': 'string', 'enum': ['pending', 'accepted', 'rejected', 'deferred'], 'title': 'PredictionReviewState', 'x-cli-required': False},
+                "target_entity_id": {'type': 'string', 'title': 'Target Entity Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("decide-prediction-review")
+    def kg_decide_prediction_review_patch(
+        ctx: typer.Context,
+        review_id: str = typer.Argument(..., help="Path parameter: review_id."),
+        note: Optional[str] = typer.Option(None, "--note", help="Request field: note."),
+        resulting_claim_id: Optional[str] = typer.Option(None, "--resulting-claim-id", help="Request field: resulting_claim_id."),
+        state: str = typer.Option(..., "--state", help="Request field: state."),
+    ) -> None:
+        """Decide Prediction Review (PATCH /api/kg/pykeen/reviews/{review_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/kg/pykeen/reviews/{review_id}"
+            params = None
+            payload = _build_json_payload({
+                "note": note,
+                "resulting_claim_id": resulting_claim_id,
+                "state": state,
+            }, {
+                "note": {'type': 'string', 'nullable': True, 'title': 'Note', 'x-cli-required': False},
+                "resulting_claim_id": {'type': 'string', 'nullable': True, 'title': 'Resulting Claim Id', 'x-cli-required': False},
+                "state": {'type': 'string', 'enum': ['pending', 'accepted', 'rejected', 'deferred'], 'title': 'PredictionReviewState', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-stored-predictions")

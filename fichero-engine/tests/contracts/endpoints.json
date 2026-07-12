@@ -2394,6 +2394,44 @@
         "response_model": "ClassificationValue"
       }
     ],
+    "content-representations": [
+      {
+        "method": "GET",
+        "path": "/content-representations/document/{document_id}",
+        "operation_id": "list_representations_api_content_representations_document__document_id__get",
+        "summary": "List Representations",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ContentRepresentation]"
+      },
+      {
+        "method": "GET",
+        "path": "/content-representations/{representation_id}/revisions",
+        "operation_id": "list_revisions_api_content_representations__representation_id__revisions_get",
+        "summary": "List Revisions",
+        "path_params": [
+          "representation_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[ContentRepresentationRevision]"
+      },
+      {
+        "method": "POST",
+        "path": "/content-representations/{representation_id}/revisions",
+        "operation_id": "create_revision_api_content_representations__representation_id__revisions_post",
+        "summary": "Create Revision",
+        "path_params": [
+          "representation_id"
+        ],
+        "query_params": [],
+        "request_model": "RepresentationRevisionParams",
+        "response_model": "ContentRepresentationRevision"
+      }
+    ],
     "documents": [
       {
         "method": "GET",
@@ -3627,7 +3665,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": "HermesSuggestionRequest",
-        "response_model": "HermesSuggestionListResponse"
+        "response_model": null
       },
       {
         "method": "GET",
@@ -4992,7 +5030,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": "HermesSuggestionRequest",
-        "response_model": "HermesSuggestionListResponse"
+        "response_model": null
       },
       {
         "method": "GET",
@@ -5115,6 +5153,44 @@
         ],
         "request_model": null,
         "response_model": "KGGraphListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/pykeen/reviews",
+        "operation_id": "list_prediction_reviews_api_kg_pykeen_reviews_get",
+        "summary": "List Prediction Reviews",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "state",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "PykeenListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/pykeen/reviews",
+        "operation_id": "create_prediction_review_api_kg_pykeen_reviews_post",
+        "summary": "Create Prediction Review",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "KnowledgePredictionReview",
+        "response_model": "KnowledgePredictionReview"
+      },
+      {
+        "method": "PATCH",
+        "path": "/kg/pykeen/reviews/{review_id}",
+        "operation_id": "decide_prediction_review_api_kg_pykeen_reviews__review_id__patch",
+        "summary": "Decide Prediction Review",
+        "path_params": [
+          "review_id"
+        ],
+        "query_params": [],
+        "request_model": "PredictionReviewDecision",
+        "response_model": "KnowledgePredictionReview"
       },
       {
         "method": "GET",
