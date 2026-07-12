@@ -20,6 +20,7 @@ router = APIRouter(prefix="/view", tags=["views"])
 _TEMPLATES = Jinja2Templates(
     directory=str(Path(__file__).resolve().parents[1] / "templates")
 )
+_GLOBAL_KG_LIMIT = 250
 
 
 def _json_for_script(payload: object) -> str:
@@ -37,11 +38,7 @@ def _transcript_for_document(db: Database, document: Document) -> str:
     if document.page_content:
         return document.page_content
 
-    child_pages = [
-        doc
-        for doc in db.all(Document)
-        if doc.parent_id == document.id and doc.doc_type == DocType.page
-    ]
+    child_pages = db.query(Document, parent_id=document.id, doc_type=DocType.page)
     child_pages.sort(key=lambda doc: (doc.sequence or 0, doc.name))
 
     chunks: list[str] = []
@@ -122,26 +119,16 @@ def _claim_payload(
     ]
 
 
-def _document_scoped_entities(db: Database, doc_id: str) -> list[KnowledgeEntity]:
-    from fichero.api.routes.claims import _descendant_doc_ids
-
-    doc_ids = _descendant_doc_ids(db, doc_id)
-    all_claims = db.query(KnowledgeClaim)
+def _document_scoped_entities(
+    db: Database, doc_ids: set[str], claims: list[KnowledgeClaim]
+) -> list[KnowledgeEntity]:
     entity_ids = {
         entity_id
-        for claim in all_claims
-        if claim.source_document_id in doc_ids
+        for claim in claims
         for entity_id in (claim.entity_ids or [])
     }
-    entities = [db.get(KnowledgeEntity, entity_id) for entity_id in sorted(entity_ids)]
-    scoped = [entity for entity in entities if entity is not None]
-    seen_ids = {entity.id for entity in scoped}
-    for entity in db.all(KnowledgeEntity):
-        if entity.id in seen_ids:
-            continue
-        if doc_ids.intersection(entity.source_document_ids or []):
-            scoped.append(entity)
-            seen_ids.add(entity.id)
+    entity_ids.update(db.knowledge_entity_ids_scoped_to_documents(doc_ids))
+    scoped = db.query_in(KnowledgeEntity, "id", sorted(entity_ids))
     scoped.sort(key=lambda entity: entity.canonical_name.lower())
     return scoped
 
@@ -156,20 +143,14 @@ async def document_view(
     if document is None:
         raise HTTPException(404, f"Document not found: {doc_id}")
 
-    # Collect page-child doc IDs — per-page PDFs store claims on children
-    # (parent_id == doc_id), not on the parent, so we must union both (#1249).
-    child_page_ids = {
-        doc.id
-        for doc in db.query(Document)
-        if doc.parent_id == doc_id and doc.doc_type == DocType.page
-    }
-    doc_scope = {doc_id} | child_page_ids
-    claims = [
-        claim for claim in db.query(KnowledgeClaim)
-        if claim.source_document_id in doc_scope
-    ]
+    from fichero.api.routes.claims import _descendant_doc_ids
 
-    entities = _document_scoped_entities(db, doc_id)
+    # Per-page PDFs store claims on children, so scope the graph to the full
+    # document subtree and let query_in filter before hydration (#3224).
+    doc_scope = _descendant_doc_ids(db, doc_id)
+    claims = db.query_in(KnowledgeClaim, "source_document_id", doc_scope)
+
+    entities = _document_scoped_entities(db, doc_scope, claims)
     entities_by_id = {entity.id: entity for entity in entities}
 
     transcript = _transcript_for_document(db, document)
@@ -243,9 +224,11 @@ async def global_kg_view(
     Used by OntologyBrowser graph mode so sidebar + inspector run through the
     same WebKit renderer path.
     """
-    entities = db.query(KnowledgeEntity)
+    entity_count = db.count(KnowledgeEntity)
+    claim_count = db.count(KnowledgeClaim)
+    entities = db.query_page(KnowledgeEntity, limit=_GLOBAL_KG_LIMIT)
     entities_by_id = {entity.id: entity for entity in entities}
-    claims = db.query(KnowledgeClaim)
+    claims = db.query_page(KnowledgeClaim, limit=_GLOBAL_KG_LIMIT)
 
     document_payload = {
         "id": "__kg_global__",
@@ -253,6 +236,12 @@ async def global_kg_view(
         "doc_type": "kg",
         "file_type": None,
         "page_content": "",
+        "graph_summary": {
+            "shown_entities": len(entities),
+            "total_entities": entity_count,
+            "shown_claims": len(claims),
+            "total_claims": claim_count,
+        },
     }
     entity_payload = [
         {

@@ -1,6 +1,7 @@
 """Tests for the hosted document knowledge-surface HTML route (#1228)."""
 
 from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.db import Database
 from fichero.models import Document, DocType, FileType, Status
 
 
@@ -166,6 +167,40 @@ class TestDocumentViewRoute:
         assert '"id": "claim-pg1"' in response.text
         assert '"canonical_name": "Hernández"' in response.text
 
+    def test_document_view_uses_scoped_queries_not_full_table_scans(
+        self, client, db, monkeypatch
+    ):
+        doc = _make_document(
+            doc_id="scoped-parent", name="Scoped.pdf", doc_type=DocType.file
+        )
+        page = _make_document(
+            doc_id="scoped-page",
+            name="Page 1",
+            doc_type=DocType.page,
+            parent_id=doc.id,
+        )
+        db.save(doc)
+        db.save(page)
+        db.save(
+            KnowledgeClaim(
+                id="scoped-claim", text="Scoped claim", source_document_id=page.id
+            )
+        )
+
+        original_all = Database.all
+
+        def no_full_scan(self, model):
+            if model in {Document, KnowledgeClaim, KnowledgeEntity}:
+                raise AssertionError(f"unexpected full scan of {model.__name__}")
+            return original_all(self, model)
+
+        monkeypatch.setattr(Database, "all", no_full_scan)
+
+        response = client.get(f"/view/document/{doc.id}")
+
+        assert response.status_code == 200
+        assert '"id": "scoped-claim"' in response.text
+
     def test_document_view_includes_doc_scoped_event_entities_without_claim_links(self, client, db):
         doc = _make_document(
             doc_id="doc-events",
@@ -238,3 +273,40 @@ class TestDocumentViewRoute:
         assert "<title>Knowledge Graph</title>" in response.text
         assert '"id": "entity-global-1"' in response.text
         assert '"id": "claim-global-1"' in response.text
+
+    def test_global_kg_view_caps_embedded_graph_payload(self, client, db, monkeypatch):
+        db.save(
+            KnowledgeEntity(
+                id="global-capped-entity",
+                canonical_name="Global Capped Entity",
+                entity_type=EntityType.person,
+            )
+        )
+        calls: list[tuple[type, int]] = []
+        original_query_page = Database.query_page
+        original_count = Database.count
+
+        def counting_query_page(self, model, *, limit, offset=0):
+            calls.append((model, limit))
+            return original_query_page(self, model, limit=limit, offset=offset)
+
+        def large_count(self, model, **filters):
+            if model is KnowledgeEntity:
+                return 251
+            return original_count(self, model, **filters)
+
+        from fichero.api.routes.views import _GLOBAL_KG_LIMIT
+
+        monkeypatch.setattr(Database, "query_page", counting_query_page)
+        monkeypatch.setattr(Database, "count", large_count)
+
+        response = client.get("/view/kg/global")
+
+        assert response.status_code == 200
+        assert calls == [
+            (KnowledgeEntity, _GLOBAL_KG_LIMIT),
+            (KnowledgeClaim, _GLOBAL_KG_LIMIT),
+        ]
+        assert '"shown_entities": 1' in response.text
+        assert '"total_entities": 251' in response.text
+        assert "select a node to load its neighborhood" in response.text
