@@ -12,7 +12,6 @@ from typer.testing import CliRunner
 os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
-os.environ["FICHERO_EMBED_MODEL"] = "__contract_no_embed__"
 
 from fichero import __main__ as cli  # noqa: E402
 from tests.integration._cli_live import cli_live_engine as _cli_live_engine_fixture  # noqa: E402,F401
@@ -49,7 +48,7 @@ def _get_json(base_url: str, library, path: str) -> dict:
 
 
 def test_import_iiif_cli_round_trips_fixture_into_live_engine(
-    _cli_live_engine_fixture,
+    cli_live_engine,
     tmp_path,
 ) -> None:
     iiif_root = tmp_path / "iiif"
@@ -61,7 +60,7 @@ def test_import_iiif_cli_round_trips_fixture_into_live_engine(
         cli.app,
         [
             "--base-url",
-            _cli_live_engine_fixture["base_url"],
+            cli_live_engine["base_url"],
             "import-iiif",
             "--iiif",
             str(iiif_root),
@@ -78,7 +77,7 @@ def test_import_iiif_cli_round_trips_fixture_into_live_engine(
     assert "documents_created: 2" in result.output
 
     docs = _get_json(
-        _cli_live_engine_fixture["base_url"],
+        cli_live_engine["base_url"],
         library,
         "/api/documents?limit=500",
     )["items"]
@@ -86,7 +85,7 @@ def test_import_iiif_cli_round_trips_fixture_into_live_engine(
     assert page["page_content"] == "Marshall went to Istmina."
 
     artifacts = _get_json(
-        _cli_live_engine_fixture["base_url"],
+        cli_live_engine["base_url"],
         library,
         f"/api/artifacts/document/{page['id']}?artifact_type=transcription&include_descendants=false",
     )["items"]
@@ -95,7 +94,7 @@ def test_import_iiif_cli_round_trips_fixture_into_live_engine(
     assert artifacts[0]["data"]["source"] == "iiif_w3c"
 
     entities = _get_json(
-        _cli_live_engine_fixture["base_url"],
+        cli_live_engine["base_url"],
         library,
         f"/api/entities?document_id={page['id']}&limit=500",
     )["items"]
