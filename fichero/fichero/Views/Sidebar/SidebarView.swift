@@ -25,6 +25,9 @@ struct SidebarView: View {
     // API client for service calls
     @Environment(APIClient.self) var apiClient
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    /// Saved agent workspaces (#3533) — optional so the sidebar is safe if the
+    /// store isn't injected in a given host.
+    @Environment(WorkspaceStore.self) var workspaceStore: WorkspaceStore?
 
     var onOpenChatWithCurrentScope: (() -> Void)?
 
