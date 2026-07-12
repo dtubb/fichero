@@ -93,6 +93,18 @@ enum ArtifactRichTextCodec {
         return html
     }
 
+    // MARK: - Plain-text boundary (#2317)
+
+    /// Plain-text projection of stored content for native readers that render
+    /// selectable plain text (`PageContentPane`, `DocumentTextReader`) and must
+    /// not leak raw RTF. RTF source (`{\rtf` prefix) is decoded so control words
+    /// and `\'xx` escapes resolve to real characters (`\'e1` → á); plain text
+    /// short-circuits unchanged so the common case pays no decode cost (#2317).
+    static func plainText(_ content: String) -> String {
+        guard content.hasPrefix("{\\rtf") else { return content }
+        return decode(content).string
+    }
+
     // MARK: - AttributedString boundary (#2453)
 
     /// Decode stored content into a SwiftUI-native `AttributedString` for the

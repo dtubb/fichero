@@ -157,6 +157,15 @@ struct DocumentKGSurface: View {
 
     @State private var internalActiveTab: KGSurfaceTab = .transcript
     private var activeTab: KGSurfaceTab { externalActiveTab ?? internalActiveTab }
+
+    // Lazy-host latches for the heavy WKWebView on iOS (#2409). `hasAppeared`
+    // gates the pane off the first paint so the 6–8s WebContent/GPU/Networking
+    // helper-process launch doesn't block the reader's initial layout;
+    // `everShownWebKit` keeps a session that stays on the native claims tab from
+    // ever spawning the web processes at all. On macOS both are ignored — the
+    // pane is cheap and stays alive to preserve scroll (#1346).
+    @State private var hasAppeared = false
+    @State private var everShownWebKit = false
     @Environment(KGFocusState.self) private var kgFocusState
     @Environment(EntityServiceGenerated.self) private var entityService
     @Environment(ArtifactServiceGenerated.self) private var artifactService
@@ -187,30 +196,51 @@ struct DocumentKGSurface: View {
         }
     }
 
+    /// Whether to host the WKWebView pane this pass. macOS always hosts it (cheap,
+    /// preserves scroll, #1346); iOS defers until after first paint and only once
+    /// a WebKit tab has been requested, so the heavy helper-process launch never
+    /// blocks initial layout and a claims-only session skips it entirely (#2409).
+    private var shouldHostWebPane: Bool {
+        #if os(iOS)
+        return hasAppeared && everShownWebKit
+        #else
+        return true
+        #endif
+    }
+
     @ViewBuilder
     private var content: some View {
         // Keep the WKWebView alive across tab switches via ZStack + opacity
         // so scroll position survives when the user moves between transcript/
         // digest/graph/timeline/map and the native claims tab. (#1346)
         ZStack {
-            DocumentKGWebPane(
-                documentId: documentId,
-                libraryPath: libraryPath,
-                selectedEntityId: selectedEntityId,
-                selectedClaimId: selectedClaimId,
-                activeTab: activeTab.rawValue,
-                activePageNumber: activePageNumber,
-                pageCount: pageCount,
-                onPageSelected: onPageSelected,
-                scrollSync: scrollSync,
-                zoom: zoom
-            )
-            .opacity(activeTab.usesWebKit ? 1 : 0)
-            .allowsHitTesting(activeTab.usesWebKit)
+            if shouldHostWebPane {
+                DocumentKGWebPane(
+                    documentId: documentId,
+                    libraryPath: libraryPath,
+                    selectedEntityId: selectedEntityId,
+                    selectedClaimId: selectedClaimId,
+                    activeTab: activeTab.rawValue,
+                    activePageNumber: activePageNumber,
+                    pageCount: pageCount,
+                    onPageSelected: onPageSelected,
+                    scrollSync: scrollSync,
+                    zoom: zoom
+                )
+                .opacity(activeTab.usesWebKit ? 1 : 0)
+                .allowsHitTesting(activeTab.usesWebKit)
+            }
 
             if !activeTab.usesWebKit {
                 nativeTabContent
             }
+        }
+        .onAppear {
+            hasAppeared = true
+            if activeTab.usesWebKit { everShownWebKit = true }
+        }
+        .onChange(of: activeTab.usesWebKit) { _, usesWebKit in
+            if usesWebKit { everShownWebKit = true }
         }
     }
 

@@ -30,8 +30,12 @@ struct PageContentPane: View { // swiftlint:disable:this type_body_length
         return doc
     }
 
+    /// Decoded, display-ready page text. RTF source is resolved to plain text so
+    /// the reader never shows raw `\'e1`/control-word escapes (#2317); everything
+    /// downstream (edit draft, highlight ranges, claim matching) works off this
+    /// same decoded string so offsets stay consistent.
     private var pageContent: String {
-        pageDoc?.pageContent ?? ""
+        ArtifactRichTextCodec.plainText(pageDoc?.pageContent ?? "")
     }
 
     var body: some View {
@@ -50,8 +54,8 @@ struct PageContentPane: View { // swiftlint:disable:this type_body_length
                                 commitDraft(exitAfterSave: false)
                             }
                         }
-                } else if let content = doc.pageContent, !content.isEmpty {
-                    pageContentScroll(content)
+                } else if !pageContent.isEmpty {
+                    pageContentScroll(pageContent)
                 } else {
                     emptyState(
                         title: "No content",
@@ -235,13 +239,13 @@ struct PageContentPane: View { // swiftlint:disable:this type_body_length
     }
 
     private func toggleEditing() {
-        guard let doc = pageDoc else { return }
+        guard pageDoc != nil else { return }
         saveError = nil
 
         if editState.isEditing {
             commitDraft(exitAfterSave: true)
         } else {
-            editState.beginEditing(from: doc.pageContent ?? "")
+            editState.beginEditing(from: pageContent)
             isEditorFocused = true
         }
     }
