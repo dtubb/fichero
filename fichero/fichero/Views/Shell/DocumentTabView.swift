@@ -3,8 +3,25 @@ import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentTabView")
 
-/// Main view for a document tab/window
-/// Switches between different view modes based on document state
+/// Per-window host for a library. **This view IS live** — `LibraryWorkspaceRoot`
+/// mounts one per window; its load-bearing job is to (a) gate on
+/// `appState.isBackendRunning` (showing `BackendConnectionView` until the engine
+/// is up) and (b) forward the per-library `@Environment` services into
+/// `ContentView()`, which is the actual app UI. Do not delete it.
+///
+/// **The `document.viewMode` switch below is LEGACY, though (#3583).** It dates
+/// from a pre-WindowGroup design where "each tab was a viewMode" — a separate
+/// `DocumentTabView` case (workflow / chat / search / batches / …) per tab. That
+/// model was replaced: today the whole app lives in the `.library` case
+/// (`ContentView`), where workflow/chat/search/KG are *sidebar modes*, and NEW
+/// windows + native macOS tabs are opened through `WindowOpener` (#1685/#3582),
+/// NOT by switching `viewMode`. `FicheroDocument.viewMode` never leaves its
+/// `.library` default in the live tree, so every case except `.library` is an
+/// unreachable `ContentUnavailableView`/placeholder.
+///
+/// Future devs: to add a new surface, extend `ContentView`'s sidebar modes or
+/// open a window via `WindowOpener` — do NOT add cases to the switch below or
+/// build on the `*PlaceholderView`s; that abstraction is retired.
 struct DocumentTabView: View {
     let libraryId: UUID  // ID of the library this view is displaying
     @Binding var document: FicheroDocument
