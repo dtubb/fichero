@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import SwiftUI
 
 // MARK: - Page Content Pane (#1189)
@@ -76,7 +77,9 @@ struct PageContentPane: View { // swiftlint:disable:this type_body_length
                     canAnnotateSelection: selectionRange != nil,
                     savedCount: pageAnnotations.count,
                     onHighlight: addHighlight,
-                    onNote: beginNote
+                    onNote: beginNote,
+                    onStar: addStar,
+                    onBookmark: addBookmark
                 )
                 .popover(isPresented: $isComposingNote, arrowEdge: .bottom) {
                     noteComposer
@@ -353,6 +356,32 @@ extension PageContentPane {
                 charEnd: range.upperBound,
                 kind: .highlight
             )
+        }
+    }
+
+    /// Star the selected paragraph (or the page when nothing is selected) as a
+    /// `.rating` reading mark — the paragraph-level "star" (#3548). Anchored by
+    /// the selection's char range so it survives re-layout (real anchors, #3226).
+    fileprivate func addStar() {
+        guard let doc = pageDoc else { return }
+        let range = selectionRange
+        let quoted = range.map(selectedText) ?? ""
+        Task {
+            _ = await annotationStore.addNote(
+                scope: .page(doc.id),
+                text: quoted,
+                charStart: range?.lowerBound,
+                charEnd: range?.upperBound,
+                kind: .rating
+            )
+        }
+    }
+
+    /// Bookmark this page as a reading mark (#3548).
+    fileprivate func addBookmark() {
+        guard let doc = pageDoc else { return }
+        Task {
+            _ = await annotationStore.addNote(scope: .page(doc.id), text: "", kind: .bookmark)
         }
     }
 

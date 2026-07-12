@@ -13,6 +13,11 @@ struct AnnotationToolbar: View {
     let savedCount: Int
     var onHighlight: () -> Void
     var onNote: () -> Void
+    /// Star (rating mark) + bookmark the current selection/paragraph or page
+    /// (#3548). Optional so existing callers are unaffected; the button shows
+    /// only when wired. A "star" is just the existing `.rating` mark type.
+    var onStar: (() -> Void)?
+    var onBookmark: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -30,6 +35,22 @@ struct AnnotationToolbar: View {
             .help(canAnnotateSelection
                   ? "Add a note on the selected text"
                   : "Add a note on this page")
+
+            if let onStar {
+                Button(action: onStar) {
+                    Label("Star", systemImage: "star")
+                }
+                .help(canAnnotateSelection
+                      ? "Star the selected paragraph"
+                      : "Star this page as a reading mark")
+            }
+
+            if let onBookmark {
+                Button(action: onBookmark) {
+                    Label("Bookmark", systemImage: "bookmark")
+                }
+                .help("Bookmark this page")
+            }
 
             Spacer(minLength: 0)
 
