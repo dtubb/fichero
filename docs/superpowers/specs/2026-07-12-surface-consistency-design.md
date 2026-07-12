@@ -103,3 +103,8 @@ tab enum (Built-in/MCP/Agents) — migrate it to the shared chrome.
 Dispatch after the in-flight #3318 (folder+library reconciliation) lands and a
 worker frees (2-worker cap). This is planning + issues now; a design/brainstorm
 pass with Daniel refines the per-mode tab sets before implementation.
+
+## Addendum (Daniel 2026-07-12) — batch + crop (exposure gaps, backends exist)
+
+- **Batch mode GUI** (#3536, Workflow View): backend batch.py + create_batch API + AppViewMode.batches exist; expose 'run a workflow across dozens of folders SEPARATELY' (one run per folder, tracked in Activity). Swift GUI + wiring, reuse the batch API.
+- **Reversible batch crop** (#3537, Preview-Image-Editing): a reversible/non-destructive crop (crop out a ruler/scale-bar) applicable across many images; writes a cropped derived child (derived_from + bbox), consistent with #1595 (reversible split) + #3535 (image stack/group). segment_images.json already does non-destructive crops — reuse.
