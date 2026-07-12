@@ -14,11 +14,13 @@ struct EditorView: View {
     /// Current multi-file selection — drives batch-apply in the image editor (#1265).
     var selectedDocumentIDs: Set<String> = []
 
-    /// Whether the canvas is showing the editing surface (tools) rather than
-    /// the plain zoom/loupe preview. Off by default so chrome stays minimal
-    /// until the user opts into editing (#1453). Reset whenever the document
-    /// changes so a new selection always opens in view mode.
-    @State private var isEditing = false
+    /// Edit mode is the Inspector's "Edits" facet — the Lightroom "Develop
+    /// module" model (#3593, Daniel 2026-07-12): selecting it makes the Preview
+    /// the live editing canvas AND shows the controls in the Inspector, driven by
+    /// the one per-window `@SceneStorage` key the Inspector already owns. Reused
+    /// here (not a second state) so the two panes can never disagree. Persists
+    /// across documents, like Lightroom's Develop module, rather than resetting.
+    @SceneStorage("inspectorSelectedTab") private var inspectorSelectedTab: InspectorTab = .content
     @Environment(\.openURL) private var openURL
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(WindowState.self) private var windowState
@@ -32,9 +34,22 @@ struct EditorView: View {
             }
         }
         .frame(minWidth: 300)
-        .onChange(of: document?.id) { _, _ in
-            isEditing = false
-        }
+    }
+
+    /// True when the Preview should present the editing canvas: the Inspector's
+    /// Edits facet is selected. Only meaningful for editable surfaces — the
+    /// preview route re-checks the document type before mounting the editor.
+    private var isEditing: Bool {
+        inspectorSelectedTab == .edits
+    }
+
+    /// The Preview's own edit toggle just flips the shared facet, so turning it
+    /// on shows the Inspector controls and turning it off leaves edit mode.
+    private var editModeBinding: Binding<Bool> {
+        Binding(
+            get: { inspectorSelectedTab == .edits },
+            set: { inspectorSelectedTab = $0 ? .edits : .content }
+        )
     }
 
     // MARK: - Document Preview
@@ -202,7 +217,7 @@ struct EditorView: View {
             DocumentCanvas(
                 content: .imageStorageDisplay(documentId: documentId),
                 onNavigateToDocument: supportsFolderNav ? onNavigateToDocument : nil,
-                isEditing: isImageEditable ? $isEditing : nil
+                isEditing: isImageEditable ? editModeBinding : nil
             )
         case .imageEditor:
             ImageEditorView(
