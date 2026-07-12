@@ -146,6 +146,56 @@ class ChatServiceGenerated {
             errors: response.errors
         )
     }
+
+    // MARK: - Agent workspaces (#3533 / #3547)
+
+    /// Save a conversation as a persistent agent WORKSPACE node (on-demand — a
+    /// chat is ephemeral until saved). POST /api/chat/conversations/{id}/workspace
+    func saveConversationAsWorkspace(
+        conversationId: String,
+        title: String?
+    ) async throws -> Components.Schemas.AgentWorkspace {
+        let response = try await client.api
+            .saveConversationAsWorkspaceApiChatConversationsConversationIdWorkspacePost(
+                path: .init(conversationId: conversationId),
+                body: .json(.init(title: title))
+            )
+        switch response {
+        case .ok(let okResponse): return try okResponse.body.json
+        default: throw ChatServiceError.unexpectedResponse
+        }
+    }
+
+    /// List saved agent workspaces. GET /api/chat/workspaces
+    func listAgentWorkspaces() async throws -> [Components.Schemas.AgentWorkspace] {
+        let response = try await client.api.listAgentWorkspacesApiChatWorkspacesGet()
+        switch response {
+        case .ok(let okResponse): return try okResponse.body.json.items
+        default: throw ChatServiceError.unexpectedResponse
+        }
+    }
+
+    /// Fetch one workspace (to restore its chat/agent session).
+    /// GET /api/chat/workspaces/{id}
+    func getAgentWorkspace(id: String) async throws -> Components.Schemas.AgentWorkspace {
+        let response = try await client.api
+            .getAgentWorkspaceApiChatWorkspacesWorkspaceIdGet(path: .init(workspaceId: id))
+        switch response {
+        case .ok(let okResponse): return try okResponse.body.json
+        default: throw ChatServiceError.unexpectedResponse
+        }
+    }
+
+    /// Delete a workspace (reversible-safe per the backend).
+    /// DELETE /api/chat/workspaces/{id}
+    func deleteAgentWorkspace(id: String) async throws {
+        let response = try await client.api
+            .deleteAgentWorkspaceApiChatWorkspacesWorkspaceIdDelete(path: .init(workspaceId: id))
+        switch response {
+        case .ok: return
+        default: throw ChatServiceError.unexpectedResponse
+        }
+    }
 }
 
 // MARK: - Error Types
