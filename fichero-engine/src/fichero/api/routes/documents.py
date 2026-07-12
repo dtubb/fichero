@@ -2757,3 +2757,61 @@ def _action_import_upload_file(
         document_ids=[doc.id],
     )
     return doc.model_dump(mode="json"), spec
+
+
+class DocumentGroupRequest(BaseModel):
+    name: str = Field(min_length=1)
+    child_ids: list[str] = Field(min_length=2)
+
+
+@router.post("/groups", response_model=Document)
+async def create_document_group(
+    payload: DocumentGroupRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> Document:
+    """Create a reversible logical stack without modifying source children."""
+    child_ids = list(dict.fromkeys(payload.child_ids))
+    if len(child_ids) < 2:
+        raise HTTPException(status_code=422, detail="A group requires two distinct children")
+    children = [db.get(Document, child_id) for child_id in child_ids]
+    if any(child is None for child in children):
+        raise HTTPException(status_code=404, detail="One or more group children were not found")
+    group = Document(
+        name=payload.name,
+        doc_type=DocType.group,
+        node_kind="group",
+        metadata={
+            "group_members": [
+                {"id": child.id, "parent_id": child.parent_id, "sort_order": child.sort_order}
+                for child in children
+            ]
+        },
+    )
+    db.save(group)
+    for child in children:
+        child.parent_id = group.id
+        db.save(child)
+    return group
+
+
+@router.post("/groups/{group_id}/ungroup", response_model=list[Document])
+async def ungroup_document(
+    group_id: str,
+    db: Database = Depends(get_library_database_for_write),
+) -> list[Document]:
+    """Restore every stack member to its original parent and order."""
+    group = db.get(Document, group_id)
+    if group is None or group.doc_type != DocType.group:
+        raise HTTPException(status_code=404, detail=f"Document group not found: {group_id}")
+    members = (group.metadata or {}).get("group_members") or []
+    restored: list[Document] = []
+    for member in members:
+        child = db.get(Document, member.get("id"))
+        if child is None:
+            continue
+        child.parent_id = member.get("parent_id")
+        child.sort_order = member.get("sort_order", child.sort_order)
+        db.save(child)
+        restored.append(child)
+    db.delete(group)
+    return restored
