@@ -275,8 +275,8 @@ class TestAppendOpActions:
 
         ops = _ops(db, doc.id)
         assert [o["op"] for o in ops] == ["crop"]
-        # the render ran — a derived preview path was stamped
-        assert "derived_path" in ops[0]
+        # The chain is portable state; derived previews are regeneratable caches.
+        assert "derived_path" not in ops[0]
         assert ops[0]["params"]["width"] == 40
 
         audit = db.get(ActionAudit, result.audit_id)
@@ -510,7 +510,7 @@ class TestAppendOpActions:
         )
         ops = _ops(db, doc.id)
         assert ops[0]["op"] == "remove_background"
-        assert ops[0]["derived_path"].endswith(".png")
+        assert "derived_path" not in ops[0]
         assert db.get(ActionAudit, result.audit_id) is not None
 
     def test_enhance_validation_rejects_negative_brightness(self, db, tmp_path):
