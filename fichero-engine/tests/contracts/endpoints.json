@@ -3826,6 +3826,28 @@
     "images": [
       {
         "method": "POST",
+        "path": "/images/batch-apply",
+        "operation_id": "batch_apply_image_operation_api_images_batch_apply_post",
+        "summary": "Batch Apply Image Operation",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BatchImageApplyRequest",
+        "response_model": "BatchResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/images/batch-apply/{batch_id}/undo",
+        "operation_id": "undo_batch_image_operation_api_images_batch_apply__batch_id__undo_post",
+        "summary": "Undo Batch Image Operation",
+        "path_params": [
+          "batch_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "BatchImageUndoResponse"
+      },
+      {
+        "method": "POST",
         "path": "/images/crops/batch",
         "operation_id": "batch_crop_images_api_images_crops_batch_post",
         "summary": "Batch Crop Images",

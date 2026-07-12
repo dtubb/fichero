@@ -5492,6 +5492,44 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='images')
         existing_apps['images'] = target_app
 
+    @target_app.command("batch-apply-operation")
+    def images_batch_apply_operation_post(
+        ctx: typer.Context,
+        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
+        bboxes: Optional[str] = typer.Option(None, "--bboxes", help="Request field: bboxes."),
+        folder_id: str = typer.Option(..., "--folder-id", help="Request field: folder_id."),
+        operation: str = typer.Option(..., "--operation", help="Request field: operation."),
+    ) -> None:
+        """Batch Apply Image Operation (POST /api/images/batch-apply)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/images/batch-apply"
+            params = None
+            payload = _build_json_payload({
+                "bbox": bbox,
+                "bboxes": bboxes,
+                "folder_id": folder_id,
+                "operation": operation,
+            }, {
+                "bbox": {'prefixItems': [{'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}], 'type': 'array', 'maxItems': 4, 'minItems': 4, 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
+                "bboxes": {'items': {'prefixItems': [{'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}], 'type': 'array', 'maxItems': 4, 'minItems': 4}, 'type': 'array', 'nullable': True, 'title': 'Bboxes', 'x-cli-required': False},
+                "folder_id": {'type': 'string', 'title': 'Folder Id', 'x-cli-required': True},
+                "operation": {'type': 'string', 'enum': ['crop', 'split'], 'title': 'Operation', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("undo-batch-operation")
+    def images_undo_batch_operation_post(
+        ctx: typer.Context,
+        batch_id: str = typer.Argument(..., help="Path parameter: batch_id."),
+    ) -> None:
+        """Undo Batch Image Operation (POST /api/images/batch-apply/{batch_id}/undo)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/images/batch-apply/{batch_id}/undo"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("batch-crop")
     def images_batch_crop_post(
         ctx: typer.Context,
