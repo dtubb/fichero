@@ -110,6 +110,41 @@ struct ClaimSourceNavigationRequest: Equatable {
     var destination: SourceDestination = .reader
 }
 
+extension SourceDestination {
+    /// Widen to the engine's `LocationSurface` (#3577). `SourceDestination` has
+    /// no `.inspector` case, so this only ever produces preview/reader/both.
+    var locationSurface: Components.Schemas.LocationSurface {
+        switch self {
+        case .preview: return .preview
+        case .reader: return .reader
+        case .both: return .both
+        }
+    }
+}
+
+extension ClaimSourceNavigationRequest {
+    /// This request as the engine-known `Location` (#3577). The Swift request
+    /// keeps its own shape (locked by `SourceNavigationContractTests`); this is
+    /// the thin wrapper that lets `locationService.resolve` do page-child →
+    /// parent resolution in ONE place. `pageIndex` is 0-based here but the engine
+    /// `page` is 1-based, so it is bumped by one.
+    var asLocation: Components.Schemas.Location {
+        let charRange: Components.Schemas.CharacterRange? = {
+            guard let charStart, let charEnd else { return nil }
+            return Components.Schemas.CharacterRange(start: charStart, end: charEnd)
+        }()
+        return Components.Schemas.Location(
+            documentId: documentId,
+            page: pageIndex.map { $0 + 1 },
+            bbox: bbox,
+            charRange: charRange,
+            claimId: claimId,
+            entityId: nil,
+            surface: destination.locationSurface
+        )
+    }
+}
+
 /// Per-window claim/entity/citation source-navigation request bus. Scoped to
 /// the window/library via the SwiftUI environment (#3437) — NOT a process-global
 /// singleton, so a source reveal in one window never navigates another.

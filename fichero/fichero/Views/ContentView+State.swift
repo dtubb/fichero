@@ -908,10 +908,11 @@ extension ContentView {
             )
         }
         // Resolve page-child source documents to their parent file and
-        // select it. Then forward the page-navigation request that
-        // PDFPageView consumes for scrolling/highlighting.
+        // select it — now via the ONE engine route (#3577) instead of the
+        // inline client-side walk. Then forward the SAME page-navigation
+        // request that PDFPageView consumes for scrolling/highlighting.
         Task { @MainActor in
-            await navigateToSourcePage(docId)
+            await revealResolvedSource(request)
             var info: [String: Any] = ["documentId": docId]
             if let claimId = request.claimId { info["claimId"] = claimId }
             if let pageLabel = request.pageLabel { info["pageLabel"] = pageLabel }
