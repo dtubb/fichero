@@ -21,7 +21,10 @@ private struct ReadingPaneView: View {
     @Environment(APIClient.self) private var apiClient
     @Environment(KGFocusState.self) private var kgFocusState
     @Environment(ClaimFocusState.self) private var claimFocusState
+    @Environment(AnnotationStore.self) private var annotationStore
     @Environment(\.splitAxisActions) private var splitAxisActions
+    /// Shared annotation focus for the Notes tab's list ↔ detail selection.
+    @State private var focusedAnnotation = FocusedAnnotation.shared
 
     @State private var isPinned = false
     @State private var pinnedDocument: Document?
@@ -335,14 +338,32 @@ private struct ReadingPaneView: View {
         }
     }
 
-    /// Notes tab — the human reading layer (highlights / notes / bookmarks
-    /// anchored to the page), via the existing document notes surface.
+    /// Notes tab — the human reading layer: highlights / notes / bookmarks
+    /// anchored to the page, via the shared `AnnotationsInspectorPane`
+    /// (AnnotationStore-backed, list + detail, reveal-in-source, promote-to-claim).
+    /// The parent loads the document-scoped slice; the pane owns the mutations.
     @ViewBuilder
     private var notesTabContent: some View {
         if let doc = effectiveDocument {
-            DocumentNotesTab(document: doc)
+            AnnotationsInspectorPane(
+                document: doc,
+                annotations: annotationStore.annotations,
+                focused: focusedAnnotation
+            )
+            .task(id: doc.id) {
+                await annotationStore.loadAnnotations(for: annotationScope(for: doc), force: true)
+            }
         } else {
             readerEmptyState
+        }
+    }
+
+    /// Annotation scope for the focused document — page / folder / document.
+    private func annotationScope(for doc: Document) -> AnnotationScope {
+        switch doc.docType {
+        case .folder: return .folder(doc.id)
+        case .page: return .page(doc.id)
+        default: return .document(doc.id)
         }
     }
 
