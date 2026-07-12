@@ -218,28 +218,48 @@ private struct ReadingPaneView: View {
         }
     }
 
-    /// Knowledge tab — explore what we know. A native sub-mode switcher folds the
-    /// KG views (Graph, Claims, Timeline, Map) plus the Digest section into one
-    /// tab (#3504/#3505): Timeline and Map are sub-modes, not top tabs, and the
-    /// digest is reachable here rather than as its own tab. Transcript is
-    /// excluded — it now lives in the Page tab. The surface itself is the shared
-    /// `DocumentKGSurface` WebKit view, driven by `activeTab`.
+    /// Knowledge tab — explore what we know. A native sub-mode switcher for the
+    /// exploration views (Graph, Claims, Timeline, Map — Timeline/Map are
+    /// sub-modes, not top tabs, #3504) sits alongside a set-apart **Digest**
+    /// section (the AI summary), so the digest reads as a distinct section rather
+    /// than a co-equal sub-mode or its own tab (#3505/#3512, design Q1).
+    /// Transcript is excluded — it lives in the Page tab. The surface is the
+    /// shared `DocumentKGSurface` WebKit view, driven by `activeTab`.
     @ViewBuilder
     private var knowledgeTabContent: some View {
         VStack(spacing: 0) {
-            Picker("Knowledge view", selection: knowledgeSubModeBinding) {
-                ForEach(Self.knowledgeSubModes) { mode in
-                    Label(mode.title, systemImage: mode.icon)
-                        .help(mode.helpText)
-                        .tag(mode)
+            HStack(spacing: 8) {
+                Picker("Knowledge view", selection: knowledgeVizBinding) {
+                    ForEach(Self.knowledgeVizModes) { mode in
+                        Label(mode.title, systemImage: mode.icon)
+                            .help(mode.helpText)
+                            .tag(mode as KGSurfaceTab?)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .labelStyle(.iconOnly)
+                .fixedSize()
+                .accessibilityIdentifier("readerKnowledgeSubMode")
+
+                Spacer(minLength: 8)
+
+                // Digest is the AI summary SECTION, set apart from the
+                // exploration sub-modes (design Q1 / #3512).
+                Divider().frame(height: 16)
+                Button {
+                    activeTab = .digest
+                } label: {
+                    Label(KGSurfaceTab.digest.title, systemImage: KGSurfaceTab.digest.icon)
+                }
+                .buttonStyle(.borderless)
+                .labelStyle(.titleAndIcon)
+                .font(.caption)
+                .foregroundStyle(activeTab == .digest ? Color.accentColor : .secondary)
+                .help(KGSurfaceTab.digest.helpText)
+                .accessibilityIdentifier("readerKnowledgeDigest")
             }
-            .pickerStyle(.segmented)
-            .labelStyle(.iconOnly)
-            .fixedSize()
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .accessibilityIdentifier("readerKnowledgeSubMode")
 
             Divider()
 
@@ -247,18 +267,28 @@ private struct ReadingPaneView: View {
         }
     }
 
-    /// The KG sub-modes surfaced inside the Knowledge tab. Transcript is a Page
-    /// concern; Graph/Claims/Timeline/Map/Digest are the "what we know" views.
-    private static let knowledgeSubModes: [KGSurfaceTab] = [.graph, .claims, .timeline, .map, .digest]
+    /// The KG exploration sub-modes in the Knowledge tab. Transcript is a Page
+    /// concern; Digest is a separate section (below). Graph/Claims/Timeline/Map
+    /// are the "what we know" visualization views.
+    private static let knowledgeVizModes: [KGSurfaceTab] = [.graph, .claims, .timeline, .map]
 
-    /// Binds the Knowledge sub-mode picker to `activeTab`, clamping any non-
-    /// knowledge value (e.g. a stale `.transcript`) to Graph so the picker and
-    /// the surface never disagree.
-    private var knowledgeSubModeBinding: Binding<KGSurfaceTab> {
+    /// Binds the exploration sub-mode picker to `activeTab`. When the Digest
+    /// section is active (`activeTab == .digest`) the selection is nil so no viz
+    /// segment is highlighted; any stale non-knowledge value clamps to Graph.
+    private var knowledgeVizBinding: Binding<KGSurfaceTab?> {
         Binding(
-            get: { Self.knowledgeSubModes.contains(activeTab) ? activeTab : .graph },
-            set: { activeTab = $0 }
+            get: {
+                if Self.knowledgeVizModes.contains(activeTab) { return activeTab }
+                return activeTab == .digest ? nil : .graph
+            },
+            set: { if let mode = $0 { activeTab = mode } }
         )
+    }
+
+    /// The KG tab actually shown: a valid viz sub-mode or the digest section;
+    /// anything else (e.g. a stale `.transcript`) falls back to Graph.
+    private var effectiveKnowledgeTab: KGSurfaceTab {
+        (Self.knowledgeVizModes.contains(activeTab) || activeTab == .digest) ? activeTab : .graph
     }
 
     /// Page tab — read the source. A source/split/transcript toggle (#3502) lays
@@ -404,7 +434,7 @@ private struct ReadingPaneView: View {
                 onPageSelected: isPinned ? { _ in } : onPageSelected,
                 scrollSync: scrollSync,
                 zoom: webZoom,
-                externalActiveTab: knowledgeSubModeBinding.wrappedValue,
+                externalActiveTab: effectiveKnowledgeTab,
                 onTabSelected: { activeTab = $0 }
             )
         } else {
