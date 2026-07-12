@@ -8,9 +8,9 @@ from __future__ import annotations
 import asyncio
 import io
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field, field_validator
@@ -18,8 +18,11 @@ from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
 from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.api.routes.batch import BatchResponse, get_batch_manager
+from fichero.api.routes.documents import _descendant_document_ids
 from fichero.db import Database
-from fichero.models import DocType, Document, ImageEditChain
+from fichero.models import DocType, Document, FileType, ImageEditChain
+from fichero.workflows.batch import BatchItemStatus, BatchStatus
 from fichero.storage import resolve_source
 from fichero.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean
 
@@ -122,6 +125,18 @@ class ImageCropResponse(BaseModel):
 
 class ImageBatchCropResponse(BaseModel):
     children: list[ImageCropResponse]
+
+
+class BatchImageApplyRequest(BaseModel):
+    folder_id: str
+    operation: Literal["crop", "split"]
+    bbox: tuple[int, int, int, int] | None = None
+    bboxes: list[tuple[int, int, int, int]] | None = None
+
+
+class BatchImageUndoResponse(BaseModel):
+    batch_id: str
+    deleted_child_ids: list[str]
 
 
 def _get_or_404_document(db: Database, document_id: str) -> Document:
@@ -661,6 +676,20 @@ def crop_image_child_impl(
     return child
 
 
+def _folder_images(db: Database, folder_id: str) -> list[Document]:
+    folder = _get_or_404_document(db, folder_id)
+    if folder.doc_type != DocType.folder:
+        raise HTTPException(status_code=422, detail="Batch source must be a folder")
+    ids = _descendant_document_ids(db, folder.id)
+    return [
+        document
+        for document_id in ids
+        if (document := db.get(Document, document_id))
+        and document.deleted_at is None
+        and document.file_type == FileType.image
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Extracted mutation logic (`*_impl`) — the proven business logic each route
 # already ran, lifted into plain functions so BOTH the route handler AND the
@@ -958,6 +987,142 @@ async def segment_image(
         ctx,
     )
     return ImageEditChainResponse.model_validate(result.result)
+
+
+@router.post("/batch-apply", response_model=BatchResponse)
+async def batch_apply_image_operation(
+    request: BatchImageApplyRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> BatchResponse:
+    """Apply one reversible crop or split spec to every image under a folder."""
+    images = _folder_images(db, request.folder_id)
+    if not images:
+        raise HTTPException(status_code=422, detail="Folder has no image documents")
+    if request.operation == "crop":
+        if request.bbox is None:
+            raise HTTPException(status_code=422, detail="Crop batch requires bbox")
+        operation_request: CropOperationRequest | ImageSplitRequest = CropOperationRequest(
+            left=request.bbox[0], top=request.bbox[1], width=request.bbox[2], height=request.bbox[3]
+        )
+    else:
+        operation_request = ImageSplitRequest(bboxes=request.bboxes)
+
+    inputs = [
+        {"source_id": image.id, "operation": request.operation, "child_ids": []}
+        for image in images
+    ]
+    created = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "batch.create",
+        {"workflow_id": "image.batch_apply", "items": inputs, "max_concurrent": 1},
+        ctx,
+    )
+    manager = get_batch_manager()
+    batch = await manager.get_batch(created.result["batch_id"])
+    if batch is None:
+        raise HTTPException(status_code=500, detail="Batch persistence failed")
+    batch.status = BatchStatus.RUNNING
+    batch.started_at = datetime.now(timezone.utc)
+    manager.activity_tracker.batch_started(
+        batch_id=batch.batch_id,
+        workflow_id=batch.workflow_id,
+        total_items=batch.total_items,
+        max_concurrent=batch.max_concurrent,
+    )
+
+    for item, image in zip(batch.items, images, strict=True):
+        item.status = BatchItemStatus.RUNNING
+        item.started_at = datetime.now(timezone.utc)
+        manager.activity_tracker.batch_item_started(
+            batch_id=batch.batch_id,
+            thread_id=item.thread_id,
+            item_index=item.item_index,
+            workflow_id=batch.workflow_id,
+        )
+        try:
+            action_name = "image.crop_child" if request.operation == "crop" else "image.split"
+            result = await asyncio.to_thread(
+                registry.invoke,
+                db,
+                action_name,
+                {
+                    "source_id": image.id,
+                    **operation_request.model_dump(mode="json"),
+                },
+                ctx,
+            )
+            item.inputs["child_ids"] = (
+                [result.result["child"]["id"]]
+                if request.operation == "crop"
+                else [child["id"] for child in result.result["children"]]
+            )
+            item.status = BatchItemStatus.COMPLETED
+            item.completed_at = datetime.now(timezone.utc)
+            manager.activity_tracker.batch_item_completed(
+                batch_id=batch.batch_id,
+                thread_id=item.thread_id,
+                item_index=item.item_index,
+                duration_ms=0,
+                workflow_id=batch.workflow_id,
+            )
+        except Exception as exc:
+            item.status = BatchItemStatus.FAILED
+            item.error = str(exc)
+            item.completed_at = datetime.now(timezone.utc)
+            manager.activity_tracker.batch_item_failed(
+                batch_id=batch.batch_id,
+                thread_id=item.thread_id,
+                item_index=item.item_index,
+                error=item.error,
+                workflow_id=batch.workflow_id,
+            )
+        await manager._save_batch(batch)
+
+    batch.status = (
+        BatchStatus.PARTIAL_FAILURE
+        if batch.failed_items and batch.completed_items
+        else BatchStatus.FAILED
+        if batch.failed_items
+        else BatchStatus.COMPLETED
+    )
+    batch.completed_at = datetime.now(timezone.utc)
+    await manager._save_batch(batch)
+    manager.activity_tracker.batch_completed(
+        batch_id=batch.batch_id,
+        workflow_id=batch.workflow_id,
+        total_items=batch.total_items,
+        completed_items=batch.completed_items,
+        failed_items=batch.failed_items,
+        duration_ms=0,
+        status=batch.status.value,
+    )
+    return BatchResponse.from_batch(batch, include_items=True)
+
+
+@router.post("/batch-apply/{batch_id}/undo", response_model=BatchImageUndoResponse)
+async def undo_batch_image_operation(
+    batch_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> BatchImageUndoResponse:
+    """Reverse every completed derived child recorded by an image batch."""
+    batch = await get_batch_manager().get_batch(batch_id)
+    if batch is None or batch.workflow_id != "image.batch_apply":
+        raise HTTPException(status_code=404, detail="Image batch not found")
+    child_ids = [
+        child_id
+        for item in batch.items
+        for child_id in item.inputs.get("child_ids", [])
+    ]
+    for child_id in child_ids:
+        child = db.get(Document, child_id)
+        if child and child.deleted_at is None:
+            await asyncio.to_thread(
+                registry.invoke, db, "document.delete", {"doc_id": child_id}, ctx
+            )
+    return BatchImageUndoResponse(batch_id=batch_id, deleted_child_ids=child_ids)
 
 
 @router.post("/crops/batch", response_model=ImageBatchCropResponse)
