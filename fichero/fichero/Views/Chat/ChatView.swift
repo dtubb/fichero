@@ -66,6 +66,8 @@ struct ChatView: View {
 
     @Environment(ChatServiceGenerated.self) var chatService
     @Environment(ConversationServiceGenerated.self) var conversationService
+    /// Saved-workspace store (#3533) — a chat is ephemeral until saved on-demand.
+    @Environment(WorkspaceStore.self) var workspaceStore
 
     /// Per-window chat tab (#3532), like the document inspector's @SceneStorage.
     @SceneStorage("chat.surfaceTab") private var chatTabRaw = ChatSurfaceTab.conversation.rawValue
@@ -195,15 +197,39 @@ struct ChatView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// Shared bottom mini-toolbar (#3532) — a per-tab status line. A
-    /// "Save as workspace" affordance (chat = workspace, #3547 backend) is a
-    /// deferred follow-up (#3533): wire the workspace save/list endpoints here.
+    /// Shared bottom mini-toolbar (#3532) — a per-tab status line plus the
+    /// on-demand "Save as Workspace" action (#3533): a chat is ephemeral until
+    /// the user saves it as a persistent workspace node (#3547 backend).
     private var chatBottomBar: some View {
         MiniToolbar {
             Text(chatBottomStatus)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
+            Button {
+                saveAsWorkspace()
+            } label: {
+                Label("Save as Workspace", systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .disabled(backendConversationId == nil)
+            .help(backendConversationId == nil
+                  ? "Send a message first, then save this chat as a workspace"
+                  : "Save this chat as a reusable workspace node")
+            .accessibilityIdentifier("chatSaveAsWorkspace")
+        }
+    }
+
+    /// Persist the current conversation as a workspace via the store (#3533).
+    private func saveAsWorkspace() {
+        guard let conversationId = backendConversationId else { return }
+        let title = currentConversation.title
+        Task {
+            await workspaceStore.save(
+                conversationId: conversationId,
+                title: title.isEmpty ? nil : title
+            )
         }
     }
 
