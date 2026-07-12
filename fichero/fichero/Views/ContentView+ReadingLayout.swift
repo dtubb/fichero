@@ -1,6 +1,10 @@
 import SwiftUI
 
-// MARK: - Five-Pane Reading Layout (#1189)
+// MARK: - Reading Layout Helpers (#1189)
+//
+// PDF page-index math + grid↔page sync used by the reader. The old
+// `fivePaneReadingView` (page-strip | PDF | content) was retired in the reader
+// IA fold — its role is now the tabbed reader's Page tab.
 
 extension ContentView {
 
@@ -67,50 +71,4 @@ extension ContentView {
             .sorted { ($0.sequence ?? 0) < ($1.sequence ?? 0) }
     }
 
-    /// Five-pane reading layout: page-thumbnail strip | PDF | content text.
-    /// Sidebar (NavigationSplitView) and inspector (window-level HStack) are the other two panes.
-    @ViewBuilder
-    func fivePaneReadingView(pdfDocumentId: String, pages: [Document]) -> some View {
-        let selectedIdx: Int = {
-            let focusDoc = pageFocusDocument ?? detailDocument
-            if let doc = focusDoc, doc.docType == .page {
-                return max(0, (doc.sequence ?? 1) - 1)
-            }
-            return 0
-        }()
-        HStack(spacing: 0) {
-            DocumentPageListView(
-                pdfDocumentId: pdfDocumentId,
-                pages: pages,
-                selectedPageIndex: selectedIdx,
-                onPageSelect: { idx in syncGridSelectionToPDFPage(index: idx) }
-            )
-            .frame(width: CGFloat(pageListWidth))
-
-            ResizableDivider(width: $pageListWidth, minWidth: 80, maxWidth: 200)
-
-            PDFPageWithToolbar(
-                documentId: pdfDocumentId,
-                pageIndex: selectedIdx,
-                onPageIndexChange: { idx in
-                    guard documentScrollSync.beginDriving(.pdf) else { return }
-                    syncGridSelectionToPDFPage(index: idx)
-                }
-            )
-            .overlay { paneFocusIndicator(for: .preview) }
-            .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
-
-            ResizableDivider(
-                width: $pageContentPaneWidth,
-                minWidth: 160,
-                maxWidth: 400,
-                edge: .trailing
-            )
-
-            PageContentPane(document: pageFocusDocument ?? detailDocument)
-                .frame(width: CGFloat(pageContentPaneWidth))
-                .overlay { paneFocusIndicator(for: .content) }
-        }
-        .frame(maxWidth: .infinity)
-    }
 }

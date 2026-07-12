@@ -35,11 +35,11 @@ private struct ReadingPaneView: View {
     // tab, so the Knowledge surface opens on a "what we know" view.
     @State private var activeTab: KGSurfaceTab = .graph
     /// The reader's top-level tab (Page/Knowledge/Notes) — the reader IA fold
-    /// (2026-07-11 design). Per-window via @SceneStorage. Defaults to Knowledge
-    /// so this pane's long-standing default (the WebKit knowledge surface) is
-    /// unchanged; Page and Notes are now reachable as native top tabs.
-    @SceneStorage("reader.topTab") private var readerTabRaw = ReaderTab.knowledge.rawValue
-    private var readerTab: ReaderTab { ReaderTab(rawValue: readerTabRaw) ?? .knowledge }
+    /// (2026-07-11 design). Per-window via @SceneStorage. Defaults to Page: the
+    /// reader reads the source first (Daniel 2026-07-12); Knowledge and Notes
+    /// are secondary top tabs.
+    @SceneStorage("reader.topTab") private var readerTabRaw = ReaderTab.page.rawValue
+    private var readerTab: ReaderTab { ReaderTab(rawValue: readerTabRaw) ?? .page }
     private var readerTabBinding: Binding<ReaderTab> {
         Binding(get: { readerTab }, set: { readerTabRaw = $0.rawValue })
     }
