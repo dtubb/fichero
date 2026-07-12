@@ -8,7 +8,7 @@ struct WorkflowInspector: View {
     @Binding var workflow: Workflow
     let onAddNode: (ToolInfo, CGPoint) -> Void
 
-    @State var selectedTab: InspectorTab = .builtin
+    @State var selectedTab: WorkflowInspectorTab = .builtin
 
     // Built-in tools loaded from workflow registry (grouped by category)
     @State var toolCategories: [CategoryTools] = []
@@ -24,10 +24,16 @@ struct WorkflowInspector: View {
     @Environment(AppState.self) var appState
     @ObservedObject var featureManager = FeatureManager.shared
 
-    enum InspectorTab: String, Hashable {
+    /// Workflow tool-palette tabs. Renamed from the old private `InspectorTab`
+    /// to avoid colliding with the Library inspector's `InspectorTab` and to
+    /// adopt the shared `SurfaceTab` chrome (#3530).
+    enum WorkflowInspectorTab: String, Hashable, CaseIterable, Identifiable, SurfaceTab {
         case builtin = "Built-in"
         case mcp = "MCP"
         case agents = "Agents"
+
+        var id: String { rawValue }
+        var title: String { rawValue }
 
         var icon: String {
             switch self {
@@ -36,10 +42,18 @@ struct WorkflowInspector: View {
             case .agents: return "person.2"
             }
         }
+
+        var help: String {
+            switch self {
+            case .builtin: return "Built-in tools — the workflow's native tool palette"
+            case .mcp: return "MCP tools — tools from connected Model Context Protocol servers"
+            case .agents: return "Agents — sub-agent tools available to the workflow"
+            }
+        }
     }
 
-    private var availableTabs: [InspectorTab] {
-        var tabs: [InspectorTab] = [.builtin]
+    private var availableTabs: [WorkflowInspectorTab] {
+        var tabs: [WorkflowInspectorTab] = [.builtin]
         if featureManager.isWorkflowToolsMCPEnabled {
             tabs.append(.mcp)
         }
@@ -55,31 +69,13 @@ struct WorkflowInspector: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Icon-only tab bar (matches library inspector style)
-            HStack(spacing: 2) {
-                ForEach(availableTabs, id: \.self) { tab in
-                    Button {
-                        selectedTab = tab
-                    } label: {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 16, weight: .regular))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 7)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(selectedTab == tab
-                                    ? Color.accentColor.opacity(0.15)
-                                    : Color.clear)
-                    )
-                    .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
-                    .help(tab.rawValue)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            // Shared top-tab chrome (#3530) — the same SurfaceTabBar icon row the
+            // Reader and Document Inspector use.
+            SurfaceTabBar(
+                tabs: availableTabs,
+                selection: $selectedTab,
+                accessibilityID: "workflowInspectorTabBar"
+            )
 
             Divider()
 
