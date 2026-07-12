@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import io
 import time
+from pathlib import Path
 
 import httpx
 import pytest
@@ -249,6 +250,68 @@ class TestImageEditChainRoutes:
 
         assert edits_response.status_code == 200
         assert crop_response.status_code == 200
+
+
+class TestReversibleImageSplit:
+    def test_archive_black_border_remover_masks_and_crops(self):
+        pytest.importorskip("cv2")
+        from fichero.api.routes.image_editing import _remove_black_background_opencv
+
+        image = Image.new("RGB", (100, 80), "black")
+        for x in range(15, 85):
+            for y in range(10, 70):
+                image.putpixel((x, y), (245, 245, 245))
+
+        cleaned = _remove_black_background_opencv(image)
+        assert cleaned.mode == "RGBA"
+        assert cleaned.size[0] < image.size[0]
+        assert cleaned.size[1] < image.size[1]
+
+    def test_split_children_keep_bbox_and_lineage_then_unsplit(self, client, db, tmp_path):
+        source = _make_image_doc(db, tmp_path, size=(80, 50))
+        source_before = db.get(Document, source.id).model_dump(mode="json")
+
+        split = client.post(
+            f"/api/images/{source.id}/split",
+            json={"bboxes": [[0, 0, 40, 50], [40, 0, 40, 50]]},
+        )
+        assert split.status_code == 200
+        children = split.json()["children"]
+        assert [child["bbox"] for child in children] == [[0, 0, 40, 50], [40, 0, 40, 50]]
+        assert all(child["metadata"]["derived_from"] == source.id for child in children)
+        assert all(child["metadata"]["source_bbox"] == child["bbox"] for child in children)
+        assert db.get(Document, source.id).model_dump(mode="json") == source_before
+
+        unsplit = client.post(f"/api/images/{source.id}/unsplit")
+        assert unsplit.status_code == 200
+        assert set(unsplit.json()["deleted_child_ids"]) == {child["id"] for child in children}
+        assert all(db.get(Document, child["id"]).deleted_at is not None for child in children)
+        assert db.get(Document, source.id).model_dump(mode="json") == source_before
+
+    def test_archive_auto_detector_creates_two_page_regions(self, client, db, tmp_path):
+        pytest.importorskip("cv2")
+        source = _make_image_doc(db, tmp_path, name="spread.png", size=(1200, 600))
+        image_path = Path(source.path)
+        image = Image.open(image_path)
+        for y in range(image.height):
+            image.putpixel((600, y), (0, 0, 0))
+        image.save(image_path, format="PNG")
+
+        split = client.post(f"/api/images/{source.id}/split", json={})
+        assert split.status_code == 200
+        assert [child["bbox"][2] for child in split.json()["children"]] == [600, 600]
+
+    def test_split_rejects_empty_and_overlapping_regions(self, client, db, tmp_path):
+        source = _make_image_doc(db, tmp_path)
+
+        empty = client.post(f"/api/images/{source.id}/split", json={"bboxes": []})
+        assert empty.status_code == 422
+
+        overlapping = client.post(
+            f"/api/images/{source.id}/split",
+            json={"bboxes": [[0, 0, 50, 50], [40, 0, 40, 50]]},
+        )
+        assert overlapping.status_code == 422
 
 
 class TestImagePreviewRoute:

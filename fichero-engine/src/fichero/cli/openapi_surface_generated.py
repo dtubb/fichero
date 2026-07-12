@@ -5713,6 +5713,36 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("split")
+    def images_split_post(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        bboxes: Optional[str] = typer.Option(None, "--bboxes", help="Request field: bboxes."),
+    ) -> None:
+        """Split Image (POST /api/images/{document_id}/split)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/images/{document_id}/split"
+            params = None
+            payload = _build_json_payload({
+                "bboxes": bboxes,
+            }, {
+                "bboxes": {'items': {'prefixItems': [{'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}], 'type': 'array', 'maxItems': 4, 'minItems': 4}, 'type': 'array', 'nullable': True, 'title': 'Bboxes', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("unsplit")
+    def images_unsplit_post(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+    ) -> None:
+        """Unsplit Image (POST /api/images/{document_id}/unsplit)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/images/{document_id}/unsplit"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('ingest')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for ingest endpoints.', no_args_is_help=True)

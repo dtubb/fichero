@@ -11775,6 +11775,124 @@
         }
       }
     },
+    "/api/images/{document_id}/split": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Split Image",
+        "description": "Create non-destructive derived region children for an image source.",
+        "operationId": "split_image_api_images__document_id__split_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageSplitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageSplitResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/images/{document_id}/unsplit": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Unsplit Image",
+        "description": "Reverse a split by soft-deleting its derived children only.",
+        "operationId": "unsplit_image_api_images__document_id__unsplit_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageUnsplitResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/images/{document_id}/preview": {
       "get": {
         "tags": [
@@ -44598,6 +44716,79 @@
         ],
         "title": "ImageInfoResponse",
         "description": "IIIF Image Information Response (info.json)."
+      },
+      "ImageSplitRequest": {
+        "properties": {
+          "bboxes": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array",
+              "maxItems": 4,
+              "minItems": 4
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bboxes"
+          }
+        },
+        "type": "object",
+        "title": "ImageSplitRequest",
+        "description": "Explicit source-image regions to expose as reversible child nodes."
+      },
+      "ImageSplitResponse": {
+        "properties": {
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "type": "array",
+            "title": "Children"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_document_id",
+          "children"
+        ],
+        "title": "ImageSplitResponse"
+      },
+      "ImageUnsplitResponse": {
+        "properties": {
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "deleted_child_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted Child Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_document_id",
+          "deleted_child_ids"
+        ],
+        "title": "ImageUnsplitResponse"
       },
       "ImportActionRequest": {
         "properties": {
