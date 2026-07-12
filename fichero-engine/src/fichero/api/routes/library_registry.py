@@ -1013,6 +1013,9 @@ def update_library_access(
     stored_path = nfc_path(str(pkg_path))
 
     try:
+        # Close even for an already-removed row: close is the idempotent
+        # lifecycle operation, while the registry is its persisted projection.
+        db_manager.close_database(stored_path)
         existing = db.query(KnownLibrary, path=stored_path)
         if not existing:
             raise HTTPException(
@@ -1056,6 +1059,7 @@ def remove_known_library(
     stored_path = nfc_path(str(pkg_path))
 
     try:
+        db_manager.close_database(stored_path)
         existing = db.query(KnownLibrary, path=stored_path)
         if not existing:
             # Idempotent no-op — the library is already absent from the registry.

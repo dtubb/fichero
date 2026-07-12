@@ -123,7 +123,7 @@ class DatabaseManager:
 
     def close_database(self, package_path: str | Path):
         """Close the shared connection for a package."""
-        package_str = str(Path(nfc_path(package_path)))
+        package_str = str(Path(nfc_path(package_path)).expanduser().resolve())
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]
