@@ -32,6 +32,9 @@ private struct ReadingPaneView: View {
     /// Stable identity for THIS pane instance — minted once at mount, so left
     /// and right splits are tracked independently (mirrors per-instance pin).
     @State private var surfaceId = SurfaceID()
+    /// Open-in-new-tab/window plumbing for the pane's title-bar context menu
+    /// (#3582, browser-tab metaphor). Reuses the shared WindowOpener path.
+    @Environment(\.openWindow) private var openWindow
     /// Shared annotation focus for the Notes tab's list ↔ detail selection.
     @State private var focusedAnnotation = FocusedAnnotation.shared
     /// Notes-tab sub-mode: anchored marks vs free-text notes (#3513). Per-window.
@@ -173,6 +176,17 @@ private struct ReadingPaneView: View {
                     .fill(isActiveSurface ? Color.accentColor : Color.clear)
                     .frame(height: 2)
             }
+            // Title-bar "Open in New Tab/Window" (#3582). Right-click the reader's
+            // toolbar to pop THIS document out — the browser-tab metaphor. Reuses
+            // the shared OpenInMenuItems; disabled implicitly when no document.
+            .contextMenu {
+                if let docId = effectiveDocument?.id {
+                    OpenInMenuItems(
+                        openInNewTab: { openThisDocumentInNewWindow(docId, asTab: true) },
+                        openInNewWindow: { openThisDocumentInNewWindow(docId, asTab: false) }
+                    )
+                }
+            }
         }
         // A direct click anywhere in this pane makes it the active surface
         // (#3579). simultaneousGesture runs alongside PDF/WebKit hit-testing so
@@ -198,6 +212,13 @@ private struct ReadingPaneView: View {
     /// True when this pane instance is the window's active surface (#3579).
     private var isActiveSurface: Bool {
         activeSurfaceState?.activeSurfaceId == surfaceId
+    }
+
+    /// Open this reader's document in a native tab (`asTab`) or a new window
+    /// (#3582), via the same Safari-style path library rows use.
+    private func openThisDocumentInNewWindow(_ documentId: String, asTab: Bool) {
+        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
+        WindowOpener.open(libraryId: libraryId, documentId: documentId, asTab: asTab, using: openWindow)
     }
 
     /// Switch the reader to the Page tab and, if it's showing only the source,
