@@ -541,6 +541,17 @@ def test_token_read_from_selected_cli_user_session(monkeypatch, tmp_path):
     assert client_module._read_token(as_user="bob") == "bob-token"
 
 
+def test_selected_cli_user_never_falls_back_to_bootstrap(monkeypatch, tmp_path):
+    monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
+    monkeypatch.delenv("FICHERO_API_KEY", raising=False)
+    monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", tmp_path / "missing-session.json")
+    bootstrap_path = tmp_path / ".api-key"
+    bootstrap_path.write_text("bootstrap-token", encoding="utf-8")
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", bootstrap_path)
+
+    assert client_module._read_token(as_user="agent") is None
+
+
 def test_token_ignores_bad_cli_session_file_and_falls_back_to_bootstrap(
     monkeypatch, tmp_path
 ):

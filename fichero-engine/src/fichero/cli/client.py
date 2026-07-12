@@ -137,6 +137,13 @@ def _read_cli_session_payload(as_user: str | None = None) -> dict[str, Any]:
 
 def _read_token(base_url: str | None = None, as_user: str | None = None) -> str | None:
     """Read the selected auth token, scoped to the actual backend host."""
+    # An explicitly selected account must never fall back to the loopback
+    # bootstrap credential: that would attribute an agent MCP action to owner.
+    if as_user:
+        payload = _read_cli_session_payload(as_user=as_user)
+        token = payload.get("session_token")
+        return token.strip() if isinstance(token, str) and token.strip() else None
+
     env = os.environ.get("FICHERO_SESSION_TOKEN")
     if env:
         return env.strip()

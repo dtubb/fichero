@@ -57,6 +57,25 @@ def _client() -> FicheroClient:
     )
 
 
+def _agent_client() -> FicheroClient:
+    """Build the dedicated agent-account client for audited MCP mutations."""
+    client = FicheroClient(
+        base_url=_CONFIG["base_url"],
+        library_path=_CONFIG["library_path"],
+        as_user="agent",
+    )
+    if not client.token:
+        client.close()
+        raise RuntimeError("No stored session for agent; run `fichero auth login agent`.")
+    return client
+
+
+def _workspace_action(name: str, params: dict[str, str]) -> Any:
+    """Invoke a workspace action through the one audited write endpoint."""
+    with _agent_client() as client:
+        return client.request("POST", "/api/actions/invoke", json={"name": name, "params": params})
+
+
 # -- health ----------------------------------------------------------------
 @mcp.tool()
 def fichero_health() -> Any:
@@ -300,6 +319,31 @@ def fichero_activity(limit: int = 50) -> Any:
     """Show recent workflow activity."""
     with _client() as client:
         return client.recent_activity(limit=limit)
+
+
+# -- agent workspace actions ----------------------------------------------
+@mcp.tool()
+def fichero_workspace_add_source(workspace_id: str, document_id: str) -> Any:
+    """Add a source document to an agent workspace."""
+    return _workspace_action("workspace.add_source", {"workspace_id": workspace_id, "document_id": document_id})
+
+
+@mcp.tool()
+def fichero_workspace_remove_source(workspace_id: str, document_id: str) -> Any:
+    """Remove a source document from an agent workspace."""
+    return _workspace_action("workspace.remove_source", {"workspace_id": workspace_id, "document_id": document_id})
+
+
+@mcp.tool()
+def fichero_workspace_surface_claim(workspace_id: str, claim_id: str) -> Any:
+    """Surface a knowledge claim in an agent workspace."""
+    return _workspace_action("workspace.surface_claim", {"workspace_id": workspace_id, "claim_id": claim_id})
+
+
+@mcp.tool()
+def fichero_workspace_add_note(workspace_id: str, text: str) -> Any:
+    """Add an agent note to an agent workspace."""
+    return _workspace_action("workspace.add_note", {"workspace_id": workspace_id, "text": text})
 
 
 # -- knowledge graph / content (read) --------------------------------------
