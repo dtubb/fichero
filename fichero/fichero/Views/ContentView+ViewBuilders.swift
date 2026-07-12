@@ -28,7 +28,9 @@ private struct ReadingPaneView: View {
     @State private var pinnedActivePageNumber: Int?
     @State private var pinnedPageCount: Int?
     @State private var webZoom: Double = 1.0
-    @State private var activeTab: KGSurfaceTab = .transcript
+    // The KG surface sub-mode. Defaults to Graph — transcript moved to the Page
+    // tab, so the Knowledge surface opens on a "what we know" view.
+    @State private var activeTab: KGSurfaceTab = .graph
     /// The reader's top-level tab (Page/Knowledge/Notes) — the reader IA fold
     /// (2026-07-11 design). Per-window via @SceneStorage. Defaults to Knowledge
     /// so this pane's long-standing default (the WebKit knowledge surface) is
@@ -207,10 +209,53 @@ private struct ReadingPaneView: View {
         case .page:
             pageTabContent
         case .knowledge:
-            surfaceView
+            knowledgeTabContent
         case .notes:
             notesTabContent
         }
+    }
+
+    /// Knowledge tab — explore what we know. A native sub-mode switcher folds the
+    /// KG views (Graph, Claims, Timeline, Map) plus the Digest section into one
+    /// tab (#3504/#3505): Timeline and Map are sub-modes, not top tabs, and the
+    /// digest is reachable here rather than as its own tab. Transcript is
+    /// excluded — it now lives in the Page tab. The surface itself is the shared
+    /// `DocumentKGSurface` WebKit view, driven by `activeTab`.
+    @ViewBuilder
+    private var knowledgeTabContent: some View {
+        VStack(spacing: 0) {
+            Picker("Knowledge view", selection: knowledgeSubModeBinding) {
+                ForEach(Self.knowledgeSubModes) { mode in
+                    Label(mode.title, systemImage: mode.icon)
+                        .help(mode.helpText)
+                        .tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelStyle(.iconOnly)
+            .fixedSize()
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .accessibilityIdentifier("readerKnowledgeSubMode")
+
+            Divider()
+
+            surfaceView
+        }
+    }
+
+    /// The KG sub-modes surfaced inside the Knowledge tab. Transcript is a Page
+    /// concern; Graph/Claims/Timeline/Map/Digest are the "what we know" views.
+    private static let knowledgeSubModes: [KGSurfaceTab] = [.graph, .claims, .timeline, .map, .digest]
+
+    /// Binds the Knowledge sub-mode picker to `activeTab`, clamping any non-
+    /// knowledge value (e.g. a stale `.transcript`) to Graph so the picker and
+    /// the surface never disagree.
+    private var knowledgeSubModeBinding: Binding<KGSurfaceTab> {
+        Binding(
+            get: { Self.knowledgeSubModes.contains(activeTab) ? activeTab : .graph },
+            set: { activeTab = $0 }
+        )
     }
 
     /// Page tab — read the source. A source/split/transcript toggle (#3502) lays
@@ -338,7 +383,7 @@ private struct ReadingPaneView: View {
                 onPageSelected: isPinned ? { _ in } : onPageSelected,
                 scrollSync: scrollSync,
                 zoom: webZoom,
-                externalActiveTab: activeTab,
+                externalActiveTab: knowledgeSubModeBinding.wrappedValue,
                 onTabSelected: { activeTab = $0 }
             )
         } else {
