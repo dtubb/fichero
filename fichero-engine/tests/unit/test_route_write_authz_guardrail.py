@@ -19,7 +19,6 @@ MUTATING_METHODS = {"post", "put", "patch", "delete"}
 READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
     "annotations.py:crop_ephemeral:POST": "POST body selects a transient region; handler builds an in-memory Annotation, reads only the source document, and returns a crop — persists nothing (#2256).",
     "bibliography.py:export_bibtex:POST": "POST body selects document IDs; handler only reads metadata and returns BibTeX.",
-    "hermeneutics.py:suggest_interpretations:POST": "POST body contains suggestion parameters; handler only reads active frameworks.",
     "kg_predictions.py:generate_heuristic_predictions:POST": "POST body contains prediction parameters; handler only reads claims and vector index.",
     "kg_render.py:render_paragraph:POST": "POST body contains claim IDs/style; handler only reads claims and renders text.",
     "kg_sparql.py:sparql_query:POST": "POST body contains SPARQL; validator rejects mutating verbs and handler only queries RDF graph.",
