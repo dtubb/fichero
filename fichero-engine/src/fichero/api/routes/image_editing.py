@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
 from fichero.api.auth import action_context
@@ -41,16 +41,16 @@ class ImageEditChainResponse(BaseModel):
 
 
 class CropOperationRequest(BaseModel):
-    left: int
-    top: int
-    width: int
-    height: int
+    left: int = Field(ge=0)
+    top: int = Field(ge=0)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
     auto_orient: bool = True
     page: int = 1
 
 
 class RotateOperationRequest(BaseModel):
-    angle: float
+    angle: float = Field(ge=-360.0, le=360.0)
     expand: bool = True
     page: int = 1
 
@@ -79,6 +79,47 @@ class SegmentOperationRequest(BaseModel):
     min_area: int = Field(100, ge=1)
     max_segments: int = Field(20, ge=1, le=200)
     page: int = Field(1, ge=1)
+
+
+class FactorOperationRequest(BaseModel):
+    factor: float = Field(1.0, ge=0.0, le=10.0)
+    page: int = Field(1, ge=1)
+
+
+class FuzzyCleanOperationRequest(BaseModel):
+    despeckle_radius: int = Field(3, ge=1, le=25)
+    background_clean: bool = True
+    page: int = Field(1, ge=1)
+
+
+_OPERATION_MODELS = {
+    "crop": CropOperationRequest, "rotate": RotateOperationRequest,
+    "straighten": StraightenOperationRequest, "enhance": EnhanceOperationRequest,
+    "remove_background": RemoveBackgroundOperationRequest, "segment": SegmentOperationRequest,
+    "brightness": FactorOperationRequest, "contrast": FactorOperationRequest,
+    "sharpen": FactorOperationRequest, "fuzzy_clean": FuzzyCleanOperationRequest,
+}
+_PARAMETERLESS_OPERATIONS = {"flip_horizontal", "flip_vertical", "auto_levels", "grayscale"}
+
+
+def _validate_operations(operations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Reject malformed edit chains before they become persisted state."""
+    clean: list[dict[str, Any]] = []
+    for operation in operations:
+        name = str(operation.get("op", "")).strip().lower()
+        params = operation.get("params", {})
+        if not isinstance(params, dict):
+            raise HTTPException(422, f"Invalid params for operation: {name or 'missing'}")
+        model = _OPERATION_MODELS.get(name)
+        if model is None and name not in _PARAMETERLESS_OPERATIONS:
+            raise HTTPException(422, f"Unsupported image operation: {name or 'missing'}")
+        try:
+            if model is not None:
+                model.model_validate({**params, "page": operation.get("page", 1)})
+        except ValidationError as exc:
+            raise HTTPException(422, detail=exc.errors()) from exc
+        clean.append({key: value for key, value in operation.items() if key != "derived_path"})
+    return clean
 
 
 class ImageSplitRequest(BaseModel):
@@ -502,6 +543,7 @@ def _write_derived_image(document_id: str, page: int, image: Image.Image) -> str
 def _append_operation(
     db: Database, document_id: str, operation: dict[str, Any]
 ) -> ImageEditChain:
+    operation.pop("derived_path", None)
     chain = _get_chain(db, document_id)
     if chain:
         chain.operations.append(operation)
@@ -708,6 +750,7 @@ def set_operations_impl(
 ) -> ImageEditChain:
     """Replace a document's entire edit chain (the PUT /edits body)."""
     _get_or_404_document(db, document_id)
+    operations = _validate_operations(operations)
     chain = _get_chain(db, document_id)
     if chain:
         chain.operations = operations

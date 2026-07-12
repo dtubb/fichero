@@ -74,6 +74,29 @@ def _make_segmentable_image_doc(db, tmp_path, name: str = "segments.png"):
 
 
 class TestImageEditChainRoutes:
+    @pytest.mark.parametrize(
+        "operation",
+        [
+            {"op": "invent", "params": {}},
+            {"op": "rotate", "params": {"angle": 999}},
+            {"op": "crop", "params": {"left": 0, "top": 0, "width": -1, "height": 2}},
+        ],
+    )
+    def test_put_rejects_invalid_operations(self, client, db, tmp_path, operation):
+        doc = _make_image_doc(db, tmp_path)
+        response = client.put(f"/api/images/{doc.id}/edits", json={"operations": [operation]})
+        assert response.status_code == 422
+
+    def test_valid_chain_round_trips_without_transient_path(self, client, db, tmp_path):
+        doc = _make_image_doc(db, tmp_path)
+        response = client.put(
+            f"/api/images/{doc.id}/edits",
+            json={"operations": [{"op": "rotate", "params": {"angle": 90}}]},
+        )
+        assert response.status_code == 200
+        assert "derived_path" not in response.json()["operations"][0]
+        assert client.get(f"/api/images/{doc.id}/preview").status_code == 200
+
     def test_put_get_delete_chain(self, client, db, tmp_path):
         doc = _make_image_doc(db, tmp_path)
 
@@ -121,7 +144,7 @@ class TestImageEditChainRoutes:
             "height": 30,
             "auto_orient": True,
         }
-        assert "derived_path" in ops[0]
+        assert "derived_path" not in ops[0]
 
     def test_rotate_operation_appends_chain(self, client, db, tmp_path):
         doc = _make_image_doc(db, tmp_path, size=(80, 50))
@@ -134,7 +157,7 @@ class TestImageEditChainRoutes:
         assert len(ops) == 1
         assert ops[0]["op"] == "rotate"
         assert ops[0]["params"] == {"angle": 90.0, "expand": True}
-        assert "derived_path" in ops[0]
+        assert "derived_path" not in ops[0]
 
     def test_enhance_operation_appends_chain(self, client, db, tmp_path):
         doc = _make_gray_image_doc(db, tmp_path)
@@ -158,7 +181,7 @@ class TestImageEditChainRoutes:
             "sharpen": 1.5,
             "auto_levels": True,
         }
-        assert "derived_path" in ops[0]
+        assert "derived_path" not in ops[0]
 
     def test_remove_background_operation_appends_chain(self, client, db, tmp_path):
         doc = _make_foreground_image_doc(db, tmp_path)
@@ -171,7 +194,7 @@ class TestImageEditChainRoutes:
         assert len(ops) == 1
         assert ops[0]["op"] == "remove_background"
         assert ops[0]["params"] == {"method": "threshold", "threshold": 5}
-        assert ops[0]["derived_path"].endswith(".png")
+        assert "derived_path" not in ops[0]
 
     def test_segment_operation_appends_chain_and_creates_chunk_docs(
         self, client, db, tmp_path
@@ -198,7 +221,7 @@ class TestImageEditChainRoutes:
         assert [op["op"] for op in ops] == ["remove_background", "segment"]
         assert len(ops[1]["segments"]) == 2
         assert len(ops[1]["child_document_ids"]) == 2
-        assert "derived_path" in ops[1]
+        assert "derived_path" not in ops[1]
 
         children = sorted(
             db.query(Document, parent_id=doc.id, doc_type=DocType.chunk),
