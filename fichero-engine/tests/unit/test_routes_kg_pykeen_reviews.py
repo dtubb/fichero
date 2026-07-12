@@ -21,3 +21,12 @@ def test_prediction_review_persists_and_transitions(client, db):
     assert decided.status_code == 200
     assert decided.json()["state"] == "accepted"
     assert db.get(KnowledgePredictionReview, review_id).resulting_claim_id == "claim-1"
+
+
+def test_prediction_review_rejects_unknown_id(client):
+    response = client.patch(
+        "/api/kg/pykeen/reviews/missing", json={"state": "rejected", "note": "duplicate"}
+    )
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
