@@ -16,6 +16,7 @@ struct KnowledgeGraphViewModeFocus: Equatable {
     }
 }
 
+// swiftlint:disable type_body_length
 /// Browser panel for exploring entities and their associated claims.
 /// Wires #498 — per-library Knowledge Graph view, peer to Workflows
 /// and Activity. Uses `EntityServiceGenerated` (\`/api/entities\` +
@@ -50,9 +51,13 @@ struct OntologyBrowser: View {
 
     /// Swap the detail pane between entity-claims view (default) and a
     /// force-directed graph over the filtered entity set. (#902, partial #889)
-    enum ViewMode: String, CaseIterable, Identifiable {
+    enum ViewMode: String, CaseIterable, Identifiable, SurfaceTab {
         case list, graph, chart, timeline, map
         var id: String { rawValue }
+        // SurfaceTab (#3539): the shared tab bar reads title/help; keep the
+        // existing label/helpText as the source.
+        var title: String { label }
+        var help: String { helpText }
         var label: String {
             switch self {
             case .list: return "List"
@@ -221,7 +226,19 @@ struct OntologyBrowser: View {
     }
 
     var body: some View {
-        browserLayout
+        VStack(spacing: 0) {
+            // In-pane top switcher on the shared chrome (#3539/#3540) — the same
+            // SurfaceTabBar the Reader / Document Inspector / Workflow use. Per
+            // window via the existing `ontology.viewMode` @SceneStorage. The View
+            // menu still drives the same `viewModeRaw` via focusedSceneValue below.
+            SurfaceTabBar(
+                tabs: ViewMode.allCases,
+                selection: viewModeBinding,
+                accessibilityID: "ontologyViewModeBar"
+            )
+            Divider()
+            browserLayout
+        }
         .frame(minWidth: 300, minHeight: 200)
         .modifier(OntologySheetsModifier(browser: self))
         // Publish the active KG view mode so the View menu / main-toolbar View
@@ -344,6 +361,7 @@ struct OntologyBrowser: View {
     }
 
 }
+// swiftlint:enable type_body_length
 
 extension OntologyBrowser {
     func setHidden(_ kind: String, hidden: Bool) {
