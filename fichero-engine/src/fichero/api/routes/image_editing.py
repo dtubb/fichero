@@ -111,6 +111,19 @@ class ImageUnsplitResponse(BaseModel):
     deleted_child_ids: list[str]
 
 
+class ImageBatchCropRequest(CropOperationRequest):
+    document_ids: list[str] = Field(min_length=1)
+
+
+class ImageCropResponse(BaseModel):
+    source_document_id: str
+    child: Document
+
+
+class ImageBatchCropResponse(BaseModel):
+    children: list[ImageCropResponse]
+
+
 def _get_or_404_document(db: Database, document_id: str) -> Document:
     doc = db.get(Document, document_id)
     if not doc:
@@ -604,6 +617,50 @@ def unsplit_image_impl(db: Database, source_id: str) -> list[Document]:
     return children
 
 
+def _validate_crop_bounds(db: Database, source_id: str, request: CropOperationRequest) -> Document:
+    source = _get_or_404_document(db, source_id)
+    image = _load_source_image(_resolve_source_or_404(db, source), page=request.page)
+    if (
+        request.left < 0
+        or request.top < 0
+        or request.width <= 0
+        or request.height <= 0
+        or request.left + request.width > image.width
+        or request.top + request.height > image.height
+    ):
+        raise HTTPException(status_code=422, detail="Crop bbox is outside source image bounds")
+    return source
+
+
+def crop_image_child_impl(
+    db: Database, source_id: str, request: CropOperationRequest
+) -> Document:
+    """Reuse the crop edit-chain on a derived child, never on its source."""
+    source = _validate_crop_bounds(db, source_id, request)
+    bbox = (request.left, request.top, request.width, request.height)
+    child = Document(
+        parent_id=source.id,
+        doc_type=DocType.chunk,
+        file_type=source.file_type,
+        name=f"{source.name} crop",
+        path=source.path,
+        bbox=bbox,
+        metadata={
+            "derived_from": source.id,
+            "crop_source_id": source.id,
+            "source_bbox": list(bbox),
+            "view_kind": "image_crop",
+        },
+        source_authority=source.source_authority,
+        source_metadata=source.source_metadata,
+        provenance_chain=source.provenance_chain.copy(),
+        image_provenance=source.image_provenance,
+    )
+    db.save(child)
+    crop_image_impl(db, child.id, request)
+    return child
+
+
 # ---------------------------------------------------------------------------
 # Extracted mutation logic (`*_impl`) — the proven business logic each route
 # already ran, lifted into plain functions so BOTH the route handler AND the
@@ -903,6 +960,62 @@ async def segment_image(
     return ImageEditChainResponse.model_validate(result.result)
 
 
+@router.post("/crops/batch", response_model=ImageBatchCropResponse)
+async def batch_crop_images(
+    request: ImageBatchCropRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> ImageBatchCropResponse:
+    """Apply one crop region to many images as independent derived children."""
+    source_ids = list(dict.fromkeys(request.document_ids))
+    for source_id in source_ids:
+        _validate_crop_bounds(db, source_id, request)
+    children = []
+    for source_id in source_ids:
+        result = await asyncio.to_thread(
+            registry.invoke,
+            db,
+            "image.crop_child",
+            {"source_id": source_id, **request.model_dump(mode="json")},
+            ctx,
+        )
+        children.append(ImageCropResponse.model_validate(result.result))
+    return ImageBatchCropResponse(children=children)
+
+
+@router.post("/{document_id}/crop", response_model=ImageCropResponse)
+async def crop_image_child(
+    document_id: str,
+    request: CropOperationRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> ImageCropResponse:
+    """Crop an image into a non-destructive derived child node."""
+    result = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "image.crop_child",
+        {"source_id": document_id, **request.model_dump(mode="json")},
+        ctx,
+    )
+    return ImageCropResponse.model_validate(result.result)
+
+
+@router.post("/{document_id}/uncrop", response_model=ImageCropResponse)
+async def uncrop_image_child(
+    document_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> ImageCropResponse:
+    """Soft-delete one crop child through the existing reversible document action."""
+    child = _get_or_404_document(db, document_id)
+    source_id = (child.metadata or {}).get("crop_source_id")
+    if not source_id:
+        raise HTTPException(status_code=404, detail="Crop child not found")
+    await asyncio.to_thread(registry.invoke, db, "document.delete", {"doc_id": child.id}, ctx)
+    return ImageCropResponse(source_document_id=source_id, child=child)
+
+
 @router.post("/{document_id}/split", response_model=ImageSplitResponse)
 async def split_image(
     document_id: str,
@@ -1049,6 +1162,10 @@ class SplitImageActionParams(ImageSplitRequest):
 
 
 class UnsplitImageActionParams(BaseModel):
+    source_id: str
+
+
+class CropChildActionParams(CropOperationRequest):
     source_id: str
 
 
@@ -1312,4 +1429,27 @@ def _action_unsplit_image(
         before={"children": snapshots},
         emit_type="image.unsplit",
         document_ids=[params.source_id, *result.deleted_child_ids],
+    )
+
+
+@action(
+    "image.crop_child",
+    CropChildActionParams,
+    domains=["image", "document"],
+    undoable=True,
+    invert=lambda _before, after, _ctx: (
+        ("document.delete", {"doc_id": after["child_id"]}) if after else None
+    ),
+)
+def _action_crop_image_child(
+    db: Database, params: CropChildActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    child = crop_image_child_impl(db, params.source_id, params)
+    result = ImageCropResponse(source_document_id=params.source_id, child=child)
+    return result.model_dump(mode="json"), ChangeSpec(
+        domains=["image", "document"],
+        target_ids=[params.source_id, child.id],
+        after={"child_id": child.id},
+        emit_type="image.cropped",
+        document_ids=[params.source_id, child.id],
     )

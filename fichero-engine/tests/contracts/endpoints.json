@@ -3825,6 +3825,28 @@
     ],
     "images": [
       {
+        "method": "POST",
+        "path": "/images/crops/batch",
+        "operation_id": "batch_crop_images_api_images_crops_batch_post",
+        "summary": "Batch Crop Images",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ImageBatchCropRequest",
+        "response_model": "ImageBatchCropResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/images/{document_id}/crop",
+        "operation_id": "crop_image_child_api_images__document_id__crop_post",
+        "summary": "Crop Image Child",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "CropOperationRequest",
+        "response_model": "ImageCropResponse"
+      },
+      {
         "method": "DELETE",
         "path": "/images/{document_id}/edits",
         "operation_id": "delete_edit_chain_api_images__document_id__edits_delete",
@@ -3966,6 +3988,18 @@
         "query_params": [],
         "request_model": "ImageSplitRequest",
         "response_model": "ImageSplitResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/images/{document_id}/uncrop",
+        "operation_id": "uncrop_image_child_api_images__document_id__uncrop_post",
+        "summary": "Uncrop Image Child",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ImageCropResponse"
       },
       {
         "method": "POST",
