@@ -24,6 +24,7 @@ from fichero.db import Database
 from fichero.models import DocType, Document, FileType, ImageEditChain
 from fichero.workflows.batch import BatchItemStatus, BatchStatus
 from fichero.storage import resolve_source
+from fichero.image_ops import apply_operation
 from fichero.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean
 
 router = APIRouter(prefix="/images", tags=["images"])
@@ -385,6 +386,10 @@ def _apply_saved_operations(
 
 
 def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
+    return apply_operation(image, op)
+
+    # Kept below temporarily for source compatibility while operations move to
+    # fichero.image_ops; the return above is the sole runtime path.
     name = str(op.get("op", "")).strip().lower()
     params = op.get("params") or {}
     if not isinstance(params, dict):
