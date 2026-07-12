@@ -124,6 +124,10 @@ struct PageContentPane: View { // swiftlint:disable:this type_body_length
         .onAppear {
             editState.synchronize(with: pageContent)
             loadAnnotations()
+            // Apply any already-selected claim's source highlight on appear, not
+            // only on change — so switching to the Page transcript after picking
+            // a claim in the Knowledge tab reveals the highlight (#3511).
+            syncSourceHighlightFromClaimFocus()
         }
         .onChange(of: pageDoc?.id ?? "") { _, _ in
             isSaving = false
