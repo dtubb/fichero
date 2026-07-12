@@ -6386,16 +6386,20 @@ def register_generated_openapi_commands(
     @target_app.command("graph-context-merge-candidates-jaccard-over-co-occurrence-neighborhoods")
     def kg_graph_context_merge_candidates_jaccard_over_co_occurrence_neighborhoods_get(
         ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Query parameter: folder_id."),
         min_jaccard: Optional[float] = typer.Option(None, "--min-jaccard", help="Query parameter: min_jaccard."),
         same_type_only: Optional[bool] = typer.Option(None, "--same-type-only/--no-same-type-only", help="Query parameter: same_type_only."),
+        scope: Optional[str] = typer.Option(None, "--scope", help="Query parameter: scope."),
         top_k: Optional[int] = typer.Option(None, "--top-k", help="Query parameter: top_k."),
     ) -> None:
         """Graph-context merge candidates (Jaccard over co-occurrence neighborhoods) (GET /api/kg/entity-curation/candidates)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/kg/entity-curation/candidates"
             params = {
+                "folder_id": folder_id,
                 "min_jaccard": min_jaccard,
                 "same_type_only": same_type_only,
+                "scope": scope,
                 "top_k": top_k,
             }
             return client.request("GET", endpoint_path, params=params)
