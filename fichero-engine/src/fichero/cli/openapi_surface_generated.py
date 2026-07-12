@@ -5556,11 +5556,11 @@ def register_generated_openapi_commands(
             }, {
                 "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
                 "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Document Ids', 'x-cli-required': True},
-                "height": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Height', 'x-cli-required': True},
+                "height": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Height', 'minimum': 0.0, 'x-cli-required': True},
                 "left": {'type': 'integer', 'minimum': 0.0, 'title': 'Left', 'x-cli-required': True},
                 "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "top": {'type': 'integer', 'minimum': 0.0, 'title': 'Top', 'x-cli-required': True},
-                "width": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Width', 'x-cli-required': True},
+                "width": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Width', 'minimum': 0.0, 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -5589,11 +5589,11 @@ def register_generated_openapi_commands(
                 "width": width,
             }, {
                 "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
-                "height": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Height', 'x-cli-required': True},
+                "height": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Height', 'minimum': 0.0, 'x-cli-required': True},
                 "left": {'type': 'integer', 'minimum': 0.0, 'title': 'Left', 'x-cli-required': True},
                 "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "top": {'type': 'integer', 'minimum': 0.0, 'title': 'Top', 'x-cli-required': True},
-                "width": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Width', 'x-cli-required': True},
+                "width": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Width', 'minimum': 0.0, 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -5667,11 +5667,11 @@ def register_generated_openapi_commands(
                 "width": width,
             }, {
                 "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
-                "height": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Height', 'x-cli-required': True},
+                "height": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Height', 'minimum': 0.0, 'x-cli-required': True},
                 "left": {'type': 'integer', 'minimum': 0.0, 'title': 'Left', 'x-cli-required': True},
                 "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "top": {'type': 'integer', 'minimum': 0.0, 'title': 'Top', 'x-cli-required': True},
-                "width": {'type': 'integer', 'exclusiveMinimum': 0.0, 'title': 'Width', 'x-cli-required': True},
+                "width": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Width', 'minimum': 0.0, 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

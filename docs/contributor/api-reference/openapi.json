@@ -40721,13 +40721,15 @@
           },
           "width": {
             "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Width"
+            "exclusiveMinimum": true,
+            "title": "Width",
+            "minimum": 0.0
           },
           "height": {
             "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Height"
+            "exclusiveMinimum": true,
+            "title": "Height",
+            "minimum": 0.0
           },
           "auto_orient": {
             "type": "boolean",
@@ -45079,13 +45081,15 @@
           },
           "width": {
             "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Width"
+            "exclusiveMinimum": true,
+            "title": "Width",
+            "minimum": 0.0
           },
           "height": {
             "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Height"
+            "exclusiveMinimum": true,
+            "title": "Height",
+            "minimum": 0.0
           },
           "auto_orient": {
             "type": "boolean",

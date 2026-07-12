@@ -148,3 +148,19 @@ def test_kg_query_and_export_surface_is_present():
     assert "/api/kg/export/rdf" in paths
     assert "/api/kg/sparql" in paths
     assert paths["/api/kg/sparql"]["post"].get("deprecated") is True
+
+
+def test_openapi_30_has_no_numeric_exclusive_bounds():
+    exporter = _load_exporter()
+
+    def walk(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key in {"exclusiveMinimum", "exclusiveMaximum"}:
+                    assert not isinstance(item, (int, float)) or isinstance(item, bool)
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(exporter.build_openapi_schema())
