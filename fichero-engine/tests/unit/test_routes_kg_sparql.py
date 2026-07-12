@@ -5,7 +5,10 @@ materializes the RDF graph from current entity + claim rows and runs
 the user's SPARQL query against it. Read-only; mutating verbs rejected.
 """
 
+import asyncio
+
 import pytest
+from fastapi import HTTPException
 
 from fichero.knowledge_models import (
     ClaimCurationState,
@@ -58,6 +61,19 @@ class TestSparqlSafety:
         cache.pop(next(iter(cache)))
         cache["new"] = ((9,), object())
         assert len(cache) == kg_sparql._RDF_CACHE_MAX_ENTRIES
+
+    def test_query_timeout_returns_408(self, db, monkeypatch):
+        from fichero.api.routes import kg_sparql
+
+        async def timeout(*_args, **_kwargs):
+            raise TimeoutError
+
+        monkeypatch.setattr(kg_sparql.asyncio, "wait_for", timeout)
+        monkeypatch.setattr(kg_sparql.asyncio, "to_thread", lambda *_args: None)
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(kg_sparql.sparql_query(kg_sparql.SparqlRequest(query="ASK {}"), db))
+
+        assert exc.value.status_code == 408
 
     """Mutating SPARQL verbs are rejected."""
 
