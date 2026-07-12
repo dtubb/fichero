@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -586,6 +586,8 @@ async def candidate_pairs(
     min_jaccard: float = Query(default=0.5, ge=0.0, le=1.0),
     top_k: int = Query(default=20, ge=1, le=200),
     same_type_only: bool = Query(default=True),
+    scope: Literal["library", "folder"] = Query(default="library"),
+    folder_id: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     """Compute Jaccard similarity over the co-occurrence graph between
@@ -596,6 +598,19 @@ async def candidate_pairs(
     from fichero.kg.graph import build_full_cooccurrence
 
     graph = build_full_cooccurrence(db)
+    if scope == "folder":
+        if not folder_id:
+            raise HTTPException(status_code=422, detail="folder_id is required for folder scope")
+        from fichero.api.routes.claims import _descendant_doc_ids
+
+        doc_ids = _descendant_doc_ids(db, folder_id)
+        entity_ids = {
+            entity_id
+            for claim in db.query_in(KnowledgeClaim, "source_document_id", doc_ids)
+            for entity_id in (claim.entity_ids or [])
+        }
+        entity_ids.update(db.knowledge_entity_ids_scoped_to_documents(doc_ids))
+        graph = graph.subgraph(entity_ids).copy()
     if graph.number_of_nodes() < 2:
         return KGGraphListResponse(items=[], count=0)
     by_id: dict[str, KnowledgeEntity] = {e.id: e for e in db.query(KnowledgeEntity)}
