@@ -264,12 +264,17 @@ struct DocumentInspector: View {
 
     private static func availableTabs(for doc: Document?) -> [InspectorTab] {
         guard let doc else { return InspectorTab.allCases }
-        // Image Edits left the inspector for the dedicated editor / Reader canvas
-        // (#3434) — it is intentionally not a facet here.
         var tabs: [InspectorTab] = [
             .content, .artifacts, .annotations, .notes, .interpretations, .knowledgeGraph,
             .entities, .citations
         ]
+        // Image/page edit CONTROLS live in the Inspector, Lightroom-style (#3593,
+        // Daniel 2026-07-12 — this reverses #3434's "edits left the inspector":
+        // the controls belong here, the Preview is the live canvas). Only for the
+        // surfaces the editor supports (images and PDF/scanned pages).
+        if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
+            tabs.append(.edits)
+        }
         tabs.append(.info)
         return tabs
     }
@@ -375,6 +380,7 @@ private struct DocumentInspectorImageEditsTab: View {
     let document: Document
 
     @Environment(APIClient.self) private var apiClient
+    @Environment(StorageServiceGenerated.self) private var storageService
     @State private var model = ImageEditorModel()
 
     var body: some View {
@@ -410,6 +416,12 @@ private struct DocumentInspectorImageEditsTab: View {
         }
         .task(id: document.id) {
             await model.configure(apiClient: apiClient, documentId: document.id)
+            // Evict the storage-display cache after each edit so the Preview
+            // canvas re-fetches the edited bytes (#3593) — same hook the
+            // Preview-hosted editor uses (ImageEditorView).
+            model.onEditApplied = { [storageService] id in
+                storageService.invalidateImageCache(for: id)
+            }
         }
     }
 }
