@@ -940,6 +940,11 @@ class TestLanceDB:
         _ = temp_db.lance
         assert temp_db._lance_db is not None
 
+    def test_close_releases_lance_handle(self, temp_db):
+        _ = temp_db.lance
+        temp_db.close()
+        assert temp_db._lance_db is None
+
     def test_save_and_search_vectors(self, temp_db):
         """Test saving and searching vectors."""
         data = [

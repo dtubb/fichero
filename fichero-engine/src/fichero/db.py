@@ -4516,7 +4516,8 @@ class Database(DatabaseEmbeddingMixin):
         return type_map.get(python_type, "VARCHAR")
 
     def close(self) -> None:
-        """Close database connection."""
+        """Release database and vector-store handles."""
+        self._lance_db = None
         self.conn.close()
 
     def _migrate_workflow_table(self) -> None:

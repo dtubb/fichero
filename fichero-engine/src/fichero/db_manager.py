@@ -128,7 +128,7 @@ class DatabaseManager:
         with self._lock:
             keys = [k for k in self._databases if k == package_str]
             for key in keys:
-                self._databases.pop(key).conn.close()
+                self._databases.pop(key).close()
                 logger.info(f"Closed database connection: {package_str}")
 
     def quiesce_database(
@@ -161,7 +161,7 @@ class DatabaseManager:
 
             if close:
                 for key in keys:
-                    self._databases.pop(key).conn.close()
+                    self._databases.pop(key).close()
                     logger.info("Closed database connection: %s", package_str)
 
     def close_current_thread(self) -> None:
@@ -186,7 +186,7 @@ class DatabaseManager:
         """Close every package's shared connection."""
         with self._lock:
             for cache_key, db in list(self._databases.items()):
-                db.conn.close()
+                db.close()
                 logger.info(f"Closed database: {cache_key}")
             self._databases.clear()
             logger.info("All database connections closed")
