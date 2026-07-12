@@ -13,6 +13,7 @@ from PIL import Image
 
 from fichero.api.auth import initialize_token
 from fichero.api.main import app
+from fichero.api.routes import image_editing
 from fichero.models import DocType, Document, FileType
 
 
@@ -414,6 +415,32 @@ class TestImagePreviewRoute:
         assert r.headers["content-type"].startswith("image/jpeg")
         img = Image.open(io.BytesIO(r.content))
         assert img.size == (90, 60)
+
+    def test_preview_uses_worker_thread(self, db, tmp_path, monkeypatch):
+        doc = _make_image_doc(db, tmp_path)
+        async def rendered(*_args):
+            return b"image", "image/jpeg"
+        monkeypatch.setattr(image_editing.asyncio, "to_thread", rendered)
+        response = asyncio.run(image_editing.preview_image(doc.id, db=db))
+        assert response.body == b"image"
+
+    def test_preview_cache_invalidates_on_chain_change(self, db, tmp_path, monkeypatch):
+        doc = _make_image_doc(db, tmp_path)
+        calls = 0
+        original = image_editing._load_source_image
+        def counted(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            return original(*args, **kwargs)
+        monkeypatch.setattr(image_editing, "_load_source_image", counted)
+        image_editing._render_preview(db, doc.id, True, 1)
+        image_editing._render_preview(db, doc.id, True, 1)
+        assert calls == 1
+        image_editing.set_operations_impl(
+            db, doc.id, [{"op": "rotate", "params": {"angle": 90}}]
+        )
+        image_editing._render_preview(db, doc.id, True, 1)
+        assert calls == 2
 
     def test_preview_honours_exif_orientation(self, client, db, tmp_path):
         # A JPEG whose pixels are stored landscape (90x60) but tagged
