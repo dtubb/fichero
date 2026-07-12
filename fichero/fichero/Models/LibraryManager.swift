@@ -164,6 +164,10 @@ class LibraryManager {
         /// reacts to `research.*` change events.
         @ObservationIgnored lazy var researchStore: ResearchStore = ResearchStore(researchService: researchService)
 
+        /// Per-library saved agent workspaces (#3533 / #3547). Owns the workspace
+        /// list; save/list/delete route through `chatServiceGenerated`.
+        @ObservationIgnored lazy var workspaceStore: WorkspaceStore = WorkspaceStore(chatService: chatServiceGenerated)
+
         /// Per-library search store (#1903). Wraps `searchService`, owns the
         /// current result set and index stats, and invalidates stale results on
         /// `document.*` change events.
