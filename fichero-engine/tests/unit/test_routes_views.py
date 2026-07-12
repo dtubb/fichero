@@ -1,6 +1,7 @@
 """Tests for the hosted document knowledge-surface HTML route (#1228)."""
 
 from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.db import Database
 from fichero.models import Document, DocType, FileType, Status
 
 
@@ -165,6 +166,40 @@ class TestDocumentViewRoute:
         assert response.status_code == 200
         assert '"id": "claim-pg1"' in response.text
         assert '"canonical_name": "Hernández"' in response.text
+
+    def test_document_view_uses_scoped_queries_not_full_table_scans(
+        self, client, db, monkeypatch
+    ):
+        doc = _make_document(
+            doc_id="scoped-parent", name="Scoped.pdf", doc_type=DocType.file
+        )
+        page = _make_document(
+            doc_id="scoped-page",
+            name="Page 1",
+            doc_type=DocType.page,
+            parent_id=doc.id,
+        )
+        db.save(doc)
+        db.save(page)
+        db.save(
+            KnowledgeClaim(
+                id="scoped-claim", text="Scoped claim", source_document_id=page.id
+            )
+        )
+
+        original_all = Database.all
+
+        def no_full_scan(self, model):
+            if model in {Document, KnowledgeClaim, KnowledgeEntity}:
+                raise AssertionError(f"unexpected full scan of {model.__name__}")
+            return original_all(self, model)
+
+        monkeypatch.setattr(Database, "all", no_full_scan)
+
+        response = client.get(f"/view/document/{doc.id}")
+
+        assert response.status_code == 200
+        assert '"id": "scoped-claim"' in response.text
 
     def test_document_view_includes_doc_scoped_event_entities_without_claim_links(self, client, db):
         doc = _make_document(
