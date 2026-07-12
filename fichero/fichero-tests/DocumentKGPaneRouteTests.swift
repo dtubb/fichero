@@ -138,6 +138,17 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertFalse(script.contains("window.ficheroToken = 'secret-token'"))
     }
 
+    func testBootstrapScriptSealsFetchSoItCannotBeRewrapped() {
+        // #3223 hardening: the fetch override is sealed non-writable/non-configurable
+        // so a later page script (or an XSS in the reader templates) can't re-wrap
+        // window.fetch to capture the real token swapped into proxied requests.
+        let script = DocumentKGPaneRoute.bootstrapScript(token: "secret-token", libraryPath: "/tmp/library")
+
+        XCTAssertTrue(script.contains("Object.defineProperty(window, 'fetch'"))
+        XCTAssertTrue(script.contains("writable: false"))
+        XCTAssertTrue(script.contains("configurable: false"))
+    }
+
     func testReaderPaneCachesBootstrapScriptBetweenUpdates() throws {
         let source = try String(
             contentsOf: URL(fileURLWithPath: #filePath)

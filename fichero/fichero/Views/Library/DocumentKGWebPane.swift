@@ -104,6 +104,23 @@ enum DocumentKGPaneRoute {
                 }
                 return nativeFetch(input, nextInit);
             };
+            // Seal the override so a later page script (or an XSS via document
+            // names / OCR / entity names in the templates) can't re-wrap
+            // window.fetch to capture the real token swapped into proxied
+            // requests (#3223). window.ficheroToken already exposes only a
+            // non-functional sentinel; this closes the remaining exfil path.
+            // (Complete defense-in-depth — preventing an XSS from *using* the
+            // API — needs a read-only library-scoped view token from the engine.)
+            try {
+                Object.defineProperty(window, 'fetch', {
+                    value: window.fetch,
+                    writable: false,
+                    configurable: false
+                });
+            } catch (sealError) {
+                // Older WebKit that rejects redefining fetch: the override still
+                // applies, it just stays re-wrappable. Non-fatal.
+            }
         })();
         """
     }
