@@ -23,6 +23,7 @@ READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
     "kg_render.py:render_paragraph:POST": "POST body contains claim IDs/style; handler only reads claims and renders text.",
     "kg_sparql.py:sparql_query:POST": "POST body contains SPARQL; validator rejects mutating verbs and handler only queries RDF graph.",
     "kg_sparql.py:sparql_query_legacy:POST": "Deprecated read-only alias that delegates to sparql_query; same RDF-query-only behavior.",
+    "locations.py:resolve_location:POST": "POST carries a typed navigation anchor; handler validates and resolves document/page identity without persisting state (#3576).",
     "search.py:enhanced_search:POST": "POST /api/search is read-only search/query compute.",
     "search_explain.py:explain_search:POST": "POST body contains explanation request; handler only reads search inputs and returns attribution.",
     "workflows.py:estimate_workflow_cost:POST": "POST body contains estimate inputs; handler only reads workflow pricing context.",
