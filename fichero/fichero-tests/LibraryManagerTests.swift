@@ -52,6 +52,71 @@ final class LibraryManagerTests: XCTestCase {
         }
     }
 
+    // MARK: - Registry Reconciliation (#3393)
+
+    func testReconciliationOpensRegistryLibrariesMissingLocally() {
+        let global = LibraryManager.globalLibraryId
+        let plan = LibraryManager.registryReconciliation(
+            openLibraries: [(id: global, path: "/L/Global.fichero")],
+            registryPaths: ["/L/Global.fichero", "/L/A.fichero", "/L/B.fichero"],
+            globalLibraryId: global
+        )
+        XCTAssertEqual(plan.pathsToOpen, ["/L/A.fichero", "/L/B.fichero"],
+                       "registry libraries not open locally are opened")
+        XCTAssertTrue(plan.idsToDrop.isEmpty)
+    }
+
+    func testReconciliationDropsOpenLibrariesTheBackendClosed() {
+        let global = LibraryManager.globalLibraryId
+        let stale = UUID()
+        let plan = LibraryManager.registryReconciliation(
+            openLibraries: [(id: global, path: "/L/Global.fichero"),
+                            (id: stale, path: "/L/Closed.fichero")],
+            registryPaths: ["/L/Global.fichero"],
+            globalLibraryId: global
+        )
+        XCTAssertEqual(plan.idsToDrop, [stale], "a library absent from the registry is dropped")
+        XCTAssertTrue(plan.pathsToOpen.isEmpty)
+    }
+
+    func testReconciliationNeverDropsTheGlobalLibrary() {
+        let global = LibraryManager.globalLibraryId
+        let plan = LibraryManager.registryReconciliation(
+            openLibraries: [(id: global, path: "/L/Global.fichero")],
+            registryPaths: [],  // backend lists nothing
+            globalLibraryId: global
+        )
+        XCTAssertTrue(plan.idsToDrop.isEmpty, "Global is never dropped, even when absent from the registry")
+    }
+
+    func testReconciliationIsNoOpWhenInSync() {
+        let global = LibraryManager.globalLibraryId
+        let a = UUID()
+        let plan = LibraryManager.registryReconciliation(
+            openLibraries: [(id: global, path: "/L/Global.fichero"), (id: a, path: "/L/A.fichero")],
+            registryPaths: ["/L/Global.fichero", "/L/A.fichero"],
+            globalLibraryId: global
+        )
+        XCTAssertTrue(plan.pathsToOpen.isEmpty)
+        XCTAssertTrue(plan.idsToDrop.isEmpty)
+    }
+
+    func testReconciliationComparesPathsNFCNormalized() {
+        // Same library, one side NFD (decomposed "é"), the other NFC — must match,
+        // so a Unicode-normalization mismatch never double-opens or false-drops.
+        let global = LibraryManager.globalLibraryId
+        let a = UUID()
+        let nfd = "/L/Cafe\u{0301}.fichero"   // e + combining acute
+        let nfc = "/L/Caf\u{00E9}.fichero"    // é precomposed
+        let plan = LibraryManager.registryReconciliation(
+            openLibraries: [(id: a, path: nfd)],
+            registryPaths: [nfc],
+            globalLibraryId: global
+        )
+        XCTAssertTrue(plan.pathsToOpen.isEmpty, "NFD-open vs NFC-registry is the same library")
+        XCTAssertTrue(plan.idsToDrop.isEmpty)
+    }
+
     // MARK: - Library Creation Tests
 
     func testCreateNewLibrary() async throws {
