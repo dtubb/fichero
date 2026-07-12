@@ -124,9 +124,14 @@ enum ReaderNotesMode: String, CaseIterable, Identifiable {
 /// top-tab control; it never scrolls with the content (fixed chrome).
 struct ReaderTabBar: View {
     @Binding var selection: ReaderTab
+    /// On compact width (iPhone / narrow iPad) the segmented tabs show icons
+    /// only so all three stay reachable without clipping; regular width keeps
+    /// the labelled tabs (#3522). macOS reports `.regular`.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    private var isCompact: Bool { horizontalSizeClass == .compact }
 
     var body: some View {
-        Picker("Reader view", selection: $selection) {
+        let picker = Picker("Reader view", selection: $selection) {
             ForEach(ReaderTab.allCases) { tab in
                 Label(tab.title, systemImage: tab.icon)
                     .help(tab.help)
@@ -134,7 +139,14 @@ struct ReaderTabBar: View {
             }
         }
         .pickerStyle(.segmented)
-        .labelStyle(.titleAndIcon)
         .accessibilityIdentifier("readerTabBar")
+
+        // Distinct label styles are distinct types, so branch rather than
+        // ternary; the style propagates to the segment Labels via environment.
+        if isCompact {
+            picker.labelStyle(.iconOnly)
+        } else {
+            picker.labelStyle(.titleAndIcon)
+        }
     }
 }
