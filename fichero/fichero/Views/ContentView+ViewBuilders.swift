@@ -23,6 +23,9 @@ private struct ReadingPaneView: View {
     @Environment(ClaimFocusState.self) private var claimFocusState
     @Environment(AnnotationStore.self) private var annotationStore
     @Environment(\.splitAxisActions) private var splitAxisActions
+    /// Per-window source-navigation bus (#2105/#3437). A reveal brings the reader
+    /// to the Page tab so the highlighted source is visible (#3521).
+    @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
     /// Shared annotation focus for the Notes tab's list ↔ detail selection.
     @State private var focusedAnnotation = FocusedAnnotation.shared
     /// Notes-tab sub-mode: anchored marks vs free-text notes (#3513). Per-window.
@@ -158,6 +161,22 @@ private struct ReadingPaneView: View {
                 .help(isPinned ? "Unpin — follow current selection" : "Pin to current document")
             })
         }
+        // A source reveal (#2105) brings the reader to the Page tab so the
+        // highlighted / scrolled-to source is actually visible (#3521).
+        .onChange(of: claimSourceNavigationState?.requestID) { _, newID in
+            if newID != nil { revealSourceInPageTab() }
+        }
+    }
+
+    /// Switch the reader to the Page tab and, if it's showing only the source,
+    /// split in the transcript — so a revealed claim/entity source shows with
+    /// its highlight + scroll-to-anchor. The transcript highlight and scroll
+    /// come from PageContentPane observing ClaimFocusState (#3511 on appear,
+    /// #3226 anchor); the PDF page scroll comes from the reveal's
+    /// `.ficheroNavigateToPage`.
+    private func revealSourceInPageTab() {
+        if readerTab != .page { readerTabRaw = ReaderTab.page.rawValue }
+        if pageLayout == .source { pageLayoutRaw = ReaderPageLayout.split.rawValue }
     }
 
     @ViewBuilder
