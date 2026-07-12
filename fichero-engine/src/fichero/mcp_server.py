@@ -346,6 +346,25 @@ def fichero_workspace_add_note(workspace_id: str, text: str) -> Any:
     return _workspace_action("workspace.add_note", {"workspace_id": workspace_id, "text": text})
 
 
+@mcp.tool()
+def fichero_reveal_location(
+    documentId: str,
+    page: int | None = None,
+    bbox: list[float] | None = None,
+    charRange: dict[str, int] | None = None,
+    claimId: str | None = None,
+    entityId: str | None = None,
+    surface: str = "both",
+) -> Any:
+    """Resolve a document/page/bbox anchor for navigation."""
+    payload = {"documentId": documentId, "surface": surface}
+    for key, value in (("page", page), ("bbox", bbox), ("charRange", charRange), ("claimId", claimId), ("entityId", entityId)):
+        if value is not None:
+            payload[key] = value
+    with _client() as client:
+        return client.request("POST", "/api/locations/resolve", json=payload)
+
+
 # -- knowledge graph / content (read) --------------------------------------
 @mcp.tool()
 def fichero_kg_neighborhood(
