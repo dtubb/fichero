@@ -138,6 +138,8 @@ struct EditorView: View {
         case storageDisplay(documentId: String)
         case imageEditor(documentId: String)
         case text(content: String)
+        /// Audio/video streamed via AVPlayer against the storage endpoint (#3208).
+        case media(documentId: String)
         case quickLook
 
         var usesImageEditingPreviewForViewing: Bool {
@@ -171,6 +173,12 @@ struct EditorView: View {
                 return .imageEditor(documentId: doc.id)
             }
             return .storageDisplay(documentId: doc.id)
+        }
+        // Audio/video stream progressively via AVPlayer (#3208) instead of the
+        // whole-file QuickLook download. Formats AVFoundation can't play
+        // (mkv/avi/…) fall through to the QuickLook fallback below.
+        if doc.fileType == .audio || doc.fileType == .video, MediaStreamPreview.canStream(doc) {
+            return .media(documentId: doc.id)
         }
         // Text-bearing documents (txt / docx / md) render as annotatable text
         // so highlight + note work on the body (#2458 slice 3). Falls back to
@@ -231,6 +239,9 @@ struct EditorView: View {
             )
         case .text(let content):
             DocumentTextReader(document: doc, content: content)
+        case .media(let documentId):
+            MediaStreamPreview(document: doc)
+                .id(documentId)
         case .quickLook:
             QuickLookDownloadView(document: doc)
         }

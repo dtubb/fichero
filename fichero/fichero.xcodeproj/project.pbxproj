@@ -76,6 +76,7 @@
 		186AB9CF6F951F8878BC81AF /* EntityKindChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 986AE09BC3B5DC9ECD5820A5 /* EntityKindChartView.swift */; };
 		19F0E17B6ABA9BAF96D135C5 /* AnnotationsInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA6DF64867F557144B14A23 /* AnnotationsInspectorPane.swift */; };
 		1AA8D13CBE8E1D392BDDD4CF /* DocumentCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E4C1042F69F06267FA6CCD /* DocumentCanvas.swift */; };
+		MEDIA0012F69F06267FA6CCD /* MediaStreamPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEDIA0022F69F06267FA6CCD /* MediaStreamPreview.swift */; };
 		1ACCE61BCF118B415F1E457E /* OntologyBrowser+Toolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849CA4F172401769E6140F13 /* OntologyBrowser+Toolbar.swift */; };
 		1BA428828543A7D4091C0A98 /* ActivityOverviewView+Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = D661A54EFC8800F710E16A23 /* ActivityOverviewView+Cards.swift */; };
 		1BD8C58F169EE984D4CF90A4 /* EntitySplitSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F3FE2F360EADE051A3D2D51 /* EntitySplitSheet.swift */; };
@@ -907,6 +908,7 @@
 		7FDDBCA3101A6E468A3105D2 /* DocumentInspectorArtifactsTab+Shared.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+Shared.swift"; sourceTree = "<group>"; };
 		80920949B39DD526745B0BF2 /* CanvasDetailTier.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasDetailTier.swift; sourceTree = "<group>"; };
 		80E4C1042F69F06267FA6CCD /* DocumentCanvas.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentCanvas.swift; sourceTree = "<group>"; };
+		MEDIA0022F69F06267FA6CCD /* MediaStreamPreview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaStreamPreview.swift; sourceTree = "<group>"; };
 		811A6E6F398CBE8A81AEB7CE /* ActivityMonitorWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityMonitorWindow.swift; sourceTree = "<group>"; };
 		82E8622F0305ED125BEDB904 /* EntityDetailView+Audit.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Audit.swift"; sourceTree = "<group>"; };
 		849CA4F172401769E6140F13 /* OntologyBrowser+Toolbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "OntologyBrowser+Toolbar.swift"; sourceTree = "<group>"; };
@@ -2093,6 +2095,7 @@
 				A9CC1872944150E583173CB8 /* ImageEditor */,
 				A5C119BA4657FD54B0F01D6C /* DocumentKGSurface.swift */,
 				80E4C1042F69F06267FA6CCD /* DocumentCanvas.swift */,
+				MEDIA0022F69F06267FA6CCD /* MediaStreamPreview.swift */,
 				99857D7C99E753A3405778FC /* LibraryToolbarState.swift */,
 				E25A2C92607779F4D928B8E3 /* ArtifactRichTextCodec.swift */,
 				4D11FC06A71EAC1E8C4F6897 /* NodeClassPicker.swift */,
@@ -2874,6 +2877,7 @@
 				699D8A080D56300C542DEE87 /* ContradictionTriageSheet.swift in Sources */,
 				861B6FECAB63CDE10DBC5D7E /* EntityDigestView.swift in Sources */,
 				1AA8D13CBE8E1D392BDDD4CF /* DocumentCanvas.swift in Sources */,
+				MEDIA0012F69F06267FA6CCD /* MediaStreamPreview.swift in Sources */,
 				37125B13A36AF61C3B5868C3 /* NodeComparisonSheet.swift in Sources */,
 				286700373FC6B54B843E8DA5 /* NodePopover+Comparison.swift in Sources */,
 				0C6B1EE6EDE444C4F95ED9FD /* NoteService.swift in Sources */,
