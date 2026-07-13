@@ -47,7 +47,9 @@ struct PDFThumbnailView: View {
             }
         }
         .task(id: "\(documentId):\(pageIndex)") {
-            guard let data = try? await storageService.getSourceData(documentId) else {
+            // Shared source bytes (#3209): reuse the already-downloaded PDF
+            // instead of a per-thumbnail download; decode stays off-main.
+            guard let data = try? await storageService.pdfCache.data(for: documentId) else {
                 image = nil
                 pageCount = 0
                 return

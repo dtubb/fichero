@@ -219,9 +219,11 @@ struct PDFPageView: NSViewRepresentable {
             loadTask = Task { [weak self, weak view] in
                 guard let self else { return }
                 do {
-                    let data = try await storageService.getSourceData(documentId)
+                    // Shared per-document decode (#3209): one PDFDocument, reused
+                    // across the viewer's split panes instead of decoding per view.
+                    let pdfDocument = try await storageService.pdfCache.document(for: documentId)
                     guard !Task.isCancelled,
-                          let pdfDocument = PDFDocument(data: data),
+                          let pdfDocument,
                           let view else { return }
                     self.loadedDocumentId = documentId
                     self.requestedDocumentId = nil
@@ -689,9 +691,11 @@ struct PDFPageView: UIViewRepresentable {
             loadTask = Task { [weak self, weak view] in
                 guard let self else { return }
                 do {
-                    let data = try await storageService.getSourceData(documentId)
+                    // Shared per-document decode (#3209): one PDFDocument, reused
+                    // across the viewer's split panes instead of decoding per view.
+                    let pdfDocument = try await storageService.pdfCache.document(for: documentId)
                     guard !Task.isCancelled,
-                          let pdfDocument = PDFDocument(data: data),
+                          let pdfDocument,
                           let view else { return }
                     self.loadedDocumentId = documentId
                     self.requestedDocumentId = nil

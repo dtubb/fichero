@@ -68,6 +68,18 @@ class StorageServiceGenerated {
         configuredBaseURL ?? EngineConfig.apiBaseURL
     }
 
+    /// Shared per-document PDF cache (#3209): one download + one decode of a
+    /// PDF's source bytes, reused by the Preview viewer, loupe, and thumbnails
+    /// instead of each fetching + decoding its own copy. Lazily created so a
+    /// library that never opens a PDF pays nothing; fetches route back through
+    /// `getSourceData` (storage HTTP endpoint, never a local path).
+    @ObservationIgnored lazy var pdfCache: PDFDocumentCache = PDFDocumentCache(
+        fetch: { [weak self] documentId in
+            guard let self else { throw StorageServiceError.unexpectedResponse }
+            return try await self.getSourceData(documentId)
+        }
+    )
+
     init(ficheroClient: FicheroClient, baseURL: URL? = nil) {
         self.client = ficheroClient
         self.configuredBaseURL = baseURL
