@@ -82,8 +82,9 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     if not isinstance(params, dict):
         raise HTTPException(400, f"Invalid params for operation: {name}")
     if name in {"rotate", "straighten", "auto_deskew"}:
+        angle = detect_deskew_angle(image) if name == "auto_deskew" and "angle" not in params else float(params.get("angle", 0))
         return image.rotate(
-            float(params.get("angle", 0)),
+            angle,
             expand=bool(params.get("expand", True)),
             resample=Image.Resampling.BICUBIC,
             fillcolor="white",
