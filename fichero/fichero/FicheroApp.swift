@@ -290,6 +290,12 @@ struct FicheroApp: App {
         .environment(kgFocusState)
         .environment(appState.mcpService)
         .frame(minWidth: 640, minHeight: 700)
+        // ★ EVERY FRAME PERFECT (#3615): the semantic surface color is the BASE
+        // layer under the whole window, so the BackendConnectionView → LibraryWindow
+        // → ContentView handoffs (and any first-frame gap while content lays out)
+        // read as the app surface, never a bare system-white flash. Matches
+        // BackendConnectionView's own fill so the swap is seamless.
+        .background(Color(platformColor: .windowBackgroundColor))
     }
 
     var body: some Scene {
