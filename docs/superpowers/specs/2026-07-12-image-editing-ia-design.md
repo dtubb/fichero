@@ -209,7 +209,7 @@ The fix is **one new choke point**, not a rewrite of every caller of
      unchanged (zero-cost for the common no-edits case).
    - If non-empty, replays the chain via the *existing* `_apply_operation`
      logic (move that helper — already private in `image_editing.py` — into a
-     shared module, e.g. `fichero/image_ops.py`, so both the route and
+     shared module, e.g. `fichero-engine/src/fichero/image_ops.py`, so both the route and
      `storage.py` import the same replay code; **iterate, don't duplicate**)
      and writes/returns the cached derived path from the new mtime-keyed
      cache described above.

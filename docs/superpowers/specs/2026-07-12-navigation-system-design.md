@@ -18,7 +18,7 @@ and must be extended, not duplicated.
 
 ### 0.1 Windows, tabs, seeding
 
-- `fichero/fichero/App/FicheroApp.swift` declares one primary `WindowGroup("Fichero", id: "main")`
+- `fichero/fichero/FicheroApp.swift` declares one primary `WindowGroup("Fichero", id: "main")`
   plus a value-seeded sibling `WindowGroup("Fichero", for: WindowSeed.self)`, and five detached
   detail scenes: `artifact-detail`, `citation-detail`, `annotation-detail`,
   `note-detail`, `document-detail` (each `.defaultSize` ~480×620, read-only,
