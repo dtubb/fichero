@@ -100,7 +100,52 @@ def _route_decorator_concern(dec: ast.expr, prefixes: dict[str, str]) -> str | N
     return f"route:{method.upper()} {path}"
 
 
-def _function_occurrences(tree: ast.AST, rel_file: str) -> list[Occurrence]:
+def _mounted_route_prefixes(root: Path) -> dict[str, str]:
+    """Return module prefixes declared by the application's route specs."""
+    main = root / "api" / "main.py"
+    if not main.exists():
+        return {}
+    try:
+        tree = ast.parse(main.read_text(encoding="utf-8"), filename=str(main))
+    except SyntaxError:
+        return {}
+
+    prefixes: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+            value = node.value
+        else:
+            continue
+        if not isinstance(value, ast.List):
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "_CORE_ROUTE_SPECS"
+            for target in targets
+        ):
+            continue
+        for spec in value.elts:
+            if not isinstance(spec, ast.Tuple) or len(spec.elts) < 2:
+                continue
+            router, prefix = spec.elts[:2]
+            if (
+                not isinstance(router, ast.Attribute)
+                or not isinstance(router.value, ast.Name)
+                or router.attr != "router"
+                or not isinstance(prefix, ast.Constant)
+                or not isinstance(prefix.value, str)
+            ):
+                continue
+            prefixes[f"api/routes/{router.value.id}.py"] = prefix.value
+    return prefixes
+
+
+def _function_occurrences(
+    tree: ast.AST, rel_file: str, mounted_prefix: str = ""
+) -> list[Occurrence]:
     found: list[Occurrence] = []
     prefixes = _extract_router_prefixes(tree)
     for node in ast.walk(tree):
@@ -111,8 +156,15 @@ def _function_occurrences(tree: ast.AST, rel_file: str) -> list[Occurrence]:
         for dec in node.decorator_list:
             concern = _route_decorator_concern(dec, prefixes)
             if concern:
+                method_path = concern.removeprefix("route:")
+                method, path = method_path.split(" ", maxsplit=1)
                 found.append(
-                    Occurrence(concern=concern, symbol=symbol, file=rel_file, line=node.lineno)
+                    Occurrence(
+                        concern=f"route:{method} {mounted_prefix}{path}",
+                        symbol=symbol,
+                        file=rel_file,
+                        line=node.lineno,
+                    )
                 )
 
         names = {
@@ -144,13 +196,14 @@ def _function_occurrences(tree: ast.AST, rel_file: str) -> list[Occurrence]:
 
 def collect(root: Path = ENGINE_SRC) -> dict[str, list[Occurrence]]:
     by_concern: dict[str, list[Occurrence]] = defaultdict(list)
+    mounted_prefixes = _mounted_route_prefixes(root)
     for path in _py_files(root):
         rel = str(path.relative_to(root))
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except SyntaxError:
             continue
-        for occ in _function_occurrences(tree, rel):
+        for occ in _function_occurrences(tree, rel, mounted_prefixes.get(rel, "")):
             by_concern[occ.concern].append(occ)
     return by_concern
 
