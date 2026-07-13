@@ -200,4 +200,29 @@ struct LibraryChangeStreamTransportTests {
         #expect(LibraryChangeStream.shouldSurfaceUnavailable(failureCount: 1) == false)
         #expect(LibraryChangeStream.shouldSurfaceUnavailable(failureCount: 2) == true)
     }
+
+    // MARK: - No spurious reconnect prompt (#3351)
+
+    @Test("engine reachable: a healthy stream leaves the reconnect pill hidden")
+    func reachableEngineHidesPausedPill() async throws {
+        // A reachable engine returns 200 and streams a frame, then the stub's
+        // finite frame list ends the connection cleanly (a server-side rotation).
+        // The reconnect pill must NOT be shown — that clean end is not a failure.
+        let stream = makeStream(frames: [dataFrame(type: "entity.updated")])
+        #expect(stream.liveUpdatesUnavailable == false, "starts hidden")
+
+        try await stream.subscribeOnce(resyncOnConnect: false)
+
+        #expect(stream.isConnected, "reachable → connected during the stream")
+        #expect(stream.liveUpdatesUnavailable == false,
+                "reachable engine must never surface a Reconnect prompt (#3351)")
+    }
+
+    @Test("a single dropped cycle does not surface the pill (transient settles)")
+    func singleTransientDoesNotSurface() {
+        // The two-strike debounce: one miss self-heals on the next backoff tick
+        // and stays invisible. Before #3351 a clean end pre-incremented the count,
+        // so a lone transient could hit the threshold; now only genuine errors do.
+        #expect(LibraryChangeStream.shouldSurfaceUnavailable(failureCount: 1) == false)
+    }
 }

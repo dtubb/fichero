@@ -261,7 +261,6 @@ final class LibraryChangeStream {
         var hasConnectedBefore = false
         var consecutiveUnavailableCycles = 0
         while !Task.isCancelled {
-            var cycleEndedWithError = false
             do {
                 try await subscribeOnce(resyncOnConnect: hasConnectedBefore)
                 hasConnectedBefore = true
@@ -279,7 +278,6 @@ final class LibraryChangeStream {
                 return
             } catch {
                 if !Task.isCancelled {
-                    cycleEndedWithError = true
                     // ponytail: require a second consecutive miss before surfacing
                     // the paused pill; one dropped cycle often self-heals on the
                     // next backoff tick and should stay invisible to the user.
@@ -293,12 +291,13 @@ final class LibraryChangeStream {
                 }
             }
             isConnected = false
-            if !Task.isCancelled, !cycleEndedWithError {
-                consecutiveUnavailableCycles += 1
-                liveUpdatesUnavailable = Self.shouldSurfaceUnavailable(
-                    failureCount: consecutiveUnavailableCycles
-                )
-            }
+            // A CLEAN end (subscribeOnce returned without throwing) is a healthy
+            // server-side connection rotation, NOT a failure (#3351): the loop
+            // reconnects on the next tick, and `liveUpdatesUnavailable` was already
+            // cleared to false on connect. Counting it as an unavailable cycle made
+            // a normal rotation followed by a single transient error surface the
+            // reconnect pill prematurely — the spurious "Reconnect" prompt while the
+            // backend is healthy. Only genuine errors (the catch above) count.
             if Task.isCancelled { break }
             try? await Task.sleep(nanoseconds: backoffNanos)
             backoffNanos = Self.nextBackoffNanos(after: backoffNanos)
