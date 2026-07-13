@@ -65,7 +65,11 @@ final class PDFLoupeNSView: NSView {
         loadTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let data = try await storageService.getSourceData(documentId)
+                // Shared source bytes (#3209): the viewer/thumbnails already
+                // downloaded this PDF; reuse them instead of a second download.
+                // Decode stays off-main (own transient doc) — a PDFDocument can't
+                // be rendered off-main while the viewer renders it on main.
+                let data = try await storageService.pdfCache.data(for: documentId)
                 let image = await Self.renderPageImage(data: data, pageIndex: pageIndex)
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
