@@ -42,13 +42,29 @@ async def test_wikidata_refresh_parses_mocked_response(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_viaf_and_loc_refresh_parse_mocked_responses(monkeypatch):
+    async def fake_json(name, *_args):
+        if name == "VIAF":
+            return {"result": [{"viafid": "123", "term": "Rosario", "nametype": "Personal"}]}
+        return {"hits": [{"uri": "https://id.loc.gov/authorities/names/n123", "a": "Rosario"}]}
+
+    monkeypatch.setattr(curation, "_authority_json", fake_json)
+    viaf = await curation._fetch_viaf_snapshots("Rosario", 1)
+    loc = await curation._fetch_loc_snapshots("Rosario", 1)
+
+    assert [(row.authority, row.authority_id) for row in viaf + loc] == [
+        ("viaf", "123"), ("loc", "n123")
+    ]
+
+
+@pytest.mark.asyncio
 async def test_refresh_is_opt_in_and_cache_only_matching(tmp_path, monkeypatch):
     db = Database(path=tmp_path / "library" / "fichero.duckdb")
     entity = KnowledgeEntity(canonical_name="Douglas Adams", entity_type=EntityType.person)
     db.save(entity)
     settings = SimpleNamespace(get_setting=lambda _key: None)
     monkeypatch.setattr(curation, "get_app_db", lambda: settings)
-    monkeypatch.setattr(curation, "_fetch_wikidata_snapshots", lambda *_args: pytest.fail("network must be blocked"))
+    monkeypatch.setattr(curation, "_fetch_authority_snapshots", lambda *_args: pytest.fail("network must be blocked"))
     try:
         with pytest.raises(HTTPException, match="disabled"):
             await curation.refresh_external_authority(
@@ -64,7 +80,7 @@ async def test_refresh_is_opt_in_and_cache_only_matching(tmp_path, monkeypatch):
             ]
 
         settings.get_setting = lambda _key: "true"
-        monkeypatch.setattr(curation, "_fetch_wikidata_snapshots", fake_fetch)
+        monkeypatch.setattr(curation, "_fetch_authority_snapshots", fake_fetch)
         refreshed = await curation.refresh_external_authority(
             curation.AuthorityRefreshRequest(query="Douglas Adams"), db
         )
@@ -101,7 +117,7 @@ async def test_authority_link_is_persisted_and_refresh_failure_is_loud(tmp_path,
         async def failing_fetch(*_args):
             raise HTTPException(status_code=502, detail="Wikidata refresh failed: timeout")
 
-        monkeypatch.setattr(curation, "_fetch_wikidata_snapshots", failing_fetch)
+        monkeypatch.setattr(curation, "_fetch_authority_snapshots", failing_fetch)
         monkeypatch.setattr(curation, "_external_authority_enabled", lambda: True)
         with pytest.raises(HTTPException, match="timeout"):
             await curation.refresh_external_authority(

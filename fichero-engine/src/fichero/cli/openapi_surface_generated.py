@@ -6666,6 +6666,7 @@ def register_generated_openapi_commands(
     @target_app.command("explicitly-refresh-local-wikidata-authority-snapshots")
     def kg_explicitly_refresh_local_wikidata_authority_snapshots_post(
         ctx: typer.Context,
+        authorities: Optional[str] = typer.Option(None, "--authorities", help="Request field: authorities."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
         query: str = typer.Option(..., "--query", help="Request field: query."),
     ) -> None:
@@ -6674,9 +6675,11 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/kg/entity-curation/authority/refresh"
             params = None
             payload = _build_json_payload({
+                "authorities": authorities,
                 "limit": limit,
                 "query": query,
             }, {
+                "authorities": {'items': {'type': 'string', 'enum': ['wikidata', 'viaf', 'loc']}, 'type': 'array', 'minItems': 1, 'title': 'Authorities', 'x-cli-required': False},
                 "limit": {'type': 'integer', 'maximum': 20.0, 'minimum': 1.0, 'title': 'Limit', 'default': 10, 'x-cli-required': False},
                 "query": {'type': 'string', 'maxLength': 200, 'minLength': 1, 'title': 'Query', 'x-cli-required': True},
             }, required=True)

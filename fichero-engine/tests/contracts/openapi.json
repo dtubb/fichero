@@ -35984,6 +35984,19 @@
             "minimum": 1.0,
             "title": "Limit",
             "default": 10
+          },
+          "authorities": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "wikidata",
+                "viaf",
+                "loc"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Authorities"
           }
         },
         "type": "object",
