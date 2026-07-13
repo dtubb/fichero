@@ -252,6 +252,50 @@ async def test_batch_item_execution_accepts_string_db_path(tmp_path, monkeypatch
     assert persisted.completed_items == 1
 
 
+@pytest.mark.asyncio
+async def test_batch_records_document_completion_failure(tmp_path, monkeypatch):
+    """A completed graph is not a completed batch item until documents persist."""
+    manager = BatchManager(str(tmp_path / "batch_completion_failure.duckdb"))
+    batch = await manager.create_batch(workflow_id="wf-1", items_inputs=[{"value": 1}])
+
+    class FakeGraph:
+        async def astream(self, initial_state, config):
+            yield {"node-1": {"completed_nodes": ["node-1"]}}
+
+        async def aget_state(self, config):
+            return SimpleNamespace(values={})
+
+    monkeypatch.setattr(
+        "fichero.workflows.batch.create_compiled_app",
+        lambda *a, **k: (FakeGraph(), None),
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.completion.collect_processed_document_ids", lambda values: []
+    )
+    monkeypatch.setattr(
+        "fichero.db_manager.db_manager.get_database", lambda path: SimpleNamespace()
+    )
+
+    def fail_completion(*_args, **_kwargs):
+        raise RuntimeError("document write failed")
+
+    monkeypatch.setattr(
+        "fichero.workflows.completion.complete_run_documents", fail_completion
+    )
+
+    events = [
+        event.event_type
+        async for event in manager.execute_batch(batch.batch_id, SyncWorkflowStore(_workflow()))
+    ]
+    persisted = await manager.get_batch(batch.batch_id)
+
+    assert "item_failed" in events
+    assert persisted is not None
+    assert persisted.status.value == "failed"
+    assert persisted.items[0].status.value == "failed"
+    assert "Document completion failed: document write failed" == persisted.items[0].error
+
+
 def test_batch_cache_is_bounded(tmp_path):
     """#2136: batch cache cannot grow without bound."""
     manager = BatchManager(str(tmp_path / "batch_cache.duckdb"))

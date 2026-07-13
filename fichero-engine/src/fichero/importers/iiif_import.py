@@ -272,8 +272,8 @@ def _load_json_documents(root: Path) -> list[tuple[Path, dict[str, Any]]]:
     for path in paths:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Failed to parse IIIF JSON: {path}") from exc
         if isinstance(data, dict):
             data.setdefault("_fichero_source_path", str(path))
             docs.append((path, data))
