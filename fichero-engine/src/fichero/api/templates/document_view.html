@@ -49,6 +49,10 @@
                with .textBackgroundColor), not a cream "paper" gradient (#1280). */
             background: var(--bg);
             color: var(--text);
+            /* Reader paragraph wrapping (#3684): inherited by prose paragraphs.
+               Swift injects --reader-text-wrap from the Reader setting (pretty =
+               no orphan last-lines); "pretty" is the on-target default. */
+            text-wrap: var(--reader-text-wrap, pretty);
         }
 
         .shell {

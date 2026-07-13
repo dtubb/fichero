@@ -101,6 +101,45 @@ extension View {
     func editorScaledFont() -> some View { modifier(EditorScaledFont()) }
 }
 
+// MARK: - Reader paragraph wrapping (#3684)
+
+/// How the Reader wraps prose paragraphs, mapped to the CSS `text-wrap` value
+/// injected as `--reader-text-wrap`. Default `.tidy` (`pretty`) stops a single
+/// word from stranding on the last line; a widont JS pass covers WebKit without
+/// `text-wrap: pretty` (older than the Golden Gate target — a no-op there).
+enum ReaderTextWrap: String, CaseIterable, Identifiable {
+    case system
+    case tidy
+    case balanced
+
+    var id: String { rawValue }
+
+    /// The CSS `text-wrap` value this mode injects.
+    var cssValue: String {
+        switch self {
+        case .system: "normal"
+        case .tidy: "pretty"
+        case .balanced: "balance"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .system: "System"
+        case .tidy: "Tidy (no orphans)"
+        case .balanced: "Balanced"
+        }
+    }
+
+    static let storageKey = "fichero.reader.textWrap"
+
+    /// The current CSS `text-wrap` value from UserDefaults (default `.tidy`).
+    static func currentCSS() -> String {
+        (UserDefaults.standard.string(forKey: storageKey)
+            .flatMap(ReaderTextWrap.init(rawValue:)) ?? .tidy).cssValue
+    }
+}
+
 // MARK: - View Mode Enums
 
 /// Sidebar mode selection - Xcode-style mode switching

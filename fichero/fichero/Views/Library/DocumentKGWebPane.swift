@@ -276,7 +276,7 @@ enum DocumentKGPaneRoute {
         --muted: \(theme.muted);--line: \(theme.line);--accent: \(theme.accent);\
         --accent-soft: \(theme.accentSoft);\
         --font-system: \(readerFontSystem);--font-mono: \(readerFontMono);\
-        --reader-base-size: \(scaledSize)px;\
+        --reader-base-size: \(scaledSize)px;--reader-text-wrap: \(ReaderTextWrap.currentCSS());\
         }html,body{background:transparent!important;}
         ::selection{background-color:\(theme.selectionBg);color:\(theme.selectionText);}
         """
@@ -298,8 +298,32 @@ enum DocumentKGPaneRoute {
             }
             el.textContent = '\(css)';
         })();
+        \(paragraphWidontFallbackScript)
         """
     }
+
+    /// Widont fallback for paragraph wrapping (#3684): only runs on WebKit WITHOUT
+    /// `text-wrap: pretty` (older than the Golden Gate target — a no-op there), and
+    /// only when the Reader wrap mode is "tidy" (`--reader-text-wrap: pretty`). It
+    /// joins each paragraph's last two words with a non-breaking space so a single
+    /// word can't strand on the last line. Idempotent (dataset flag), fail-safe.
+    private static let paragraphWidontFallbackScript = """
+    (function() {
+        try {
+            if (window.CSS && CSS.supports && CSS.supports('text-wrap', 'pretty')) { return; }
+            var mode = getComputedStyle(document.documentElement)
+                .getPropertyValue('--reader-text-wrap').trim();
+            if (mode !== 'pretty') { return; }
+            var ps = document.querySelectorAll('p');
+            for (var i = 0; i < ps.length; i++) {
+                var p = ps[i];
+                if (p.dataset.ficheroWidont) { continue; }
+                p.innerHTML = p.innerHTML.replace(/\\s+(\\S+)\\s*$/, '\\u00A0$1');
+                p.dataset.ficheroWidont = '1';
+            }
+        } catch (widontError) { /* wrapping is cosmetic; never break the reader */ }
+    })();
+    """
 
     // swiftlint:disable:next function_body_length
     static func scrollSyncScript(pageCount: Int?) -> String {
@@ -488,6 +512,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
     /// live — no reload (systemThemeCSS reads the current scale).
     @AppStorage(ViewSettings.FontScale.readerKey)
     private var readerFontScale = ViewSettings.FontScale.defaultValue
+    /// Reader paragraph wrapping (#3684). Also re-injected on change.
+    @AppStorage(ReaderTextWrap.storageKey)
+    private var readerTextWrap = ReaderTextWrap.tidy
     @Environment(KGFocusState.self) private var kgFocusState
     /// Per-window source-navigation bus (#3437). Captured into the coordinator
     /// in `updateNSView` — a WKScriptMessageHandler callback fires async, outside
@@ -548,11 +575,14 @@ struct DocumentKGWebPane: NSViewRepresentable {
         if webView.pageZoom != zoom {
             webView.pageZoom = zoom
         }
-        // Reader font-scale change (#3681): re-inject the scaled --reader-base-size
-        // in place. NaN seed makes the first pass a no-op-equivalent re-inject that
-        // matches the on-load injection; later changes update without a reload.
-        if readerFontScale != context.coordinator.lastReaderFontScale {
+        // Reader font-scale / wrap change (#3681 / #3684): re-inject the theme
+        // (scaled --reader-base-size + --reader-text-wrap) in place. NaN/"" seeds
+        // make the first pass a re-inject matching the on-load injection; later
+        // changes update without a reload.
+        if readerFontScale != context.coordinator.lastReaderFontScale
+            || readerTextWrap.rawValue != context.coordinator.lastReaderTextWrap {
             context.coordinator.lastReaderFontScale = readerFontScale
+            context.coordinator.lastReaderTextWrap = readerTextWrap.rawValue
             webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
         }
     }
@@ -561,6 +591,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
         var parent: DocumentKGWebPane
         /// Last Reader font scale re-injected (#3681); NaN so the first compare fires.
         var lastReaderFontScale: Double = .nan
+        /// Last Reader wrap mode re-injected (#3684); "" so the first compare fires.
+        var lastReaderTextWrap: String = ""
         /// Per-window source-navigation bus, captured from the environment each
         /// `updateNSView` so async bridge callbacks route to THIS window (#3437).
         var claimSourceNavigationState: ClaimSourceNavigationState?
@@ -851,6 +883,9 @@ struct DocumentKGWebPane: UIViewRepresentable {
     /// `--reader-base-size` live on change.
     @AppStorage(ViewSettings.FontScale.readerKey)
     private var readerFontScale = ViewSettings.FontScale.defaultValue
+    /// Reader paragraph wrapping (#3684). Also re-injected on change.
+    @AppStorage(ReaderTextWrap.storageKey)
+    private var readerTextWrap = ReaderTextWrap.tidy
     @Environment(KGFocusState.self) private var kgFocusState
     /// Per-window source-navigation bus (#3437); captured into the coordinator
     /// in `updateUIView` for the async bridge callback.
@@ -911,9 +946,11 @@ struct DocumentKGWebPane: UIViewRepresentable {
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)
         context.coordinator.applyZoom(to: webView, zoom: zoom)
-        // Reader font-scale change (#3681): re-inject the scaled base size in place.
-        if readerFontScale != context.coordinator.lastReaderFontScale {
+        // Reader font-scale / wrap change (#3681 / #3684): re-inject in place.
+        if readerFontScale != context.coordinator.lastReaderFontScale
+            || readerTextWrap.rawValue != context.coordinator.lastReaderTextWrap {
             context.coordinator.lastReaderFontScale = readerFontScale
+            context.coordinator.lastReaderTextWrap = readerTextWrap.rawValue
             webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
         }
     }
@@ -922,6 +959,8 @@ struct DocumentKGWebPane: UIViewRepresentable {
         var parent: DocumentKGWebPane
         /// Last Reader font scale re-injected (#3681); NaN so the first compare fires.
         var lastReaderFontScale: Double = .nan
+        /// Last Reader wrap mode re-injected (#3684); "" so the first compare fires.
+        var lastReaderTextWrap: String = ""
         /// Per-window source-navigation bus, captured each `updateUIView` (#3437).
         var claimSourceNavigationState: ClaimSourceNavigationState?
         weak var webView: GuardedWKWebView?
