@@ -25,6 +25,22 @@ def detect_deskew_angle(image: Image.Image) -> float:
     return float(np.median(angles)) if angles else 0.0
 
 
+def detect_content_bbox(image: Image.Image) -> tuple[int, int, int, int]:
+    """Find the non-border content rectangle using a local threshold."""
+    gray = image.convert("L")
+    pixels = gray.load()
+    xs, ys = [], []
+    for y in range(gray.height):
+        for x in range(gray.width):
+            if pixels[x, y] > 20:
+                xs.append(x)
+                ys.append(y)
+    if not xs:
+        return 0, 0, image.width, image.height
+    left, top, right, bottom = min(xs), min(ys), max(xs) + 1, max(ys) + 1
+    return left, top, right - left, bottom - top
+
+
 def _remove_black_background_opencv(image: Image.Image) -> Image.Image:
     import cv2  # type: ignore[import-not-found]
     import numpy as np
@@ -97,6 +113,9 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         if width <= 0 or height <= 0 or left < 0 or top < 0 or right <= left or bottom <= top:
             raise HTTPException(400, "Crop bounds are invalid")
         return base.crop((left, top, right, bottom))
+    if name == "auto_crop_border":
+        left, top, width, height = detect_content_bbox(image)
+        return apply_operation(image, {"op": "crop", "params": {"left": left, "top": top, "width": width, "height": height}})
     if name == "flip_horizontal":
         return ImageOps.mirror(image)
     if name == "flip_vertical":
