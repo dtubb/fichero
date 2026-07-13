@@ -304,6 +304,7 @@
 		898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75371C597B1E4689B6E1803F /* TriggerEditorView.swift */; };
 		89A148373109E3D71999629D /* FocusedDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8609BBFA7EF7B54ED73C59A1 /* FocusedDocument.swift */; };
 		8B136BE0DDA41615174E4AF4 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB4FE6FA42E3E4887451FB21 /* SessionStore.swift */; };
+		7C3A91E4B2D14F0A9E5C1A70 /* KGQueryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3A91E4B2D14F0A9E5C1A71 /* KGQueryStore.swift */; };
 		8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69898938F25CFEA64385A16 /* TriggerDetailView.swift */; };
 		8C55B492C37B1BBED91F2B9B /* NotesInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15F1C6302A9E0863FB1E6775 /* NotesInspectorPane.swift */; };
 		8D462745B97D9C6E1A8EDEB0 /* ArtifactDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DA5F6DA59D0A499D28F3C75 /* ArtifactDetailView.swift */; };
@@ -1157,6 +1158,7 @@
 		CAA77E9001736B77957513A4 /* NotesBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NotesBrowserView.swift; sourceTree = "<group>"; };
 		CAAFE05184A40A50ADFC54A9 /* QuickLookPreviewViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickLookPreviewViews.swift; sourceTree = "<group>"; };
 		CB4FE6FA42E3E4887451FB21 /* SessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		7C3A91E4B2D14F0A9E5C1A71 /* KGQueryStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGQueryStore.swift; sourceTree = "<group>"; };
 		CC02D722B13BC58D4D4B37B7 /* MiniToolbarComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MiniToolbarComponents.swift; sourceTree = "<group>"; };
 		CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsersSettingsView.swift; sourceTree = "<group>"; };
 		CE7785FFCD6AB43D36199856 /* ArtifactPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactPanel.swift; sourceTree = "<group>"; };
@@ -1717,6 +1719,7 @@
 				5D870DB81D42B1614D58CE3F /* BoundingBoxGeometry.swift */,
 				66ADB5B1F77763C5F3295611 /* PDFRegionGeometry.swift */,
 				CB4FE6FA42E3E4887451FB21 /* SessionStore.swift */,
+				7C3A91E4B2D14F0A9E5C1A71 /* KGQueryStore.swift */,
 				36B2292335F30622AB8F0ABE /* BackendHost.swift */,
 				626E23DB6F8B778F70AF3B35 /* SpaceTheme.swift */,
 				EEFD8D2157AA0C0F66955D78 /* IdentityStore.swift */,
@@ -3016,6 +3019,7 @@
 				CC8B35B398A7393E4D687941 /* BookmarkServiceGenerated.swift in Sources */,
 				04EC79C508ADFCB840661C01 /* BookmarksView.swift in Sources */,
 				8B136BE0DDA41615174E4AF4 /* SessionStore.swift in Sources */,
+				7C3A91E4B2D14F0A9E5C1A70 /* KGQueryStore.swift in Sources */,
 				7F7BE70A69F9550AE8D82690 /* AuthGateView.swift in Sources */,
 				8F7C131CEB5C672DD1E4813A /* BackendRootGate.swift in Sources */,
 				28510D794CAA15808E28CB6C /* BackendHost.swift in Sources */,

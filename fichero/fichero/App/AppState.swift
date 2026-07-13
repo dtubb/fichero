@@ -136,6 +136,7 @@ class AppState {
     let identityStore: IdentityStore  // Public for the access UX (F5): who am I / owner?
     let localInferenceStore: LocalInferenceStore  // Public for Settings → Local LLM tab (#3120)
     let appleAvailabilityStore: AppleAvailabilityStore  // Public for FirstRun + provider rows (#3121/#3118)
+    let kgQueryStore: KGQueryStore  // Public for the SPARQL console (#3298); the store is the only endpoint accessor (#1863)
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppState")
 
     // MARK: - Initialization
@@ -151,6 +152,7 @@ class AppState {
         self.identityStore = IdentityStore(client: ficheroClient)
         self.localInferenceStore = LocalInferenceStore(client: ficheroClient)
         self.appleAvailabilityStore = AppleAvailabilityStore(client: ficheroClient)
+        self.kgQueryStore = KGQueryStore(client: ficheroClient)
         logger.info("⏱ AppState.init services ready")
         // #2960: engine is `@Observable`; the computed backend shims read
         // `engine.phase` directly, so views observing them track the engine
