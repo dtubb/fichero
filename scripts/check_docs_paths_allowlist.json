@@ -3,9 +3,12 @@
   "known_absent_paths": [
     "build/releases",
     "build/verify_all_needs_fixing.json",
+    "docs/contributor/architecture/vocabulary.md",
     "fichero-engine/build/fichero-backend/macos/app/FicheroBackend.app",
     "fichero/build/xcode/Products/Release",
     "fichero/build/xcode/Products/Release/Fichero.app",
-    "fichero/fichero-api-client/.build"
+    "fichero/fichero-api-client/.build",
+    "scripts/baseline_move_check.sh",
+    "scripts/check_dead_python.py"
   ]
 }
