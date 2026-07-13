@@ -4648,6 +4648,21 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("download-an-biography")
+    def entities_download_an_biography_get(
+        ctx: typer.Context,
+        entity_id: str = typer.Argument(..., help="Path parameter: entity_id."),
+        format: Optional[str] = typer.Option(None, "--format", help="Query parameter: format."),
+    ) -> None:
+        """Download an entity biography (GET /api/entities/{entity_id}/export)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/entities/{entity_id}/export"
+            params = {
+                "format": format,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("one-call-aggregate-of-every-kg-row-attached-to-this")
     def entities_one_call_aggregate_of_every_kg_row_attached_to_this_get(
         ctx: typer.Context,

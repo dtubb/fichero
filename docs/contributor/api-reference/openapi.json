@@ -10646,6 +10646,66 @@
         }
       }
     },
+    "/api/entities/{entity_id}/export": {
+      "get": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Download an entity biography",
+        "description": "Download the existing structured biography as Markdown, text, or JSON.",
+        "operationId": "export_entity_biography_api_entities__entity_id__export_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "markdown",
+                "text",
+                "json"
+              ],
+              "type": "string",
+              "default": "markdown",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/markdown": {},
+              "text/plain": {},
+              "application/json": {}
+            }
+          },
+          "404": {
+            "description": "Entity not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/export/eleventy-site": {
       "post": {
         "tags": [
