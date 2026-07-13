@@ -501,12 +501,12 @@ private func applyHighlightSpan(
     // highlight directly, flipping y into PDFKit's bottom-left page space so the
     // highlight lands exactly where the crop was taken (#2105/#3449).
     if let bbox = info["bbox"] as? [Double], bbox.count == 4 {
-        let b = page.bounds(for: .cropBox)
+        let cropBounds = page.bounds(for: .cropBox)
         let rect = CGRect(
-            x: b.minX + bbox[0] * b.width,
-            y: b.minY + (1 - bbox[1] - bbox[3]) * b.height,
-            width: bbox[2] * b.width,
-            height: bbox[3] * b.height
+            x: cropBounds.minX + bbox[0] * cropBounds.width,
+            y: cropBounds.minY + (1 - bbox[1] - bbox[3]) * cropBounds.height,
+            width: bbox[2] * cropBounds.width,
+            height: bbox[3] * cropBounds.height
         )
         let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
         #if canImport(AppKit)
@@ -837,12 +837,12 @@ private func applyHighlightSpan(
     // highlight directly, flipping y into PDFKit's bottom-left page space so the
     // highlight lands exactly where the crop was taken (#2105/#3449).
     if let bbox = info["bbox"] as? [Double], bbox.count == 4 {
-        let b = page.bounds(for: .cropBox)
+        let cropBounds = page.bounds(for: .cropBox)
         let rect = CGRect(
-            x: b.minX + bbox[0] * b.width,
-            y: b.minY + (1 - bbox[1] - bbox[3]) * b.height,
-            width: bbox[2] * b.width,
-            height: bbox[3] * b.height
+            x: cropBounds.minX + bbox[0] * cropBounds.width,
+            y: cropBounds.minY + (1 - bbox[1] - bbox[3]) * cropBounds.height,
+            width: bbox[2] * cropBounds.width,
+            height: bbox[3] * cropBounds.height
         )
         let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
         #if canImport(AppKit)
