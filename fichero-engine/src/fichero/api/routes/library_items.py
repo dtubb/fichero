@@ -5,7 +5,7 @@ from collections import defaultdict
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import Annotation, KnowledgeClaim, KnowledgeEntity, Note
 from fichero.models import Document
@@ -78,7 +78,7 @@ def _scopes(item_ids: list[str], documents: list[Document], descendants: bool) -
 )
 async def library_item_columns(
     request: LibraryItemColumnsRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> LibraryItemColumnsResponse:
     item_ids = list(dict.fromkeys(request.item_ids))
     if not item_ids:
