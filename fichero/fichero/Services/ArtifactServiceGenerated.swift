@@ -2106,6 +2106,43 @@ final class EntityServiceGenerated {
         try await endpointData(path: "/api/kg/pykeen/reviews/\(reviewId)", method: "PATCH", jsonBody: body)
     }
 
+    // Content-representations Reader surface (#3677 store-layer coverage). The
+    // Reader's derived-content/knowledge layer reads a document's representations
+    // and their revision history through the service layer, not the raw client —
+    // same endpointData path the rest of the knowledge surface uses.
+    func contentRepresentations(documentId: String) async throws -> Data {
+        try await endpointData(path: "/api/content-representations/document/\(documentId)")
+    }
+
+    func contentRepresentationRevisions(_ representationId: String) async throws -> Data {
+        try await endpointData(path: "/api/content-representations/\(representationId)/revisions")
+    }
+
+    func createContentRepresentationRevision(
+        _ representationId: String,
+        body: [String: Any]
+    ) async throws -> Data {
+        try await endpointData(
+            path: "/api/content-representations/\(representationId)/revisions",
+            method: "POST",
+            jsonBody: body
+        )
+    }
+
+    // Multi-user workspace-membership admin (#3561 / #3677 store-layer coverage).
+    // PATCHes a chat workspace's member set through the service layer so the
+    // multi-user admin surface reaches it via the store, not the raw client.
+    func updateChatWorkspaceMembers(
+        _ workspaceId: String,
+        body: [String: Any]
+    ) async throws -> Data {
+        try await endpointData(
+            path: "/api/chat/workspaces/\(workspaceId)/members",
+            method: "PATCH",
+            jsonBody: body
+        )
+    }
+
     func rebuildKnowledgeGraph(_ body: [String: Any] = [:]) async throws -> Data {
         try await endpointData(path: "/api/kg/rebuild", method: "POST", jsonBody: body)
     }
