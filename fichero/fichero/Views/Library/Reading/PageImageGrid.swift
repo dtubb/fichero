@@ -58,9 +58,19 @@ private struct PageImageGridCell: View {
     let onOpen: () -> Void
 
     var body: some View {
-        LibraryImageView(documentId: page.id, imageType: .display)
-            .aspectRatio(contentMode: .fit)
+        // ★ EVERY FRAME PERFECT (#3617): reserve a stable page-shaped box up
+        // front so the async `.display` image fits INSIDE it and the cell never
+        // resizes — shifting the grid below — when its pixels arrive. Previously
+        // only the width was reserved (`maxWidth: .infinity`), so the height
+        // popped from ~nothing to width÷aspect on load. 3:4 matches the library
+        // thumbnail proportion (LibraryViewComponents / InfoTab header).
+        Color.clear
+            .aspectRatio(3.0 / 4.0, contentMode: .fit)
             .frame(maxWidth: .infinity)
+            .overlay {
+                LibraryImageView(documentId: page.id, imageType: .display)
+                    .aspectRatio(contentMode: .fit)
+            }
             .background(RoundedRectangle(cornerRadius: 6).fill(.quaternary))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
