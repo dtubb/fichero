@@ -240,17 +240,17 @@ class AgentWorkspaceDeletedResponse(BaseModel):
 
 
 class WorkspaceSourceActionParams(BaseModel):
-    workspace_id: str
-    document_id: str
+    workspace_id: str = Field(min_length=1)
+    document_id: str = Field(min_length=1)
 
 
 class WorkspaceClaimActionParams(BaseModel):
-    workspace_id: str
-    claim_id: str
+    workspace_id: str = Field(min_length=1)
+    claim_id: str = Field(min_length=1)
 
 
 class WorkspaceNoteActionParams(BaseModel):
-    workspace_id: str
+    workspace_id: str = Field(min_length=1)
     text: str = Field(min_length=1)
 
 

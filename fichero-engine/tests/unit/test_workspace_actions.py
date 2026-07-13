@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from fichero import accounts, authz
 from fichero.actions.registry import ActionContext, registry
@@ -108,6 +109,15 @@ def test_add_note_mutates_audits_and_undoes(db):
     assert db.get(ActionAudit, result.audit_id).action_name == "workspace.add_note"
     _undo(db, result, ctx)
     assert db.get(Document, workspace.id).curated_items == []
+
+
+@pytest.mark.parametrize("params", [
+    {"workspace_id": "", "document_id": "source"},
+    {"workspace_id": "workspace", "document_id": ""},
+])
+def test_workspace_source_rejects_empty_ids(db, params):
+    with pytest.raises(ValidationError):
+        registry.invoke(db, "workspace.add_source", params, _ctx(db))
 
 
 def test_workspace_actions_deny_unauthorized_actor(db, app_db, monkeypatch):
