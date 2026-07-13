@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
@@ -171,6 +172,16 @@ def test_parse_iiif_directory_normalizes_nodes_and_annotation_jobs(tmp_path):
     assert page["images"][0]["source_path"] == str(tmp_path / "page_001.jpg")
     assert page["entities"][0]["canonical_name"] == "Marshall"
     assert len(parsed.annotation_jobs) == 2
+
+
+def test_parse_iiif_directory_raises_for_invalid_json(tmp_path):
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not valid json", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Failed to parse IIIF JSON") as exc:
+        parse_iiif_directory(broken)
+
+    assert str(broken) in str(exc.value)
 
 
 def test_import_iiif_scopes_entities_to_page_and_preserves_text_annotations(

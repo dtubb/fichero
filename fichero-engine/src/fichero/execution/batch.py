@@ -603,9 +603,12 @@ class BatchManager:
                         # complete_run_documents (centralised for both paths,
                         # #2518) — no per-caller emit needed here.
                     except Exception as completion_exc:
-                        logger.warning(
-                            f"Batch {batch_id} item {item.item_index} "
-                            f"completion failed: {completion_exc}"
+                        item.status = BatchItemStatus.FAILED
+                        item.error = f"Document completion failed: {completion_exc}"
+                        logger.exception(
+                            "Batch %s item %s document completion failed",
+                            batch_id,
+                            item.item_index,
                         )
 
                 except Exception as e:
