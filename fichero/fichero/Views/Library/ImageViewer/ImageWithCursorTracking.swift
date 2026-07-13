@@ -883,9 +883,9 @@ struct ImageWithCursorTracking: UIViewRepresentable {
             let scaledW = imageSize.width * zoom
             let scaledH = imageSize.height * zoom
 
-            let x = max(0, (viewSize.width - scaledW) / 2)
-            let y = max(0, (viewSize.height - scaledH) / 2)
-            scrollView.contentInset = UIEdgeInsets(top: y, left: x, bottom: y, right: x)
+            let insetX = max(0, (viewSize.width - scaledW) / 2)
+            let insetY = max(0, (viewSize.height - scaledH) / 2)
+            scrollView.contentInset = UIEdgeInsets(top: insetY, left: insetX, bottom: insetY, right: insetX)
         }
 
         func updateVisibleRect() {
