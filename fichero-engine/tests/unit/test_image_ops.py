@@ -1,4 +1,6 @@
 from PIL import Image
+from fastapi import HTTPException
+import pytest
 
 from fichero.image_ops import apply_operation
 
@@ -36,6 +38,13 @@ def test_auto_crop_border_removes_dark_margin():
         for y in range(2, 8):
             image.putpixel((x, y), (255, 255, 255))
     assert apply_operation(image, {"op": "auto_crop_border", "params": {}}).size == (6, 6)
+
+
+def test_crop_missing_dimensions_raises_instead_of_using_full_image():
+    image = Image.new("RGB", (10, 10), "white")
+
+    with pytest.raises(HTTPException, match="missing required params"):
+        apply_operation(image, {"op": "crop", "params": {"left": 0, "top": 0}})
 
 
 def test_adaptive_binarize_returns_bilevel_image():

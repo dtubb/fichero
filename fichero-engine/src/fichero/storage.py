@@ -466,9 +466,9 @@ def _get_bookmark(doc: "Document") -> bytes | None:
     b64 = doc.metadata.get("bookmark")
     if b64:
         try:
-            return base64.b64decode(b64)
-        except Exception:
-            return None
+            return base64.b64decode(b64, validate=True)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Document {doc.id} has invalid bookmark metadata") from exc
     return None
 
 
