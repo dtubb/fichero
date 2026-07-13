@@ -1,6 +1,6 @@
 from PIL import Image
 
-from fichero.image_ops import apply_operation
+from fichero.image_ops import apply_operation, detect_deskew_angle
 
 
 def test_rotate_and_straighten_use_bicubic_white_fill(monkeypatch):
@@ -23,3 +23,8 @@ def test_denoise_replays_deterministically():
     image.putpixel((4, 4), (0, 0, 0))
     operation = {"op": "denoise", "params": {"radius": 3}}
     assert apply_operation(image, operation).tobytes() == apply_operation(image, operation).tobytes()
+
+
+def test_auto_deskew_reuses_straighten_rotation():
+    image = Image.new("RGB", (10, 10), "white")
+    assert apply_operation(image, {"op": "auto_deskew", "params": {"angle": 3}}).size != image.size
