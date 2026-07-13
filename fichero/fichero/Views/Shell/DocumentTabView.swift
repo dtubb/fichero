@@ -166,6 +166,10 @@ struct DocumentTabView: View {
                     .environment(artifactStore)
                     .environment(entityStore)
                     .environment(claimStore)
+                    // SPARQL console store (#3298/#1863): the console reads it
+                    // from the environment instead of scraping a client off
+                    // LibraryManager.shared.
+                    .environment(appState.kgQueryStore)
                     // These app-/library-scoped @Observable focus + substrate
                     // services are also read directly by ContentView. Forward
                     // them here so switching into Research / KG / claim-focused
