@@ -160,6 +160,15 @@ class TestImageEditChainRoutes:
         assert ops[0]["params"] == {"angle": 90.0, "expand": True}
         assert "derived_path" not in ops[0]
 
+    def test_crop_and_rotate_reject_nonpositive_page(self, client, db, tmp_path):
+        doc = _make_image_doc(db, tmp_path)
+        for operation, body in (
+            ("crop", {"left": 0, "top": 0, "width": 1, "height": 1, "page": 0}),
+            ("rotate", {"angle": 90, "page": -1}),
+        ):
+            response = client.post(f"/api/images/{doc.id}/operations/{operation}", json=body)
+            assert response.status_code == 422
+
     def test_enhance_operation_appends_chain(self, client, db, tmp_path):
         doc = _make_gray_image_doc(db, tmp_path)
         enhance = client.post(

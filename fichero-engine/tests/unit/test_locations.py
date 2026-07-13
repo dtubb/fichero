@@ -26,6 +26,8 @@ def test_rejects_invalid_document_page_and_bbox(db):
         asyncio.run(resolve_location(Location(documentId="missing"), db))
     with pytest.raises(ValueError, match="bbox"):
         Location(documentId="x", bbox=[0, 0, 2, 1])
+    with pytest.raises(ValueError, match="bbox"):
+        Location(documentId="x", bbox=[0, 0, 0, 1])
 
 
 @pytest.mark.parametrize("surface", list(LocationSurface))

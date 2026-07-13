@@ -47,13 +47,13 @@ class CropOperationRequest(BaseModel):
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     auto_orient: bool = True
-    page: int = 1
+    page: int = Field(1, ge=1)
 
 
 class RotateOperationRequest(BaseModel):
     angle: float = Field(ge=-360.0, le=360.0)
     expand: bool = True
-    page: int = 1
+    page: int = Field(1, ge=1)
 
 
 class StraightenOperationRequest(BaseModel):
