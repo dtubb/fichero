@@ -43,6 +43,17 @@ extension ViewSettings {
         static func percentLabel(_ value: Double) -> String {
             "\(Int((value * 100).rounded()))%"
         }
+
+        /// The current, clamped Reader / Editor scale from UserDefaults. Consumers
+        /// (the WebKit injection, AnnotatableTextView, the editor surfaces) read
+        /// these so the stored key is the single source. Defaults to `1.0` when
+        /// unset — NOT `UserDefaults.double`'s `0`, which would clamp to 0.8.
+        static func readerScale() -> Double { storedScale(forKey: readerKey) }
+        static func editorScale() -> Double { storedScale(forKey: editorKey) }
+
+        private static func storedScale(forKey key: String) -> Double {
+            clamped((UserDefaults.standard.object(forKey: key) as? Double) ?? defaultValue)
+        }
     }
 }
 

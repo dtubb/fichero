@@ -267,13 +267,16 @@ enum DocumentKGPaneRoute {
     @MainActor
     static func systemThemeCSS() -> String {
         let theme = resolveReaderTheme()
+        // The reader body size = semantic base × the user's Reader font scale
+        // (#3681). Dynamic Type is already in `baseSizePx`; the scale composes.
+        let scaledSize = Int((Double(theme.baseSizePx) * ViewSettings.FontScale.readerScale()).rounded())
         return """
         :root{\
         --bg: \(theme.background);--panel: \(theme.panel);--text: \(theme.text);\
         --muted: \(theme.muted);--line: \(theme.line);--accent: \(theme.accent);\
         --accent-soft: \(theme.accentSoft);\
         --font-system: \(readerFontSystem);--font-mono: \(readerFontMono);\
-        --reader-base-size: \(theme.baseSizePx)px;\
+        --reader-base-size: \(scaledSize)px;\
         }html,body{background:transparent!important;}
         ::selection{background-color:\(theme.selectionBg);color:\(theme.selectionText);}
         """
@@ -480,6 +483,11 @@ struct DocumentKGWebPane: NSViewRepresentable {
     var scrollSync: DocumentScrollSyncState
     /// Zoom level applied via WKWebView.pageZoom. 1.0 = 100%. (#2316)
     var zoom: Double = 1.0
+    /// Reader text font scale (#3681). Bound to the shared key so a change
+    /// re-invokes `updateNSView`, which re-injects the scaled `--reader-base-size`
+    /// live — no reload (systemThemeCSS reads the current scale).
+    @AppStorage(ViewSettings.FontScale.readerKey)
+    private var readerFontScale = ViewSettings.FontScale.defaultValue
     @Environment(KGFocusState.self) private var kgFocusState
     /// Per-window source-navigation bus (#3437). Captured into the coordinator
     /// in `updateNSView` — a WKScriptMessageHandler callback fires async, outside
@@ -540,10 +548,19 @@ struct DocumentKGWebPane: NSViewRepresentable {
         if webView.pageZoom != zoom {
             webView.pageZoom = zoom
         }
+        // Reader font-scale change (#3681): re-inject the scaled --reader-base-size
+        // in place. NaN seed makes the first pass a no-op-equivalent re-inject that
+        // matches the on-load injection; later changes update without a reload.
+        if readerFontScale != context.coordinator.lastReaderFontScale {
+            context.coordinator.lastReaderFontScale = readerFontScale
+            webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
+        }
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: DocumentKGWebPane
+        /// Last Reader font scale re-injected (#3681); NaN so the first compare fires.
+        var lastReaderFontScale: Double = .nan
         /// Per-window source-navigation bus, captured from the environment each
         /// `updateNSView` so async bridge callbacks route to THIS window (#3437).
         var claimSourceNavigationState: ClaimSourceNavigationState?
@@ -830,6 +847,10 @@ struct DocumentKGWebPane: UIViewRepresentable {
     var onPageSelected: (Int) -> Void = { _ in }
     var scrollSync: DocumentScrollSyncState
     var zoom: Double = 1.0
+    /// Reader text font scale (#3681) — see the macOS pane. Re-injects the scaled
+    /// `--reader-base-size` live on change.
+    @AppStorage(ViewSettings.FontScale.readerKey)
+    private var readerFontScale = ViewSettings.FontScale.defaultValue
     @Environment(KGFocusState.self) private var kgFocusState
     /// Per-window source-navigation bus (#3437); captured into the coordinator
     /// in `updateUIView` for the async bridge callback.
@@ -852,7 +873,8 @@ struct DocumentKGWebPane: UIViewRepresentable {
                 )
             )
         }
-        // No live system theme on iOS in this pass; the template defaults apply.
+        // Live semantic theme on iOS too (#3683): inject the system colors/fonts/
+        // base size at document end so the reader matches the app in light + dark.
         controller.addUserScript(
             WKUserScript(
                 source: DocumentKGPaneRoute.themeInjectionScript(),
@@ -889,10 +911,17 @@ struct DocumentKGWebPane: UIViewRepresentable {
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)
         context.coordinator.applyZoom(to: webView, zoom: zoom)
+        // Reader font-scale change (#3681): re-inject the scaled base size in place.
+        if readerFontScale != context.coordinator.lastReaderFontScale {
+            context.coordinator.lastReaderFontScale = readerFontScale
+            webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
+        }
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: DocumentKGWebPane
+        /// Last Reader font scale re-injected (#3681); NaN so the first compare fires.
+        var lastReaderFontScale: Double = .nan
         /// Per-window source-navigation bus, captured each `updateUIView` (#3437).
         var claimSourceNavigationState: ClaimSourceNavigationState?
         weak var webView: GuardedWKWebView?
