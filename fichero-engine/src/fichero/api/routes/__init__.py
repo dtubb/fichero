@@ -18,6 +18,7 @@ __all__ = [
     "ingest",
     "kg_curation_rules",
     "library_links",
+    "library_items",
     "local_models",
     "locations",
     "mcp_servers",

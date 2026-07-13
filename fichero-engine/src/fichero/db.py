@@ -2074,6 +2074,30 @@ class Database(DatabaseEmbeddingMixin):
             )
         return out
 
+    def query_json_list_intersects(self, model: Type[T], column: str, values) -> list[T]:
+        """Query JSON-list rows whose ``column`` contains any supplied id."""
+        if not _VALID_IDENTIFIER.match(column):
+            raise ValueError(f"Invalid column name: {column}")
+        values = list(dict.fromkeys(value for value in values if value))
+        if not values:
+            return []
+        sql_table = self._sql_table_name(model)
+        self._ensure_table(model)
+        out: list[T] = []
+        for start in range(0, len(values), 200):
+            chunk = values[start : start + 200]
+            clauses = " OR ".join(f"{column} LIKE $v{i}" for i in range(len(chunk)))
+            params = {f"v{i}": f'%"{value}"%' for i, value in enumerate(chunk)}
+            rows, columns = self._execute_fetch_with_columns(
+                f"SELECT * FROM {sql_table} WHERE {clauses}", params
+            )
+            out.extend(
+                hydrated
+                for row in rows
+                if (hydrated := self._hydrate_row(model, columns, row)) is not None
+            )
+        return out
+
     def query_page(self, model: Type[T], *, limit: int, offset: int = 0) -> list[T]:
         """Return a stable, bounded page without hydrating the whole table."""
         if limit < 1 or offset < 0:

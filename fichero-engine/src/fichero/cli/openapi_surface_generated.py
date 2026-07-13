@@ -8325,6 +8325,26 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='library-items')
         existing_apps['library-items'] = target_app
 
+    @target_app.command("batch-column-metadata")
+    def library_items_batch_column_metadata_post(
+        ctx: typer.Context,
+        include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Request field: include_descendants."),
+        item_ids: Optional[str] = typer.Option(None, "--item-ids", help="Request field: item_ids."),
+    ) -> None:
+        """Batch library-item column metadata (POST /api/library-items/columns)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/library-items/columns"
+            params = None
+            payload = _build_json_payload({
+                "include_descendants": include_descendants,
+                "item_ids": item_ids,
+            }, {
+                "include_descendants": {'type': 'boolean', 'title': 'Include Descendants', 'default': False, 'x-cli-required': False},
+                "item_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Item Ids', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-links-for")
     def library_items_list_links_for_get(
         ctx: typer.Context,

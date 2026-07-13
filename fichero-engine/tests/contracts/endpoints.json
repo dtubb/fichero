@@ -5857,6 +5857,16 @@
     ],
     "library-items": [
       {
+        "method": "POST",
+        "path": "/library-items/columns",
+        "operation_id": "library_item_columns_api_library_items_columns_post",
+        "summary": "Batch library-item column metadata",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "LibraryItemColumnsRequest",
+        "response_model": "LibraryItemColumnsResponse"
+      },
+      {
         "method": "GET",
         "path": "/library-items/{item_id}/links",
         "operation_id": "list_links_for_item_api_library_items__item_id__links_get",
