@@ -516,6 +516,10 @@ struct SourceOutlineView: View {
             Text(row.label)
                 .lineLimit(1)
             Spacer(minLength: 4)
+            // `row.count` is a generated Int field (child/item count) on the
+            // OpenAPI DocumentOutlineRow, not a collection — there is no
+            // `isEmpty`, so the empty_count rule is a false positive here.
+            // swiftlint:disable:next empty_count
             if row.count > 0 {
                 Text("\(row.count)")
                     .font(.caption2)
