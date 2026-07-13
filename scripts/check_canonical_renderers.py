@@ -67,6 +67,16 @@ RENDERER_MARKERS = ("row", "card", "cell", "item")
 # Each entry: (filename_substring, symbol_pattern_substring, reason_and_issue)
 # Symbol pattern is matched case-insensitively against the detected name.
 KNOWN_EXTENSIONS: list[tuple[str, str, str]] = [
+    # KG section claim row: a call-site wrapper that forwards straight to the
+    # canonical EntityKindRow (it only binds the section's many bindings once
+    # instead of at every ForEach site). No local rendering — it trips the
+    # `*Row` name heuristic, not the rule (#1935).
+    (
+        "DocumentInspectorArtifactsTab+KGSection.swift",
+        "kgClaimRow",
+        "Thin wrapper that delegates to the canonical EntityKindRow — binds the "
+        "section's arguments in one place; renders nothing itself (#1935).",
+    ),
     # Inspector entity row: extends EntityRow.browser with inline-rename,
     # curation badge, and entity description field (#1935 audit 2026-06-14).
     (

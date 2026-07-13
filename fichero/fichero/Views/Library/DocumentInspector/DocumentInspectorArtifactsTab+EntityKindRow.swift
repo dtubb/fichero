@@ -259,6 +259,8 @@ struct EntityKindRow: View {
                     }
                     .buttonStyle(.plain)
                     .help("Go to source — hover or long-press to preview")
+                    .accessibilityLabel("Go to source")
+                    .accessibilityHint("Opens the page this claim came from")
                     // Source-provenance quick-look (#3449/#2105): hovering the
                     // arrow previews the cropped source region + verbatim span in
                     // a popover (reusing SourceProvenanceCard → SourceSnippet); the

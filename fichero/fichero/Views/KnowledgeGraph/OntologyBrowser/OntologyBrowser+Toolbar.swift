@@ -65,6 +65,7 @@ extension OntologyBrowser {
             }
             .buttonStyle(.plain)
             .help("New entity (#916)")
+            .accessibilityLabel("New entity")
             Button {
                 showSparqlConsole = true
             } label: {
@@ -72,6 +73,7 @@ extension OntologyBrowser {
             }
             .buttonStyle(.plain)
             .help("SPARQL console — query the knowledge graph (W3C, #3298)")
+            .accessibilityLabel("SPARQL console")
             toolsMenu
             filterMenu
             // The List/Graph/Chart/Timeline/Map switcher is NOT a row of icons

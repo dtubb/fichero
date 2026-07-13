@@ -181,6 +181,7 @@ private extension ImageEditorView {
                 }
                 .buttonStyle(.borderless)
                 .help("Rotate — fine straighten angle")
+                .accessibilityLabel("Rotate")
                 .popover(isPresented: $showRotatePopover, arrowEdge: .bottom) { rotatePopover }
 
                 toolButton("person.and.background.dotted", help: "Remove background — AI-powered background removal") {

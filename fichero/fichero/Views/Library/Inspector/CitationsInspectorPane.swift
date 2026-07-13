@@ -51,6 +51,7 @@ struct CitationsInspectorPane: View {
                     CitationExportButton(fetch: { try await store.exportBibTeX() })
                         .labelStyle(.iconOnly)
                         .id(document.id)
+                        .accessibilityLabel("Export citations as BibTeX")
                 }
 
                 Button {
