@@ -521,7 +521,8 @@ async def embed_entities(
     """
     if request and request.entity_ids:
         entities = [db.get(KnowledgeEntity, eid) for eid in request.entity_ids]
-        entities = [e for e in entities if e is not None]
+        if missing := [eid for eid, entity in zip(request.entity_ids, entities) if entity is None]:
+            raise HTTPException(status_code=404, detail=f"Entity not found: {missing[0]}")
     else:
         entities = db.all(KnowledgeEntity)
     if not entities:

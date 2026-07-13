@@ -15,6 +15,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from fastapi import HTTPException
 
 from fichero.api.routes import kg_claim_search, kg_entity_curation
 from fichero.kg import rebuild
@@ -94,6 +95,20 @@ async def test_embed_entities_empty_short_circuits():
 
     mocked.assert_not_awaited()
     assert result.embedded == 0
+
+
+@pytest.mark.asyncio
+async def test_embed_entities_rejects_unknown_entity_id():
+    db = MagicMock()
+    db.get.return_value = None
+
+    with pytest.raises(HTTPException, match="Entity not found: missing") as exc:
+        await kg_entity_curation.embed_entities(
+            request=kg_entity_curation._EmbedEntityRequest(entity_ids=["missing"]),
+            db=db,
+        )
+
+    assert exc.value.status_code == 404
 
 
 @pytest.mark.asyncio
