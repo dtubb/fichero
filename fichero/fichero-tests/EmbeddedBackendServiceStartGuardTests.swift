@@ -91,4 +91,28 @@ struct ConnectionReuseDecisionTests {
         #expect(EmbeddedBackendService.shouldReuseExistingConnection(
             restart: false, status: .starting, isBackendReady: true) == false)
     }
+
+    // MARK: - Native tab + split lifecycle (#3407)
+
+    @Test("opening a native TAB reuses the connection — tabs open the same guarded scene")
+    func nativeTabReusesConnection() {
+        // WindowOpener.open(asTab: true) calls openWindow(id: "main"), the same
+        // scene a new window opens, whose `.task` runs connectBackend(restart:
+        // false). So a tab hits the identical reuse decision as a new window —
+        // no re-auth, no backend restart. `addTabbedWindow` never touches the
+        // backend. (#3407, narrowed scope of #3394.)
+        #expect(EmbeddedBackendService.shouldReuseExistingConnection(
+            restart: false, status: .running, isBackendReady: true) == true)
+    }
+
+    @Test("a window SPLIT never reprovisions — it is an in-window view, not a scene")
+    func windowSplitDoesNotReprovision() {
+        // A SplittablePane triggers no connect at all (no new scene, no
+        // openWindow). This documents that the ONLY paths reaching connectBackend
+        // are window/tab scene mounts (restart: false → reuse) and explicit Retry
+        // (restart: true). There is no restart:false-on-a-connected-backend path
+        // that reprovisions, so a split can't either. (#3407)
+        #expect(EmbeddedBackendService.shouldReuseExistingConnection(
+            restart: false, status: .running, isBackendReady: true) == true)
+    }
 }

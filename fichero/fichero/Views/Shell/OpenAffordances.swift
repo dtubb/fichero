@@ -61,6 +61,13 @@ enum WindowOpener {
         // Snapshot existing windows so we can identify the newly created one
         // for tab-merging below.
         let before = Set(NSApp.windows.map(ObjectIdentifier.init))
+        // Both a new window and a native tab open the SAME `openWindow(id: "main")`
+        // scene, whose `.task` runs `connectBackend(restart: false)` — so the tab
+        // reuses the app-level connection via the #3394 start-guard exactly like a
+        // window (no re-auth / no backend restart). The `addTabbedWindow` merge
+        // below is pure AppKit window management and never touches the backend.
+        // This is the direct native-tab path (`addTabbedWindow` is the only macOS
+        // API for it), not a new-window-then-hide workaround (#3407).
         if asTab {
             openWindow(id: "main")
         } else {
