@@ -66,6 +66,11 @@ struct DocumentDetailWindow: View {
                 )
             }
         }
+        // ★ EVERY FRAME PERFECT (#3614): the empty ↔ document swap sits on the
+        // semantic surface (no bare-white gap) and cross-fades with the shared
+        // timing instead of a jump-cut when the followed document changes.
+        .background(Color(platformColor: .windowBackgroundColor))
+        .animation(FrameAnimation.crossfade, value: shownDocument?.id)
         .navigationTitle(shownDocument?.name ?? "Document")
         .navigationSubtitle(activeLibrary?.displayName ?? "")
         .toolbar {
