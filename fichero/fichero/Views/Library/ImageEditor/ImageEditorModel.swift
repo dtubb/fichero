@@ -48,6 +48,12 @@ final class ImageEditorModel {
     private var service: ImageEditingServiceGenerated?
     private(set) var documentId: String = ""
 
+    /// Client-side Core Image live-preview compositor (#3673). Built lazily from
+    /// `originalPreview`, cached, and evicted on document change / chain reset.
+    /// PROVISIONAL only — the server render replaces its frame on commit; the
+    /// `ImageEditChain` stays the sole source of truth. Never observed directly.
+    @ObservationIgnored private var liveEditPreview: LiveEditPreview?
+
     /// In-flight original↔edited toggle. Tracked so rapid taps coalesce to the
     /// latest intended state instead of running out of order (#1508).
     private var toggleTask: Task<Void, Never>?
@@ -71,7 +77,43 @@ final class ImageEditorModel {
         self.preview = nil
         self.originalPreview = nil
         self.editedPreview = nil
+        // Drop the client live-preview cache — the original bytes belong to the
+        // previous document (#3673). It rebuilds lazily on the next slider drag.
+        self.liveEditPreview = nil
         await reload()
+    }
+
+    // MARK: - Client-side live preview (#3673)
+
+    /// Composite an in-progress enhance/rotate LOCALLY (no backend) for a
+    /// continuously-dragged slider, so it previews at ~60fps. Sets `preview` to a
+    /// provisional Core Image frame over the ORIGINAL bytes; the next commit
+    /// (`enhance`/`rotate`) resyncs it from the server. A no-op until the original
+    /// has loaded. This never touches the chain and adds no network call.
+    func previewLiveEdit(
+        brightness: Double = 1,
+        contrast: Double = 1,
+        sharpen: Double = 1,
+        angleDegrees: Double = 0
+    ) {
+        if liveEditPreview == nil, let original = originalPreview?.image {
+            liveEditPreview = LiveEditPreview(original: original)
+        }
+        guard let liveEditPreview,
+              let frame = liveEditPreview.render(
+                  brightness: brightness,
+                  contrast: contrast,
+                  sharpen: sharpen,
+                  angleDegrees: angleDegrees
+              )
+        else { return }
+        preview = frame
+    }
+
+    /// Discard the provisional live frame and restore the authoritative preview —
+    /// e.g. when the user dismisses a slider without committing (#3673).
+    func discardLiveEdit() {
+        preview = showEdited ? editedPreview : originalPreview
     }
 
     /// Reload both the chain and the current preview.
