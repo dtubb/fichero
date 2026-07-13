@@ -145,6 +145,20 @@ struct FicheroApp: App {
     /// while a start is already in flight a no-op.
     @MainActor
     private func connectBackend(restart: Bool) async {
+        // A new window/tab shares the app-level connection (`backendService` /
+        // `appState` are one @State per app), so its `.task` trigger must ATTACH
+        // to the already-connected engine, not re-run connect+auth — otherwise the
+        // status flips back to `.starting` and the user sees a reconnect spinner +
+        // token/registry churn on every window (#3394/#3407). Only a not-yet-
+        // connected first window or an explicit Retry (`restart`) proceeds.
+        if EmbeddedBackendService.shouldReuseExistingConnection(
+            restart: restart,
+            status: backendService.status,
+            isBackendReady: appState.isBackendRunning
+        ) {
+            logger.info("connectBackend: already connected — new window attaches, no reconnect (#3394)")
+            return
+        }
         // Consume the single provisioning decision (#3109) instead of
         // re-deriving the mode here. `connectsToRemoteHost` is the old
         // `requiresExternalBackendConnection` branch.

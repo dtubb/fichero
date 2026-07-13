@@ -56,6 +56,24 @@ final class EmbeddedBackendService {
         case failed
     }
 
+    /// Whether a `connectBackend` trigger should ATTACH to the already-established
+    /// app-level connection instead of re-running the connect+auth sequence
+    /// (#3394/#3407). The main WindowGroup's `.task` fires once per window/tab, so
+    /// without this every new window would flip the shared status back to
+    /// `.starting` and re-probe/re-auth — the visible reconnect churn. True only
+    /// when the backend is already connected AND this isn't an explicit Retry
+    /// (`restart`), which must always re-run. Pure so window-lifecycle reuse is
+    /// unit-testable without a live engine.
+    static func shouldReuseExistingConnection(
+        restart: Bool,
+        status: BackendStatus,
+        isBackendReady: Bool
+    ) -> Bool {
+        guard !restart, isBackendReady else { return false }
+        if case .running = status { return true }
+        return false
+    }
+
     /// Outcome of an authenticated readiness probe (#2862) — now the shared
     /// `EngineReadiness` (#3106), verified by the one `EngineReadinessProbe`.
     typealias ReadinessResult = EngineReadiness
