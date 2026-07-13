@@ -100,6 +100,9 @@ class ExternalAuthoritySettings(BaseModel):
 class AuthorityRefreshRequest(BaseModel):
     query: str = Field(min_length=1, max_length=200)
     limit: int = Field(default=10, ge=1, le=20)
+    authorities: list[Literal["wikidata", "viaf", "loc"]] = Field(
+        default_factory=lambda: ["wikidata", "viaf", "loc"], min_length=1
+    )
 
 
 class AuthorityLinkRequest(BaseModel):
@@ -115,26 +118,11 @@ def _external_authority_enabled() -> bool:
 
 async def _fetch_wikidata_snapshots(query: str, limit: int) -> list[AuthoritySnapshot]:
     """The sole Wikidata network path; callers must check the opt-in first."""
-    import httpx
-
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            # Wikidata's documented search endpoint has bounded results; the
-            # explicit limit is our per-refresh rate bound as well.
-            response = await client.get(
-                "https://www.wikidata.org/w/api.php",
-                params={
-                    "action": "wbsearchentities",
-                    "search": query,
-                    "language": "en",
-                    "format": "json",
-                    "limit": limit,
-                },
-                headers={"User-Agent": "Fichero/authority-cache"},
-            )
-            response.raise_for_status()
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Wikidata refresh failed: {exc}") from exc
+    payload = await _authority_json(
+        "Wikidata",
+        "https://www.wikidata.org/w/api.php",
+        {"action": "wbsearchentities", "search": query, "language": "en", "format": "json", "limit": limit},
+    )
 
     now = datetime.now()
     return [
@@ -148,9 +136,79 @@ async def _fetch_wikidata_snapshots(query: str, limit: int) -> list[AuthoritySna
             source_url=f"https://www.wikidata.org/wiki/{row['id']}",
             fetched_at=now,
         )
-        for row in response.json().get("search", [])
+        for row in payload.get("search", [])
         if row.get("id")
     ]
+
+
+async def _authority_json(name: str, url: str, params: dict[str, Any]) -> dict[str, Any]:
+    """Bounded JSON request shared by the explicit authority refreshers."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                url, params=params, headers={"User-Agent": "Fichero/authority-cache"}
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"{name} refresh failed: {exc}") from exc
+
+
+async def _fetch_viaf_snapshots(query: str, limit: int) -> list[AuthoritySnapshot]:
+    payload = await _authority_json(
+        "VIAF", "https://viaf.org/viaf/AutoSuggest", {"query": query}
+    )
+    now = datetime.now()
+    return [
+        AuthoritySnapshot(
+            authority="viaf",
+            authority_id=str(row["viafid"]),
+            label=row.get("term") or str(row["viafid"]),
+            type=row.get("nametype"),
+            source_url=f"https://viaf.org/viaf/{row['viafid']}",
+            fetched_at=now,
+        )
+        for row in payload.get("result", [])[:limit]
+        if row.get("viafid")
+    ]
+
+
+async def _fetch_loc_snapshots(query: str, limit: int) -> list[AuthoritySnapshot]:
+    payload = await _authority_json(
+        "LoC", "https://id.loc.gov/authorities/suggest2/", {"q": query}
+    )
+    now = datetime.now()
+    return [
+        AuthoritySnapshot(
+            authority="loc",
+            authority_id=row["uri"].rstrip("/").rsplit("/", 1)[-1],
+            label=row.get("a") or row["uri"],
+            type=row.get("type"),
+            source_url=row["uri"],
+            fetched_at=now,
+        )
+        for row in payload.get("hits", [])[:limit]
+        if row.get("uri")
+    ]
+
+
+async def _fetch_authority_snapshots(
+    query: str, limit: int, authorities: list[str]
+) -> list[AuthoritySnapshot]:
+    fetchers = {
+        "wikidata": _fetch_wikidata_snapshots,
+        "viaf": _fetch_viaf_snapshots,
+        "loc": _fetch_loc_snapshots,
+    }
+    snapshots: list[AuthoritySnapshot] = []
+    for authority in dict.fromkeys(authorities):
+        # The refresh is sequential and bounded, keeping each explicit request
+        # polite to public authorities without introducing a second scheduler.
+        snapshots.extend(await fetchers[authority](query, limit))
+        await asyncio.sleep(0.1)
+    return snapshots
 
 
 def _cache_authority_snapshots(
@@ -892,7 +950,7 @@ async def refresh_external_authority(
     if not _external_authority_enabled():
         raise HTTPException(status_code=403, detail="External authority refresh is disabled")
     snapshots = _cache_authority_snapshots(
-        db, await _fetch_wikidata_snapshots(body.query, body.limit)
+        db, await _fetch_authority_snapshots(body.query, body.limit, body.authorities)
     )
     return KGGraphListResponse(
         items=[snapshot.model_dump(mode="json") for snapshot in snapshots], count=len(snapshots)
