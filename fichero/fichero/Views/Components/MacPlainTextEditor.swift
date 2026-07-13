@@ -8,6 +8,17 @@ struct MacPlainTextEditor: NSViewRepresentable {
     var font: NSFont = .preferredFont(forTextStyle: .body)
     var isEditable: Bool = true
     var isSelectable: Bool = true
+    /// User Editor font scale (#3682). A change re-invokes updateNSView, which
+    /// re-applies the scaled font in place.
+    @AppStorage(ViewSettings.FontScale.editorKey)
+    private var editorScale = ViewSettings.FontScale.defaultValue
+
+    /// The caller's font at its point size × the Editor scale — scales the base
+    /// the caller chose (usually semantic `.body`), never a hardcoded size.
+    private var scaledFont: NSFont {
+        let size = font.pointSize * ViewSettings.FontScale.clamped(editorScale)
+        return NSFont(descriptor: font.fontDescriptor, size: size) ?? font
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text)
@@ -24,7 +35,7 @@ struct MacPlainTextEditor: NSViewRepresentable {
         let textView = NSTextView()
         textView.delegate = context.coordinator
         textView.string = text
-        textView.font = font
+        textView.font = scaledFont
         textView.isRichText = false
         textView.isEditable = isEditable
         textView.isSelectable = isSelectable
@@ -50,7 +61,7 @@ struct MacPlainTextEditor: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
-        textView.font = font
+        textView.font = scaledFont
         textView.isEditable = isEditable
         textView.isSelectable = isSelectable
         if textView.string != text {
@@ -82,10 +93,17 @@ struct MacPlainTextEditor: View {
     var font: UIFont = .preferredFont(forTextStyle: .body)
     var isEditable: Bool = true
     var isSelectable: Bool = true
+    /// User Editor font scale (#3682).
+    @AppStorage(ViewSettings.FontScale.editorKey)
+    private var editorScale = ViewSettings.FontScale.defaultValue
+
+    private var scaledFont: UIFont {
+        font.withSize(font.pointSize * ViewSettings.FontScale.clamped(editorScale))
+    }
 
     var body: some View {
         TextEditor(text: $text)
-            .font(Font(font))
+            .font(Font(scaledFont))
             .disabled(!isEditable)
     }
 }

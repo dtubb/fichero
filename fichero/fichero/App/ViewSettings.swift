@@ -1,5 +1,10 @@
 import Observation
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 
 /// Observable settings for view configuration (app-wide preferences)
 /// Note: sidebarMode is NOT here - it's per-window state stored in @SceneStorage
@@ -54,7 +59,46 @@ extension ViewSettings {
         private static func storedScale(forKey key: String) -> Double {
             clamped((UserDefaults.standard.object(forKey: key) as? Double) ?? defaultValue)
         }
+
+        /// The semantic `.body` point size for the current platform — Dynamic Type
+        /// on iOS, the system size on macOS. The user scale multiplies this.
+        @MainActor
+        static func semanticBodySize() -> Double {
+            #if canImport(AppKit)
+            return Double(NSFont.preferredFont(forTextStyle: .body).pointSize)
+            #elseif canImport(UIKit)
+            return Double(UIFont.preferredFont(forTextStyle: .body).pointSize)
+            #else
+            return 13
+            #endif
+        }
+
+        /// Editor body point size = semantic base × the clamped Editor scale (#3682).
+        @MainActor
+        static func editorBodySize(scale: Double) -> Double {
+            semanticBodySize() * clamped(scale)
+        }
     }
+}
+
+// MARK: - Editor font scaling modifier (#3682)
+
+/// Applies the user's Editor font scale to an editable text surface — scales the
+/// semantic `.body` base (which tracks Dynamic Type) by the clamped Editor scale,
+/// so the override composes with Dynamic Type and never hardcodes a size.
+private struct EditorScaledFont: ViewModifier {
+    @AppStorage(ViewSettings.FontScale.editorKey)
+    private var editorScale = ViewSettings.FontScale.defaultValue
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: ViewSettings.FontScale.editorBodySize(scale: editorScale)))
+    }
+}
+
+extension View {
+    /// Scale an editable text surface by the user's Editor font size (#3682).
+    /// Use on the Inspector's editable `TextEditor`s in place of `.font(.body)`.
+    func editorScaledFont() -> some View { modifier(EditorScaledFont()) }
 }
 
 // MARK: - View Mode Enums
