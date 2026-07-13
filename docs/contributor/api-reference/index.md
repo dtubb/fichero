@@ -21,6 +21,16 @@ client and document the engine routes. In the current contract it includes route
 families for documents, search, workflows, workflow execution, annotations,
 providers, knowledge-graph endpoints, mind-palace endpoints, and more.
 
+## W3C annotation export
+
+`GET /api/documents/{doc_id}/annotations.jsonld`
+
+- Purpose: export a document's annotations as a W3C Web Annotation
+  `AnnotationPage`, including the JSON-LD context and annotation targets.
+- Path param: `doc_id` (required string), the source document id.
+- Response: `200` with the JSON-LD AnnotationPage object; missing documents
+  return `404`.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API
