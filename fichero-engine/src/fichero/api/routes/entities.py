@@ -1607,16 +1607,20 @@ async def get_entity_biography(
 
 def _render_entity_export(biography: EntityBiographyResponse, format_type: str) -> str:
     entity = biography.entity
-    lines = [entity.canonical_name]
+    markdown = format_type == "markdown"
+    lines = [f"# {entity.canonical_name}" if markdown else entity.canonical_name]
     if entity.description:
         lines.extend(["", entity.description])
     if biography.claims:
-        lines.extend(["", "Claims:", *(f"- {claim.text}" for claim in biography.claims)])
+        lines.extend([
+            "", "## Claims" if markdown else "Claims:",
+            *(f"- {claim.text}" for claim in biography.claims),
+        ])
     if biography.documents:
-        lines.extend(["", "Sources:", *(f"- {document.document_name}" for document in biography.documents)])
-    if format_type == "markdown":
-        lines[0] = f"# {lines[0]}"
-        lines = [line.replace("Claims:", "## Claims").replace("Sources:", "## Sources") for line in lines]
+        lines.extend([
+            "", "## Sources" if markdown else "Sources:",
+            *(f"- {document.document_name}" for document in biography.documents),
+        ])
     return "\n".join(lines) + "\n"
 
 

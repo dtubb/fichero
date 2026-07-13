@@ -677,5 +677,17 @@ class TestEntityBiographyExport:
             f"/api/entities/{entity.id}/export?format=markdown"
         ).text
 
+    def test_markdown_export_preserves_claim_text_that_looks_like_a_heading(self, client, db):
+        from fichero.knowledge_models import KnowledgeClaim
+
+        entity = _make_entity(db, "Rosario", EntityType.person)
+        claim_text = "The witness said Claims: were fabricated"
+        db.save(KnowledgeClaim(text=claim_text, entity_ids=[entity.id]))
+
+        response = client.get(f"/api/entities/{entity.id}/export?format=markdown")
+
+        assert "## Claims" in response.text
+        assert claim_text in response.text
+
     def test_export_unknown_entity_is_404(self, client):
         assert client.get("/api/entities/missing/export").status_code == 404
