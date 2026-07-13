@@ -94,6 +94,15 @@ struct CitationsInspectorPane: View {
         }
         .onChange(of: store.outbound) { _, _ in focused.resolve(in: items) }
         .onChange(of: store.inbound) { _, _ in focused.resolve(in: items) }
+        .dropDestination(for: CitationDragID.self) { payloads, _ in
+            let citationIds = CitationStore.associationIDs(
+                from: payloads,
+                targetDocumentId: document.id
+            )
+            guard !citationIds.isEmpty else { return false }
+            Task { await store.associate(citationIds: citationIds, with: document.id) }
+            return true
+        }
     }
 
     private var citationsToolbarStatusText: String {

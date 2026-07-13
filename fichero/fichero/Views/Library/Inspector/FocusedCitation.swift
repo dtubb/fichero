@@ -46,6 +46,8 @@ struct CitationItem: Identifiable, Hashable {
 /// Plain text keeps drops useful in editors and other applications.
 struct CitationDragID: Codable, Transferable {
     let id: String
+    let sourceDocumentId: String
+    let targetDocumentId: String?
     let text: String
 
     static var transferRepresentation: some TransferRepresentation {
