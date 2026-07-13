@@ -100,6 +100,19 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
     "post-#2960 residual (globalLibrary / client.api. / FeatureManager)",
 )
 
+# Stated plainly, with an owner — an allowlist entry that only makes red go away is
+# not acceptable. The Settings panes read FeatureManager via @EnvironmentObject
+# (injected by the Settings scene) INSTEAD of grabbing FeatureManager.shared, which
+# is the improvement; they cannot use @Environment because:
+KNOWN_VIOLATIONS["fichero/fichero/Views/Settings/SettingsView.swift"] = (
+    "FeatureManager is @AppStorage-backed (~50 flags); @AppStorage requires "
+    "ObservableObject, so @Observable is not available here (the @Observable macro "
+    "rewrites stored properties into computed ones, and a property wrapper cannot be "
+    "applied to a computed property — it fails to build). The Settings scene injects "
+    "it and the panes bind @EnvironmentObject rather than reaching for .shared. "
+    "Tracked for conversion in #3743."
+)
+
 
 def _strip_preview_blocks(text: str) -> str:
     """Remove `#Preview { … }` blocks so preview-only scaffolding stays out."""

@@ -565,6 +565,13 @@ struct FicheroApp: App {
                 // ViewSettings the main window uses so the per-view panes (#3680)
                 // edit the live view config, not a detached copy.
                 .environment(viewSettings)
+                // Same reasoning for the feature flags (#3033/#3034): the panes now
+                // read @EnvironmentObject var featureManager instead of grabbing
+                // FeatureManager.shared themselves, so the scene must inject it. A
+                // singleton is legitimate at the composition root — not in a pane.
+                // (@EnvironmentObject, not .environment: FeatureManager is
+                // @AppStorage-backed, so it stays an ObservableObject until #3743.)
+                .environmentObject(FeatureManager.shared)
         }
     }
 }
