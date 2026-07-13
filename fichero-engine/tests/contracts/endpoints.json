@@ -4574,12 +4574,57 @@
         "response_model": "EntityAuditResponse"
       },
       {
+        "method": "POST",
+        "path": "/kg/entity-curation/authority/link",
+        "operation_id": "link_external_authority_api_kg_entity_curation_authority_link_post",
+        "summary": "Confirm and persist an entity-to-authority link",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AuthorityLinkRequest",
+        "response_model": "EntityAuditResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/entity-curation/authority/refresh",
+        "operation_id": "refresh_external_authority_api_kg_entity_curation_authority_refresh_post",
+        "summary": "Explicitly refresh local Wikidata authority snapshots",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AuthorityRefreshRequest",
+        "response_model": "KGGraphListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/entity-curation/authority/settings",
+        "operation_id": "get_external_authority_settings_api_kg_entity_curation_authority_settings_get",
+        "summary": "Read the app-wide external-authority opt-in",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ExternalAuthoritySettings"
+      },
+      {
+        "method": "PUT",
+        "path": "/kg/entity-curation/authority/settings",
+        "operation_id": "put_external_authority_settings_api_kg_entity_curation_authority_settings_put",
+        "summary": "Set the app-wide external-authority opt-in",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ExternalAuthoritySettings",
+        "response_model": "ExternalAuthoritySettings"
+      },
+      {
         "method": "GET",
         "path": "/kg/entity-curation/candidates",
         "operation_id": "candidate_pairs_api_kg_entity_curation_candidates_get",
         "summary": "Graph-context merge candidates (Jaccard over co-occurrence neighborhoods)",
         "path_params": [],
         "query_params": [
+          {
+            "name": "entity_id",
+            "required": false,
+            "type": "string"
+          },
           {
             "name": "folder_id",
             "required": false,
