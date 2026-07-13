@@ -84,6 +84,7 @@
 		1E1F0FD4E828C80187F7C03A /* OntologyBrowser+Sheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B9987CAE57F0DD5387F6DD2 /* OntologyBrowser+Sheets.swift */; };
 		200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF2B2F3D501800D7851A /* ContentView+State.swift */; };
 		200BCF362F3D547F00D7851A /* ContentView+ViewBuilders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */; };
+		6B2E4D99C5F38A0297BC4401 /* ContentView+Toolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B2E4D99C5F38A0297BC4402 /* ContentView+Toolbar.swift */; };
 		200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF372F3D548000D7851A /* ContentView+Persistence.swift */; };
 		200BCF3A2F3D548000D7851A /* ContentView+Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF392F3D548000D7851A /* ContentView+Navigation.swift */; };
 		200BCF3C2F3D548000D7851A /* ContentView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */; };
@@ -700,6 +701,7 @@
 		1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalModelsSettingsView.swift; path = fichero/Views/Settings/LocalModelsSettingsView.swift; sourceTree = SOURCE_ROOT; };
 		200BCF2B2F3D501800D7851A /* ContentView+State.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+State.swift"; sourceTree = "<group>"; };
 		200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+ViewBuilders.swift"; sourceTree = "<group>"; };
+		6B2E4D99C5F38A0297BC4402 /* ContentView+Toolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Toolbar.swift"; sourceTree = "<group>"; };
 		200BCF372F3D548000D7851A /* ContentView+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Persistence.swift"; sourceTree = "<group>"; };
 		200BCF392F3D548000D7851A /* ContentView+Navigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Navigation.swift"; sourceTree = "<group>"; };
 		200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Actions.swift"; sourceTree = "<group>"; };
@@ -1475,6 +1477,7 @@
 				200BCF372F3D548000D7851A /* ContentView+Persistence.swift */,
 				200BCF2B2F3D501800D7851A /* ContentView+State.swift */,
 				200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */,
+				6B2E4D99C5F38A0297BC4402 /* ContentView+Toolbar.swift */,
 				A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */,
 				A1A3AA352F11665B0021909D /* Integrations */,
 				A1FB1D802F0420A90023093C /* Library */,
@@ -2567,6 +2570,7 @@
 				A13E7C2A2F27E04300EC9EE1 /* ActivityDetailView.swift in Sources */,
 				5E8 /* SidebarItemBuilder.swift in Sources */,
 				200BCF362F3D547F00D7851A /* ContentView+ViewBuilders.swift in Sources */,
+				6B2E4D99C5F38A0297BC4401 /* ContentView+Toolbar.swift in Sources */,
 				836 /* CacheModel.swift in Sources */,
 				A1D8BCE82F2CD054006D91D7 /* WorkflowPickerSheet.swift in Sources */,
 				A1D8BCE92F2CD054006D91D7 /* DocumentPickerSheet.swift in Sources */,
