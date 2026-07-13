@@ -2,7 +2,7 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.07.11-beta
+## 2026.07.13-beta
 
 Inspector and startup hardening after the first notarized beta.
 
