@@ -64,7 +64,6 @@ final class ActivityStreamService {
         var backoffNanos: UInt64 = 1_000_000_000
         var consecutiveUnavailableCycles = 0
         while !Task.isCancelled {
-            var cycleEndedWithError = false
             do {
                 try await subscribeOnce(onEvent: onEvent)
                 consecutiveUnavailableCycles = 0
@@ -80,7 +79,6 @@ final class ActivityStreamService {
                 return
             } catch {
                 if !Task.isCancelled {
-                    cycleEndedWithError = true
                     log.error("activity stream dropped: \(error.localizedDescription, privacy: .public)")
                     consecutiveUnavailableCycles += 1
                     liveUpdatesUnavailable = Self.shouldSurfaceUnavailable(
@@ -89,12 +87,12 @@ final class ActivityStreamService {
                 }
             }
             if Task.isCancelled { break }
-            if !cycleEndedWithError {
-                consecutiveUnavailableCycles += 1
-                liveUpdatesUnavailable = Self.shouldSurfaceUnavailable(
-                    failureCount: consecutiveUnavailableCycles
-                )
-            }
+            // A CLEAN end (subscribeOnce returned without throwing) is a healthy
+            // server-side connection rotation, NOT a failure (#3351): the loop
+            // reconnects next tick and `liveUpdatesUnavailable` was cleared on
+            // connect. Counting it made a normal rotation + one transient error
+            // surface the reconnect pill prematurely (spurious "Reconnect" while
+            // healthy). Only genuine errors (the catch above) count.
             try? await Task.sleep(nanoseconds: backoffNanos)
             backoffNanos = min(backoffNanos * 2, 30_000_000_000)
         }
