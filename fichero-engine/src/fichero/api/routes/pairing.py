@@ -25,7 +25,7 @@ from fichero.remote_access_tls import validate_spki_pin, validate_tailnet_url
 
 logger = logging.getLogger(__name__)
 
-PAIRING_CODE_TTL = timedelta(seconds=60)
+PAIRING_CODE_TTL = timedelta(minutes=10)
 PAIRING_RATE_LIMIT = 5
 PAIRING_RATE_WINDOW = timedelta(minutes=1)
 _PAIRING_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"

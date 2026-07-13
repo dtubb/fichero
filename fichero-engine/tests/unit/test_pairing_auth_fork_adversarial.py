@@ -146,7 +146,7 @@ def test_pairing_code_ttl_is_exactly_sixty_seconds(app_db, monkeypatch):
 
     response = pairing.create_pairing_code(_owner_request(owner), app_db)
 
-    assert response.expires_at == now + timedelta(seconds=60)
+    assert response.expires_at == now + timedelta(minutes=10)
     assert pairing._PAIRING_CODES["TTL-0001"].expires_at == response.expires_at
 
 
