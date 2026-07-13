@@ -10,6 +10,21 @@ from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 from fichero.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean
 
 
+def detect_deskew_angle(image: Image.Image) -> float:
+    """Return the local Hough-estimated text-line skew angle, or zero."""
+    try:
+        import cv2  # type: ignore[import-not-found]
+        import numpy as np
+    except ImportError:
+        return 0.0
+    gray = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
+    lines = cv2.HoughLinesP(cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 50, 150), 1, np.pi / 180, threshold=100, minLineLength=max(80, gray.shape[1] // 5), maxLineGap=12)
+    if lines is None:
+        return 0.0
+    angles = [float(np.degrees(np.arctan2(y2-y1, x2-x1))) for [[x1, y1, x2, y2]] in lines if -15 <= np.degrees(np.arctan2(y2-y1, x2-x1)) <= 15]
+    return float(np.median(angles)) if angles else 0.0
+
+
 def _remove_black_background_opencv(image: Image.Image) -> Image.Image:
     import cv2  # type: ignore[import-not-found]
     import numpy as np
@@ -66,7 +81,7 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     params = op.get("params") or {}
     if not isinstance(params, dict):
         raise HTTPException(400, f"Invalid params for operation: {name}")
-    if name in {"rotate", "straighten"}:
+    if name in {"rotate", "straighten", "auto_deskew"}:
         return image.rotate(
             float(params.get("angle", 0)),
             expand=bool(params.get("expand", True)),
