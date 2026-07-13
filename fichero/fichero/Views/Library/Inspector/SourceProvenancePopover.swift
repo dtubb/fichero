@@ -84,7 +84,14 @@ struct SourceProvenanceCard: View {
             .font(.callout)
         }
         .padding(12)
+        // macOS popover wants a fixed width; on iPhone this popover adapts to a
+        // sheet, where a hard 320pt clips on a 320pt device and can't shrink — so
+        // cap instead of fix (#3666). The desktop popover is unchanged.
+        #if os(macOS)
         .frame(width: 320)
+        #else
+        .frame(maxWidth: 320)
+        #endif
     }
 
     /// Prefer the attribution's verbatim quotation; fall back to the claim text.
