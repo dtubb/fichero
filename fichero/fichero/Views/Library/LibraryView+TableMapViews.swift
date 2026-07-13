@@ -385,6 +385,12 @@ extension LibraryView {
             Label(type.groupLabel(count: node.count), systemImage: type.systemImage)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .draggable(LibraryItemDrag(
+                    kind: .group,
+                    id: node.id,
+                    documentId: node.document.id,
+                    text: type.groupLabel(count: node.count)
+                ))
         case .pageItem(let page):
             Label(
                 page.pageThumbnailLabel.map { "Page \($0)" } ?? page.name,
@@ -392,6 +398,7 @@ extension LibraryView {
             )
             .font(.subheadline)
             .foregroundStyle(.primary)
+            .draggable(libraryItemDrag(for: page))
         case .artifactItem(let artifact):
             Label(
                 artifact.stepName ?? artifact.artifactType,
@@ -399,6 +406,14 @@ extension LibraryView {
             )
             .font(.subheadline)
             .foregroundStyle(.primary)
+            .draggable(LibraryItemDrag(
+                kind: .artifact,
+                id: artifact.id,
+                documentId: artifact.documentId,
+                text: artifact.content?.isEmpty == false
+                    ? artifact.content ?? artifact.artifactTypeDisplayName
+                    : artifact.artifactTypeDisplayName
+            ))
         case .entityItem(let entity):
             Label(entity.canonicalName, systemImage: "person.crop.circle")
                 .font(.subheadline)

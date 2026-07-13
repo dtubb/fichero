@@ -57,7 +57,7 @@ extension LibraryView {
                                     scale: CGFloat(iconViewScale)
                                 )
                                 .id(doc.id)
-                                .draggable(doc.id)
+                                .draggable(libraryItemDrag(for: doc))
                                 .onTapGesture(count: 2) {
                                     handleDoubleClick(doc)
                                 }
@@ -279,7 +279,7 @@ extension LibraryView {
                                 showFilterBar = true
                             }
                             .id(doc.id)
-                            .draggable(doc.id)
+                            .draggable(libraryItemDrag(for: doc))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(selection.contains(doc.id) ? selectionTint.opacity(0.12) : Color.clear)
