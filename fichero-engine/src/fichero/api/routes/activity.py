@@ -348,20 +348,23 @@ async def stream_activities(
                     for task in (tracker_task, change_task):
                         if not task.done():
                             task.cancel()
-                    for task in (tracker_task, change_task):
-                        if task.cancelled():
-                            continue
-                        if task.done():
-                            try:
-                                task.result()
-                            except StopAsyncIteration:
-                                return
-                            except asyncio.CancelledError:
-                                pass
+                    results = await asyncio.gather(
+                        tracker_task, change_task, return_exceptions=True
+                    )
+                    if any(isinstance(result, StopAsyncIteration) for result in results):
+                        return
+        except asyncio.CancelledError:
+            logger.info("activity-stream: client cancelled cleanly lib=%s", library_path)
+            raise
+        except GeneratorExit:
+            logger.info("activity-stream: client closed cleanly lib=%s", library_path)
+            raise
         except Exception as e:
+            logger.exception("activity-stream: SSE failed lib=%s", library_path)
             error_event = {"error": str(e)}
             yield f"data: {json.dumps(error_event)}\n\n"
         finally:
+            await tracker_stream.aclose()
             tracker.unsubscribe(sub_id)
             _change_hub.unsubscribe(library_path, change_subscription.queue)
 

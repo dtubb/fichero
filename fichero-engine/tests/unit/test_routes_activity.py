@@ -155,6 +155,68 @@ class TestGetActivityStats:
 
 class TestActivityStream:
     @pytest.mark.asyncio
+    async def test_stream_disconnect_drains_pending_tasks(self, monkeypatch):
+        from fichero.api.routes.activity import stream_activities
+
+        tracker = _make_mock_tracker([])
+        stopped = asyncio.Event()
+        started = asyncio.Event()
+
+        async def stream(_sub_id, _filter):
+            try:
+                started.set()
+                await asyncio.Future()
+                yield None  # pragma: no cover
+            finally:
+                stopped.set()
+
+        tracker.stream = stream
+        test_hub = _ChangeHub()
+        monkeypatch.setattr(activity_routes, "_change_hub", test_hub)
+
+        async def wait_until_started(tasks, **_kwargs):
+            await started.wait()
+            return set(), set(tasks)
+
+        monkeypatch.setattr(activity_routes.asyncio, "wait", wait_until_started)
+        db = MagicMock(path=Path("/tmp/test-activity.fichero/fichero.duckdb"))
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            response = await stream_activities(db=db, types=None, levels=None)
+
+        try:
+            assert await anext(response.body_iterator) == ": keepalive\n\n"
+        finally:
+            await response.body_iterator.aclose()
+
+        assert stopped.is_set()
+        tracker.unsubscribe.assert_called_once_with("sub-1")
+        assert test_hub.subscriber_count("/tmp/test-activity.fichero") == 0
+
+    @pytest.mark.asyncio
+    async def test_stream_logs_and_surfaces_unexpected_error(self, caplog):
+        from fichero.api.routes.activity import stream_activities
+
+        tracker = _make_mock_tracker([])
+
+        async def stream(_sub_id, _filter):
+            raise RuntimeError("tracker failed")
+            yield None  # pragma: no cover
+
+        tracker.stream = stream
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            response = await stream_activities(
+                db=MagicMock(path="/tmp/test.fichero"), types=None, levels=None
+            )
+
+        try:
+            with caplog.at_level("ERROR", logger="fichero.api.routes.activity"):
+                assert '"error": "tracker failed"' in await anext(response.body_iterator)
+        finally:
+            await response.body_iterator.aclose()
+
+        assert "activity-stream: SSE failed" in caplog.text
+
+    @pytest.mark.asyncio
     async def test_stream_yields_activity_response_sse_shape(self):
         from fichero.api.routes.activity import stream_activities
 
