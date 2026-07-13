@@ -107,8 +107,11 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         )
     if name == "crop":
         base = ImageOps.exif_transpose(image) if bool(params.get("auto_orient", True)) else image
-        left, top = int(params.get("left", 0)), int(params.get("top", 0))
-        width, height = int(params.get("width", base.width)), int(params.get("height", base.height))
+        missing = {key for key in ("left", "top", "width", "height") if key not in params}
+        if missing:
+            raise HTTPException(400, f"Crop operation missing required params: {sorted(missing)}")
+        left, top = int(params["left"]), int(params["top"])
+        width, height = int(params["width"]), int(params["height"])
         right, bottom = min(left + width, base.width), min(top + height, base.height)
         if width <= 0 or height <= 0 or left < 0 or top < 0 or right <= left or bottom <= top:
             raise HTTPException(400, "Crop bounds are invalid")

@@ -266,9 +266,9 @@ class TestResolveSource:
         result = resolve_source(doc, library_root=new_root)
         assert result == source
 
-    def test_bookmark_priority(self, tmp_path):
-        """Bookmark should take priority over paths."""
-        from fichero.storage import resolve_source
+    def test_invalid_bookmark_raises_instead_of_falling_back_to_path(self, tmp_path):
+        """Corrupt bookmark metadata must not silently select another source."""
+        from fichero.storage import _get_bookmark
 
         bookmark_file = tmp_path / "bookmark.jpg"
         bookmark_file.touch()
@@ -277,12 +277,12 @@ class TestResolveSource:
         path_file.touch()
 
         doc = Mock()
+        doc.id = "broken-bookmark"
         doc.path = str(path_file)
         doc.metadata = {"bookmark": "invalid_base64"}  # Invalid bookmark
 
-        # Without valid bookmark, should fall back to path
-        result = resolve_source(doc, library_root=tmp_path)
-        assert result == path_file
+        with pytest.raises(ValueError, match="broken-bookmark has invalid bookmark"):
+            _get_bookmark(doc)
 
     def test_remote_bookmark_disabled_prefers_package_path(self, tmp_path, monkeypatch):
         """Remote engines must not resolve Mac bookmarks from by-reference docs."""
