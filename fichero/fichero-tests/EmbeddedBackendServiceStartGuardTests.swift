@@ -54,3 +54,41 @@ struct EmbeddedBackendServiceStartGuardTests {
         #expect(service.isStarting == false)
     }
 }
+
+/// A new window/tab's connect trigger must reuse the app-level connection rather
+/// than reprovision the backend (#3394/#3407).
+@Suite("Window-lifecycle connection reuse (#3394)")
+struct ConnectionReuseDecisionTests {
+
+    @Test("a new window on a running+ready backend attaches — no reconnect")
+    func newWindowReusesRunningConnection() {
+        #expect(EmbeddedBackendService.shouldReuseExistingConnection(
+            restart: false, status: .running, isBackendReady: true) == true)
+    }
+
+    @Test("the first/not-yet-connected window proceeds to connect")
+    func firstWindowConnects() {
+        #expect(EmbeddedBackendService.shouldReuseExistingConnection(
+            restart: false, status: .stopped, isBackendReady: false) == false)
+    }
+
+    @Test("an explicit Retry always re-runs, even when running")
+    func retryAlwaysReconnects() {
+        #expect(EmbeddedBackendService.shouldReuseExistingConnection(
+            restart: true, status: .running, isBackendReady: true) == false)
+    }
+
+    @Test("running but not-yet-ready does not short-circuit the readiness probe")
+    func runningButNotReadyStillConnects() {
+        #expect(EmbeddedBackendService.shouldReuseExistingConnection(
+            restart: false, status: .running, isBackendReady: false) == false)
+    }
+
+    @Test("a failed/starting backend never counts as reusable")
+    func failedOrStartingNotReused() {
+        #expect(EmbeddedBackendService.shouldReuseExistingConnection(
+            restart: false, status: .failed, isBackendReady: true) == false)
+        #expect(EmbeddedBackendService.shouldReuseExistingConnection(
+            restart: false, status: .starting, isBackendReady: true) == false)
+    }
+}
