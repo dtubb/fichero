@@ -50,7 +50,13 @@ GRANDFATHERED_FILES: set[str] = {
     # KEEP
     "Services/EngineReadinessProbe.swift",      # readiness bootstrap: probes health/registry over RemoteCertificatePinning before the generated client is usable (#3106)
     "Models/DocumentStore+CRUD.swift",          # multipart import upload
-    "Views/Library/QuickLookComponents.swift",  # binary source bytes for QuickLook
+    # FALSE POSITIVES of the `.data(for:` pattern — these call
+    # PDFDocumentCache.data(for:) (the shared #3209 PDF byte cache, which itself
+    # fetches through StorageServiceGenerated), NOT URLSession.data(for:). Neither
+    # file imports or touches URLSession. Listed so the ratchet stays green without
+    # loosening the regex for everyone else.
+    "Views/Library/Reading/PDFLoupeOverlay.swift",
+    "Views/Library/Reading/PDFThumbnailView.swift",
     "Services/ActivityStreamService.swift",     # SSE
     "Services/ChangeStreamTransport.swift",     # SSE
     "Services/WorkflowStreamService.swift",     # SSE

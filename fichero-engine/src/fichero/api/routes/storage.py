@@ -231,6 +231,20 @@ async def get_display_image(
                 "*/*": {"schema": {"type": "string", "format": "binary"}}
             },
             "description": "Original source file bytes",
+            # Declared so the GENERATED client can read it (#3726). The handler has
+            # always sent this header, but an undeclared response header is dropped
+            # by swift-openapi-generator — which is why the Swift preview download
+            # had to stay on raw URLSession to learn the file's real name.
+            "headers": {
+                "Content-Disposition": {
+                    "description": (
+                        "inline; filename=... (RFC 5987 filename* when non-ASCII). "
+                        "The client names the cached preview file from this, and the "
+                        "extension selects the QuickLook renderer."
+                    ),
+                    "schema": {"type": "string"},
+                }
+            },
         },
         404: {"model": NotFoundResponse, "description": "Document or source file not found"},
     },

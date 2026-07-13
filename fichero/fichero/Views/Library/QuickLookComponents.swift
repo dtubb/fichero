@@ -21,11 +21,14 @@ struct QuickLookDownloadView: View {
     @State private var isLoading = true
     @State private var error: String?
 
-    @Environment(APIClient.self) var apiClient
+    @Environment(StorageServiceGenerated.self) var storageService
 
-    /// The download/auth/temp-file flow lives in the service (#3207); the view
-    /// keeps only fileURL/isLoading/error state.
-    private let downloadService = PreviewDownloadService()
+    /// The download/temp-file flow lives in the service (#3207/#3726); the view
+    /// keeps only fileURL/isLoading/error state. Built from the environment's
+    /// storage service so transport stays on the generated client.
+    private var downloadService: PreviewDownloadService {
+        PreviewDownloadService(storage: storageService)
+    }
 
     var body: some View {
         Group {
@@ -90,8 +93,6 @@ struct QuickLookDownloadView: View {
         logger.info("Loading file from API for document: \(document.id)")
 
         let outcome = await downloadService.download(.init(
-            sourceURL: apiClient.sourceURL(for: document.id),
-            libraryPath: apiClient.currentLibraryPath,
             documentId: document.id,
             fallbackFileName: fileNameWithExtension(),
             documentPath: document.path
