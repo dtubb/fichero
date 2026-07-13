@@ -45,6 +45,15 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     /// Knowledge-graph reads come from the same service the KG tab uses.
     @Environment(EntityServiceGenerated.self) private var entityService
 
+    /// The shared KG stores the Entities/Claims tabs render from. The strip
+    /// doesn't derive its counts from them directly — its counts honour the
+    /// includeChildren toggle and ClaimStore is scope-based, neither of which the
+    /// per-document store exposes — but it OBSERVES them so a mutation refreshes
+    /// the canonical count query, keeping the strip from contradicting the tabs
+    /// (#3618).
+    @Environment(EntityStore.self) private var entityStore
+    @Environment(ClaimStore.self) private var claimStore
+
     /// Generated artifacts for this document, observed from the shared
     /// ArtifactStore rather than a view-local fetch (#3427).
     private var artifacts: [Artifact] { artifactStore.items }
@@ -196,6 +205,16 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
             shownArtifactsRaw = csvString(shownArtifactTypes)
             shownKGRaw = csvString(shownKGItems)
             shownMetadataRaw = csvString(shownMetadataKeys)
+        }
+        // Keep the strip's KG counts consistent with the Entities/Claims tabs
+        // (#3618): when the shared stores mutate (change-stream #1863 — merge,
+        // add, delete), re-run the canonical count query instead of showing a
+        // stale one-shot count that contradicts the tab.
+        .onChange(of: entityStore.entitiesByDocumentId[document.id]?.count) {
+            Task { await loadKnowledgeGraph() }
+        }
+        .onChange(of: claimStore.claims.count) {
+            Task { await loadKnowledgeGraph() }
         }
     }
 
