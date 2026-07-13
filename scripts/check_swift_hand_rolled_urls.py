@@ -89,7 +89,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
         "the shared pinned transport — so the KG/reader WKWebView validates the "
         "engine's pinned HTTPS cert like every other call site (#2538)."
     ),
-    "Views/Library/QuickLookComponents.swift#59d9159ae2": "§6b baseline — hand-built URLRequest(url:)",
 }
 
 

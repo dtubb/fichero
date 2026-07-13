@@ -45,10 +45,11 @@ struct MediaStreamPreview: View {
         let url = apiClient.sourceURL(for: document.id)
         // Reuse the exact auth headers every other storage fetch uses, rather
         // than re-deriving them — keeps the token out of the URL and in step
-        // with the middleware (#742/#3076).
-        var request = URLRequest(url: url)
-        request.addEngineAuth(libraryPath: apiClient.currentLibraryPath)
-        let headers = request.allHTTPHeaderFields ?? [:]
+        // with the middleware (#742/#3076). AVFoundation does its own
+        // range-requested streaming, so it takes the headers directly; there is
+        // no request for us to build (and no generated-client op that could
+        // stream this without downloading the whole file first).
+        let headers = engineAuthHeaders(for: url, libraryPath: apiClient.currentLibraryPath)
 
         // The header-fields option key isn't surfaced as a Swift symbol on this
         // SDK; its stable underlying string value carries the auth headers into
