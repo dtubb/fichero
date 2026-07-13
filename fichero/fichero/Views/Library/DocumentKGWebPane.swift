@@ -64,10 +64,20 @@ enum DocumentKGPaneRoute {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: #f6f6f6; color: #222; }
+            /* Semantic palette matching document_view.html so this fallback page
+               reads as the same app in light AND dark (#3683), even though the
+               theme-injection script doesn't run on this standalone HTML. */
+            :root { --bg: #f7f4ee; --text: #1f1d1a; --muted: #6a6258; }
+            @media (prefers-color-scheme: dark) {
+              :root { --bg: #1e1b18; --text: #ece7df; --muted: #a59b8d; }
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+              margin: 0; background: var(--bg); color: var(--text);
+            }
             main { max-width: 34rem; margin: 0 auto; padding: 2rem 1.25rem; }
             h1 { font-size: 1.1rem; margin: 0 0 0.75rem; }
-            p { line-height: 1.45; color: #555; margin: 0.5rem 0; }
+            p { line-height: 1.45; color: var(--muted); margin: 0.5rem 0; }
           </style>
         </head>
         <body>
@@ -135,50 +145,145 @@ enum DocumentKGPaneRoute {
         force || !hasCachedScript || cachedLibraryPath != libraryPath
     }
 
+    // MARK: - System theme injection (#1481 / #3683)
+
+    /// The resolved reader palette + base text size for the current appearance,
+    /// bridged from the platform's SEMANTIC colors/fonts so the WebKit reader
+    /// matches the native app in light AND dark. Colors, fonts, AND base size are
+    /// all injected, on macOS AND iOS — closing the previously-unthemed-reader-
+    /// on-iOS gap (#3683).
+    private struct ReaderTheme {
+        let background, panel, text, muted, line, accent, accentSoft: String
+        let selectionBg, selectionText: String
+        /// Semantic body point size (Dynamic Type on iOS). The Reader font-scale
+        /// override (#3681) multiplies this before injection.
+        let baseSizePx: Int
+    }
+
+    /// A platform SEMANTIC color as an sRGB `rgba(...)` CSS string.
     #if canImport(AppKit)
-    /// CSS that overrides the template's `:root` palette with the live macOS
-    /// system colors (background, text, separators, accent) resolved for the
-    /// current appearance. The template ships sensible light/dark defaults so
-    /// it still looks right opened in a browser; in the app this makes the
-    /// pane match the system exactly — accent included — and follow dark mode.
-    /// Theming lives here (Swift) by design: the backend never sniffs the OS.
+    private static func cssColor(_ color: NSColor) -> String {
+        let resolved = color.usingColorSpace(.sRGB) ?? NSColor.black
+        let red = Int((resolved.redComponent * 255).rounded())
+        let green = Int((resolved.greenComponent * 255).rounded())
+        let blue = Int((resolved.blueComponent * 255).rounded())
+        return String(format: "rgba(%d, %d, %d, %.3f)", red, green, blue, resolved.alphaComponent)
+    }
+    #elseif canImport(UIKit)
+    private static func cssColor(_ color: UIColor) -> String {
+        let resolved = color.resolvedColor(with: UITraitCollection.current)
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+            return "rgba(0, 0, 0, 1.000)"
+        }
+        return String(
+            format: "rgba(%d, %d, %d, %.3f)",
+            Int((red * 255).rounded()), Int((green * 255).rounded()),
+            Int((blue * 255).rounded()), alpha
+        )
+    }
+    #endif
+
+    /// The reader typography font stacks — the single Swift-side source that
+    /// keeps the WebKit reader's fonts identical to the app (matches the template
+    /// defaults, and now overrides them so both stay in lockstep).
+    private static let readerFontSystem =
+        "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", system-ui, sans-serif"
+    private static let readerFontMono =
+        "ui-monospace, \"SF Mono\", SFMono-Regular, Menlo, monospace"
+
+    /// Neutral fallback matching the template's light default, used when no
+    /// platform appearance is resolvable.
+    private static let fallbackReaderTheme = ReaderTheme(
+        background: "rgba(247, 244, 238, 1.000)", panel: "rgba(255, 255, 255, 0.850)",
+        text: "rgba(31, 29, 26, 1.000)", muted: "rgba(106, 98, 88, 1.000)",
+        line: "rgba(64, 53, 39, 0.140)", accent: "rgba(13, 107, 111, 1.000)",
+        accentSoft: "rgba(13, 107, 111, 0.140)",
+        selectionBg: "rgba(13, 107, 111, 0.300)", selectionText: "rgba(31, 29, 26, 1.000)",
+        baseSizePx: 14
+    )
+
+    /// Semantic `.body` point size (Dynamic Type on iOS) the reader body text
+    /// derives from — so Dynamic Type is folded into the base before the #3681
+    /// user scale multiplies it.
+    @MainActor
+    static func readerBaseSize() -> Int {
+        #if canImport(AppKit)
+        return Int(NSFont.preferredFont(forTextStyle: .body).pointSize.rounded())
+        #elseif canImport(UIKit)
+        return Int(UIFont.preferredFont(forTextStyle: .body).pointSize.rounded())
+        #else
+        return 14
+        #endif
+    }
+
+    /// Resolve the semantic palette for the current appearance, per platform.
+    @MainActor
+    private static func resolveReaderTheme() -> ReaderTheme {
+        #if canImport(AppKit)
+        var theme: ReaderTheme?
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            theme = ReaderTheme(
+                background: cssColor(.textBackgroundColor),
+                panel: cssColor(.controlBackgroundColor),
+                text: cssColor(.textColor),
+                muted: cssColor(.secondaryLabelColor),
+                line: cssColor(.separatorColor),
+                accent: cssColor(.controlAccentColor),
+                accentSoft: cssColor(.controlAccentColor.withAlphaComponent(0.14)),
+                // Bridge the macOS system selection color so ::selection matches
+                // the user's accent / appearance, not the browser default (#1481).
+                selectionBg: cssColor(.selectedTextBackgroundColor),
+                selectionText: cssColor(.selectedTextColor),
+                baseSizePx: readerBaseSize()
+            )
+        }
+        return theme ?? fallbackReaderTheme
+        #elseif canImport(UIKit)
+        // iOS has no `selectedTextBackgroundColor`; approximate with the app tint.
+        let accent = UIColor.tintColor
+        return ReaderTheme(
+            background: cssColor(.systemBackground),
+            panel: cssColor(.secondarySystemBackground),
+            text: cssColor(.label),
+            muted: cssColor(.secondaryLabel),
+            line: cssColor(.separator),
+            accent: cssColor(accent),
+            accentSoft: cssColor(accent.withAlphaComponent(0.14)),
+            selectionBg: cssColor(accent.withAlphaComponent(0.30)),
+            selectionText: cssColor(.label),
+            baseSizePx: readerBaseSize()
+        )
+        #else
+        return fallbackReaderTheme
+        #endif
+    }
+
+    /// CSS that overrides the template's `:root` palette + typography with the
+    /// live SEMANTIC system colors/fonts for the current appearance, so the
+    /// WebKit reader matches the native app exactly — colors, accent, dark mode,
+    /// font stack, and base text size. Theming lives here (Swift) by design: the
+    /// backend never sniffs the OS. Cross-platform (macOS + iOS) — #3683.
     @MainActor
     static func systemThemeCSS() -> String {
-        func cssColor(_ color: NSColor) -> String {
-            let resolved = color.usingColorSpace(.sRGB) ?? NSColor.black
-            let red = Int((resolved.redComponent * 255).rounded())
-            let green = Int((resolved.greenComponent * 255).rounded())
-            let blue = Int((resolved.blueComponent * 255).rounded())
-            return String(format: "rgba(%d, %d, %d, %.3f)", red, green, blue, resolved.alphaComponent)
-        }
-
-        var vars = ""
-        var selectionBg = ""
-        var selectionText = ""
-        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
-            vars = """
-            --bg: \(cssColor(.textBackgroundColor));
-            --panel: \(cssColor(.controlBackgroundColor));
-            --text: \(cssColor(.textColor));
-            --muted: \(cssColor(.secondaryLabelColor));
-            --line: \(cssColor(.separatorColor));
-            --accent: \(cssColor(.controlAccentColor));
-            --accent-soft: \(cssColor(.controlAccentColor.withAlphaComponent(0.14)));
-            """
-            // Bridge the macOS system selection color so ::selection in the
-            // WebKit document matches the user's accent / appearance setting
-            // instead of the browser's reddish-brown default (#1481).
-            selectionBg = cssColor(.selectedTextBackgroundColor)
-            selectionText = cssColor(.selectedTextColor)
-        }
+        let theme = resolveReaderTheme()
+        // The reader body size = semantic base × the user's Reader font scale
+        // (#3681). Dynamic Type is already in `baseSizePx`; the scale composes.
+        let scaledSize = Int((Double(theme.baseSizePx) * ViewSettings.FontScale.readerScale()).rounded())
         return """
-        :root{\(vars)}html,body{background:transparent!important;}
-        ::selection{background-color:\(selectionBg);color:\(selectionText);}
+        :root{\
+        --bg: \(theme.background);--panel: \(theme.panel);--text: \(theme.text);\
+        --muted: \(theme.muted);--line: \(theme.line);--accent: \(theme.accent);\
+        --accent-soft: \(theme.accentSoft);\
+        --font-system: \(readerFontSystem);--font-mono: \(readerFontMono);\
+        --reader-base-size: \(scaledSize)px;--reader-text-wrap: \(ReaderTextWrap.currentCSS());\
+        }html,body{background:transparent!important;}
+        ::selection{background-color:\(theme.selectionBg);color:\(theme.selectionText);}
         """
     }
 
     /// JS that injects (or refreshes) the system-theme `<style>` element so it
-    /// overrides the template defaults regardless of load timing.
+    /// overrides the template defaults regardless of load timing. Cross-platform.
     @MainActor
     static func themeInjectionScript() -> String {
         let css = jsStringLiteral(systemThemeCSS())
@@ -193,15 +298,32 @@ enum DocumentKGPaneRoute {
             }
             el.textContent = '\(css)';
         })();
+        \(paragraphWidontFallbackScript)
         """
     }
-    #else
-    @MainActor
-    static func systemThemeCSS() -> String { "" }
 
-    @MainActor
-    static func themeInjectionScript() -> String { "" }
-    #endif
+    /// Widont fallback for paragraph wrapping (#3684): only runs on WebKit WITHOUT
+    /// `text-wrap: pretty` (older than the Golden Gate target — a no-op there), and
+    /// only when the Reader wrap mode is "tidy" (`--reader-text-wrap: pretty`). It
+    /// joins each paragraph's last two words with a non-breaking space so a single
+    /// word can't strand on the last line. Idempotent (dataset flag), fail-safe.
+    private static let paragraphWidontFallbackScript = """
+    (function() {
+        try {
+            if (window.CSS && CSS.supports && CSS.supports('text-wrap', 'pretty')) { return; }
+            var mode = getComputedStyle(document.documentElement)
+                .getPropertyValue('--reader-text-wrap').trim();
+            if (mode !== 'pretty') { return; }
+            var ps = document.querySelectorAll('p');
+            for (var i = 0; i < ps.length; i++) {
+                var p = ps[i];
+                if (p.dataset.ficheroWidont) { continue; }
+                p.innerHTML = p.innerHTML.replace(/\\s+(\\S+)\\s*$/, '\\u00A0$1');
+                p.dataset.ficheroWidont = '1';
+            }
+        } catch (widontError) { /* wrapping is cosmetic; never break the reader */ }
+    })();
+    """
 
     // swiftlint:disable:next function_body_length
     static func scrollSyncScript(pageCount: Int?) -> String {
@@ -385,6 +507,14 @@ struct DocumentKGWebPane: NSViewRepresentable {
     var scrollSync: DocumentScrollSyncState
     /// Zoom level applied via WKWebView.pageZoom. 1.0 = 100%. (#2316)
     var zoom: Double = 1.0
+    /// Reader text font scale (#3681). Bound to the shared key so a change
+    /// re-invokes `updateNSView`, which re-injects the scaled `--reader-base-size`
+    /// live — no reload (systemThemeCSS reads the current scale).
+    @AppStorage(ViewSettings.FontScale.readerKey)
+    private var readerFontScale = ViewSettings.FontScale.defaultValue
+    /// Reader paragraph wrapping (#3684). Also re-injected on change.
+    @AppStorage(ReaderTextWrap.storageKey)
+    private var readerTextWrap = ReaderTextWrap.tidy
     @Environment(KGFocusState.self) private var kgFocusState
     /// Per-window source-navigation bus (#3437). Captured into the coordinator
     /// in `updateNSView` — a WKScriptMessageHandler callback fires async, outside
@@ -445,10 +575,24 @@ struct DocumentKGWebPane: NSViewRepresentable {
         if webView.pageZoom != zoom {
             webView.pageZoom = zoom
         }
+        // Reader font-scale / wrap change (#3681 / #3684): re-inject the theme
+        // (scaled --reader-base-size + --reader-text-wrap) in place. NaN/"" seeds
+        // make the first pass a re-inject matching the on-load injection; later
+        // changes update without a reload.
+        if readerFontScale != context.coordinator.lastReaderFontScale
+            || readerTextWrap.rawValue != context.coordinator.lastReaderTextWrap {
+            context.coordinator.lastReaderFontScale = readerFontScale
+            context.coordinator.lastReaderTextWrap = readerTextWrap.rawValue
+            webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
+        }
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: DocumentKGWebPane
+        /// Last Reader font scale re-injected (#3681); NaN so the first compare fires.
+        var lastReaderFontScale: Double = .nan
+        /// Last Reader wrap mode re-injected (#3684); "" so the first compare fires.
+        var lastReaderTextWrap: String = ""
         /// Per-window source-navigation bus, captured from the environment each
         /// `updateNSView` so async bridge callbacks route to THIS window (#3437).
         var claimSourceNavigationState: ClaimSourceNavigationState?
@@ -735,6 +879,13 @@ struct DocumentKGWebPane: UIViewRepresentable {
     var onPageSelected: (Int) -> Void = { _ in }
     var scrollSync: DocumentScrollSyncState
     var zoom: Double = 1.0
+    /// Reader text font scale (#3681) — see the macOS pane. Re-injects the scaled
+    /// `--reader-base-size` live on change.
+    @AppStorage(ViewSettings.FontScale.readerKey)
+    private var readerFontScale = ViewSettings.FontScale.defaultValue
+    /// Reader paragraph wrapping (#3684). Also re-injected on change.
+    @AppStorage(ReaderTextWrap.storageKey)
+    private var readerTextWrap = ReaderTextWrap.tidy
     @Environment(KGFocusState.self) private var kgFocusState
     /// Per-window source-navigation bus (#3437); captured into the coordinator
     /// in `updateUIView` for the async bridge callback.
@@ -757,7 +908,8 @@ struct DocumentKGWebPane: UIViewRepresentable {
                 )
             )
         }
-        // No live system theme on iOS in this pass; the template defaults apply.
+        // Live semantic theme on iOS too (#3683): inject the system colors/fonts/
+        // base size at document end so the reader matches the app in light + dark.
         controller.addUserScript(
             WKUserScript(
                 source: DocumentKGPaneRoute.themeInjectionScript(),
@@ -794,10 +946,21 @@ struct DocumentKGWebPane: UIViewRepresentable {
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)
         context.coordinator.applyZoom(to: webView, zoom: zoom)
+        // Reader font-scale / wrap change (#3681 / #3684): re-inject in place.
+        if readerFontScale != context.coordinator.lastReaderFontScale
+            || readerTextWrap.rawValue != context.coordinator.lastReaderTextWrap {
+            context.coordinator.lastReaderFontScale = readerFontScale
+            context.coordinator.lastReaderTextWrap = readerTextWrap.rawValue
+            webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
+        }
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: DocumentKGWebPane
+        /// Last Reader font scale re-injected (#3681); NaN so the first compare fires.
+        var lastReaderFontScale: Double = .nan
+        /// Last Reader wrap mode re-injected (#3684); "" so the first compare fires.
+        var lastReaderTextWrap: String = ""
         /// Per-window source-navigation bus, captured each `updateUIView` (#3437).
         var claimSourceNavigationState: ClaimSourceNavigationState?
         weak var webView: GuardedWKWebView?

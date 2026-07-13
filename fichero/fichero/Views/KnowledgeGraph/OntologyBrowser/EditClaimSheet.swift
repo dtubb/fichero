@@ -65,7 +65,7 @@ struct EditClaimSheet: View {
             Form {
                 Section("Claim Text") {
                     TextEditor(text: $text)
-                        .font(.body)
+                        .editorScaledFont()
                         .frame(minHeight: 80)
                 }
 

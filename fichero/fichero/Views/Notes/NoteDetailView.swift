@@ -78,7 +78,7 @@ struct NoteDetailView: View {
                 .font(.subheadline.weight(.semibold))
             if onSave != nil {
                 TextEditor(text: $draftBody)
-                    .font(.body)
+                    .editorScaledFont()
                     .frame(minHeight: 180)
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)

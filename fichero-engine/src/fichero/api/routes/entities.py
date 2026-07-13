@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import logging
 import re
+import json
 from datetime import datetime
 from collections import defaultdict
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
@@ -1602,3 +1603,62 @@ async def get_entity_biography(
         )
     except LookupError:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+
+def _render_entity_export(biography: EntityBiographyResponse, format_type: str) -> str:
+    entity = biography.entity
+    markdown = format_type == "markdown"
+    lines = [f"# {entity.canonical_name}" if markdown else entity.canonical_name]
+    if entity.description:
+        lines.extend(["", entity.description])
+    if biography.claims:
+        lines.extend([
+            "", "## Claims" if markdown else "Claims:",
+            *(f"- {claim.text}" for claim in biography.claims),
+        ])
+    if biography.documents:
+        lines.extend([
+            "", "## Sources" if markdown else "Sources:",
+            *(f"- {document.document_name}" for document in biography.documents),
+        ])
+    return "\n".join(lines) + "\n"
+
+
+@router.get(
+    "/{entity_id}/export",
+    response_class=Response,
+    summary="Download an entity biography",
+    responses={
+        200: {"content": {"text/markdown": {}, "text/plain": {}, "application/json": {}}},
+        404: {"description": "Entity not found"},
+    },
+)
+async def export_entity_biography(
+    entity_id: str,
+    format_type: Literal["markdown", "text", "json"] = Query(default="markdown", alias="format"),
+    db: Database = Depends(get_library_database),
+) -> Response:
+    """Download the existing structured biography as Markdown, text, or JSON."""
+    try:
+        biography = assemble_entity_biography(entity_id, db)
+    except LookupError:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+    from fichero.export_service import _slugify
+
+    suffix, media_type = {
+        "markdown": ("md", "text/markdown"),
+        "text": ("txt", "text/plain"),
+        "json": ("json", "application/json"),
+    }[format_type]
+    filename = f"{_slugify(biography.entity.canonical_name)}.{suffix}"
+    content = (
+        json.dumps(biography.model_dump(mode="json"), indent=2)
+        if format_type == "json"
+        else _render_entity_export(biography, format_type)
+    )
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

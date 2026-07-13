@@ -184,6 +184,14 @@ Optional query `state` filters by the typed `PredictionReviewState`.
 decision. The body is `PredictionReviewDecision` (`state` required, `note` and
 `resulting_claim_id` optional); returns the updated review or `404`.
 
+### Entity biography export
+
+`GET /api/entities/{entity_id}/export` downloads one entity's existing
+structured biography as an attachment. `entity_id` is required. The optional
+`format` query parameter accepts `markdown` (default), `text`, or `json`; the
+response is the corresponding attachment with a filesystem-safe filename.
+Unknown entity ids return `404`.
+
 ### Live library handles
 
 `GET /api/registry/open`

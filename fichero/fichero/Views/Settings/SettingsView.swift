@@ -183,6 +183,8 @@ private struct PreviewViewSettingsPane: View {
 private struct ReaderViewSettingsPane: View {
     @AppStorage(ViewSettings.FontScale.readerKey)
     private var readerScale = ViewSettings.FontScale.defaultValue
+    @AppStorage(ReaderTextWrap.storageKey)
+    private var textWrap = ReaderTextWrap.tidy
 
     var body: some View {
         Form {
@@ -195,6 +197,17 @@ private struct ReaderViewSettingsPane: View {
                     LabeledContent("Font size", value: ViewSettings.FontScale.percentLabel(readerScale))
                 }
                 Text("Scales the Reader text relative to the system default. The Editor is set separately.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Paragraphs") {
+                Picker("Wrapping", selection: $textWrap) {
+                    ForEach(ReaderTextWrap.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                Text("“Tidy” avoids a single word stranded on a paragraph's last line.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

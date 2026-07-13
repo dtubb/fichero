@@ -653,3 +653,41 @@ class TestEntityBiography:
         assert r.status_code == 200
         data = r.json()
         assert set(data.keys()) >= {"entity", "claims", "documents", "co_occurring"}
+
+
+class TestEntityBiographyExport:
+    def test_export_formats_are_attachments_with_safe_filenames(self, client, db):
+        from fichero.knowledge_models import KnowledgeClaim
+
+        entity = _make_entity(db, "Douglas / Adams", EntityType.person)
+        db.save(KnowledgeClaim(text="Douglas wrote", entity_ids=[entity.id]))
+
+        expected = {
+            "markdown": ("text/markdown", "Douglas-Adams.md"),
+            "text": ("text/plain", "Douglas-Adams.txt"),
+            "json": ("application/json", "Douglas-Adams.json"),
+        }
+        for format_type, (media_type, filename) in expected.items():
+            response = client.get(f"/api/entities/{entity.id}/export?format={format_type}")
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith(media_type)
+            assert response.headers["content-disposition"] == f'attachment; filename="{filename}"'
+            assert response.text
+        assert "Douglas wrote" in client.get(
+            f"/api/entities/{entity.id}/export?format=markdown"
+        ).text
+
+    def test_markdown_export_preserves_claim_text_that_looks_like_a_heading(self, client, db):
+        from fichero.knowledge_models import KnowledgeClaim
+
+        entity = _make_entity(db, "Rosario", EntityType.person)
+        claim_text = "The witness said Claims: were fabricated"
+        db.save(KnowledgeClaim(text=claim_text, entity_ids=[entity.id]))
+
+        response = client.get(f"/api/entities/{entity.id}/export?format=markdown")
+
+        assert "## Claims" in response.text
+        assert claim_text in response.text
+
+    def test_export_unknown_entity_is_404(self, client):
+        assert client.get("/api/entities/missing/export").status_code == 404

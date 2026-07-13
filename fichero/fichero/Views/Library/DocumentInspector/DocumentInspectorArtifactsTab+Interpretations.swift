@@ -147,7 +147,7 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
 
             // Interpretation text
             TextEditor(text: $newInterpretationText)
-                .font(.caption)
+                .editorScaledFont(.caption)
                 .frame(minHeight: 60)
                 .padding(4)
                 .background(Color(.textBackgroundColor))
@@ -271,7 +271,7 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
     private func editForm(for interp: Components.Schemas.Interpretation) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             TextEditor(text: $editText)
-                .font(.caption)
+                .editorScaledFont(.caption)
                 .frame(minHeight: 56)
                 .padding(4)
                 .background(Color(.textBackgroundColor))

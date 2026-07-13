@@ -13,11 +13,22 @@ struct AnnotatableTextView: NSViewRepresentable {
     let text: String
     var highlights: [Range<Int>]
     @Binding var selection: Range<Int>?
+    /// Reader text font scale (#3681) — this is a Reader surface. A change
+    /// re-invokes `updateNSView`, which re-applies the scaled font in place.
+    @AppStorage(ViewSettings.FontScale.readerKey)
+    private var readerScale = ViewSettings.FontScale.defaultValue
 
-    private static var serifBodyFont: NSFont {
+    /// The serif reading font at the semantic `.body` base size × the Reader
+    /// scale — scales the semantic base, never a hardcoded size.
+    private static func serifBodyFont(scale: Double) -> NSFont {
         let base = NSFont.preferredFont(forTextStyle: .body)
+        let size = base.pointSize * scale
         return base.fontDescriptor.withDesign(.serif)
-            .flatMap { NSFont(descriptor: $0, size: base.pointSize) } ?? base
+            .flatMap { NSFont(descriptor: $0, size: size) } ?? base
+    }
+
+    private var scaledFont: NSFont {
+        Self.serifBodyFont(scale: ViewSettings.FontScale.clamped(readerScale))
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
@@ -41,12 +52,12 @@ struct AnnotatableTextView: NSViewRepresentable {
 
         context.coordinator.textView = textView
         scrollView.documentView = textView
-        context.coordinator.apply(text: text, highlights: highlights, font: Self.serifBodyFont)
+        context.coordinator.apply(text: text, highlights: highlights, font: scaledFont)
         return scrollView
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        context.coordinator.apply(text: text, highlights: highlights, font: Self.serifBodyFont)
+        context.coordinator.apply(text: text, highlights: highlights, font: scaledFont)
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -54,11 +65,13 @@ struct AnnotatableTextView: NSViewRepresentable {
         weak var textView: NSTextView?
         private var lastText: String?
         private var lastHighlights: [Range<Int>] = []
+        private var lastFontPointSize: CGFloat = 0
 
         init(selection: Binding<Range<Int>?>) { self.selection = selection }
 
-        /// Sync content + highlight backgrounds. Cheap-guards on unchanged text
-        /// and highlights so typing/scrolling doesn't rebuild attributes.
+        /// Sync content + highlight backgrounds. Cheap-guards on unchanged text,
+        /// font size, and highlights so typing/scrolling doesn't rebuild
+        /// attributes — but a Reader font-scale change (font size) does (#3681).
         func apply(text: String, highlights: [Range<Int>], font: NSFont) {
             guard let textView, let storage = textView.textStorage else { return }
             let textChanged = lastText != text
@@ -66,7 +79,9 @@ struct AnnotatableTextView: NSViewRepresentable {
                 textView.string = text
                 lastText = text
             }
-            guard textChanged || highlights != lastHighlights else { return }
+            let fontChanged = font.pointSize != lastFontPointSize
+            guard textChanged || fontChanged || highlights != lastHighlights else { return }
+            lastFontPointSize = font.pointSize
 
             let full = NSRange(location: 0, length: (text as NSString).length)
             storage.beginEditing()
@@ -97,6 +112,7 @@ struct AnnotatableTextView: NSViewRepresentable {
 }
 #else
 import SwiftUI
+import UIKit
 
 /// iOS fallback: render-only selectable text. Highlight overlay + selection
 /// capture are macOS-only for slice 1 (the Mac is the annotation surface); the
@@ -105,11 +121,20 @@ struct AnnotatableTextView: View {
     let text: String
     var highlights: [Range<Int>]
     @Binding var selection: Range<Int>?
+    /// Reader text font scale (#3681). Scales the semantic `.body` base (which
+    /// already tracks Dynamic Type) — never a hardcoded size.
+    @AppStorage(ViewSettings.FontScale.readerKey)
+    private var readerScale = ViewSettings.FontScale.defaultValue
+
+    private var scaledSize: CGFloat {
+        UIFont.preferredFont(forTextStyle: .body).pointSize
+            * ViewSettings.FontScale.clamped(readerScale)
+    }
 
     var body: some View {
         ScrollView {
             Text(text)
-                .font(.system(.body, design: .serif))
+                .font(.system(size: scaledSize, design: .serif))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
                 .padding(8)

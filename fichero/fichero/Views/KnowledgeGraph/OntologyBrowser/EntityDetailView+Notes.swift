@@ -134,7 +134,7 @@ struct EntityNotesSection: View {
     private func editingCard(_ note: NoteItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             TextEditor(text: $editingText)
-                .font(.callout)
+                .editorScaledFont(.callout)
                 .frame(minHeight: 60)
                 .overlay(
                     RoundedRectangle(cornerRadius: 4)

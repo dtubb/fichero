@@ -3301,6 +3301,24 @@
       },
       {
         "method": "GET",
+        "path": "/entities/{entity_id}/export",
+        "operation_id": "export_entity_biography_api_entities__entity_id__export_get",
+        "summary": "Download an entity biography",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "format",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/entities/{entity_id}/inspector",
         "operation_id": "inspector_api_entities__entity_id__inspector_get",
         "summary": "One-call aggregate of every KG row attached to this entity",

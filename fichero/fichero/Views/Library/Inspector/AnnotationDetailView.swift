@@ -55,7 +55,7 @@ struct AnnotationDetailView: View {
                 .font(.subheadline.weight(.semibold))
             if onSave != nil {
                 TextEditor(text: $draftText)
-                    .font(.body)
+                    .editorScaledFont()
                     .frame(minHeight: 160)
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
