@@ -173,4 +173,47 @@ struct AccessErrorTests {
         )
         #expect(AppState.diagnosis(for: .tlsPinFailure).contains("Reset the certificate"))
     }
+
+    // MARK: - Connection-failure title never over-claims "not running" (#3341)
+
+    @Test func unreachableEmbeddedSaysCantConnectNotNotRunning() {
+        // The engine may be running but we couldn't reach it (wrong port /
+        // transient) — the actionable screen must NOT claim it's "not running".
+        let title = BackendConnectionView.connectionFailureTitle(
+            accessError: .engineUnreachable,
+            authBroken: false,
+            usesExternalBackendConnection: false
+        )
+        #expect(title == "Can't Connect to Engine")
+        #expect(title != "Engine Not Running")
+    }
+
+    @Test func unclassifiedEmbeddedFailureStillNeverSaysNotRunning() {
+        let title = BackendConnectionView.connectionFailureTitle(
+            accessError: nil,
+            authBroken: false,
+            usesExternalBackendConnection: false
+        )
+        #expect(title == "Can't Connect to Engine")
+    }
+
+    @Test func authBrokenRoutesToTheActionableAuthTitle() {
+        // Health-200-but-auth-broken: connected to the engine, stale sign-in →
+        // the "Can't Authenticate" screen (Reset Sign-In & Retry), never "not running".
+        let title = BackendConnectionView.connectionFailureTitle(
+            accessError: .unauthenticated,
+            authBroken: true,
+            usesExternalBackendConnection: false
+        )
+        #expect(title == "Can't Authenticate to Engine")
+    }
+
+    @Test func externalUnreachableReadsAsBackendNotReachable() {
+        let title = BackendConnectionView.connectionFailureTitle(
+            accessError: .engineUnreachable,
+            authBroken: false,
+            usesExternalBackendConnection: true
+        )
+        #expect(title == "Backend Not Reachable")
+    }
 }

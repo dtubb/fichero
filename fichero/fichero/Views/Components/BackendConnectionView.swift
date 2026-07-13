@@ -132,7 +132,25 @@ struct BackendConnectionView: View {
             // pre-window NSAlert (#3111).
             return "Port 8765 Is In Use"
         }
-        switch failureAccessError {
+        return Self.connectionFailureTitle(
+            accessError: failureAccessError,
+            authBroken: appState.authBroken,
+            usesExternalBackendConnection: usesExternalBackendConnection
+        )
+    }
+
+    /// Pure phase → failure-title mapping (#3341). Extracted so the invariant
+    /// "never claim the engine is NOT RUNNING when we only failed to CONNECT" is
+    /// unit-testable. When the engine is reachable-but-unusable (unreachable /
+    /// unclassified failure), the copy says "Can't Connect to Engine" — the
+    /// engine may well be running (wrong port / transient / socket); the screen's
+    /// Retry + Show Log let the user act, and the detail carries the real reason.
+    static func connectionFailureTitle(
+        accessError: AccessError?,
+        authBroken: Bool,
+        usesExternalBackendConnection: Bool
+    ) -> String {
+        switch accessError {
         case .staleBootstrapToken:
             return "Engine Token Mismatch"
         case .tlsPinFailure:
@@ -143,15 +161,21 @@ struct BackendConnectionView: View {
             return "No Access to Engine"
         case .transport:
             return "Connection Failed"
-        case .unauthenticated, .engineUnreachable, .none:
+        case .engineUnreachable:
+            // Couldn't reach the engine — NOT the same as "not running" (#3341).
+            return usesExternalBackendConnection ? "Backend Not Reachable" : "Can't Connect to Engine"
+        case .unauthenticated, .none:
             break
         }
-        if appState.authBroken {
+        if authBroken {
             // Health-200-but-auth-broken: the specific state that used to blank
-            // the window with silent 401s (#2864).
+            // the window with silent 401s (#2864). Connected to the engine, but
+            // the saved sign-in is stale → the Reset Sign-In & Retry action.
             return "Can't Authenticate to Engine"
         }
-        return usesExternalBackendConnection ? "Backend Not Reachable" : "Engine Not Running"
+        // Unclassified failure (e.g. `.failed`): we know we couldn't connect, not
+        // that the engine is stopped — so never assert "Engine Not Running" (#3341).
+        return usesExternalBackendConnection ? "Backend Not Reachable" : "Can't Connect to Engine"
     }
 
     /// Prefer the specific diagnosis (port occupied by PID / auth rejected /
