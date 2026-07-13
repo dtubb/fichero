@@ -116,11 +116,15 @@ private struct StorageDisplayImageCanvas: View {
                     Button("Retry") { Task { await loadImage() } }
                 }
             } else {
-                ProgressView()
-                    .controlSize(.small)
+                // ★ EVERY FRAME PERFECT (#3616): a sized skeleton filling the
+                // reserved pane instead of a bare spinner, so the image/PDF page
+                // cross-fades in (below) with no blank frame or pop.
+                SkeletonPlaceholder()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Cross-fade the branch swap as the loaded image replaces the skeleton.
+        .animation(.easeOut(duration: 0.25), value: image == nil)
         .task(id: documentId) { await loadImage() }
     }
 

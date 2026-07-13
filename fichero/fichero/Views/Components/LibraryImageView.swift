@@ -33,16 +33,19 @@ struct LibraryImageView: View {
             if let image = image {
                 image
                     .resizable()
-            } else if isLoading {
-                ProgressView()
-                    .scaleEffect(0.6)
             } else if loadError != nil {
                 Image(systemName: "photo")
                     .foregroundColor(.secondary)
             } else {
-                Color.clear
+                // ★ EVERY FRAME PERFECT (#3616): a sized skeleton at the surface
+                // color instead of a bare centered spinner, filling the reserved
+                // cell so the thumbnail cross-fades in (below) with no pop.
+                SkeletonPlaceholder()
             }
         }
+        // Cross-fade the branch swap: the skeleton fades out as the loaded image
+        // fades in, keyed to image presence (feeds #3619's precise transitions).
+        .animation(.easeOut(duration: 0.25), value: image == nil)
         .task(id: loadKey) {
             guard !Task.isCancelled else { return }
             await loadImage(for: loadKey)

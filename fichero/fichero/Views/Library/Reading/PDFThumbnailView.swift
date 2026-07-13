@@ -28,12 +28,13 @@ struct PDFThumbnailView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                 } else {
-                    // Placeholder while rendering.
-                    Image(systemName: "doc.richtext")
-                        .font(.system(size: min(size.width, size.height) * 0.35))
-                        .foregroundStyle(.secondary)
+                    // ★ EVERY FRAME PERFECT (#3616): a sized skeleton at the
+                    // surface color instead of a bare icon while PDFKit renders,
+                    // cross-fading to the page image below (ties #3210).
+                    SkeletonPlaceholder(cornerRadius: 4)
                 }
             }
+            .animation(.easeOut(duration: 0.25), value: image == nil)
             // Multi-page badge (#946) — paper-stack icon + page count
             // sitting bottom-right, drawn only when the PDF has more
             // than one page AND we're showing page 0 (the parent doc).
