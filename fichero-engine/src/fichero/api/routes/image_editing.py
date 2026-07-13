@@ -106,7 +106,7 @@ _OPERATION_MODELS = {
     "sharpen": FactorOperationRequest, "fuzzy_clean": FuzzyCleanOperationRequest,
     "denoise": DenoiseOperationRequest,
 }
-_PARAMETERLESS_OPERATIONS = {"flip_horizontal", "flip_vertical", "auto_levels", "grayscale", "auto_crop_border"}
+_PARAMETERLESS_OPERATIONS = {"flip_horizontal", "flip_vertical", "auto_levels", "grayscale", "auto_crop_border", "adaptive_binarize"}
 
 
 def _validate_operations(operations: list[dict[str, Any]]) -> list[dict[str, Any]]:
