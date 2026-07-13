@@ -7586,6 +7586,16 @@
       },
       {
         "method": "GET",
+        "path": "/registry/open",
+        "operation_id": "list_open_libraries_api_registry_open_get",
+        "summary": "List Open Libraries",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "OpenLibraryHandlesResponse"
+      },
+      {
+        "method": "GET",
         "path": "/registry/unicode-collisions",
         "operation_id": "list_unicode_library_collisions_api_registry_unicode_collisions_get",
         "summary": "List Unicode Library Collisions",

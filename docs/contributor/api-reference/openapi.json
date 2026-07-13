@@ -12348,6 +12348,28 @@
         }
       }
     },
+    "/api/registry/open": {
+      "get": {
+        "tags": [
+          "library"
+        ],
+        "summary": "List Open Libraries",
+        "description": "List the library connections currently open in the backend.\n\nUnlike ``GET /registry``, this is not persisted state: it is a lock-safe\nsnapshot of the handles currently held by ``DatabaseManager``.",
+        "operationId": "list_open_libraries_api_registry_open_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenLibraryHandlesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/registry/unicode-collisions": {
       "get": {
         "tags": [
@@ -52023,6 +52045,52 @@
           "success"
         ],
         "title": "OpenItemResponse"
+      },
+      "OpenLibraryHandle": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "is_open": {
+            "type": "boolean",
+            "title": "Is Open",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "path"
+        ],
+        "title": "OpenLibraryHandle",
+        "description": "A live package connection owned by the backend database manager."
+      },
+      "OpenLibraryHandlesResponse": {
+        "properties": {
+          "libraries": {
+            "items": {
+              "$ref": "#/components/schemas/OpenLibraryHandle"
+            },
+            "type": "array",
+            "title": "Libraries"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "libraries",
+          "count"
+        ],
+        "title": "OpenLibraryHandlesResponse",
+        "description": "Response from GET /api/registry/open \u2014 live backend library handles."
       },
       "OrphanCleanupResponse": {
         "properties": {

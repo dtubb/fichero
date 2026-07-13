@@ -182,6 +182,11 @@ class DatabaseManager:
         """Number of packages with an open shared connection."""
         return len(self._databases)
 
+    def open_library_paths(self) -> list[str]:
+        """Return a stable snapshot of package paths with live connections."""
+        with self._lock:
+            return sorted(self._databases)
+
     def close_all(self):
         """Close every package's shared connection."""
         with self._lock:

@@ -1679,6 +1679,22 @@ class LibraryRegistryResponse(BaseModel):
     count: int
 
 
+class OpenLibraryHandle(BaseModel):
+    """A live package connection owned by the backend database manager."""
+
+    # The manager cache key is the only stable identity for a live handle.
+    id: str
+    path: str
+    is_open: bool = True
+
+
+class OpenLibraryHandlesResponse(BaseModel):
+    """Response from GET /api/registry/open — live backend library handles."""
+
+    libraries: list[OpenLibraryHandle]
+    count: int
+
+
 class UnicodeLibraryCollisionIdentity(BaseModel):
     """One side of a Unicode-equivalent library collision."""
 
@@ -2217,6 +2233,8 @@ __all__ = [
     # Known library registry (#1131)
     "KnownLibrary",
     "LibraryRegistryResponse",
+    "OpenLibraryHandle",
+    "OpenLibraryHandlesResponse",
     "UnicodeLibraryCollisionIdentity",
     "UnicodeLibraryCollision",
     "UnicodeLibraryCollisionResponse",
