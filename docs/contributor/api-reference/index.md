@@ -139,6 +139,83 @@ backend.
 - Request body: JSON array of saved-search ids in the desired order.
 - Response: `200` with the route's reorder response object.
 
+## Recently added engine endpoints
+
+These routes are in the committed OpenAPI contract. They are documented here
+until their corresponding Swift service wrappers land; the engine CLI already
+exposes them.
+
+### Agent workspace membership
+
+`PATCH /api/chat/workspaces/{workspace_id}/members`
+
+- Purpose: add or remove curated source, entity, claim, or note references on
+  an explicit saved agent workspace.
+- Path param: `workspace_id` (required string).
+- Request body: `AgentWorkspaceMembershipPatch`, with `add` items and/or
+  `remove_ids`.
+- Response: `200` with the updated `AgentWorkspace`; mutations are audited and
+  undoable through the workspace action layer.
+
+### Content representations and revisions
+
+`GET /api/content-representations/document/{document_id}` lists a document's
+typed `ContentRepresentation` records. `document_id` is required; response is
+`200` with an array of representations.
+
+`GET /api/content-representations/{representation_id}/revisions` lists the
+immutable `ContentRepresentationRevision` history for one representation.
+Returns `200` with an array or `404` when the representation does not exist.
+
+`POST /api/content-representations/{representation_id}/revisions` records a
+reviewer revision without changing the source representation. The body is
+`RepresentationRevisionParams` (`content` required, `decision` optional); the
+response is `200` with the new `ContentRepresentationRevision`.
+
+### PyKEEN prediction review lifecycle
+
+`POST /api/kg/pykeen/reviews` persists a `KnowledgePredictionReview` for a
+user-confirmed review workflow; response `200` returns that review.
+
+`GET /api/kg/pykeen/reviews` lists review records as `PykeenListResponse`.
+Optional query `state` filters by the typed `PredictionReviewState`.
+
+`PATCH /api/kg/pykeen/reviews/{review_id}` records an accept/reject/review
+decision. The body is `PredictionReviewDecision` (`state` required, `note` and
+`resulting_claim_id` optional); returns the updated review or `404`.
+
+### Live library handles
+
+`GET /api/registry/open`
+
+- Purpose: report the backend's currently open library connections, distinct
+  from persisted `GET /api/registry` known-library rows.
+- Response: `200` `OpenLibraryHandlesResponse`, whose items expose `id`,
+  `path`, and `is_open` from a lock-safe manager snapshot.
+
+### Reversible image regions and batches
+
+All routes below preserve the source document. Crop and split create derived
+children; uncrop, unsplit, and batch undo remove those derived children.
+
+`POST /api/images/{document_id}/crop` accepts `CropOperationRequest` (`left`,
+`top`, `width`, `height`, optional `page`/`auto_orient`) and returns
+`ImageCropResponse` for one derived child. `POST /api/images/{document_id}/uncrop`
+accepts no body and returns the reversible crop response.
+
+`POST /api/images/{document_id}/split` accepts `ImageSplitRequest` with region
+`bboxes` and returns `ImageSplitResponse`; `POST /api/images/{document_id}/unsplit`
+accepts no body and returns `ImageUnsplitResponse` after removing those children.
+
+`POST /api/images/crops/batch` applies one `ImageBatchCropRequest` region to
+its required `document_ids`, returning `ImageBatchCropResponse` with children.
+
+`POST /api/images/batch-apply` applies one crop or split spec to all images in
+a required folder (`BatchImageApplyRequest`) and returns `BatchResponse` with
+per-item state. `POST /api/images/batch-apply/{batch_id}/undo` reverses its
+completed derived children and returns `BatchImageUndoResponse`; unknown or
+non-image batch ids return `404`.
+
 !!! note
     This is a static render of the committed contract schema. For live,
     interactive docs against a running engine, start it locally with
