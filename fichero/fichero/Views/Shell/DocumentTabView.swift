@@ -244,6 +244,11 @@ struct DocumentTabView: View {
     private func completeBackendRetryReadiness() async {
         appState.startBackendHeartbeat()
         await KnownLibraryRegistryStore.shared.refresh()
+        // Reconnect after the engine was down: the backend's open set may have
+        // changed (restarted, libraries closed elsewhere), so mirror it into the
+        // sidebar just like the cold-launch path (#3393). Must run after refresh()
+        // and before backendDidBecomeReady() loads each open library's data.
+        libraryManager.reconcileOpenLibrariesFromRegistry()
         await libraryManager.backendDidBecomeReady()
     }
 }
