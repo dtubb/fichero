@@ -2796,6 +2796,11 @@ async def create_document_group(
     for child in children:
         child.parent_id = group.id
         db.save(child)
+    emit_change(
+        str(db.path.parent),
+        type="document.updated",
+        document_ids=[group.id, *child_ids],
+    )
     return group
 
 
@@ -2819,4 +2824,9 @@ async def ungroup_document(
         db.save(child)
         restored.append(child)
     db.delete(group)
+    emit_change(
+        str(db.path.parent),
+        type="document.updated",
+        document_ids=[group.id, *(child.id for child in restored)],
+    )
     return restored
