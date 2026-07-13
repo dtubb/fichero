@@ -401,6 +401,13 @@ extension StorageServiceGenerated {
             let detail = (try? notFound.body.json.detail) ?? "Source file not available"
             let body = try? JSONSerialization.data(withJSONObject: ["detail": detail])
             throw SourceFileTransportError(statusCode: 404, body: body)
+        case .unprocessableContent(let error):
+            // A 422 means the request genuinely failed validation — it must surface
+            // as a thrown, user-visible error, never a silent fallback. Same path as
+            // 404 so the engine's detail reaches the error UI (#3206).
+            let detail = (try? error.body.json)?.detail?.description ?? "Validation error"
+            let body = try? JSONSerialization.data(withJSONObject: ["detail": detail])
+            throw SourceFileTransportError(statusCode: 422, body: body)
         case .undocumented(let statusCode, let payload):
             var body: Data?
             if let payloadBody = payload.body {
