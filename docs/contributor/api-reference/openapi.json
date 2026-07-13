@@ -6858,6 +6858,49 @@
         }
       }
     },
+    "/api/library-items/columns": {
+      "post": {
+        "tags": [
+          "library-items",
+          "library-items"
+        ],
+        "summary": "Batch library-item column metadata",
+        "description": "Read-only set-based item metadata for library list and column-browser pages.",
+        "operationId": "library_item_columns_api_library_items_columns_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryItemColumnsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryItemColumnsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/claims": {
       "post": {
         "tags": [
@@ -36005,6 +36048,27 @@
         ],
         "title": "AuthorityRefreshRequest"
       },
+      "BBoxCounts": {
+        "properties": {
+          "node_regions": {
+            "type": "integer",
+            "title": "Node Regions",
+            "default": 0
+          },
+          "annotations": {
+            "type": "integer",
+            "title": "Annotations",
+            "default": 0
+          },
+          "claims": {
+            "type": "integer",
+            "title": "Claims",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "BBoxCounts"
+      },
       "BatchClaimCurationRequest": {
         "properties": {
           "claim_ids": {
@@ -39774,6 +39838,73 @@
           "older_than"
         ],
         "title": "CleanupResponse"
+      },
+      "ColumnAnnotation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bbox"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind"
+        ],
+        "title": "ColumnAnnotation"
+      },
+      "ColumnEntity": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "title": "ColumnEntity"
+      },
+      "ColumnNote": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "ColumnNote"
       },
       "CompareRequest": {
         "properties": {
@@ -48271,6 +48402,78 @@
         ],
         "title": "LibraryEntityTypeListResponse",
         "description": "Standardized envelope for GET /api/libraries/{lib}/entity-types list endpoints."
+      },
+      "LibraryItemColumnsRequest": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Item Ids"
+          },
+          "include_descendants": {
+            "type": "boolean",
+            "title": "Include Descendants",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "LibraryItemColumnsRequest"
+      },
+      "LibraryItemColumnsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryItemColumnsRow"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "LibraryItemColumnsResponse"
+      },
+      "LibraryItemColumnsRow": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/ColumnEntity"
+            },
+            "type": "array",
+            "title": "Entities"
+          },
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/ColumnAnnotation"
+            },
+            "type": "array",
+            "title": "Annotations"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/ColumnNote"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "bbox_counts": {
+            "$ref": "#/components/schemas/BBoxCounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id"
+        ],
+        "title": "LibraryItemColumnsRow"
       },
       "LibraryItemLink": {
         "properties": {
