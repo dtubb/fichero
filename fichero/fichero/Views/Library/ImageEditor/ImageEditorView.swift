@@ -50,6 +50,12 @@ struct ImageEditorView: View {
     /// doesn't discard the live frame the server render is about to replace (#3673).
     @State private var enhanceCommitted = false
 
+    // Rotate-angle popover state (#3673) — a fine straighten/rotate slider,
+    // live-previewed client-side, committed via the server rotate op.
+    @State private var rotateAngle: Double = 0
+    @State private var showRotatePopover = false
+    @State private var rotateCommitted = false
+
     /// Marquee selection in normalized image space (0…1); nil when none (#1265).
     @State private var marqueeSelection: CGRect?
     @State private var compareMode: CompareMode = .single
@@ -165,6 +171,17 @@ private extension ImageEditorView {
                 .buttonStyle(.borderless)
                 .help("Enhance — adjust brightness, contrast, sharpen")
                 .popover(isPresented: $showEnhancePopover, arrowEdge: .bottom) { enhancePopover }
+
+                // Rotate-angle with slider popover (#3673) — a fine straighten/
+                // rotate angle, live-previewed client-side while dragging.
+                Button {
+                    showRotatePopover = true
+                } label: {
+                    Image(systemName: "angle")
+                }
+                .buttonStyle(.borderless)
+                .help("Rotate — fine straighten angle")
+                .popover(isPresented: $showRotatePopover, arrowEdge: .bottom) { rotatePopover }
 
                 toolButton("person.and.background.dotted", help: "Remove background — AI-powered background removal") {
                     Task { await model.removeBackground() }
@@ -427,6 +444,48 @@ private extension ImageEditorView {
     /// preview (#3673) — provisional, replaced by the server render on commit.
     private func previewLiveEnhance() {
         model.previewLiveEdit(brightness: brightness, contrast: contrast, sharpen: sharpen)
+    }
+
+    // MARK: - Rotate popover (#3673)
+
+    private var rotatePopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Rotate").font(.headline)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text("Angle").font(.subheadline)
+                    Spacer()
+                    Text("\(Int(rotateAngle))°")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $rotateAngle, in: -180...180, step: 1)
+            }
+            HStack {
+                Button("Reset") { rotateAngle = 0 }
+                Spacer()
+                Button("Apply") {
+                    rotateCommitted = true
+                    let angle = rotateAngle
+                    Task { await model.rotate(by: angle) }
+                    rotateAngle = 0
+                    showRotatePopover = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(rotateAngle == 0)
+            }
+        }
+        .padding(16)
+        .frame(width: 260)
+        // Live client-side preview while dragging (#3673): CIFilter.straighten
+        // over the original — no backend — so the rotate previews at 60fps. On
+        // Apply the server rotate op replaces it; on dismiss-without-commit the
+        // provisional frame is dropped. Same pattern as the enhance sliders.
+        .onChange(of: rotateAngle) { model.previewLiveEdit(angleDegrees: rotateAngle) }
+        .onDisappear {
+            if !rotateCommitted { model.discardLiveEdit() }
+            rotateCommitted = false
+        }
     }
 
     private func enhanceSlider(_ label: String, value: Binding<Double>) -> some View {
