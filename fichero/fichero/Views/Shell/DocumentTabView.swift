@@ -80,6 +80,11 @@ struct DocumentTabView: View {
                 backendConnectionView
             }
         }
+        // ★ EVERY FRAME PERFECT (#3615): surface color as the base layer so the
+        // isBackendRunning swap (backendConnectionView ↔ contentView) never
+        // exposes a bare white frame if ContentView's first frame isn't painted
+        // yet. Matches backendConnectionView's own fill.
+        .background(Color(platformColor: .windowBackgroundColor))
         .task {
             guard !Task.isCancelled else { return }
             // Library path is already set in LibraryManager when library was opened
