@@ -47,45 +47,27 @@ struct SettingsView: View {
                     }
             }
 
-            #if canImport(AppKit)
-            if featureManager.isSettingsEngineTabEnabled {
-                EngineSettingsView()
+            // Engine group (#3396): the former Backend tab is folded in as a
+            // sub-section, so the engine — status, restart, storage, diagnostics,
+            // and backend/runtime config — is one surface, not two top-level tabs.
+            if featureManager.isSettingsEngineTabEnabled || featureManager.isSettingsBackendTabEnabled {
+                EngineGroupSettingsView()
                     .tag(SettingsTab.engine)
                     .tabItem {
                         Label("Engine", systemImage: "square.grid.3x1.below.line.grid.1x2")
                     }
             }
 
-            if featureManager.isSettingsShareTabEnabled {
-                ShareSettingsView()
+            // Library Access group (#3396): who/what can reach a library — the
+            // former Connect (device pairing / QR), Users (people/roles), and
+            // Capture (capture permissions) tabs, consolidated into one surface.
+            if featureManager.isSettingsShareTabEnabled
+                || featureManager.isSettingsUsersTabEnabled
+                || featureManager.isSettingsCaptureTabEnabled {
+                LibraryAccessSettingsView()
                     .tag(SettingsTab.connect)
                     .tabItem {
-                        Label("Connect", systemImage: "qrcode.viewfinder")
-                    }
-            }
-            #endif
-
-            if featureManager.isSettingsBackendTabEnabled {
-                BackendSettingsView()
-                    .tag(SettingsTab.backend)
-                    .tabItem {
-                        Label("Backend", systemImage: "server.rack")
-                    }
-            }
-
-            if featureManager.isSettingsUsersTabEnabled {
-                UsersSettingsView()
-                    .tag(SettingsTab.users)
-                    .tabItem {
-                        Label("Users", systemImage: "person.2")
-                    }
-            }
-
-            if featureManager.isSettingsCaptureTabEnabled {
-                CaptureSettingsView()
-                    .tag(SettingsTab.capture)
-                    .tabItem {
-                        Label("Capture", systemImage: "arrow.up.doc")
+                        Label("Library Access", systemImage: "lock.shield")
                     }
             }
 
@@ -110,6 +92,120 @@ struct SettingsView: View {
                 }
         }
         .frame(width: 680, height: 520)
+    }
+}
+
+// MARK: - Consolidated Settings Groups (#3396)
+
+/// A sub-section within a consolidated settings tab. `label` names its segment.
+private protocol SettingsGroupSection: Identifiable, Hashable {
+    var label: String { get }
+}
+
+/// Shared chrome for a consolidated settings tab: a segmented sub-picker over the
+/// available sub-sections (hidden when only one is available), then the selected
+/// section's EXISTING settings view — every reused pane is unchanged (#3396). The
+/// selection is clamped to what's available so a default that a platform/flag
+/// hides (e.g. the macOS-only Engine/Devices panes on iOS) never shows blank.
+private struct SettingsGroupContainer<Section: SettingsGroupSection, Content: View>: View {
+    let sections: [Section]
+    @Binding var rawSelection: Section
+    @ViewBuilder let content: (Section) -> Content
+
+    private var effective: Section {
+        sections.contains(rawSelection) ? rawSelection : (sections.first ?? rawSelection)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if sections.count > 1 {
+                Picker("", selection: Binding(get: { effective }, set: { rawSelection = $0 })) {
+                    ForEach(sections) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding()
+                Divider()
+            }
+            content(effective)
+        }
+    }
+}
+
+private enum EngineGroupSection: String, CaseIterable, SettingsGroupSection {
+    case engine = "Engine"
+    case backend = "Backend"
+    var id: String { rawValue }
+    var label: String { rawValue }
+}
+
+/// Engine tab (#3396): folds the former Backend tab in as a sub-section. Reuses
+/// EngineSettingsView + BackendSettingsView unchanged.
+private struct EngineGroupSettingsView: View {
+    @ObservedObject private var featureManager = FeatureManager.shared
+    @State private var selection: EngineGroupSection = .engine
+
+    private var availableSections: [EngineGroupSection] {
+        var sections: [EngineGroupSection] = []
+        #if canImport(AppKit)
+        if featureManager.isSettingsEngineTabEnabled { sections.append(.engine) }
+        #endif
+        if featureManager.isSettingsBackendTabEnabled { sections.append(.backend) }
+        return sections
+    }
+
+    var body: some View {
+        SettingsGroupContainer(sections: availableSections, rawSelection: $selection) { section in
+            switch section {
+            case .engine:
+                #if canImport(AppKit)
+                EngineSettingsView()
+                #endif
+            case .backend:
+                BackendSettingsView()
+            }
+        }
+    }
+}
+
+private enum LibraryAccessSection: String, CaseIterable, SettingsGroupSection {
+    case people = "People"
+    case devices = "Devices"
+    case capture = "Capture"
+    var id: String { rawValue }
+    var label: String { rawValue }
+}
+
+/// Library Access tab (#3396): who/what can reach a library — the former Connect
+/// (device pairing / QR), Users (people/roles), and Capture (capture permissions)
+/// tabs, consolidated. Reuses each pane unchanged.
+private struct LibraryAccessSettingsView: View {
+    @ObservedObject private var featureManager = FeatureManager.shared
+    @State private var selection: LibraryAccessSection = .people
+
+    private var availableSections: [LibraryAccessSection] {
+        var sections: [LibraryAccessSection] = []
+        if featureManager.isSettingsUsersTabEnabled { sections.append(.people) }
+        #if canImport(AppKit)
+        if featureManager.isSettingsShareTabEnabled { sections.append(.devices) }
+        #endif
+        if featureManager.isSettingsCaptureTabEnabled { sections.append(.capture) }
+        return sections
+    }
+
+    var body: some View {
+        SettingsGroupContainer(sections: availableSections, rawSelection: $selection) { section in
+            switch section {
+            case .people:
+                UsersSettingsView()
+            case .devices:
+                #if canImport(AppKit)
+                ShareSettingsView()
+                #endif
+            case .capture:
+                CaptureSettingsView()
+            }
+        }
     }
 }
 
