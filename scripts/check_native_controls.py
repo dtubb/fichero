@@ -30,7 +30,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "KnowledgeGraph/OntologyBrowser/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
     "KnowledgeGraph/OntologyBrowser/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
     "Library/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
-    "Library/LibraryView+DisplayModes.swift#ac36d057da": "#1912 baseline",
+    "Library/LibraryView+DisplayModes.swift#1a99669c78": "#1912 baseline (rehashed: #3705 added .draggable to the rows; the collection itself is unchanged)",
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
     "Research/ResearchTasksPane.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
     "Research/ResearchTasksPane.swift#f50acbd404": "#1912 baseline (shifted by store migration)",
