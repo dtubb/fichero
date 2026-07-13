@@ -105,7 +105,11 @@ struct WorkflowPickerSheet: View {
             }
             .padding()
         }
+        // macOS sheets need an explicit size; on iPhone a fixed 500pt width
+        // overflows the ~390pt screen, so let iOS use natural sheet sizing (#3666).
+        #if os(macOS)
         .frame(width: 500, height: 600)
+        #endif
     }
 }
 
