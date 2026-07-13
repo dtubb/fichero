@@ -23701,7 +23701,8 @@
             "schema": {
               "enum": [
                 "library",
-                "folder"
+                "folder",
+                "cross-library"
               ],
               "type": "string",
               "default": "library",

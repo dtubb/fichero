@@ -12,7 +12,7 @@ import asyncio
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from fichero.api.library_header import require_library_path
@@ -20,6 +20,7 @@ from fichero.api.auth import action_context, request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
+from fichero.db_manager import db_manager
 from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
 from fichero.knowledge_models import (
     EntityMergeAudit,
@@ -567,6 +568,59 @@ class CandidatePair(BaseModel):
     jaccard: float = Field(ge=0.0, le=1.0)
     shared_neighbors: int
     entity_type: str | None = None
+    entity_a_library_path: str | None = None
+    entity_b_library_path: str | None = None
+
+
+def _cross_library_candidate_pairs(
+    request: Request,
+    *,
+    same_type_only: bool,
+    top_k: int,
+) -> list[CandidatePair]:
+    """Match rule-resolved entity names across the libraries this user may read."""
+    from fichero import authz
+    from fichero.workflows.tools._entity_writer import _apply_entity_resolution_rules
+
+    by_key: dict[tuple[str, str | None], list[tuple[str, KnowledgeEntity]]] = {}
+    # ponytail: cross-library vectors are per-library stores; use the existing
+    # rule-resolved identity until a shared vector index is intentionally added.
+    bootstrap_auth = getattr(getattr(request, "state", None), "bootstrap_auth", False)
+    user = getattr(getattr(request, "state", None), "user", None)
+    for library_path in db_manager.open_library_paths():
+        if not bootstrap_auth and not authz.can_read(user, library_path):
+            continue
+        library_db = db_manager.get_database(library_path)
+        for entity in library_db.query(KnowledgeEntity):
+            resolved = _apply_entity_resolution_rules(
+                library_db, entity.canonical_name, entity.entity_type
+            )
+            if resolved is None:
+                continue
+            name, entity_type = resolved
+            key = (name.casefold(), entity_type.value if same_type_only else None)
+            by_key.setdefault(key, []).append((library_path, entity))
+
+    rows: list[CandidatePair] = []
+    for entities in by_key.values():
+        for index, (left_path, left) in enumerate(entities):
+            for right_path, right in entities[index + 1 :]:
+                if left_path == right_path:
+                    continue
+                rows.append(
+                    CandidatePair(
+                        entity_a_id=left.id,
+                        entity_a_name=left.canonical_name,
+                        entity_b_id=right.id,
+                        entity_b_name=right.canonical_name,
+                        jaccard=1.0,
+                        shared_neighbors=0,
+                        entity_type=left.entity_type.value,
+                        entity_a_library_path=left_path,
+                        entity_b_library_path=right_path,
+                    )
+                )
+    return rows[:top_k]
 
 
 @router.get(
@@ -583,10 +637,11 @@ class CandidatePair(BaseModel):
     ),
 )
 async def candidate_pairs(
+    request: Request,
     min_jaccard: float = Query(default=0.5, ge=0.0, le=1.0),
     top_k: int = Query(default=20, ge=1, le=200),
     same_type_only: bool = Query(default=True),
-    scope: Literal["library", "folder"] = Query(default="library"),
+    scope: Literal["library", "folder", "cross-library"] = Query(default="library"),
     folder_id: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
@@ -596,6 +651,12 @@ async def candidate_pairs(
     """
     import networkx as nx
     from fichero.kg.graph import build_full_cooccurrence
+
+    if scope == "cross-library":
+        rows = _cross_library_candidate_pairs(
+            request, same_type_only=same_type_only, top_k=top_k
+        )
+        return KGGraphListResponse(items=rows, count=len(rows))
 
     graph = build_full_cooccurrence(db)
     if scope == "folder":
