@@ -124,7 +124,7 @@ private struct StorageDisplayImageCanvas: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Cross-fade the branch swap as the loaded image replaces the skeleton.
-        .animation(.easeOut(duration: 0.25), value: image == nil)
+        .animation(FrameAnimation.crossfade, value: image == nil)
         .task(id: documentId) { await loadImage() }
     }
 

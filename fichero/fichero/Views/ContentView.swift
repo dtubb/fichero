@@ -860,7 +860,7 @@ extension ContentView {
 
     private var inspectorToggleButton: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(FrameAnimation.snappy) {
                 showInspectorSidebar.toggle()
             }
         } label: {

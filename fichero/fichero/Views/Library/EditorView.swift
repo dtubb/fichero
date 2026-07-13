@@ -62,6 +62,10 @@ struct EditorView: View {
                 Divider()
             }
             previewContent(doc)
+                // ★ EVERY FRAME PERFECT (#3619): cross-fade when edit mode
+                // overtakes the Preview (#3593) — the source canvas dissolves into
+                // the editor canvas instead of a jump-cut, with the shared timing.
+                .animation(FrameAnimation.crossfade, value: isEditing)
         }
     }
 
