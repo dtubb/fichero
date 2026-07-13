@@ -56,16 +56,30 @@ boundary. It is not the supported remote-access path.
 ## Publish to the tailnet
 
 Install and sign in to Tailscale on the engine machine and on each client
-device. Then run this on the engine machine:
+device. Then run this from the Fichero repository on the engine machine:
 
 ```bash
-tailscale serve https / http://127.0.0.1:8765
+fichero-engine/scripts/start_tailscale_backend.sh --fast
 ```
 
-Use `tailscale serve status` to inspect the generated tailnet URL. The important
-property is that Tailscale terminates the private tailnet connection and proxies
-to `http://127.0.0.1:8765` on the engine host. The engine itself still only sees
-a loopback service.
+The launcher obtains a Tailscale certificate, keeps the engine on loopback TLS,
+starts `tailscale serve` as `https+insecure://127.0.0.1:8765`, and advertises the
+Tailscale certificate pin to paired clients. Use `tailscale serve status` to
+inspect the generated tailnet URL. The engine itself still only sees a loopback
+service.
+
+Create a one-time iPhone/iPad manual pairing link by passing the library path on
+the Mac explicitly:
+
+```bash
+scripts/create_tailscale_pairing_link.sh \
+  "$HOME/Library/CloudStorage/Box-Box/Fichero Libraries/INCANH Ann New.fichero"
+```
+
+Paste the emitted `fichero://pair?...` link into **Connect → Manual link** before
+it expires. The link contains a short-lived pairing code and certificate pin; do
+not publish it. It is deliberately scoped to the supplied library rather than
+guessing from the registry.
 
 Do not run:
 
@@ -104,8 +118,9 @@ The health endpoint is unauthenticated, but library operations require:
 Authorization: Bearer <token>
 ```
 
-CLI or MCP clients pointed at the Tailscale URL need both the remote API URL and
-the remote token:
+CLI or MCP clients pointed at the Tailscale URL need a paired device credential,
+not the Mac's bootstrap token. The iPhone/iPad app receives that credential by
+redeeming the one-time pairing link above.
 
 ```bash
 export FICHERO_API_URL=https://<engine-name>.<tailnet-name>.ts.net
@@ -132,4 +147,3 @@ Expected properties:
   address
 - protected endpoints return `401` until the remote token is supplied
 - user and object authorization still comes from Fichero, not Tailscale
-
