@@ -60,6 +60,10 @@ async def stream_library_changes(
                 yield format_change_sse(replay_event)
             while True:
                 if await request.is_disconnected():
+                    logger.info(
+                        "change-stream: client disconnected cleanly lib=%s",
+                        x_fichero_library_path,
+                    )
                     break
                 try:
                     event = await asyncio.wait_for(
@@ -69,6 +73,21 @@ async def stream_library_changes(
                 except asyncio.TimeoutError:
                     # Keepalive comment prevents idle-connection timeouts.
                     yield ": keepalive\n\n"
+        except asyncio.CancelledError:
+            logger.info(
+                "change-stream: client cancelled cleanly lib=%s",
+                x_fichero_library_path,
+            )
+            raise
+        except GeneratorExit:
+            logger.info(
+                "change-stream: client closed cleanly lib=%s",
+                x_fichero_library_path,
+            )
+            raise
+        except Exception:
+            logger.exception("change-stream: SSE failed lib=%s", x_fichero_library_path)
+            raise
         finally:
             _change_hub.unsubscribe(x_fichero_library_path, queue)
 

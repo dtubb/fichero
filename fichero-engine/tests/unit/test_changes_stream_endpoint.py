@@ -141,7 +141,7 @@ class TestChangesStreamEndpoint:
             await stream.aclose()
 
     async def test_stream_unsubscribes_when_client_disconnects(
-        self, test_package, monkeypatch
+        self, test_package, monkeypatch, caplog
     ):
         captured = _patch_subscribe_to_capture_queue(monkeypatch)
         request = _FakeRequest()
@@ -160,11 +160,13 @@ class TestChangesStreamEndpoint:
 
         request.disconnected = True
 
-        with pytest.raises(StopAsyncIteration):
-            await anext(stream)
+        with caplog.at_level("INFO", logger="fichero.api.routes.changes"):
+            with pytest.raises(StopAsyncIteration):
+                await anext(stream)
 
         assert change_stream._change_hub.subscriber_count(library_path) == before
         assert "queue" in captured
+        assert "disconnected cleanly" in caplog.text
 
     async def test_stream_replays_events_after_last_event_id(
         self, test_package, monkeypatch
@@ -293,7 +295,8 @@ class TestChangesStreamEndpoint:
         request = _FakeRequest()
         library_path = str(test_package)
 
-        async def _timeout(*_args, **_kwargs):
+        async def _timeout(awaitable, **_kwargs):
+            awaitable.close()
             request.disconnected = True
             raise asyncio.TimeoutError
 
