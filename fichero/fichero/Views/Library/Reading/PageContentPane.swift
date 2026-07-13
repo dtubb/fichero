@@ -44,7 +44,7 @@ struct PageContentPane: View { // swiftlint:disable:this type_body_length
             if let doc = pageDoc {
                 if editState.isEditing {
                     TextEditor(text: $editState.draftContent)
-                        .font(.system(.body, design: .serif))
+                        .editorScaledFont(.body, design: .serif)
                         .lineSpacing(4)
                         .scrollContentBackground(.hidden)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

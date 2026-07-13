@@ -296,7 +296,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
                     .cornerRadius(4)
             } else if onSave != nil {
                 TextEditor(text: $draftText)
-                    .font(.body)
+                    .editorScaledFont()
                     .focused($isEditorFocused)
                     .scrollContentBackground(.hidden)
                     .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil)
