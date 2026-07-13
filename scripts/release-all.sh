@@ -40,6 +40,9 @@ IOS_APP_STORE_PROFILE_NAME="${IOS_APP_STORE_PROFILE_NAME:-App Store Connect}"
 IOS_APP_STORE_SIGNING_CERT="${IOS_APP_STORE_SIGNING_CERT:-7CD87BA09F2DA8A79652710DE0F5E3C5DCD2CC35}"
 IOS_APP_STORE_PROFILE_UUID=""
 
+# Keep archive schemes aligned with the feature-tier build map.
+source "$ROOT_DIR/scripts/tier_build_map.sh"
+
 project_setting() {
   local name="$1"
   awk -F'= ' -v name="$name" '$1 ~ name"[[:space:]]*$" { gsub(/[;"]/,"",$2); print $2; exit }' \
@@ -214,8 +217,8 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
   install_mac_app_store_profile
 
   if ! xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj" \
-    -scheme Fichero \
-    -configuration Release \
+    -scheme "$MAC_SCHEME" \
+    -configuration "$MAC_CONFIG" \
     -destination "platform=macOS,arch=arm64" \
     -archivePath "$MAC_ARCHIVE_PATH" \
     -skipPackagePluginValidation \
@@ -292,8 +295,8 @@ if [ "$RUN_IOS_TESTFLIGHT" = true ]; then
 
   rm -rf "$IOS_ARCHIVE_PATH"
   if ! xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj" \
-    -scheme Fichero \
-    -configuration Release \
+    -scheme "$IOS_SCHEME" \
+    -configuration "$IOS_CONFIG" \
     -destination "generic/platform=iOS" \
     -archivePath "$IOS_ARCHIVE_PATH" \
     -skipPackagePluginValidation \
