@@ -237,7 +237,7 @@ extension ContentView {
         if horizontalSizeClass == .compact || shouldUseRuntimeSidebarCollapse {
             return
         }
-        withAnimation {
+        withAnimation(FrameAnimation.snappy) {
             showSidebar.toggle()
             updateColumnVisibility()
         }

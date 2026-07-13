@@ -34,7 +34,7 @@ struct PDFThumbnailView: View {
                     SkeletonPlaceholder(cornerRadius: 4)
                 }
             }
-            .animation(.easeOut(duration: 0.25), value: image == nil)
+            .animation(FrameAnimation.crossfade, value: image == nil)
             // Multi-page badge (#946) — paper-stack icon + page count
             // sitting bottom-right, drawn only when the PDF has more
             // than one page AND we're showing page 0 (the parent doc).

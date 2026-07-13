@@ -596,7 +596,7 @@ extension ContentView {
         }
 
         if currentLayoutMode != newLayoutMode {
-            withAnimation {
+            withAnimation(FrameAnimation.snappy) {
                 currentLayoutMode = newLayoutMode
             }
         }

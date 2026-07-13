@@ -53,6 +53,9 @@ struct SurfaceTabBar<Tab: SurfaceTab>: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
+        // ★ EVERY FRAME PERFECT (#3619): glide the active-tab highlight + divider
+        // fade between tabs instead of a jump-cut, with the shared chrome timing.
+        .animation(FrameAnimation.snappy, value: selection)
         .accessibilityIdentifier(accessibilityID)
     }
 

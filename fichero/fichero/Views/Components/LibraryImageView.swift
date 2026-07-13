@@ -45,7 +45,7 @@ struct LibraryImageView: View {
         }
         // Cross-fade the branch swap: the skeleton fades out as the loaded image
         // fades in, keyed to image presence (feeds #3619's precise transitions).
-        .animation(.easeOut(duration: 0.25), value: image == nil)
+        .animation(FrameAnimation.crossfade, value: image == nil)
         .task(id: loadKey) {
             guard !Task.isCancelled else { return }
             await loadImage(for: loadKey)
