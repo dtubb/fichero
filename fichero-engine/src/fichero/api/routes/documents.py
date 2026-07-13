@@ -533,13 +533,18 @@ async def list_roots(
 async def list_workspaces(
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
-    """List all workspace documents (is_workspace=True).
+    """List document workspaces, excluding agent-session workspaces.
 
     Surfaces curated-items workspaces so the UI can show a "Workspaces" section
     and let the user open / create them (#1617). Declared before the `/{doc_id}`
     route so the literal path isn't captured as a document id.
     """
-    items = _ordered_by_sort_order(_list_documents(db, is_workspace=True))
+    items = _ordered_by_sort_order(
+        document
+        for document in _list_documents(db, is_workspace=True)
+        if not isinstance(document.metadata, dict)
+        or document.metadata.get("workspace_kind") != "agent"
+    )
     return DocumentListResponse(items=items, count=len(items))
 
 

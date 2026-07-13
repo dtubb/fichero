@@ -31,17 +31,9 @@
       "workflows/tools/extractors.py::_write_kg_rows",
       "workflows/tools/merge_dedup_only.py::merge_dedup_only"
     ],
-    "route:DELETE /notes/{note_id}": [
-      "api/routes/mind_palace.py::delete_note",
-      "api/routes/notes.py::delete_note"
-    ],
     "route:DELETE /projects/{project_id}": [
       "api/routes/projects.py::delete_project",
       "api/routes/research_crud.py::delete_project"
-    ],
-    "route:GET /notes": [
-      "api/routes/mind_palace.py::list_notes",
-      "api/routes/notes.py::list_notes"
     ],
     "route:GET /notes/{note_id}": [
       "api/routes/mind_palace.py::get_note",
@@ -56,10 +48,6 @@
       "api/routes/projects.py::get_project",
       "api/routes/research_crud.py::get_project"
     ],
-    "route:GET /stats": [
-      "api/routes/search.py::search_stats",
-      "api/routes/storage.py::storage_stats"
-    ],
     "route:GET /tasks/{task_id}": [
       "api/routes/research_crud.py::get_task",
       "api/routes/tasks.py::get_task"
@@ -73,10 +61,6 @@
       "api/routes/projects.py::patch_project",
       "api/routes/research_crud.py::update_project"
     ],
-    "route:POST /import": [
-      "api/routes/documents.py::import_file",
-      "api/routes/workflows.py::import_workflow"
-    ],
     "route:POST /notes": [
       "api/routes/mind_palace.py::create_note",
       "api/routes/notes.py::create_note",
@@ -85,10 +69,6 @@
     "route:POST /projects": [
       "api/routes/projects.py::create_project",
       "api/routes/research_crud.py::create_project"
-    ],
-    "route:POST /reorder": [
-      "api/routes/documents.py::reorder_documents",
-      "api/routes/workflows.py::reorder_workflows"
     ]
   }
 }

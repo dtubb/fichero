@@ -41,6 +41,37 @@ def create_b():
     assert "kg_write:KnowledgeEntity" in violations
 
 
+def test_duplicate_detector_uses_application_mount_prefixes(tmp_path):
+    src = tmp_path / "src"
+    routes = src / "api" / "routes"
+    routes.mkdir(parents=True)
+    for name in ("chat", "documents"):
+        (routes / f"{name}.py").write_text(
+            """
+from fastapi import APIRouter
+router = APIRouter()
+
+@router.get("/workspaces")
+def list_workspaces():
+    return {}
+""",
+            encoding="utf-8",
+        )
+    (src / "api" / "main.py").write_text(
+        """
+_CORE_ROUTE_SPECS = [
+    (chat.router, "/api/chat", ["chat"]),
+    (documents.router, "/api/documents", ["documents"]),
+]
+""",
+        encoding="utf-8",
+    )
+
+    concerns = check_duplicate_paths.collect(src)
+    assert len(concerns["route:GET /api/chat/workspaces"]) == 1
+    assert len(concerns["route:GET /api/documents/workspaces"]) == 1
+
+
 def test_repo_duplicate_gate_has_no_unallowlisted_concerns():
     violations = check_duplicate_paths.find_violations()
     assert violations == {}
