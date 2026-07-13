@@ -592,6 +592,8 @@ def _cross_library_candidate_pairs(
             continue
         library_db = db_manager.get_database(library_path)
         for entity in library_db.query(KnowledgeEntity):
+            if entity.curation_state == EntityCurationState.rejected:
+                continue
             resolved = _apply_entity_resolution_rules(
                 library_db, entity.canonical_name, entity.entity_type
             )
@@ -621,6 +623,21 @@ def _cross_library_candidate_pairs(
                     )
                 )
     return rows[:top_k]
+
+
+def _curation_candidate_entities(db: Database) -> dict[str, KnowledgeEntity]:
+    """Entities eligible for reconciliation after persisted curation choices."""
+    from fichero.workflows.tools._entity_writer import _apply_entity_resolution_rules
+
+    return {
+        entity.id: entity
+        for entity in db.query(KnowledgeEntity)
+        if entity.curation_state != EntityCurationState.rejected
+        and _apply_entity_resolution_rules(
+            db, entity.canonical_name, entity.entity_type
+        )
+        is not None
+    }
 
 
 @router.get(
@@ -674,7 +691,8 @@ async def candidate_pairs(
         graph = graph.subgraph(entity_ids).copy()
     if graph.number_of_nodes() < 2:
         return KGGraphListResponse(items=[], count=0)
-    by_id: dict[str, KnowledgeEntity] = {e.id: e for e in db.query(KnowledgeEntity)}
+    by_id = _curation_candidate_entities(db)
+    graph = graph.subgraph(by_id).copy()
     nodes = [n for n in graph.nodes() if n in by_id]
     candidate_node_pairs = [
         (a, b)
