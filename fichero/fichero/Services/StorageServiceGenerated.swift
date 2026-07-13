@@ -357,6 +357,59 @@ class StorageServiceGenerated {
         }
     }
 
+}
+
+// MARK: - Error Types
+
+// MARK: - Source file (#3726)
+
+extension StorageServiceGenerated {
+    /// The source file streamed to a temp path, plus the server's
+    /// `Content-Disposition` (#3726). Same op as `downloadSourceFile`, but it
+    /// surfaces the header — the preview cache names the file from it, and the
+    /// extension is what selects the QuickLook renderer, so the caller cannot
+    /// just invent a name.
+    ///
+    /// Non-2xx raises `SourceFileTransportError` carrying the status + raw body
+    /// so the caller can surface the engine's JSON `detail` (#3206) rather than a
+    /// bare status code. Bytes stream chunk-by-chunk — a scan or a large PDF is
+    /// never held whole in memory.
+    func fetchSourceFile(_ docId: String) async throws -> (fileURL: URL, contentDisposition: String?) {
+        isLoading = true
+        defer { isLoading = false }
+
+        let response = try await client.api.getSourceFileApiStorageSourceDocIdGet(.init(
+            path: .init(docId: docId)
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("fichero")
+            FileManager.default.createFile(atPath: tempURL.path, contents: nil, attributes: nil)
+            let handle = try FileHandle(forWritingTo: tempURL)
+            defer { try? handle.close() }
+            let body = try okResponse.body.any
+            for try await chunk in body {
+                handle.write(Data(chunk))
+            }
+            return (tempURL, okResponse.headers.contentDisposition)
+        case .notFound(let notFound):
+            // Re-encode the typed detail as the `{"detail": ...}` body the shared
+            // message builder already parses, so 404 and every other status take
+            // one path.
+            let detail = (try? notFound.body.json.detail) ?? "Source file not available"
+            let body = try? JSONSerialization.data(withJSONObject: ["detail": detail])
+            throw SourceFileTransportError(statusCode: 404, body: body)
+        case .undocumented(let statusCode, let payload):
+            var body: Data?
+            if let payloadBody = payload.body {
+                body = try? await Data(collecting: payloadBody, upTo: 64 * 1024)
+            }
+            throw SourceFileTransportError(statusCode: statusCode, body: body)
+        }
+    }
+
     // MARK: - Storage Stats
 
     /// Get storage statistics
@@ -399,7 +452,13 @@ class StorageServiceGenerated {
     }
 }
 
-// MARK: - Error Types
+/// A non-2xx from the source-file op, carrying the status and the raw body so the
+/// caller can surface the engine's JSON `detail` (#3206/#3726) instead of a bare
+/// status code.
+struct SourceFileTransportError: Error {
+    let statusCode: Int
+    let body: Data?
+}
 
 enum StorageServiceError: Error, LocalizedError {
     case invalidImageData

@@ -17855,6 +17855,14 @@
                   "format": "binary"
                 }
               }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "description": "inline; filename=... (RFC 5987 filename* when non-ASCII). The client names the cached preview file from this, and the extension selects the QuickLook renderer.",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "404": {

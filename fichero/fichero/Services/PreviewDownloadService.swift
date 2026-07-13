@@ -5,20 +5,17 @@ import OSLog
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "PreviewDownloadService")
 
 /// Centralized "download a document's source file to a temp path, then hand it
-/// to a system viewer" flow (#3207). Extracted from `QuickLookDownloadView` so
-/// the raw networking + auth + HTTP-status handling + Content-Disposition
-/// parsing + temp-file lifecycle live in ONE injectable, testable service instead
-/// of inline in a view (one-path mandate; input validation on server data). The
-/// view keeps only its display state.
+/// to a system viewer" flow (#3207). Transport now goes through the generated
+/// OpenAPI client via `StorageServiceGenerated.fetchSourceFile` (#3726) — no raw
+/// URLSession, no hand-built URLRequest, so auth / pinning / library-path
+/// middleware stay central. This service owns what is left: the Content-Disposition
+/// filename rules, the HTTP-status → human message mapping, and the preview-cache
+/// file lifecycle.
 ///
-/// Behavior-preserving: the sanitize, status-check, error-message, and filename
-/// logic are the exact routines that landed with #3206/#3202/#3207 — moved, not
-/// changed. Cross-platform so any future "download then hand to a system viewer"
-/// flow reuses it (fix-then-sweep).
+/// The sanitize, status-check, error-message, and filename routines are unchanged
+/// from #3206/#3202/#3207 — only the transport beneath them moved.
 struct PreviewDownloadService: Sendable {
     struct Request {
-        let sourceURL: URL
-        let libraryPath: String?
         let documentId: String
         /// Name used when the server sends no (safe) Content-Disposition filename.
         let fallbackFileName: String
@@ -33,40 +30,20 @@ struct PreviewDownloadService: Sendable {
         case failure(message: String)
     }
 
-    /// Session factory — overridable in tests; defaults to the pinned session
-    /// every other raw storage fetch uses.
-    var makeSession: @Sendable () -> URLSession = { RemoteCertificatePinning.configuredSession() }
+    /// The generated-client storage service does the transport (#3726). This
+    /// service owns only the preview-cache lifecycle and the filename rules.
+    let storage: StorageServiceGenerated
 
     /// Download the source file to `FicheroPreview/<id>_<name>` and return it,
     /// or a human error message. Any non-2xx surfaces the engine's JSON `detail`
     /// (not the body handed to a viewer); a `/` or `..` in the server filename is
     /// sanitized away before it can touch the cache path.
     func download(_ request: Request) async -> Outcome {
-        if request.libraryPath == nil {
-            logger.warning("Downloading source without library path - API may reject request")
-        }
-        var urlRequest = URLRequest(url: request.sourceURL)
-        urlRequest.addEngineAuth(libraryPath: request.libraryPath)
-
         do {
-            let (tempURL, response) = try await makeSession().download(for: urlRequest)
-
-            // Branch on the HTTP status (#3206): a non-2xx body is the engine's
-            // JSON error, not the document. Surface its `detail` instead of
-            // handing an error page to the viewer or guessing from byte size.
-            if let httpResponse = response as? HTTPURLResponse,
-               !(200..<300).contains(httpResponse.statusCode) {
-                let message = Self.downloadErrorMessage(
-                    statusCode: httpResponse.statusCode,
-                    body: try? Data(contentsOf: tempURL),
-                    documentPath: request.documentPath
-                )
-                return .failure(message: message)
-            }
+            let (tempURL, contentDisposition) = try await storage.fetchSourceFile(request.documentId)
 
             var fileName = request.fallbackFileName
-            if let httpResponse = response as? HTTPURLResponse,
-               let contentDisposition = httpResponse.value(forHTTPHeaderField: "Content-Disposition") {
+            if let contentDisposition {
                 fileName = Self.preferredDownloadFileName(
                     contentDisposition: contentDisposition,
                     fallback: fileName
@@ -84,6 +61,14 @@ struct PreviewDownloadService: Sendable {
 
             logger.info("Downloaded to: \(destURL.path) (extension: \(destURL.pathExtension))")
             return .success(destURL)
+        } catch let error as SourceFileTransportError {
+            // A non-2xx body is the engine's JSON error, not the document (#3206):
+            // surface its `detail` rather than handing an error page to the viewer.
+            return .failure(message: Self.downloadErrorMessage(
+                statusCode: error.statusCode,
+                body: error.body,
+                documentPath: request.documentPath
+            ))
         } catch {
             logger.error("Download error: \(error.localizedDescription)")
             return .failure(message: "Failed to load: \(error.localizedDescription)")
