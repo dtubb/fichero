@@ -760,6 +760,14 @@ class AuthoritySnapshot(BaseModel):
     fetched_at: datetime = Field(default_factory=datetime.now)
 
 
+class LibrarySetting(BaseModel):
+    """A setting scoped to one library database, never the app registry."""
+
+    id: str
+    value: str
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 class EntityResolutionRule(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="allow")
 

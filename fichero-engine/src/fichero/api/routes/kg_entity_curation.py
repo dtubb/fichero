@@ -20,7 +20,6 @@ from fichero.api.auth import action_context, request_actor
 from fichero.api.routes.auth_accounts import _require_owner_or_bootstrap
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
-from fichero.app_db import get_app_db
 from fichero.db import Database
 from fichero.db_manager import db_manager
 from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
@@ -30,6 +29,7 @@ from fichero.knowledge_models import (
     EntityCurationState,
     EntityType,
     AuthoritySnapshot,
+    LibrarySetting,
     KnowledgeEntity,
     KnowledgeClaim,
     MutationLog,
@@ -111,9 +111,13 @@ class AuthorityLinkRequest(BaseModel):
     authority_id: str = Field(min_length=1)
 
 
-def _external_authority_enabled() -> bool:
-    """Fail closed: the default must never permit an outbound lookup."""
-    return get_app_db().get_setting("external_authority_enabled") == "true"
+_EXTERNAL_AUTHORITY_SETTING_ID = "external_authority_enabled"
+
+
+def _external_authority_enabled(db: Database) -> bool:
+    """Fail closed per library; the legacy app-wide key is intentionally ignored."""
+    setting = db.get(LibrarySetting, _EXTERNAL_AUTHORITY_SETTING_ID)
+    return setting is not None and setting.value == "true"
 
 
 async def _fetch_wikidata_snapshots(query: str, limit: int) -> list[AuthoritySnapshot]:
@@ -916,8 +920,10 @@ async def candidate_pairs(
     response_model=ExternalAuthoritySettings,
     summary="Read the app-wide external-authority opt-in",
 )
-async def get_external_authority_settings() -> ExternalAuthoritySettings:
-    return ExternalAuthoritySettings(external_authority_enabled=_external_authority_enabled())
+async def get_external_authority_settings(
+    db: Database = Depends(get_library_database),
+) -> ExternalAuthoritySettings:
+    return ExternalAuthoritySettings(external_authority_enabled=_external_authority_enabled(db))
 
 
 @router.put(
@@ -928,11 +934,13 @@ async def get_external_authority_settings() -> ExternalAuthoritySettings:
 async def put_external_authority_settings(
     body: ExternalAuthoritySettings,
     _owner: None = Depends(_require_owner_or_bootstrap),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ExternalAuthoritySettings:
-    # App-wide is deliberate for this first local-cache slice; per-library
-    # privacy policy is a future refinement, not an implicit network default.
-    get_app_db().set_setting(
-        "external_authority_enabled", "true" if body.external_authority_enabled else "false"
+    db.save(
+        LibrarySetting(
+            id=_EXTERNAL_AUTHORITY_SETTING_ID,
+            value="true" if body.external_authority_enabled else "false",
+        )
     )
     return body
 
@@ -947,7 +955,7 @@ async def refresh_external_authority(
     body: AuthorityRefreshRequest,
     db: Database = Depends(get_library_database_for_write),
 ) -> KGGraphListResponse:
-    if not _external_authority_enabled():
+    if not _external_authority_enabled(db):
         raise HTTPException(status_code=403, detail="External authority refresh is disabled")
     snapshots = _cache_authority_snapshots(
         db, await _fetch_authority_snapshots(body.query, body.limit, body.authorities)
