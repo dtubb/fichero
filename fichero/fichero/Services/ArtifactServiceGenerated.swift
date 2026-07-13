@@ -2091,6 +2091,21 @@ final class EntityServiceGenerated {
         try await endpointData(path: "/api/kg/pykeen/training-jobs/\(modelId)")
     }
 
+    // PyKEEN prediction review queue (#3677 store-layer coverage). Routes the
+    // `/api/kg/pykeen/reviews` endpoints through the service layer like the rest
+    // of the PyKEEN surface, so views read them via the store, not the raw client.
+    func pyKEENReviews() async throws -> Data {
+        try await endpointData(path: "/api/kg/pykeen/reviews")
+    }
+
+    func createPyKEENReview(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/pykeen/reviews", method: "POST", jsonBody: body)
+    }
+
+    func updatePyKEENReview(_ reviewId: String, body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/pykeen/reviews/\(reviewId)", method: "PATCH", jsonBody: body)
+    }
+
     func rebuildKnowledgeGraph(_ body: [String: Any] = [:]) async throws -> Data {
         try await endpointData(path: "/api/kg/rebuild", method: "POST", jsonBody: body)
     }
