@@ -403,6 +403,7 @@
 		A1BFB2EC2F043F4500EAA55A /* FicheroDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E92F043F4500EAA55A /* FicheroDocument.swift */; };
 		A1BFB2F02F043FA100EAA55A /* BackendConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */; };
 		A1BFB2F32F045C8A00EAA55A /* LibraryImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */; };
+		SKEL00012F045C8A00EAA55A /* SkeletonPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SKEL00022F045C8A00EAA55A /* SkeletonPlaceholder.swift */; };
 		A1BFB4032F057B9300EAA55A /* QuickLookComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FF2F057B9300EAA55A /* QuickLookComponents.swift */; };
 		A1BFB4052F057B9300EAA55A /* FolderAccessManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */; };
 		A1BFB4092F057BAC00EAA55A /* ViewMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4082F057BAC00EAA55A /* ViewMenuCommands.swift */; };
@@ -1019,6 +1020,7 @@
 		A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewContexts.swift; sourceTree = "<group>"; };
 		A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConnectionView.swift; sourceTree = "<group>"; };
 		A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImageView.swift; sourceTree = "<group>"; };
+		SKEL00022F045C8A00EAA55A /* SkeletonPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonPlaceholder.swift; sourceTree = "<group>"; };
 		A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAccessManager.swift; sourceTree = "<group>"; };
 		A1BFB3FF2F057B9300EAA55A /* QuickLookComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookComponents.swift; sourceTree = "<group>"; };
 		A1BFB4082F057BAC00EAA55A /* ViewMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewMenuCommands.swift; sourceTree = "<group>"; };
@@ -1971,6 +1973,7 @@
 				A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */,
 				A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */,
 				A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */,
+				SKEL00022F045C8A00EAA55A /* SkeletonPlaceholder.swift */,
 				A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */,
 				A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */,
 				A1BFB4F12F30000100EAA55A /* MacPlainTextEditor.swift */,
@@ -2664,6 +2667,7 @@
 				841 /* ErrorModel.swift in Sources */,
 				A1BFB4612F0AADC000EAA55A /* LayoutMode.swift in Sources */,
 				A1BFB2F32F045C8A00EAA55A /* LibraryImageView.swift in Sources */,
+				SKEL00012F045C8A00EAA55A /* SkeletonPlaceholder.swift in Sources */,
 				202674952F475B1D008EAB5D /* NodeConfigView.swift in Sources */,
 				202674D22F478A13008EAB5D /* LibraryView+DisplayModes.swift in Sources */,
 				AA112233001122AA /* LibraryView+Sorting.swift in Sources */,
