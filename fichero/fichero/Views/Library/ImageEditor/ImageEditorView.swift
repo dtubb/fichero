@@ -46,6 +46,9 @@ struct ImageEditorView: View {
     @State private var contrast: Double = 1.0
     @State private var sharpen: Double = 1.0
     @State private var showEnhancePopover = false
+    /// True once Apply/Auto-Levels kicked off a commit, so dismissing the popover
+    /// doesn't discard the live frame the server render is about to replace (#3673).
+    @State private var enhanceCommitted = false
 
     /// Marquee selection in normalized image space (0…1); nil when none (#1265).
     @State private var marqueeSelection: CGRect?
@@ -384,11 +387,13 @@ private extension ImageEditorView {
             enhanceSlider("Sharpen", value: $sharpen)
             HStack {
                 Button("Auto Levels") {
+                    enhanceCommitted = true
                     Task { await model.enhance(brightness: 1, contrast: 1, sharpen: 1, autoLevels: true) }
                     showEnhancePopover = false
                 }
                 Spacer()
                 Button("Apply") {
+                    enhanceCommitted = true
                     Task {
                         await model.enhance(
                             brightness: brightness,
@@ -405,6 +410,23 @@ private extension ImageEditorView {
         }
         .padding(16)
         .frame(width: 260)
+        // Live client-side preview while dragging (#3673): composite the slider
+        // values over the original via Core Image — no backend — so the canvas
+        // updates at 60fps. On commit (Apply/Auto-Levels) the server render
+        // replaces it; on dismiss-without-commit the provisional frame is dropped.
+        .onChange(of: brightness) { previewLiveEnhance() }
+        .onChange(of: contrast) { previewLiveEnhance() }
+        .onChange(of: sharpen) { previewLiveEnhance() }
+        .onDisappear {
+            if !enhanceCommitted { model.discardLiveEdit() }
+            enhanceCommitted = false
+        }
+    }
+
+    /// Push the current enhance-slider values to the model's client-side live
+    /// preview (#3673) — provisional, replaced by the server render on commit.
+    private func previewLiveEnhance() {
+        model.previewLiveEdit(brightness: brightness, contrast: contrast, sharpen: sharpen)
     }
 
     private func enhanceSlider(_ label: String, value: Binding<Double>) -> some View {
