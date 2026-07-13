@@ -23702,7 +23702,8 @@
               "enum": [
                 "library",
                 "folder",
-                "cross-library"
+                "cross-library",
+                "external-authority"
               ],
               "type": "string",
               "default": "library",
@@ -23718,6 +23719,16 @@
               "nullable": true,
               "title": "Folder Id"
             }
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Entity Id"
+            }
           }
         ],
         "responses": {
@@ -23727,6 +23738,149 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KGGraphListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/authority/settings": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Read the app-wide external-authority opt-in",
+        "operationId": "get_external_authority_settings_api_kg_entity_curation_authority_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalAuthoritySettings"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Set the app-wide external-authority opt-in",
+        "operationId": "put_external_authority_settings_api_kg_entity_curation_authority_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalAuthoritySettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalAuthoritySettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/authority/refresh": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Explicitly refresh local Wikidata authority snapshots",
+        "description": "Outbound network is attempted only by this explicitly requested, opt-in endpoint.",
+        "operationId": "refresh_external_authority_api_kg_entity_curation_authority_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorityRefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KGGraphListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/authority/link": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Confirm and persist an entity-to-authority link",
+        "operationId": "link_external_authority_api_kg_entity_curation_authority_link_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorityLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityAuditResponse"
                 }
               }
             }
@@ -35786,6 +35940,58 @@
         "title": "AuthIdentityUser",
         "description": "Authenticated account identity, when the credential resolves to a user."
       },
+      "AuthorityLinkRequest": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Entity Id"
+          },
+          "authority": {
+            "type": "string",
+            "enum": [
+              "wikidata",
+              "viaf",
+              "loc"
+            ],
+            "title": "Authority"
+          },
+          "authority_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Authority Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "authority",
+          "authority_id"
+        ],
+        "title": "AuthorityLinkRequest"
+      },
+      "AuthorityRefreshRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Query"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 10
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "AuthorityRefreshRequest"
+      },
       "BatchClaimCurationRequest": {
         "properties": {
           "claim_ids": {
@@ -40761,6 +40967,7 @@
           },
           "page": {
             "type": "integer",
+            "minimum": 1.0,
             "title": "Page",
             "default": 1
           }
@@ -43087,7 +43294,8 @@
           "merge",
           "split",
           "undo_merge",
-          "undo_split"
+          "undo_split",
+          "authority_link"
         ],
         "title": "EntityMergeOperationType"
       },
@@ -44161,6 +44369,17 @@
         ],
         "title": "ExportedFileResponse"
       },
+      "ExternalAuthoritySettings": {
+        "properties": {
+          "external_authority_enabled": {
+            "type": "boolean",
+            "title": "External Authority Enabled",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "ExternalAuthoritySettings"
+      },
       "ExtractTextRequest": {
         "properties": {
           "document_ids": {
@@ -45121,6 +45340,7 @@
           },
           "page": {
             "type": "integer",
+            "minimum": 1.0,
             "title": "Page",
             "default": 1
           },
@@ -56082,6 +56302,7 @@
           },
           "page": {
             "type": "integer",
+            "minimum": 1.0,
             "title": "Page",
             "default": 1
           }

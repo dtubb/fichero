@@ -17,8 +17,10 @@ from pydantic import BaseModel, Field
 
 from fichero.api.library_header import require_library_path
 from fichero.api.auth import action_context, request_actor
+from fichero.api.routes.auth_accounts import _require_owner_or_bootstrap
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.app_db import get_app_db
 from fichero.db import Database
 from fichero.db_manager import db_manager
 from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
@@ -27,6 +29,7 @@ from fichero.knowledge_models import (
     EntityMergeOperationType,
     EntityCurationState,
     EntityType,
+    AuthoritySnapshot,
     KnowledgeEntity,
     KnowledgeClaim,
     MutationLog,
@@ -88,6 +91,78 @@ class BatchEntityCurationResponse(BaseModel):
 
 class _EmbedEntityRequest(BaseModel):
     entity_ids: list[str] | None = None
+
+
+class ExternalAuthoritySettings(BaseModel):
+    external_authority_enabled: bool = False
+
+
+class AuthorityRefreshRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=200)
+    limit: int = Field(default=10, ge=1, le=20)
+
+
+class AuthorityLinkRequest(BaseModel):
+    entity_id: str = Field(min_length=1)
+    authority: Literal["wikidata", "viaf", "loc"]
+    authority_id: str = Field(min_length=1)
+
+
+def _external_authority_enabled() -> bool:
+    """Fail closed: the default must never permit an outbound lookup."""
+    return get_app_db().get_setting("external_authority_enabled") == "true"
+
+
+async def _fetch_wikidata_snapshots(query: str, limit: int) -> list[AuthoritySnapshot]:
+    """The sole Wikidata network path; callers must check the opt-in first."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            # Wikidata's documented search endpoint has bounded results; the
+            # explicit limit is our per-refresh rate bound as well.
+            response = await client.get(
+                "https://www.wikidata.org/w/api.php",
+                params={
+                    "action": "wbsearchentities",
+                    "search": query,
+                    "language": "en",
+                    "format": "json",
+                    "limit": limit,
+                },
+                headers={"User-Agent": "Fichero/authority-cache"},
+            )
+            response.raise_for_status()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Wikidata refresh failed: {exc}") from exc
+
+    now = datetime.now()
+    return [
+        AuthoritySnapshot(
+            authority="wikidata",
+            authority_id=row["id"],
+            label=row.get("label") or row["id"],
+            aliases=row.get("aliases") or [],
+            type=row.get("datatype"),
+            description=row.get("description"),
+            source_url=f"https://www.wikidata.org/wiki/{row['id']}",
+            fetched_at=now,
+        )
+        for row in response.json().get("search", [])
+        if row.get("id")
+    ]
+
+
+def _cache_authority_snapshots(
+    db: Database, snapshots: list[AuthoritySnapshot]
+) -> list[AuthoritySnapshot]:
+    existing = {(row.authority, row.authority_id): row for row in db.query(AuthoritySnapshot)}
+    for snapshot in snapshots:
+        previous = existing.get((snapshot.authority, snapshot.authority_id))
+        if previous is not None:
+            snapshot.id = previous.id
+        db.save(snapshot)
+    return snapshots
 
 
 def _vector_similarity(row: dict[str, Any]) -> float:
@@ -573,6 +648,42 @@ class CandidatePair(BaseModel):
     entity_b_library_path: str | None = None
 
 
+def _external_authority_candidates(
+    db: Database, entity_id: str
+) -> list[dict[str, Any]]:
+    """Match one entity against local snapshots only; this must never fetch."""
+    from fichero.workflows.tools._entity_writer import _apply_entity_resolution_rules
+
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+    resolved = _apply_entity_resolution_rules(
+        db, entity.canonical_name, entity.entity_type
+    )
+    if resolved is None or entity.curation_state == EntityCurationState.rejected:
+        return []
+    names = {resolved[0].casefold(), *(alias.casefold() for alias in entity.aliases)}
+    rows = []
+    for snapshot in db.query(AuthoritySnapshot):
+        snapshot_names = {snapshot.label.casefold(), *(alias.casefold() for alias in snapshot.aliases)}
+        if names & snapshot_names:
+            rows.append(
+                {
+                    "entity_id": entity.id,
+                    "entity_name": entity.canonical_name,
+                    "authority": snapshot.authority,
+                    "authority_id": snapshot.authority_id,
+                    "label": snapshot.label,
+                    "aliases": snapshot.aliases,
+                    "type": snapshot.type,
+                    "description": snapshot.description,
+                    "source_url": snapshot.source_url,
+                    "fetched_at": snapshot.fetched_at,
+                }
+            )
+    return rows
+
+
 def _cross_library_candidate_pairs(
     request: Request,
     *,
@@ -659,8 +770,9 @@ async def candidate_pairs(
     min_jaccard: float = Query(default=0.5, ge=0.0, le=1.0),
     top_k: int = Query(default=20, ge=1, le=200),
     same_type_only: bool = Query(default=True),
-    scope: Literal["library", "folder", "cross-library"] = Query(default="library"),
+    scope: Literal["library", "folder", "cross-library", "external-authority"] = Query(default="library"),
     folder_id: str | None = Query(default=None),
+    entity_id: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     """Compute Jaccard similarity over the co-occurrence graph between
@@ -675,6 +787,11 @@ async def candidate_pairs(
             request, same_type_only=same_type_only, top_k=top_k
         )
         return KGGraphListResponse(items=rows, count=len(rows))
+    if scope == "external-authority":
+        if not entity_id:
+            raise HTTPException(status_code=422, detail="entity_id is required for external-authority scope")
+        rows = _external_authority_candidates(db, entity_id)
+        return KGGraphListResponse(items=rows[:top_k], count=min(len(rows), top_k))
 
     graph = build_full_cooccurrence(db)
     if scope == "folder":
@@ -734,6 +851,89 @@ async def candidate_pairs(
     rows.sort(key=lambda r: r.jaccard, reverse=True)
     rows = rows[:top_k]
     return KGGraphListResponse(items=rows, count=len(rows))
+
+
+@router.get(
+    "/authority/settings",
+    response_model=ExternalAuthoritySettings,
+    summary="Read the app-wide external-authority opt-in",
+)
+async def get_external_authority_settings() -> ExternalAuthoritySettings:
+    return ExternalAuthoritySettings(external_authority_enabled=_external_authority_enabled())
+
+
+@router.put(
+    "/authority/settings",
+    response_model=ExternalAuthoritySettings,
+    summary="Set the app-wide external-authority opt-in",
+)
+async def put_external_authority_settings(
+    body: ExternalAuthoritySettings,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> ExternalAuthoritySettings:
+    # App-wide is deliberate for this first local-cache slice; per-library
+    # privacy policy is a future refinement, not an implicit network default.
+    get_app_db().set_setting(
+        "external_authority_enabled", "true" if body.external_authority_enabled else "false"
+    )
+    return body
+
+
+@router.post(
+    "/authority/refresh",
+    response_model=KGGraphListResponse,
+    summary="Explicitly refresh local Wikidata authority snapshots",
+    description="Outbound network is attempted only by this explicitly requested, opt-in endpoint.",
+)
+async def refresh_external_authority(
+    body: AuthorityRefreshRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> KGGraphListResponse:
+    if not _external_authority_enabled():
+        raise HTTPException(status_code=403, detail="External authority refresh is disabled")
+    snapshots = _cache_authority_snapshots(
+        db, await _fetch_wikidata_snapshots(body.query, body.limit)
+    )
+    return KGGraphListResponse(
+        items=[snapshot.model_dump(mode="json") for snapshot in snapshots], count=len(snapshots)
+    )
+
+
+@router.post(
+    "/authority/link",
+    response_model=EntityAuditResponse,
+    summary="Confirm and persist an entity-to-authority link",
+)
+async def link_external_authority(
+    body: AuthorityLinkRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> EntityAuditResponse:
+    entity = db.get(KnowledgeEntity, body.entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {body.entity_id}")
+    snapshot = next(
+        (row for row in db.query(AuthoritySnapshot)
+         if row.authority == body.authority and row.authority_id == body.authority_id),
+        None,
+    )
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="Authority snapshot not found; refresh it first")
+    links = list(entity.metadata.get("authority_links", []))
+    link = {"authority": snapshot.authority, "authority_id": snapshot.authority_id}
+    if link not in links:
+        links.append(link)
+        entity.metadata["authority_links"] = links
+        entity.updated_at = datetime.now()
+        db.save(entity)
+    audit = EntityMergeAudit(
+        operation_type=EntityMergeOperationType.authority_link,
+        source_entity_ids=[],
+        target_entity_id=entity.id,
+        alias_changes={"authority_link": link},
+        created_by="human",
+    )
+    db.save(audit)
+    return _audit_response(audit)
 
 
 # ---------------------------------------------------------------------------

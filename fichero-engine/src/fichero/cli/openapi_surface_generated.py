@@ -5558,7 +5558,7 @@ def register_generated_openapi_commands(
                 "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Document Ids', 'x-cli-required': True},
                 "height": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Height', 'minimum': 0.0, 'x-cli-required': True},
                 "left": {'type': 'integer', 'minimum': 0.0, 'title': 'Left', 'x-cli-required': True},
-                "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "top": {'type': 'integer', 'minimum': 0.0, 'title': 'Top', 'x-cli-required': True},
                 "width": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Width', 'minimum': 0.0, 'x-cli-required': True},
             }, required=True)
@@ -5591,7 +5591,7 @@ def register_generated_openapi_commands(
                 "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
                 "height": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Height', 'minimum': 0.0, 'x-cli-required': True},
                 "left": {'type': 'integer', 'minimum': 0.0, 'title': 'Left', 'x-cli-required': True},
-                "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "top": {'type': 'integer', 'minimum': 0.0, 'title': 'Top', 'x-cli-required': True},
                 "width": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Width', 'minimum': 0.0, 'x-cli-required': True},
             }, required=True)
@@ -5669,7 +5669,7 @@ def register_generated_openapi_commands(
                 "auto_orient": {'type': 'boolean', 'title': 'Auto Orient', 'default': True, 'x-cli-required': False},
                 "height": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Height', 'minimum': 0.0, 'x-cli-required': True},
                 "left": {'type': 'integer', 'minimum': 0.0, 'title': 'Left', 'x-cli-required': True},
-                "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
                 "top": {'type': 'integer', 'minimum': 0.0, 'title': 'Top', 'x-cli-required': True},
                 "width": {'type': 'integer', 'exclusiveMinimum': True, 'title': 'Width', 'minimum': 0.0, 'x-cli-required': True},
             }, required=True)
@@ -5749,7 +5749,7 @@ def register_generated_openapi_commands(
             }, {
                 "angle": {'type': 'number', 'maximum': 360.0, 'minimum': -360.0, 'title': 'Angle', 'x-cli-required': True},
                 "expand": {'type': 'boolean', 'title': 'Expand', 'default': True, 'x-cli-required': False},
-                "page": {'type': 'integer', 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -6640,9 +6640,81 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("confirm-and-persist-an-entity-to-authority-link")
+    def kg_confirm_and_persist_an_entity_to_authority_link_post(
+        ctx: typer.Context,
+        authority: str = typer.Option(..., "--authority", help="Request field: authority."),
+        authority_id: str = typer.Option(..., "--authority-id", help="Request field: authority_id."),
+        entity_id: str = typer.Option(..., "--entity-id", help="Request field: entity_id."),
+    ) -> None:
+        """Confirm and persist an entity-to-authority link (POST /api/kg/entity-curation/authority/link)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/entity-curation/authority/link"
+            params = None
+            payload = _build_json_payload({
+                "authority": authority,
+                "authority_id": authority_id,
+                "entity_id": entity_id,
+            }, {
+                "authority": {'type': 'string', 'enum': ['wikidata', 'viaf', 'loc'], 'title': 'Authority', 'x-cli-required': True},
+                "authority_id": {'type': 'string', 'minLength': 1, 'title': 'Authority Id', 'x-cli-required': True},
+                "entity_id": {'type': 'string', 'minLength': 1, 'title': 'Entity Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("explicitly-refresh-local-wikidata-authority-snapshots")
+    def kg_explicitly_refresh_local_wikidata_authority_snapshots_post(
+        ctx: typer.Context,
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+        query: str = typer.Option(..., "--query", help="Request field: query."),
+    ) -> None:
+        """Explicitly refresh local Wikidata authority snapshots (POST /api/kg/entity-curation/authority/refresh)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/entity-curation/authority/refresh"
+            params = None
+            payload = _build_json_payload({
+                "limit": limit,
+                "query": query,
+            }, {
+                "limit": {'type': 'integer', 'maximum': 20.0, 'minimum': 1.0, 'title': 'Limit', 'default': 10, 'x-cli-required': False},
+                "query": {'type': 'string', 'maxLength': 200, 'minLength': 1, 'title': 'Query', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("read-the-app-wide-external-authority-opt-in")
+    def kg_read_the_app_wide_external_authority_opt_in_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Read the app-wide external-authority opt-in (GET /api/kg/entity-curation/authority/settings)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/entity-curation/authority/settings"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("set-the-app-wide-external-authority-opt-in")
+    def kg_set_the_app_wide_external_authority_opt_in_put(
+        ctx: typer.Context,
+        external_authority_enabled: Optional[bool] = typer.Option(None, "--external-authority-enabled/--no-external-authority-enabled", help="Request field: external_authority_enabled."),
+    ) -> None:
+        """Set the app-wide external-authority opt-in (PUT /api/kg/entity-curation/authority/settings)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/entity-curation/authority/settings"
+            params = None
+            payload = _build_json_payload({
+                "external_authority_enabled": external_authority_enabled,
+            }, {
+                "external_authority_enabled": {'type': 'boolean', 'title': 'External Authority Enabled', 'default': False, 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("graph-context-merge-candidates-jaccard-over-co-occurrence-neighborhoods")
     def kg_graph_context_merge_candidates_jaccard_over_co_occurrence_neighborhoods_get(
         ctx: typer.Context,
+        entity_id: Optional[str] = typer.Option(None, "--entity-id", help="Query parameter: entity_id."),
         folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Query parameter: folder_id."),
         min_jaccard: Optional[float] = typer.Option(None, "--min-jaccard", help="Query parameter: min_jaccard."),
         same_type_only: Optional[bool] = typer.Option(None, "--same-type-only/--no-same-type-only", help="Query parameter: same_type_only."),
@@ -6653,6 +6725,7 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/kg/entity-curation/candidates"
             params = {
+                "entity_id": entity_id,
                 "folder_id": folder_id,
                 "min_jaccard": min_jaccard,
                 "same_type_only": same_type_only,

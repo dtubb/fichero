@@ -92,7 +92,7 @@ struct KGCurationHistorySection: View {
 
     private func canUndo(_ audit: Components.Schemas.EntityAuditResponse) -> Bool {
         switch audit.operationType {
-        case .merge, .split: return audit.reversalId == nil
+        case .merge, .split, .authorityLink: return audit.reversalId == nil
         case .undoMerge, .undoSplit: return false
         }
     }
@@ -101,6 +101,7 @@ struct KGCurationHistorySection: View {
         switch mergeOp {
         case .merge: return "arrow.triangle.merge"
         case .split: return "arrow.triangle.branch"
+        case .authorityLink: return "link"
         case .undoMerge, .undoSplit: return "arrow.uturn.backward.circle"
         }
     }
@@ -109,6 +110,7 @@ struct KGCurationHistorySection: View {
         switch mergeOp {
         case .merge: return .blue
         case .split: return .orange
+        case .authorityLink: return .purple
         case .undoMerge, .undoSplit: return .gray
         }
     }
@@ -120,6 +122,8 @@ struct KGCurationHistorySection: View {
             return "Merged \(cnt) entr\(cnt == 1 ? "y" : "ies")"
         case .split:
             return "Split entity"
+        case .authorityLink:
+            return "Linked to an authority record"
         case .undoMerge:
             return "Undid merge"
         case .undoSplit:

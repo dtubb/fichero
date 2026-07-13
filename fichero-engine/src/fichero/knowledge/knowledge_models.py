@@ -746,6 +746,20 @@ class KnowledgeEntity(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
+class AuthoritySnapshot(BaseModel):
+    """A locally cached external-authority record; never a live lookup result."""
+
+    id: str = Field(default_factory=_new_id)
+    authority: str
+    authority_id: str
+    label: str
+    aliases: list[str] = Field(default_factory=list)
+    type: str | None = None
+    description: str | None = None
+    source_url: str
+    fetched_at: datetime = Field(default_factory=datetime.now)
+
+
 class EntityResolutionRule(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
@@ -781,6 +795,7 @@ class EntityMergeOperationType(str, Enum):
     split = "split"
     undo_merge = "undo_merge"
     undo_split = "undo_split"
+    authority_link = "authority_link"
 
 
 class EntityMergeAudit(BaseModel):

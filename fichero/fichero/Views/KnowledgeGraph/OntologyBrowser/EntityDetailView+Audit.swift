@@ -77,7 +77,7 @@ extension EntityDetailView {
 
     private func canUndo(_ audit: Components.Schemas.EntityAuditResponse) -> Bool {
         switch audit.operationType {
-        case .merge, .split:
+        case .merge, .split, .authorityLink:
             return audit.reversalId == audit.id
         case .undoMerge, .undoSplit:
             return false
@@ -88,6 +88,7 @@ extension EntityDetailView {
         switch mergeOp {
         case .merge: return "arrow.triangle.merge"
         case .split: return "arrow.triangle.branch"
+        case .authorityLink: return "link"
         case .undoMerge, .undoSplit: return "arrow.uturn.backward.circle"
         }
     }
@@ -96,6 +97,7 @@ extension EntityDetailView {
         switch mergeOp {
         case .merge: return .blue
         case .split: return .orange
+        case .authorityLink: return .purple
         case .undoMerge, .undoSplit: return .gray
         }
     }
@@ -106,6 +108,8 @@ extension EntityDetailView {
             return "Absorbed \(audit.sourceEntityIds.count) entity\(audit.sourceEntityIds.count == 1 ? "" : "s")"
         case .split:
             return "Split off \(audit.sourceEntityIds.count) entity\(audit.sourceEntityIds.count == 1 ? "" : "s")"
+        case .authorityLink:
+            return "Linked to an authority record"
         case .undoMerge:
             return "Undid earlier merge"
         case .undoSplit:
