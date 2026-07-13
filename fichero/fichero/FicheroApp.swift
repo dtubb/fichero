@@ -335,7 +335,12 @@ struct FicheroApp: App {
             }
             #endif
             CommandGroup(after: .appInfo) {
-                #if os(macOS)
+                // Sparkle auto-update is the DMG/Developer-ID channel only. The
+                // Mac App Store forbids Sparkle's helpers and does its own
+                // updates, so the MAS build (which defines APP_STORE and doesn't
+                // link Sparkle) hides this item (#3340). No-op on Dev/Release,
+                // which never define APP_STORE — those keep the update item.
+                #if os(macOS) && !APP_STORE
                 Button("Check for Updates...") {
                     SparkleUpdater.shared.checkForUpdates()
                 }

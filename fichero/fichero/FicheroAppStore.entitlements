@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Mac App Store entitlements (#3340). Distinct from FicheroRelease.entitlements
+  (the DMG / Developer ID channel, which is NOT sandboxed). The MAS build MUST
+  enable App Sandbox on the app and every nested executable, or the upload is
+  rejected (code 90296).
+
+  Only the App-side entitlements live here. The embedded engine's sandbox is set
+  by Briefcase in fichero-engine/pyproject.toml (deliberately NOT wired yet — see
+  #3340 HOLD note: sandboxing the shared engine build risks the DMG engine and
+  needs security-scoped-bookmark plumbing validated first).
+-->
+<plist version="1.0">
+<dict>
+	<!-- App Sandbox — required for the Mac App Store. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+
+	<!-- The app talks to its embedded engine over loopback (client) and the
+	     engine binds a loopback port (server). Both are needed under the sandbox. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+
+	<!-- Open a .fichero library the user picked. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+
+	<!-- Persist access to previously-opened libraries across launches via
+	     security-scoped bookmarks. app-scope is the app's own recents; the
+	     runtime plumbing that HANDS these bookmarks to the sandboxed engine is
+	     the remaining work held for Daniel (#3340). -->
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.document-scope</key>
+	<true/>
+</dict>
+</plist>
