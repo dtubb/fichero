@@ -123,6 +123,7 @@ struct ReadingPaneView: View {
                     }
                     .buttonStyle(.plain)
                     .help(isInSplit ? "Close this split" : "Close reading pane")
+                    .accessibilityLabel(isInSplit ? "Close this split" : "Close reading pane")
 
                     Divider().frame(height: 16)
                 }
@@ -171,6 +172,7 @@ struct ReadingPaneView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
                 .help(isPinned ? "Unpin — follow current selection" : "Pin to current document")
+                .accessibilityLabel(isPinned ? "Unpin, follow current selection" : "Pin to current document")
             })
             // Active-surface indicator (#3579): accent hairline on the toolbar
             // strip when this pane is the active one. Additive overlay — flips
@@ -246,23 +248,31 @@ struct ReadingPaneView: View {
         }
         .buttonStyle(.plain)
         .help("Zoom Out")
+        .accessibilityLabel("Zoom out")
+        .accessibilityValue("\(Int(webZoom * 100)) percent")
 
         Text("\(Int(webZoom * 100))%")
             .font(.caption)
             .monospacedDigit()
             .frame(width: 44)
+            // Spoken as the zoom buttons' accessibilityValue; as its own element it
+            // would just be a bare number with no context.
+            .accessibilityHidden(true)
 
         Button { webZoom = min(3.0, webZoom + 0.1) } label: {
             Image(systemName: "plus.magnifyingglass")
         }
         .buttonStyle(.plain)
         .help("Zoom In")
+        .accessibilityLabel("Zoom in")
+        .accessibilityValue("\(Int(webZoom * 100)) percent")
 
         Button { webZoom = 1.0 } label: {
             Image(systemName: "1.square")
         }
         .buttonStyle(.plain)
         .help("Reset Zoom")
+        .accessibilityLabel("Reset zoom to 100 percent")
     }
 
     @ViewBuilder

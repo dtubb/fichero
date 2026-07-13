@@ -11,7 +11,11 @@ import SwiftUI
 /// this is a container restructure, not a rewrite of any pane.
 struct SettingsView: View {
     @Environment(AppState.self) var appState
-    @ObservedObject var featureManager = FeatureManager.shared
+    /// Injected by the Settings scene (#3033/#3034) — the panes must not reach
+    /// for the singleton themselves. @EnvironmentObject, not @Environment:
+    /// FeatureManager is @AppStorage-backed and so must stay an
+    /// ObservableObject until #3743 re-backs its flags on UserDefaults.
+    @EnvironmentObject var featureManager: FeatureManager
 
     /// Sidebar single-selection. `List(selection:)` wants an optional; a nil
     /// selection (rare) falls back to the AI pane rather than a blank detail.
@@ -291,7 +295,11 @@ private enum EngineGroupSection: String, CaseIterable, SettingsGroupSection {
 /// Engine tab (#3396): folds the former Backend tab in as a sub-section. Reuses
 /// EngineSettingsView + BackendSettingsView unchanged.
 private struct EngineGroupSettingsView: View {
-    @ObservedObject private var featureManager = FeatureManager.shared
+    /// Injected by the Settings scene (#3033/#3034) — the panes must not reach
+    /// for the singleton themselves. @EnvironmentObject, not @Environment:
+    /// FeatureManager is @AppStorage-backed and so must stay an
+    /// ObservableObject until #3743 re-backs its flags on UserDefaults.
+    @EnvironmentObject private var featureManager: FeatureManager
     @State private var selection: EngineGroupSection = .engine
 
     private var availableSections: [EngineGroupSection] {
@@ -329,7 +337,11 @@ private enum LibraryAccessSection: String, CaseIterable, SettingsGroupSection {
 /// (device pairing / QR), Users (people/roles), and Capture (capture permissions)
 /// tabs, consolidated. Reuses each pane unchanged.
 private struct LibraryAccessSettingsView: View {
-    @ObservedObject private var featureManager = FeatureManager.shared
+    /// Injected by the Settings scene (#3033/#3034) — the panes must not reach
+    /// for the singleton themselves. @EnvironmentObject, not @Environment:
+    /// FeatureManager is @AppStorage-backed and so must stay an
+    /// ObservableObject until #3743 re-backs its flags on UserDefaults.
+    @EnvironmentObject private var featureManager: FeatureManager
     @State private var selection: LibraryAccessSection = .people
 
     private var availableSections: [LibraryAccessSection] {
@@ -386,6 +398,9 @@ private struct SettingsPreviewHarness: View {
             .environment(AppState())
             .environment(EmbeddedBackendService())
             .environment(LibraryManager.shared)
+            // The panes bind @EnvironmentObject now, so the preview must inject it
+            // exactly as the real Settings scene does — otherwise the preview traps.
+            .environmentObject(FeatureManager.shared)
     }
 }
 

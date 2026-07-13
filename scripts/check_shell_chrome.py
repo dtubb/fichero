@@ -61,7 +61,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "fa1a51aebf74": '[shared] fichero/fichero/Views/Menu/ViewMenuCommands.swift:386: @ObservedObject var featureManager = FeatureManager.shared',
     "a89c78a261e7": '[shared] fichero/fichero/Views/Onboarding/FirstRunWindow.swift:10: @ObservedObject private var featureManager = FeatureManager.shared',
     "2cf26c6b1a60": '[shared] fichero/fichero/Views/Settings/AISettingsView.swift:8: @ObservedObject var featureManager = FeatureManager.shared',
-    "ca85fed6e2fb": '[shared] fichero/fichero/Views/Settings/SettingsView.swift:8: @ObservedObject var featureManager = FeatureManager.shared',
     "de7619745978": '[shared] fichero/fichero/Views/Sidebar/SidebarViewExtensions.swift:14: @ObservedObject var featureManager = FeatureManager.shared',
     "ce6eb77c9655": '[shared] fichero/fichero/Views/Workflow/WorkflowInspector.swift:25: @ObservedObject var featureManager = FeatureManager.shared',
     "ee5a9796cfb1": '[shared] fichero/fichero/Views/Workflow/WorkflowLibraryView.swift:68: @ObservedObject var featureManager = FeatureManager.shared',
