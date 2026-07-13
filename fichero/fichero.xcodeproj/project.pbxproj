@@ -444,6 +444,7 @@
 		A78E883CED66AEE3DC11477B /* ClaimAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16AE4AAB56FEB5190D97239 /* ClaimAttributionView.swift */; };
 		A98A6F971E62F9DA640BCA54 /* ResearchWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B8B6B4FF52EDA955679CF0 /* ResearchWorkspaceView.swift */; };
 		AA10000000000000000031B0 /* LocalInferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A0 /* LocalInferenceStore.swift */; };
+		FA00000000000000003677B0 /* KnownLibraryRegistryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000003677A0 /* KnownLibraryRegistryStore.swift */; };
 		AA10000000000000000031B1 /* AppleAvailabilityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A1 /* AppleAvailabilityStore.swift */; };
 		AA10000000000000000031B2 /* LocalInferenceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A2 /* LocalInferenceSettingsView.swift */; };
 		AA112233001122AA /* LibraryView+Sorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122BB /* LibraryView+Sorting.swift */; };
@@ -1069,6 +1070,7 @@
 		A8B0073490980740B06C80D7 /* EntitySourceGroupsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EntitySourceGroupsView.swift; sourceTree = "<group>"; };
 		A99ACF7102EB736967DDAE57 /* EntityDetailView+Claims.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Claims.swift"; sourceTree = "<group>"; };
 		AA10000000000000000031A0 /* LocalInferenceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalInferenceStore.swift; sourceTree = "<group>"; };
+		FA00000000000000003677A0 /* KnownLibraryRegistryStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KnownLibraryRegistryStore.swift; sourceTree = "<group>"; };
 		AA10000000000000000031A1 /* AppleAvailabilityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppleAvailabilityStore.swift; sourceTree = "<group>"; };
 		AA10000000000000000031A2 /* LocalInferenceSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalInferenceSettingsView.swift; sourceTree = "<group>"; };
 		AA112233001122BB /* LibraryView+Sorting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+Sorting.swift"; sourceTree = "<group>"; };
@@ -1706,6 +1708,7 @@
 				70C062A29951726302108FD2 /* BackupStore.swift */,
 				DA1EB898A19FAA64EF466CD2 /* UsersStore.swift */,
 				AA10000000000000000031A0 /* LocalInferenceStore.swift */,
+				FA00000000000000003677A0 /* KnownLibraryRegistryStore.swift */,
 				AA10000000000000000031A1 /* AppleAvailabilityStore.swift */,
 				98C0EC9D283E4FFF816B0460 /* ActivityStore.swift */,
 				DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */,
@@ -2987,6 +2990,7 @@
 				FB55B6D23D3573E8E04CCD50 /* UsersSettingsView.swift in Sources */,
 				64000200016ACCF0AA1B529A /* UsersStore.swift in Sources */,
 				AA10000000000000000031B0 /* LocalInferenceStore.swift in Sources */,
+				FA00000000000000003677B0 /* KnownLibraryRegistryStore.swift in Sources */,
 				AA10000000000000000031B1 /* AppleAvailabilityStore.swift in Sources */,
 				AA10000000000000000031B2 /* LocalInferenceSettingsView.swift in Sources */,
 				EBA0B270972261795158D09B /* CaptureSettingsView.swift in Sources */,

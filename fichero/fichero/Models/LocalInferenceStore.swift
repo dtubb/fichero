@@ -11,6 +11,20 @@ import OSLog
 /// `runtime` / `catalog` / `serviceStatuses` / `downloads` and invokes the mutation
 /// methods, which own all endpoint access (knowledge-consistency mandate).
 ///
+/// Endpoints owned (this store is their sole Swift accessor — #3677 coverage):
+///   - `GET    /api/local-inference/runtime`                        — runtime status (`load`, `pollRuntimeUntilSettled`)
+///   - `POST   /api/local-inference/runtime/provision`              — provision MLX (`provisionRuntime`)
+///   - `DELETE /api/local-inference/runtime`                        — remove MLX (`removeRuntime`)
+///   - `GET    /api/local-inference/catalog`                        — model catalog (`load`, `refreshCatalog`)
+///   - `GET    /api/local-inference/profiles`                       — provider profiles (`load`)
+///   - `GET    /api/local-inference/profiles/{profile_id}/status`   — per-profile status (`refreshStatus`)
+///   - `POST   /api/local-inference/profiles/{profile_id}/start`    — start a profile (`startProfile`)
+///   - `POST   /api/local-inference/profiles/{profile_id}/stop`     — stop a profile (`stopProfile`)
+///   - `POST   /api/local-inference/models/{model_id}/download`     — start a model download (`downloadModel`)
+///   - `DELETE /api/local-inference/models/{model_id}`              — delete a model (`deleteModel`)
+///   - `GET    /api/local-inference/models/downloads/{job_id}`      — poll download job (`downloadModel`)
+///   - `POST   /api/local-inference/models/downloads/{job_id}/cancel` — cancel a download (`cancelDownload`)
+///
 /// One instance per app session, held on `AppState` (the sidecar is app-wide,
 /// not library-scoped).
 @MainActor
