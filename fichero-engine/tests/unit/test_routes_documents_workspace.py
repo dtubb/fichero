@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fichero.models import DocType, Document
+from fichero.models import Conversation, DocType, Document
 
 
 def test_workspace_patch_add_remove_reorder_items(client, db):
@@ -73,3 +73,35 @@ def test_list_workspaces_returns_only_workspace_docs(client, db):
     ids = {item["id"] for item in payload["items"]}
     assert ids == {"ws-a", "ws-b"}
     assert payload["count"] == 2
+
+
+def test_document_and_agent_workspaces_have_distinct_endpoints(client, db):
+    document_workspace = Document(
+        id="document-workspace",
+        name="Document workspace",
+        doc_type=DocType.folder,
+        is_workspace=True,
+    )
+    conversation = Conversation(
+        id="agent-workspace-conversation",
+        title="Agent workspace",
+        messages=[{"role": "user", "content": "Investigate this."}],
+    )
+    db.save(document_workspace)
+    db.save(conversation)
+
+    saved_agent_workspace = client.post(
+        f"/api/chat/conversations/{conversation.id}/workspace", json={}
+    )
+    assert saved_agent_workspace.status_code == 200
+    agent_workspace_id = saved_agent_workspace.json()["id"]
+
+    document_response = client.get("/api/documents/workspaces")
+    agent_response = client.get("/api/chat/workspaces")
+
+    assert document_response.status_code == 200
+    assert [item["id"] for item in document_response.json()["items"]] == [
+        document_workspace.id
+    ]
+    assert agent_response.status_code == 200
+    assert [item["id"] for item in agent_response.json()["items"]] == [agent_workspace_id]

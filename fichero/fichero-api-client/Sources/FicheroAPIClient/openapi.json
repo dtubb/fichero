@@ -7662,7 +7662,7 @@
           "documents"
         ],
         "summary": "List Workspaces",
-        "description": "List all workspace documents (is_workspace=True).\n\nSurfaces curated-items workspaces so the UI can show a \"Workspaces\" section\nand let the user open / create them (#1617). Declared before the `/{doc_id}`\nroute so the literal path isn't captured as a document id.",
+        "description": "List document workspaces, excluding agent-session workspaces.\n\nSurfaces curated-items workspaces so the UI can show a \"Workspaces\" section\nand let the user open / create them (#1617). Declared before the `/{doc_id}`\nroute so the literal path isn't captured as a document id.",
         "operationId": "list_workspaces_api_documents_workspaces_get",
         "responses": {
           "200": {
