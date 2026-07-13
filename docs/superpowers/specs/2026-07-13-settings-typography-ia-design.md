@@ -1,8 +1,8 @@
 # Settings IA v2 + Reader/Editor Typography — Design (2026-07-13)
 
-Status: **PROPOSED — awaiting Daniel's review.** Audit + design only; NO source
-edits to app views yet. Milestone: *Settings IA v2 + Reader/Editor Typography*
-(#3678–#3684). Follows the inspector/reader/navigation IA design pattern
+Status: **APPROVED (Daniel 2026-07-13)** — decisions baked in (see "Resolved
+decisions" below); implementation may proceed, Lane A first. Milestone: *Settings
+IA v2 + Reader/Editor Typography* (#3678–#3684). Follows the inspector/reader/navigation IA design pattern
 (`2026-07-11-inspector-ia-design.md`, `2026-07-11-reader-ia-design.md`,
 `2026-07-12-navigation-system-design.md`).
 
@@ -148,14 +148,19 @@ effectivePointSize = preferredFont(forTextStyle: base).pointSize  ×  userScale
   construction: bump Dynamic Type → base grows → scaled result grows; the user
   slider is orthogonal.
 - **Store two scales**, not absolute sizes, on `ViewSettings`:
-  `readerFontScale` and `editorFontScale` (`Double`, default `1.0`, clamped
-  ~`0.8…2.0`), **persisted** via `@AppStorage`-backed keys
+  `readerFontScale` and `editorFontScale` (`Double`, default `1.0`, **clamped
+  `0.8…2.0`** — Daniel), **persisted** via UserDefaults-backed keys
   `fichero.reader.fontScale` / `fichero.editor.fontScale`. This keeps one
   app-wide source of truth (the [[observable-data-layer]] store) that both the
-  Settings sliders and the consumers read; storing a *scale* (not px) is what
+  Settings controls and the consumers read; storing a *scale* (not px) is what
   honors [[semantic-system-fonts]] — we adjust the semantic base, never hardcode.
+- **Control = a font-size STEPPER** (−/+, NSStepper-style), **not** a free
+  slider or a point-size field (Daniel). The `Stepper(value:in:step:)` enforces
+  the `0.8…2.0` clamp natively (step `0.1`), with a live readout of the resulting
+  size. `ViewSettings` also clamps on load, defending against a corrupted key.
 - **Reader ≠ Editor** (Daniel): the two scales are separate values, separate
-  sliders (Reader View pane vs Inspector pane), separate consumers.
+  steppers (Reader View pane vs Inspector pane), separate `@AppStorage` keys,
+  separate consumers.
 
 **Consumers:**
 
@@ -202,6 +207,12 @@ exists (§0.3), not building a new one:
 
 **VISUAL change — verify in both light AND dark** on macOS and iOS (the #3683
 acceptance bar; WebKit visual-gate split per [[autonomous-gating-playbook]]).
+
+**Reader theme = the app's semantic light/dark only.** A **Sepia / Paper**
+reading theme is explicitly **deferred, out of scope** for this milestone
+(Daniel 2026-07-13) — file as a future issue. The template's warm `#f7f4ee`
+default becomes a fallback-only value once the semantic vars drive everything;
+it does not become a user-selectable theme now.
 
 ## 5. Reader paragraph wrapping — no orphans (#3684)
 
@@ -252,18 +263,20 @@ scale properties (added in Lane A, read in Lane B) — a one-time contract.
 
 ---
 
-## Open questions for Daniel (before implementation)
+## Resolved decisions (Daniel 2026-07-13)
 
-1. **Font-size control** — slider, stepper, or a coarse **Small/Default/Large/XL**
-   segmented (System-Settings style)? A slider is finest; the segmented reads
-   more Mac-native. *(Recommend: stepper with a live px readout.)*
-2. **Scale range** — is `0.8…2.0×` the right clamp, or wider for accessibility?
-3. **Reader theme toggle** — always *Match App*, or offer a **Sepia/Paper**
-   reading theme too (the template's warm `#f7f4ee` default hints at one)?
-4. **Preview vs Reader** stay separate surfaces per the reader-ia decision
-   ([[preview-reader-inspector-three-surfaces]]) — the Preview pane here is just
-   its *settings*, not a merge. Confirm the four per-view panes (no "Preview =
-   Reader" collapse).
+1. **Font-size control = a STEPPER** (−/+, NSStepper-style) with a live readout —
+   not a free slider or a point-size field.
+2. **Scale clamp = `0.8…2.0×`** of the semantic base, enforced by the stepper
+   and re-clamped on load. Reader and Editor each get their **own** stepper and
+   **own** `@AppStorage` key, both clamped `0.8…2.0`.
+3. **Reader theme = the app's semantic light/dark only.** Sepia/Paper reading
+   themes are **deferred / out of scope** — filed as a future issue, not designed
+   here.
+4. **Four distinct per-view panes preserved** — Library / Preview / Reader /
+   Inspector each keep their own settings section; **no pane is merged or
+   dropped** ([[preview-reader-inspector-three-surfaces]]). The Preview pane is
+   its *settings*, not a Reader merge.
 
 ## What this is NOT
 
