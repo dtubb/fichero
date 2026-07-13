@@ -2,14 +2,14 @@
 @testable import Fichero
 import XCTest
 
-/// Tests for QuickLookDownloadView.downloadErrorMessage (#3206) — the pure
+/// Tests for PreviewDownloadService.downloadErrorMessage (#3206) — the pure
 /// mapping of a non-2xx source-download response to a user message. Replaces the
 /// old byte-size heuristic (a legit <1000-byte .txt was misreported as an
 /// error); now the engine's JSON `detail` drives the message. No live engine.
 final class QuickLookDownloadErrorTests: XCTestCase {
 
     private func msg(_ status: Int, _ body: String?, path: String? = nil) -> String {
-        QuickLookDownloadView.downloadErrorMessage(
+        PreviewDownloadService.downloadErrorMessage(
             statusCode: status,
             body: body.map { Data($0.utf8) },
             documentPath: path
@@ -56,27 +56,27 @@ final class QuickLookDownloadErrorTests: XCTestCase {
     // MARK: - sanitizedFileName (#3207 path-injection guard)
 
     func testSanitizePassesCleanNames() {
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("report.pdf"), "report.pdf")
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("My Scan 2.tiff"), "My Scan 2.tiff")
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName("report.pdf"), "report.pdf")
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName("My Scan 2.tiff"), "My Scan 2.tiff")
     }
 
     func testSanitizeStripsPathTraversalToLeaf() {
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("../../etc/passwd"), "passwd")
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("/a/b/c.pdf"), "c.pdf")
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName("../../etc/passwd"), "passwd")
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName("/a/b/c.pdf"), "c.pdf")
         // Backslash (Windows) separators are stripped too.
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("..\\..\\secret.txt"), "secret.txt")
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName("..\\..\\secret.txt"), "secret.txt")
     }
 
     func testSanitizeRejectsEmptyAndDotOnly() {
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName(""), "")
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName(".."), "")
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("/"), "")
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("   "), "")
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName(""), "")
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName(".."), "")
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName("/"), "")
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName("   "), "")
     }
 
     func testSanitizeStripsControlCharsAndCapsLength() {
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName("a\nb\tc.pdf"), "abc.pdf")
-        XCTAssertEqual(QuickLookDownloadView.sanitizedFileName(String(repeating: "x", count: 500)).count, 200)
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName("a\nb\tc.pdf"), "abc.pdf")
+        XCTAssertEqual(PreviewDownloadService.sanitizedFileName(String(repeating: "x", count: 500)).count, 200)
     }
 
     // MARK: - preferredDownloadFileName (#3202 Unicode filename handling)
@@ -84,7 +84,7 @@ final class QuickLookDownloadErrorTests: XCTestCase {
     func testPreferredDownloadFileNameUsesRFC5987FilenameStar() {
         let header = "attachment; filename*=UTF-8''R%C3%A9sum%C3%A9%20Scan.pdf"
         XCTAssertEqual(
-            QuickLookDownloadView.preferredDownloadFileName(
+            PreviewDownloadService.preferredDownloadFileName(
                 contentDisposition: header,
                 fallback: "fallback.pdf"
             ),
@@ -95,7 +95,7 @@ final class QuickLookDownloadErrorTests: XCTestCase {
     func testPreferredDownloadFileNameFallsBackToQuotedFilename() {
         let header = #"attachment; filename="scan-final.pdf""#
         XCTAssertEqual(
-            QuickLookDownloadView.preferredDownloadFileName(
+            PreviewDownloadService.preferredDownloadFileName(
                 contentDisposition: header,
                 fallback: "fallback.pdf"
             ),
@@ -106,7 +106,7 @@ final class QuickLookDownloadErrorTests: XCTestCase {
     func testPreferredDownloadFileNameKeepsFallbackWhenServerNameIsUnsafe() {
         let header = #"attachment; filename="../..""#
         XCTAssertEqual(
-            QuickLookDownloadView.preferredDownloadFileName(
+            PreviewDownloadService.preferredDownloadFileName(
                 contentDisposition: header,
                 fallback: "fallback.pdf"
             ),
