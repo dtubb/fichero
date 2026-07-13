@@ -23,6 +23,10 @@ private struct ReadingPaneView: View {
     @Environment(ClaimFocusState.self) private var claimFocusState
     @Environment(AnnotationStore.self) private var annotationStore
     @Environment(\.splitAxisActions) private var splitAxisActions
+    /// Drives the compact (iPhone) collapse of the side-by-side page split — a
+    /// fixed-width transcript beside the source doesn't fit at compact width
+    /// (#3666). Always `.regular` on macOS, so the desktop layout is unchanged.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// Per-window source-navigation bus (#2105/#3437). A reveal brings the reader
     /// to the Page tab so the highlighted source is visible (#3521).
     @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
@@ -400,12 +404,21 @@ private struct ReadingPaneView: View {
                 case .transcript:
                     PageContentPane(document: doc)
                 case .split:
-                    HStack(spacing: 0) {
+                    if horizontalSizeClass == .compact {
+                        // A 320pt transcript beside the source can't fit on an
+                        // iPhone (#3666) — the source would collapse to a sliver.
+                        // Show the source full-width; the layout picker still
+                        // offers the transcript-only view for the text.
                         pageSource(for: doc)
                             .frame(maxWidth: .infinity)
-                        Divider()
-                        PageContentPane(document: doc)
-                            .frame(width: 320)
+                    } else {
+                        HStack(spacing: 0) {
+                            pageSource(for: doc)
+                                .frame(maxWidth: .infinity)
+                            Divider()
+                            PageContentPane(document: doc)
+                                .frame(width: 320)
+                        }
                     }
                 }
             }
