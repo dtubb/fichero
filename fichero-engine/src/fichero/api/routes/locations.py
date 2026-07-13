@@ -44,7 +44,7 @@ class Location(BaseModel):
 
     @model_validator(mode="after")
     def valid_bbox(self):
-        if self.bbox and (any(v < 0 or v > 1 for v in self.bbox) or self.bbox[0] + self.bbox[2] > 1 or self.bbox[1] + self.bbox[3] > 1):
+        if self.bbox and (any(v < 0 or v > 1 for v in self.bbox) or self.bbox[2] <= 0 or self.bbox[3] <= 0 or self.bbox[0] + self.bbox[2] > 1 or self.bbox[1] + self.bbox[3] > 1):
             raise ValueError("bbox must be normalized [x,y,w,h] within 0..1")
         return self
 
