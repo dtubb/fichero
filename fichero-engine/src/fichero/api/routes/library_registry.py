@@ -11,6 +11,7 @@ and these endpoints do NOT require an ``X-Fichero-Library-Path`` header.
 
 Endpoints:
   GET /api/registry                 — List all known libraries
+  GET /api/registry/open            — List live backend library handles
   POST /api/registry/add            — Add a library path to registry
   POST /api/registry/update-access  — Mark library as accessed (for sorting)
   DELETE /api/registry/{path}       — Remove from registry (idempotent)
@@ -43,6 +44,8 @@ from fichero.models import (
     Document,
     KnownLibrary,
     LibraryRegistryResponse,
+    OpenLibraryHandle,
+    OpenLibraryHandlesResponse,
     UnicodeLibraryCollision,
     UnicodeLibraryCollisionIdentity,
     UnicodeLibraryCollisionResponse,
@@ -884,6 +887,20 @@ def list_known_libraries(
     except Exception as e:
         logger.error("Failed to list known libraries: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/registry/open", response_model=OpenLibraryHandlesResponse)
+def list_open_libraries() -> OpenLibraryHandlesResponse:
+    """List the library connections currently open in the backend.
+
+    Unlike ``GET /registry``, this is not persisted state: it is a lock-safe
+    snapshot of the handles currently held by ``DatabaseManager``.
+    """
+    libraries = [
+        OpenLibraryHandle(id=path, path=path)
+        for path in db_manager.open_library_paths()
+    ]
+    return OpenLibraryHandlesResponse(libraries=libraries, count=len(libraries))
 
 
 @router.get("/registry/unicode-collisions", response_model=UnicodeLibraryCollisionResponse)

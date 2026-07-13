@@ -237,6 +237,35 @@ class TestGlobalRegistryHeaderless:
         assert body["count"] == 0
         assert body["libraries"] == []
 
+    def test_open_inventory_reflects_live_manager_handles(self, global_client, tmp_path):
+        """Live inventory reports handles opened outside persisted registry flows."""
+        from fichero.db_manager import db_manager
+
+        library_path = (tmp_path / "OutsideRegistry.fichero").resolve()
+        library_path.mkdir()
+        db_manager.get_database(library_path)
+        try:
+            listed = global_client.get("/api/registry/open")
+            assert listed.status_code == 200, listed.text
+            body = listed.json()
+            assert body["count"] == len(db_manager.open_library_paths())
+            assert {library["path"] for library in body["libraries"]} == set(
+                db_manager.open_library_paths()
+            )
+            assert {
+                "id": str(library_path),
+                "path": str(library_path),
+                "is_open": True,
+            } in body["libraries"]
+
+            db_manager.close_database(library_path)
+            closed = global_client.get("/api/registry/open")
+            assert str(library_path) not in {
+                library["path"] for library in closed.json()["libraries"]
+            }
+        finally:
+            db_manager.close_database(library_path)
+
     def test_add_then_list_no_header(self, global_client, tmp_path):
         """POST /api/registry/add + GET /api/registry, no header."""
         lib_path = tmp_path / "Headerless.fichero"
@@ -277,7 +306,6 @@ class TestGlobalRegistryHeaderless:
         lib_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
         lib_path.mkdir(parents=True, exist_ok=True)
         global_client.post("/api/registry/add", params={"path": str(lib_path)})
-        from fichero.db_manager import db_manager
         db_manager.get_database(lib_path)
 
         db_manager.close_database(str(lib_path))
