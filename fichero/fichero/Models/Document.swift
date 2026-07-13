@@ -1,6 +1,8 @@
+import CoreTransferable
 // swiftlint:disable file_length
 import FicheroAPIClient
 import Foundation
+import UniformTypeIdentifiers
 
 // MARK: - Document Types
 
@@ -108,6 +110,37 @@ enum Status: String, Codable, CaseIterable {
 }
 
 // MARK: - Document Model
+
+/// Common drag payload for library items. The text file makes each row useful
+/// outside Fichero while JSON preserves its identity for in-app destinations.
+struct LibraryItemDrag: Codable, Transferable {
+    enum Kind: String, Codable {
+        case document
+        case page
+        case group
+        case artifact
+        case note
+        case annotation
+    }
+
+    let kind: Kind
+    let id: String
+    let documentId: String?
+    let text: String
+
+    var exportText: String { "\(kind.rawValue.capitalized): \(text)" }
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .json)
+        ProxyRepresentation(exporting: \.text)
+        FileRepresentation(exportedContentType: .plainText) { item in
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("fichero-\(item.kind.rawValue)-\(UUID().uuidString).txt")
+            try item.exportText.write(to: url, atomically: true, encoding: .utf8)
+            return SentTransferredFile(url)
+        }
+    }
+}
 
 /// Main document model matching Python Document (Pydantic)
 struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {

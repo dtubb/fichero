@@ -84,6 +84,12 @@ struct AnnotationListView: View {
     @ViewBuilder
     private func row(for annotation: DocumentAnnotation) -> some View {
         AnnotationRow(annotation: annotation)
+            .draggable(LibraryItemDrag(
+                kind: .annotation,
+                id: annotation.id,
+                documentId: annotation.documentId,
+                text: annotation.text?.isEmpty == false ? annotation.text ?? annotation.kind.label : annotation.kind.label
+            ))
             .inspectorListRowTarget()
     }
 

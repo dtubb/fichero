@@ -85,6 +85,35 @@ final class CitationStore: ObservableDomainStore {
         return try await entityService.exportCitationsBibtex(documentIds: [documentId])
     }
 
+    /// Persisted citations eligible to associate with `targetDocumentId`.
+    static func associationIDs(
+        from payloads: [CitationDragID],
+        targetDocumentId: String
+    ) -> [String] {
+        Array(Set(payloads.compactMap { payload in
+            guard !payload.id.isEmpty,
+                  payload.sourceDocumentId != targetDocumentId,
+                  payload.targetDocumentId != targetDocumentId else { return nil }
+            return payload.id
+        })).sorted()
+    }
+
+    /// Associate dropped citations through the existing audited patch action.
+    func associate(citationIds: [String], with targetDocumentId: String) async {
+        do {
+            for citationId in citationIds {
+                _ = try await entityService.patchCitation(
+                    citationId,
+                    targetDocumentId: targetDocumentId
+                )
+            }
+            await reload()
+        } catch {
+            loadError = "Couldn't associate citation."
+            log.error("Citation association failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     // MARK: - ObservableDomainStore
 
     nonisolated var changeDomain: String { "citation" }

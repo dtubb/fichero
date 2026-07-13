@@ -108,6 +108,12 @@ struct NoteListView: View {
     @ViewBuilder
     private func row(for item: NoteSelectionItem) -> some View {
         NoteRow(item: item)
+            .draggable(LibraryItemDrag(
+                kind: .note,
+                id: item.note.id ?? "",
+                documentId: item.note.pageId ?? item.note.folderId,
+                text: item.note.body?.isEmpty == false ? item.note.body ?? item.title : item.title
+            ))
             .inspectorListRowTarget()
     }
 

@@ -8,12 +8,19 @@ import XCTest
 @MainActor
 final class CitationExportModelTests: XCTestCase {
 
-    func testCitationDragPayloadRoundTripsAcrossTargets() throws {
-        let payload = CitationDragID(id: "citation-1", text: "Ada, 1843")
-        let decoded = try JSONDecoder().decode(CitationDragID.self, from: JSONEncoder().encode(payload))
+    func testCitationDropAssociatesOnlyNewPersistedCitations() {
+        let ids = CitationStore.associationIDs(
+            from: [
+                .init(id: "citation-1", sourceDocumentId: "source", targetDocumentId: nil, text: "Ada, 1843"),
+                .init(id: "citation-1", sourceDocumentId: "source", targetDocumentId: nil, text: "duplicate"),
+                .init(id: "", sourceDocumentId: "source", targetDocumentId: nil, text: "unsaved"),
+                .init(id: "citation-2", sourceDocumentId: "target", targetDocumentId: nil, text: "self"),
+                .init(id: "citation-3", sourceDocumentId: "source", targetDocumentId: "target", text: "already associated")
+            ],
+            targetDocumentId: "target"
+        )
 
-        XCTAssertEqual(decoded.id, "citation-1")
-        XCTAssertEqual(decoded.text, "Ada, 1843")
+        XCTAssertEqual(ids, ["citation-1"])
     }
 
     func testReadyWithBibTeX() async {

@@ -6,6 +6,20 @@ import SwiftUI
 // MARK: - Filter, Selection, and Batch Extension
 
 extension LibraryView {
+
+    func libraryItemDrag(for document: Document) -> LibraryItemDrag {
+        let kind: LibraryItemDrag.Kind = switch document.docType {
+        case .page: .page
+        case .group: .group
+        default: .document
+        }
+        return LibraryItemDrag(
+            kind: kind,
+            id: document.id,
+            documentId: document.id,
+            text: document.pageContent?.isEmpty == false ? document.pageContent ?? document.name : document.name
+        )
+    }
     private var logger: Logger {
         Logger(subsystem: "app.fichero.fichero", category: "LibraryView")
     }

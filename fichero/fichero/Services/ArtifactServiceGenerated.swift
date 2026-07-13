@@ -4,9 +4,9 @@
 // [[feedback_swift_file_sync]]). Splitting would require pbxproj
 // surgery; suppressing here is the lower-risk path until we decide
 // to move the entity service into its own file.
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OpenAPIRuntime
 import OSLog
 
@@ -1236,6 +1236,30 @@ final class EntityServiceGenerated {
     }
 
     // MARK: - Citation graph (#974 hook-up)
+
+    /// Associate an existing citation with a document through the audited
+    /// `citation.patch` action.
+    @discardableResult
+    func patchCitation(
+        _ citationId: String,
+        targetDocumentId: String
+    ) async throws -> Components.Schemas.DocumentCitation {
+        var body = Components.Schemas.CitationPatchRequest()
+        body.targetDocumentId = targetDocumentId
+        let response = try await client.api.patchCitationApiCitationsGraphCitationIdPatch(
+            path: .init(citationId: citationId),
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
 
     /// Get inbound citations for a document — i.e. other documents that
     /// cite this one. Backed by

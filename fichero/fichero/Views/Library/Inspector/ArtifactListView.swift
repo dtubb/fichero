@@ -135,6 +135,14 @@ struct ArtifactListView: View {
             )
         )
             .tag(artifact.id)
+            .draggable(LibraryItemDrag(
+                kind: .artifact,
+                id: artifact.id,
+                documentId: artifact.documentId,
+                text: artifact.content?.isEmpty == false
+                    ? artifact.content ?? artifact.artifactTypeDisplayName
+                    : artifact.artifactTypeDisplayName
+            ))
             .inspectorListRowTarget()
             .onTapGesture(count: 2) {
                 guard let onOpenInWindow else { return }
