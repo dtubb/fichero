@@ -139,6 +139,10 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         return apply_fuzzy_clean(image, despeckle_radius=int(params.get("despeckle_radius", 3)), background_clean=bool(params.get("background_clean", True)))
     if name == "denoise":
         return apply_fuzzy_clean(image, despeckle_radius=int(params.get("radius", 3)), background_clean=False)
+    if name == "adaptive_binarize":
+        gray = image.convert("L")
+        threshold = sum(gray.getdata()) / (gray.width * gray.height)
+        return gray.point(lambda value: 255 if value >= threshold else 0).convert("RGB")
     if name == "remove_background":
         return _remove_background(image, params)
     if name == "segment":

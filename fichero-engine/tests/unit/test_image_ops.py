@@ -36,3 +36,9 @@ def test_auto_crop_border_removes_dark_margin():
         for y in range(2, 8):
             image.putpixel((x, y), (255, 255, 255))
     assert apply_operation(image, {"op": "auto_crop_border", "params": {}}).size == (6, 6)
+
+
+def test_adaptive_binarize_returns_bilevel_image():
+    image = Image.new("L", (2, 1))
+    image.putdata([20, 200])
+    assert set(apply_operation(image, {"op": "adaptive_binarize", "params": {}}).getdata()) == {(0, 0, 0), (255, 255, 255)}
