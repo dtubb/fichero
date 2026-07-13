@@ -45,7 +45,65 @@ extension LibraryManager {
     func refreshAfterBackendBecameReady() async {
         await KnownLibraryRegistryStore.shared.refresh()
         adoptPairedRemoteLibrary()
+        reconcileOpenLibrariesFromRegistry()
         await backendDidBecomeReady()
+    }
+
+    /// The open set the app shows must MIRROR the backend registry — the set of
+    /// libraries the engine actually has open (#3393). Local UserDefaults restore
+    /// alone drifts: the backend can hold a dozen open while the sidebar shows two
+    /// (or shows one the backend already closed). Reconcile against the registry
+    /// the store just fetched: open any registry library not yet open, and drop
+    /// any open (non-Global) library the backend no longer lists.
+    ///
+    /// Local embedded backend only. For a remote host the registry is
+    /// recents/known, NOT the set open for remote use (see
+    /// `adoptPairedRemoteLibrary`), so remote reconciliation would over-open.
+    func reconcileOpenLibrariesFromRegistry() {
+        guard !EngineConfig.requiresExternalBackendConnection else { return }
+
+        let registryPaths = KnownLibraryRegistryStore.shared.libraries.map(\.path)
+        // A failed / empty registry fetch must never clear the sidebar — only
+        // reconcile when the backend actually reported an open set.
+        guard !registryPaths.isEmpty else { return }
+
+        let plan = Self.registryReconciliation(
+            openLibraries: openLibraries.map { (id: $0.id, path: $0.url.path) },
+            registryPaths: registryPaths,
+            globalLibraryId: Self.globalLibraryId
+        )
+
+        for path in plan.pathsToOpen {
+            let url = URL(fileURLWithPath: path)
+            // Skip registry entries whose package is gone from disk — opening a
+            // missing package would just fail; the backend row is stale.
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+            _ = openLibrary(at: url, makeCurrent: false)
+        }
+        for id in plan.idsToDrop {
+            // Local drop only — the backend already closed it (it's absent from
+            // the registry), so no backend DELETE, unlike closeAndUnregisterLibrary.
+            closeLibrary(id)
+        }
+    }
+
+    /// Pure set-diff between the app's open libraries and the backend registry
+    /// (#3393). Extracted so the reconciliation logic is unit-testable without
+    /// LibraryReference / FileManager / network side effects. Paths are compared
+    /// NFC-normalized (backend keys the registry NFC, #3071/#3076).
+    static func registryReconciliation(
+        openLibraries: [(id: UUID, path: String)],
+        registryPaths: [String],
+        globalLibraryId: UUID
+    ) -> (pathsToOpen: [String], idsToDrop: [UUID]) {
+        let registrySet = Set(registryPaths.map(\.nfcNormalized))
+        let openSet = Set(openLibraries.map { $0.path.nfcNormalized })
+
+        let pathsToOpen = registryPaths.filter { !openSet.contains($0.nfcNormalized) }
+        let idsToDrop = openLibraries
+            .filter { $0.id != globalLibraryId && !registrySet.contains($0.path.nfcNormalized) }
+            .map(\.id)
+        return (pathsToOpen, idsToDrop)
     }
 
     func reconfigureGeneratedClientsForCurrentHost() {
