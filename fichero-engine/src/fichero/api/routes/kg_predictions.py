@@ -11,6 +11,7 @@ endpoints. Lives under ``/api/kg/predictions``.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ from fichero.knowledge_models import (
 from fichero.models import KGPredictionListResponse
 
 router = APIRouter(prefix="/kg/predictions")
+logger = logging.getLogger(__name__)
 
 KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
 
@@ -144,8 +146,12 @@ async def generate_heuristic_predictions(
     for claim in all_claims:
         try:
             qv = await db._embed_text_async(claim.text, role="passage")  # type: ignore[attr-defined]
-        except Exception:
-            continue
+        except Exception as exc:
+            logger.exception("Failed to embed claim %s for heuristic predictions", claim.id)
+            raise HTTPException(
+                status_code=503,
+                detail=f"Failed to embed claim {claim.id} for heuristic predictions",
+            ) from exc
         similar = db.search_vectors(
             KG_CLAIM_EMBEDDINGS_TABLE, qv, limit=request.top_k + 1
         )

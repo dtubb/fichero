@@ -14,6 +14,8 @@ from __future__ import annotations
 import os
 import threading
 
+import pytest
+
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 
 from fichero.db_manager import DatabaseManager  # noqa: E402
@@ -63,6 +65,33 @@ def test_active_count_counts_packages(tmp_path):
         t.join()
 
         assert mgr.active_count == 1
+    finally:
+        mgr.close_all()
+
+
+def test_initialization_failure_is_loud_and_does_not_leave_a_cached_handle(
+    tmp_path, monkeypatch
+):
+    """A failed default-workflow seed must not leave a partial library open."""
+    pkg = tmp_path / "lib.fichero"
+    pkg.mkdir()
+    mgr = DatabaseManager()
+    monkeypatch.delenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", raising=False)
+
+    def fail_seed(_db):
+        raise RuntimeError("seed failed")
+
+    monkeypatch.setattr(
+        "fichero.workflows.default_workflows.seed_default_workflows", fail_seed
+    )
+    try:
+        with pytest.raises(RuntimeError, match="Failed to initialize library database") as exc:
+            mgr.get_database(pkg)
+
+        assert isinstance(exc.value.__cause__, RuntimeError)
+        assert str(exc.value.__cause__) == "seed failed"
+        assert mgr.active_count == 0
+        assert mgr.open_library_paths() == []
     finally:
         mgr.close_all()
 

@@ -84,28 +84,31 @@ class DatabaseManager:
                 )
 
                 db = Database(path=db_path)
+                try:
+                    migrate_workflow_table(db.conn)
+                    migrate_saved_search_table(db.conn)
+                    migrate_provider_refs_table(db.conn)
+                    migrate_activity_tables(db.conn)
+                    migrate_checkpoint_tables(db.conn)
 
-                migrate_workflow_table(db.conn)
-                migrate_saved_search_table(db.conn)
-                migrate_provider_refs_table(db.conn)
-                migrate_activity_tables(db.conn)
-                migrate_checkpoint_tables(db.conn)
+                    # Seed default workflow presets (Transcribe, Catalogue). Idempotent
+                    # by workflow name — a user who deleted a preset doesn't get it back.
+                    # Tests set FICHERO_SKIP_DEFAULT_WORKFLOWS=1 so fixtures that assert
+                    # on "empty library" keep working without per-test cleanup.
+                    import os
 
-                # Seed default workflow presets (Transcribe, Catalogue). Idempotent
-                # by workflow name — a user who deleted a preset doesn't get it back.
-                # Tests set FICHERO_SKIP_DEFAULT_WORKFLOWS=1 so fixtures that assert
-                # on "empty library" keep working without per-test cleanup.
-                import os
-
-                if os.environ.get("FICHERO_SKIP_DEFAULT_WORKFLOWS") != "1":
-                    try:
+                    if os.environ.get("FICHERO_SKIP_DEFAULT_WORKFLOWS") != "1":
                         seeded = seed_default_workflows(db)
                         if seeded:
                             logger.info(f"Seeded {seeded} default workflow preset(s)")
-                    except Exception as exc:
-                        logger.warning(f"Default workflow seeding skipped: {exc}")
 
-                ensure_inbox_folder(db)
+                    ensure_inbox_folder(db)
+                except Exception as exc:
+                    db.close()
+                    logger.exception("Failed to initialize library database: %s", package_str)
+                    raise RuntimeError(
+                        f"Failed to initialize library database: {package_str}"
+                    ) from exc
 
                 self._databases[cache_key] = db
                 logger.info(f"Database connection created: {db_path}")

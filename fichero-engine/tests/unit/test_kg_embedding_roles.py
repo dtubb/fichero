@@ -7,9 +7,10 @@ stored passage vectors.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
+from fastapi import HTTPException
 
 from fichero.kg.entity_vectors import find_similar
 
@@ -145,3 +146,36 @@ async def test_heuristic_predictions_uses_passage_role() -> None:
     assert all(r == "passage" for r in captured), (
         f"All heuristic-prediction embeds should use role='passage'; got {captured}"
     )
+
+
+@pytest.mark.anyio
+async def test_heuristic_predictions_raises_when_a_claim_cannot_be_embedded() -> None:
+    """A failed embedding must not silently omit a claim from predictions."""
+    from fichero.api.routes.kg_predictions import (
+        HeuristicRequest,
+        generate_heuristic_predictions,
+    )
+    from fichero.knowledge_models import ClaimCurationState, ClaimType, KnowledgeClaim
+
+    claim = KnowledgeClaim(
+        id="broken-claim",
+        text="Broken vector input.",
+        source_document_id="doc1",
+        claim_type=ClaimType.fact,
+        curation_state=ClaimCurationState.unreviewed,
+        entity_ids=[],
+    )
+    db = MagicMock()
+    db._lance_tables.return_value = ["kg_claim_embeddings"]
+    db.all.side_effect = [[claim], []]
+
+    async def fail_embed(*_args, **_kwargs):
+        raise RuntimeError("embedding backend unavailable")
+
+    db._embed_text_async = fail_embed
+
+    with pytest.raises(HTTPException) as exc:
+        await generate_heuristic_predictions(HeuristicRequest(), db=db)
+
+    assert exc.value.status_code == 503
+    assert "broken-claim" in exc.value.detail
