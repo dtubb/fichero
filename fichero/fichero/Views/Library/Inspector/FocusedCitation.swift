@@ -1,3 +1,4 @@
+import CoreTransferable
 import FicheroAPIClient
 import Foundation
 import Observation
@@ -39,6 +40,18 @@ struct CitationItem: Identifiable, Hashable {
 
     static func == (lhs: CitationItem, rhs: CitationItem) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+/// The citation identity shared by native drag sources and drop destinations.
+/// Plain text keeps drops useful in editors and other applications.
+struct CitationDragID: Codable, Transferable {
+    let id: String
+    let text: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .json)
+        ProxyRepresentation(exporting: \.text)
+    }
 }
 
 /// Shared selection holder for the citations List + detail (#2004, EPIC #2002).

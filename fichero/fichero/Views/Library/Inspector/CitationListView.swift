@@ -57,6 +57,7 @@ struct CitationListView: View {
     private func row(for item: CitationItem) -> some View {
         CitationRow(item: item)
             .tag(item.id)
+            .draggable(CitationDragID(id: item.id, text: item.citation.targetCitationText))
             .inspectorListRowTarget()
             .contextMenu {
                 if let onOpenInWindow {

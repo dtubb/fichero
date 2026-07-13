@@ -8,6 +8,14 @@ import XCTest
 @MainActor
 final class CitationExportModelTests: XCTestCase {
 
+    func testCitationDragPayloadRoundTripsAcrossTargets() throws {
+        let payload = CitationDragID(id: "citation-1", text: "Ada, 1843")
+        let decoded = try JSONDecoder().decode(CitationDragID.self, from: JSONEncoder().encode(payload))
+
+        XCTAssertEqual(decoded.id, "citation-1")
+        XCTAssertEqual(decoded.text, "Ada, 1843")
+    }
+
     func testReadyWithBibTeX() async {
         let model = CitationExportModel()
         await model.load { "@article{key, title={T}}" }
