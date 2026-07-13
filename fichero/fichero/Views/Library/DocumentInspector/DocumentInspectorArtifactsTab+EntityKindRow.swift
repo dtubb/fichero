@@ -258,7 +258,7 @@ struct EntityKindRow: View {
                             .foregroundStyle(Color.accentColor)
                     }
                     .buttonStyle(.plain)
-                    .help("Go to source — hover to preview")
+                    .help("Go to source — hover or long-press to preview")
                     // Source-provenance quick-look (#3449/#2105): hovering the
                     // arrow previews the cropped source region + verbatim span in
                     // a popover (reusing SourceProvenanceCard → SourceSnippet); the
@@ -268,6 +268,15 @@ struct EntityKindRow: View {
                     .onHover { hovering in
                         if hovering { isSourcePreviewPresented = true }
                     }
+                    // Touch equivalent of hover-to-preview (#3666): on iPad/iPhone
+                    // there's no hover, so a long-press opens the same source-
+                    // provenance popover. `simultaneousGesture` leaves the button's
+                    // TAP (navigate to source) intact.
+                    .simultaneousGesture(
+                        LongPressGesture(minimumDuration: 0.4).onEnded { _ in
+                            isSourcePreviewPresented = true
+                        }
+                    )
                     .popover(isPresented: $isSourcePreviewPresented, arrowEdge: .trailing) {
                         SourceProvenanceCard(
                             request: request,
