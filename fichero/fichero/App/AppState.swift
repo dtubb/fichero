@@ -8,6 +8,11 @@ import AppKit
 import SwiftUI
 
 enum SettingsTab: Hashable {
+    // Per-view settings sections (#3680): one per major view surface.
+    case libraryView
+    case previewView
+    case readerView
+    case inspectorView
     case aiModels
     case mcp
     case integrations

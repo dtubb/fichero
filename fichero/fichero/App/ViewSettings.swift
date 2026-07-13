@@ -14,6 +14,38 @@ class ViewSettings {
     // inspector in one window no longer flips it in every other window (#1451).
 }
 
+// MARK: - Typography (Reader / Editor font scale, #3681 / #3682)
+
+extension ViewSettings {
+    /// Reader- and Editor-text font-size overrides — a *scale* over the semantic
+    /// base size (`preferredFont(forTextStyle:)`), never an absolute size, so the
+    /// override composes with Dynamic Type and honors the semantic-fonts rule.
+    ///
+    /// Stored as `@AppStorage`-keyed UserDefaults doubles (not instance
+    /// properties) so both the Settings scene — a SEPARATE scene — and the
+    /// Reader/Editor consumers share one source without env-injection coupling.
+    /// Reader and Editor are independent (Daniel): separate keys, separate
+    /// steppers, both clamped `0.8…2.0`.
+    enum FontScale {
+        static let readerKey = "fichero.reader.fontScale"
+        static let editorKey = "fichero.editor.fontScale"
+        static let defaultValue = 1.0
+        static let range: ClosedRange<Double> = 0.8...2.0
+        static let step = 0.1
+
+        /// Clamp any stored/edited value into range — defends consumers against a
+        /// corrupted default; the Settings stepper also enforces `range` on input.
+        static func clamped(_ value: Double) -> Double {
+            min(max(value, range.lowerBound), range.upperBound)
+        }
+
+        /// A "%" readout of a scale for the stepper label (e.g. `1.2 → "120%"`).
+        static func percentLabel(_ value: Double) -> String {
+            "\(Int((value * 100).rounded()))%"
+        }
+    }
+}
+
 // MARK: - View Mode Enums
 
 /// Sidebar mode selection - Xcode-style mode switching

@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import SwiftUI
 
 // MARK: - Settings View
@@ -24,6 +25,15 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: sidebarSelection) {
+                // Per-view settings (#3680) — one section per major view surface,
+                // kept distinct (Library / Preview / Reader / Inspector).
+                Section("Views") {
+                    row(.libraryView, "Library", "square.grid.2x2")
+                    row(.previewView, "Preview", "sidebar.right")
+                    row(.readerView, "Reader", "book")
+                    row(.inspectorView, "Inspector", "slider.horizontal.3")
+                }
+
                 Section("Services") {
                     row(.aiModels, "AI", "brain")
                     if featureManager.isMCPEnabled {
@@ -72,12 +82,23 @@ struct SettingsView: View {
         Label(title, systemImage: symbol).tag(tab)
     }
 
+    // A flat tab → pane dispatch; its cyclomatic complexity is inherent to the
+    // number of settings sections, not branching logic — hence the region disable.
+    // swiftlint:disable cyclomatic_complexity
     /// The detail pane for the selected tab — the existing view, unchanged. The
     /// grouped tabs (engine/backend, connect/users/capture) resolve to their
     /// #3396 group container.
     @ViewBuilder
     private func detail(for tab: SettingsTab) -> some View {
         switch tab {
+        case .libraryView:
+            LibraryViewSettingsPane()
+        case .previewView:
+            PreviewViewSettingsPane()
+        case .readerView:
+            ReaderViewSettingsPane()
+        case .inspectorView:
+            InspectorViewSettingsPane()
         case .aiModels:
             AISettingsView()
         case .mcp:
@@ -102,6 +123,111 @@ struct SettingsView: View {
         case .backups:
             BackupsSettingsTab()
         }
+    }
+    // swiftlint:enable cyclomatic_complexity
+}
+
+// MARK: - Per-view settings panes (#3680)
+
+/// Library View settings — the app-wide default library layout. Reuses the
+/// existing `ViewSettings.libraryLayout`; nothing new stored.
+private struct LibraryViewSettingsPane: View {
+    @Environment(ViewSettings.self) private var viewSettings
+
+    var body: some View {
+        @Bindable var settings = viewSettings
+        Form {
+            Section("Layout") {
+                Picker("Default layout", selection: $settings.libraryLayout) {
+                    ForEach(LibraryLayout.allCases, id: \.self) { layout in
+                        Label(layout.rawValue, systemImage: layout.icon).tag(layout)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Library")
+    }
+}
+
+/// Preview View settings — where the document preview sits (the Mail-vocabulary
+/// `PreviewLayout` facade over `ViewSettings.previewMode`). A distinct surface
+/// from the Reader (kept separate per the reader-IA decision).
+private struct PreviewViewSettingsPane: View {
+    @Environment(ViewSettings.self) private var viewSettings
+
+    var body: some View {
+        @Bindable var settings = viewSettings
+        Form {
+            Section("Layout") {
+                Picker("Preview position", selection: Binding(
+                    get: { settings.previewMode.layout },
+                    set: { settings.previewMode = $0.previewMode }
+                )) {
+                    Text("Side").tag(PreviewLayout.side)
+                    Text("Bottom").tag(PreviewLayout.bottom)
+                    Text("Hidden").tag(PreviewLayout.hidden)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Preview")
+    }
+}
+
+/// Reader View settings — the Reader text font-size override (#3681). A stepper
+/// over the semantic base size, clamped `0.8…2.0` (Daniel). The consumer wiring
+/// (WebKit CSS injection + native reader text) lands with #3681; this is the
+/// control + storage. Reader theme follows the app's semantic light/dark only —
+/// Sepia/Paper is deferred.
+private struct ReaderViewSettingsPane: View {
+    @AppStorage(ViewSettings.FontScale.readerKey)
+    private var readerScale = ViewSettings.FontScale.defaultValue
+
+    var body: some View {
+        Form {
+            Section("Text") {
+                Stepper(
+                    value: $readerScale,
+                    in: ViewSettings.FontScale.range,
+                    step: ViewSettings.FontScale.step
+                ) {
+                    LabeledContent("Font size", value: ViewSettings.FontScale.percentLabel(readerScale))
+                }
+                Text("Scales the Reader text relative to the system default. The Editor is set separately.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Reader")
+    }
+}
+
+/// Inspector settings — the Editor text font-size override (#3682), SEPARATE
+/// from the Reader (Daniel). Stepper over the semantic base, clamped `0.8…2.0`.
+/// The consumer wiring (Inspector editable text surfaces) lands with #3682.
+private struct InspectorViewSettingsPane: View {
+    @AppStorage(ViewSettings.FontScale.editorKey)
+    private var editorScale = ViewSettings.FontScale.defaultValue
+
+    var body: some View {
+        Form {
+            Section("Editor Text") {
+                Stepper(
+                    value: $editorScale,
+                    in: ViewSettings.FontScale.range,
+                    step: ViewSettings.FontScale.step
+                ) {
+                    LabeledContent("Font size", value: ViewSettings.FontScale.percentLabel(editorScale))
+                }
+                Text("Scales the Inspector's editable text relative to the system default — separate from the Reader.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Inspector")
     }
 }
 
@@ -284,3 +410,5 @@ private struct IntegrationsSettingsView: View {
         .formStyle(.grouped)
     }
 }
+
+// swiftlint:enable file_length

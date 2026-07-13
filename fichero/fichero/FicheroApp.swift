@@ -561,6 +561,10 @@ struct FicheroApp: App {
                 .environment(appState)
                 .environment(backendService)
                 .environment(libraryManager)
+                // The Settings scene is separate — inject the SAME app-wide
+                // ViewSettings the main window uses so the per-view panes (#3680)
+                // edit the live view config, not a detached copy.
+                .environment(viewSettings)
         }
     }
 }
