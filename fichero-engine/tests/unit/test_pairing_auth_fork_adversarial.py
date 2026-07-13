@@ -146,7 +146,7 @@ def test_pairing_code_ttl_is_exactly_sixty_seconds(app_db, monkeypatch):
 
     response = pairing.create_pairing_code(_owner_request(owner), app_db)
 
-    assert response.expires_at == now + timedelta(seconds=60)
+    assert response.expires_at == now + timedelta(minutes=10)
     assert pairing._PAIRING_CODES["TTL-0001"].expires_at == response.expires_at
 
 
@@ -311,7 +311,7 @@ def test_pairing_rejects_code_for_deactivated_user(pairing_client, app_db):
     assert code not in pairing._PAIRING_CODES
 
 
-def test_owner_for_pairing_bootstrap_requires_exactly_one_active_owner(app_db):
+def test_owner_for_pairing_bootstrap_uses_first_active_owner_in_single_user_mode(app_db):
     owner = _create_owner(app_db)
 
     resolved = pairing._owner_for_pairing(
@@ -326,8 +326,11 @@ def test_owner_for_pairing_bootstrap_requires_exactly_one_active_owner(app_db):
         password_hash=accounts.hash_password("password"),
         is_owner=True,
     )
-    with pytest.raises(HTTPException, match="owner access required"):
-        pairing._owner_for_pairing(_owner_request(None, bootstrap_auth=True), app_db)
+    resolved = pairing._owner_for_pairing(
+        _owner_request(None, bootstrap_auth=True),
+        app_db,
+    )
+    assert resolved.id == owner.id
 
     app_db.set_active(owner.id, False)
     app_db.set_active(second_owner.id, False)

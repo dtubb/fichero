@@ -25,7 +25,7 @@ from fichero.remote_access_tls import validate_spki_pin, validate_tailnet_url
 
 logger = logging.getLogger(__name__)
 
-PAIRING_CODE_TTL = timedelta(seconds=60)
+PAIRING_CODE_TTL = timedelta(minutes=10)
 PAIRING_RATE_LIMIT = 5
 PAIRING_RATE_WINDOW = timedelta(minutes=1)
 _PAIRING_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -159,7 +159,9 @@ def _owner_for_pairing(request: Request, app_db: AppDatabase) -> AccountUser:
         if getattr(request.state, "bootstrap_auth", False):
             owner_accounts = [candidate for candidate in app_db.list_users() if candidate.is_owner]
             active_owners = [candidate for candidate in owner_accounts if candidate.active]
-            if len(active_owners) == 1:
+            if active_owners:
+                # Single-user mode authenticates the local bootstrap owner. Old
+                # account rows must not make local device pairing impossible.
                 return active_owners[0]
             if len(owner_accounts) == 0:
                 return _single_user_pairing_owner(app_db)
