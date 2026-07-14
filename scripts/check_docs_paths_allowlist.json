@@ -8,12 +8,15 @@
     "build/verify_all_needs_fixing.json",
     "docs/contributor/architecture/vocabulary.md",
     "fichero-engine/build/fichero-backend/macos/app/FicheroBackend.app",
+    "fichero-engine/tests/live/test_pairing_live_server.py",
     "fichero/build/xcode/Products/Release",
     "fichero/build/xcode/Products/Release/Fichero.app",
     "fichero/build/xcode/Products/Release/Fichero.app/Contents/Info.plist",
     "fichero/fichero-api-client/.build",
+    "fichero/fichero-tests/PairingRoundTripContractTests.swift",
     "fichero/workflows",
     "scripts/baseline_move_check.sh",
-    "scripts/check_dead_python.py"
+    "scripts/check_dead_python.py",
+    "scripts/check_product_plist_keys.py"
   ]
 }
