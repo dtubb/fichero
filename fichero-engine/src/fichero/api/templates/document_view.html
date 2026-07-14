@@ -116,12 +116,34 @@
         }
 
         .transcript {
-            white-space: pre-wrap;
             /* Reader body text derives from the Swift-injected semantic base
                size (--reader-base-size); the 14px fallback keeps it readable in
                a plain browser. The Reader font-size setting scales the var (#3681). */
             font-size: var(--reader-base-size, 14px);
             line-height: 1.6;
+            display: grid;
+            gap: 1em;
+        }
+
+        .transcript-page {
+            scroll-margin-block-start: 0.75em;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 0.8em;
+            box-shadow: 0 0.15em 0.6em var(--line);
+            padding: 1.25em;
+        }
+
+        .page-marker {
+            color: var(--muted);
+            font: 600 0.72em/1 var(--font-system);
+            letter-spacing: 0.08em;
+            margin-bottom: 1em;
+            text-transform: uppercase;
+        }
+
+        .transcript-page-body {
+            white-space: pre-wrap;
         }
 
         .transcript mark {
@@ -602,17 +624,19 @@ function groupedClaims() {
     return Array.from(groups.values()).filter((group) => group.claims.length > 0);
 }
 
-function highlightedTranscript() {
+function transcriptPages() {
     const transcript = documentData.page_content || "";
-    const activeClaim = claims.find((claim) => claim.id === state.activeClaimId);
-    const excerpt = activeClaim?.source_excerpt;
-    if (!excerpt || !transcript.includes(excerpt)) {
-        return escapeHtml(transcript);
+    const markers = [...transcript.matchAll(/^Page\s+(\d+)\s*\n/gm)];
+    if (!markers.length) {
+        return [{ number: 1, content: transcript }];
     }
-    return escapeHtml(transcript).replace(
-        escapeRegExpHtml(excerpt),
-        `<mark data-highlight="claim">${escapeHtml(excerpt)}</mark>`
-    );
+    return markers.map((marker, index) => ({
+        number: marker[1],
+        content: transcript.slice(
+            marker.index + marker[0].length,
+            markers[index + 1]?.index
+        ),
+    }));
 }
 
 function escapeHtml(text) {
@@ -622,10 +646,6 @@ function escapeHtml(text) {
         .replaceAll(">", "&gt;");
 }
 
-function escapeRegExpHtml(text) {
-    return escapeHtml(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function renderTranscript() {
     const panel = document.getElementById("transcript-panel");
     if (!documentData.page_content) {
@@ -633,7 +653,12 @@ function renderTranscript() {
         return;
     }
     panel.innerHTML = `
-        <div class="transcript">${highlightedTranscript()}</div>
+        <div class="transcript">${transcriptPages().map((page) => `
+            <article class="transcript-page" data-page="${page.number}">
+                <div class="page-marker">Page ${page.number}</div>
+                <div class="transcript-page-body">${escapeHtml(page.content)}</div>
+            </article>
+        `).join("")}</div>
     `;
 }
 
