@@ -67,6 +67,20 @@ else
   echo "  ✓ no static archives (.a)"
 fi
 
+# ── 1b. Debug-symbol bundles (90277/90278) ────────────────────────────────────
+# Briefcase ships PyObjCTest extensions with their *.cpython-312-darwin.so.dSYM
+# alongside. A .dSYM carries the bundle identifier com.apple.xcode.dsym.* — Apple's
+# own, not ours, so it can never match the provisioning profile. It is not runtime
+# code either: it is detached DWARF, loaded by nothing, useful only to symbolicate a
+# crash log. There is nothing to fix by re-signing it; it simply must not ship.
+DSYMS="$(find "$APP" -name '*.dSYM' -type d)"
+if [ -n "$DSYMS" ]; then
+  fail "debug-symbol bundles present — they carry com.apple.xcode.dsym identifiers (90277/90278):"
+  echo "$DSYMS" | sed 's/^/      /' >&2
+else
+  echo "  ✓ no debug-symbol bundles (.dSYM)"
+fi
+
 # ── 2. Every nested executable is sandboxed (90296) ───────────────────────────
 # By Mach-O TYPE, not by path — the whole point of the fm-bridge rejection is that
 # the offender was somewhere nobody thought to look.
