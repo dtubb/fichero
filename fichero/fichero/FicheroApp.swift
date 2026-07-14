@@ -130,6 +130,21 @@ struct FicheroApp: App {
             return
         }
 
+        // Pairing link (#3788). The app MINTS fichero:// links, offers Copy and
+        // Share buttons for them, and iOS has a full receive path — but macOS fell
+        // through to `openLibrary(at:)` and tried to open "fichero://pair?…" as a
+        // LIBRARY FOLDER. So a tapped link did nothing (and the scheme was not even
+        // registered — see Info.plist CFBundleURLTypes, added in the same commit).
+        //
+        // It does NOT pair silently: pairing repoints this Mac at a remote host, so
+        // the link prefills the existing pairing field and the user presses Connect.
+        if url.scheme?.lowercased() == "fichero" {
+            logger.info("handleOpenURL: pairing link received")  // never log the payload
+            appState.pendingPairingInvite = url.absoluteString
+            appState.openSettings(tab: .backend)
+            return
+        }
+
         // Check if this library is already open
         if let existingLibrary = libraryManager.openLibraries.first(where: { $0.url == url }) {
             logger.info("Library already open: \(existingLibrary.displayName)")

@@ -17,6 +17,19 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>app.fichero.fichero.pairing</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fichero</string>
+			</array>
+		</dict>
+	</array>
 	<key>FicheroFeatureTier</key>
 	<string>$(FICHERO_FEATURE_TIER)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
