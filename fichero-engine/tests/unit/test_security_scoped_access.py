@@ -18,10 +18,15 @@ from fichero import security_scoped_access as ssa
 
 
 @pytest.fixture(autouse=True)
-def _clear_active_urls():
+def _clear_process_grant_state():
+    # BOTH module-level structures, or tests contaminate each other: a path granted
+    # by one test would satisfy grant_access()'s idempotency short-circuit in the
+    # next, and the suite would pass in order and fail in isolation.
     ssa._ACTIVE_URLS.clear()
+    ssa._GRANTED.clear()
     yield
     ssa._ACTIVE_URLS.clear()
+    ssa._GRANTED.clear()
 
 
 def _payload(mapping: dict[str, bytes]) -> str:
@@ -170,3 +175,112 @@ def test_activate_partial_grant_reports_only_the_successes(monkeypatch):
     monkeypatch.setattr(ssa, "start_access", fake_start)
     granted = ssa.activate_library_bookmarks(_payload({"/ok": b"yes", "/no": b"deny"}))
     assert granted == ["/ok"]
+
+
+# --- runtime handoff: grant_access(), the endpoint's engine half (#3773) ---
+#
+# The spawn-time env var cannot cover a library the user picks while the engine is
+# already running. These cover the path that can: one bookmark, resolved live.
+
+
+def _b64(data: bytes) -> str:
+    return base64.b64encode(data).decode()
+
+
+def test_grant_access_resolves_and_grants(monkeypatch):
+    foundation = FakeFoundation()
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: foundation)
+
+    assert ssa.grant_access("/Users/d/Documents/L.fichero", _b64(b"BOOKMARK")) is True
+    assert "/Users/d/Documents/L.fichero" in ssa.granted_paths()
+    # The bookmark actually reached Foundation, with the security-scope option.
+    assert foundation.calls[0][0] == b"BOOKMARK"
+    assert foundation.calls[0][1] == foundation.NSURLBookmarkResolutionWithSecurityScope
+
+
+def test_grant_access_is_idempotent_and_does_not_re_resolve(monkeypatch):
+    """Re-posting a held path must NOT resolve a second NSURL.
+
+    A second startAccessingSecurityScopedResource() on a fresh URL for the same path
+    is a redundant grant nothing ever balances. The app legitimately re-sends (retry,
+    reopen), so this has to be free.
+    """
+    foundation = FakeFoundation()
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: foundation)
+
+    assert ssa.grant_access("/lib", _b64(b"B")) is True
+    assert ssa.grant_access("/lib", _b64(b"B")) is True  # again
+
+    assert len(foundation.calls) == 1, "the second grant must short-circuit, not re-resolve"
+    assert len(ssa._ACTIVE_URLS) == 1, "no redundant URL may be retained"
+
+
+def test_grant_access_raises_when_access_is_refused(monkeypatch):
+    """A refusal is an ERROR, not a False the caller might ignore.
+
+    The app is about to open this library; a grant that quietly did nothing would
+    resurface as an inscrutable DuckDB permission error instead of a clear message.
+    """
+    foundation = FakeFoundation(url=FakeURL(granted=False))
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: foundation)
+
+    with pytest.raises(ssa.BookmarkGrantError):
+        ssa.grant_access("/lib", _b64(b"B"))
+    assert "/lib" not in ssa.granted_paths(), "a refused path must never be recorded as granted"
+
+
+def test_grant_access_raises_on_resolution_error(monkeypatch):
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: FakeFoundation(url=None, error="boom"))
+    with pytest.raises(ssa.BookmarkGrantError):
+        ssa.grant_access("/lib", _b64(b"B"))
+    assert "/lib" not in ssa.granted_paths()
+
+
+def test_grant_access_rejects_malformed_bookmark(monkeypatch):
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: FakeFoundation())
+    with pytest.raises(ssa.BookmarkGrantError, match="base64"):
+        ssa.grant_access("/lib", "!!!not base64!!!")
+
+
+def test_grant_access_rejects_empty_bookmark_and_empty_path(monkeypatch):
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: FakeFoundation())
+    with pytest.raises(ssa.BookmarkGrantError):
+        ssa.grant_access("/lib", "")          # decodes to b"" — nothing to resolve
+    with pytest.raises(ssa.BookmarkGrantError):
+        ssa.grant_access("", _b64(b"B"))      # no path to grant
+
+
+def test_grant_access_raises_when_pyobjc_is_missing(monkeypatch):
+    """Unlike the spawn path, this one RAISES rather than fail-soft.
+
+    activate_library_bookmarks() must never stop the engine booting, so it logs and
+    returns []. But a runtime grant is a direct request from the app about a specific
+    library — answering "fine" when PyObjC is absent would be a lie.
+    """
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: None)
+    with pytest.raises(ssa.BookmarkGrantError, match="PyObjC"):
+        ssa.grant_access("/lib", _b64(b"B"))
+
+
+def test_granted_paths_snapshot_cannot_mutate_engine_state(monkeypatch):
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: FakeFoundation())
+    ssa.grant_access("/lib", _b64(b"B"))
+    snapshot = ssa.granted_paths()
+    assert isinstance(snapshot, frozenset)
+    assert snapshot == {"/lib"}
+
+
+def test_spawn_and_runtime_grants_share_one_registry(monkeypatch):
+    """The two entry points are two doors into the same room.
+
+    A library granted at spawn must be seen as already-held by a later runtime post,
+    or reopening the app's first library would resolve a redundant second URL.
+    """
+    foundation = FakeFoundation()
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: foundation)
+
+    ssa.activate_library_bookmarks(_payload({"/lib": b"B"}))
+    assert "/lib" in ssa.granted_paths()
+
+    assert ssa.grant_access("/lib", _b64(b"B")) is True
+    assert len(foundation.calls) == 1, "the spawn-time grant must satisfy the runtime one"

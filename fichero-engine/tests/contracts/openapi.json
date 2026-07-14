@@ -2023,6 +2023,51 @@
         }
       }
     },
+    "/api/sandbox/security-scoped-access": {
+      "post": {
+        "tags": [
+          "sandbox"
+        ],
+        "summary": "Grant the running engine access to a security-scoped library folder",
+        "description": "Resolve one security-scoped bookmark on the LIVE engine process.\n\nMust be called BEFORE the app asks the engine to open the library \u2014 otherwise\nDuckDB hits the path with no grant and fails with a permission error.\n\nIdempotent: re-posting a path already held reports success without resolving\nagain. A bookmark that cannot be turned into access is a 400 with the reason,\nnever a silent success \u2014 the app is about to open this library, and \"granted\"\nmust mean granted.",
+        "operationId": "create_security_scoped_access_api_sandbox_security_scoped_access_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecurityScopedAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityScopedAccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The bookmark could not be turned into access \u2014 malformed, or startAccessingSecurityScopedResource() refused. The engine cannot read this library, and the app must say so rather than open it."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/changes/stream": {
       "get": {
         "tags": [
@@ -58337,6 +58382,56 @@
         ],
         "title": "SearchViewsResponse",
         "description": "Response with available search views."
+      },
+      "SecurityScopedAccessRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "Absolute path of the library folder the bookmark resolves to."
+          },
+          "bookmark": {
+            "type": "string",
+            "title": "Bookmark",
+            "description": "Base64-encoded app-scoped security-scoped bookmark data, minted by the app with NSURL.bookmarkData(options: .withSecurityScope). Same encoding as the FICHERO_LIBRARY_BOOKMARKS spawn payload."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path",
+          "bookmark"
+        ],
+        "title": "SecurityScopedAccessRequest",
+        "description": "One library the app is handing to the engine."
+      },
+      "SecurityScopedAccessResponse": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "The library path the grant applies to."
+          },
+          "granted": {
+            "type": "boolean",
+            "title": "Granted",
+            "description": "True when this engine process can now read the path."
+          },
+          "already_held": {
+            "type": "boolean",
+            "title": "Already Held",
+            "description": "True when the engine already had this grant, so the bookmark was not resolved again.",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path",
+          "granted"
+        ],
+        "title": "SecurityScopedAccessResponse",
+        "description": "Whether the engine can now read the library."
       },
       "SegmentOperationRequest": {
         "properties": {

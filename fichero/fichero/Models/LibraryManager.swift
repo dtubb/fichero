@@ -313,6 +313,15 @@ class LibraryManager {
             self.workflowServiceGenerated = WorkflowServiceGenerated(ficheroClient: self.ficheroClient)
             self.workflowStreamService = WorkflowStreamService(ficheroClient: self.ficheroClient)
             self.importService = importService ?? ImportServiceGenerated(ficheroClient: self.ficheroClient)
+
+            // Give FolderAccessManager a route to THIS library's engine (#3773), so a
+            // bookmark minted while the engine is already running can be handed over
+            // instead of waiting for the next spawn's env var. The manager is a
+            // singleton created before any client exists, so it cannot build one
+            // itself. Rebound on every library switch, because the engine host can
+            // differ per library.
+            FolderAccessManager.shared.engineAccessService =
+                SandboxAccessServiceGenerated(ficheroClient: self.ficheroClient)
             self.documentServiceGenerated = DocumentServiceGenerated(ficheroClient: self.ficheroClient)
             self.storageService = storageService ?? StorageServiceGenerated(ficheroClient: self.ficheroClient)
             self.providerService = providerService ?? ProviderServiceGenerated(ficheroClient: self.ficheroClient)

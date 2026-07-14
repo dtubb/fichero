@@ -1370,6 +1370,7 @@ from fichero.api.routes import (  # noqa: E402
     providers,
     registries,
     research_agents,
+    sandbox_access,
     schedules,
     search,
     search_explain,
@@ -1392,6 +1393,11 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (auth_accounts.auth_router, "/api", ["auth"]),
     (auth_accounts.users_router, "/api", ["users"]),
     (pairing.router, "/api", ["pairing"]),
+    # POST /api/sandbox/security-scoped-access — the App Store build hands the
+    # RUNNING engine a bookmark for a library the user just picked (#3773). Core
+    # tier: without it a sandboxed engine cannot open any library chosen after
+    # spawn. Inert in the DMG build, which never calls it.
+    (sandbox_access.router, "/api", ["sandbox"]),
     # /api/changes/stream — per-library change-event SSE; foundation of the
     # observable data layer (#1863). Core tier: the SwiftUI stores subscribe
     # unconditionally.

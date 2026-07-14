@@ -22,20 +22,23 @@ This is a no-op — never an error — when there is nothing to do: not macOS, P
 absent, env var unset, or the app is unsandboxed (the DMG build, where the engine
 already has plain filesystem access). The engine must keep working in all of those.
 
-KNOWN LIMIT — libraries added AFTER the engine starts
------------------------------------------------------
-The payload is an environment variable, so it is fixed at spawn: it grants the
-libraries the app knew about when it launched the engine. If the user picks a NEW
-library mid-session (an open panel, an import), the app mints a bookmark and
-stores it, but this process never sees it — the engine keeps running, and its
-environment cannot change. That library stays unreadable until the app restarts.
+Two ways in, because there are two moments (#3773)
+--------------------------------------------------
+1. **At spawn** — ``activate_library_bookmarks()`` reads the env var above. This
+   covers the libraries the app already knew about, and costs no round-trip on a
+   cold start.
+2. **At runtime** — ``grant_access()``, driven by ``POST /api/sandbox/security-scoped-access``.
+   The env var is fixed at spawn, but the user picks libraries WHILE the engine
+   runs (an open panel, an import), and the engine is never restarted. Without a
+   runtime handoff those libraries stay unreadable until the app relaunches —
+   which includes the very first library a new user ever picks. The app posts the
+   freshly-minted bookmark; we resolve it on the live process.
 
-That is a real gap, not a design choice, and it is tracked separately: closing it
-needs a runtime handoff (an endpoint the app posts the new bookmark to, which
-calls ``start_access`` on the live process) rather than a spawn-time env var.
-Until then the failure is LOUD, not silent — DuckDB raises a permission error the
-app surfaces — which is the intended behaviour: better a clear error than a
-library that half-opens.
+Both funnel into the same ``start_access()``. Grants are idempotent and additive:
+re-granting a path already held is a no-op that reports success, because the app
+may legitimately re-send (a retry, a reopen, a relaunch of the engine under a
+still-running app) and a second ``startAccessingSecurityScopedResource()`` on a
+fresh NSURL for the same path would leak a redundant grant we never balance.
 """
 
 from __future__ import annotations
@@ -55,6 +58,18 @@ ENV_VAR = "FICHERO_LIBRARY_BOOKMARKS"
 # object is alive, so releasing it would revoke the grant mid-run. Held for the
 # process lifetime, deliberately.
 _ACTIVE_URLS: list[Any] = []
+
+# Paths this process currently holds a grant for. Guards re-entry (#3773): the app
+# may re-post a bookmark it already sent, and resolving it a second time would add
+# another NSURL + another startAccessingSecurityScopedResource() that nothing ever
+# balances. Success is reported either way — the caller asked "can you read this?",
+# and the answer is yes.
+_GRANTED: set[str] = set()
+
+
+def granted_paths() -> frozenset[str]:
+    """Paths this process can currently read. Snapshot, so callers cannot mutate it."""
+    return frozenset(_GRANTED)
 
 
 def _load_foundation() -> Any | None:
@@ -121,7 +136,53 @@ def start_access(path: str, bookmark: bytes, foundation: Any) -> bool:
         return False
 
     _ACTIVE_URLS.append(url)  # keep alive — access ends when the URL is released
+    _GRANTED.add(path)
     logger.info("Security-scoped access granted: %s", path)
+    return True
+
+
+class BookmarkGrantError(Exception):
+    """A runtime bookmark could not be turned into access. Carries a reason for the app."""
+
+
+def grant_access(path: str, encoded: str) -> bool:
+    """Grant access to ONE library, handed over while the engine is already running.
+
+    This is the runtime half of the handoff (#3773) — the app calls it from
+    ``POST /api/sandbox/security-scoped-access`` after the user picks a library that
+    did not exist when the engine spawned.
+
+    Returns True when this process may now read ``path``. Raises BookmarkGrantError
+    with a reason when it may not. It RAISES rather than returning False silently:
+    the caller is the app, which is about to open a library, and a library it
+    cannot read must surface as an error the user sees — not as a grant that
+    quietly did nothing (see the engine-wide rule against silent fallbacks).
+    """
+    if not path:
+        raise BookmarkGrantError("path is required")
+
+    if path in _GRANTED:
+        # Idempotent: already held. Do NOT resolve again — a second NSURL for the
+        # same path is a redundant, unbalanced grant.
+        logger.debug("Security-scoped access already held: %s", path)
+        return True
+
+    try:
+        bookmark = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise BookmarkGrantError(f"bookmark is not valid base64: {exc}") from exc
+    if not bookmark:
+        raise BookmarkGrantError("bookmark is empty")
+
+    foundation = _load_foundation()
+    if foundation is None:
+        # Only reachable off-macOS or in a slim build. The sandboxed engine always
+        # has PyObjC (pyobjc-framework-Cocoa is a dependency), so this is a real
+        # misconfiguration, not a normal path — say so.
+        raise BookmarkGrantError("PyObjC/Foundation unavailable — cannot resolve a security-scoped bookmark")
+
+    if not start_access(path, bookmark, foundation):
+        raise BookmarkGrantError(f"could not start security-scoped access to {path}")
     return True
 
 

@@ -111,6 +111,7 @@
 		FEED00000000000000000066 /* ChainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 138 /* ChainService.swift */; };
 		FEED00000000000000000067 /* ContentView+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF372F3D548000D7851A /* ContentView+Persistence.swift */; };
 		FEED00000000000000000068 /* ActivityServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */; };
+		SBX00032F27F36000EC9EE1 /* SandboxAccessServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = SBX00022F27F36000EC9EE1 /* SandboxAccessServiceGenerated.swift */; };
 		FEED00000000000000000069 /* LocationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = LOC00022F27F36000EC9EE1 /* LocationServiceGenerated.swift */; };
 		FEED0000000000000000006A /* PDFDocumentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = PDFC00022F27F36000EC9EE1 /* PDFDocumentCache.swift */; };
 		FEED0000000000000000006B /* PreviewDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRDL00022F27F36000EC9EE1 /* PreviewDownloadService.swift */; };
@@ -932,6 +933,7 @@
 		A13E7C2F2F27E17F00EC9EE1 /* SearchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */; };
 		A13E7C302F27E17F00EC9EE1 /* BatchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2B2F27E17F00EC9EE1 /* BatchServiceGenerated.swift */; };
 		A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */; };
+		SBX00012F27F36000EC9EE1 /* SandboxAccessServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = SBX00022F27F36000EC9EE1 /* SandboxAccessServiceGenerated.swift */; };
 		LOC00012F27F36000EC9EE1 /* LocationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = LOC00022F27F36000EC9EE1 /* LocationServiceGenerated.swift */; };
 		PDFC00012F27F36000EC9EE1 /* PDFDocumentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = PDFC00022F27F36000EC9EE1 /* PDFDocumentCache.swift */; };
 		PRDL00012F27F36000EC9EE1 /* PreviewDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRDL00022F27F36000EC9EE1 /* PreviewDownloadService.swift */; };
@@ -1561,6 +1563,7 @@
 		A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderServiceGenerated.swift; sourceTree = "<group>"; };
 		A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchServiceGenerated.swift; sourceTree = "<group>"; };
 		A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityServiceGenerated.swift; sourceTree = "<group>"; };
+		SBX00022F27F36000EC9EE1 /* SandboxAccessServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandboxAccessServiceGenerated.swift; sourceTree = "<group>"; };
 		LOC00022F27F36000EC9EE1 /* LocationServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationServiceGenerated.swift; sourceTree = "<group>"; };
 		PDFC00022F27F36000EC9EE1 /* PDFDocumentCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFDocumentCache.swift; sourceTree = "<group>"; };
 		PRDL00022F27F36000EC9EE1 /* PreviewDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewDownloadService.swift; sourceTree = "<group>"; };
@@ -2372,6 +2375,7 @@
 				A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */,
 				A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */,
 				A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */,
+				SBX00022F27F36000EC9EE1 /* SandboxAccessServiceGenerated.swift */,
 				LOC00022F27F36000EC9EE1 /* LocationServiceGenerated.swift */,
 				PDFC00022F27F36000EC9EE1 /* PDFDocumentCache.swift */,
 				PRDL00022F27F36000EC9EE1 /* PreviewDownloadService.swift */,
@@ -3443,6 +3447,7 @@
 				FEED00000000000000000066 /* ChainService.swift in Sources */,
 				FEED00000000000000000067 /* ContentView+Persistence.swift in Sources */,
 				FEED00000000000000000068 /* ActivityServiceGenerated.swift in Sources */,
+				SBX00032F27F36000EC9EE1 /* SandboxAccessServiceGenerated.swift in Sources */,
 				FEED00000000000000000069 /* LocationServiceGenerated.swift in Sources */,
 				FEED0000000000000000006A /* PDFDocumentCache.swift in Sources */,
 				FEED0000000000000000006B /* PreviewDownloadService.swift in Sources */,
@@ -4036,6 +4041,7 @@
 				039 /* ChainService.swift in Sources */,
 				200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */,
 				A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */,
+				SBX00012F27F36000EC9EE1 /* SandboxAccessServiceGenerated.swift in Sources */,
 				LOC00012F27F36000EC9EE1 /* LocationServiceGenerated.swift in Sources */,
 				PDFC00012F27F36000EC9EE1 /* PDFDocumentCache.swift in Sources */,
 				PRDL00012F27F36000EC9EE1 /* PreviewDownloadService.swift in Sources */,
