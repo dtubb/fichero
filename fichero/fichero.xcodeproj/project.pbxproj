@@ -2433,6 +2433,7 @@
 			isa = PBXGroup;
 			children = (
 				100 /* Fichero.app */,
+				FEED00000000000000000260 /* Fichero.app */,
 				A10521A92EFDC92400B28C3E /* FicheroTests.xctest */,
 				A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */,
 			);

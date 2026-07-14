@@ -43,9 +43,9 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "FEED00000000000000000261"
+               BlueprintIdentifier = "A10521C02EFDC94100B28C3E"
                BuildableName = "FicheroUITests.xctest"
-               BlueprintName = "Fichero (App Store)"
+               BlueprintName = "FicheroUITests"
                ReferencedContainer = "container:fichero.xcodeproj">
             </BuildableReference>
          </TestableReference>
