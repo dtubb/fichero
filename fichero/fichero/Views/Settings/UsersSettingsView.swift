@@ -164,10 +164,28 @@ extension UsersContent {
                 addAccountSection
             }
 
-            // Invite links (#3157) are only meaningful in multi-user mode, and
-            // only owners can mint them.
-            if identityStore.isOwnerAccess, authzSnapshot?.multiuserEnabled == true {
-                InviteAccountSection(store: store)
+            // Invite links (#3157) are only meaningful in multi-user mode, and only
+            // owners can mint them. When multi-user is off the section used to simply
+            // not exist, so a single-user owner never learned invites were a thing,
+            // let alone what turned them on. Name it, and name the place.
+            //
+            // ponytail: it names Engine settings rather than duplicating the
+            // multi-user switch here — a second switch over the same state is the
+            // exact duplicate-surface disease #3777 just removed.
+            if identityStore.isOwnerAccess {
+                if authzSnapshot?.multiuserEnabled == true {
+                    InviteAccountSection(store: store)
+                } else {
+                    Section {
+                        Text("Multi-user mode is off, so this library has one account and "
+                             + "nobody to invite. Turn it on in Settings → Engine, and Fichero "
+                             + "will restart its engine to apply it.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } header: {
+                        Text("Invite a Person")
+                    }
+                }
             }
 
             sharingSection
@@ -288,49 +306,78 @@ extension UsersContent {
     @ViewBuilder
     fileprivate func roleRow(_ role: Components.Schemas.LibraryRole) -> some View {
         let user = user(for: role.userId)
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(user.map { displayName(for: $0) } ?? role.userId)
-                    if user?.id == store.currentUser?.id {
-                        Text("You")
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.tint.opacity(0.15), in: Capsule())
-                            .foregroundStyle(.tint)
+        let isSelf = role.userId == store.currentUser?.id
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(user.map { displayName(for: $0) } ?? role.userId)
+                        if isSelf {
+                            Text("You")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.tint.opacity(0.15), in: Capsule())
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                    Text(user.map { "@\($0.username)" } ?? role.userId)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Picker("Role", selection: roleBinding(for: role)) {
+                    ForEach(authzRoles, id: \.self) { roleName in
+                        Text(roleName.capitalized).tag(roleName)
                     }
                 }
-                Text(user.map { "@\($0.username)" } ?? role.userId)
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 120)
+                .disabled(isApplyingRoleChange || !isRoleEditable() || isSoleOwner(role))
+
+                // The engine refuses a self-revoke so a library always keeps an
+                // owner (authz.remove_role). We SURFACE that rule rather than
+                // reimplement it — and rather than silently hiding the button,
+                // which teaches the user nothing about why they can't do this.
+                if isRoleEditable(), !isSelf {
+                    Button("Remove") {
+                        Task { await revokeRole(userId: role.userId) }
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.red)
+                    .disabled(isApplyingRoleChange)
+                }
+            }
+
+            if isRoleEditable(), isSelf {
+                Text(lastOwnerExplanation(isSoleOwner: isSoleOwner(role)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-            Spacer()
-
-            Picker("Role", selection: roleBinding(for: role)) {
-                ForEach(authzRoles, id: \.self) { roleName in
-                    Text(roleName.capitalized).tag(roleName)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 120)
-            .disabled(isApplyingRoleChange || !isRoleEditable())
-
-            // Revoke, hidden for your own row — the engine also refuses a
-            // self-revoke so the sole owner can't lock themselves out.
-            if isRoleEditable(), role.userId != store.currentUser?.id {
-                Button("Remove") {
-                    Task { await revokeRole(userId: role.userId) }
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.red)
-                .disabled(isApplyingRoleChange)
-            }
         }
         .padding(.vertical, 2)
+    }
+
+    /// Every library keeps at least one owner. Say WHY the control is unavailable —
+    /// a disabled button with no explanation is a dead control.
+    fileprivate func lastOwnerExplanation(isSoleOwner: Bool) -> String {
+        if isSoleOwner {
+            return "You're the only owner, so you can't remove or downgrade your own access — "
+                + "the library would be left with nobody who can administer it. "
+                + "Give someone else the Owner role first, then they can change yours."
+        }
+        return "You can't remove your own access. Another owner can do it for you."
+    }
+
+    /// True when this row is the library's last remaining owner. Read from the
+    /// engine's own ACL snapshot — the engine stays the enforcer.
+    fileprivate func isSoleOwner(_ role: Components.Schemas.LibraryRole) -> Bool {
+        guard role.role.lowercased() == "owner" else { return false }
+        return (authzSnapshot?.roles ?? []).filter { $0.role.lowercased() == "owner" }.count == 1
     }
 
     fileprivate func roleBinding(for role: Components.Schemas.LibraryRole) -> Binding<String> {
