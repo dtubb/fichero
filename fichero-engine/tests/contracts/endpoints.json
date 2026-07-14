@@ -8067,6 +8067,18 @@
         "response_model": "WebSearchResponse"
       }
     ],
+    "sandbox": [
+      {
+        "method": "POST",
+        "path": "/sandbox/security-scoped-access",
+        "operation_id": "create_security_scoped_access_api_sandbox_security_scoped_access_post",
+        "summary": "Grant the running engine access to a security-scoped library folder",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SecurityScopedAccessRequest",
+        "response_model": "SecurityScopedAccessResponse"
+      }
+    ],
     "schedules": [
       {
         "method": "GET",

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Mac App Store entitlements for the embedded Briefcase Python engine
+  ("Fichero Engine.app"), the nested helper inside the MAS app bundle (#3748).
+
+  Distinct from FicheroEngine.entitlements, which is the DMG / Developer ID
+  channel: that file carries four com.apple.security.cs.* keys, which are
+  HARDENED-RUNTIME exceptions required by notarization. The MAS build does not
+  go through notarization, and the sandbox spike (#3746) proved empirically that
+  the real 1.0 GB engine — 2,889 native libs mapped, incl. duckdb / numpy /
+  onnxruntime / lance / pyarrow — loads with NO hardened runtime and NO cs.* keys
+  at all. So they are not merely unnecessary here; they must not be added back on
+  a hunch.
+
+  EXACTLY TWO KEYS. This is a hard rule, not a minimalism preference: per Apple's
+  Entitlement Key Reference, com.apple.security.inherit is incompatible with any
+  OTHER App Sandbox key, and the system ABORTS the child if one is present. The
+  child inherits the parent's sandbox — that is where network.server (loopback
+  bind) and user-selected file access come from. Do not add keys to this file.
+
+  Two things this file cannot do by itself:
+  - CODE_SIGN_INJECT_BASE_ENTITLEMENTS must be NO wherever the helper is signed:
+    Xcode's injected get-task-allow is itself an "other key" and breaks inherit.
+    The engine is signed by the "Embed Fichero Engine" phase, which passes this
+    file explicitly to codesign, so nothing is injected.
+
+  (Note for editors: this is an XML comment, so it may not contain a double
+  hyphen. plutil tolerates one; a strict XML parser does not.)
+  - Sandbox inheritance passes only STATIC rights. The Powerbox grant the user
+    makes in NSOpenPanel is dynamic and is NOT inherited, so the engine still
+    cannot open a library outside the container without security-scoped bookmark
+    plumbing (#3747).
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.inherit</key>
+	<true/>
+</dict>
+</plist>

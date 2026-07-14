@@ -19,6 +19,7 @@ import warnings
 
 from fichero.bind_host import resolve_bind_host
 from fichero.bind_host import resolve_lan_bind_host
+from fichero.security_scoped_access import activate_library_bookmarks
 from fichero.remote_access_tls import (
     material_manifest_json,
     prepare_remote_access_tls,
@@ -154,6 +155,13 @@ def main(argv: list[str] | None = None):
         tracemalloc.start(25)
         warnings.simplefilter("default", ResourceWarning)
         logger.info("Tracemalloc: ENABLED (ResourceWarning traces active)")
+
+    # Sandboxed (Mac App Store) engine: the app hands us security-scoped bookmarks
+    # for the user's libraries, because a dynamic Powerbox grant does NOT inherit
+    # into a child process (#3747). Resolve them BEFORE anything opens a DuckDB
+    # file — a plain open() on ~/Documents would be denied. A no-op when the env
+    # var is unset, i.e. every non-sandboxed (DMG) run.
+    activate_library_bookmarks()
 
     bind_host = resolve_bind_host()
     listener_hosts = _listener_hosts(bind_host)

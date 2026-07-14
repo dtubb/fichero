@@ -260,6 +260,15 @@ enum AppInstaller {
     }
 
     private static func terminateEmbeddedEngines() {
+        #if FICHERO_APP_STORE
+        // No-op in the App Store build (#3749). Two reasons, either sufficient:
+        // the sandbox does not let us enumerate or SIGTERM processes we do not
+        // own, and this whole install flow is unreachable anyway — the App Store
+        // installs Fichero into /Applications itself, so
+        // promptToMoveToApplicationsIfNeeded() is never called (see FicheroApp).
+        // Kept as a compiled-out branch rather than deleted so the DMG channel,
+        // which genuinely needs the sweep (#757), is untouched.
+        #else
         let pgrep = Process()
         pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
         pgrep.arguments = ["-f", "Fichero Engine.app/Contents/MacOS"]
@@ -280,17 +289,23 @@ enum AppInstaller {
         } catch {
             logger.warning("Could not enumerate engine processes: \(error.localizedDescription)")
         }
+        #endif
     }
 
     private static func waitForPortToClear(_ port: UInt16, timeout: TimeInterval) {
+        #if FICHERO_APP_STORE
+        _ = (port, timeout)  // unreachable in the MAS build; see terminateEmbeddedEngines()
+        #else
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if !portInUse(port) { return }
             Thread.sleep(forTimeInterval: 0.1)
         }
         logger.warning("Port \(port) still in use after \(timeout)s, proceeding anyway")
+        #endif
     }
 
+    #if !FICHERO_APP_STORE
     private static func portInUse(_ port: UInt16) -> Bool {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
@@ -307,6 +322,7 @@ enum AppInstaller {
             return false
         }
     }
+    #endif  // !FICHERO_APP_STORE
 
     @MainActor
     private static func showError(_ message: String) {

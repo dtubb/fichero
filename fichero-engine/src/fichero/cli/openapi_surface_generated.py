@@ -11814,6 +11814,32 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('sandbox')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for sandbox endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='sandbox')
+        existing_apps['sandbox'] = target_app
+
+    @target_app.command("grant-the-running-engine-access-to-a-security-scoped-library-folder")
+    def sandbox_grant_the_running_engine_access_to_a_security_scoped_library_folder_post(
+        ctx: typer.Context,
+        bookmark: str = typer.Option(..., "--bookmark", help="Request field: bookmark."),
+        path: str = typer.Option(..., "--path", help="Request field: path."),
+    ) -> None:
+        """Grant the running engine access to a security-scoped library folder (POST /api/sandbox/security-scoped-access)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/sandbox/security-scoped-access"
+            params = None
+            payload = _build_json_payload({
+                "bookmark": bookmark,
+                "path": path,
+            }, {
+                "bookmark": {'type': 'string', 'title': 'Bookmark', 'description': 'Base64-encoded app-scoped security-scoped bookmark data, minted by the app with NSURL.bookmarkData(options: .withSecurityScope). Same encoding as the FICHERO_LIBRARY_BOOKMARKS spawn payload.', 'x-cli-required': True},
+                "path": {'type': 'string', 'title': 'Path', 'description': 'Absolute path of the library folder the bookmark resolves to.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('schedules')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for schedules endpoints.', no_args_is_help=True)
