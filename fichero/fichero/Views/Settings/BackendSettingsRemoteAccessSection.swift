@@ -54,7 +54,10 @@ struct BackendSettingsRemoteAccessSection: View {
                 publicURL: validatedPublicURL?.absoluteString,
                 inviteLink: inviteLinkString,
                 isGeneratingPairingCode: isGeneratingPairingCode,
-                statusMessage: pairingStatusMessage ?? pairingError,
+                blocker: pairingBlocker,
+                errorMessage: pairingError,
+                isResolving: isRestartingHost,
+                onResolve: { blocker in Task { await resolve(blocker) } },
                 copiedInvite: copiedInvite,
                 onCopyInvite: copyInvite
             )
@@ -74,7 +77,7 @@ struct BackendSettingsRemoteAccessSection: View {
                 canHostRemoteAccess: canHostRemoteAccess,
                 isRestartingHost: isRestartingHost,
                 isRefreshingInvite: isGeneratingPairingCode,
-                canResetInvite: pairingStatusMessage == nil,
+                canResetInvite: pairingBlocker == nil,
                 onResetInvite: { Task { await refreshPairingCard() } },
                 onApply: { Task { await applyHostingChanges() } }
             )
@@ -168,36 +171,66 @@ struct BackendSettingsRemoteAccessSection: View {
         return PlatformImage(cgImage: cgImage, size: .zero)
     }
 
-    private var pairingStatusMessage: String? {
-        guard canHostRemoteAccess else {
-            return "Share This Mac works when Fichero is running on this Mac."
-        }
-        guard appState.isBackendRunning else {
-            return "Fichero is not connected on this Mac right now."
-        }
-        guard hostingEnabled else {
-            return "Set up secure sharing, then Fichero can show a QR code here."
-        }
+    /// Why the pairing card cannot show a QR right now — each precondition named
+    /// HONESTLY, with the fix the app can perform itself (#3776/#3769).
+    ///
+    /// The old chain returned one `String?` and the card printed a fixed headline
+    /// ("Secure sharing needs HTTPS") over ALL of them — so a stopped engine was
+    /// reported as an HTTPS problem. And three separate causes shared one message
+    /// that named no place and offered no button. Both are fixed here: the card
+    /// asks the blocker for its own headline, and offers `actionTitle` when the app
+    /// can cure it without the user doing setup by hand.
+    private var pairingBlocker: PairingBlocker? {
+        guard canHostRemoteAccess else { return .engineIsRemote }
+        guard appState.isBackendRunning else { return .engineNotRunning }
+        guard hostingEnabled else { return .sharingNotStarted }
 
         do {
             _ = try validatedHostedRemoteURL(from: publicBaseURL)
         } catch let error as RemoteURLValidationError {
             switch error {
-            case .blank:
-                return "Set up secure sharing, then Fichero can show a QR code here."
-            case .insecureRemoteTransport:
-                return "Set up secure sharing, then Fichero can show a QR code here."
-            default:
-                return error.localizedDescription
+            case .blank: return .addressMissing
+            case .insecureRemoteTransport: return .addressInsecure
+            default: return .addressInvalid(error.localizedDescription)
             }
         } catch {
-            return error.localizedDescription
+            return .addressInvalid(error.localizedDescription)
         }
 
-        guard hasValidSPKIPin else {
-            return "Finish secure sharing setup in Advanced, then Fichero can show a QR code here."
-        }
+        // THE TRAP (#3776 review): the pin is derived, not typed — and the
+        // derivation is optional. If it comes back nil the card used to go blank,
+        // which is the very disease #3769 is about. The app CAN fix this itself:
+        // restarting the engine mints the TLS material and re-derives the pin.
+        guard hasValidSPKIPin else { return .pinNotDerived }
         return nil
+    }
+
+    /// Perform the blocker's own cure. Only offered where the app can genuinely do
+    /// the setup itself — the whole point of the design is that it does, rather
+    /// than telling the user to go and do it.
+    private func resolve(_ blocker: PairingBlocker) async {
+        switch blocker {
+        case .engineNotRunning:
+            // Mark busy so the button disables — without this a double-tap races a
+            // second start(). (start() has its own re-entrancy guard, #3108, but the
+            // UI should not invite the race.)
+            isRestartingHost = true
+            defer { isRestartingHost = false }
+            do { try await backendService.start() } catch {
+                pairingError = error.localizedDescription
+            }
+            loadAdvertisedSPKIPin()
+        case .sharingNotStarted:
+            hostingEnabled = true
+            await applyHostingChanges()
+        case .pinNotDerived:
+            // Restart mints TLS material and re-derives the pin (applyHostingChanges
+            // → backendService.start() → loadAdvertisedSPKIPin()).
+            await applyHostingChanges()
+            await refreshPairingCard()
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid:
+            break  // no button offered — see PairingBlocker.actionTitle
+        }
     }
 
     private var sharedLibraryPath: String? {
@@ -258,7 +291,7 @@ struct BackendSettingsRemoteAccessSection: View {
         pairingError = nil
         pairingCode = nil
 
-        guard pairingStatusMessage == nil else {
+        guard pairingBlocker == nil else {
             return
         }
 
@@ -337,13 +370,86 @@ func activePairedDevices(from devices: [PairedDeviceRecord]) -> [PairedDeviceRec
     devices.filter { !$0.revoked }
 }
 
+/// Why the pairing card cannot show a QR, as a value rather than a lone string
+/// (#3776/#3769). Each case carries its OWN headline — the card no longer prints
+/// "Secure sharing needs HTTPS" over a stopped engine — and its own cure, so a
+/// blocker is never a dead end. Non-negotiable: never a blank space, never a
+/// dead control; if we cannot proceed, say why and offer the fix.
+private enum PairingBlocker: Equatable {
+    /// The library is served by an engine on ANOTHER machine, so this Mac has
+    /// nothing to share. Nothing the app can do here — that is honest, not a dead end.
+    case engineIsRemote
+    /// The engine on this Mac is not running. The app can start it.
+    case engineNotRunning
+    /// Sharing has not been started yet. The app can start it — the user does not
+    /// "enable a subsystem" first, they just share.
+    case sharingNotStarted
+    /// No reachable address for this Mac yet. The app cannot DISCOVER one today
+    /// (there is no Bonjour/.local/Tailscale self-lookup — see #3776 comment), so
+    /// this one honestly asks for it instead of pretending.
+    case addressMissing
+    case addressInsecure
+    case addressInvalid(String)
+    /// The SPKI pin could not be derived. This is the trap: the pin is computed,
+    /// not typed, and the derivation is optional — a nil used to blank the card.
+    /// Restarting the engine mints the TLS material and derives it.
+    case pinNotDerived
+
+    /// The headline. Each cause names ITSELF.
+    var headline: String {
+        switch self {
+        case .engineIsRemote: return "This library is hosted on another machine"
+        case .engineNotRunning: return "Fichero's engine isn't running"
+        case .sharingNotStarted: return "Sharing hasn't started yet"
+        case .addressMissing: return "Fichero needs this Mac's address"
+        case .addressInsecure: return "Sharing needs HTTPS"
+        case .addressInvalid: return "That address doesn't work"
+        case .pinNotDerived: return "Fichero couldn't prepare the security certificate"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .engineIsRemote:
+            return "Share This Mac works on the Mac that hosts the library. This one is connected to an engine elsewhere."
+        case .engineNotRunning:
+            return "The QR code needs a running engine to pair against."
+        case .sharingNotStarted:
+            return "Start sharing and Fichero will prepare the certificate and the invite for you."
+        case .addressMissing:
+            return "Enter the address other devices can reach this Mac on — an IP, a .local name, or a Tailscale hostname — under Advanced."
+        case .addressInsecure:
+            return "Devices pair over HTTPS so the connection can be pinned. Use an https:// address under Advanced."
+        case .addressInvalid(let reason):
+            return reason
+        case .pinNotDerived:
+            return "The certificate for this address hasn't been minted yet. Fichero can restart its engine and prepare it."
+        }
+    }
+
+    /// The button — present ONLY where the app can genuinely perform the cure
+    /// itself. nil where it honestly cannot (a remote engine; an address only the
+    /// user knows), and then the detail says exactly what to do instead.
+    var actionTitle: String? {
+        switch self {
+        case .engineNotRunning: return "Start Engine"
+        case .sharingNotStarted: return "Start Sharing"
+        case .pinNotDerived: return "Prepare Certificate"
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid: return nil
+        }
+    }
+}
+
 private struct PairingCardView: View {
     let pairingCode: PairingCodeRecord?
     let qrCodeImage: PlatformImage?
     let publicURL: String?
     let inviteLink: String?
     let isGeneratingPairingCode: Bool
-    let statusMessage: String?
+    let blocker: PairingBlocker?
+    let errorMessage: String?
+    let isResolving: Bool
+    let onResolve: (PairingBlocker) -> Void
     let copiedInvite: Bool
     let onCopyInvite: () -> Void
 
@@ -439,13 +545,28 @@ private struct PairingCardView: View {
                 }
             } else if isGeneratingPairingCode {
                 ProgressView("Preparing QR code…")
-            } else if let statusMessage {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Secure sharing needs HTTPS.")
+            } else if let blocker {
+                // Each cause states ITSELF and offers its cure. The old code printed
+                // "Secure sharing needs HTTPS" over every blocker — so a stopped
+                // engine was reported as an HTTPS problem, which is simply false.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(blocker.headline)
                         .font(.headline)
-                    Text(statusMessage)
+                    Text(blocker.detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if let actionTitle = blocker.actionTitle {
+                        Button(isResolving ? "Working…" : actionTitle) {
+                            onResolve(blocker)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isResolving)
+                    }
+                    if let errorMessage {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
         }
