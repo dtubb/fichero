@@ -26,7 +26,6 @@ struct ReadingPaneView: View {
     /// Drives the compact (iPhone) collapse of the side-by-side page split — a
     /// fixed-width transcript beside the source doesn't fit at compact width
     /// (#3666). Always `.regular` on macOS, so the desktop layout is unchanged.
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// Per-window source-navigation bus (#2105/#3437). A reveal brings the reader
     /// to the Page tab so the highlighted source is visible (#3521).
     @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
@@ -58,28 +57,14 @@ struct ReadingPaneView: View {
     // visualisation (Daniel 2026-07-14, #3765 Q6).
     @State private var activeTab: KGSurfaceTab = .entities
     /// The reader's top-level tab (Page/Knowledge/Notes) — the reader IA fold
-    /// (2026-07-11 design). Per-window via @SceneStorage. Defaults to Page: the
-    /// reader reads the source first (Daniel 2026-07-12); Knowledge and Notes
-    /// are secondary top tabs.
+    /// (2026-07-11 design). Per-window via @SceneStorage. Page hosts the REAL
+    /// multi-page WebKit transcript (#3765); the old "reader reads the source
+    /// first" note is retired — the source lives in Preview, never here.
     @SceneStorage("reader.topTab") private var readerTabRaw = ReaderTab.page.rawValue
     private var readerTab: ReaderTab { ReaderTab(rawValue: readerTabRaw) ?? .page }
     private var readerTabBinding: Binding<ReaderTab> {
         Binding(get: { readerTab }, set: { readerTabRaw = $0.rawValue })
     }
-    /// Page-tab layout: source / split / transcript (#3502). Per-window.
-    @SceneStorage("reader.page.layout") private var pageLayoutRaw = ReaderPageLayout.source.rawValue
-    private var pageLayout: ReaderPageLayout { ReaderPageLayout(rawValue: pageLayoutRaw) ?? .source }
-    private var pageLayoutBinding: Binding<ReaderPageLayout> {
-        Binding(get: { pageLayout }, set: { pageLayoutRaw = $0.rawValue })
-    }
-    /// Page-turn animation for image-sequence navigation in the Page tab (#2485).
-    /// Shares the reader.pageTurnAnimated key with the immersive reader so the
-    /// setting is unified; reduce-motion falls back to a crossfade.
-    @AppStorage("reader.pageTurnAnimated") private var pageTurnAnimated = true
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Direction of the last page change, tracked from the page sequence so the
-    /// image swap curls the right way.
-    @State private var pageTurnForward = true
 
     private var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
     private var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
@@ -215,7 +200,7 @@ struct ReadingPaneView: View {
         // A source reveal (#2105) brings the reader to the Page tab so the
         // highlighted / scrolled-to source is actually visible (#3521).
         .onChange(of: claimSourceNavigationState?.requestID) { _, newID in
-            if newID != nil { revealSourceInPageTab() }
+            if newID != nil { revealInTranscript() }
         }
     }
 
@@ -231,15 +216,12 @@ struct ReadingPaneView: View {
         WindowOpener.open(libraryId: libraryId, documentId: documentId, asTab: asTab, using: openWindow)
     }
 
-    /// Switch the reader to the Page tab and, if it's showing only the source,
-    /// split in the transcript — so a revealed claim/entity source shows with
-    /// its highlight + scroll-to-anchor. The transcript highlight and scroll
-    /// come from PageContentPane observing ClaimFocusState (#3511 on appear,
-    /// #3226 anchor); the PDF page scroll comes from the reveal's
-    /// `.ficheroNavigateToPage`.
-    private func revealSourceInPageTab() {
+    /// Bring the Reader to the Page tab so a revealed claim/entity lands on the
+    /// transcript, which scrolls to the page anchor (#3226). There is no longer a
+    /// source layout to switch: the source is Preview's job (#3765 Q4), and the
+    /// reveal drives that pane separately via `.ficheroNavigateToPage`.
+    private func revealInTranscript() {
         if readerTab != .page { readerTabRaw = ReaderTab.page.rawValue }
-        if pageLayout == .source { pageLayoutRaw = ReaderPageLayout.split.rawValue }
     }
 
     @ViewBuilder
@@ -359,7 +341,7 @@ struct ReadingPaneView: View {
 
             Divider()
 
-            surfaceView
+            surfaceView(tab: effectiveKnowledgeTab)
         }
     }
 
@@ -387,90 +369,22 @@ struct ReadingPaneView: View {
         (Self.knowledgeVizModes.contains(activeTab) || activeTab == .digest) ? activeTab : .entities
     }
 
-    /// Page tab — read the source. A source/split/transcript toggle (#3502) lays
-    /// out the page image and its transcript alone or side by side. The source is
-    /// a PDF page in the native `PDFPageWithToolbar` (bottom loupe #2419 + page
-    /// nav) or an image via `DocumentCanvas` (storage HTTP, never a local path);
-    /// the transcript is the annotatable `PageContentPane`.
+    /// Page tab — the REAL multi-page WebKit transcript (#3765).
+    ///
+    /// This is the whole point of the Reader. The engine assembles the
+    /// `page_content` of EVERY child page, in sequence, into one transcript
+    /// (`views.py:37-49`), serves it into `document_view.html`, and
+    /// `DocumentKGSurface` renders it in the shared WKWebView with per-page
+    /// anchors driving scroll↔page sync (#3226). That capability was UNREACHABLE:
+    /// the Knowledge surface excluded `.transcript`, and what the Reader called
+    /// "Transcript" was a different, single-page NATIVE pane — the name lied.
+    ///
+    /// The source is NOT here and never will be: source is always Preview
+    /// (Daniel 2026-07-14, #3765 Q4). Reading the transcript beside the page is
+    /// TWO PANES — Reader + Preview — not an embedded source view.
     @ViewBuilder
     private var pageTabContent: some View {
-        if let doc = effectiveDocument {
-            VStack(spacing: 0) {
-                Picker("Page layout", selection: pageLayoutBinding) {  // #3502
-                    ForEach(ReaderPageLayout.allCases) { layout in
-                        Label(layout.title, systemImage: layout.icon)
-                            .help(layout.help)
-                            .tag(layout)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelStyle(.iconOnly)
-                .fixedSize()
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .accessibilityIdentifier("readerPageLayout")
-
-                Divider()
-
-                switch pageLayout {
-                case .source:
-                    pageSource(for: doc)
-                case .transcript:
-                    PageContentPane(document: doc)
-                case .split:
-                    if horizontalSizeClass == .compact {
-                        // A 320pt transcript beside the source can't fit on an
-                        // iPhone (#3666) — the source would collapse to a sliver.
-                        // Show the source full-width; the layout picker still
-                        // offers the transcript-only view for the text.
-                        pageSource(for: doc)
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        HStack(spacing: 0) {
-                            pageSource(for: doc)
-                                .frame(maxWidth: .infinity)
-                            Divider()
-                            PageContentPane(document: doc)
-                                .frame(width: 320)
-                        }
-                    }
-                }
-            }
-            // Track page-turn direction from the sequence so the image swap
-            // curls the right way (#2485).
-            .onChange(of: doc.sequence ?? -1) { oldSeq, newSeq in
-                if oldSeq != -1, newSeq != -1 { pageTurnForward = newSeq >= oldSeq }
-            }
-        } else {
-            readerEmptyState
-        }
-    }
-
-    /// The page's source rendering: a PDF page (loupe #2419 + page nav via
-    /// `PDFPageWithToolbar`), an image (`DocumentCanvas`, storage HTTP), or the
-    /// transcript as a last resort for text-only documents.
-    ///
-    /// The page-turn (#2485) rides only the image branch: each image page is its
-    /// own document, so an id-swap animates cleanly. PDFs page *inside*
-    /// `PDFPageWithToolbar` (PDFKit owns rendering) — forcing an id-swap there
-    /// would reload the whole PDF each turn, so it keeps stable identity.
-    @ViewBuilder
-    private func pageSource(for doc: Document) -> some View {
-        if doc.docType == .page, let parentId = doc.parentId {
-            PDFPageWithToolbar(documentId: parentId, pageIndex: max(0, (doc.sequence ?? 1) - 1))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if doc.fileType == .pdf {
-            PDFPageWithToolbar(documentId: doc.id, pageIndex: 0)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if doc.fileType == .image {
-            DocumentCanvas(content: .imageStorageDisplay(documentId: doc.id))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .id(doc.id)
-                .transition(pageTurnTransition)
-                .animation(pageTurnAnimation, value: doc.id)
-        } else {
-            PageContentPane(document: doc)
-        }
+        surfaceView(tab: .transcript)
     }
 
     /// Notes tab — the human reading layer. A sub-mode toggle (#3513) switches
@@ -517,26 +431,12 @@ struct ReadingPaneView: View {
         }
     }
 
-    /// Annotation scope for the focused document — page / folder / document.
     private func annotationScope(for doc: Document) -> AnnotationScope {
         switch doc.docType {
         case .folder: return .folder(doc.id)
         case .page: return .page(doc.id)
         default: return .document(doc.id)
         }
-    }
-
-    /// Page-turn transition for the Page tab's image navigation (#2485). Off ⇒
-    /// no transition; reduce-motion ⇒ crossfade; otherwise the 3D page-turn.
-    private var pageTurnTransition: AnyTransition {
-        guard pageTurnAnimated else { return .identity }
-        guard !reduceMotion else { return .opacity }
-        return .pageTurn(forward: pageTurnForward)
-    }
-
-    private var pageTurnAnimation: Animation? {
-        guard pageTurnAnimated else { return nil }
-        return .easeInOut(duration: reduceMotion ? 0.2 : 0.45)
     }
 
     private var readerEmptyState: some View {
@@ -547,8 +447,11 @@ struct ReadingPaneView: View {
             .background(Color(.textBackgroundColor))
     }
 
+    /// The shared WebKit surface, driven by an explicit tab. The Page tab passes
+    /// `.transcript` (the assembled multi-page transcript) and the Knowledge tab
+    /// passes its viz sub-mode — one WKWebView, two readings of the same document.
     @ViewBuilder
-    private var surfaceView: some View {
+    private func surfaceView(tab: KGSurfaceTab) -> some View {
         if let doc = effectiveDocument,
            let libraryPath = apiClient.currentLibraryPath, !libraryPath.isEmpty {
             let kgDocId = (doc.docType == .page && doc.parentId != nil) ? doc.parentId! : doc.id
@@ -563,16 +466,16 @@ struct ReadingPaneView: View {
                 onPageSelected: isPinned ? { _ in } : onPageSelected,
                 scrollSync: scrollSync,
                 zoom: webZoom,
-                externalActiveTab: effectiveKnowledgeTab,
-                onTabSelected: { activeTab = $0 },
+                externalActiveTab: tab,
+                // Only the Knowledge tab owns the sub-mode. A tab change published
+                // while the transcript is showing must not silently rewrite it.
+                onTabSelected: { newTab in
+                    if tab != .transcript { activeTab = newTab }
+                },
                 document: doc
             )
         } else {
-            Text("No selection")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.textBackgroundColor))
+            readerEmptyState
         }
     }
 }
