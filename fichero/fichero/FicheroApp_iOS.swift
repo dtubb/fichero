@@ -159,6 +159,12 @@ private struct FicheroSharedPlatformRoot: View {
     /// fresh, unpaired install shows first-run setup instead of a pointless
     /// probe-then-unreachable flash.
     private func reconnectToConfiguredHost() async {
+        // #3772: log WHICH of the four persisted pairing values survived this launch.
+        // The bug is not "we forgot to save it" — all four are written — so the fix
+        // depends entirely on which one is missing, and this names it instead of
+        // making us guess. Secrets are never logged, only presence.
+        PairingRestoreDiagnostics.logAtLaunch()
+
         // Pure phase decision (#3113): with no paired library the launch is
         // `setupNeeded` regardless of reachability — a fresh install shows
         // first-run pairing instead of probing localhost (#2465). Reachability
