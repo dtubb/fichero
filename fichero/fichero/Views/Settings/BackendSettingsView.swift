@@ -34,16 +34,15 @@ struct BackendSettingsView: View {
                 }
             }
 
+            // Joining ANOTHER Mac's library — the client side of pairing, which is a
+            // different question from sharing this one, and stays here.
+            //
+            // Sharing THIS Mac used to be duplicated here too ("Share This Mac"), in
+            // parallel with Settings → Library Access → Devices: two surfaces, two
+            // toggles over the same keys, two device lists, two sets of reasons the
+            // QR could vanish. There is now one (#3777) — ShareSettingsView.
             #if canImport(AppKit)
             MacRemoteClientPairingSection(
-                appState: appState,
-                backendService: backendService,
-                libraryManager: libraryManager
-            )
-            #endif
-
-            #if canImport(AppKit)
-            BackendSettingsRemoteAccessSection(
                 appState: appState,
                 backendService: backendService,
                 libraryManager: libraryManager

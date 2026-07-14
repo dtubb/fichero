@@ -4,6 +4,21 @@ import CoreImage.CIFilterBuiltins
 import FicheroAPIClient
 import SwiftUI
 
+// The ONE host-side sharing and pairing surface (#3777).
+//
+// Turning sharing on is a SINGLE ACTION that does all of its own setup: it derives
+// this Mac's address, advertises it on the local network, restarts the engine with
+// TLS, mints the certificate pin and the invite. The user never types a URL, never
+// sees an SPKI pin, never presses "Apply and Restart Engine". The old second copy
+// of this pane (Engine → Backend → "Share This Mac") is gone; its only genuinely
+// useful escape hatches — a manual address override and "Reset Invite" — live in
+// the single Advanced disclosure at the bottom of this pane.
+//
+// What the toggle is and isn't: it is a CONVENIENCE ("don't listen"), never a
+// safety story. The secret protects the user, not the switch — the engine denies
+// any bearer token with no matching device row whatever this flag says. So sharing
+// being on is not a risk to explain away; it is a door with a lock on it.
+
 // swiftlint:disable file_length
 // swiftlint:disable:next type_body_length
 struct ShareSettingsView: View {
@@ -29,6 +44,9 @@ struct ShareSettingsView: View {
     @State private var isGeneratingCode = false
     @State private var isLoadingDevices = false
     @State private var didBootstrap = false
+    @State private var copiedInvite = false
+    @State private var addressDraft = ""
+    @State private var confirmRemoveAllDevices = false
 
     private let qrContext = CIContext()
 
@@ -60,35 +78,45 @@ struct ShareSettingsView: View {
                 .disabled(isApplyingChange || !EngineConfig.engineIsLocal)
                 .padding(.vertical, 4)
 
-                if hostingEnabled {
-                    qrOrStatusContent
+                // The card renders whenever there is something to say: sharing is on
+                // (QR, progress, or the one thing blocking it), or the toggle is dead
+                // because this Mac doesn't host the library — a disabled switch with
+                // no explanation is exactly the dead control we do not ship.
+                if hostingEnabled || pairingBlocker == .engineIsRemote {
+                    PairingCardView(
+                        pairingCode: pairingCode,
+                        qrCodeImage: qrCodeImage,
+                        publicURL: validatedPublicURL?.absoluteString,
+                        inviteLink: inviteLinkString,
+                        isGeneratingPairingCode: isGeneratingCode,
+                        blocker: pairingBlocker,
+                        errorMessage: shareError,
+                        isResolving: isApplyingChange,
+                        onResolve: { blocker in Task { await resolve(blocker) } },
+                        copiedInvite: copiedInvite,
+                        onCopyInvite: copyInvite
+                    )
                 }
             }
 
-            if !activePairedDevices(from: pairedDevices).isEmpty {
-                Section("Connected Devices") {
-                    ForEach(activePairedDevices(from: pairedDevices)) { device in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(device.name)
-                                Text(device.lastSeen, style: .relative)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button("Remove") {
-                                Task { await revoke(deviceID: device.id) }
-                            }
-                            .buttonStyle(.borderless)
-                        }
-                    }
+            if hostingEnabled {
+                Section {
+                    PairedDevicesSectionView(
+                        devices: activePairedDevices(from: pairedDevices),
+                        isLoading: isLoadingDevices,
+                        canHostRemoteAccess: EngineConfig.engineIsLocal,
+                        onRefresh: { Task { await refreshDevices() } },
+                        onRevoke: { deviceID in Task { await revoke(deviceID: deviceID) } }
+                    )
                 }
             }
 
+            advancedSection
         }
         .formStyle(.grouped)
         .task {
             loadSPKIPin()
+            addressDraft = publicBaseURL
             // Refresh the backend's real multi-user state so this tab's status
             // matches Users + Engine (#3331).
             await appState.identityStore.load()
@@ -109,92 +137,73 @@ struct ShareSettingsView: View {
             guard didBootstrap else { return }
             await refreshPairingCode()
         }
-        .onChange(of: publicBaseURL) { _, _ in loadSPKIPin() }
+        .onChange(of: publicBaseURL) { _, newValue in
+            loadSPKIPin()
+            addressDraft = newValue
+        }
     }
 
-    // MARK: - QR / Status
+    // MARK: - Blocker
 
-    @ViewBuilder
-    private var qrOrStatusContent: some View {
-        if let pairingCode, let qrImage = makeQRImage(for: pairingCode) {
-            HStack {
-                Spacer(minLength: 0)
-                VStack(alignment: .center, spacing: 12) {
-                    Image(platformImage: qrImage)
-                        .interpolation(.none)
-                        .resizable()
-                        .frame(width: 220, height: 220)
-                        .accessibilityLabel("Pairing QR code")
+    /// Why the pairing card cannot show a QR right now — each precondition named
+    /// honestly, in the order it must hold (#3776/#3769).
+    private var pairingBlocker: PairingBlocker? {
+        guard EngineConfig.engineIsLocal else { return .engineIsRemote }
+        guard appState.isBackendRunning else { return .engineNotRunning }
+        guard hostingEnabled else { return .sharingNotStarted }
 
-                    Text("Scan this QR Code with Fichero on another device to connect.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-
-                    DisclosureGroup("Show Details") {
-                        LabeledContent("Address") {
-                            Text(displayAddress)
-                                .textSelection(.enabled)
-                                .font(.caption.monospaced())
-                        }
-                        LabeledContent("Route") {
-                            Text(displayRoute)
-                        }
-                        LabeledContent("Code") {
-                            Text(formatCode(pairingCode.code))
-                                .textSelection(.enabled)
-                                .font(.caption.monospaced())
-                        }
-                    }
-                    .font(.caption)
-                }
-                Spacer(minLength: 0)
+        do {
+            _ = try validatedHostedRemoteURL(from: publicBaseURL)
+        } catch let error as RemoteURLValidationError {
+            switch error {
+            case .blank: return .addressMissing
+            case .insecureRemoteTransport: return .addressInsecure
+            default: return .addressInvalid(error.localizedDescription)
             }
-            .padding(.vertical, 4)
-        } else if isGeneratingCode {
-            ProgressView("Preparing QR code…")
-        } else {
-            Text(statusMessage)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        } catch {
+            return .addressInvalid(error.localizedDescription)
         }
 
-        if let shareError {
-            Text(shareError)
-                .font(.caption)
-                .foregroundStyle(.red)
+        // The pin is derived, not typed — and the derivation is optional. If it comes
+        // back nil the card used to go blank, which is the very disease #3769 is
+        // about. The app CAN fix this itself: restarting the engine mints the TLS
+        // material and re-derives the pin.
+        guard hasValidSPKIPin else { return .pinNotDerived }
+        return nil
+    }
+
+    /// Perform the blocker's own cure. Only offered where the app can genuinely do
+    /// the setup itself — the whole point of the design is that it does, rather than
+    /// telling the user to go and do it.
+    private func resolve(_ blocker: PairingBlocker) async {
+        switch blocker {
+        case .engineNotRunning:
+            isApplyingChange = true
+            shareError = nil
+            defer { isApplyingChange = false }
+            do {
+                try await backendService.start()
+            } catch {
+                shareError = error.localizedDescription
+            }
+            loadSPKIPin()
+        case .sharingNotStarted:
+            hostingEnabled = true
+            bonjourEnabled = true
+            if publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                publicBaseURL = Self.autoLocalBaseURL
+            }
+            await applySharing()
+        case .pinNotDerived:
+            // Restart mints TLS material and re-derives the pin.
+            await applySharing()
+            await refreshPairingCode()
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid:
+            break  // no button offered — see PairingBlocker.actionTitle
         }
     }
 
-    private var statusMessage: String {
-        guard EngineConfig.engineIsLocal else {
-            return "Sharing works when Fichero is running on this Mac."
-        }
-        guard appState.isBackendRunning else {
-            return "Fichero is not connected on this Mac right now."
-        }
-        let url = publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !url.isEmpty else {
-            return "Setting up secure sharing…"
-        }
-        guard (try? RemoteCertificatePinning.validatedSPKIPin(spkiPin)) != nil else {
-            return "Applying certificate. Toggle sharing off and on if this persists."
-        }
-        return "Preparing…"
-    }
-
-    private var displayAddress: String {
-        let url = publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        return url.isEmpty ? EngineConfig.apiBaseURL.absoluteString : url
-    }
-
-    private var displayRoute: String {
-        let addr = displayAddress.lowercased()
-        if addr.contains(".local") || addr.contains("localhost") || addr.contains("127.0.0.1") {
-            return "Same Network"
-        }
-        return "Custom"
-    }
+    // MARK: - Security summary
 
     @ViewBuilder
     private var securitySection: some View {
@@ -244,6 +253,74 @@ struct ShareSettingsView: View {
         }
     }
 
+    // MARK: - Advanced (the ONE escape hatch)
+
+    @ViewBuilder
+    private var advancedSection: some View {
+        Section {
+            DisclosureGroup("Advanced") {
+                // Sharing works this out by itself. The override exists for the one
+                // case it cannot know about — a Tailscale hostname, a fixed IP behind
+                // a router — and nowhere else.
+                LabeledContent("Automatic address") {
+                    Text(Self.autoLocalBaseURL)
+                        .font(.caption.monospaced())
+                        .textSelection(.enabled)
+                        .foregroundStyle(.secondary)
+                }
+
+                TextField("Address other devices use", text: $addressDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+
+                Text("A literal IP address, a .local hostname, or a Tailscale .ts.net hostname. "
+                     + "It must be https:// so the connection can be pinned.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Button("Use This Address") {
+                        publicBaseURL = addressDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        Task { await applySharing() }
+                    }
+                    .disabled(isApplyingChange || addressDraft == publicBaseURL)
+
+                    Button("Restore Automatic") {
+                        publicBaseURL = Self.autoLocalBaseURL
+                        Task { await applySharing() }
+                    }
+                    .disabled(isApplyingChange || publicBaseURL == Self.autoLocalBaseURL)
+                }
+
+                Divider()
+
+                // The only invite-rotation affordance in the app: mints a fresh
+                // one-time code and invalidates the one already on screen.
+                Button(isGeneratingCode ? "Resetting Invite…" : "Reset Invite") {
+                    Task { await refreshPairingCode() }
+                }
+                .disabled(isApplyingChange || isGeneratingCode || pairingBlocker != nil)
+
+                Button("Remove All Devices", role: .destructive) {
+                    confirmRemoveAllDevices = true
+                }
+                .disabled(!EngineConfig.engineIsLocal || activePairedDevices(from: pairedDevices).isEmpty)
+            }
+        }
+        .confirmationDialog(
+            "Remove all connected devices?",
+            isPresented: $confirmRemoveAllDevices,
+            titleVisibility: .visible
+        ) {
+            Button("Remove All Devices", role: .destructive) {
+                Task { await revokeAllDevices() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Every device that has joined this library will have to scan a new QR code to get back in.")
+        }
+    }
+
     /// The engine's real multi-user state — the single source of truth (#3331),
     /// shared with the Users + Engine tabs so all three agree. Reads
     /// `GET /api/auth/identity` via IdentityStore, never the local desired flag.
@@ -265,27 +342,41 @@ struct ShareSettingsView: View {
         ].joined(separator: "|")
     }
 
-    private func formatCode(_ code: String) -> String {
-        let chars = code.filter { $0.isNumber || $0.isLetter }
-        guard chars.count >= 4 else { return code }
-        let mid = chars.index(chars.startIndex, offsetBy: chars.count / 2)
-        return "\(chars[..<mid]) \(chars[mid...])"
+    // MARK: - Pairing payload
+
+    private var hasValidSPKIPin: Bool {
+        (try? RemoteCertificatePinning.validatedSPKIPin(spkiPin)) != nil
     }
 
-    // MARK: - QR generation
+    private var validatedPublicURL: URL? {
+        try? validatedHostedRemoteURL(from: publicBaseURL)
+    }
 
-    private func makeQRImage(for record: PairingCodeRecord) -> PlatformImage? {
-        guard let publicURL = try? validatedHostedRemoteURL(from: publicBaseURL) else { return nil }
+    private var advertisedPairingService: PairingService? {
+        guard let publicURL = validatedPublicURL else { return nil }
+        return PairingService(apiRoot: publicURL)
+    }
+
+    private var pairingQRPayload: PairingQRCodePayload? {
+        guard let pairingCode, let advertisedPairingService else { return nil }
         guard let normalizedPin = try? RemoteCertificatePinning.validatedSPKIPin(spkiPin) else { return nil }
-        let service = PairingService(apiRoot: publicURL)
-        let payload = service.buildQRCodePayload(
-            from: record,
+        return advertisedPairingService.buildQRCodePayload(
+            from: pairingCode,
             spki: normalizedPin,
             libraryPath: sharedLibraryPath
         )
+    }
+
+    private var inviteLinkString: String? {
+        guard let pairingQRPayload else { return nil }
+        return try? RemoteClientPairing.inviteLinkString(from: pairingQRPayload)
+    }
+
+    private var qrCodeImage: PlatformImage? {
+        guard let pairingQRPayload else { return nil }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(payload) else { return nil }
+        guard let data = try? encoder.encode(pairingQRPayload) else { return nil }
         let filter = CIFilter.qrCodeGenerator()
         filter.message = data
         filter.correctionLevel = "M"
@@ -293,6 +384,18 @@ struct ShareSettingsView: View {
               let cgImage = qrContext.createCGImage(output, from: output.extent) else { return nil }
         return PlatformImage(cgImage: cgImage, size: .zero)
     }
+
+    private func copyInvite() {
+        guard let inviteLinkString else { return }
+        PlatformPasteboard.writeString(inviteLinkString)
+        copiedInvite = true
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            copiedInvite = false
+        }
+    }
+
+    // MARK: - Authz
 
     @MainActor
     private func loadAuthzSnapshot() async {
@@ -329,6 +432,8 @@ struct ShareSettingsView: View {
             .joined(separator: "|")
     }
 
+    /// ONE ACTION. Flipping this on derives the address, advertises the Mac, restarts
+    /// the engine with TLS and mints the invite — the user does not do our setup.
     private var sharingBinding: Binding<Bool> {
         Binding(
             get: { hostingEnabled },
@@ -381,12 +486,7 @@ struct ShareSettingsView: View {
     private func refreshPairingCode() async {
         pairingCode = nil
         shareError = nil
-        guard EngineConfig.engineIsLocal,
-              appState.isBackendRunning,
-              hostingEnabled,
-              (try? validatedHostedRemoteURL(from: publicBaseURL)) != nil,
-              (try? RemoteCertificatePinning.validatedSPKIPin(spkiPin)) != nil
-        else { return }
+        guard pairingBlocker == nil else { return }
         isGeneratingCode = true
         defer { isGeneratingCode = false }
         do {
@@ -420,6 +520,20 @@ struct ShareSettingsView: View {
         }
     }
 
+    private func revokeAllDevices() async {
+        shareError = nil
+        guard EngineConfig.engineIsLocal else { return }
+        let service = PairingService(apiRoot: EngineConfig.host)
+        do {
+            for device in activePairedDevices(from: pairedDevices) {
+                try await service.revokeDevice(id: device.id)
+            }
+        } catch {
+            shareError = error.localizedDescription
+        }
+        await refreshDevices()
+    }
+
     private func loadSPKIPin() {
         spkiPin = RemoteAccessConfig.hostedBackendSPKIPin(hostString: publicBaseURL) ?? ""
     }
@@ -433,3 +547,4 @@ struct ShareSettingsView: View {
     }
 }
 #endif
+// swiftlint:enable file_length
