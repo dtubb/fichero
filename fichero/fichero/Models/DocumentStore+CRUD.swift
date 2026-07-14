@@ -224,7 +224,7 @@ extension DocumentStore {
         case 200:
             break // Success
         case 400:
-            throw DocumentStoreError.badRequest
+            throw DocumentStoreError.badRequest(detail: EngineErrorDetail.message(from: data))
         case 401, 403:
             throw DocumentStoreError.unauthorized
         case 404:
@@ -232,7 +232,10 @@ extension DocumentStore {
         case 413:
             throw DocumentStoreError.fileTooLarge
         case 500...599:
-            throw DocumentStoreError.serverError(httpResponse.statusCode)
+            throw DocumentStoreError.serverError(
+                httpResponse.statusCode,
+                detail: EngineErrorDetail.message(from: data)
+            )
         default:
             throw URLError(.badServerResponse)
         }
