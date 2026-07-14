@@ -163,6 +163,16 @@ def main() -> int:
                 "unsigned nested archives (90284), and a .a cannot be signed — it is an ar archive, not a "
                 "Mach-O image. Briefcase's Python.framework ships Tcl/Tk stubs."
             )
+        # 90277/90278 — Briefcase ships PyObjCTest extensions with their .dSYM bundles
+        # beside them. A .dSYM's identifier is com.apple.xcode.dsym.*, which is Apple's
+        # and can never match our provisioning profile — and it is detached DWARF, not
+        # runtime code, so there is nothing to fix by re-signing it.
+        if '-name "*.dSYM" -type d -exec rm -rf {} +' not in body:
+            fail(
+                "the MAS embed phase must DELETE debug-symbol bundles (.dSYM) from the engine. They carry "
+                "com.apple.xcode.dsym identifiers that cannot match the provisioning profile (90277/90278), "
+                "and they are not runtime code."
+            )
         # 90296 — entitlements must be chosen by what a file IS. The first upload was
         # rejected because they were chosen by PATH, so fm-bridge (an executable the
         # engine spawns, buried under Contents/Resources/app/...) signed plain.
