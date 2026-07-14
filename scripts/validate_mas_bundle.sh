@@ -28,9 +28,22 @@
 
 set -u
 
-TARGET="${1:-}"
+# --structure-only omits the checks that need the OUTER app to be signed, so this can
+# run as a build phase — where the engine is already signed (our embed phase does it)
+# but Xcode has not yet reached its CodeSign step for the app itself. Everything that
+# does not depend on that signature still runs, which is every rejection we have
+# actually taken: .a, .dSYM, unsandboxed nested executables, engine placement, Sparkle.
+STRUCTURE_ONLY=0
+TARGET=""
+for arg in "$@"; do
+  case "$arg" in
+    --structure-only) STRUCTURE_ONLY=1 ;;
+    *) TARGET="$arg" ;;
+  esac
+done
+
 if [ -z "$TARGET" ]; then
-  echo "usage: $0 <path to Fichero.app or Fichero.xcarchive>" >&2
+  echo "usage: $0 [--structure-only] <path to Fichero.app or Fichero.xcarchive>" >&2
   exit 2
 fi
 
@@ -50,8 +63,28 @@ if [ ! -d "$APP" ]; then
   exit 2
 fi
 
+# Resolve to a PHYSICAL path. In an archive build the products dir holds a SYMLINK to
+# the real bundle under DSTROOT, and `find` does not descend into a symlinked starting
+# point — it silently reports zero matches, which reads exactly like a clean bundle.
+# That is how a .dSYM-laden archive passed its own checks (#3797). Never `find` a path
+# that might be a symlink.
+APP="$(cd "$APP" && pwd -P)"
+
 echo "Validating $APP"
 FAILURES=0
+
+fail_early() {
+  echo "  ✗ $1" >&2
+  echo >&2
+  echo "FAILED — validation cannot be trusted." >&2
+  exit 1
+}
+
+# Before believing any "found nothing", prove find is traversing at all. A bundle
+# always has files in it; zero means the walk is broken, not that the bundle is clean.
+if [ "$(find "$APP" -type f | head -1 | wc -l | tr -d ' ')" -eq 0 ]; then
+  fail_early "find traverses nothing under $APP — every check below would vacuously pass"
+fi
 
 fail() {
   echo "  ✗ $1" >&2
@@ -94,6 +127,15 @@ MAIN_EXEC="$APP/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExec
 while IFS= read -r exe; do
   [ -n "$exe" ] || continue
   EXEC_COUNT=$((EXEC_COUNT + 1))
+
+  # In --structure-only (build-phase) mode the OUTER app is not signed yet — Xcode's
+  # CodeSign step runs after our phases — so its entitlements cannot be read. Every
+  # NESTED executable is already signed by the embed phase, and those are the ones
+  # that have actually been rejected, so they are still checked.
+  if [ "$STRUCTURE_ONLY" -eq 1 ] && [ "$exe" = "$MAIN_EXEC" ]; then
+    continue
+  fi
+
   ENTS="$(codesign --display --entitlements - "$exe" 2>&1)"
 
   if ! printf '%s' "$ENTS" | grep -q "com.apple.security.app-sandbox"; then
@@ -151,7 +193,9 @@ done
 # --deep is used here to VERIFY (read-only, fine). It must never be used to SIGN:
 # signing with --deep re-signs nested code with the PARENT's entitlements, which
 # silently replaces the engine's two-key set and breaks inherit.
-if codesign --verify --deep --strict "$APP" 2>/dev/null; then
+if [ "$STRUCTURE_ONLY" -eq 1 ]; then
+  echo "  – signature check skipped (--structure-only: the app is signed after this phase)"
+elif codesign --verify --deep --strict "$APP" 2>/dev/null; then
   echo "  ✓ signature verifies (--verify --deep --strict)"
 else
   fail "signature does not verify: codesign --verify --deep --strict failed"
