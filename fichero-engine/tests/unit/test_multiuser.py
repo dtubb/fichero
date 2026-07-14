@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from fichero import authz
 from fichero.api.auth import _use_multiuser_auth
 from fichero.multiuser import multiuser_enabled
@@ -45,6 +47,13 @@ def test_multiuser_enabled_by_persisted_setting(monkeypatch, app_db):
     assert multiuser_enabled() is True
     assert _use_multiuser_auth() is True
     assert authz.multiuser_enabled() is True
+
+
+def test_multiuser_denies_unresolved_direct_action_actor(monkeypatch, tmp_path):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+
+    with pytest.raises(authz.AuthorizationError, match="write access denied"):
+        authz.assert_can_write("ui", tmp_path / "test.fichero")
 
 
 def test_multiuser_not_enabled_by_existing_accounts(monkeypatch, app_db):
