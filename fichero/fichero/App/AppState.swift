@@ -92,6 +92,14 @@ class AppState {
 
     var selectedSettingsTab: SettingsTab = .aiModels
 
+    /// A `fichero://pair` link the user opened, waiting for them to confirm (#3788).
+    ///
+    /// A tapped link must NEVER pair silently: it repoints this Mac at a remote host,
+    /// which is a trust decision. So the link only PREFILLS the existing Mac pairing
+    /// field, and the user still presses Connect — the same confirm-before-pair shape
+    /// iOS has. Cleared once consumed.
+    var pendingPairingInvite: String?
+
     var showMCPServers: Bool = false {
         didSet {
             guard showMCPServers else { return }

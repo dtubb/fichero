@@ -54,6 +54,25 @@ struct MacRemoteClientPairingSection: View {
                 }
                 .padding(.top, 6)
             }
+            // A tapped fichero:// link lands here (#3788): prefill it and open the
+            // drawer so the user SEES what they are about to connect to and presses
+            // Connect themselves. Never pair silently — it repoints this Mac at a
+            // remote host. Consumed once, so re-opening Settings doesn't re-fill it.
+            .onChange(of: appState.pendingPairingInvite) { _, invite in
+                guard let invite, !invite.isEmpty else { return }
+                clientInvite = invite
+                showingManualInvite = true
+                appState.pendingPairingInvite = nil
+            }
+            .task {
+                // The link may have arrived BEFORE this view existed (the app was
+                // launched by the link). onChange would never fire for that.
+                if let invite = appState.pendingPairingInvite, !invite.isEmpty {
+                    clientInvite = invite
+                    showingManualInvite = true
+                    appState.pendingPairingInvite = nil
+                }
+            }
 
             if let clientPairingError {
                 Text(clientPairingError)
