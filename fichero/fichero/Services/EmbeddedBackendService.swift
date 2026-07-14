@@ -348,20 +348,41 @@ final class EmbeddedBackendService {
     // MARK: - Private Helpers
 
     #if os(macOS)
+    /// The two places the nested engine can live, in the order we look (#3749).
+    ///
+    /// The channels genuinely diverge here and both must keep working from one
+    /// binary's worth of source:
+    ///   • Contents/Helpers  — the App Store build. TN2206 lists the designated
+    ///     code locations (MacOS, Frameworks, Helpers, PlugIns, XPCServices,
+    ///     Library); Resources is NOT one of them, and MAS ingestion validation
+    ///     is stricter than notarization — an executable .app under Resources is
+    ///     an invalid bundle structure. The sandbox spike (#3746) ran the engine
+    ///     from Contents/Helpers, so this is demonstrated, not inferred.
+    ///   • Contents/Resources — the Developer ID / DMG build, unchanged. It gets
+    ///     away with Resources under notarization and is not worth the churn.
+    ///
+    /// Probing both (rather than an #if) keeps this one code path honest: the
+    /// engine is wherever the build actually put it, and a mismatch surfaces as
+    /// the existing backendAppNotFound error rather than a silent wrong guess.
+    static let engineBundleSubpaths = [
+        "Contents/Helpers/Fichero Engine.app",
+        "Contents/Resources/Fichero Engine.app"
+    ]
+
     // swiftlint:disable:next function_body_length
     private func launchEmbeddedBackend() throws {
-        guard let resourcePath = Bundle.main.resourcePath else {
-            throw BackendError.bundleNotFound
+        let bundlePath = Bundle.main.bundlePath
+
+        // Bundle is named "Fichero Engine.app" (briefcase formal_name =
+        // "Fichero Engine"), bundle ID app.fichero.fichero.engine.
+        let candidates = Self.engineBundleSubpaths.map { "\(bundlePath)/\($0)" }
+        let backendAppPath = candidates.first {
+            FileManager.default.fileExists(atPath: "\($0)/Contents/MacOS/Fichero Engine")
         }
 
-        // Path to nested Briefcase backend app's executable. Bundle is named
-        // "Fichero Engine.app" (briefcase formal_name = "Fichero Engine"),
-        // bundle ID app.fichero.fichero.engine (#renamed today).
-        let backendAppPath = "\(resourcePath)/Fichero Engine.app"
-        let executablePath = "\(backendAppPath)/Contents/MacOS/Fichero Engine"
-
         // Check if backend executable exists
-        guard FileManager.default.fileExists(atPath: executablePath) else {
+        guard let backendAppPath else {
+            let executablePath = candidates[0] + "/Contents/MacOS/Fichero Engine"
             logger.error("Backend executable not found at: \(executablePath)")
             // Debug builds skip the "Embed Fichero Engine" phase (it only runs in
             // Release), so in a Debug ⌘R the engine is expected to be running
@@ -371,10 +392,12 @@ final class EmbeddedBackendService {
             )
             throw BackendError.backendAppNotFound
         }
+        let executablePath = "\(backendAppPath)/Contents/MacOS/Fichero Engine"
+        logger.info("Embedded engine: \(backendAppPath)")
 
-        // Port pre-flight (orphan sweep + user decision on a foreign holder)
-        // already ran in resolvePortConflict() before we got here — including
-        // in DEBUG (#2863). By this point the port is ours to bind.
+        // Port pre-flight (orphan sweep by the DMG build; a loopback probe under
+        // the sandbox) already ran in resolvePortConflict() before we got here —
+        // including in DEBUG (#2863). By this point the port is ours to bind.
 
         let accessMaterial: RemoteAccessTLSMaterial
         let publicBaseURL: URL?
@@ -673,6 +696,13 @@ final class EmbeddedBackendService {
     // MARK: - Orphan-engine cleanup
 
     #if os(macOS)
+    // Compiled OUT of the App Store build (#3749). Everything from here to the
+    // matching #endif enumerates or signals processes that are not our children
+    // — pgrep, ps -E, kill() on a foreign PID. Under App Sandbox none of it
+    // works, and shipping it dead would still put /usr/bin/pgrep and /bin/ps in
+    // a binary the reviewer greps. The MAS build manages only the Process handle
+    // it owns; see resolvePortConflict().
+    #if !FICHERO_APP_STORE
     /// SIGTERM a "Fichero Engine" subprocess left over from a previous run of
     /// **this** app that didn't get a chance to call .stop() (e.g. SIGKILL,
     /// crash, or force-quit). Called before spawning a new engine so the new
@@ -758,6 +788,7 @@ final class EmbeddedBackendService {
         if pid <= 0 { return false }
         return kill(pid, 0) == 0 || errno == EPERM
     }
+    #endif  // !FICHERO_APP_STORE — end of the non-child process machinery
 
     static func waitForPortToClear(_ port: UInt16, timeout: TimeInterval) {
         let deadline = Date().addingTimeInterval(timeout)
@@ -768,10 +799,48 @@ final class EmbeddedBackendService {
     }
 
     private static func portInUse(_ port: UInt16) -> Bool {
-        pidOnPort(port) != nil
+        #if FICHERO_APP_STORE
+        return portIsAcceptingConnections(port)
+        #else
+        return pidOnPort(port) != nil
+        #endif
     }
 
+    /// Is something LISTENing on `port`? A plain loopback TCP connect — the only
+    /// port probe available under App Sandbox (#3749).
+    ///
+    /// `lsof` enumerates other processes' file descriptors, which the sandbox
+    /// does not permit; it would fail and report the port "free", the engine
+    /// would spawn, and the bind would fail with a confusing error. A connect to
+    /// 127.0.0.1 is covered by `com.apple.security.network.client`, tells us the
+    /// one thing we actually need ("is the port taken?"), and tells us nothing
+    /// about WHO holds it — which is correct, because a sandboxed app has no
+    /// business knowing, and cannot signal them anyway.
+    static func portIsAcceptingConnections(_ port: UInt16) -> Bool {
+        let sock = socket(AF_INET, SOCK_STREAM, 0)
+        guard sock >= 0 else { return false }
+        defer { close(sock) }
+
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+
+        return withUnsafePointer(to: &addr) { raw in
+            raw.withMemoryRebound(to: sockaddr.self, capacity: 1) { addrPtr in
+                connect(sock, addrPtr, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0
+            }
+        }
+    }
+
+    #if !FICHERO_APP_STORE
     /// PID of the process LISTENing on `port`, or nil if the port is free.
+    ///
+    /// Shells out to lsof, so it is compiled out of the App Store build (#3749);
+    /// the sandbox permits no view of other processes' descriptors. MAS uses
+    /// portIsAcceptingConnections() above, which answers "is it taken?" without
+    /// asking "by whom?".
     private static func pidOnPort(_ port: UInt16) -> pid_t? {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
@@ -788,6 +857,7 @@ final class EmbeddedBackendService {
             .trimmingCharacters(in: .whitespaces)
         return first.flatMap { pid_t($0) }
     }
+    #endif
 
     /// Port pre-flight (#2863/#3111). Sweep our own orphans; if the port is
     /// then STILL held by a process we can't claim, the user must choose —
@@ -797,6 +867,33 @@ final class EmbeddedBackendService {
     /// Quit; the button sets `pendingPortConflictResolution` and retries, and
     /// this consumes it exactly once. Never silently adopts or silently kills.
     private func resolvePortConflict() throws -> PortResolution {
+        #if FICHERO_APP_STORE
+        // App Sandbox (#3749): we manage ONLY our own child. There is no orphan
+        // sweep, no holder PID and no kill, for two independent reasons:
+        //   • Unavailable — pgrep / ps -E / lsof enumerate other processes, and
+        //     kill() signals them. The sandbox permits none of that; the calls
+        //     fail or return nothing, so a sweep would be theatre.
+        //   • Unacceptable — an app that pokes at processes it does not own reads
+        //     badly against guideline 2.4.5 even where it happens to work.
+        // So: probe the port the one way the sandbox allows, and if it is taken,
+        // let the USER decide (Use it / Quit) instead of silently adopting or
+        // silently killing. 2.4.5(iii) stays satisfied by the existing design —
+        // stop() SIGTERMs our own child on quit, and the engine self-terminates
+        // when FICHERO_PARENT_PID dies.
+        guard Self.portIsAcceptingConnections(8765) else { return .spawnOurs }
+
+        if pendingPortConflictResolution == .useIt {
+            // Adoption is still gated on the authenticated readiness probe
+            // downstream — an auth-rejecting squatter lands in authRejected,
+            // never ready (#2864/#3111).
+            pendingPortConflictResolution = nil
+            return .adoptExisting
+        }
+        // pid is genuinely unknowable here, so it is reported as nil rather than
+        // guessed. The in-window phase drops "Stop it" and offers Use it / Quit.
+        pendingPortConflictResolution = nil
+        throw BackendError.portConflict(pid: nil)
+        #else
         Self.terminateOrphanEngines()
         Self.waitForPortToClear(8765, timeout: 3.0)
         let holder = Self.pidOnPort(8765).map(Int.init)
@@ -826,6 +923,7 @@ final class EmbeddedBackendService {
             pendingPortConflictResolution = nil
             return .spawnOurs
         }
+        #endif
     }
 
     /// Last `lines` lines of the engine log, for surfacing a real cause when

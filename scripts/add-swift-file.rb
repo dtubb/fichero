@@ -56,9 +56,34 @@ unless File.exist?(File.join(repo_root, file_path))
   exit 1
 end
 
+# The TEST targets use Xcode 16 file-system-synchronized groups: every .swift
+# under fichero-tests/ and fichero-ui-tests/ is compiled by virtue of being in
+# the directory, with NO file reference in project.pbxproj (which is why those
+# targets list 0 sources while 248 test files exist on disk). Registering one
+# here would add a DUPLICATE explicit reference and rewrite the whole project
+# file for nothing. Just write the file — you are already done.
+if file_path.match?(%r{/fichero-(ui-)?tests/})
+  puts "No action needed: #{file_path}"
+  puts "  fichero-tests/ and fichero-ui-tests/ are file-system-synchronized groups —"
+  puts "  Xcode compiles every .swift in them automatically. Do not register it."
+  exit 0
+end
+
 proj = Xcodeproj::Project.open(proj_path)
-target = proj.targets.find { |t| t.name == 'Fichero' }
-abort "ERROR: target 'Fichero' not found" unless target
+
+# App sources go in BOTH app targets (#3749).
+#
+# 'Fichero' is the Developer ID / DMG channel (links Sparkle); 'Fichero (App
+# Store)' is the sandboxed MAS channel (Sparkle excluded at the link level).
+# They compile the SAME source list — the divergence is linkage, entitlements
+# and the embed phase, not the files. A file added to only one target fails to
+# compile in the other with "cannot find type in scope", and it fails in the
+# channel nobody builds by default, so it surfaces late.
+target_names = ['Fichero', 'Fichero (App Store)']
+targets = target_names.map do |name|
+  proj.targets.find { |t| t.name == name } ||
+    abort("ERROR: target '#{name}' not found")
+end
 
 # Build the group hierarchy, creating missing groups.
 # The project sits inside fichero/ so paths like "fichero/fichero/Views/..."
@@ -82,7 +107,7 @@ if group.children.any? { |c| c.display_name == filename }
 end
 
 file_ref = group.new_file(filename)
-target.add_file_references([file_ref])
+targets.each { |t| t.add_file_references([file_ref]) }
 proj.save
 
-puts "✅ Registered #{file_path} in target Fichero"
+puts "✅ Registered #{file_path} in target(s): #{target_names.join(', ')}"

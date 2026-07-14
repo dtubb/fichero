@@ -100,10 +100,17 @@ struct FicheroApp: App {
             return
         }
 
+        #if !FICHERO_APP_STORE
         let startupClock = Date()
+        // DMG only (#3749). The App Store installs Fichero into /Applications
+        // itself, so there is nothing to offer to move — and the flow's engine
+        // sweep enumerates and SIGTERMs processes we do not own, which the App
+        // Sandbox forbids. Compiled out rather than no-op'd at runtime so the
+        // MAS binary carries no /usr/bin/pgrep or /usr/sbin/lsof at all.
         AppInstaller.promptToMoveToApplicationsIfNeeded()
         let installerMs = Date().timeIntervalSince(startupClock) * 1000
         logger.info("⏱ AppInstaller check: \(installerMs, format: .fixed(precision: 1))ms")
+        #endif
 
         let restoreStart = Date()
         LibraryManager.shared.restoreSavedLibraries()

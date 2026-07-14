@@ -120,14 +120,27 @@ struct BackendConnectionView: View {
     }
 
     /// The holding PID when the engine is in the `portConflict` phase (#3111),
-    /// else nil. Drives the in-window Stop it / Use it / Quit actions.
+    /// else nil. Drives whether "Stop it" is offerable.
+    ///
+    /// nil does NOT mean "no conflict" — under App Sandbox the holder's PID is
+    /// unknowable (no lsof), so the App Store build reports `portConflict(nil)`
+    /// (#3749). Ask `isPortConflict` for "are we in the conflict phase"; ask this
+    /// only for "do we know who to stop".
     private var portConflictPID: Int? {
         if case .portConflict(let pid) = appState.engine.phase { return pid }
         return nil
     }
 
+    /// In the `portConflict` phase, PID known or not. Gates the recovery actions
+    /// — keyed off the phase rather than the PID so a sandboxed conflict renders
+    /// Use it / Quit instead of an empty box.
+    private var isPortConflict: Bool {
+        if case .portConflict = appState.engine.phase { return true }
+        return false
+    }
+
     private var failureTitle: String {
-        if portConflictPID != nil {
+        if isPortConflict {
             // Foreign holder of :8765 — the in-window replacement for the old
             // pre-window NSAlert (#3111).
             return "Port 8765 Is In Use"
@@ -221,18 +234,7 @@ struct BackendConnectionView: View {
     /// authenticated probe) / Quit (a user-chosen terminate — allowed; only an
     /// app-chosen terminate is not, #3042). Each choice records the resolution
     /// on the service, then runs the one retry path.
-    @ViewBuilder
-    private var portConflictActions: some View {
-        Button {
-            backendService.pendingPortConflictResolution = .stopIt
-            messageIndex = 0
-            Task { await onRetry?() }
-        } label: {
-            Label("Stop It & Start Fichero's Engine", systemImage: "stop.circle")
-        }
-        .buttonStyle(.borderedProminent)
-        .disabled(backendService.isStarting)
-
+    private var useExistingEngineButton: some View {
         Button {
             backendService.pendingPortConflictResolution = .useIt
             messageIndex = 0
@@ -240,8 +242,34 @@ struct BackendConnectionView: View {
         } label: {
             Label("Use the Existing Engine", systemImage: "link")
         }
-        .buttonStyle(.bordered)
         .disabled(backendService.isStarting)
+    }
+
+    @ViewBuilder
+    private var portConflictActions: some View {
+        // "Stop it" needs a PID to SIGTERM. The App Store build cannot learn one
+        // (and could not signal it anyway), so the button is absent there rather
+        // than present-and-broken — the remaining choices still resolve the
+        // conflict, so this never leaves an empty box (#3749).
+        if portConflictPID != nil {
+            Button {
+                backendService.pendingPortConflictResolution = .stopIt
+                messageIndex = 0
+                Task { await onRetry?() }
+            } label: {
+                Label("Stop It & Start Fichero's Engine", systemImage: "stop.circle")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(backendService.isStarting)
+        }
+
+        // Promoted to the prominent action when "Stop it" isn't offered, so the
+        // conflict box always has exactly one obvious default.
+        if portConflictPID == nil {
+            useExistingEngineButton.buttonStyle(.borderedProminent)
+        } else {
+            useExistingEngineButton.buttonStyle(.bordered)
+        }
 
         #if canImport(AppKit)
         Button {
@@ -385,10 +413,13 @@ struct BackendConnectionView: View {
             // so a retry can never SIGTERM a healthy cold-starting engine.
             if isFailed {
                 HStack(spacing: 12) {
-                    // A foreign holder of :8765 gets the three-way in-window
-                    // decision (#3111); every other failure gets the single
-                    // retry entry point (#3108).
-                    if portConflictPID != nil {
+                    // A foreign holder of :8765 gets the in-window decision
+                    // (#3111) — three-way when we know the PID, two-way under the
+                    // App Sandbox where we cannot (#3749); every other failure
+                    // gets the single retry entry point (#3108). Keyed on the
+                    // PHASE, not the PID: a nil PID is still a real conflict, and
+                    // testing the PID here would render an empty box.
+                    if isPortConflict {
                         portConflictActions
                     } else {
                         if failureAccessError?.recovery == .resetPin {
