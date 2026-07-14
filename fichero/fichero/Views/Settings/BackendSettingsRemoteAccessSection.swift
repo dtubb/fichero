@@ -71,7 +71,6 @@ struct BackendSettingsRemoteAccessSection: View {
                 hostingEnabled: $hostingEnabled,
                 bonjourEnabled: $bonjourEnabled,
                 publicBaseURL: $publicBaseURL,
-                spkiPin: $spkiPin,
                 canHostRemoteAccess: canHostRemoteAccess,
                 isRestartingHost: isRestartingHost,
                 isRefreshingInvite: isGeneratingPairingCode,
@@ -504,7 +503,6 @@ private struct AdvancedRemoteAccessSection: View {
     @Binding var hostingEnabled: Bool
     @Binding var bonjourEnabled: Bool
     @Binding var publicBaseURL: String
-    @Binding var spkiPin: String
     let canHostRemoteAccess: Bool
     let isRestartingHost: Bool
     let isRefreshingInvite: Bool
@@ -519,11 +517,6 @@ private struct AdvancedRemoteAccessSection: View {
                 .disabled(!hostingEnabled)
 
             TextField("Reachable URL", text: $publicBaseURL)
-                .textFieldStyle(.roundedBorder)
-                .autocorrectionDisabled()
-                .disabled(!hostingEnabled)
-
-            TextField("Certificate SPKI pin", text: $spkiPin)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
                 .disabled(!hostingEnabled)
