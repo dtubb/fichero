@@ -11,6 +11,7 @@ import logging
 from unittest.mock import patch
 
 from fichero.knowledge_models import EntityType, KnowledgeEntity
+from fichero.models import EntityCoOccurrenceListResponse, EntityDocumentListResponse
 
 
 # ---------------------------------------------------------------------------
@@ -271,8 +272,16 @@ class TestEntityReadLogging:
 
         entity = _make_entity(db, "Alice")
         with (
-            patch.object(entities_routes, "get_entity_documents", return_value=[]),
-            patch.object(entities_routes, "get_entity_co_occurrence", return_value=[]),
+            patch.object(
+                entities_routes,
+                "get_entity_documents",
+                return_value=EntityDocumentListResponse(items=[], count=0),
+            ),
+            patch.object(
+                entities_routes,
+                "get_entity_co_occurrence",
+                return_value=EntityCoOccurrenceListResponse(items=[], count=0),
+            ),
             patch.object(db, "knowledge_claim_excerpts_for_entity", side_effect=RuntimeError("boom")),
             caplog.at_level(logging.WARNING, logger=entities_routes.logger.name),
         ):
