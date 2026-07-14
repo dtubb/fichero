@@ -7,6 +7,37 @@ This is the empirical answer to Open Question #1 of `2026-07-13-mac-app-store-sa
 
 ---
 
+## ⚠️ BUILD REQUIREMENT — do not sign the outer app with `--deep`
+
+**This is a build-script requirement, not a footnote. Getting it wrong silently produces a bundle that violates Apple's two-key rule and will be aborted at runtime or rejected at ingestion — with no error at signing time.**
+
+`codesign --deep` **re-signs nested code with the OUTER app's entitlements.** Run it on the app and it will overwrite the engine's `app-sandbox` + `inherit` pair with the app's five-key MAS entitlements — and Apple's rule is that *any* App Sandbox key beyond those two causes the system to **abort the child**. The signature still "succeeds"; nothing warns you.
+
+The correct order, which this spike used and verified:
+
+```bash
+# 1. Sign the ENGINE FIRST, with EXACTLY the two keys.
+codesign --force --deep --sign "$ID" \
+  --entitlements child.entitlements \
+  "Fichero.app/Contents/Helpers/Fichero Engine.app"
+
+# 2. Sign the OUTER app WITHOUT --deep, so it cannot touch the child.
+codesign --force --sign "$ID" \
+  --entitlements FicheroAppStore.entitlements \
+  "Fichero.app"
+
+# 3. VERIFY AFTER SIGNING — assume nothing. Must print exactly two keys.
+codesign -d --entitlements :- "Fichero.app/Contents/Helpers/Fichero Engine.app"
+#   com.apple.security.app-sandbox
+#   com.apple.security.inherit
+```
+
+Also required for the helper: `CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO` — Xcode injects `get-task-allow`, which is incompatible with `inherit`. (This spike signed by hand, so the injected key never appeared; verified `get-task-allow` count = 0.)
+
+Tracked as a packaging requirement in **#3749**.
+
+---
+
 ## What was actually run
 
 A **sandboxed parent** (`Parent.app`, signed with the same five keys as `FicheroAppStore.entitlements`: `app-sandbox`, `network.client`, `network.server`, `files.user-selected.read-write`, `files.bookmarks.app-scope`) spawns the **real Briefcase engine** via `Foundation.Process` — the same mechanism `EmbeddedBackendService.launchEmbeddedBackend()` uses.
