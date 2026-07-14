@@ -135,9 +135,10 @@ class WorkflowExecutionService {
         case .unprocessableContent:
             logger.error("Execute workflow failed: validation error")
             throw WorkflowExecutionError.serverError(422, "Validation error")
-        case .undocumented(let statusCode, _):
+        case .undocumented(let statusCode, let payload):
+            let detail = await EngineErrorDetail.message(from: payload)
             logger.error("Execute workflow failed: \(statusCode)")
-            throw WorkflowExecutionError.serverError(statusCode, "Execute workflow failed")
+            throw WorkflowExecutionError.serverError(statusCode, detail ?? "Execute workflow failed")
         }
     }
 
@@ -198,9 +199,10 @@ class WorkflowExecutionService {
         case .unprocessableContent:
             logger.error("Resume workflow failed: validation error")
             throw WorkflowExecutionError.serverError(422, "Validation error")
-        case .undocumented(let statusCode, _):
+        case .undocumented(let statusCode, let payload):
+            let detail = await EngineErrorDetail.message(from: payload)
             logger.error("Resume workflow failed: \(statusCode)")
-            throw WorkflowExecutionError.serverError(statusCode, "Resume workflow failed")
+            throw WorkflowExecutionError.serverError(statusCode, detail ?? "Resume workflow failed")
         }
     }
 
@@ -220,9 +222,10 @@ class WorkflowExecutionService {
         case .unprocessableContent:
             logger.error("Get thread status failed: validation error")
             throw WorkflowExecutionError.serverError(422, "Validation error")
-        case .undocumented(let statusCode, _):
+        case .undocumented(let statusCode, let payload):
+            let detail = await EngineErrorDetail.message(from: payload)
             logger.error("Get thread status failed: \(statusCode)")
-            throw WorkflowExecutionError.serverError(statusCode, "Get thread status failed")
+            throw WorkflowExecutionError.serverError(statusCode, detail ?? "Get thread status failed")
         }
     }
 
@@ -243,9 +246,10 @@ class WorkflowExecutionService {
         case .unprocessableContent:
             logger.error("List threads failed: validation error")
             throw WorkflowExecutionError.serverError(422, "Validation error")
-        case .undocumented(let statusCode, _):
+        case .undocumented(let statusCode, let payload):
+            let detail = await EngineErrorDetail.message(from: payload)
             logger.error("List threads failed: \(statusCode)")
-            throw WorkflowExecutionError.serverError(statusCode, "List threads failed")
+            throw WorkflowExecutionError.serverError(statusCode, detail ?? "List threads failed")
         }
     }
 
@@ -265,9 +269,10 @@ class WorkflowExecutionService {
                 currentThreadStatus = nil
             }
             logger.info("Deleted thread: \(threadId)")
-        case .undocumented(let statusCode, _):
+        case .undocumented(let statusCode, let payload):
+            let detail = await EngineErrorDetail.message(from: payload)
             logger.error("Delete thread failed: \(statusCode)")
-            throw WorkflowExecutionError.serverError(statusCode, "Delete thread failed")
+            throw WorkflowExecutionError.serverError(statusCode, detail ?? "Delete thread failed")
         default:
             throw WorkflowExecutionError.serverError(422, "Delete thread failed")
         }
@@ -285,8 +290,9 @@ class WorkflowExecutionService {
         switch response {
         case .ok:
             logger.info("Pause requested for workflow thread: \(threadId)")
-        case .undocumented(let statusCode, _):
-            throw WorkflowExecutionError.serverError(statusCode, "Pause workflow failed")
+        case .undocumented(let statusCode, let payload):
+            let detail = await EngineErrorDetail.message(from: payload)
+            throw WorkflowExecutionError.serverError(statusCode, detail ?? "Pause workflow failed")
         default:
             throw WorkflowExecutionError.serverError(422, "Pause workflow failed")
         }
@@ -300,8 +306,9 @@ class WorkflowExecutionService {
         switch response {
         case .ok:
             logger.info("Cancel requested for workflow thread: \(threadId)")
-        case .undocumented(let statusCode, _):
-            throw WorkflowExecutionError.serverError(statusCode, "Cancel workflow failed")
+        case .undocumented(let statusCode, let payload):
+            let detail = await EngineErrorDetail.message(from: payload)
+            throw WorkflowExecutionError.serverError(statusCode, detail ?? "Cancel workflow failed")
         default:
             throw WorkflowExecutionError.serverError(422, "Cancel workflow failed")
         }
