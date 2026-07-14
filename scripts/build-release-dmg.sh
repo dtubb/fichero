@@ -29,8 +29,8 @@ done
 # Every release auto-stamps TODAY's date (set-release-version.sh with no arg);
 # a second build the same day bumps a sub-number. Opt out by exporting
 # FICHERO_RELEASE_VERSION (the operator has stamped a specific version already).
-# Channel defaults to beta (the current distribution channel); set
-# FICHERO_RELEASE_BETA=0 for a stable stamp. Skipped when not rebuilding the app.
+# Channel defaults to the numeric release version; set
+# FICHERO_RELEASE_BETA=1 only for an explicitly requested prerelease suffix.
 if [ "$SKIP_APP_BUILD" = true ]; then
   echo "[0/6] Skipping version stamp (--skip-app-build; using already-built app)"
 elif [ -n "${FICHERO_RELEASE_VERSION:-}" ]; then
@@ -38,7 +38,7 @@ elif [ -n "${FICHERO_RELEASE_VERSION:-}" ]; then
 else
   echo "[0/6] Auto-stamp dated release version"
   STAMP_ARGS=()
-  [ "${FICHERO_RELEASE_BETA:-1}" != "0" ] && STAMP_ARGS+=(--beta)
+  [ "${FICHERO_RELEASE_BETA:-0}" = "1" ] && STAMP_ARGS+=(--beta)
   "$ROOT_DIR/scripts/set-release-version.sh" "${STAMP_ARGS[@]+"${STAMP_ARGS[@]}"}"
 fi
 

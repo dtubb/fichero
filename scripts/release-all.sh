@@ -142,7 +142,8 @@ echo "Sparkle feed: $SPARKLE_FEED_URL"
 # Stamp TODAY's date across frontend + backend before any build path runs, so
 # both the DMG and the TestFlight archive carry the same auto-incremented dated
 # version. Opt out by exporting FICHERO_RELEASE_VERSION (operator controls it);
-# channel defaults to beta — set FICHERO_RELEASE_BETA=0 for a stable stamp. We
+# channel defaults to the numeric release version. Set FICHERO_RELEASE_BETA=1
+# only for an explicitly requested prerelease suffix. We
 # export FICHERO_RELEASE_VERSION afterward so the nested build-release-dmg.sh
 # sees the version already set and does not re-stamp.
 if [ -n "${FICHERO_RELEASE_VERSION:-}" ]; then
@@ -152,7 +153,7 @@ else
   echo
   echo "── Version: auto-stamp dated release ──"
   STAMP_ARGS=()
-  [ "${FICHERO_RELEASE_BETA:-1}" != "0" ] && STAMP_ARGS+=(--beta)
+  [ "${FICHERO_RELEASE_BETA:-0}" = "1" ] && STAMP_ARGS+=(--beta)
   "$ROOT_DIR/scripts/set-release-version.sh" "${STAMP_ARGS[@]+"${STAMP_ARGS[@]}"}"
   # Pin the just-stamped MARKETING_VERSION so downstream scripts don't re-stamp.
   export FICHERO_RELEASE_VERSION="$(project_setting MARKETING_VERSION)"
@@ -217,8 +218,8 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
   install_mac_app_store_profile
 
   if ! xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj" \
-    -scheme "$MAC_SCHEME" \
-    -configuration "$MAC_CONFIG" \
+    -scheme "$MAC_APP_STORE_SCHEME" \
+    -configuration "$MAC_APP_STORE_CONFIG" \
     -destination "platform=macOS,arch=arm64" \
     -archivePath "$MAC_ARCHIVE_PATH" \
     -skipPackagePluginValidation \
