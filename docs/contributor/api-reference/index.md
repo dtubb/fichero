@@ -230,5 +230,26 @@ non-image batch ids return `404`.
     `bash fichero-engine/scripts/start_backend.sh` and open
     `https://127.0.0.1:8765/docs` (Swagger UI) or `/redoc`.
 
+## Sandbox (Mac App Store)
+
+### `POST /api/sandbox/security-scoped-access`
+
+Grants the **running engine process** access to a security-scoped library folder.
+
+Under the Mac App Store's App Sandbox, a child process inherits only the parent's
+**static** entitlements. The user's folder grant (from `NSOpenPanel`) is a **dynamic**
+Powerbox extension, and dynamic rights are **not inherited** — so the sandboxed engine
+cannot open the user's library on its own. The app therefore hands the engine an
+app-scoped **security-scoped bookmark**, which this endpoint resolves on the live engine
+process and calls `startAccessingSecurityScopedResource()` against.
+
+Returns whether the grant was already held (so the bookmark was not resolved twice).
+
+**On failure it returns 400 and the engine refuses the library** — a malformed bookmark,
+or a refusal from `startAccessingSecurityScopedResource()`, means the engine genuinely
+cannot read that library, and the app must say so rather than open it and fail later.
+
+See `docs/superpowers/specs/2026-07-13-mac-app-store-sandbox-research.md` (#3747).
+
 <redoc spec-url="openapi.json" hide-download-button></redoc>
 <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>

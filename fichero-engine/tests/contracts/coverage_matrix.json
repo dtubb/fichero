@@ -638,6 +638,18 @@
       "cli_coverage": 1.0
     },
     {
+      "domain": "sandbox",
+      "total": 1,
+      "swiftui_wired": 1,
+      "swiftui_unwired": 0,
+      "swiftui_allowlisted": 0,
+      "swiftui_coverage": 1.0,
+      "cli_wired": 1,
+      "cli_untested": 0,
+      "cli_allowlisted": 0,
+      "cli_coverage": 1.0
+    },
+    {
       "domain": "schedules",
       "total": 6,
       "swiftui_wired": 6,
