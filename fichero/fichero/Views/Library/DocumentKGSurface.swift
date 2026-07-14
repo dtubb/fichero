@@ -48,6 +48,10 @@ final class DocumentScrollSyncState {
 /// the tab ids the in-page JS (`document_view.html`) expects.
 enum KGSurfaceTab: String, CaseIterable, Identifiable {
     case transcript
+    /// Raw value stays "digest" — it is the WIRE CONTRACT with document_view.html
+    /// (`data-tab="digest"`, and the literal tab list in its JS). The engine template
+    /// is codex's lane, so the USER-FACING name changes here and the wire does not.
+    /// What it actually shows: the SVO statements about each entity (#3765/Daniel).
     case digest
     case graph
     case claims
@@ -61,7 +65,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .transcript: return "Transcript"
-        case .digest: return "Digest"
+        case .digest: return "Statements"
         case .graph: return "Graph"
         case .claims: return "Claims"
         case .timeline: return "Timeline"
@@ -74,7 +78,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .transcript: return "doc.text"
-        case .digest: return "list.bullet.rectangle"
+        case .digest: return "list.bullet.indent"
         case .graph: return "point.3.connected.trianglepath.dotted"
         case .claims: return "quote.bubble"
         case .timeline: return "calendar.badge.clock"
@@ -87,7 +91,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     var helpText: String {
         switch self {
         case .transcript: return "Transcript — read the document's full text"
-        case .digest: return "Digest — a condensed summary of the document"
+        case .digest: return "Statements — every subject-verb-object statement we know about this entity"
         case .graph: return "Graph — entities and their connections as a network (\(KGGraphRendererFramework.selected.displayName))"
         case .claims: return "Claims — statements extracted from the document, grouped by source"
         case .timeline: return "Timeline — dated entities and events in chronological order"
