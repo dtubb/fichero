@@ -3124,6 +3124,11 @@ class Database(DatabaseEmbeddingMixin):
             return {str(getattr(field, "name", field)) for field in fields}
         return set()
 
+    def _lance_select_existing_fields(self, table, fields: list[str]) -> list[str]:
+        """Keep Lance projections compatible with persisted table schemas."""
+        available = self._lance_table_field_names(table)
+        return [field for field in fields if not available or field in available]
+
     def _coerce_vectors_to_existing_schema(
         self, table_name: str, table, data: list[dict]
     ) -> list[dict]:
@@ -3825,7 +3830,9 @@ class Database(DatabaseEmbeddingMixin):
                             raw_fulltext_hits = (
                                 table.search(query, query_type="fts", fts_columns="text")
                                 .select(
-                                    [
+                                    self._lance_select_existing_fields(
+                                        table,
+                                        [
                                         "document_id",
                                         "id",
                                         "text",
@@ -3839,7 +3846,8 @@ class Database(DatabaseEmbeddingMixin):
                                         "page_id",
                                         "char_start",
                                         "char_end",
-                                    ]
+                                        ],
+                                    )
                                 )
                                 .limit(candidate_limit)
                                 .to_list()

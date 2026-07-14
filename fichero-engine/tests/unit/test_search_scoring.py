@@ -17,8 +17,6 @@ from __future__ import annotations
 import math
 from types import SimpleNamespace
 
-import pandas as pd
-
 from fichero.db import (
     EMBEDDINGS_TABLE,
     Database,
@@ -202,7 +200,9 @@ class TestHybridRanking:
             def __init__(self, rows):
                 self.rows = rows
 
-            def select(self, _columns):
+            def select(self, columns):
+                assert "created_at" not in columns
+                assert "updated_at" not in columns
                 return self
 
             def limit(self, _limit):
@@ -212,6 +212,13 @@ class TestHybridRanking:
                 return self.rows
 
         class FakeTable:
+            schema = SimpleNamespace(
+                names=[
+                    "document_id", "id", "text", "name", "doc_type", "file_type",
+                    "embedding_scope", "passage_id", "page_id", "char_start", "char_end",
+                ]
+            )
+
             def search(self, _query, query_type="auto", fts_columns=None):
                 assert query_type == "fts"
                 assert fts_columns == "text"
