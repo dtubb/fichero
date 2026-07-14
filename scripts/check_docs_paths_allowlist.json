@@ -9,6 +9,7 @@
     "docs/contributor/architecture/vocabulary.md",
     "fichero-engine/build/fichero-backend/macos/app/FicheroBackend.app",
     "fichero-engine/tests/live/test_pairing_live_server.py",
+    "fichero-engine/tests/unit/knowledge/test_svo_cleanup.py",
     "fichero/build/xcode/Products/Release",
     "fichero/build/xcode/Products/Release/Fichero.app",
     "fichero/build/xcode/Products/Release/Fichero.app/Contents/Info.plist",
@@ -17,6 +18,7 @@
     "fichero/workflows",
     "scripts/baseline_move_check.sh",
     "scripts/check_dead_python.py",
-    "scripts/check_product_plist_keys.py"
+    "scripts/check_product_plist_keys.py",
+    "scripts/check_transcript_anchor_contract.py"
   ]
 }
