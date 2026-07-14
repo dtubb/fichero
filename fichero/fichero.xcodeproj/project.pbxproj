@@ -2908,6 +2908,7 @@
 				FEED00000000000000000254,
 				FEED00000000000000000255,
 				FEED00000000000000000256,
+				SBX00042F27F36000EC9EE1,
 			);
 			buildRules = (
 			);
@@ -3065,6 +3066,57 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		SBX00042F27F36000EC9EE1 /* Strip Sparkle Info.plist Keys */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			files = (
+			);
+			name = "Strip Sparkle Info.plist Keys";
+			shellPath = /bin/sh;
+			shellScript = (
+				"# App Store: strip Sparkle's Info.plist keys (#3748).",
+				"#",
+				"# Sparkle is excluded from this target at the LINK level — the framework, Autoupdate",
+				"# and its XPC services are all absent from the binary. But Info.plist is SHARED with",
+				"# the Developer ID target (both set INFOPLIST_FILE = fichero/Info.plist), and it",
+				"# still advertises an update feed: SUFeedURL, SUPublicEDKey, SUEnableAutomaticChecks.",
+				"#",
+				"# An App Store app whose Info.plist declares a third-party self-update mechanism is",
+				"# exactly what guideline 2.4.5(vii) prohibits, and it is trivially greppable by a",
+				"# reviewer even though nothing can act on it. Sparkle must be ABSENT, not merely",
+				"# inert.",
+				"#",
+				"# Stripped from the BUILT bundle rather than by forking Info.plist into a second",
+				"# file, which would drift from the DMG one silently. Same shape as",
+				"# scripts/build-release-dmg.sh, which SETS SUFeedURL on the staged bundle at package",
+				"# time. This phase runs before Xcode's CodeSign phase, so the seal covers the",
+				"# stripped plist.",
+				"",
+				"PLIST=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"",
+				"",
+				"if [ ! -f \"$PLIST\" ]; then",
+				"  echo \"note: no Info.plist at $PLIST — nothing to strip\"",
+				"  exit 0",
+				"fi",
+				"",
+				"for KEY in SUFeedURL SUPublicEDKey SUEnableAutomaticChecks SUAllowsAutomaticUpdates SUScheduledCheckInterval; do",
+				"  if /usr/libexec/PlistBuddy -c \"Print :${KEY}\" \"$PLIST\" >/dev/null 2>&1; then",
+				"    /usr/libexec/PlistBuddy -c \"Delete :${KEY}\" \"$PLIST\"",
+				"    echo \"  removed ${KEY}\"",
+				"  fi",
+				"done",
+				"",
+				"# Fail the build rather than ship a Sparkle key to App Review.",
+				"for KEY in SUFeedURL SUPublicEDKey; do",
+				"  if /usr/libexec/PlistBuddy -c \"Print :${KEY}\" \"$PLIST\" >/dev/null 2>&1; then",
+				"    echo \"error: ${KEY} is still present in the App Store Info.plist\" >&2",
+				"    exit 1",
+				"  fi",
+				"done",
+				"",
+				"echo \"Sparkle Info.plist keys stripped from the App Store build\"",
+			);
+		};
 		FEED00000000000000000256 = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

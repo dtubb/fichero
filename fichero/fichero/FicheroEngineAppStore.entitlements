@@ -22,8 +22,11 @@
   Two things this file cannot do by itself:
   - CODE_SIGN_INJECT_BASE_ENTITLEMENTS must be NO wherever the helper is signed:
     Xcode's injected get-task-allow is itself an "other key" and breaks inherit.
-    The engine is signed by the "Embed Fichero Engine" phase with an explicit
-    --entitlements, so nothing is injected.
+    The engine is signed by the "Embed Fichero Engine" phase, which passes this
+    file explicitly to codesign, so nothing is injected.
+
+  (Note for editors: this is an XML comment, so it may not contain a double
+  hyphen. plutil tolerates one; a strict XML parser does not.)
   - Sandbox inheritance passes only STATIC rights. The Powerbox grant the user
     makes in NSOpenPanel is dynamic and is NOT inherited, so the engine still
     cannot open a library outside the container without security-scoped bookmark
