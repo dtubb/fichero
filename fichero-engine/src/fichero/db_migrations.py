@@ -12,6 +12,62 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def migrate_paired_device_owner(conn) -> None:
+    """Fold the retired pairing owner into the canonical owner account.
+
+    Early single-user pairing created ``__paired_device_owner__`` while the
+    auth middleware created ``owner``.  When both rows exist, resolve every
+    device and library-role reference to ``owner`` before disabling the
+    retired row.  A sole legacy row is deliberately left alone: it remains a
+    real account and this migration must not invent or discard user data.
+    """
+    canonical = conn.execute(
+        "SELECT id FROM users WHERE username = ?", ["owner"]
+    ).fetchone()
+    legacy = conn.execute(
+        "SELECT id FROM users WHERE username = ?", ["__paired_device_owner__"]
+    ).fetchone()
+    if canonical is None or legacy is None:
+        return
+
+    canonical_id, legacy_id = canonical[0], legacy[0]
+    if canonical_id == legacy_id:
+        return
+
+    conn.execute(
+        "UPDATE devices SET user_id = ? WHERE user_id = ?", [canonical_id, legacy_id]
+    )
+
+    # ``library_roles`` is unique per (user, library), so preserve the
+    # canonical row when both identities already have a role for one library.
+    legacy_roles = conn.execute(
+        "SELECT id, library_path, role FROM library_roles WHERE user_id = ?",
+        [legacy_id],
+    ).fetchall()
+    role_rank = {"viewer": 1, "editor": 2, "owner": 3}
+    for role_id, library_path, role in legacy_roles:
+        existing = conn.execute(
+            "SELECT id, role FROM library_roles WHERE user_id = ? AND library_path = ?",
+            [canonical_id, library_path],
+        ).fetchone()
+        if existing is None:
+            conn.execute(
+                "UPDATE library_roles SET user_id = ? WHERE id = ?",
+                [canonical_id, role_id],
+            )
+        else:
+            existing_id, existing_role = existing
+            if role_rank.get(role, 0) > role_rank.get(existing_role, 0):
+                conn.execute(
+                    "UPDATE library_roles SET role = ? WHERE id = ?",
+                    [role, existing_id],
+                )
+            conn.execute("DELETE FROM library_roles WHERE id = ?", [role_id])
+
+    conn.execute("UPDATE users SET active = FALSE WHERE id = ?", [legacy_id])
+    conn.commit()
+
+
 def migrate_workflow_table(conn) -> None:
     """Migrate workflows table to new schema if needed."""
     from fichero.errors import ErrorCategory, handle_error
