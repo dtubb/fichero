@@ -11,6 +11,7 @@
     "fichero/build/xcode/Products/Release",
     "fichero/build/xcode/Products/Release/Fichero.app",
     "fichero/fichero-api-client/.build",
+    "fichero/workflows",
     "scripts/baseline_move_check.sh",
     "scripts/check_dead_python.py"
   ]
