@@ -150,6 +150,28 @@ def main() -> int:
             fail("the MAS engine must NOT be embedded in Contents/Resources (invalid bundle structure at ingestion)")
         if "FicheroEngineAppStore.entitlements" not in body:
             fail("the MAS embed phase must sign the engine with FicheroEngineAppStore.entitlements")
+
+        # Both of these are REJECTIONS THIS APP HAS TAKEN. They are asserted on the
+        # phase's text because the phase is the only thing standing between Briefcase's
+        # bundle and App Store Connect.
+        #
+        # 90284 — Python.framework ships Tcl/Tk link-time stubs (.a). A static archive
+        # cannot be signed at all, so it must not ship.
+        if '-name "*.a" -type f -delete' not in body:
+            fail(
+                "the MAS embed phase must DELETE static archives (.a) from the engine. Ingestion rejects "
+                "unsigned nested archives (90284), and a .a cannot be signed — it is an ar archive, not a "
+                "Mach-O image. Briefcase's Python.framework ships Tcl/Tk stubs."
+            )
+        # 90296 — entitlements must be chosen by what a file IS. The first upload was
+        # rejected because they were chosen by PATH, so fm-bridge (an executable the
+        # engine spawns, buried under Contents/Resources/app/...) signed plain.
+        if "is_macho_executable" not in body:
+            fail(
+                "the MAS embed phase must decide entitlements by Mach-O TYPE, not by path. A path rule "
+                "misses nested executables like fm-bridge and ships them without com.apple.security."
+                "app-sandbox (90296)."
+            )
         for line in body.splitlines():
             stripped = line.strip()
             if stripped.startswith("#"):
