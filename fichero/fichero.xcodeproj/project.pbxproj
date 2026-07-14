@@ -7,6 +7,598 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FEED00000000000000000001 /* ClaimSummaryCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1ACEB8F688C8749B36E04B /* ClaimSummaryCardView.swift */; };
+		FEED00000000000000000002 /* EntityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F14337BE87CA15E70323ED4 /* EntityDetailView.swift */; };
+		FEED00000000000000000003 /* EntityRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */; };
+		FEED00000000000000000004 /* OntologyBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1C81E90821C016E2CE3A60 /* OntologyBrowser.swift */; };
+		FEED00000000000000000005 /* ImagePreviewMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DE2F04328300EAA55A /* ImagePreviewMenuCommands.swift */; };
+		FEED00000000000000000006 /* ActivityProgressView+DataLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED582F48E2DE006950A3 /* ActivityProgressView+DataLoading.swift */; };
+		FEED00000000000000000007 /* BackendConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */; };
+		FEED00000000000000000008 /* MiniToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4562F0AAC1E00EAA55A /* MiniToolbar.swift */; };
+		FEED00000000000000000009 /* QuickLookComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FF2F057B9300EAA55A /* QuickLookComponents.swift */; };
+		FEED0000000000000000000A /* ChatMessagesList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E52F489757008EAB5D /* ChatMessagesList.swift */; };
+		FEED0000000000000000000B /* LibraryViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CF2F4789BF008EAB5D /* LibraryViewComponents.swift */; };
+		FEED0000000000000000000C /* AppleScriptCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE1F2F4BBFAF006950A3 /* AppleScriptCommands.swift */; };
+		FEED0000000000000000000D /* ActivityDataProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001080000000000BATCH3 /* ActivityDataProcessing.swift */; };
+		FEED0000000000000000000E /* ActivityRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */; };
+		FEED0000000000000000000F /* DocumentStoreTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED702F48E63B006950A3 /* DocumentStoreTypes.swift */; };
+		FEED00000000000000000010 /* FolderAccessManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */; };
+		FEED00000000000000000011 /* ActivityProgressModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED4A2F48E2B3006950A3 /* ActivityProgressModels.swift */; };
+		FEED00000000000000000012 /* WorkflowSupportTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED602F48E604006950A3 /* WorkflowSupportTypes.swift */; };
+		FEED00000000000000000013 /* WorkflowToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB45B2F0AAC3700EAA55A /* WorkflowToolbar.swift */; };
+		FEED00000000000000000014 /* ProviderServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2C2F27E17F00EC9EE1 /* ProviderServiceGenerated.swift */; };
+		FEED00000000000000000015 /* SearchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2D2F27E17F00EC9EE1 /* SearchServiceGenerated.swift */; };
+		FEED00000000000000000016 /* BatchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C2B2F27E17F00EC9EE1 /* BatchServiceGenerated.swift */; };
+		FEED00000000000000000017 /* ChatViewToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4582F0AAC3700EAA55A /* ChatViewToolbar.swift */; };
+		FEED00000000000000000018 /* SearchResultRowFromAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D52F48963F008EAB5D /* SearchResultRowFromAPI.swift */; };
+		FEED00000000000000000019 /* FocusedCommandButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DD2F04328300EAA55A /* FocusedCommandButtons.swift */; };
+		FEED0000000000000000001A /* FicheroApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101 /* FicheroApp.swift */; };
+		FEED0000000000000000001B /* AppInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000002 /* AppInstaller.swift */; };
+		FEED0000000000000000001C /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000001 /* SparkleUpdater.swift */; };
+		FEED0000000000000000001D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 102 /* ContentView.swift */; };
+		FEED0000000000000000001E /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103 /* Document.swift */; };
+		FEED0000000000000000001F /* ContentView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF3B2F3D548000D7851A /* ContentView+Actions.swift */; };
+		FEED00000000000000000020 /* IntegrationsPlaceholderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */; };
+		FEED00000000000000000021 /* MessageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DD2F48972A008EAB5D /* MessageCard.swift */; };
+		FEED00000000000000000022 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109 /* SidebarItem.swift */; };
+		FEED00000000000000000023 /* FeatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */; };
+		FEED00000000000000000024 /* FeatureTiers.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2BF4EC43E993C19837 /* FeatureTiers.generated.swift */; };
+		FEED00000000000000000025 /* ActivityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C292F27E04300EC9EE1 /* ActivityDetailView.swift */; };
+		FEED00000000000000000026 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
+		FEED00000000000000000027 /* ContentView+ViewBuilders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */; };
+		FEED00000000000000000028 /* ContentView+Toolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B2E4D99C5F38A0297BC4402 /* ContentView+Toolbar.swift */; };
+		FEED00000000000000000029 /* CacheModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4119 /* CacheModel.swift */; };
+		FEED0000000000000000002A /* WorkflowPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D8BCE62F2CD054006D91D7 /* WorkflowPickerSheet.swift */; };
+		FEED0000000000000000002B /* DocumentPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D8BCE52F2CD054006D91D7 /* DocumentPickerSheet.swift */; };
+		FEED0000000000000000002C /* PerformanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4121 /* PerformanceService.swift */; };
+		FEED0000000000000000002D /* NodeProviderModelSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674AB2F4779AA008EAB5D /* NodeProviderModelSelector.swift */; };
+		FEED0000000000000000002E /* ErrorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123 /* ErrorService.swift */; };
+		FEED0000000000000000002F /* AIModelSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2CC2F042C4100EAA55A /* AIModelSelectionView.swift */; };
+		FEED00000000000000000030 /* AIProviderAddModelsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2CD2F042C4100EAA55A /* AIProviderAddModelsSheet.swift */; };
+		FEED00000000000000000031 /* AutomationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA272F113E6F0021909D /* AutomationService.swift */; };
+		FEED00000000000000000032 /* AutomationServiceMappers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA2A2F113E6F0021909D /* AutomationServiceMappers.swift */; };
+		FEED00000000000000000033 /* DocumentStore+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED6C2F48E62F006950A3 /* DocumentStore+Helpers.swift */; };
+		FEED00000000000000000034 /* ActionLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */; };
+		FEED00000000000000000035 /* TranscribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749C2F475B64008EAB5D /* TranscribeNodeConfig.swift */; };
+		FEED00000000000000000036 /* ThinkingModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */; };
+		FEED00000000000000000037 /* SidebarItem+MoreFactories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED622F48E61B006950A3 /* SidebarItem+MoreFactories.swift */; };
+		FEED00000000000000000038 /* SearchView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DB2F489677008EAB5D /* SearchView+Helpers.swift */; };
+		FEED00000000000000000039 /* RecentSearchesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DD2F489678008EAB5D /* RecentSearchesStore.swift */; };
+		FEED0000000000000000003A /* ProvidersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2CE2F042C4100EAA55A /* ProvidersView.swift */; };
+		FEED0000000000000000003B /* ProvidersView+ModelTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */; };
+		FEED0000000000000000003C /* ProvidersView+ProviderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */; };
+		FEED0000000000000000003D /* ProvidersView+ProviderSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */; };
+		FEED0000000000000000003E /* AddProviderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2CA2F042C4100EAA55A /* AddProviderSheet.swift */; };
+		FEED0000000000000000003F /* MCPToolsCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BE2F1028480021909D /* MCPToolsCatalogView.swift */; };
+		FEED00000000000000000040 /* WorkflowMiniPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C62F4788E0008EAB5D /* WorkflowMiniPreview.swift */; };
+		FEED00000000000000000041 /* AddMCPServerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BA2F1028480021909D /* AddMCPServerSheet.swift */; };
+		FEED00000000000000000042 /* WorkflowCanvasView+DropHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA052F110D520021909D /* WorkflowCanvasView+DropHandling.swift */; };
+		FEED00000000000000000043 /* WorkflowCanvasView+Gestures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA072F110D520021909D /* WorkflowCanvasView+Gestures.swift */; };
+		FEED00000000000000000044 /* ActivityProgressView+HistoricalProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED562F48E2D7006950A3 /* ActivityProgressView+HistoricalProgress.swift */; };
+		FEED00000000000000000045 /* NodePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA022F110D520021909D /* NodePopover.swift */; };
+		FEED00000000000000000046 /* PromptPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C340001100000000PROMPT01 /* PromptPreviewPanel.swift */; };
+		FEED00000000000000000047 /* TriggerDetailView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED5E2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift */; };
+		FEED00000000000000000048 /* LibraryView+InlineEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE392F4BD9F6006950A3 /* LibraryView+InlineEditing.swift */; };
+		FEED00000000000000000049 /* DescribeNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749E2F475B7A008EAB5D /* DescribeNodeConfig.swift */; };
+		FEED0000000000000000004A /* WorkflowCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA042F110D520021909D /* WorkflowCanvasView.swift */; };
+		FEED0000000000000000004B /* SidebarCreationHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674BB2F478636008EAB5D /* SidebarCreationHandlers.swift */; };
+		FEED0000000000000000004C /* WorkflowEdgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA082F110D520021909D /* WorkflowEdgeView.swift */; };
+		FEED0000000000000000004D /* WorkflowEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA092F110D520021909D /* WorkflowEditor.swift */; };
+		FEED0000000000000000004E /* SidebarItemRow+Label.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */; };
+		FEED0000000000000000004F /* SidebarItemRow+DropHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010200000000BATCH2S2 /* SidebarItemRow+DropHandlers.swift */; };
+		FEED00000000000000000050 /* SidebarItemRow+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010300000000BATCH2S3 /* SidebarItemRow+Helpers.swift */; };
+		FEED00000000000000000051 /* ModelComparisonTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDF92F4BBC12006950A3 /* ModelComparisonTypes.swift */; };
+		FEED00000000000000000052 /* SidebarItemRow+Rename.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010400000000BATCH2S4 /* SidebarItemRow+Rename.swift */; };
+		FEED00000000000000000053 /* WorkflowEditor+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010500000000BATCH2W1 /* WorkflowEditor+Actions.swift */; };
+		FEED00000000000000000054 /* WorkflowEditor+NodeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010600000000BATCH2W2 /* WorkflowEditor+NodeViews.swift */; };
+		FEED00000000000000000055 /* WorkflowEditor+Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010700000000BATCH2W3 /* WorkflowEditor+Preview.swift */; };
+		FEED00000000000000000056 /* ChainListContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010800000000BATCH2C1 /* ChainListContent.swift */; };
+		FEED00000000000000000057 /* ChainListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010900000000BATCH2C2 /* ChainListRow.swift */; };
+		FEED00000000000000000058 /* ChainStepRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010A00000000BATCH2C3 /* ChainStepRow.swift */; };
+		FEED00000000000000000059 /* ChainDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */; };
+		FEED0000000000000000005A /* ChainDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */; };
+		FEED0000000000000000005B /* NewChainSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */; };
+		FEED0000000000000000005C /* WorkflowExecutionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0A2F110D520021909D /* WorkflowExecutionView.swift */; };
+		FEED0000000000000000005D /* WorkflowNodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0D2F110D520021909D /* WorkflowNodeView.swift */; };
+		FEED0000000000000000005E /* WorkflowLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0C2F110D520021909D /* WorkflowLibraryView.swift */; };
+		FEED0000000000000000005F /* ActionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE482F4BED4B006950A3 /* ActionRowView.swift */; };
+		FEED00000000000000000060 /* LibraryView+KeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE372F4BD559006950A3 /* LibraryView+KeyboardShortcuts.swift */; };
+		FEED00000000000000000061 /* FilesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2026749A2F475B4A008EAB5D /* FilesNodeConfig.swift */; };
+		FEED00000000000000000062 /* SummarizeFolderNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A52F476439008EAB5D /* SummarizeFolderNodeConfig.swift */; };
+		FEED00000000000000000063 /* WorkflowChain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137 /* WorkflowChain.swift */; };
+		FEED00000000000000000064 /* CheckpointTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */; };
+		FEED00000000000000000065 /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */; };
+		FEED00000000000000000066 /* ChainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 138 /* ChainService.swift */; };
+		FEED00000000000000000067 /* ContentView+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF372F3D548000D7851A /* ContentView+Persistence.swift */; };
+		FEED00000000000000000068 /* ActivityServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */; };
+		FEED00000000000000000069 /* LocationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = LOC00022F27F36000EC9EE1 /* LocationServiceGenerated.swift */; };
+		FEED0000000000000000006A /* PDFDocumentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = PDFC00022F27F36000EC9EE1 /* PDFDocumentCache.swift */; };
+		FEED0000000000000000006B /* PreviewDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRDL00022F27F36000EC9EE1 /* PreviewDownloadService.swift */; };
+		FEED0000000000000000006C /* ActivityStreamService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3E2F27F36000EC9EE1 /* ActivityStreamService.swift */; };
+		FEED0000000000000000006D /* ExtractEntitiesNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A92F476453008EAB5D /* ExtractEntitiesNodeConfig.swift */; };
+		FEED0000000000000000006E /* WorkflowNodeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B32F4783A9008EAB5D /* WorkflowNodeCard.swift */; };
+		FEED0000000000000000006F /* AutomationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */; };
+		FEED00000000000000000070 /* WorkflowInspector+DataLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED522F48E2CA006950A3 /* WorkflowInspector+DataLoading.swift */; };
+		FEED00000000000000000071 /* NodeInputMappings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674AD2F477AFE008EAB5D /* NodeInputMappings.swift */; };
+		FEED00000000000000000072 /* WorkflowResponseTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED6A2F48E62B006950A3 /* WorkflowResponseTypes.swift */; };
+		FEED00000000000000000073 /* ArtifactServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */; };
+		FEED00000000000000000074 /* WorkflowInspector+MCPTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED4C2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift */; };
+		FEED00000000000000000075 /* IntegrationsServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE252F4BC0E2006950A3 /* IntegrationsServiceTypes.swift */; };
+		FEED00000000000000000076 /* ChatStatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674DF2F489737008EAB5D /* ChatStatusViews.swift */; };
+		FEED00000000000000000077 /* StorageServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */; };
+		FEED00000000000000000078 /* ModelServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = MOD00022F27F36000EC9EE1 /* ModelServiceGenerated.swift */; };
+		FEED00000000000000000079 /* ImportServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */; };
+		FEED0000000000000000007A /* ActivityTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */; };
+		FEED0000000000000000007B /* WorkflowChainListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 139 /* WorkflowChainListView.swift */; };
+		FEED0000000000000000007C /* BatchTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDC92F48F49C006950A3 /* BatchTypes.swift */; };
+		FEED0000000000000000007D /* ChainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151 /* ChainEditorView.swift */; };
+		FEED0000000000000000007E /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
+		FEED0000000000000000007F /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
+		FEED00000000000000000080 /* AgentNodeBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA002F110D520021909D /* AgentNodeBlockView.swift */; };
+		FEED00000000000000000081 /* TriggerDetailView+ExecutionHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED5C2F48E4D4006950A3 /* TriggerDetailView+ExecutionHistory.swift */; };
+		FEED00000000000000000082 /* SimpleWorkflowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA032F110D520021909D /* SimpleWorkflowView.swift */; };
+		FEED00000000000000000083 /* WorkflowDiagramPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B72F4783D5008EAB5D /* WorkflowDiagramPreview.swift */; };
+		FEED00000000000000000084 /* WorkflowThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C82F4788EB008EAB5D /* WorkflowThumbnailView.swift */; };
+		FEED00000000000000000085 /* WorkflowOutputLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0E2F110D520021909D /* WorkflowOutputLog.swift */; };
+		FEED00000000000000000086 /* WorkflowPortView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0F2F110D520021909D /* WorkflowPortView.swift */; };
+		FEED00000000000000000087 /* WorkflowInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA0B2F110D520021909D /* WorkflowInspector.swift */; };
+		FEED00000000000000000088 /* WorkflowCanvasView+EdgeConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA062F110D520021909D /* WorkflowCanvasView+EdgeConnection.swift */; };
+		FEED00000000000000000089 /* CanvasHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA012F110D520021909D /* CanvasHelpers.swift */; };
+		FEED0000000000000000008A /* WorkflowToolBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA102F110D520021909D /* WorkflowToolBlocks.swift */; };
+		FEED0000000000000000008B /* SidebarSearchTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED6E2F48E633006950A3 /* SidebarSearchTypes.swift */; };
+		FEED0000000000000000008C /* EmbeddedBackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14AD1B82F2E2E07001CF205 /* EmbeddedBackendService.swift */; };
+		FEED0000000000000000008D /* SearchFiltersPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D32F489633008EAB5D /* SearchFiltersPanel.swift */; };
+		FEED0000000000000000008E /* SearchMapComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D72F48964E008EAB5D /* SearchMapComponents.swift */; };
+		FEED0000000000000000008F /* MCPServerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BB2F1028480021909D /* MCPServerDetailView.swift */; };
+		FEED00000000000000000090 /* ActivityProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */; };
+		FEED00000000000000000091 /* ImageWithCursorTracking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B12F478206008EAB5D /* ImageWithCursorTracking.swift */; };
+		FEED00000000000000000092 /* ActivityConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */; };
+		FEED00000000000000000093 /* ActivityOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */; };
+		FEED00000000000000000094 /* ActivityLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */; };
+		FEED00000000000000000095 /* ActivityViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */; };
+		FEED00000000000000000096 /* MCPServersSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BC2F1028480021909D /* MCPServersSheet.swift */; };
+		FEED00000000000000000097 /* MCPServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9BD2F1028480021909D /* MCPServersView.swift */; };
+		FEED00000000000000000098 /* Artifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB162F11CCC70021909D /* Artifact.swift */; };
+		FEED00000000000000000099 /* SearchResultsDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D92F489665008EAB5D /* SearchResultsDisplay.swift */; };
+		FEED0000000000000000009A /* SearchResultsEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674EA2F4897A4008EAB5D /* SearchResultsEmptyState.swift */; };
+		FEED0000000000000000009B /* Event.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB172F11CCC70021909D /* Event.swift */; };
+		FEED0000000000000000009C /* Trace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB1E2F11CCC70021909D /* Trace.swift */; };
+		FEED0000000000000000009D /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB192F11CCC70021909D /* MCPServer.swift */; };
+		FEED0000000000000000009E /* Run.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB1C2F11CCC70021909D /* Run.swift */; };
+		FEED0000000000000000009F /* Note.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AB1A2F11CCC70021909D /* Note.swift */; };
+		FEED000000000000000000A0 /* SummarizeCollectionNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A72F476447008EAB5D /* SummarizeCollectionNodeConfig.swift */; };
+		FEED000000000000000000A1 /* ErrorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4124 /* ErrorModel.swift */; };
+		FEED000000000000000000A2 /* LayoutMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4602F0AADC000EAA55A /* LayoutMode.swift */; };
+		FEED000000000000000000A3 /* LibraryImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */; };
+		FEED000000000000000000A4 /* SkeletonPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = SKEL00022F045C8A00EAA55A /* SkeletonPlaceholder.swift */; };
+		FEED000000000000000000A5 /* FrameAnimation.swift in Sources */ = {isa = PBXBuildFile; fileRef = ANIM00022F045C8A00EAA55A /* FrameAnimation.swift */; };
+		FEED000000000000000000A6 /* NodeConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674942F475B1D008EAB5D /* NodeConfigView.swift */; };
+		FEED000000000000000000A7 /* LibraryView+DisplayModes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D12F478A13008EAB5D /* LibraryView+DisplayModes.swift */; };
+		FEED000000000000000000A8 /* LibraryView+Sorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122BB /* LibraryView+Sorting.swift */; };
+		FEED000000000000000000A9 /* LibraryView+ColumnConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122DD /* LibraryView+ColumnConfig.swift */; };
+		FEED000000000000000000AA /* LibraryView+FilterAndBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122FF /* LibraryView+FilterAndBatch.swift */; };
+		FEED000000000000000000AB /* SidebarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4125 /* SidebarState.swift */; };
+		FEED000000000000000000AC /* DragDropModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4126 /* DragDropModel.swift */; };
+		FEED000000000000000000AD /* SidebarActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674BE2F478647008EAB5D /* SidebarActions.swift */; };
+		FEED000000000000000000AE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */; };
+		FEED000000000000000000AF /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108 /* EditorView.swift */; };
+		FEED000000000000000000B0 /* ItemTypeRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB44E2F0AABA600EAA55A /* ItemTypeRegistry.swift */; };
+		FEED000000000000000000B1 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110 /* SearchView.swift */; };
+		FEED000000000000000000B2 /* AIModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D792F0420310023093C /* AIModelCatalog.swift */; };
+		FEED000000000000000000B3 /* ChatView+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E72F48976C008EAB5D /* ChatView+Extensions.swift */; };
+		FEED000000000000000000B4 /* ContentViewModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */; };
+		FEED000000000000000000B5 /* IntegrationsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3AA372F1166660021909D /* IntegrationsService.swift */; };
+		FEED000000000000000000B6 /* NewWorkflowSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CD2F4788FF008EAB5D /* NewWorkflowSheet.swift */; };
+		FEED000000000000000000B7 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D7F2F0420A90023093C /* LibraryView.swift */; };
+		FEED000000000000000000B8 /* ProviderLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2D42F042C6D00EAA55A /* ProviderLogoView.swift */; };
+		FEED000000000000000000B9 /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2D52F042C6D00EAA55A /* StatusBadge.swift */; };
+		FEED000000000000000000BA /* MacPlainTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4F12F30000100EAA55A /* MacPlainTextEditor.swift */; };
+		FEED000000000000000000BB /* ViewMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4082F057BAC00EAA55A /* ViewMenuCommands.swift */; };
+		FEED000000000000000000BC /* ViewSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2C62F042C0500EAA55A /* ViewSettings.swift */; };
+		FEED000000000000000000BD /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2C52F042C0500EAA55A /* AppState.swift */; };
+		FEED000000000000000000BE /* WorkflowStreamService+Parsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDFB2F4BBC1A006950A3 /* WorkflowStreamService+Parsing.swift */; };
+		FEED000000000000000000BF /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 117 /* ChatView.swift */; };
+		FEED000000000000000000C0 /* ComparisonTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2011E3592F93ADF700606651 /* ComparisonTypes.swift */; };
+		FEED000000000000000000C1 /* SearchNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674982F475B33008EAB5D /* SearchNodeConfig.swift */; };
+		FEED000000000000000000C2 /* ContentView+State.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF2B2F3D501800D7851A /* ContentView+State.swift */; };
+		FEED000000000000000000C3 /* FirstRunWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30013000000000000000002 /* FirstRunWindow.swift */; };
+		FEED000000000000000000C4 /* DocumentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118 /* DocumentStore.swift */; };
+		FEED000000000000000000C5 /* WorkflowStreamTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDF72F4BBC04006950A3 /* WorkflowStreamTypes.swift */; };
+		FEED000000000000000000C6 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 119 /* APIClient.swift */; };
+		FEED000000000000000000C7 /* IntegrationsService+AppSpecific.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE272F4BC0ED006950A3 /* IntegrationsService+AppSpecific.swift */; };
+		FEED000000000000000000C8 /* ModelComparisonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */; };
+		FEED000000000000000000C9 /* ActionLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE442F4BE260006950A3 /* ActionLibraryView.swift */; };
+		FEED000000000000000000CA /* AutomationServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE212F4BBFB8006950A3 /* AutomationServiceTypes.swift */; };
+		FEED000000000000000000CB /* ImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E32F0439FE00EAA55A /* ImportService.swift */; };
+		FEED000000000000000000CC /* ActionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */; };
+		FEED000000000000000000CD /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122 /* ChatService.swift */; };
+		FEED000000000000000000CE /* SavedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124 /* SavedSearchService.swift */; };
+		FEED000000000000000000CF /* AddItemMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB4522F0AABBC00EAA55A /* AddItemMenu.swift */; };
+		FEED000000000000000000D0 /* WorkflowServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143 /* WorkflowServiceGenerated.swift */; };
+		FEED000000000000000000D1 /* SavedSearchServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144 /* SavedSearchServiceGenerated.swift */; };
+		FEED000000000000000000D2 /* ChatInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674E12F48973E008EAB5D /* ChatInputView.swift */; };
+		FEED000000000000000000D3 /* TriggerDetailView+Configuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED5A2F48E4CA006950A3 /* TriggerDetailView+Configuration.swift */; };
+		FEED000000000000000000D4 /* ConversationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145 /* ConversationServiceGenerated.swift */; };
+		FEED000000000000000000D5 /* ContentView+Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF392F3D548000D7851A /* ContentView+Navigation.swift */; };
+		FEED000000000000000000D6 /* WorkflowNodeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674B52F4783BC008EAB5D /* WorkflowNodeRow.swift */; };
+		FEED000000000000000000D7 /* ChatServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146 /* ChatServiceGenerated.swift */; };
+		FEED000000000000000000D8 /* WorkflowRunResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */; };
+		FEED000000000000000000D9 /* DocumentServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148 /* DocumentServiceGenerated.swift */; };
+		FEED000000000000000000DA /* ChatInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D7C2F0420930023093C /* ChatInspector.swift */; };
+		FEED000000000000000000DB /* ChatInspector+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001040000000000BATCH3 /* ChatInspector+Actions.swift */; };
+		FEED000000000000000000DC /* ChatInspector+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001050000000000BATCH3 /* ChatInspector+Header.swift */; };
+		FEED000000000000000000DD /* ChatInspector+ScopedDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */; };
+		FEED000000000000000000DE /* ChatInspector+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001070000000000BATCH3 /* ChatInspector+Search.swift */; };
+		FEED000000000000000000DF /* CollectionNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674962F475B23008EAB5D /* CollectionNodeConfig.swift */; };
+		FEED000000000000000000E0 /* ModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127 /* ModelService.swift */; };
+		FEED000000000000000000E1 /* ProviderServiceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE232F4BBFBA006950A3 /* ProviderServiceTypes.swift */; };
+		FEED000000000000000000E2 /* SidebarItemContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D952F0420D50023093C /* SidebarItemContextMenu.swift */; };
+		FEED000000000000000000E3 /* SidebarViewTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED722F48E644006950A3 /* SidebarViewTypes.swift */; };
+		FEED000000000000000000E4 /* ActionPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE462F4BE285006950A3 /* ActionPickerView.swift */; };
+		FEED000000000000000000E5 /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E62F043D2300EAA55A /* StorageService.swift */; };
+		FEED000000000000000000E6 /* WorkflowLibraryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674CB2F4788F2008EAB5D /* WorkflowLibraryRow.swift */; };
+		FEED000000000000000000E7 /* ViewContexts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2EA2F043F4500EAA55A /* ViewContexts.swift */; };
+		FEED000000000000000000E8 /* TrackingImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674AF2F4781BA008EAB5D /* TrackingImageView.swift */; };
+		FEED000000000000000000E9 /* ActivityProgressView+LiveProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED4E2F48E2C1006950A3 /* ActivityProgressView+LiveProgress.swift */; };
+		FEED000000000000000000EA /* FicheroDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2E92F043F4500EAA55A /* FicheroDocument.swift */; };
+		FEED000000000000000000EB /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
+		FEED000000000000000000EC /* LibraryManager+Operations.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */; };
+		FEED000000000000000000ED /* LibraryManager+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */; };
+		FEED000000000000000000EE /* LibraryManager+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */; };
+		FEED000000000000000000EF /* WindowState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E04EE1958EB4E23A7E1E328 /* WindowState.swift */; };
+		FEED000000000000000000F0 /* SidebarItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D962F0420D50023093C /* SidebarItemRow.swift */; };
+		FEED000000000000000000F1 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D992F0420D50023093C /* SidebarView.swift */; };
+		FEED000000000000000000F2 /* WorkflowExecutionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F62F110CFD0021909D /* WorkflowExecutionService.swift */; };
+		FEED000000000000000000F3 /* WorkflowStreamService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140 /* WorkflowStreamService.swift */; };
+		FEED000000000000000000F4 /* SidebarChatTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED682F48E626006950A3 /* SidebarChatTypes.swift */; };
+		FEED000000000000000000F5 /* WorkflowExecutionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149 /* WorkflowExecutionObserver.swift */; };
+		FEED000000000000000000F6 /* WorkflowExecutionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE292F4BC0F3006950A3 /* WorkflowExecutionTypes.swift */; };
+		FEED000000000000000000F7 /* SidebarModeIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */; };
+		FEED000000000000000000F8 /* SidebarModeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */; };
+		FEED000000000000000000F9 /* ModelComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A32F2AD78100EC9EE1 /* ModelComparisonView.swift */; };
+		FEED000000000000000000FA /* ModelComparisonView+Sidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001010000000000BATCH4 /* ModelComparisonView+Sidebar.swift */; };
+		FEED000000000000000000FB /* ComparisonResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001020000000000BATCH4 /* ComparisonResultView.swift */; };
+		FEED000000000000000000FC /* ModelResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001030000000000BATCH4 /* ModelResultCard.swift */; };
+		FEED000000000000000000FD /* ModelPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001040000000000BATCH4 /* ModelPickerSheet.swift */; };
+		FEED000000000000000000FE /* PresetPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001050000000000BATCH4 /* PresetPickerSheet.swift */; };
+		FEED000000000000000000FF /* AppleScriptSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141 /* AppleScriptSupport.swift */; };
+		FEED00000000000000000100 /* SidebarStateManagers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D982F0420D50023093C /* SidebarStateManagers.swift */; };
+		FEED00000000000000000101 /* SidebarViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */; };
+		FEED00000000000000000102 /* SidebarSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */; };
+		FEED00000000000000000103 /* SidebarConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D932F0420D50023093C /* SidebarConstants.swift */; };
+		FEED00000000000000000104 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
+		FEED00000000000000000105 /* WorkflowTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 134 /* WorkflowTypes.swift */; };
+		FEED00000000000000000106 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
+		FEED00000000000000000107 /* GeneratedTypeExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = GTE1 /* GeneratedTypeExtensions.swift */; };
+		FEED00000000000000000108 /* MCPService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A3A9F32F1028E70021909D /* MCPService.swift */; };
+		FEED00000000000000000109 /* WorkflowExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136 /* WorkflowExporter.swift */; };
+		FEED0000000000000000010A /* SidebarObservers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C12F47865B008EAB5D /* SidebarObservers.swift */; };
+		FEED0000000000000000010B /* ComparisonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */; };
+		FEED0000000000000000010C /* SummarizeFileNodeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674A32F47642A008EAB5D /* SummarizeFileNodeConfig.swift */; };
+		FEED0000000000000000010D /* WorkflowDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674C42F4788CB008EAB5D /* WorkflowDetailView.swift */; };
+		FEED0000000000000000010E /* ScheduleDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */; };
+		FEED0000000000000000010F /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
+		FEED00000000000000000110 /* ActionsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */; };
+		FEED00000000000000000111 /* TriggerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75371C597B1E4689B6E1803F /* TriggerEditorView.swift */; };
+		FEED00000000000000000112 /* TriggerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69898938F25CFEA64385A16 /* TriggerDetailView.swift */; };
+		FEED00000000000000000113 /* DynamicConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */; };
+		FEED00000000000000000114 /* DynamicConfigView+FieldRendering.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010B0000000000BATCH4 /* DynamicConfigView+FieldRendering.swift */; };
+		FEED00000000000000000115 /* WorkflowExecutionObserver+Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE2F2F4BC10F006950A3 /* WorkflowExecutionObserver+Events.swift */; };
+		FEED00000000000000000116 /* DocumentStore+CRUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED662F48E626006950A3 /* DocumentStore+CRUD.swift */; };
+		FEED00000000000000000117 /* DynamicConfigView+SchemaHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010C0000000000BATCH4 /* DynamicConfigView+SchemaHelpers.swift */; };
+		FEED00000000000000000118 /* DynamicConfigView+StateManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A0010D0000000000BATCH4 /* DynamicConfigView+StateManagement.swift */; };
+		FEED00000000000000000119 /* DocumentInspectorInfoTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */; };
+		FEED0000000000000000011A /* DocumentInspectorMetadataTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */; };
+		FEED0000000000000000011B /* DocumentInspectorArtifactsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */; };
+		FEED0000000000000000011C /* SurfaceTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDDEAD0000000000000005 /* SurfaceTabBar.swift */; };
+		FEED0000000000000000011D /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
+		FEED0000000000000000011E /* TriggerEditorFormPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */; };
+		FEED0000000000000000011F /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
+		FEED00000000000000000120 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */; };
+		FEED00000000000000000121 /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
+		FEED00000000000000000122 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07B489C8F89204C43BD6E46 /* AISettingsView.swift */; };
+		FEED00000000000000000123 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */; };
+		FEED00000000000000000124 /* WorkflowToolTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED642F48E61C006950A3 /* WorkflowToolTypes.swift */; };
+		FEED00000000000000000125 /* BackendSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */; };
+		FEED00000000000000000126 /* LocalModelsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */; };
+		FEED00000000000000000127 /* WorkflowOutputLog+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010400000000BATCH5W1 /* WorkflowOutputLog+Models.swift */; };
+		FEED00000000000000000128 /* WorkflowInspector+AgentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */; };
+		FEED00000000000000000129 /* WorkflowOutputLog+StatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010500000000BATCH5W2 /* WorkflowOutputLog+StatusViews.swift */; };
+		FEED0000000000000000012A /* WorkflowOutputLog+ErrorCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010600000000BATCH5W3 /* WorkflowOutputLog+ErrorCell.swift */; };
+		FEED0000000000000000012B /* WorkflowOutputLog+EmptyStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010700000000BATCH5W4 /* WorkflowOutputLog+EmptyStates.swift */; };
+		FEED0000000000000000012C /* ScheduleEditorView+Category.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A0010800000000BATCH5S1 /* ScheduleEditorView+Category.swift */; };
+		FEED0000000000000000012D /* ComparisonDetailView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010100000000BATCH6C1 /* ComparisonDetailView+Actions.swift */; };
+		FEED0000000000000000012E /* ComparisonDetailView+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010200000000BATCH6C2 /* ComparisonDetailView+Models.swift */; };
+		FEED0000000000000000012F /* ComparisonDetailView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010300000000BATCH6C3 /* ComparisonDetailView+Sections.swift */; };
+		FEED00000000000000000130 /* SidebarView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010500000000BATCH6S2 /* SidebarView+Helpers.swift */; };
+		FEED00000000000000000131 /* SidebarView+SelectionHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010600000000BATCH6S3 /* SidebarView+SelectionHandling.swift */; };
+		FEED00000000000000000132 /* SidebarView+ViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010700000000BATCH6S4 /* SidebarView+ViewComponents.swift */; };
+		FEED00000000000000000133 /* AddProviderSheet+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010800000000BATCH6A1 /* AddProviderSheet+Helpers.swift */; };
+		FEED00000000000000000134 /* AddProviderSheet+Step1.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010900000000BATCH6A2 /* AddProviderSheet+Step1.swift */; };
+		FEED00000000000000000135 /* AddProviderSheet+Step2.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */; };
+		FEED00000000000000000136 /* AddProviderSheet+Step3.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */; };
+		FEED00000000000000000137 /* EntitySourceGroupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B0073490980740B06C80D7 /* EntitySourceGroupsView.swift */; };
+		FEED00000000000000000138 /* SpeakerComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034677F6AF68D5DCA5CB3E8C /* SpeakerComparisonView.swift */; };
+		FEED00000000000000000139 /* SpeakerComparisonView+Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 599CF5FBD9D2B619B9353BC7 /* SpeakerComparisonView+Preview.swift */; };
+		FEED0000000000000000013A /* NavigationHistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B044A60D5A8C7BA256FF24 /* NavigationHistoryManager.swift */; };
+		FEED0000000000000000013B /* ActivityOverviewView+Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = D661A54EFC8800F710E16A23 /* ActivityOverviewView+Cards.swift */; };
+		FEED0000000000000000013C /* EntityDetailView+Biography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1016BD8B24F412A49A3BED88 /* EntityDetailView+Biography.swift */; };
+		FEED0000000000000000013D /* EntityDetailView+Audit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E8622F0305ED125BEDB904 /* EntityDetailView+Audit.swift */; };
+		FEED0000000000000000013E /* EntityDetailView+Claims.swift in Sources */ = {isa = PBXBuildFile; fileRef = A99ACF7102EB736967DDAE57 /* EntityDetailView+Claims.swift */; };
+		FEED0000000000000000013F /* EntityDetailView+FilterChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = D18BA434B3CB3A8C31139293 /* EntityDetailView+FilterChips.swift */; };
+		FEED00000000000000000140 /* ContentView+WorkflowActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923BD592D3257176C51CAC1C /* ContentView+WorkflowActions.swift */; };
+		FEED00000000000000000141 /* ContentView+ReadingLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */; };
+		FEED00000000000000000142 /* AISettingsView+Tabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4189C51250E0B39E05CD87B /* AISettingsView+Tabs.swift */; };
+		FEED00000000000000000143 /* AISettingsView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9195539F44B4ADCA2A3C9974 /* AISettingsView+Helpers.swift */; };
+		FEED00000000000000000144 /* LibraryView+TableMapViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92773EAEE52587BBA8DEDC9F /* LibraryView+TableMapViews.swift */; };
+		FEED00000000000000000145 /* ClaimSummaryCard+Details.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA39991F769A1DD42BB17F01 /* ClaimSummaryCard+Details.swift */; };
+		FEED00000000000000000146 /* APIClient+Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300A8405FFC476E5124372AE /* APIClient+Types.swift */; };
+		FEED00000000000000000147 /* QuickLookPreviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAAFE05184A40A50ADFC54A9 /* QuickLookPreviewViews.swift */; };
+		FEED00000000000000000148 /* DocumentKGWebPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80DDED3870C2457BFD97D1E /* DocumentKGWebPane.swift */; };
+		FEED00000000000000000149 /* ContentView+KnowledgeSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = A698478801C79143E8D71A65 /* ContentView+KnowledgeSurface.swift */; };
+		FEED0000000000000000014A /* UITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397DBEE7CB99C18C680AB85E /* UITestSupport.swift */; };
+		FEED0000000000000000014B /* EditClaimSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C61D10AF212650451E8C13B /* EditClaimSheet.swift */; };
+		FEED0000000000000000014C /* EntityMergeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB5DE35F2956544D2771C85 /* EntityMergeSheet.swift */; };
+		FEED0000000000000000014D /* EntityReconciliationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDDEAD0000000000000003 /* EntityReconciliationSheet.swift */; };
+		FEED0000000000000000014E /* EntitySplitSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F3FE2F360EADE051A3D2D51 /* EntitySplitSheet.swift */; };
+		FEED0000000000000000014F /* KGMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F131D425C0276D277D805678 /* KGMapView.swift */; };
+		FEED00000000000000000150 /* KGTemporalSpatial.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EAB861267206E7A929830F /* KGTemporalSpatial.swift */; };
+		FEED00000000000000000151 /* KGTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF77122ADD78F941D7F1968D /* KGTimelineView.swift */; };
+		FEED00000000000000000152 /* ImageEditingServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AA2442EE35411B543D0868B /* ImageEditingServiceGenerated.swift */; };
+		FEED00000000000000000153 /* ImageEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF014F0FAEFCA5233DCB114F /* ImageEditorModel.swift */; };
+		FEED00000000000000000154 /* LiveEditPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVE00022F27F36000EC9EE1 /* LiveEditPreview.swift */; };
+		FEED00000000000000000155 /* ImageEditChainPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95706A3222B50B478F15D83D /* ImageEditChainPanel.swift */; };
+		FEED00000000000000000156 /* ImageEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C8EFF7D9BC634BAE18E0F47 /* ImageEditorView.swift */; };
+		FEED00000000000000000157 /* ImageMarqueeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D05E0BE3C8D1AEA1AA3A8D /* ImageMarqueeOverlay.swift */; };
+		FEED00000000000000000158 /* AnnotationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D7DC57117008EBCFE607A9 /* AnnotationService.swift */; };
+		FEED00000000000000000159 /* DocumentInspectorAnnotationsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB786740043A3DAB4CDBFD6F /* DocumentInspectorAnnotationsTab.swift */; };
+		FEED0000000000000000015A /* SpatialModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B320C62BB61F14256AECCF5 /* SpatialModels.swift */; };
+		FEED0000000000000000015B /* SpatialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EBBA30F68AE440FAF4DC1E4 /* SpatialView.swift */; };
+		FEED0000000000000000015C /* ResearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B98F1F8C255A9F7C3386A59 /* ResearchModels.swift */; };
+		FEED0000000000000000015D /* ResearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11DB5E2213FF12794A689A7F /* ResearchService.swift */; };
+		FEED0000000000000000015E /* ResearchProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE29C018865C9A1538200D8E /* ResearchProjectListView.swift */; };
+		FEED0000000000000000015F /* ResearchBrowserPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A2290E008AD4F8ACF613B8C /* ResearchBrowserPane.swift */; };
+		FEED00000000000000000160 /* ResearchTasksPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5287875D44BA51CD93CA12F8 /* ResearchTasksPane.swift */; };
+		FEED00000000000000000161 /* ResearchChatPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38E23447A5C31CE397D337CC /* ResearchChatPane.swift */; };
+		FEED00000000000000000162 /* ResearchWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B8B6B4FF52EDA955679CF0 /* ResearchWorkspaceView.swift */; };
+		FEED00000000000000000163 /* DocumentKGSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C119BA4657FD54B0F01D6C /* DocumentKGSurface.swift */; };
+		FEED00000000000000000164 /* AppNavigationHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C6A533EA3E96E1F5AE19ED /* AppNavigationHistory.swift */; };
+		FEED00000000000000000165 /* ContentView+NavigationHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43322F30A05232A97F8B3B87 /* ContentView+NavigationHistory.swift */; };
+		FEED00000000000000000166 /* KGFocusState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D82A9BAC0F995F9199F94B69 /* KGFocusState.swift */; };
+		FEED00000000000000000167 /* SpatialLibraryProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC62467E297F09DF404643C1 /* SpatialLibraryProjector.swift */; };
+		FEED00000000000000000168 /* WorkflowRunProviderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 506C34038F8A349C075DFBAC /* WorkflowRunProviderCache.swift */; };
+		FEED00000000000000000169 /* ClaimReviewQueueSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F46B999D0208EA4C734535C /* ClaimReviewQueueSheet.swift */; };
+		FEED0000000000000000016A /* ContradictionTriageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53458DC3387BC4C694EE3452 /* ContradictionTriageSheet.swift */; };
+		FEED0000000000000000016B /* EntityDigestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB488A4AF6BAB72C33902C4 /* EntityDigestView.swift */; };
+		FEED0000000000000000016C /* DocumentCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E4C1042F69F06267FA6CCD /* DocumentCanvas.swift */; };
+		FEED0000000000000000016D /* MediaStreamPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEDIA0022F69F06267FA6CCD /* MediaStreamPreview.swift */; };
+		FEED0000000000000000016E /* NodeComparisonSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D455270E3396946CF4F1939 /* NodeComparisonSheet.swift */; };
+		FEED0000000000000000016F /* NodePopover+Comparison.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32F310DFF84C9557A77D4FDA /* NodePopover+Comparison.swift */; };
+		FEED00000000000000000170 /* NoteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF58B21F339179A8162AD6C5 /* NoteService.swift */; };
+		FEED00000000000000000171 /* DocumentNotesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00A8552DEACF83751D617C6 /* DocumentNotesTab.swift */; };
+		FEED00000000000000000172 /* LibraryToolbarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99857D7C99E753A3405778FC /* LibraryToolbarState.swift */; };
+		FEED00000000000000000173 /* EntityDetailView+Notes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD96D53320D07109835C90BF /* EntityDetailView+Notes.swift */; };
+		FEED00000000000000000174 /* NotesBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAA77E9001736B77957513A4 /* NotesBrowserView.swift */; };
+		FEED00000000000000000175 /* ArtifactRichTextCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25A2C92607779F4D928B8E3 /* ArtifactRichTextCodec.swift */; };
+		FEED00000000000000000176 /* NodeClassPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D11FC06A71EAC1E8C4F6897 /* NodeClassPicker.swift */; };
+		FEED00000000000000000177 /* FicheroWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA64CFDF3C633C03CCE24A6 /* FicheroWebView.swift */; };
+		FEED00000000000000000178 /* EngineConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C31EBD6243D124565257708 /* EngineConfig.swift */; };
+		FEED00000000000000000179 /* SpatialModels+Links.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C0909F7C7B21871D35EB5C /* SpatialModels+Links.swift */; };
+		FEED0000000000000000017A /* OntologyBrowserGraphModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18ABABDD0527530DA73B5C7 /* OntologyBrowserGraphModel.swift */; };
+		FEED0000000000000000017B /* ForceDirectedGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 003E584BBE51001B1E3F6843 /* ForceDirectedGraphView.swift */; };
+		FEED0000000000000000017C /* HeuristicReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEAE79F9381616EC474F4ED /* HeuristicReviewSheet.swift */; };
+		FEED0000000000000000017D /* NewEntitySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675E69DE1A8C941ABBEBB0E0 /* NewEntitySheet.swift */; };
+		FEED0000000000000000017E /* EntityKindChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 986AE09BC3B5DC9ECD5820A5 /* EntityKindChartView.swift */; };
+		FEED0000000000000000017F /* OntologyBrowser+Toolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849CA4F172401769E6140F13 /* OntologyBrowser+Toolbar.swift */; };
+		FEED00000000000000000180 /* OntologyBrowser+List.swift in Sources */ = {isa = PBXBuildFile; fileRef = 376E2EE5F22D7B7127D9CB2A /* OntologyBrowser+List.swift */; };
+		FEED00000000000000000181 /* OntologyBrowser+Detail.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60E9A8C3AD1B87728A4E3FB /* OntologyBrowser+Detail.swift */; };
+		FEED00000000000000000182 /* ForceDirectedGraphView+Render.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE62C7312D0E473288483C9 /* ForceDirectedGraphView+Render.swift */; };
+		FEED00000000000000000183 /* OntologyBrowser+Sheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B9987CAE57F0DD5387F6DD2 /* OntologyBrowser+Sheets.swift */; };
+		FEED00000000000000000184 /* DisplayAttributesStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5C6B2FBD2462E90B5F43D /* DisplayAttributesStrip.swift */; };
+		FEED00000000000000000185 /* DocumentInspectorArtifactsTab+Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FDDBCA3101A6E468A3105D2 /* DocumentInspectorArtifactsTab+Shared.swift */; };
+		FEED00000000000000000186 /* DocumentInspectorArtifactsTab+EntitiesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F6D53AD0FD306FE58CF26D /* DocumentInspectorArtifactsTab+EntitiesTab.swift */; };
+		FEED00000000000000000187 /* DocumentInspectorArtifactsTab+KGModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23C597BA2DF9A27BE94F609 /* DocumentInspectorArtifactsTab+KGModels.swift */; };
+		FEED00000000000000000188 /* DocumentInspectorArtifactsTab+KGSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B7EC6F2955D032D3FA13E30 /* DocumentInspectorArtifactsTab+KGSection.swift */; };
+		FEED00000000000000000189 /* DocumentInspectorArtifactsTab+EntityKindBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A697CECBDA1A7EF050BF765 /* DocumentInspectorArtifactsTab+EntityKindBlock.swift */; };
+		FEED0000000000000000018A /* DocumentInspectorArtifactsTab+EntityKindRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D62D87E6614928970950D52 /* DocumentInspectorArtifactsTab+EntityKindRow.swift */; };
+		FEED0000000000000000018B /* DocumentInspectorArtifactsTab+CurationHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = F259EE92E81B78CBE35C9947 /* DocumentInspectorArtifactsTab+CurationHistory.swift */; };
+		FEED0000000000000000018C /* DocumentInspectorArtifactsTab+Interpretations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E852347E800839A52286849 /* DocumentInspectorArtifactsTab+Interpretations.swift */; };
+		FEED0000000000000000018D /* DocumentInspectorArtifactsTab+Previews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73BB27716102361159F020CD /* DocumentInspectorArtifactsTab+Previews.swift */; };
+		FEED0000000000000000018E /* SidebarView+UnifiedLibrarySections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052B352354B208CBDD7F8A1F /* SidebarView+UnifiedLibrarySections.swift */; };
+		FEED0000000000000000018F /* SidebarView+UnifiedRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 688ECE0FC82045A06149A5FA /* SidebarView+UnifiedRows.swift */; };
+		FEED00000000000000000190 /* SidebarView+PinnedNavigationRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0DFC89B8C073DBEE0A743F /* SidebarView+PinnedNavigationRows.swift */; };
+		FEED00000000000000000191 /* SidebarView+ActivityRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0E93BA60F99453057135B99 /* SidebarView+ActivityRows.swift */; };
+		FEED00000000000000000192 /* SidebarView+LibraryHeaderHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6931274044832BD7EFE8A4D3 /* SidebarView+LibraryHeaderHelpers.swift */; };
+		FEED00000000000000000193 /* SidebarItemRow+Drop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588D0F19667B99B2AA69A1A3 /* SidebarItemRow+Drop.swift */; };
+		FEED00000000000000000194 /* SidebarItemRow+Presentation+Body.swift in Sources */ = {isa = PBXBuildFile; fileRef = 872F7ADB0C1953F67D681C24 /* SidebarItemRow+Presentation+Body.swift */; };
+		FEED00000000000000000195 /* SidebarItemRow+Presentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE6CF3DE02E1F999AE8F1A9 /* SidebarItemRow+Presentation.swift */; };
+		FEED00000000000000000196 /* SidebarItemRow+Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47244E304896B65E6F12976C /* SidebarItemRow+Preview.swift */; };
+		FEED00000000000000000197 /* SidebarItemRow+Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2FF71320EAE8FE11653EB06 /* SidebarItemRow+Workflow.swift */; };
+		FEED00000000000000000198 /* DocumentInspectorInfoTab+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35793BBA8A74DAA0982CCFA4 /* DocumentInspectorInfoTab+Header.swift */; };
+		FEED00000000000000000199 /* DocumentInspectorInfoTab+RelatedClaims.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0164BBC35A375AA74214F42 /* DocumentInspectorInfoTab+RelatedClaims.swift */; };
+		FEED0000000000000000019A /* DocumentInspectorInfoTab+Citations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C74251DECC247DF8B5A816 /* DocumentInspectorInfoTab+Citations.swift */; };
+		FEED0000000000000000019B /* DocumentInspectorInfoTab+Bibliography.swift in Sources */ = {isa = PBXBuildFile; fileRef = F01276A4ABA0F672CF1D8067 /* DocumentInspectorInfoTab+Bibliography.swift */; };
+		FEED0000000000000000019C /* DocumentInspectorInfoTab+Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9037096857E2AE5F3339A8DC /* DocumentInspectorInfoTab+Workflow.swift */; };
+		FEED0000000000000000019D /* DocumentInspectorInfoTab+Prototype.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715408B079BD7610A53FA99C /* DocumentInspectorInfoTab+Prototype.swift */; };
+		FEED0000000000000000019E /* FileMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = C768E2159A6D869E204FC478 /* FileMenuCommands.swift */; };
+		FEED0000000000000000019F /* EntityDetailView+Metadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9506E8C3C8030EE3075E9A0 /* EntityDetailView+Metadata.swift */; };
+		FEED000000000000000001A0 /* EntityDetailView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C0044833E201FFB8B8A5B37 /* EntityDetailView+Sections.swift */; };
+		FEED000000000000000001A1 /* ClaimSummaryCard+Provenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1CE0962968DEE7EAB60E454 /* ClaimSummaryCard+Provenance.swift */; };
+		FEED000000000000000001A2 /* EntityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B118FE1DE4F78C0EE238539 /* EntityStore.swift */; };
+		FEED000000000000000001A3 /* BatchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDDEAD0000000000000009 /* BatchStore.swift */; };
+		FEED000000000000000001A4 /* BatchRunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDDEAD000000000000000B /* BatchRunView.swift */; };
+		FEED000000000000000001A5 /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDDEAD0000000000000007 /* WorkspaceStore.swift */; };
+		FEED000000000000000001A6 /* LibraryChangeStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28B629229088E72B485569FC /* LibraryChangeStream.swift */; };
+		FEED000000000000000001A7 /* ClaimStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C527476477074D83F628468 /* ClaimStore.swift */; };
+		FEED000000000000000001A8 /* NoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFA65406167827DCB144E3E2 /* NoteStore.swift */; };
+		FEED000000000000000001A9 /* AnnotationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ABB27CA283069DA160FB5AA /* AnnotationStore.swift */; };
+		FEED000000000000000001AA /* ActionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12109CF3A70EB2ACA74B24D /* ActionStore.swift */; };
+		FEED000000000000000001AB /* ResearchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375F58443D6F498C1FEDD3E3 /* ResearchStore.swift */; };
+		FEED000000000000000001AC /* SearchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE609F48196839FAA6981CFF /* SearchStore.swift */; };
+		FEED000000000000000001AD /* ObservableDomainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B628D9325A5B301E5827F0C1 /* ObservableDomainStore.swift */; };
+		FEED000000000000000001AE /* DocumentStore+ChangeStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D040114E6D969FD49C8317E /* DocumentStore+ChangeStream.swift */; };
+		FEED000000000000000001AF /* ArtifactStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FC331F7BFE50CEECD3B4414 /* ArtifactStore.swift */; };
+		FEED000000000000000001B0 /* CitationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878755044A42658CBFF9036E /* CitationStore.swift */; };
+		FEED000000000000000001B1 /* ReferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBCBCC9A6B923D6A560F7277 /* ReferenceStore.swift */; };
+		FEED000000000000000001B2 /* InterpretationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42C41E0F485064FDA5EAEB9 /* InterpretationStore.swift */; };
+		FEED000000000000000001B3 /* ActionInvokeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6175F28D959ABB4DB0C2F4CD /* ActionInvokeService.swift */; };
+		FEED000000000000000001B4 /* FicheroShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68C8C5672F78A996924D42D1 /* FicheroShortcuts.swift */; };
+		FEED000000000000000001B5 /* FicheroActionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A05B7F3C09F6A27BE55971 /* FicheroActionIntents.swift */; };
+		FEED000000000000000001B6 /* NoteListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B5319A472F190E68188ECC /* NoteListView.swift */; };
+		FEED000000000000000001B7 /* NoteDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFD4DC8D0E00D06ECFFEA224 /* NoteDetailView.swift */; };
+		FEED000000000000000001B8 /* NotesInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15F1C6302A9E0863FB1E6775 /* NotesInspectorPane.swift */; };
+		FEED000000000000000001B9 /* PlatformAliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68BDC2DC273F8F91B9CA1B3C /* PlatformAliases.swift */; };
+		FEED000000000000000001BA /* PlatformPasteboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 772A6A57C4986C2765A174EE /* PlatformPasteboard.swift */; };
+		FEED000000000000000001BB /* CanvasLayoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4887C223276D2F5E2C498065 /* CanvasLayoutStore.swift */; };
+		FEED000000000000000001BC /* CanvasLayoutStore+ChangeStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA00000000000000000000A1 /* CanvasLayoutStore+ChangeStream.swift */; };
+		FEED000000000000000001BD /* CanvasItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5921F26A97AF84B80B4DCD29 /* CanvasItemStore.swift */; };
+		FEED000000000000000001BE /* CanvasItemStore+ChangeStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA00000000000000000000A2 /* CanvasItemStore+ChangeStream.swift */; };
+		FEED000000000000000001BF /* AuditStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD8F8D42618D304271F81962 /* AuditStore.swift */; };
+		FEED000000000000000001C0 /* AuditHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E28651A4F5835C8AD6A06B /* AuditHistoryView.swift */; };
+		FEED000000000000000001C1 /* FicheroAppEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48FFFFE4A294ADC2F1299E2D /* FicheroAppEntities.swift */; };
+		FEED000000000000000001C2 /* BackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C062A29951726302108FD2 /* BackupStore.swift */; };
+		FEED000000000000000001C3 /* BackupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91100495C9D776E200E2F9C0 /* BackupsView.swift */; };
+		FEED000000000000000001C4 /* SplittablePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0B24DE95228CEA6B853324 /* SplittablePane.swift */; };
+		FEED000000000000000001C5 /* WindowSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBE84D175FC1F5C5644EB914 /* WindowSeed.swift */; };
+		FEED000000000000000001C6 /* LibraryOutlineNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453CA6ACF420E59AED37F906 /* LibraryOutlineNode.swift */; };
+		FEED000000000000000001C7 /* FicheroApp_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29941DE439073B7364322ECF /* FicheroApp_iOS.swift */; };
+		FEED000000000000000001C8 /* MobileCaptureQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23530030000000000000003 /* MobileCaptureQueue.swift */; };
+		FEED000000000000000001C9 /* MobileCaptureQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23530040000000000000004 /* MobileCaptureQueueView.swift */; };
+		FEED000000000000000001CA /* MacRemoteClientPairingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */; };
+		FEED000000000000000001CB /* RemoteClientPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23260032F90000100000001 /* RemoteClientPairing.swift */; };
+		FEED000000000000000001CC /* ChatDocumentDropPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCB24ED93772AA96CF319D4B /* ChatDocumentDropPayload.swift */; };
+		FEED000000000000000001CD /* BackendSettingsRemoteAccessSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70599D1C032FF0B54C7C18A2 /* BackendSettingsRemoteAccessSection.swift */; };
+		FEED000000000000000001CE /* EngineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A4F63C0FA3C779A6BA5B655 /* EngineSettingsView.swift */; };
+		FEED000000000000000001CF /* ShareSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2FF20EF84262D15A268246D /* ShareSettingsView.swift */; };
+		FEED000000000000000001D0 /* UsersSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */; };
+		FEED000000000000000001D1 /* UsersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1EB898A19FAA64EF466CD2 /* UsersStore.swift */; };
+		FEED000000000000000001D2 /* LocalInferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A0 /* LocalInferenceStore.swift */; };
+		FEED000000000000000001D3 /* KnownLibraryRegistryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000003677A0 /* KnownLibraryRegistryStore.swift */; };
+		FEED000000000000000001D4 /* AppleAvailabilityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A1 /* AppleAvailabilityStore.swift */; };
+		FEED000000000000000001D5 /* LocalInferenceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A2 /* LocalInferenceSettingsView.swift */; };
+		FEED000000000000000001D6 /* CaptureSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF964748FC3450263DCB1D1 /* CaptureSettingsView.swift */; };
+		FEED000000000000000001D7 /* iOSLibraryPickerMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015D191B1A9A578C0A4BC6BA /* iOSLibraryPickerMenu.swift */; };
+		FEED000000000000000001D8 /* ImportServiceGenerated+Upload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44352F043915E2760BB0DD30 /* ImportServiceGenerated+Upload.swift */; };
+		FEED000000000000000001D9 /* ActivityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98C0EC9D283E4FFF816B0460 /* ActivityStore.swift */; };
+		FEED000000000000000001DA /* BreadcrumbBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */; };
+		FEED000000000000000001DB /* MiniToolbarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC02D722B13BC58D4D4B37B7 /* MiniToolbarComponents.swift */; };
+		FEED000000000000000001DC /* Spatial2DCanvasGestures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DC44420C3D37275174DF38F /* Spatial2DCanvasGestures.swift */; };
+		FEED000000000000000001DD /* Spatial2DCanvasItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C09E634BBFD5CA7C83DBCC4 /* Spatial2DCanvasItems.swift */; };
+		FEED000000000000000001DE /* SpatialNodeThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF5FD0D414191E6FFC18E8BC /* SpatialNodeThumbnail.swift */; };
+		FEED000000000000000001DF /* ReaderToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE00C2DC909B57AA030519E /* ReaderToolbar.swift */; };
+		FEED000000000000000001E0 /* WorkflowExecutionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 669F81AC0106B415218C419D /* WorkflowExecutionStore.swift */; };
+		FEED000000000000000001E1 /* ActivityMonitorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36839A1C65A10F63B92E4121 /* ActivityMonitorModel.swift */; };
+		FEED000000000000000001E2 /* ActivityMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C939F2EE06FF349761CA2F /* ActivityMonitorView.swift */; };
+		FEED000000000000000001E3 /* ActivityMonitorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 811A6E6F398CBE8A81AEB7CE /* ActivityMonitorWindow.swift */; };
+		FEED000000000000000001E4 /* DocumentInspectorInfoTab+Sharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37003B253D97CBE012D3A811 /* DocumentInspectorInfoTab+Sharing.swift */; };
+		FEED000000000000000001E5 /* Representation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71ADE00621970AC5AE6E45A /* Representation.swift */; };
+		FEED000000000000000001E6 /* DocumentInterpretationsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDCFD7D8095D23EBDA3F42D9 /* DocumentInterpretationsTab.swift */; };
+		FEED000000000000000001E7 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA362DBBB6387D0FEB6A7626 /* MarkdownText.swift */; };
+		FEED000000000000000001E8 /* CoalescingSaveRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74ECCAE0282E67AA4A150871 /* CoalescingSaveRunner.swift */; };
+		FEED000000000000000001E9 /* AnnotationHighlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D4DEA1D7E10749DA258D26F /* AnnotationHighlight.swift */; };
+		FEED000000000000000001EA /* AnnotatableTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 032AA7721B1C054A6CD89D4C /* AnnotatableTextView.swift */; };
+		FEED000000000000000001EB /* BoundingBoxGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D870DB81D42B1614D58CE3F /* BoundingBoxGeometry.swift */; };
+		FEED000000000000000001EC /* PDFRegionGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66ADB5B1F77763C5F3295611 /* PDFRegionGeometry.swift */; };
+		FEED000000000000000001ED /* BookmarkServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3133E93619FB262825F4F55 /* BookmarkServiceGenerated.swift */; };
+		FEED000000000000000001EE /* BookmarksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EA02CD36EF110174B8E2206 /* BookmarksView.swift */; };
+		FEED000000000000000001EF /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB4FE6FA42E3E4887451FB21 /* SessionStore.swift */; };
+		FEED000000000000000001F0 /* KGQueryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3A91E4B2D14F0A9E5C1A71 /* KGQueryStore.swift */; };
+		FEED000000000000000001F1 /* AuthGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 564CF6ABBC8F558282E73502 /* AuthGateView.swift */; };
+		FEED000000000000000001F2 /* BackendRootGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43576573521F73AE202B2E9B /* BackendRootGate.swift */; };
+		FEED000000000000000001F3 /* BackendHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B2292335F30622AB8F0ABE /* BackendHost.swift */; };
+		FEED000000000000000001F4 /* LibrarySharingBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DAEF12C9BBE42A6FCA5004A /* LibrarySharingBadge.swift */; };
+		FEED000000000000000001F5 /* ViewDisplayMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956F66055D569E37A35E0377 /* ViewDisplayMode.swift */; };
+		FEED000000000000000001F6 /* MiniToolbarOverflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F420C7687D317EE817591121 /* MiniToolbarOverflow.swift */; };
+		FEED000000000000000001F7 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D817ADFBBCAF433008A6380D /* AboutView.swift */; };
+		FEED000000000000000001F8 /* SearchArrowKeyNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0888678B07B4D4F9B3111FE /* SearchArrowKeyNavigation.swift */; };
+		FEED000000000000000001F9 /* SpaceSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCA353DE8E2AFD149DADB3A /* SpaceSceneView.swift */; };
+		FEED000000000000000001FA /* SpaceTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626E23DB6F8B778F70AF3B35 /* SpaceTheme.swift */; };
+		FEED000000000000000001FB /* CanvasSceneState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9414DAA022DF2D96230B86A7 /* CanvasSceneState.swift */; };
+		FEED000000000000000001FC /* CanvasSceneDiff.swift in Sources */ = {isa = PBXBuildFile; fileRef = F355E37D6E92E270CCE27EF6 /* CanvasSceneDiff.swift */; };
+		FEED000000000000000001FD /* CanvasDropOutcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09D8F04A6421AEC5B5370E92 /* CanvasDropOutcome.swift */; };
+		FEED000000000000000001FE /* CanvasDetailTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80920949B39DD526745B0BF2 /* CanvasDetailTier.swift */; };
+		FEED000000000000000001FF /* CanvasSceneRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F287F61A7D65912EF63D362C /* CanvasSceneRenderer.swift */; };
+		FEED00000000000000000200 /* CanvasInteractionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E16D1FB324019CBF50B37D /* CanvasInteractionController.swift */; };
+		FEED00000000000000000201 /* Canvas2DProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F68955CC563FF070D02897 /* Canvas2DProjection.swift */; };
+		FEED00000000000000000202 /* CanvasOrtho2DRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6696D9961E42071EE854350 /* CanvasOrtho2DRenderer.swift */; };
+		FEED00000000000000000203 /* CanvasSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B6D6698151FC8A29A2BE3BA /* CanvasSceneView.swift */; };
+		FEED00000000000000000204 /* Canvas3DProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DC0777B2A518265D4ACABB8 /* Canvas3DProjection.swift */; };
+		FEED00000000000000000205 /* CanvasScene3DRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B7A8D1A3FCF024827D89665 /* CanvasScene3DRenderer.swift */; };
+		FEED00000000000000000206 /* CanvasSpaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52AFBAB2B16555EF8A55BF3 /* CanvasSpaceView.swift */; };
+		FEED00000000000000000207 /* CanvasDropResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034BEE1157D9D2C95C1F885A /* CanvasDropResolver.swift */; };
+		FEED00000000000000000208 /* CanvasModifierTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1CAB23253BF2D09F02A66D /* CanvasModifierTracker.swift */; };
+		FEED00000000000000000209 /* EngineReadinessProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5715F64F9F1AF567F5E43C42 /* EngineReadinessProbe.swift */; };
+		FEED0000000000000000020A /* EngineSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5715F64F9F1AF567F5E43C43 /* EngineSession.swift */; };
+		FEED0000000000000000020B /* AccessError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE34A7C933EA9305CAAA50FA /* AccessError.swift */; };
+		FEED0000000000000000020C /* IdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEFD8D2157AA0C0F66955D78 /* IdentityStore.swift */; };
+		FEED0000000000000000020D /* LibraryAccessDeniedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C5267955AE57DD7BCEA674 /* LibraryAccessDeniedView.swift */; };
+		FEED0000000000000000020E /* LiveUpdatesPausedPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53331A42DA98730B8F854E58 /* LiveUpdatesPausedPill.swift */; };
+		FEED0000000000000000020F /* DeviceTokenRenewal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110C8D9D75D6823D7B1EF43D /* DeviceTokenRenewal.swift */; };
+		FEED00000000000000000210 /* ShareLibrarySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47EED3CD156012F59D46F7B /* ShareLibrarySheet.swift */; };
+		FEED00000000000000000211 /* PairedHostEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CF4FEC94C539A14626CD6B /* PairedHostEndpoints.swift */; };
+		FEED00000000000000000212 /* InviteAccountSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6337F0388FCB9CD46ACFEE95 /* InviteAccountSection.swift */; };
+		FEED00000000000000000213 /* ChangeStreamTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3A4A14186A5886AC932517 /* ChangeStreamTransport.swift */; };
+		FEED00000000000000000214 /* PDFLoupeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70EC13FF6B70F7EC2D9A950C /* PDFLoupeOverlay.swift */; };
+		FEED00000000000000000215 /* PDFPageControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DDD973DE51567CB7FABA63C /* PDFPageControllers.swift */; };
+		FEED00000000000000000216 /* PDFPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D0A22B5A712240EAE78053 /* PDFPageView.swift */; };
+		FEED00000000000000000217 /* PDFPageWithToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 902DF4705DA9730D76AF2C06 /* PDFPageWithToolbar.swift */; };
+		FEED00000000000000000218 /* PDFReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75558D1F0B1D0F65CEFF577C /* PDFReadingView.swift */; };
+		FEED00000000000000000219 /* PDFThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29C59C2205AA2F446083A9C9 /* PDFThumbnailView.swift */; };
+		FEED0000000000000000021A /* ReadingPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F3C88D4E27B0196AB3302 /* ReadingPaneView.swift */; };
+		FEED0000000000000000021B /* DocumentTextReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C127C3CD9D352C283597AB /* DocumentTextReader.swift */; };
+		FEED0000000000000000021C /* PageContentPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = D32974474262617AAAE4A322 /* PageContentPane.swift */; };
+		FEED0000000000000000021D /* ImmersiveReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E92E864B4AF4383634E221 /* ImmersiveReaderView.swift */; };
+		FEED0000000000000000021E /* AnnotationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CC17746FA5E4A08F1F31F2 /* AnnotationDetailView.swift */; };
+		FEED0000000000000000021F /* AnnotationListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C6E9911CCE3E7F0C92E672 /* AnnotationListView.swift */; };
+		FEED00000000000000000220 /* AnnotationsInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA6DF64867F557144B14A23 /* AnnotationsInspectorPane.swift */; };
+		FEED00000000000000000221 /* AnnotationToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22AF6A1C596C845A9BABDAFC /* AnnotationToolbar.swift */; };
+		FEED00000000000000000222 /* CitationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1424784E87E1971372F0109 /* CitationDetailView.swift */; };
+		FEED00000000000000000223 /* CitationListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866758A89BA93E91F5E4DCC5 /* CitationListView.swift */; };
+		FEED00000000000000000224 /* CitationsInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9C3B5A53041FFAA09E0221 /* CitationsInspectorPane.swift */; };
+		FEED00000000000000000225 /* ArtifactDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DA5F6DA59D0A499D28F3C75 /* ArtifactDetailView.swift */; };
+		FEED00000000000000000226 /* ArtifactEntityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E5E81DFE56AC41F34CC4EAE /* ArtifactEntityViews.swift */; };
+		FEED00000000000000000227 /* ArtifactListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63F3EB72383ED2E5BA85C0E /* ArtifactListView.swift */; };
+		FEED00000000000000000228 /* ArtifactPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7785FFCD6AB43D36199856 /* ArtifactPanel.swift */; };
+		FEED00000000000000000229 /* ArtifactsInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C36D41D71387394E6AEB453 /* ArtifactsInspectorPane.swift */; };
+		FEED0000000000000000022A /* FocusedAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322ECCB87D28069C9539D009 /* FocusedAnnotation.swift */; };
+		FEED0000000000000000022B /* FocusedArtifact.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74949C6AC5364C768581B8CE /* FocusedArtifact.swift */; };
+		FEED0000000000000000022C /* FocusedCitation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F75255EDB2E723056D7BA67B /* FocusedCitation.swift */; };
+		FEED0000000000000000022D /* FocusedDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8609BBFA7EF7B54ED73C59A1 /* FocusedDocument.swift */; };
+		FEED0000000000000000022E /* FocusedNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20829DBAC5757AEA6096835 /* FocusedNote.swift */; };
+		FEED0000000000000000022F /* InspectorTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = F447E424F3A26C138C9BB99D /* InspectorTab.swift */; };
+		FEED00000000000000000230 /* InspectorPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC6B695132C68202062560A /* InspectorPresenter.swift */; };
+		FEED00000000000000000231 /* AdaptiveAppleShellHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5AFDD1AF51EC0A0BA0C061E /* AdaptiveAppleShellHost.swift */; };
+		FEED00000000000000000232 /* OpenAffordances.swift in Sources */ = {isa = PBXBuildFile; fileRef = A68A831B2F81707B5E082D6F /* OpenAffordances.swift */; };
+		FEED00000000000000000233 /* ContentViewHelperViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D6A52184F57ACFC6926FBB /* ContentViewHelperViews.swift */; };
+		FEED00000000000000000234 /* DocumentTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F707FEBE62834FFB3024991 /* DocumentTabView.swift */; };
+		FEED00000000000000000235 /* ShellLayoutPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24BBD41061EB9112C9EB7D6F /* ShellLayoutPolicy.swift */; };
+		FEED00000000000000000236 /* DocumentInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424D757E2C82D4E5325413F /* DocumentInspector.swift */; };
+		FEED00000000000000000237 /* DocumentInspectorContentV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8837F3B333F0ACFB9929CF /* DocumentInspectorContentV2.swift */; };
+		FEED00000000000000000238 /* ImageViewerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD8AD20E191046B70950B1E /* ImageViewerComponents.swift */; };
+		FEED00000000000000000239 /* MagnifierPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14E6171BBCA610CF1B87D7F /* MagnifierPanel.swift */; };
+		FEED0000000000000000023A /* ScrollWheelZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3080C713216B7BBD39725487 /* ScrollWheelZoom.swift */; };
+		FEED0000000000000000023B /* BoundingBoxOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCDF89C1460FA69DB0A0630 /* BoundingBoxOverlay.swift */; };
+		FEED0000000000000000023C /* CheckerboardPattern.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0690C2C95A7BBA1840E71AED /* CheckerboardPattern.swift */; };
+		FEED0000000000000000023D /* NavigatorMiniMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BE8ADCDBC94EF23E0D0E1C4 /* NavigatorMiniMap.swift */; };
+		FEED0000000000000000023E /* LibraryWorkspaceRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5517E790C3AF9853989225 /* LibraryWorkspaceRoot.swift */; };
+		FEED0000000000000000023F /* CollectionWorkspaceStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C9BD4E928F0D32E6EABBA7 /* CollectionWorkspaceStub.swift */; };
+		FEED00000000000000000240 /* WorkspaceItemPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF8C2AF12DD3E6EAB64C68B4 /* WorkspaceItemPicker.swift */; };
+		FEED00000000000000000241 /* WorkflowSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D280D880BB4526630C8CB3 /* WorkflowSync.swift */; };
+		FEED00000000000000000242 /* BackendActivityEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07BE5ECB91F929ADBD8595A /* BackendActivityEvent.swift */; };
+		FEED00000000000000000243 /* BackendWorkPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5ED84DA059F760ECDB09B4 /* BackendWorkPill.swift */; };
+		FEED00000000000000000244 /* PaneVisibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47F88D458E8ED7BD95E5B47 /* PaneVisibility.swift */; };
+		FEED00000000000000000245 /* PageImageGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753C4D174F9A42A6593BECC6 /* PageImageGrid.swift */; };
+		FEED00000000000000000246 /* ReaderTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEDDEAD0000000000000001 /* ReaderTabBar.swift */; };
+		FEED00000000000000000247 /* ChainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41994E6C746A0B0171534212 /* ChainStore.swift */; };
+		FEED00000000000000000248 /* SourceSnippet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EC894548A8DBFA37D41557 /* SourceSnippet.swift */; };
+		FEED00000000000000000249 /* InspectorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5DACA616BBD1A6AA5E8518E /* InspectorSection.swift */; };
+		FEED0000000000000000024A /* SourceProvenancePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC32EFF977CFA4E7D253F6A /* SourceProvenancePopover.swift */; };
+		FEED0000000000000000024B /* ClaimAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16AE4AAB56FEB5190D97239 /* ClaimAttributionView.swift */; };
+		FEED0000000000000000024C /* CitationExportButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79192DB989A34D1DBEEF3E34 /* CitationExportButton.swift */; };
+		FEED0000000000000000024E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
+		FEED0000000000000000024F /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
+		FEED00000000000000000251 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 201 /* Assets.xcassets */; };
+		FEED00000000000000000252 /* Fichero.sdef in Resources */ = {isa = PBXBuildFile; fileRef = 142 /* Fichero.sdef */; };
 		001 /* FicheroApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101 /* FicheroApp.swift */; };
 		002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 102 /* ContentView.swift */; };
 		003 /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103 /* Document.swift */; };
@@ -620,6 +1212,13 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		FEED00000000000000000254 = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 		A1624FF62F2EE5710019C019 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
@@ -630,6 +1229,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		FEED00000000000000000260 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		003E584BBE51001B1E3F6843 /* ForceDirectedGraphView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ForceDirectedGraphView.swift; sourceTree = "<group>"; };
 		00EC894548A8DBFA37D41557 /* SourceSnippet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SourceSnippet.swift; sourceTree = "<group>"; };
 		015D191B1A9A578C0A4BC6BA /* iOSLibraryPickerMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = iOSLibraryPickerMenu.swift; sourceTree = "<group>"; };
@@ -1248,6 +1848,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		FEED00000000000000000250 = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+				FEED0000000000000000024E /* FicheroAPIClient in Frameworks */,
+				FEED0000000000000000024F /* FicheroAPIClient in Frameworks */,
+			);
+		};
 		300 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
@@ -2286,6 +2893,30 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		FEED00000000000000000261 /* Fichero (App Store) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FEED0000000000000000025F;
+			buildPhases = (
+				FEED0000000000000000024D,
+				FEED00000000000000000250,
+				FEED00000000000000000253,
+				FEED00000000000000000254,
+				FEED00000000000000000255,
+				FEED00000000000000000256,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Fichero (App Store)";
+			packageProductDependencies = (
+				A18ED3AA2F13E313007C2C6E,
+				A18ED3F12F141DFE007C2C6E,
+			);
+			productName = Fichero;
+			productReference = FEED00000000000000000260 /* Fichero.app */;
+			productType = "com.apple.product-type.application";
+		};
 		500 /* Fichero */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 600 /* Build configuration list for PBXNativeTarget "Fichero" */;
@@ -2394,6 +3025,7 @@
 			projectRoot = "";
 			targets = (
 				500 /* Fichero */,
+				FEED00000000000000000261 /* Fichero (App Store) */,
 				A10521A82EFDC92400B28C3E /* FicheroTests */,
 				A10521C02EFDC94100B28C3E /* FicheroUITests */,
 			);
@@ -2401,6 +3033,13 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		FEED00000000000000000253 = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+				FEED00000000000000000251 /* Assets.xcassets in Resources */,
+				FEED00000000000000000252 /* Fichero.sdef in Resources */,
+			);
+		};
 		520 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
@@ -2421,6 +3060,110 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		FEED00000000000000000256 = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			files = (
+			);
+			name = "Embed Fichero Engine";
+			shellPath = /bin/sh;
+			shellScript = (
+				"# Embed the briefcase-built engine into Fichero.app/Contents/Resources/.",
+				"",
+				"# Behavior:",
+				"",
+				"#   - Release: engine is required; abort the build if missing.",
+				"",
+				"#   - Debug:   skip embedding entirely. Developers run the engine externally",
+				"",
+				"#             (uvicorn / briefcase dev / scripts/startup) — the in-process",
+				"",
+				"#             EmbeddedBackendService probes 127.0.0.1:8765 first and uses",
+				"",
+				"#             whatever's there. Embedding on every Debug build (a) was slow",
+				"",
+				"#             (~10s of cp on the briefcase bundle) and (b) raced with",
+				"",
+				"#             concurrent briefcase rebuilds, leaving partial bundles.",
+				"",
+				"",
+				"",
+				"if [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then",
+				"",
+				"  echo \"Skipping engine embed (non-macOS platform ${PLATFORM_NAME}); engine is embedded only in the macOS app bundle\"",
+				"",
+				"  exit 0",
+				"",
+				fi,
+				"",
+				"",
+				"",
+				"if [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then",
+				"",
+				"  echo \"Skipping engine embed (FICHERO_EMBED_ENGINE=${FICHERO_EMBED_ENGINE}); use external backend on :8765\"",
+				"",
+				"  exit 0",
+				"",
+				fi,
+				"",
+				"",
+				"",
+				"ENGINE_SRC=\"${SRCROOT}/../fichero-engine/build/engine/macos/app/Fichero Engine.app\"",
+				"",
+				"ENGINE_DST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/Fichero Engine.app\"",
+				"",
+				"",
+				"",
+				"if [ ! -d \"$ENGINE_SRC\" ]; then",
+				"",
+				"  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-engine/ first\" >&2",
+				"",
+				"  exit 1",
+				"",
+				fi,
+				"",
+				"",
+				"",
+				"echo \"Embedding engine: $ENGINE_SRC -> $ENGINE_DST\"",
+				"",
+				"rm -rf \"$ENGINE_DST\"",
+				"",
+				"mkdir -p \"$(dirname \"$ENGINE_DST\")\"",
+				"",
+				"cp -R \"$ENGINE_SRC\" \"$ENGINE_DST\"",
+				"",
+			);
+		};
+		FEED00000000000000000255 = {
+			isa = PBXShellScriptBuildPhase;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../.swiftlint.yml",
+				"$(SRCROOT)/fichero",
+			);
+			name = SwiftLint;
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/swiftlint.done",
+			);
+			shellPath = /bin/sh;
+			shellScript = (
+				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
+				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
+				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
+				fi,
+				"",
+				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
+				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
+				else,
+				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
+				fi,
+				"",
+				"mkdir -p \"$DERIVED_FILE_DIR\"",
+				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
+				"",
+			);
+		};
 		CC0011223344556677889902 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
 			files = (
@@ -2528,6 +3271,599 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		FEED0000000000000000024D = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				FEED00000000000000000001 /* ClaimSummaryCardView.swift in Sources */,
+				FEED00000000000000000002 /* EntityDetailView.swift in Sources */,
+				FEED00000000000000000003 /* EntityRowView.swift in Sources */,
+				FEED00000000000000000004 /* OntologyBrowser.swift in Sources */,
+				FEED00000000000000000005 /* ImagePreviewMenuCommands.swift in Sources */,
+				FEED00000000000000000006 /* ActivityProgressView+DataLoading.swift in Sources */,
+				FEED00000000000000000007 /* BackendConnectionView.swift in Sources */,
+				FEED00000000000000000008 /* MiniToolbar.swift in Sources */,
+				FEED00000000000000000009 /* QuickLookComponents.swift in Sources */,
+				FEED0000000000000000000A /* ChatMessagesList.swift in Sources */,
+				FEED0000000000000000000B /* LibraryViewComponents.swift in Sources */,
+				FEED0000000000000000000C /* AppleScriptCommands.swift in Sources */,
+				FEED0000000000000000000D /* ActivityDataProcessing.swift in Sources */,
+				FEED0000000000000000000E /* ActivityRun.swift in Sources */,
+				FEED0000000000000000000F /* DocumentStoreTypes.swift in Sources */,
+				FEED00000000000000000010 /* FolderAccessManager.swift in Sources */,
+				FEED00000000000000000011 /* ActivityProgressModels.swift in Sources */,
+				FEED00000000000000000012 /* WorkflowSupportTypes.swift in Sources */,
+				FEED00000000000000000013 /* WorkflowToolbar.swift in Sources */,
+				FEED00000000000000000014 /* ProviderServiceGenerated.swift in Sources */,
+				FEED00000000000000000015 /* SearchServiceGenerated.swift in Sources */,
+				FEED00000000000000000016 /* BatchServiceGenerated.swift in Sources */,
+				FEED00000000000000000017 /* ChatViewToolbar.swift in Sources */,
+				FEED00000000000000000018 /* SearchResultRowFromAPI.swift in Sources */,
+				FEED00000000000000000019 /* FocusedCommandButtons.swift in Sources */,
+				FEED0000000000000000001A /* FicheroApp.swift in Sources */,
+				FEED0000000000000000001B /* AppInstaller.swift in Sources */,
+				FEED0000000000000000001C /* SparkleUpdater.swift in Sources */,
+				FEED0000000000000000001D /* ContentView.swift in Sources */,
+				FEED0000000000000000001E /* Document.swift in Sources */,
+				FEED0000000000000000001F /* ContentView+Actions.swift in Sources */,
+				FEED00000000000000000020 /* IntegrationsPlaceholderSheet.swift in Sources */,
+				FEED00000000000000000021 /* MessageCard.swift in Sources */,
+				FEED00000000000000000022 /* SidebarItem.swift in Sources */,
+				FEED00000000000000000023 /* FeatureManager.swift in Sources */,
+				FEED00000000000000000024 /* FeatureTiers.generated.swift in Sources */,
+				FEED00000000000000000025 /* ActivityDetailView.swift in Sources */,
+				FEED00000000000000000026 /* SidebarItemBuilder.swift in Sources */,
+				FEED00000000000000000027 /* ContentView+ViewBuilders.swift in Sources */,
+				FEED00000000000000000028 /* ContentView+Toolbar.swift in Sources */,
+				FEED00000000000000000029 /* CacheModel.swift in Sources */,
+				FEED0000000000000000002A /* WorkflowPickerSheet.swift in Sources */,
+				FEED0000000000000000002B /* DocumentPickerSheet.swift in Sources */,
+				FEED0000000000000000002C /* PerformanceService.swift in Sources */,
+				FEED0000000000000000002D /* NodeProviderModelSelector.swift in Sources */,
+				FEED0000000000000000002E /* ErrorService.swift in Sources */,
+				FEED0000000000000000002F /* AIModelSelectionView.swift in Sources */,
+				FEED00000000000000000030 /* AIProviderAddModelsSheet.swift in Sources */,
+				FEED00000000000000000031 /* AutomationService.swift in Sources */,
+				FEED00000000000000000032 /* AutomationServiceMappers.swift in Sources */,
+				FEED00000000000000000033 /* DocumentStore+Helpers.swift in Sources */,
+				FEED00000000000000000034 /* ActionLibraryService.swift in Sources */,
+				FEED00000000000000000035 /* TranscribeNodeConfig.swift in Sources */,
+				FEED00000000000000000036 /* ThinkingModePicker.swift in Sources */,
+				FEED00000000000000000037 /* SidebarItem+MoreFactories.swift in Sources */,
+				FEED00000000000000000038 /* SearchView+Helpers.swift in Sources */,
+				FEED00000000000000000039 /* RecentSearchesStore.swift in Sources */,
+				FEED0000000000000000003A /* ProvidersView.swift in Sources */,
+				FEED0000000000000000003B /* ProvidersView+ModelTypes.swift in Sources */,
+				FEED0000000000000000003C /* ProvidersView+ProviderDetailView.swift in Sources */,
+				FEED0000000000000000003D /* ProvidersView+ProviderSettingsRow.swift in Sources */,
+				FEED0000000000000000003E /* AddProviderSheet.swift in Sources */,
+				FEED0000000000000000003F /* MCPToolsCatalogView.swift in Sources */,
+				FEED00000000000000000040 /* WorkflowMiniPreview.swift in Sources */,
+				FEED00000000000000000041 /* AddMCPServerSheet.swift in Sources */,
+				FEED00000000000000000042 /* WorkflowCanvasView+DropHandling.swift in Sources */,
+				FEED00000000000000000043 /* WorkflowCanvasView+Gestures.swift in Sources */,
+				FEED00000000000000000044 /* ActivityProgressView+HistoricalProgress.swift in Sources */,
+				FEED00000000000000000045 /* NodePopover.swift in Sources */,
+				FEED00000000000000000046 /* PromptPreviewPanel.swift in Sources */,
+				FEED00000000000000000047 /* TriggerDetailView+Helpers.swift in Sources */,
+				FEED00000000000000000048 /* LibraryView+InlineEditing.swift in Sources */,
+				FEED00000000000000000049 /* DescribeNodeConfig.swift in Sources */,
+				FEED0000000000000000004A /* WorkflowCanvasView.swift in Sources */,
+				FEED0000000000000000004B /* SidebarCreationHandlers.swift in Sources */,
+				FEED0000000000000000004C /* WorkflowEdgeView.swift in Sources */,
+				FEED0000000000000000004D /* WorkflowEditor.swift in Sources */,
+				FEED0000000000000000004E /* SidebarItemRow+Label.swift in Sources */,
+				FEED0000000000000000004F /* SidebarItemRow+DropHandlers.swift in Sources */,
+				FEED00000000000000000050 /* SidebarItemRow+Helpers.swift in Sources */,
+				FEED00000000000000000051 /* ModelComparisonTypes.swift in Sources */,
+				FEED00000000000000000052 /* SidebarItemRow+Rename.swift in Sources */,
+				FEED00000000000000000053 /* WorkflowEditor+Actions.swift in Sources */,
+				FEED00000000000000000054 /* WorkflowEditor+NodeViews.swift in Sources */,
+				FEED00000000000000000055 /* WorkflowEditor+Preview.swift in Sources */,
+				FEED00000000000000000056 /* ChainListContent.swift in Sources */,
+				FEED00000000000000000057 /* ChainListRow.swift in Sources */,
+				FEED00000000000000000058 /* ChainStepRow.swift in Sources */,
+				FEED00000000000000000059 /* ChainDetailContent.swift in Sources */,
+				FEED0000000000000000005A /* ChainDetailSheet.swift in Sources */,
+				FEED0000000000000000005B /* NewChainSheet.swift in Sources */,
+				FEED0000000000000000005C /* WorkflowExecutionView.swift in Sources */,
+				FEED0000000000000000005D /* WorkflowNodeView.swift in Sources */,
+				FEED0000000000000000005E /* WorkflowLibraryView.swift in Sources */,
+				FEED0000000000000000005F /* ActionRowView.swift in Sources */,
+				FEED00000000000000000060 /* LibraryView+KeyboardShortcuts.swift in Sources */,
+				FEED00000000000000000061 /* FilesNodeConfig.swift in Sources */,
+				FEED00000000000000000062 /* SummarizeFolderNodeConfig.swift in Sources */,
+				FEED00000000000000000063 /* WorkflowChain.swift in Sources */,
+				FEED00000000000000000064 /* CheckpointTypes.swift in Sources */,
+				FEED00000000000000000065 /* LibraryWindow.swift in Sources */,
+				FEED00000000000000000066 /* ChainService.swift in Sources */,
+				FEED00000000000000000067 /* ContentView+Persistence.swift in Sources */,
+				FEED00000000000000000068 /* ActivityServiceGenerated.swift in Sources */,
+				FEED00000000000000000069 /* LocationServiceGenerated.swift in Sources */,
+				FEED0000000000000000006A /* PDFDocumentCache.swift in Sources */,
+				FEED0000000000000000006B /* PreviewDownloadService.swift in Sources */,
+				FEED0000000000000000006C /* ActivityStreamService.swift in Sources */,
+				FEED0000000000000000006D /* ExtractEntitiesNodeConfig.swift in Sources */,
+				FEED0000000000000000006E /* WorkflowNodeCard.swift in Sources */,
+				FEED0000000000000000006F /* AutomationServiceGenerated.swift in Sources */,
+				FEED00000000000000000070 /* WorkflowInspector+DataLoading.swift in Sources */,
+				FEED00000000000000000071 /* NodeInputMappings.swift in Sources */,
+				FEED00000000000000000072 /* WorkflowResponseTypes.swift in Sources */,
+				FEED00000000000000000073 /* ArtifactServiceGenerated.swift in Sources */,
+				FEED00000000000000000074 /* WorkflowInspector+MCPTools.swift in Sources */,
+				FEED00000000000000000075 /* IntegrationsServiceTypes.swift in Sources */,
+				FEED00000000000000000076 /* ChatStatusViews.swift in Sources */,
+				FEED00000000000000000077 /* StorageServiceGenerated.swift in Sources */,
+				FEED00000000000000000078 /* ModelServiceGenerated.swift in Sources */,
+				FEED00000000000000000079 /* ImportServiceGenerated.swift in Sources */,
+				FEED0000000000000000007A /* ActivityTypes.swift in Sources */,
+				FEED0000000000000000007B /* WorkflowChainListView.swift in Sources */,
+				FEED0000000000000000007C /* BatchTypes.swift in Sources */,
+				FEED0000000000000000007D /* ChainEditorView.swift in Sources */,
+				FEED0000000000000000007E /* ScheduleCreationSheet.swift in Sources */,
+				FEED0000000000000000007F /* TriggerCreationSheet.swift in Sources */,
+				FEED00000000000000000080 /* AgentNodeBlockView.swift in Sources */,
+				FEED00000000000000000081 /* TriggerDetailView+ExecutionHistory.swift in Sources */,
+				FEED00000000000000000082 /* SimpleWorkflowView.swift in Sources */,
+				FEED00000000000000000083 /* WorkflowDiagramPreview.swift in Sources */,
+				FEED00000000000000000084 /* WorkflowThumbnailView.swift in Sources */,
+				FEED00000000000000000085 /* WorkflowOutputLog.swift in Sources */,
+				FEED00000000000000000086 /* WorkflowPortView.swift in Sources */,
+				FEED00000000000000000087 /* WorkflowInspector.swift in Sources */,
+				FEED00000000000000000088 /* WorkflowCanvasView+EdgeConnection.swift in Sources */,
+				FEED00000000000000000089 /* CanvasHelpers.swift in Sources */,
+				FEED0000000000000000008A /* WorkflowToolBlocks.swift in Sources */,
+				FEED0000000000000000008B /* SidebarSearchTypes.swift in Sources */,
+				FEED0000000000000000008C /* EmbeddedBackendService.swift in Sources */,
+				FEED0000000000000000008D /* SearchFiltersPanel.swift in Sources */,
+				FEED0000000000000000008E /* SearchMapComponents.swift in Sources */,
+				FEED0000000000000000008F /* MCPServerDetailView.swift in Sources */,
+				FEED00000000000000000090 /* ActivityProgressView.swift in Sources */,
+				FEED00000000000000000091 /* ImageWithCursorTracking.swift in Sources */,
+				FEED00000000000000000092 /* ActivityConsoleView.swift in Sources */,
+				FEED00000000000000000093 /* ActivityOverviewView.swift in Sources */,
+				FEED00000000000000000094 /* ActivityLogView.swift in Sources */,
+				FEED00000000000000000095 /* ActivityViewHelpers.swift in Sources */,
+				FEED00000000000000000096 /* MCPServersSheet.swift in Sources */,
+				FEED00000000000000000097 /* MCPServersView.swift in Sources */,
+				FEED00000000000000000098 /* Artifact.swift in Sources */,
+				FEED00000000000000000099 /* SearchResultsDisplay.swift in Sources */,
+				FEED0000000000000000009A /* SearchResultsEmptyState.swift in Sources */,
+				FEED0000000000000000009B /* Event.swift in Sources */,
+				FEED0000000000000000009C /* Trace.swift in Sources */,
+				FEED0000000000000000009D /* MCPServer.swift in Sources */,
+				FEED0000000000000000009E /* Run.swift in Sources */,
+				FEED0000000000000000009F /* Note.swift in Sources */,
+				FEED000000000000000000A0 /* SummarizeCollectionNodeConfig.swift in Sources */,
+				FEED000000000000000000A1 /* ErrorModel.swift in Sources */,
+				FEED000000000000000000A2 /* LayoutMode.swift in Sources */,
+				FEED000000000000000000A3 /* LibraryImageView.swift in Sources */,
+				FEED000000000000000000A4 /* SkeletonPlaceholder.swift in Sources */,
+				FEED000000000000000000A5 /* FrameAnimation.swift in Sources */,
+				FEED000000000000000000A6 /* NodeConfigView.swift in Sources */,
+				FEED000000000000000000A7 /* LibraryView+DisplayModes.swift in Sources */,
+				FEED000000000000000000A8 /* LibraryView+Sorting.swift in Sources */,
+				FEED000000000000000000A9 /* LibraryView+ColumnConfig.swift in Sources */,
+				FEED000000000000000000AA /* LibraryView+FilterAndBatch.swift in Sources */,
+				FEED000000000000000000AB /* SidebarState.swift in Sources */,
+				FEED000000000000000000AC /* DragDropModel.swift in Sources */,
+				FEED000000000000000000AD /* SidebarActions.swift in Sources */,
+				FEED000000000000000000AE /* SettingsView.swift in Sources */,
+				FEED000000000000000000AF /* EditorView.swift in Sources */,
+				FEED000000000000000000B0 /* ItemTypeRegistry.swift in Sources */,
+				FEED000000000000000000B1 /* SearchView.swift in Sources */,
+				FEED000000000000000000B2 /* AIModelCatalog.swift in Sources */,
+				FEED000000000000000000B3 /* ChatView+Extensions.swift in Sources */,
+				FEED000000000000000000B4 /* ContentViewModifiers.swift in Sources */,
+				FEED000000000000000000B5 /* IntegrationsService.swift in Sources */,
+				FEED000000000000000000B6 /* NewWorkflowSheet.swift in Sources */,
+				FEED000000000000000000B7 /* LibraryView.swift in Sources */,
+				FEED000000000000000000B8 /* ProviderLogoView.swift in Sources */,
+				FEED000000000000000000B9 /* StatusBadge.swift in Sources */,
+				FEED000000000000000000BA /* MacPlainTextEditor.swift in Sources */,
+				FEED000000000000000000BB /* ViewMenuCommands.swift in Sources */,
+				FEED000000000000000000BC /* ViewSettings.swift in Sources */,
+				FEED000000000000000000BD /* AppState.swift in Sources */,
+				FEED000000000000000000BE /* WorkflowStreamService+Parsing.swift in Sources */,
+				FEED000000000000000000BF /* ChatView.swift in Sources */,
+				FEED000000000000000000C0 /* ComparisonTypes.swift in Sources */,
+				FEED000000000000000000C1 /* SearchNodeConfig.swift in Sources */,
+				FEED000000000000000000C2 /* ContentView+State.swift in Sources */,
+				FEED000000000000000000C3 /* FirstRunWindow.swift in Sources */,
+				FEED000000000000000000C4 /* DocumentStore.swift in Sources */,
+				FEED000000000000000000C5 /* WorkflowStreamTypes.swift in Sources */,
+				FEED000000000000000000C6 /* APIClient.swift in Sources */,
+				FEED000000000000000000C7 /* IntegrationsService+AppSpecific.swift in Sources */,
+				FEED000000000000000000C8 /* ModelComparisonService.swift in Sources */,
+				FEED000000000000000000C9 /* ActionLibraryView.swift in Sources */,
+				FEED000000000000000000CA /* AutomationServiceTypes.swift in Sources */,
+				FEED000000000000000000CB /* ImportService.swift in Sources */,
+				FEED000000000000000000CC /* ActionDetailView.swift in Sources */,
+				FEED000000000000000000CD /* ChatService.swift in Sources */,
+				FEED000000000000000000CE /* SavedSearchService.swift in Sources */,
+				FEED000000000000000000CF /* AddItemMenu.swift in Sources */,
+				FEED000000000000000000D0 /* WorkflowServiceGenerated.swift in Sources */,
+				FEED000000000000000000D1 /* SavedSearchServiceGenerated.swift in Sources */,
+				FEED000000000000000000D2 /* ChatInputView.swift in Sources */,
+				FEED000000000000000000D3 /* TriggerDetailView+Configuration.swift in Sources */,
+				FEED000000000000000000D4 /* ConversationServiceGenerated.swift in Sources */,
+				FEED000000000000000000D5 /* ContentView+Navigation.swift in Sources */,
+				FEED000000000000000000D6 /* WorkflowNodeRow.swift in Sources */,
+				FEED000000000000000000D7 /* ChatServiceGenerated.swift in Sources */,
+				FEED000000000000000000D8 /* WorkflowRunResponse.swift in Sources */,
+				FEED000000000000000000D9 /* DocumentServiceGenerated.swift in Sources */,
+				FEED000000000000000000DA /* ChatInspector.swift in Sources */,
+				FEED000000000000000000DB /* ChatInspector+Actions.swift in Sources */,
+				FEED000000000000000000DC /* ChatInspector+Header.swift in Sources */,
+				FEED000000000000000000DD /* ChatInspector+ScopedDocuments.swift in Sources */,
+				FEED000000000000000000DE /* ChatInspector+Search.swift in Sources */,
+				FEED000000000000000000DF /* CollectionNodeConfig.swift in Sources */,
+				FEED000000000000000000E0 /* ModelService.swift in Sources */,
+				FEED000000000000000000E1 /* ProviderServiceTypes.swift in Sources */,
+				FEED000000000000000000E2 /* SidebarItemContextMenu.swift in Sources */,
+				FEED000000000000000000E3 /* SidebarViewTypes.swift in Sources */,
+				FEED000000000000000000E4 /* ActionPickerView.swift in Sources */,
+				FEED000000000000000000E5 /* StorageService.swift in Sources */,
+				FEED000000000000000000E6 /* WorkflowLibraryRow.swift in Sources */,
+				FEED000000000000000000E7 /* ViewContexts.swift in Sources */,
+				FEED000000000000000000E8 /* TrackingImageView.swift in Sources */,
+				FEED000000000000000000E9 /* ActivityProgressView+LiveProgress.swift in Sources */,
+				FEED000000000000000000EA /* FicheroDocument.swift in Sources */,
+				FEED000000000000000000EB /* LibraryManager.swift in Sources */,
+				FEED000000000000000000EC /* LibraryManager+Operations.swift in Sources */,
+				FEED000000000000000000ED /* LibraryManager+Helpers.swift in Sources */,
+				FEED000000000000000000EE /* LibraryManager+Persistence.swift in Sources */,
+				FEED000000000000000000EF /* WindowState.swift in Sources */,
+				FEED000000000000000000F0 /* SidebarItemRow.swift in Sources */,
+				FEED000000000000000000F1 /* SidebarView.swift in Sources */,
+				FEED000000000000000000F2 /* WorkflowExecutionService.swift in Sources */,
+				FEED000000000000000000F3 /* WorkflowStreamService.swift in Sources */,
+				FEED000000000000000000F4 /* SidebarChatTypes.swift in Sources */,
+				FEED000000000000000000F5 /* WorkflowExecutionObserver.swift in Sources */,
+				FEED000000000000000000F6 /* WorkflowExecutionTypes.swift in Sources */,
+				FEED000000000000000000F7 /* SidebarModeIcon.swift in Sources */,
+				FEED000000000000000000F8 /* SidebarModeBar.swift in Sources */,
+				FEED000000000000000000F9 /* ModelComparisonView.swift in Sources */,
+				FEED000000000000000000FA /* ModelComparisonView+Sidebar.swift in Sources */,
+				FEED000000000000000000FB /* ComparisonResultView.swift in Sources */,
+				FEED000000000000000000FC /* ModelResultCard.swift in Sources */,
+				FEED000000000000000000FD /* ModelPickerSheet.swift in Sources */,
+				FEED000000000000000000FE /* PresetPickerSheet.swift in Sources */,
+				FEED000000000000000000FF /* AppleScriptSupport.swift in Sources */,
+				FEED00000000000000000100 /* SidebarStateManagers.swift in Sources */,
+				FEED00000000000000000101 /* SidebarViewExtensions.swift in Sources */,
+				FEED00000000000000000102 /* SidebarSectionHeader.swift in Sources */,
+				FEED00000000000000000103 /* SidebarConstants.swift in Sources */,
+				FEED00000000000000000104 /* Workflow.swift in Sources */,
+				FEED00000000000000000105 /* WorkflowTypes.swift in Sources */,
+				FEED00000000000000000106 /* WorkflowStore.swift in Sources */,
+				FEED00000000000000000107 /* GeneratedTypeExtensions.swift in Sources */,
+				FEED00000000000000000108 /* MCPService.swift in Sources */,
+				FEED00000000000000000109 /* WorkflowExporter.swift in Sources */,
+				FEED0000000000000000010A /* SidebarObservers.swift in Sources */,
+				FEED0000000000000000010B /* ComparisonDetailView.swift in Sources */,
+				FEED0000000000000000010C /* SummarizeFileNodeConfig.swift in Sources */,
+				FEED0000000000000000010D /* WorkflowDetailView.swift in Sources */,
+				FEED0000000000000000010E /* ScheduleDetailView.swift in Sources */,
+				FEED0000000000000000010F /* ScheduleEditorView.swift in Sources */,
+				FEED00000000000000000110 /* ActionsService.swift in Sources */,
+				FEED00000000000000000111 /* TriggerEditorView.swift in Sources */,
+				FEED00000000000000000112 /* TriggerDetailView.swift in Sources */,
+				FEED00000000000000000113 /* DynamicConfigView.swift in Sources */,
+				FEED00000000000000000114 /* DynamicConfigView+FieldRendering.swift in Sources */,
+				FEED00000000000000000115 /* WorkflowExecutionObserver+Events.swift in Sources */,
+				FEED00000000000000000116 /* DocumentStore+CRUD.swift in Sources */,
+				FEED00000000000000000117 /* DynamicConfigView+SchemaHelpers.swift in Sources */,
+				FEED00000000000000000118 /* DynamicConfigView+StateManagement.swift in Sources */,
+				FEED00000000000000000119 /* DocumentInspectorInfoTab.swift in Sources */,
+				FEED0000000000000000011A /* DocumentInspectorMetadataTab.swift in Sources */,
+				FEED0000000000000000011B /* DocumentInspectorArtifactsTab.swift in Sources */,
+				FEED0000000000000000011C /* SurfaceTabBar.swift in Sources */,
+				FEED0000000000000000011D /* DocumentInspectorContentTab.swift in Sources */,
+				FEED0000000000000000011E /* TriggerEditorFormPanel.swift in Sources */,
+				FEED0000000000000000011F /* TriggerEditorPreviewPanel.swift in Sources */,
+				FEED00000000000000000120 /* FlowLayout.swift in Sources */,
+				FEED00000000000000000121 /* AIDefaults.swift in Sources */,
+				FEED00000000000000000122 /* AISettingsView.swift in Sources */,
+				FEED00000000000000000123 /* GeneralSettingsView.swift in Sources */,
+				FEED00000000000000000124 /* WorkflowToolTypes.swift in Sources */,
+				FEED00000000000000000125 /* BackendSettingsView.swift in Sources */,
+				FEED00000000000000000126 /* LocalModelsSettingsView.swift in Sources */,
+				FEED00000000000000000127 /* WorkflowOutputLog+Models.swift in Sources */,
+				FEED00000000000000000128 /* WorkflowInspector+AgentsSection.swift in Sources */,
+				FEED00000000000000000129 /* WorkflowOutputLog+StatusViews.swift in Sources */,
+				FEED0000000000000000012A /* WorkflowOutputLog+ErrorCell.swift in Sources */,
+				FEED0000000000000000012B /* WorkflowOutputLog+EmptyStates.swift in Sources */,
+				FEED0000000000000000012C /* ScheduleEditorView+Category.swift in Sources */,
+				FEED0000000000000000012D /* ComparisonDetailView+Actions.swift in Sources */,
+				FEED0000000000000000012E /* ComparisonDetailView+Models.swift in Sources */,
+				FEED0000000000000000012F /* ComparisonDetailView+Sections.swift in Sources */,
+				FEED00000000000000000130 /* SidebarView+Helpers.swift in Sources */,
+				FEED00000000000000000131 /* SidebarView+SelectionHandling.swift in Sources */,
+				FEED00000000000000000132 /* SidebarView+ViewComponents.swift in Sources */,
+				FEED00000000000000000133 /* AddProviderSheet+Helpers.swift in Sources */,
+				FEED00000000000000000134 /* AddProviderSheet+Step1.swift in Sources */,
+				FEED00000000000000000135 /* AddProviderSheet+Step2.swift in Sources */,
+				FEED00000000000000000136 /* AddProviderSheet+Step3.swift in Sources */,
+				FEED00000000000000000137 /* EntitySourceGroupsView.swift in Sources */,
+				FEED00000000000000000138 /* SpeakerComparisonView.swift in Sources */,
+				FEED00000000000000000139 /* SpeakerComparisonView+Preview.swift in Sources */,
+				FEED0000000000000000013A /* NavigationHistoryManager.swift in Sources */,
+				FEED0000000000000000013B /* ActivityOverviewView+Cards.swift in Sources */,
+				FEED0000000000000000013C /* EntityDetailView+Biography.swift in Sources */,
+				FEED0000000000000000013D /* EntityDetailView+Audit.swift in Sources */,
+				FEED0000000000000000013E /* EntityDetailView+Claims.swift in Sources */,
+				FEED0000000000000000013F /* EntityDetailView+FilterChips.swift in Sources */,
+				FEED00000000000000000140 /* ContentView+WorkflowActions.swift in Sources */,
+				FEED00000000000000000141 /* ContentView+ReadingLayout.swift in Sources */,
+				FEED00000000000000000142 /* AISettingsView+Tabs.swift in Sources */,
+				FEED00000000000000000143 /* AISettingsView+Helpers.swift in Sources */,
+				FEED00000000000000000144 /* LibraryView+TableMapViews.swift in Sources */,
+				FEED00000000000000000145 /* ClaimSummaryCard+Details.swift in Sources */,
+				FEED00000000000000000146 /* APIClient+Types.swift in Sources */,
+				FEED00000000000000000147 /* QuickLookPreviewViews.swift in Sources */,
+				FEED00000000000000000148 /* DocumentKGWebPane.swift in Sources */,
+				FEED00000000000000000149 /* ContentView+KnowledgeSurface.swift in Sources */,
+				FEED0000000000000000014A /* UITestSupport.swift in Sources */,
+				FEED0000000000000000014B /* EditClaimSheet.swift in Sources */,
+				FEED0000000000000000014C /* EntityMergeSheet.swift in Sources */,
+				FEED0000000000000000014D /* EntityReconciliationSheet.swift in Sources */,
+				FEED0000000000000000014E /* EntitySplitSheet.swift in Sources */,
+				FEED0000000000000000014F /* KGMapView.swift in Sources */,
+				FEED00000000000000000150 /* KGTemporalSpatial.swift in Sources */,
+				FEED00000000000000000151 /* KGTimelineView.swift in Sources */,
+				FEED00000000000000000152 /* ImageEditingServiceGenerated.swift in Sources */,
+				FEED00000000000000000153 /* ImageEditorModel.swift in Sources */,
+				FEED00000000000000000154 /* LiveEditPreview.swift in Sources */,
+				FEED00000000000000000155 /* ImageEditChainPanel.swift in Sources */,
+				FEED00000000000000000156 /* ImageEditorView.swift in Sources */,
+				FEED00000000000000000157 /* ImageMarqueeOverlay.swift in Sources */,
+				FEED00000000000000000158 /* AnnotationService.swift in Sources */,
+				FEED00000000000000000159 /* DocumentInspectorAnnotationsTab.swift in Sources */,
+				FEED0000000000000000015A /* SpatialModels.swift in Sources */,
+				FEED0000000000000000015B /* SpatialView.swift in Sources */,
+				FEED0000000000000000015C /* ResearchModels.swift in Sources */,
+				FEED0000000000000000015D /* ResearchService.swift in Sources */,
+				FEED0000000000000000015E /* ResearchProjectListView.swift in Sources */,
+				FEED0000000000000000015F /* ResearchBrowserPane.swift in Sources */,
+				FEED00000000000000000160 /* ResearchTasksPane.swift in Sources */,
+				FEED00000000000000000161 /* ResearchChatPane.swift in Sources */,
+				FEED00000000000000000162 /* ResearchWorkspaceView.swift in Sources */,
+				FEED00000000000000000163 /* DocumentKGSurface.swift in Sources */,
+				FEED00000000000000000164 /* AppNavigationHistory.swift in Sources */,
+				FEED00000000000000000165 /* ContentView+NavigationHistory.swift in Sources */,
+				FEED00000000000000000166 /* KGFocusState.swift in Sources */,
+				FEED00000000000000000167 /* SpatialLibraryProjector.swift in Sources */,
+				FEED00000000000000000168 /* WorkflowRunProviderCache.swift in Sources */,
+				FEED00000000000000000169 /* ClaimReviewQueueSheet.swift in Sources */,
+				FEED0000000000000000016A /* ContradictionTriageSheet.swift in Sources */,
+				FEED0000000000000000016B /* EntityDigestView.swift in Sources */,
+				FEED0000000000000000016C /* DocumentCanvas.swift in Sources */,
+				FEED0000000000000000016D /* MediaStreamPreview.swift in Sources */,
+				FEED0000000000000000016E /* NodeComparisonSheet.swift in Sources */,
+				FEED0000000000000000016F /* NodePopover+Comparison.swift in Sources */,
+				FEED00000000000000000170 /* NoteService.swift in Sources */,
+				FEED00000000000000000171 /* DocumentNotesTab.swift in Sources */,
+				FEED00000000000000000172 /* LibraryToolbarState.swift in Sources */,
+				FEED00000000000000000173 /* EntityDetailView+Notes.swift in Sources */,
+				FEED00000000000000000174 /* NotesBrowserView.swift in Sources */,
+				FEED00000000000000000175 /* ArtifactRichTextCodec.swift in Sources */,
+				FEED00000000000000000176 /* NodeClassPicker.swift in Sources */,
+				FEED00000000000000000177 /* FicheroWebView.swift in Sources */,
+				FEED00000000000000000178 /* EngineConfig.swift in Sources */,
+				FEED00000000000000000179 /* SpatialModels+Links.swift in Sources */,
+				FEED0000000000000000017A /* OntologyBrowserGraphModel.swift in Sources */,
+				FEED0000000000000000017B /* ForceDirectedGraphView.swift in Sources */,
+				FEED0000000000000000017C /* HeuristicReviewSheet.swift in Sources */,
+				FEED0000000000000000017D /* NewEntitySheet.swift in Sources */,
+				FEED0000000000000000017E /* EntityKindChartView.swift in Sources */,
+				FEED0000000000000000017F /* OntologyBrowser+Toolbar.swift in Sources */,
+				FEED00000000000000000180 /* OntologyBrowser+List.swift in Sources */,
+				FEED00000000000000000181 /* OntologyBrowser+Detail.swift in Sources */,
+				FEED00000000000000000182 /* ForceDirectedGraphView+Render.swift in Sources */,
+				FEED00000000000000000183 /* OntologyBrowser+Sheets.swift in Sources */,
+				FEED00000000000000000184 /* DisplayAttributesStrip.swift in Sources */,
+				FEED00000000000000000185 /* DocumentInspectorArtifactsTab+Shared.swift in Sources */,
+				FEED00000000000000000186 /* DocumentInspectorArtifactsTab+EntitiesTab.swift in Sources */,
+				FEED00000000000000000187 /* DocumentInspectorArtifactsTab+KGModels.swift in Sources */,
+				FEED00000000000000000188 /* DocumentInspectorArtifactsTab+KGSection.swift in Sources */,
+				FEED00000000000000000189 /* DocumentInspectorArtifactsTab+EntityKindBlock.swift in Sources */,
+				FEED0000000000000000018A /* DocumentInspectorArtifactsTab+EntityKindRow.swift in Sources */,
+				FEED0000000000000000018B /* DocumentInspectorArtifactsTab+CurationHistory.swift in Sources */,
+				FEED0000000000000000018C /* DocumentInspectorArtifactsTab+Interpretations.swift in Sources */,
+				FEED0000000000000000018D /* DocumentInspectorArtifactsTab+Previews.swift in Sources */,
+				FEED0000000000000000018E /* SidebarView+UnifiedLibrarySections.swift in Sources */,
+				FEED0000000000000000018F /* SidebarView+UnifiedRows.swift in Sources */,
+				FEED00000000000000000190 /* SidebarView+PinnedNavigationRows.swift in Sources */,
+				FEED00000000000000000191 /* SidebarView+ActivityRows.swift in Sources */,
+				FEED00000000000000000192 /* SidebarView+LibraryHeaderHelpers.swift in Sources */,
+				FEED00000000000000000193 /* SidebarItemRow+Drop.swift in Sources */,
+				FEED00000000000000000194 /* SidebarItemRow+Presentation+Body.swift in Sources */,
+				FEED00000000000000000195 /* SidebarItemRow+Presentation.swift in Sources */,
+				FEED00000000000000000196 /* SidebarItemRow+Preview.swift in Sources */,
+				FEED00000000000000000197 /* SidebarItemRow+Workflow.swift in Sources */,
+				FEED00000000000000000198 /* DocumentInspectorInfoTab+Header.swift in Sources */,
+				FEED00000000000000000199 /* DocumentInspectorInfoTab+RelatedClaims.swift in Sources */,
+				FEED0000000000000000019A /* DocumentInspectorInfoTab+Citations.swift in Sources */,
+				FEED0000000000000000019B /* DocumentInspectorInfoTab+Bibliography.swift in Sources */,
+				FEED0000000000000000019C /* DocumentInspectorInfoTab+Workflow.swift in Sources */,
+				FEED0000000000000000019D /* DocumentInspectorInfoTab+Prototype.swift in Sources */,
+				FEED0000000000000000019E /* FileMenuCommands.swift in Sources */,
+				FEED0000000000000000019F /* EntityDetailView+Metadata.swift in Sources */,
+				FEED000000000000000001A0 /* EntityDetailView+Sections.swift in Sources */,
+				FEED000000000000000001A1 /* ClaimSummaryCard+Provenance.swift in Sources */,
+				FEED000000000000000001A2 /* EntityStore.swift in Sources */,
+				FEED000000000000000001A3 /* BatchStore.swift in Sources */,
+				FEED000000000000000001A4 /* BatchRunView.swift in Sources */,
+				FEED000000000000000001A5 /* WorkspaceStore.swift in Sources */,
+				FEED000000000000000001A6 /* LibraryChangeStream.swift in Sources */,
+				FEED000000000000000001A7 /* ClaimStore.swift in Sources */,
+				FEED000000000000000001A8 /* NoteStore.swift in Sources */,
+				FEED000000000000000001A9 /* AnnotationStore.swift in Sources */,
+				FEED000000000000000001AA /* ActionStore.swift in Sources */,
+				FEED000000000000000001AB /* ResearchStore.swift in Sources */,
+				FEED000000000000000001AC /* SearchStore.swift in Sources */,
+				FEED000000000000000001AD /* ObservableDomainStore.swift in Sources */,
+				FEED000000000000000001AE /* DocumentStore+ChangeStream.swift in Sources */,
+				FEED000000000000000001AF /* ArtifactStore.swift in Sources */,
+				FEED000000000000000001B0 /* CitationStore.swift in Sources */,
+				FEED000000000000000001B1 /* ReferenceStore.swift in Sources */,
+				FEED000000000000000001B2 /* InterpretationStore.swift in Sources */,
+				FEED000000000000000001B3 /* ActionInvokeService.swift in Sources */,
+				FEED000000000000000001B4 /* FicheroShortcuts.swift in Sources */,
+				FEED000000000000000001B5 /* FicheroActionIntents.swift in Sources */,
+				FEED000000000000000001B6 /* NoteListView.swift in Sources */,
+				FEED000000000000000001B7 /* NoteDetailView.swift in Sources */,
+				FEED000000000000000001B8 /* NotesInspectorPane.swift in Sources */,
+				FEED000000000000000001B9 /* PlatformAliases.swift in Sources */,
+				FEED000000000000000001BA /* PlatformPasteboard.swift in Sources */,
+				FEED000000000000000001BB /* CanvasLayoutStore.swift in Sources */,
+				FEED000000000000000001BC /* CanvasLayoutStore+ChangeStream.swift in Sources */,
+				FEED000000000000000001BD /* CanvasItemStore.swift in Sources */,
+				FEED000000000000000001BE /* CanvasItemStore+ChangeStream.swift in Sources */,
+				FEED000000000000000001BF /* AuditStore.swift in Sources */,
+				FEED000000000000000001C0 /* AuditHistoryView.swift in Sources */,
+				FEED000000000000000001C1 /* FicheroAppEntities.swift in Sources */,
+				FEED000000000000000001C2 /* BackupStore.swift in Sources */,
+				FEED000000000000000001C3 /* BackupsView.swift in Sources */,
+				FEED000000000000000001C4 /* SplittablePane.swift in Sources */,
+				FEED000000000000000001C5 /* WindowSeed.swift in Sources */,
+				FEED000000000000000001C6 /* LibraryOutlineNode.swift in Sources */,
+				FEED000000000000000001C7 /* FicheroApp_iOS.swift in Sources */,
+				FEED000000000000000001C8 /* MobileCaptureQueue.swift in Sources */,
+				FEED000000000000000001C9 /* MobileCaptureQueueView.swift in Sources */,
+				FEED000000000000000001CA /* MacRemoteClientPairingSection.swift in Sources */,
+				FEED000000000000000001CB /* RemoteClientPairing.swift in Sources */,
+				FEED000000000000000001CC /* ChatDocumentDropPayload.swift in Sources */,
+				FEED000000000000000001CD /* BackendSettingsRemoteAccessSection.swift in Sources */,
+				FEED000000000000000001CE /* EngineSettingsView.swift in Sources */,
+				FEED000000000000000001CF /* ShareSettingsView.swift in Sources */,
+				FEED000000000000000001D0 /* UsersSettingsView.swift in Sources */,
+				FEED000000000000000001D1 /* UsersStore.swift in Sources */,
+				FEED000000000000000001D2 /* LocalInferenceStore.swift in Sources */,
+				FEED000000000000000001D3 /* KnownLibraryRegistryStore.swift in Sources */,
+				FEED000000000000000001D4 /* AppleAvailabilityStore.swift in Sources */,
+				FEED000000000000000001D5 /* LocalInferenceSettingsView.swift in Sources */,
+				FEED000000000000000001D6 /* CaptureSettingsView.swift in Sources */,
+				FEED000000000000000001D7 /* iOSLibraryPickerMenu.swift in Sources */,
+				FEED000000000000000001D8 /* ImportServiceGenerated+Upload.swift in Sources */,
+				FEED000000000000000001D9 /* ActivityStore.swift in Sources */,
+				FEED000000000000000001DA /* BreadcrumbBuilder.swift in Sources */,
+				FEED000000000000000001DB /* MiniToolbarComponents.swift in Sources */,
+				FEED000000000000000001DC /* Spatial2DCanvasGestures.swift in Sources */,
+				FEED000000000000000001DD /* Spatial2DCanvasItems.swift in Sources */,
+				FEED000000000000000001DE /* SpatialNodeThumbnail.swift in Sources */,
+				FEED000000000000000001DF /* ReaderToolbar.swift in Sources */,
+				FEED000000000000000001E0 /* WorkflowExecutionStore.swift in Sources */,
+				FEED000000000000000001E1 /* ActivityMonitorModel.swift in Sources */,
+				FEED000000000000000001E2 /* ActivityMonitorView.swift in Sources */,
+				FEED000000000000000001E3 /* ActivityMonitorWindow.swift in Sources */,
+				FEED000000000000000001E4 /* DocumentInspectorInfoTab+Sharing.swift in Sources */,
+				FEED000000000000000001E5 /* Representation.swift in Sources */,
+				FEED000000000000000001E6 /* DocumentInterpretationsTab.swift in Sources */,
+				FEED000000000000000001E7 /* MarkdownText.swift in Sources */,
+				FEED000000000000000001E8 /* CoalescingSaveRunner.swift in Sources */,
+				FEED000000000000000001E9 /* AnnotationHighlight.swift in Sources */,
+				FEED000000000000000001EA /* AnnotatableTextView.swift in Sources */,
+				FEED000000000000000001EB /* BoundingBoxGeometry.swift in Sources */,
+				FEED000000000000000001EC /* PDFRegionGeometry.swift in Sources */,
+				FEED000000000000000001ED /* BookmarkServiceGenerated.swift in Sources */,
+				FEED000000000000000001EE /* BookmarksView.swift in Sources */,
+				FEED000000000000000001EF /* SessionStore.swift in Sources */,
+				FEED000000000000000001F0 /* KGQueryStore.swift in Sources */,
+				FEED000000000000000001F1 /* AuthGateView.swift in Sources */,
+				FEED000000000000000001F2 /* BackendRootGate.swift in Sources */,
+				FEED000000000000000001F3 /* BackendHost.swift in Sources */,
+				FEED000000000000000001F4 /* LibrarySharingBadge.swift in Sources */,
+				FEED000000000000000001F5 /* ViewDisplayMode.swift in Sources */,
+				FEED000000000000000001F6 /* MiniToolbarOverflow.swift in Sources */,
+				FEED000000000000000001F7 /* AboutView.swift in Sources */,
+				FEED000000000000000001F8 /* SearchArrowKeyNavigation.swift in Sources */,
+				FEED000000000000000001F9 /* SpaceSceneView.swift in Sources */,
+				FEED000000000000000001FA /* SpaceTheme.swift in Sources */,
+				FEED000000000000000001FB /* CanvasSceneState.swift in Sources */,
+				FEED000000000000000001FC /* CanvasSceneDiff.swift in Sources */,
+				FEED000000000000000001FD /* CanvasDropOutcome.swift in Sources */,
+				FEED000000000000000001FE /* CanvasDetailTier.swift in Sources */,
+				FEED000000000000000001FF /* CanvasSceneRenderer.swift in Sources */,
+				FEED00000000000000000200 /* CanvasInteractionController.swift in Sources */,
+				FEED00000000000000000201 /* Canvas2DProjection.swift in Sources */,
+				FEED00000000000000000202 /* CanvasOrtho2DRenderer.swift in Sources */,
+				FEED00000000000000000203 /* CanvasSceneView.swift in Sources */,
+				FEED00000000000000000204 /* Canvas3DProjection.swift in Sources */,
+				FEED00000000000000000205 /* CanvasScene3DRenderer.swift in Sources */,
+				FEED00000000000000000206 /* CanvasSpaceView.swift in Sources */,
+				FEED00000000000000000207 /* CanvasDropResolver.swift in Sources */,
+				FEED00000000000000000208 /* CanvasModifierTracker.swift in Sources */,
+				FEED00000000000000000209 /* EngineReadinessProbe.swift in Sources */,
+				FEED0000000000000000020A /* EngineSession.swift in Sources */,
+				FEED0000000000000000020B /* AccessError.swift in Sources */,
+				FEED0000000000000000020C /* IdentityStore.swift in Sources */,
+				FEED0000000000000000020D /* LibraryAccessDeniedView.swift in Sources */,
+				FEED0000000000000000020E /* LiveUpdatesPausedPill.swift in Sources */,
+				FEED0000000000000000020F /* DeviceTokenRenewal.swift in Sources */,
+				FEED00000000000000000210 /* ShareLibrarySheet.swift in Sources */,
+				FEED00000000000000000211 /* PairedHostEndpoints.swift in Sources */,
+				FEED00000000000000000212 /* InviteAccountSection.swift in Sources */,
+				FEED00000000000000000213 /* ChangeStreamTransport.swift in Sources */,
+				FEED00000000000000000214 /* PDFLoupeOverlay.swift in Sources */,
+				FEED00000000000000000215 /* PDFPageControllers.swift in Sources */,
+				FEED00000000000000000216 /* PDFPageView.swift in Sources */,
+				FEED00000000000000000217 /* PDFPageWithToolbar.swift in Sources */,
+				FEED00000000000000000218 /* PDFReadingView.swift in Sources */,
+				FEED00000000000000000219 /* PDFThumbnailView.swift in Sources */,
+				FEED0000000000000000021A /* ReadingPaneView.swift in Sources */,
+				FEED0000000000000000021B /* DocumentTextReader.swift in Sources */,
+				FEED0000000000000000021C /* PageContentPane.swift in Sources */,
+				FEED0000000000000000021D /* ImmersiveReaderView.swift in Sources */,
+				FEED0000000000000000021E /* AnnotationDetailView.swift in Sources */,
+				FEED0000000000000000021F /* AnnotationListView.swift in Sources */,
+				FEED00000000000000000220 /* AnnotationsInspectorPane.swift in Sources */,
+				FEED00000000000000000221 /* AnnotationToolbar.swift in Sources */,
+				FEED00000000000000000222 /* CitationDetailView.swift in Sources */,
+				FEED00000000000000000223 /* CitationListView.swift in Sources */,
+				FEED00000000000000000224 /* CitationsInspectorPane.swift in Sources */,
+				FEED00000000000000000225 /* ArtifactDetailView.swift in Sources */,
+				FEED00000000000000000226 /* ArtifactEntityViews.swift in Sources */,
+				FEED00000000000000000227 /* ArtifactListView.swift in Sources */,
+				FEED00000000000000000228 /* ArtifactPanel.swift in Sources */,
+				FEED00000000000000000229 /* ArtifactsInspectorPane.swift in Sources */,
+				FEED0000000000000000022A /* FocusedAnnotation.swift in Sources */,
+				FEED0000000000000000022B /* FocusedArtifact.swift in Sources */,
+				FEED0000000000000000022C /* FocusedCitation.swift in Sources */,
+				FEED0000000000000000022D /* FocusedDocument.swift in Sources */,
+				FEED0000000000000000022E /* FocusedNote.swift in Sources */,
+				FEED0000000000000000022F /* InspectorTab.swift in Sources */,
+				FEED00000000000000000230 /* InspectorPresenter.swift in Sources */,
+				FEED00000000000000000231 /* AdaptiveAppleShellHost.swift in Sources */,
+				FEED00000000000000000232 /* OpenAffordances.swift in Sources */,
+				FEED00000000000000000233 /* ContentViewHelperViews.swift in Sources */,
+				FEED00000000000000000234 /* DocumentTabView.swift in Sources */,
+				FEED00000000000000000235 /* ShellLayoutPolicy.swift in Sources */,
+				FEED00000000000000000236 /* DocumentInspector.swift in Sources */,
+				FEED00000000000000000237 /* DocumentInspectorContentV2.swift in Sources */,
+				FEED00000000000000000238 /* ImageViewerComponents.swift in Sources */,
+				FEED00000000000000000239 /* MagnifierPanel.swift in Sources */,
+				FEED0000000000000000023A /* ScrollWheelZoom.swift in Sources */,
+				FEED0000000000000000023B /* BoundingBoxOverlay.swift in Sources */,
+				FEED0000000000000000023C /* CheckerboardPattern.swift in Sources */,
+				FEED0000000000000000023D /* NavigatorMiniMap.swift in Sources */,
+				FEED0000000000000000023E /* LibraryWorkspaceRoot.swift in Sources */,
+				FEED0000000000000000023F /* CollectionWorkspaceStub.swift in Sources */,
+				FEED00000000000000000240 /* WorkspaceItemPicker.swift in Sources */,
+				FEED00000000000000000241 /* WorkflowSync.swift in Sources */,
+				FEED00000000000000000242 /* BackendActivityEvent.swift in Sources */,
+				FEED00000000000000000243 /* BackendWorkPill.swift in Sources */,
+				FEED00000000000000000244 /* PaneVisibility.swift in Sources */,
+				FEED00000000000000000245 /* PageImageGrid.swift in Sources */,
+				FEED00000000000000000246 /* ReaderTabBar.swift in Sources */,
+				FEED00000000000000000247 /* ChainStore.swift in Sources */,
+				FEED00000000000000000248 /* SourceSnippet.swift in Sources */,
+				FEED00000000000000000249 /* InspectorSection.swift in Sources */,
+				FEED0000000000000000024A /* SourceProvenancePopover.swift in Sources */,
+				FEED0000000000000000024B /* ClaimAttributionView.swift in Sources */,
+				FEED0000000000000000024C /* CitationExportButton.swift in Sources */,
+			);
+		};
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
@@ -3147,6 +4483,608 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		FEED00000000000000000257 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2026071304;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_FEATURE_TIER = dev;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = fichero/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 2026.07.13.4-beta;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
+				PRODUCT_NAME = Fichero;
+				REGISTER_APP_GROUPS = YES;
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		FEED00000000000000000258 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2026071304;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_FEATURE_TIER = alpha;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = fichero/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 2026.07.13.4-beta;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
+				PRODUCT_NAME = Fichero;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Alpha;
+		};
+		FEED00000000000000000259 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2026071304;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_FEATURE_TIER = beta;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = fichero/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 2026.07.13.4-beta;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
+				PRODUCT_NAME = Fichero;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Beta;
+		};
+		FEED0000000000000000025A = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2026071304;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_FEATURE_TIER = release;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = fichero/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 2026.07.13.4-beta;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
+				PRODUCT_NAME = Fichero;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		FEED0000000000000000025B = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2026071304;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_FEATURE_TIER = dev;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = fichero/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 2026.07.13.4-beta;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
+				PRODUCT_NAME = Fichero;
+				REGISTER_APP_GROUPS = YES;
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = "Dev Embedded";
+		};
+		FEED0000000000000000025C = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2026071304;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_FEATURE_TIER = alpha;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = fichero/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 2026.07.13.4-beta;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
+				PRODUCT_NAME = Fichero;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = "Alpha Embedded";
+		};
+		FEED0000000000000000025D = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2026071304;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_FEATURE_TIER = beta;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = fichero/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 2026.07.13.4-beta;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
+				PRODUCT_NAME = Fichero;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = "Beta Embedded";
+		};
+		FEED0000000000000000025E = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2026071304;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = QAPB6CWYR6;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_FEATURE_TIER = release;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = fichero/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
+					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
+					"$(SRCROOT)/fichero/Views/Components",
+					"$(SRCROOT)/fichero/Views/Settings",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 2026.07.13.4-beta;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
+				PRODUCT_NAME = Fichero;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				REGISTER_APP_GROUPS = YES;
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";
+				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = "Release Local";
+		};
 		20969FA93000614800D06A60 /* Alpha */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -4394,6 +6332,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		FEED0000000000000000025F = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FEED00000000000000000257,
+				FEED00000000000000000258,
+				FEED00000000000000000259,
+				FEED0000000000000000025A,
+				FEED0000000000000000025B,
+				FEED0000000000000000025C,
+				FEED0000000000000000025D,
+				FEED0000000000000000025E,
+			);
+			defaultConfigurationName = Release;
+		};
 		600 /* Build configuration list for PBXNativeTarget "Fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
