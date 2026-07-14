@@ -376,9 +376,38 @@ private struct PairingCardView: View {
                         .font(.caption)
                     }
 
+                    // The pairing link, as SELECTABLE TEXT (#3774). A QR is useless
+                    // in the iOS Simulator — it has no camera — so manual entry is
+                    // not a fallback there, it is the only way to pair. This is the
+                    // exact same payload the QR encodes, produced by the same
+                    // `RemoteClientPairing.inviteLinkString(from:)` the device's
+                    // "Enter Link Manually" already parses: same SPKI pin, same
+                    // one-time code, same expiry. Showing it changes convenience,
+                    // not trust — the QR beside it already carries it.
+                    if let inviteLink {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Pairing link")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(inviteLink)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                                .lineLimit(3)
+                                .truncationMode(.middle)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(6)
+                                .background(Color(.textBackgroundColor))
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                .accessibilityLabel("Pairing link, selectable text")
+                            Text("On the device: Enter Link Manually → paste this.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     HStack {
                         if let inviteLink {
-                            Button(copiedInvite ? "Invite Copied" : "Copy Invite", action: onCopyInvite)
+                            Button(copiedInvite ? "Pairing Link Copied" : "Copy Pairing Link", action: onCopyInvite)
                             if let shareURL = URL(string: inviteLink) {
                                 ShareLink(item: shareURL) {
                                     Label("Share Link", systemImage: "square.and.arrow.up")
@@ -391,6 +420,17 @@ private struct PairingCardView: View {
                     if inviteLink != nil {
                         Text("This link lets a device connect to your library — share only with people you trust.")
                             .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        // Saves the next person an hour (#3774): the Simulator runs on
+                        // the Mac's own network stack, so the Mac's loopback engine is
+                        // reachable from it directly. A real iPhone is a different
+                        // machine — 127.0.0.1 there means the phone itself, so it must
+                        // pair to this Mac's LAN address instead.
+                        Text("iOS Simulator: it shares this Mac's network, so it can reach a local "
+                             + "engine directly at https://127.0.0.1:8765. A real iPhone or iPad "
+                             + "cannot — it needs this Mac's address above.")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
