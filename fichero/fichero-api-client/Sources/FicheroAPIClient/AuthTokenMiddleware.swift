@@ -248,12 +248,30 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         }
     }
 
+    /// The device token's protection class (#3772).
+    ///
+    /// EXPLICIT, not inherited. Before this, no `kSecAttrAccessible` was set anywhere
+    /// in this file, so the item took the platform default — which is unreadable
+    /// before first unlock, and is an unstated default we would be trusting with a
+    /// security-critical item.
+    ///
+    /// `AfterFirstUnlock`, not `WhenUnlocked`: the app must be able to read the token
+    /// on a launch that happens before the user unlocks. NOT a `ThisDeviceOnly`
+    /// variant: those cannot sync, which would foreclose the zero-touch work later.
+    static let remoteTokenAccessibility = kSecAttrAccessibleAfterFirstUnlock
+
     public static func persistRemoteToken(_ token: String, hostString: String) throws {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = trimmed.data(using: .utf8) else { return }
 
         let query = remoteTokenKeychainQuery(hostString: hostString)
-        let attributes: [String: Any] = [kSecValueData as String: data]
+        // The UPDATE path must carry the accessibility too — otherwise the first
+        // re-pair after this fix would silently write the old, attribute-less item
+        // back and the bug would return.
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: remoteTokenAccessibility
+        ]
         let status = SecItemCopyMatching(query as CFDictionary, nil)
 
         switch status {
@@ -265,6 +283,7 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         case errSecItemNotFound:
             var addQuery = query
             addQuery[kSecValueData as String] = data
+            addQuery[kSecAttrAccessible as String] = remoteTokenAccessibility
             let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
             guard addStatus == errSecSuccess else {
                 throw AuthTokenStorageError.keychainWriteFailed(addStatus)
@@ -272,6 +291,24 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         default:
             throw AuthTokenStorageError.keychainReadFailed(status)
         }
+    }
+
+    /// The protection class the token is ACTUALLY stored with, read back out of the
+    /// Keychain — not what we believe we passed (#3772). nil when no token is stored.
+    ///
+    /// Public because the fix is only real if it can be asserted from the test target,
+    /// and because the restore diagnostic reports it.
+    public static func remoteTokenAccessibilityValue(hostString: String? = nil) -> String? {
+        var query = remoteTokenKeychainQuery(hostString: hostString)
+        query[kSecReturnAttributes as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let attributes = result as? [String: Any] else {
+            return nil
+        }
+        return attributes[kSecAttrAccessible as String] as? String
     }
 
     public static func readRemoteTokenForHost(_ hostString: String) -> String? {
@@ -312,7 +349,15 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: remoteTokenKeychainService,
-            kSecAttrAccount as String: remoteTokenKeychainAccount(hostString: hostString)
+            kSecAttrAccount as String: remoteTokenKeychainAccount(hostString: hostString),
+            // Apple recommends this unconditionally. It is on EVERY query — read,
+            // write, and clear — because a query without it addresses a DIFFERENT
+            // keychain on macOS, and a mismatched pair would write where it cannot
+            // read. (Consequence, deliberate: a macOS token written before this
+            // change lives in the legacy keychain and will not be found, so that Mac
+            // re-pairs once. iOS is unaffected — it has only the data-protection
+            // keychain.)
+            kSecUseDataProtectionKeychain as String: true
         ]
     }
 

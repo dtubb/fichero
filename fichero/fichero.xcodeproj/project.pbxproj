@@ -1027,6 +1027,8 @@
 		A1FB1DA12F0420D50023093C /* SidebarSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D972F0420D50023093C /* SidebarSectionHeader.swift */; };
 		A1FB1DA22F0420D50023093C /* SidebarConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FB1D932F0420D50023093C /* SidebarConstants.swift */; };
 		A23260012F90000100000001 /* RemoteClientPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23260032F90000100000001 /* RemoteClientPairing.swift */; };
+		C0FFEE0000000000000000A2 /* PairingRestoreDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE0000000000000000A1 /* PairingRestoreDiagnostics.swift */; };
+		C0FFEE0000000000000000A3 /* PairingRestoreDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE0000000000000000A1 /* PairingRestoreDiagnostics.swift */; };
 		A23260022F90000100000001 /* MacRemoteClientPairingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */; };
 		A23530010000000000000001 /* MobileCaptureQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23530030000000000000003 /* MobileCaptureQueue.swift */; };
 		A23530020000000000000002 /* MobileCaptureQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23530040000000000000004 /* MobileCaptureQueueView.swift */; };
@@ -1661,6 +1663,7 @@
 		A1FB1D992F0420D50023093C /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewExtensions.swift; sourceTree = "<group>"; };
 		A23260032F90000100000001 /* RemoteClientPairing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteClientPairing.swift; sourceTree = "<group>"; };
+		C0FFEE0000000000000000A1 /* PairingRestoreDiagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PairingRestoreDiagnostics.swift; sourceTree = "<group>"; };
 		A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacRemoteClientPairingSection.swift; sourceTree = "<group>"; };
 		A23530030000000000000003 /* MobileCaptureQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileCaptureQueue.swift; sourceTree = "<group>"; };
 		A23530040000000000000004 /* MobileCaptureQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileCaptureQueueView.swift; sourceTree = "<group>"; };
@@ -2412,6 +2415,7 @@
 				FF58B21F339179A8162AD6C5 /* NoteService.swift */,
 				8C31EBD6243D124565257708 /* EngineConfig.swift */,
 				A23260032F90000100000001 /* RemoteClientPairing.swift */,
+				C0FFEE0000000000000000A1 /* PairingRestoreDiagnostics.swift */,
 				28B629229088E72B485569FC /* LibraryChangeStream.swift */,
 				6175F28D959ABB4DB0C2F4CD /* ActionInvokeService.swift */,
 				44352F043915E2760BB0DD30 /* ImportServiceGenerated+Upload.swift */,
@@ -4038,6 +4042,7 @@
 				FEED000000000000000001C9 /* MobileCaptureQueueView.swift in Sources */,
 				FEED000000000000000001CA /* MacRemoteClientPairingSection.swift in Sources */,
 				FEED000000000000000001CB /* RemoteClientPairing.swift in Sources */,
+				C0FFEE0000000000000000A3 /* PairingRestoreDiagnostics.swift in Sources */,
 				FEED000000000000000001CC /* ChatDocumentDropPayload.swift in Sources */,
 				FEED000000000000000001CD /* BackendSettingsRemoteAccessSection.swift in Sources */,
 				FEED000000000000000001CE /* EngineSettingsView.swift in Sources */,
@@ -4632,6 +4637,7 @@
 				A23530020000000000000002 /* MobileCaptureQueueView.swift in Sources */,
 				A23260022F90000100000001 /* MacRemoteClientPairingSection.swift in Sources */,
 				A23260012F90000100000001 /* RemoteClientPairing.swift in Sources */,
+				C0FFEE0000000000000000A2 /* PairingRestoreDiagnostics.swift in Sources */,
 				D80C598CBAB2817738ECF0CB /* ChatDocumentDropPayload.swift in Sources */,
 				BA24BF71010589D1597B9025 /* BackendSettingsRemoteAccessSection.swift in Sources */,
 				517753E47832A6BD397EA6B3 /* EngineSettingsView.swift in Sources */,
