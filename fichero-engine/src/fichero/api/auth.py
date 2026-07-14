@@ -547,6 +547,40 @@ def action_context(
     )
 
 
+CANONICAL_OWNER_USERNAME = "owner"
+
+
+def ensure_owner_account(app_db=None):
+    """Return the canonical owner, creating it only when none exists."""
+    if app_db is None:
+        from fichero.app_db import get_app_db
+
+        app_db = get_app_db()
+
+    canonical = app_db.get_user_by_username(CANONICAL_OWNER_USERNAME)
+    if canonical is not None and canonical.is_owner:
+        if not canonical.active:
+            return app_db.set_active(canonical.id, True) or canonical
+        return canonical
+
+    active_owners = [
+        user for user in app_db.list_users() if user.is_owner and user.active
+    ]
+    if active_owners:
+        # Preserve an existing real owner; the paired-device migration handles
+        # the only known duplicate identity when the canonical row also exists.
+        return active_owners[0]
+
+    bootstrap_token = initialize_token()
+    return app_db.create_user(
+        username=CANONICAL_OWNER_USERNAME,
+        display_name="Owner",
+        password_hash=accounts.hash_password(bootstrap_token),
+        is_owner=True,
+        active=True,
+    )
+
+
 def _resolve_single_user_owner():
     """Return the single-user owner account, creating it if needed.
 
@@ -555,24 +589,7 @@ def _resolve_single_user_owner():
     is populated — no login wall for the single-user local owner (#3331).
     """
     try:
-        from fichero.app_db import get_app_db
-        app_db = get_app_db()
-        owners = [u for u in app_db.list_users() if u.is_owner and u.active]
-        if len(owners) == 1:
-            return owners[0]
-        if len(owners) == 0:
-            # ponytail: deterministic owner account keyed to the bootstrap
-            # token so the owner CAN sign in if multi-user is later enabled.
-            bootstrap_token = initialize_token()
-            return app_db.create_user(
-                username="owner",
-                display_name="Owner",
-                password_hash=accounts.hash_password(bootstrap_token),
-                is_owner=True,
-                active=True,
-            )
-        # Multiple owners — return the first active one
-        return owners[0]
+        return ensure_owner_account()
     except Exception:
         # Degrade to bootstrap-only (user=None) — the same trust as before
         # #3331 — but never silently: a failure here means audit attribution

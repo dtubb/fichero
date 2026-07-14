@@ -316,6 +316,12 @@ class AppDatabase:
             )
         """)
 
+        # App-wide identity migration.  This runs only when both historical
+        # owner rows exist, so a real pre-existing owner is never replaced.
+        from fichero.db_migrations import migrate_paired_device_owner
+
+        migrate_paired_device_owner(self.conn)
+
         # Create indexes
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type)"
