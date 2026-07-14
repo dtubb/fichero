@@ -21,6 +21,21 @@ because a user can have several libraries open, and each needs its own grant.
 This is a no-op — never an error — when there is nothing to do: not macOS, PyObjC
 absent, env var unset, or the app is unsandboxed (the DMG build, where the engine
 already has plain filesystem access). The engine must keep working in all of those.
+
+KNOWN LIMIT — libraries added AFTER the engine starts
+-----------------------------------------------------
+The payload is an environment variable, so it is fixed at spawn: it grants the
+libraries the app knew about when it launched the engine. If the user picks a NEW
+library mid-session (an open panel, an import), the app mints a bookmark and
+stores it, but this process never sees it — the engine keeps running, and its
+environment cannot change. That library stays unreadable until the app restarts.
+
+That is a real gap, not a design choice, and it is tracked separately: closing it
+needs a runtime handoff (an endpoint the app posts the new bookmark to, which
+calls ``start_access`` on the live process) rather than a spawn-time env var.
+Until then the failure is LOUD, not silent — DuckDB raises a permission error the
+app surfaces — which is the intended behaviour: better a clear error than a
+library that half-opens.
 """
 
 from __future__ import annotations

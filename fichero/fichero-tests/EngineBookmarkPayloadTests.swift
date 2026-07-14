@@ -59,5 +59,40 @@ final class EngineBookmarkPayloadTests: XCTestCase {
         let json = try XCTUnwrap(FolderAccessManager.bookmarkPayload(from: [path: Data("X".utf8)]))
         XCTAssertEqual(try decode(json)[path], Data("X".utf8).base64EncodedString())
     }
+
+    /// The DMG build must hand the engine NOTHING, even when the user has plenty of
+    /// bookmarks stored — and it normally does, because saveBookmark() runs in both
+    /// channels.
+    ///
+    /// This is the regression guard for a bug the first draft shipped: the payload
+    /// was read straight from UserDefaults with no channel gate, so the unsandboxed
+    /// DMG engine would have received bookmarks, tried to resolve them, been refused
+    /// by startAccessingSecurityScopedResource(), and logged a DENIED error per
+    /// library on every launch. The bookmarks belong to the sandbox; a channel that
+    /// has no sandbox must not be handed them.
+    ///
+    /// This suite compiles into the test target, where FICHERO_APP_STORE is NOT
+    /// defined — so it observes exactly what the DMG build does.
+    ///
+    /// The stored bookmarks are seeded directly under the defaults key the manager
+    /// reads, rather than via saveBookmark(), which declines temp paths — seeding
+    /// nothing would let this pass for the wrong reason. With the gate removed,
+    /// engineBookmarkPayload() returns JSON here and the assertion fails.
+    func testDMGBuildSendsNoBookmarksEvenWhenSomeAreStored() {
+        let key = "FolderAccessBookmarks"
+        let defaults = UserDefaults.standard
+        let saved = defaults.dictionary(forKey: key)
+        defer {
+            if let saved { defaults.set(saved, forKey: key) } else { defaults.removeObject(forKey: key) }
+        }
+        defaults.set(["/Users/d/Documents/L.fichero": Data("BOOKMARK".utf8)], forKey: key)
+
+        // The encoder itself is willing — so a nil result can only be the gate.
+        XCTAssertNotNil(FolderAccessManager.bookmarkPayload(from: ["/L.fichero": Data("B".utf8)]))
+        XCTAssertNil(
+            FolderAccessManager.shared.engineBookmarkPayload(),
+            "the non-sandboxed engine must get no FICHERO_LIBRARY_BOOKMARKS at all"
+        )
+    }
 }
 #endif

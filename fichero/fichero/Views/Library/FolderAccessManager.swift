@@ -1,7 +1,6 @@
 #if canImport(AppKit)
 import AppKit
 #endif
-import Foundation
 import OSLog
 import Observation
 import SwiftUI
@@ -81,9 +80,8 @@ class FolderAccessManager {
         return URL(fileURLWithPath: path).deletingLastPathComponent()
     }
 
-    /// Save a security-scoped bookmark
     /// The security-scoped bookmarks the SANDBOXED ENGINE needs, as
-    /// `{"<path>": "<base64 bookmark>"}` JSON (#3747).
+    /// `{"<path>": "<base64 bookmark>"}` JSON (#3747), or nil if it needs none.
     ///
     /// The engine cannot mint these itself: only the app holds the Powerbox grant
     /// the user created by picking the folder, and that grant is DYNAMIC, so it is
@@ -91,11 +89,19 @@ class FolderAccessManager {
     /// engine resolves them (`fichero/security_scoped_access.py`) before DuckDB
     /// opens anything.
     ///
-    /// Returns nil when there is nothing to send, so the DMG build — not sandboxed,
-    /// needs no bookmarks — sets no env var at all.
+    /// App Store build ONLY. The DMG engine is not sandboxed — it can already open
+    /// the library directly — so it gets no env var at all. This is a hard gate,
+    /// not an optimisation: without it the DMG app would ship its bookmarks to an
+    /// unsandboxed engine, which would resolve them, be refused by
+    /// startAccessingSecurityScopedResource(), and log a DENIED error per library
+    /// on every launch — a behaviour change to a channel that must not change.
     func engineBookmarkPayload() -> String? {
+        #if FICHERO_APP_STORE
         let stored = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
         return Self.bookmarkPayload(from: stored)
+        #else
+        return nil
+        #endif
     }
 
     /// Pure JSON encoding of the payload — separated from UserDefaults so the wire
@@ -108,6 +114,7 @@ class FolderAccessManager {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Save a security-scoped bookmark
     func saveBookmark(for url: URL) {
         // Never bookmark transient temp paths — they're cleaned up after ingest
         // and will always fail to resolve on next launch, producing noisy errors.
