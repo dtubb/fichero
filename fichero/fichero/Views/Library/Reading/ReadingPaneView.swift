@@ -53,9 +53,10 @@ struct ReadingPaneView: View {
     @State private var pinnedActivePageNumber: Int?
     @State private var pinnedPageCount: Int?
     @State private var webZoom: Double = 1.0
-    // The KG surface sub-mode. Defaults to Graph — transcript moved to the Page
-    // tab, so the Knowledge surface opens on a "what we know" view.
-    @State private var activeTab: KGSurfaceTab = .graph
+    // The KG surface sub-mode. Defaults to Entities — the entities WITH the
+    // statements made about them, i.e. the "what we know" reading, NOT the graph
+    // visualisation (Daniel 2026-07-14, #3765 Q6).
+    @State private var activeTab: KGSurfaceTab = .entities
     /// The reader's top-level tab (Page/Knowledge/Notes) — the reader IA fold
     /// (2026-07-11 design). Per-window via @SceneStorage. Defaults to Page: the
     /// reader reads the source first (Daniel 2026-07-12); Knowledge and Notes
