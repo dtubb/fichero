@@ -24,10 +24,14 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from fastapi import Request
 
 from fichero.db_manager import DatabaseManager
 from fichero.models import Artifact, Document
 
+
+def _request() -> Request:
+    return Request({"type": "http", "headers": []})
 
 
 def _real_search_ready() -> bool:
@@ -296,7 +300,9 @@ class TestRouteLevelEnhancedSearch:
         import asyncio
 
         request = SearchRequest(query="Leidy", limit=10)
-        response = asyncio.run(enhanced_search(request, db=search_library))
+        response = asyncio.run(
+            enhanced_search(request, http_request=_request(), db=search_library)
+        )
         assert response.count >= 1
         ids = {r.document_id for r in response.results}
         assert "fix-leidy-001" in ids or "fix-leidy-002" in ids
@@ -309,7 +315,9 @@ class TestRouteLevelEnhancedSearch:
         import asyncio
 
         request = SearchRequest(query="people:Asprilla", limit=10)
-        response = asyncio.run(enhanced_search(request, db=search_library))
+        response = asyncio.run(
+            enhanced_search(request, http_request=_request(), db=search_library)
+        )
         assert response.count >= 1
         # All results should be entity-bridge (the only path that ran).
         for r in response.results:
@@ -322,7 +330,9 @@ class TestRouteLevelEnhancedSearch:
         # 'Leidy "sluice wedged"' — both Leidy docs match Leidy, but
         # only fix-leidy-001 contains the literal "sluice wedged" phrase.
         request = SearchRequest(query='Leidy "sluice wedged"', limit=10)
-        response = asyncio.run(enhanced_search(request, db=search_library))
+        response = asyncio.run(
+            enhanced_search(request, http_request=_request(), db=search_library)
+        )
         ids = {r.document_id for r in response.results}
         assert "fix-leidy-001" in ids
         assert "fix-leidy-002" not in ids
@@ -334,7 +344,9 @@ class TestRouteLevelEnhancedSearch:
         # 'gold' — would normally hit the mining doc. With -mining,
         # it should drop.
         request = SearchRequest(query="gold -mining", limit=10)
-        response = asyncio.run(enhanced_search(request, db=search_library))
+        response = asyncio.run(
+            enhanced_search(request, http_request=_request(), db=search_library)
+        )
         ids = {r.document_id for r in response.results}
         assert "fix-mining-001" not in ids
 
@@ -343,7 +355,9 @@ class TestRouteLevelEnhancedSearch:
         import asyncio
 
         request = SearchRequest(query="", limit=10)
-        response = asyncio.run(enhanced_search(request, db=search_library))
+        response = asyncio.run(
+            enhanced_search(request, http_request=_request(), db=search_library)
+        )
         assert response.search_type == "recent"
         # Returns docs that have non-empty page_content.
         assert response.count >= 1
@@ -356,7 +370,9 @@ class TestRouteLevelEnhancedSearch:
         # Note: requires the artifact planted in _build_library which
         # contains 'Joseph Antonio Asprilla'.
         request = SearchRequest(query="Aspriyaaa_no_real_match", limit=5)
-        response = asyncio.run(enhanced_search(request, db=search_library))
+        response = asyncio.run(
+            enhanced_search(request, http_request=_request(), db=search_library)
+        )
         # Even if some semantic hits sneak in, they'd be filtered by
         # the 0.3 min_score for 'Aspriyaaa_no_real_match' which has
         # no real match. Suggestions should be present.
@@ -406,17 +422,18 @@ class TestKnowledgeGraphRoutes:
 
         # /entities/{id}/documents: Leidy appears in two docs.
         docs = asyncio.run(get_entity_documents("kg-leidy", limit=10, db=search_library))
-        ids = {d.document_id for d in docs}
+        ids = {d.document_id for d in docs.items}
         assert "fix-leidy-001" in ids
         assert "fix-leidy-002" in ids
-        assert all(d.claim_count >= 1 for d in docs)
+        assert docs.count == len(docs.items)
+        assert all(d.claim_count >= 1 for d in docs.items)
 
         # /entities/{id}/co-occurrence: Leidy is in claims with both
         # Quibdó (1 shared) and gold (1 shared). Order may vary.
         cos = asyncio.run(
             get_entity_co_occurrence("kg-leidy", limit=10, db=search_library)
         )
-        related_ids = {c.entity_id for c in cos}
+        related_ids = {c.entity_id for c in cos.items}
         assert "kg-quibdo" in related_ids
         assert "kg-gold" in related_ids
         # Self never appears in co-occurrence — would be nonsensical.
@@ -473,12 +490,13 @@ class TestKnowledgeGraphRoutes:
         ))
 
         rows = asyncio.run(top_entities(limit=10, db=search_library))
-        names = [r.name for r in rows]
+        assert rows.count == len(rows.items)
+        names = [r.name for r in rows.items]
         # 'Frequent' must beat 'Rare' (3 claims vs 1).
         assert names.index("Frequent") < names.index("Rare")
         # Counts reflect input.
-        freq_row = next(r for r in rows if r.name == "Frequent")
-        rare_row = next(r for r in rows if r.name == "Rare")
+        freq_row = next(r for r in rows.items if r.name == "Frequent")
+        rare_row = next(r for r in rows.items if r.name == "Rare")
         assert freq_row.claim_count == 3
         assert rare_row.claim_count == 1
 

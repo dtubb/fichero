@@ -1407,8 +1407,8 @@ async def entity_drill_down(
 
     return EntityDrillDownResponse(
         entity=entity,
-        documents=documents,
-        co_occurring=co_occurring,
+        documents=documents.items,
+        co_occurring=co_occurring.items,
         claim_excerpts=excerpts,
     )
 
