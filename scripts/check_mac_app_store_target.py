@@ -190,6 +190,55 @@ def main() -> int:
                 fail(f"the MAS embed phase runs `codesign --deep`: {stripped!r}. It re-signs nested code with the "
                      "PARENT's entitlements, replacing the engine's two-key set.")
 
+    # 4b. The strips must run against a REAL path, and must be able to fail.
+    #
+    # This is the R2 lesson. ${BUILT_PRODUCTS_DIR}/<app> is a SYMLINK in an
+    # archive/install build, and `find` does not descend into a symlinked starting
+    # point — it reports zero matches. So the strips deleted nothing, and the
+    # assertions that no .a/.dSYM "remained" also found nothing and PASSED. A vacuous
+    # find is indistinguishable from a clean bundle, and an archive full of .dSYMs
+    # shipped with a green build.
+    if embed is not None:
+        body = shell_of(embed)
+        if 'APP_DST="${TARGET_BUILD_DIR}/${WRAPPER_NAME}"' not in body:
+            fail(
+                "the MAS embed phase must resolve the app bundle via TARGET_BUILD_DIR/WRAPPER_NAME. "
+                "BUILT_PRODUCTS_DIR/<app> is a SYMLINK in an archive build, and `find` does not descend "
+                "into a symlinked start point — the strips silently no-op and their checks vacuously pass."
+            )
+        if "pwd -P" not in body:
+            fail("the MAS embed phase must resolve APP_DST to a physical path (cd && pwd -P) before any find")
+        if "traverses nothing" not in body:
+            fail(
+                "the MAS embed phase must assert that find TRAVERSES the bundle before trusting a 'found "
+                "nothing' result. Without it, a broken walk reads as a clean bundle — which is exactly how "
+                "the .dSYM archive shipped green."
+            )
+
+    # 4c. The build must be judged by the same validator that judges the archive.
+    validate = phase_named(objects, mas, "Validate App Store Bundle")
+    if validate is None:
+        fail(
+            f"{MAS_TARGET} has no 'Validate App Store Bundle' phase. Bespoke in-phase assertions have now "
+            "passed vacuously twice; the build must be checked by scripts/validate_mas_bundle.sh — the same "
+            "tool that judges the .xcarchive."
+        )
+    else:
+        body = shell_of(validate)
+        if "validate_mas_bundle.sh" not in body:
+            fail("the 'Validate App Store Bundle' phase must invoke scripts/validate_mas_bundle.sh")
+        if "--structure-only" not in body:
+            fail(
+                "the validation phase must pass --structure-only: it runs before Xcode signs the outer app, "
+                "so the whole-app signature check cannot pass yet"
+            )
+        # Order matters: validating before the strip would validate the wrong bytes.
+        names = [objects[p].get("name") for p in mas["buildPhases"]]
+        if "Embed Fichero Engine" in names and names.index("Validate App Store Bundle") < names.index(
+            "Embed Fichero Engine"
+        ):
+            fail("'Validate App Store Bundle' must run AFTER 'Embed Fichero Engine', not before")
+
     # 5. The scheme must ARCHIVE a configuration that actually embeds the engine.
     #    "Release Local" builds against an EXTERNAL engine — archiving it ships an app
     #    with no backend at all, which looks fine at build time and is dead on launch.
