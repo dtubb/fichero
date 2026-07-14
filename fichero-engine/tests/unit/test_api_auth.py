@@ -60,6 +60,17 @@ def test_bootstrap_secret_rejects_non_loopback_multiuser(monkeypatch):
     assert response.status_code == 401
 
 
+def test_unpaired_remote_request_is_denied_with_empty_device_set(monkeypatch, app_db):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    assert app_db.list_devices() == []
+    client = TestClient(_app_with_auth(), client=("192.0.2.10", 5000))
+
+    response = client.get("/api/private")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "missing or invalid Authorization header"}
+
+
 def test_bootstrap_secret_accepts_loopback_without_forwarding(monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     client = TestClient(_app_with_auth())
