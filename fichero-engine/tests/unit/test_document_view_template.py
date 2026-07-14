@@ -49,3 +49,11 @@ def test_graph_neighborhood_fetch_uses_relative_api_path() -> None:
 
     assert "fetch(`/api/kg/graph/neighborhood/${entityId}`" in source
     assert "http://localhost:8765/api/kg/graph/neighborhood" not in source
+
+
+def test_transcript_page_cards_keep_scroll_sync_anchors() -> None:
+    source = _template_source()
+
+    assert "function transcriptPages()" in source
+    assert 'class="transcript-page" data-page="${page.number}"' in source
+    assert "scroll-margin-block-start" in source

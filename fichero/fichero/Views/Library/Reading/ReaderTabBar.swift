@@ -51,41 +51,6 @@ enum ReaderTab: String, CaseIterable, Identifiable, SurfaceTab {
     }
 }
 
-/// Page-tab layout (#3502): read the source (image / PDF page) alone, the
-/// transcript alone, or the two side by side. "Read the source" is one tab, so
-/// image ↔ transcript is a layout toggle inside Page rather than separate modes.
-enum ReaderPageLayout: String, CaseIterable, Identifiable {
-    case source
-    case split
-    case transcript
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .source: return "Source"
-        case .split: return "Split"
-        case .transcript: return "Transcript"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .source: return "photo"
-        case .split: return "rectangle.split.2x1"
-        case .transcript: return "text.alignleft"
-        }
-    }
-
-    var help: String {
-        switch self {
-        case .source: return "Show the page image / source only"
-        case .split: return "Show the source and transcript side by side"
-        case .transcript: return "Show the transcript only"
-        }
-    }
-}
-
 /// Notes-tab sub-mode (#3513): the anchored reading marks (highlights / notes /
 /// bookmarks) or free-text document notes. Both live under Notes so the reading
 /// layer and loose notes share one tab.
