@@ -1,6 +1,7 @@
 #if canImport(AppKit)
 import AppKit
 #endif
+import Foundation
 import OSLog
 import Observation
 import SwiftUI
@@ -81,6 +82,32 @@ class FolderAccessManager {
     }
 
     /// Save a security-scoped bookmark
+    /// The security-scoped bookmarks the SANDBOXED ENGINE needs, as
+    /// `{"<path>": "<base64 bookmark>"}` JSON (#3747).
+    ///
+    /// The engine cannot mint these itself: only the app holds the Powerbox grant
+    /// the user created by picking the folder, and that grant is DYNAMIC, so it is
+    /// not inherited by a child process. The app hands them over at spawn and the
+    /// engine resolves them (`fichero/security_scoped_access.py`) before DuckDB
+    /// opens anything.
+    ///
+    /// Returns nil when there is nothing to send, so the DMG build — not sandboxed,
+    /// needs no bookmarks — sets no env var at all.
+    func engineBookmarkPayload() -> String? {
+        let stored = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
+        return Self.bookmarkPayload(from: stored)
+    }
+
+    /// Pure JSON encoding of the payload — separated from UserDefaults so the wire
+    /// format the engine parses can be unit-tested without a sandbox or a real grant.
+    /// Must stay in step with `parse_bookmarks()` in `fichero/security_scoped_access.py`.
+    static func bookmarkPayload(from stored: [String: Data]) -> String? {
+        guard !stored.isEmpty else { return nil }
+        let encoded = stored.mapValues { $0.base64EncodedString() }
+        guard let data = try? JSONSerialization.data(withJSONObject: encoded) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     func saveBookmark(for url: URL) {
         // Never bookmark transient temp paths — they're cleaned up after ingest
         // and will always fail to resolve on next launch, producing noisy errors.

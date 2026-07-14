@@ -479,6 +479,17 @@ final class EmbeddedBackendService {
         }
         environment["FICHERO_FEATURE_TIER"] =
             FeatureManager.shared.activeBuildTier.environmentValue
+        #if os(macOS)
+        // Sandboxed (Mac App Store) engine: hand it the security-scoped bookmarks for
+        // the user's libraries (#3747). A dynamic Powerbox grant does NOT inherit into
+        // a child process, so without these the engine cannot open a library in
+        // ~/Documents at all — a plain open() is denied and DuckDB fails with it.
+        // Nil (so the var is absent) when there is nothing to send: every
+        // non-sandboxed DMG run, where the engine already has filesystem access.
+        if let bookmarks = FolderAccessManager.shared.engineBookmarkPayload() {
+            environment["FICHERO_LIBRARY_BOOKMARKS"] = bookmarks
+        }
+        #endif
         process.environment = environment
 
         // Diagnostic (#757): capture engine stdout/stderr to a tail-able file
