@@ -1,8 +1,8 @@
 #if canImport(AppKit)
 import AppKit
 #endif
-import OSLog
 import Observation
+import OSLog
 import SwiftUI
 
 /// Manages folder access permissions using security-scoped bookmarks
