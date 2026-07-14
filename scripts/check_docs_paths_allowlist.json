@@ -1,6 +1,9 @@
 {
   "_doc": "Repo paths named in docs that do not exist, on purpose (build artifacts, or things described as deleted). Every other absent path is a bug. See AGENTS.md.",
   "known_absent_paths": [
+    ".git/logs/HEAD",
+    ".git/logs/refs/heads/inspector-ia-20260711",
+    ".git/logs/refs/heads/main",
     "build/releases",
     "build/verify_all_needs_fixing.json",
     "docs/contributor/architecture/vocabulary.md",
