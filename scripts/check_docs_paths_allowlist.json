@@ -10,6 +10,7 @@
     "fichero-engine/build/fichero-backend/macos/app/FicheroBackend.app",
     "fichero/build/xcode/Products/Release",
     "fichero/build/xcode/Products/Release/Fichero.app",
+    "fichero/build/xcode/Products/Release/Fichero.app/Contents/Info.plist",
     "fichero/fichero-api-client/.build",
     "fichero/workflows",
     "scripts/baseline_move_check.sh",
