@@ -55,6 +55,14 @@ final class AboutSettingsSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("fallbackCopyright"))
     }
 
+    func testMacAboutWindowInjectsAppState() throws {
+        let source = try Self.appSource("FicheroApp.swift")
+        let aboutWindow = try XCTUnwrap(
+            source.components(separatedBy: "Window(\"About Fichero\", id: \"about\") {").dropFirst().first
+        )
+        XCTAssertTrue(aboutWindow.contains("AboutView()\n                .environment(appState)"))
+    }
+
     private static func appSource(_ relativePath: String) throws -> String {
         let baseURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
