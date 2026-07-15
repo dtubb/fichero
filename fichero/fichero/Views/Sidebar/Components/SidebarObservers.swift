@@ -101,7 +101,17 @@ extension SidebarView {
             _ = store.childrenCache
         } onChange: {
             Task { @MainActor in
-                rebuildCaches(for: libraryId)
+                // #3862: currentDocuments (and status overrides on collections)
+                // churn on every processing poll, but they don't shape the sidebar
+                // tree. Only rebuild when the tree-relevant signature actually
+                // changed — otherwise a status-poll storm rebuilt the whole tree
+                // and re-rendered the entire List for no visible change.
+                if let library = libraryManager.getLibrary(id: libraryId) {
+                    let signature = sidebarTreeSignature(for: library)
+                    if sidebarTreeSignatures[libraryId] != signature {
+                        rebuildCaches(for: libraryId)
+                    }
+                }
                 observeDocumentStore(store, libraryId: libraryId)
             }
         }
