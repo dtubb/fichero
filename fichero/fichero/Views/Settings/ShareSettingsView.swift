@@ -78,10 +78,6 @@ struct ShareSettingsView: View {
                 .disabled(isApplyingChange || !EngineConfig.engineIsLocal)
                 .padding(.vertical, 4)
 
-                // The card renders whenever there is something to say: sharing is on
-                // (QR, progress, or the one thing blocking it), or the toggle is dead
-                // because this Mac doesn't host the library — a disabled switch with
-                // no explanation is exactly the dead control we do not ship.
                 if hostingEnabled || pairingBlocker == .engineIsRemote {
                     PairingCardView(
                         pairingCode: pairingCode,
