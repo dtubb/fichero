@@ -2412,6 +2412,45 @@ final class KGCurationServiceGenerated {
         }
     }
 
+    // MARK: - External authority curation (#3757)
+
+    /// GET /api/kg/entity-curation/authority/settings — whether external
+    /// authority linking (Wikidata / VIAF / LoC) is enabled for this library.
+    /// The setting defaults off, so an absent flag reads as `false`.
+    func externalAuthorityEnabled() async throws -> Bool {
+        let response = try await client.api
+            .getExternalAuthoritySettingsApiKgEntityCurationAuthoritySettingsGet()
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.externalAuthorityEnabled ?? false
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("externalAuthorityEnabled unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// PUT /api/kg/entity-curation/authority/settings — enable/disable external
+    /// authority linking. Returns the persisted value so the store reflects
+    /// exactly what the backend stored.
+    @discardableResult
+    func setExternalAuthorityEnabled(_ enabled: Bool) async throws -> Bool {
+        let body = Components.Schemas.ExternalAuthoritySettings(externalAuthorityEnabled: enabled)
+        let response = try await client.api
+            .putExternalAuthoritySettingsApiKgEntityCurationAuthoritySettingsPut(body: .json(body))
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.externalAuthorityEnabled ?? false
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("setExternalAuthorityEnabled unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     func listClaimRules() async throws -> [Components.Schemas.ClaimRuleReadResponse] {
         let response = try await client.api.listClaimRulesApiKgCurationRulesClaimRulesGet()
 

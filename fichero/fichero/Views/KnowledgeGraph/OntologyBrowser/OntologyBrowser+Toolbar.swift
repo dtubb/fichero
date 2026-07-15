@@ -112,6 +112,22 @@ extension OntologyBrowser {
             } label: {
                 Label("Generate suggested links (heuristic)", systemImage: "wand.and.stars")
             }
+            Divider()
+            // #3757 — enable/disable external authority linking (Wikidata /
+            // VIAF / LoC). Library-wide setting, so it lives in the KG tools
+            // menu; the store owns the endpoint call (observable-data-layer).
+            Toggle("Link entities to external authorities", isOn: Binding(
+                get: { entityStore.externalAuthorityEnabled },
+                set: { newValue in
+                    Task {
+                        do {
+                            try await entityStore.setExternalAuthorityEnabled(newValue)
+                        } catch {
+                            toolStatus = "Failed: \(error.localizedDescription)"
+                        }
+                    }
+                }
+            ))
         } label: {
             Image(systemName: "wrench.and.screwdriver")
         }
@@ -119,6 +135,9 @@ extension OntologyBrowser {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Knowledge graph tools")
+        // Load the current authority setting when the browser appears (the
+        // toolbar is always mounted, so `.task` here fires on browser open).
+        .task { await entityStore.loadAuthoritySettings() }
     }
 
     /// Filter menu — Tinderbox-style 'displayed attributes' picker,
