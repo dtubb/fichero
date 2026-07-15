@@ -63,7 +63,12 @@ struct ShareLibrarySheet: View {
     @State var isApplying = false
     @State var manageError: String?
 
-    let shareRoles = ["owner", "editor", "viewer"]
+    /// The share sheet grants Viewer/Editor only — Owner is deliberately NOT here
+    /// (#3787). Owner is a whole-library administrator, granted on purpose in
+    /// Settings → People, not handed out casually while sharing with someone. The
+    /// engine still enforces >=1 owner, so downgrading the last owner from here is
+    /// refused with an honest error, never silently.
+    static let shareRoles = ["editor", "viewer"]
     static let newPersonTag = "__new_person__"
 
     var body: some View {
@@ -104,7 +109,7 @@ extension ShareLibrarySheet {
             }
 
             Picker("Role", selection: $role) {
-                ForEach(shareRoles, id: \.self) { roleName in
+                ForEach(Self.shareRoles, id: \.self) { roleName in
                     Text(roleName.capitalized).tag(roleName)
                 }
             }
@@ -128,8 +133,9 @@ extension ShareLibrarySheet {
         } header: {
             Text("Share With")
         } footer: {
-            Text("The person gets the chosen role for this library. Owners manage members; "
-                + "editors change content; viewers are read-only.")
+            Text("The person gets the chosen role for this library. Editors change content; "
+                + "viewers are read-only. To make someone an Owner (full admin), use "
+                + "Settings → People.")
                 .foregroundStyle(.secondary)
         }
 
@@ -254,7 +260,7 @@ extension ShareLibrarySheet {
             }
             Spacer(minLength: 12)
             Menu(member.role.capitalized) {
-                ForEach(shareRoles, id: \.self) { roleName in
+                ForEach(Self.shareRoles, id: \.self) { roleName in
                     Button(roleName.capitalized) {
                         Task { await changeRole(userId: member.userId, role: roleName) }
                     }
