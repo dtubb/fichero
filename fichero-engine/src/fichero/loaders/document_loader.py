@@ -209,18 +209,12 @@ class DocumentLoader(MediaLoader):
 
     async def _load_text_file(self, path: Path) -> MediaContent:
         """Load plain text file directly."""
+        raw = path.read_bytes()
         try:
-            text = path.read_text(encoding="utf-8-sig")
+            encoding = "utf-8-sig" if raw.startswith(b"\xef\xbb\xbf") else "utf-8"
+            text = raw.decode(encoding)
         except UnicodeDecodeError:
-            # Try other encodings
-            for encoding in ["utf-16", "latin-1", "cp1252", "iso-8859-1"]:
-                try:
-                    text = path.read_text(encoding=encoding)
-                    break
-                except UnicodeDecodeError:
-                    continue
-            else:
-                text = path.read_bytes().decode("utf-8", errors="replace")
+            text = raw.decode("cp1252")
 
         return MediaContent(
             source=str(path),
