@@ -19,7 +19,10 @@ def test_python_module_help_imports_cleanly():
         env=env,
         capture_output=True,
         text=True,
-        timeout=30,
+        # `-m fichero --help` cold-imports the whole app (FastAPI/langchain/duckdb/…);
+        # it runs ~4-6s solo but can spike under a fully-parallel suite. 30s was flaky
+        # under load; 120s stays load-safe while still catching a genuine import hang.
+        timeout=120,
     )
 
     assert result.returncode == 0, result.stderr
@@ -39,7 +42,7 @@ def test_python_module_entity_help_imports_cleanly():
         env=env,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=120,  # load-safe: heavy cold import, flaky at 30s under a parallel suite
     )
 
     assert result.returncode == 0, result.stderr
