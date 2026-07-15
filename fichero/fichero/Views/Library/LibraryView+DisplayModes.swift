@@ -11,6 +11,14 @@ extension LibraryView {
         isPaneFocused ? .accentColor : .secondary
     }
 
+    /// Row/tile background highlight (#3875). When the pane is FOCUSED the
+    /// selected item shows a real Finder-blue fill, not a 12% wash; when the
+    /// pane isn't focused it stays a faint gray — the same focused/unfocused
+    /// split as `selectionTint`, just at fill strength.
+    private var selectionFill: Color {
+        isPaneFocused ? Color.accentColor.opacity(0.85) : Color.secondary.opacity(0.12)
+    }
+
     var browserLeadingInset: CGFloat { 12 }
 
     var iconsView: some View {
@@ -256,7 +264,7 @@ extension LibraryView {
                             .id(entityId)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(selection.contains(entityId) ? selectionTint.opacity(0.12) : Color.clear)
+                            .background(selection.contains(entityId) ? selectionFill : Color.clear)
                             .contentShape(Rectangle())
                             .onTapGesture(count: 2) {
                                 handleEntityDoubleClick(entity)
@@ -282,7 +290,7 @@ extension LibraryView {
                             .draggable(libraryItemDrag(for: doc))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(selection.contains(doc.id) ? selectionTint.opacity(0.12) : Color.clear)
+                            .background(selection.contains(doc.id) ? selectionFill : Color.clear)
                             .contentShape(Rectangle())
                             .onTapGesture(count: 2) {
                                 handleDoubleClick(doc)
