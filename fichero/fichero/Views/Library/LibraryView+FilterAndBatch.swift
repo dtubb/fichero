@@ -42,43 +42,84 @@ extension LibraryView {
     // ponytail: recompute inputs — documents, entities, searchText, sortOrder, sortFieldRaw, sortAscending, folderId
     // filteredDocuments and filteredEntities are @State vars on LibraryView; recomputeFiltered()
     // is called from .onAppear and .onChange of every input so filter/sort never runs in body.
-    func recomputeFiltered() {
-        // Documents
+    //
+    // `rebuildIndex` (#3865): the per-doc lowercased search keys only change when
+    // the DOCUMENT SET changes, not when the query does. The debounced ⌘F
+    // keystroke path passes `false` so typing filters against the cached keys
+    // instead of re-lowercasing every doc's OCR text per keystroke; every other
+    // caller (documents/entities/folder/sort changes) rebuilds with the default.
+    func recomputeFiltered(rebuildIndex: Bool = true) {
+        if rebuildIndex { rebuildDocumentSearchKeys() }
+
+        // Documents — match against the precomputed lowercased key (name + a
+        // bounded OCR excerpt + status), not a fresh full-pageContent scan (#3865).
         var docs = documents
         if !searchText.isEmpty {
-            docs = docs.filter {
-                $0.name.localizedCaseInsensitiveContains(searchText) ||
-                    ($0.pageContent?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-                    $0.status.rawValue.localizedCaseInsensitiveContains(searchText)
+            let query = searchText.localizedLowercase
+            docs = docs.filter { doc in
+                (documentSearchKeys[doc.id] ?? Self.documentSearchKey(for: doc)).contains(query)
             }
         }
         filteredDocuments = docs.sorted(using: sortOrder)
         thumbnailPrefetchKey = filteredDocuments.map(\.id).joined()
 
-        // Entities — always strip OCR/extraction garbage names (no-letter fragments
-        // like "12:10" that the entity extractor occasionally produces).
-        var items = entities.filter { !OntologyBrowser.isOcrGarbage($0.canonicalName) }
+        // Entities — strip OCR/extraction garbage names, then decorate each with
+        // its lowercased sort key ONCE (#3865). The old comparator re-computed
+        // `canonicalName.localizedLowercase` for both sides on every comparison —
+        // O(n log n) allocations; now each key is built a single time.
+        var rows = entities
+            .filter { !OntologyBrowser.isOcrGarbage($0.canonicalName) }
+            .map { entity in
+                (
+                    entity: entity,
+                    nameKey: entity.canonicalName.localizedLowercase,
+                    corroboration: entity.corroborationCount ?? 0,
+                    selectionId: entitySelectionId(for: entity)
+                )
+            }
         if !searchText.isEmpty {
             let query = searchText.localizedLowercase
-            items = items.filter { entity in
-                entity.canonicalName.localizedLowercase.contains(query)
-                    || entity.entityType?.rawValue.localizedLowercase.contains(query) == true
-                    || (entity.aliases ?? []).contains { $0.localizedLowercase.contains(query) }
+            rows = rows.filter { row in
+                row.nameKey.contains(query)
+                    || row.entity.entityType?.rawValue.localizedLowercase.contains(query) == true
+                    || (row.entity.aliases ?? []).contains { $0.localizedLowercase.contains(query) }
             }
         }
-        filteredEntities = items.sorted { lhs, rhs in
-            let lhsName = lhs.canonicalName.localizedLowercase
-            let rhsName = rhs.canonicalName.localizedLowercase
-            if lhsName != rhsName {
-                return lhsName < rhsName
+        filteredEntities = rows.sorted { lhs, rhs in
+            if lhs.nameKey != rhs.nameKey {
+                return lhs.nameKey < rhs.nameKey
             }
-            let lhsCorroboration = lhs.corroborationCount ?? 0
-            let rhsCorroboration = rhs.corroborationCount ?? 0
-            if lhsCorroboration != rhsCorroboration {
-                return lhsCorroboration > rhsCorroboration
+            if lhs.corroboration != rhs.corroboration {
+                return lhs.corroboration > rhs.corroboration
             }
-            return entitySelectionId(for: lhs) < entitySelectionId(for: rhs)
+            return lhs.selectionId < rhs.selectionId
+        }.map { $0.entity }
+    }
+
+    /// Max OCR characters folded into a document's search key (#3865). ⌘F is a
+    /// quick find-in-list, not full-text search — bounding the excerpt keeps the
+    /// key cheap to build without scanning multi-MB OCR blobs. A match deeper
+    /// than this in a long document won't surface here (use real search for that).
+    static let searchExcerptLimit = 4000
+
+    /// Lowercased `name + OCR excerpt + status` used by the ⌘F filter (#3865).
+    /// Static + pure so it's unit-testable and reused as the lazy fallback when
+    /// the cached index is missing a doc.
+    static func documentSearchKey(for doc: Document) -> String {
+        let excerpt = doc.pageContent.map { $0.prefix(searchExcerptLimit) } ?? ""
+        return "\(doc.name) \(excerpt) \(doc.status.rawValue)".localizedLowercase
+    }
+
+    /// Rebuild the per-document search-key cache. Runs only when the document set
+    /// changes (not per keystroke), so keystroke filtering stays a cheap
+    /// dictionary lookup + `contains` (#3865).
+    func rebuildDocumentSearchKeys() {
+        var keys: [String: String] = [:]
+        keys.reserveCapacity(documents.count)
+        for doc in documents {
+            keys[doc.id] = Self.documentSearchKey(for: doc)
         }
+        documentSearchKeys = keys
     }
 
     var isShowingEntitiesCollection: Bool {
