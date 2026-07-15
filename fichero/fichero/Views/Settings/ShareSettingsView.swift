@@ -255,9 +255,7 @@ struct ShareSettingsView: View {
     private var advancedSection: some View {
         Section {
             DisclosureGroup("Advanced") {
-                // Sharing works this out by itself. The override exists for the one
-                // case it cannot know about — a Tailscale hostname, a fixed IP behind
-                // a router — and nowhere else.
+                // Use an override only for an address the app cannot infer, such as Tailscale or a fixed IP.
                 LabeledContent("Automatic address") {
                     Text(Self.autoLocalBaseURL)
                         .font(.caption.monospaced())
