@@ -17,6 +17,12 @@ def _bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _login(client: TestClient, username: str, password: str) -> str:
+    response = client.post("/api/auth/login", json={"username": username, "password": password})
+    assert response.status_code == 200
+    return response.json()["session_token"]
+
+
 def _enable_multiuser(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
 
