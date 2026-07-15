@@ -76,4 +76,20 @@ final class PairingRestoreDiagnosticsTests: XCTestCase {
     func testLibraryPathIsNotRequiredToReconnect() {
         XCTAssertTrue(snapshot(libraryPath: nil).isFullyRestored)
     }
+
+    #if canImport(AppKit)
+    /// Turning sharing on mints the certificate as part of the one action, so
+    /// `.pinNotDerived` is a transient "preparing" state — it must NOT offer a
+    /// "Prepare Certificate" button, which would be a redundant re-run of the primary
+    /// action and a separate step the user has to find (#3811). The genuine
+    /// cannot-proceed fallbacks also stay button-less honest messages; only the two
+    /// the app can cure in one tap keep a button.
+    func testPinNotDerivedOffersNoPrepareCertificateButton() {
+        XCTAssertNil(PairingBlocker.pinNotDerived.actionTitle)
+        XCTAssertNil(PairingBlocker.engineIsRemote.actionTitle)
+        XCTAssertNil(PairingBlocker.addressInsecure.actionTitle)
+        XCTAssertNotNil(PairingBlocker.engineNotRunning.actionTitle)
+        XCTAssertNotNil(PairingBlocker.sharingNotStarted.actionTitle)
+    }
+    #endif
 }
