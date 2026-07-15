@@ -24,7 +24,10 @@ enum InspectorSection: String, CaseIterable, Identifiable {
     /// sections render it directly, multi-facet sections switch among them.
     var facets: [InspectorTab] {
         switch self {
-        case .source:    return [.content, .info]
+        // Source is single-facet: Content / Info / Outline are folded into ONE
+        // segmented picker inside the Source body (SourceSectionMode, #3876), so the
+        // section no longer shows a separate Content/Info facet picker above it.
+        case .source:    return [.content]
         case .artifacts: return [.artifacts]
         case .knowledge: return [.entities, .knowledgeGraph, .citations]
         case .notes:     return [.notes, .annotations, .interpretations]

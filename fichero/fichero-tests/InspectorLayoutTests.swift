@@ -82,6 +82,24 @@ struct InspectorTabTests {
     }
 }
 
+// MARK: - Source Section Fold (#3876)
+
+struct SourceSectionFoldTests {
+
+    @Test("SourceSectionMode is the ONE Content/Info/Outline picker (#3876)")
+    func sourceSectionModeCases() {
+        #expect(SourceSectionMode.allCases == [.content, .info, .outline])
+    }
+
+    /// Source is single-facet now, so DocumentInspector's separate Content/Info
+    /// facet picker no longer renders above the Source body — Info moved into
+    /// SourceSectionMode's middle segment.
+    @Test("Source section is single-facet, so no stacked Content/Info picker (#3876)")
+    func sourceSectionSingleFacet() {
+        #expect(InspectorSection.source.facets == [.content])
+    }
+}
+
 // MARK: - FileType Additions Tests (#spreadsheet, #presentation)
 
 struct FileTypeAdditionsTests {
