@@ -1,5 +1,27 @@
 import SwiftUI
 
+/// Keyword-cloud pill sizing with the count range computed ONCE (#3870). Callers
+/// build this per cloud and call `fontSize(for:)` per pill — O(1) each, instead of
+/// re-scanning the cloud for min/max on every pill.
+struct KeywordCloudSizing {
+    private let lowerBound: Int
+    private let upperBound: Int
+
+    init(cloud: [KeywordCloudEntryDTO]) {
+        let counts = cloud.map(\.count)
+        lowerBound = counts.min() ?? 0
+        upperBound = counts.max() ?? 0
+    }
+
+    /// Linear interpolation between 11pt (rarest) and 17pt (most common); 12pt when
+    /// there is no spread (empty cloud or all-equal counts).
+    func fontSize(for entry: KeywordCloudEntryDTO) -> CGFloat {
+        guard upperBound > lowerBound else { return 12 }
+        let interpolation = CGFloat(entry.count - lowerBound) / CGFloat(upperBound - lowerBound)
+        return 11 + interpolation * 6
+    }
+}
+
 /// Search results display supporting four view modes
 struct SearchResultsDisplay: View {
     let searchResults: [SearchResult]
@@ -39,15 +61,13 @@ struct SearchResultsDisplay: View {
     /// most-used tag in the cloud renders biggest; rare tags stay small.
     /// Linear interpolation between 11pt and 17pt over the count range
     /// for any given cloud snapshot.
+    /// Convenience for a single entry. Callers rendering the WHOLE cloud should
+    /// build one `KeywordCloudSizing` and reuse it (#3870) rather than call this per
+    /// pill — each call re-scans the cloud for min/max.
     static func fontSize(
         for entry: KeywordCloudEntryDTO, cloud: [KeywordCloudEntryDTO]
     ) -> CGFloat {
-        let counts = cloud.map(\.count)
-        guard let lowerBound = counts.min(),
-              let upperBound = counts.max(),
-              upperBound > lowerBound else { return 12 }
-        let interpolation = CGFloat(entry.count - lowerBound) / CGFloat(upperBound - lowerBound)
-        return 11 + interpolation * 6
+        KeywordCloudSizing(cloud: cloud).fontSize(for: entry)
     }
     var body: some View {
         if searchResults.isEmpty {

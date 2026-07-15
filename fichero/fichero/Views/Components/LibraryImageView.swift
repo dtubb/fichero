@@ -55,23 +55,35 @@ struct LibraryImageView: View {
     private func loadImage(for key: LibraryImageLoadKey) async {
         guard loadedKey != key || image == nil else { return }
 
+        // Seed a cache hit synchronously so the first render shows the thumbnail with
+        // no image=nil placeholder flash before the async fetch (#3870).
+        if key.imageType == .thumbnail,
+           let cached = storageService.cachedThumbnail(for: key.documentId) {
+            image = cached
+            loadedKey = key
+            isLoading = false
+            loadError = nil
+            return
+        }
+
         image = nil
         loadedKey = nil
         isLoading = true
         loadError = nil
 
         let imageTypeLabel = key.imageType == .thumbnail ? "thumbnail" : "display"
-        Self.logger.info("Loading \(imageTypeLabel) for document: \(key.documentId)")
+        // .debug, not .info: this fires per thumbnail during hot scroll (#3870).
+        Self.logger.debug("Loading \(imageTypeLabel) for document: \(key.documentId)")
 
         do {
             let loadedImage: Image
             switch key.imageType {
             case .thumbnail:
                 loadedImage = try await storageService.getThumbnail(key.documentId)
-                Self.logger.info("Successfully loaded thumbnail for: \(key.documentId)")
+                Self.logger.debug("Successfully loaded thumbnail for: \(key.documentId)")
             case .display:
                 loadedImage = try await storageService.getDisplayImage(key.documentId)
-                Self.logger.info("Successfully loaded display image for: \(key.documentId)")
+                Self.logger.debug("Successfully loaded display image for: \(key.documentId)")
             }
             guard loadKey == key else {
                 isLoading = false

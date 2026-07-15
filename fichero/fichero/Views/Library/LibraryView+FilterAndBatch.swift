@@ -61,7 +61,17 @@ extension LibraryView {
             }
         }
         filteredDocuments = docs.sorted(using: sortOrder)
-        thumbnailPrefetchKey = filteredDocuments.map(\.id).joined()
+        // Hash the ids (Int) instead of joining every id into one giant String
+        // (#3870) — it only needs to CHANGE when the visible set changes.
+        var hasher = Hasher()
+        for doc in filteredDocuments { hasher.combine(doc.id) }
+        thumbnailPrefetchKey = hasher.finalize()
+        // id → index for O(1) prefetch scheduling (#3870); ids are unique, keep the
+        // first on the off chance of a dup rather than trapping.
+        documentIndexById = Dictionary(
+            filteredDocuments.enumerated().map { ($1.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         // Entities — strip OCR/extraction garbage names, then decorate each with
         // its lowercased sort key ONCE (#3865). The old comparator re-computed

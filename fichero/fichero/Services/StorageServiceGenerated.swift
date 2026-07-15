@@ -98,7 +98,8 @@ class StorageServiceGenerated {
         if let cached = thumbnailCache[docId] {
             return cached
         }
-        logger.info("Loading thumbnail for document: \(docId)")
+        // .debug, not .info: fires per uncached thumbnail during hot scroll (#3870).
+        logger.debug("Loading thumbnail for document: \(docId)")
         let data = try await thumbnailData(for: docId)
         let image = try await Self.decodeImage(from: data)
         cacheThumbnail(image, for: docId)

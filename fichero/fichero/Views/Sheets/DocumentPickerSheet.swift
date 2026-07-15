@@ -16,23 +16,27 @@ struct DocumentPickerSheet: View {
     @State private var selection: Set<String> = []
     @State private var processingOrder: BatchProcessingOrder = .alphabeticalAsc
 
+    @State private var filteredDocuments: [Document] = []
+    @State private var selectedDocumentsOrdered: [Document] = []
+
     private var allDocuments: [Document] {
         documentStore.currentDocuments.filter { $0.docType != .folder }
     }
 
-    private var filteredDocuments: [Document] {
+    /// One recompute into @State when an input changes (search / selection / order /
+    /// the store's documents) instead of re-filtering + re-sorting on every body
+    /// access through chained computed vars (#3870).
+    private func recompute() {
+        let all = allDocuments
         if searchText.isEmpty {
-            return allDocuments
+            filteredDocuments = all
+        } else {
+            filteredDocuments = all.filter { document in
+                document.name.localizedCaseInsensitiveContains(searchText) ||
+                    (document.pageContent?.localizedCaseInsensitiveContains(searchText) ?? false)
+            }
         }
-        return allDocuments.filter { document in
-            document.name.localizedCaseInsensitiveContains(searchText) ||
-                (document.pageContent?.localizedCaseInsensitiveContains(searchText) ?? false)
-        }
-    }
-
-    private var selectedDocumentsOrdered: [Document] {
-        let selected = allDocuments.filter { selection.contains($0.id) }
-        return processingOrder.sort(selected)
+        selectedDocumentsOrdered = processingOrder.sort(all.filter { selection.contains($0.id) })
     }
 
     var body: some View {
@@ -134,6 +138,11 @@ struct DocumentPickerSheet: View {
         #if os(macOS)
         .frame(width: 500, height: 600)
         #endif
+        .onAppear { recompute() }
+        .onChange(of: searchText) { _, _ in recompute() }
+        .onChange(of: selection) { _, _ in recompute() }
+        .onChange(of: processingOrder) { _, _ in recompute() }
+        .onChange(of: documentStore.currentDocuments) { _, _ in recompute() }
     }
 
     private func runBatch() {
