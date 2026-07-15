@@ -23,6 +23,12 @@ struct AuthTokenMiddlewareStorageTests {
         #expect(AuthTokenMiddleware.prefersLocalhostEngineToken(hostString: hostString))
     }
 
+    @Test("loopback never prefers a saved login session")
+    func loopbackDoesNotPreferSavedSession() {
+        #expect(AuthTokenMiddleware.prefersLocalhostEngineToken(hostString: "https://127.0.0.1:8765"))
+        #expect(AuthTokenMiddleware.prefersLocalhostEngineToken(hostString: "https://localhost:8765"))
+    }
+
     @Test(
         "remote hosts use remote token storage",
         arguments: [
