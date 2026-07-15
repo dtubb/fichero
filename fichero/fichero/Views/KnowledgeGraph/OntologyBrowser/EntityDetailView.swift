@@ -281,11 +281,11 @@ struct EntityDetailView: View {
                 Button {
                     showDigestSheet = true
                 } label: {
-                    Label("Digest", systemImage: "book.closed")
+                    Label("Statements", systemImage: "list.bullet.indent")
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
-                .help("Open researcher digest view for this entity")
+                .help("Every subject-verb-object statement we know about this entity")
             }
 
             if let description = cleanedDisplayText(entity.description) {
