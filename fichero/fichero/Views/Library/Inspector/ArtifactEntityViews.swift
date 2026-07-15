@@ -3,14 +3,15 @@ import SwiftUI
 // MARK: - Artifact Entities View (#519)
 
 /// Surfaces the entity-flavored artifacts (people/places/organizations/
-/// events/dates/keywords) for a document row. Two styles share one data
-/// path so the singleLine table-cell and multiLine list-row presentations
-/// fetch + parse identically.
+/// events/dates/keywords) for a document row. Both styles observe the shared
+/// `ArtifactEntityStore` so the singleLine table-cell and multiLine list-row
+/// presentations read ONE fetched+parsed bundle instead of fetching per view.
 ///
-/// Cache: reads ArtifactServiceGenerated.artifactsByDocument["{id}|own"]
-/// (matches the V2 strict-scope convention used by DocumentInspectorContentV2 —
-/// per-row counts shouldn't include descendants, otherwise a parent PDF
-/// shows the union of every page-child's artifacts).
+/// Data: `ArtifactEntityStore` keyed by documentId, strict per-document scope
+/// ("{id}|own") — matches the V2 convention used by DocumentInspectorContentV2;
+/// per-row counts must NOT include descendants, otherwise a parent PDF shows the
+/// union of every page-child's artifacts. The store is the single endpoint
+/// accessor (#3861 / #1863); views never call getArtifacts() themselves.
 struct ArtifactEntitiesView: View {
     enum Style { case singleLine, multiLine }
 
@@ -25,48 +26,48 @@ struct ArtifactEntitiesView: View {
     @Environment(ArtifactServiceGenerated.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
-    @State private var people: [String] = []
-    @State private var places: [String] = []
-    @State private var organizations: [String] = []
-    @State private var events: [String] = []
-    @State private var dates: [String] = []
-    @State private var keywords: [String] = []
-    @State private var loaded = false
+    /// Shared document-keyed store (#3861) — the single endpoint accessor. Every
+    /// row/cell for the same document observes ONE fetch instead of firing its
+    /// own `getArtifacts()` in `.onAppear`.
+    private var store: ArtifactEntityStore { .shared(for: artifactService) }
+    private var bundle: ArtifactEntityBundle? { store.bundle(for: documentId) }
 
     var body: some View {
         Group {
-            if !loaded {
-                // Reserve space silently while the first fetch is in flight.
-                Color.clear.frame(height: style == .singleLine ? 14 : 1)
-            } else if isEmpty {
-                if style == .singleLine {
-                    Text("—").font(.caption).foregroundStyle(.secondary)
+            if let bundle {
+                if bundle.isEmpty {
+                    if style == .singleLine {
+                        Text("—").font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        EmptyView()
+                    }
                 } else {
-                    EmptyView()
+                    content(bundle)
                 }
             } else {
-                content
+                // Reserve space silently while the first fetch is in flight.
+                Color.clear.frame(height: style == .singleLine ? 14 : 1)
             }
         }
-        .onAppear { Task { await loadEntities() } }
-        .onChange(of: documentId) {
-            Task { await loadEntities(forceRefresh: true) }
-        }
+        .onAppear { store.ensureLoaded(documentId) }
+        .onChange(of: documentId) { store.ensureLoaded(documentId) }
+        // Workflow completion refetches ONLY the documents that run touched —
+        // idempotent across the many rows that each observe this counter.
         .onChange(of: executionObserver.workflowCompletedCount) {
-            Task { await loadEntities(forceRefresh: true) }
+            store.reconcileCompletions(executionObserver)
         }
     }
 
     @ViewBuilder
-    private var content: some View {
+    private func content(_ bundle: ArtifactEntityBundle) -> some View {
         switch style {
         case .singleLine:
             HStack(spacing: 8) {
-                chip(systemName: "person", names: people, max: 2)
-                chip(systemName: "mappin", names: places, max: 2)
-                chip(systemName: "building.2", names: organizations, max: 1)
-                chip(systemName: "calendar", names: dates, max: 1)
-                chip(systemName: "bolt", names: events, max: 1)
+                chip(systemName: "person", names: bundle.people, max: 2)
+                chip(systemName: "mappin", names: bundle.places, max: 2)
+                chip(systemName: "building.2", names: bundle.organizations, max: 1)
+                chip(systemName: "calendar", names: bundle.dates, max: 1)
+                chip(systemName: "bolt", names: bundle.events, max: 1)
             }
             .font(.caption)
             .lineLimit(1)
@@ -74,22 +75,22 @@ struct ArtifactEntitiesView: View {
         case .multiLine:
             VStack(alignment: .leading, spacing: 4) {
                 if visibleTypes.contains("people") {
-                    lozengeRow("People", names: people)
+                    lozengeRow("People", names: bundle.people)
                 }
                 if visibleTypes.contains("places") {
-                    lozengeRow("Places", names: places)
+                    lozengeRow("Places", names: bundle.places)
                 }
                 if visibleTypes.contains("organizations") {
-                    lozengeRow("Organizations", names: organizations)
+                    lozengeRow("Organizations", names: bundle.organizations)
                 }
                 if visibleTypes.contains("dates") {
-                    lozengeRow("Dates", names: dates)
+                    lozengeRow("Dates", names: bundle.dates)
                 }
                 if visibleTypes.contains("events") {
-                    lozengeRow("Events", names: events)
+                    lozengeRow("Events", names: bundle.events)
                 }
                 if visibleTypes.contains("keywords") {
-                    lozengeRow("Keywords", names: keywords)
+                    lozengeRow("Keywords", names: bundle.keywords)
                 }
             }
             .font(.caption2)
@@ -154,77 +155,6 @@ struct ArtifactEntitiesView: View {
         }
     }
 
-    private var isEmpty: Bool {
-        people.isEmpty && places.isEmpty && organizations.isEmpty
-            && events.isEmpty && dates.isEmpty && keywords.isEmpty
-    }
-
-    @MainActor
-    private func loadEntities(forceRefresh: Bool = false) async {
-        let cacheKey = "\(documentId)|own"
-        let artifacts: [Artifact]
-        people = []
-        places = []
-        organizations = []
-        events = []
-        dates = []
-        keywords = []
-
-        if !forceRefresh, let cached = artifactService.artifactsByDocument[cacheKey] {
-            artifacts = cached
-        } else if let fetched = try? await artifactService.getArtifacts(
-            forDocumentId: documentId,
-            forceRefresh: forceRefresh,
-            includeDescendants: false
-        ) {
-            artifacts = fetched
-        } else {
-            loaded = true
-            return
-        }
-        for artifact in artifacts {
-            switch artifact.artifactType {
-            case "people":
-                people = extractNames(artifact, key: "name")
-            case "places":
-                places = extractNames(artifact, key: "name")
-            case "organizations":
-                organizations = extractNames(artifact, key: "name")
-            case "events":
-                events = extractNames(artifact, key: "event")
-            case "keywords":
-                keywords = extractKeywords(artifact)
-            case "dates":
-                dates = extractDates(artifact)
-            default:
-                break
-            }
-        }
-        loaded = true
-    }
-
-    private func extractNames(_ artifact: Artifact, key: String) -> [String] {
-        guard let data = artifact.data,
-              let value = data["items"]?.value,
-              let items = value as? [[String: Any]] else { return [] }
-        return items.compactMap { $0[key] as? String }
-    }
-
-    private func extractKeywords(_ artifact: Artifact) -> [String] {
-        guard let data = artifact.data,
-              let value = data["keywords"]?.value,
-              let array = value as? [String] else { return [] }
-        return array
-    }
-
-    private func extractDates(_ artifact: Artifact) -> [String] {
-        guard let data = artifact.data,
-              let value = data["items"]?.value,
-              let items = value as? [[String: Any]] else { return [] }
-        return items.compactMap { item in
-            (item["date_normalized"] as? String) ?? (item["date"] as? String)
-        }
-    }
 }
 
 // MARK: - Artifact Entity Cell — per-type column (#519 table view)
@@ -243,23 +173,27 @@ struct ArtifactEntityCell: View {
     @Environment(ArtifactServiceGenerated.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
-    @State private var names: [String] = []
-    @State private var loaded = false
+    /// Shared document-keyed store (#3861): the six per-type cells of one row now
+    /// share ONE fetch with each other and with the row's `ArtifactEntitiesView`.
+    private var store: ArtifactEntityStore { .shared(for: artifactService) }
+    private var names: [String]? { store.bundle(for: documentId)?.names(for: entityType) }
 
     var body: some View {
         Group {
-            if !loaded {
-                Color.clear.frame(height: 14)
-            } else if names.isEmpty {
-                Text("—").font(.caption2).foregroundStyle(.secondary)
-            } else {
-                FlowLayout(spacing: 4) {
-                    // Same #1966 dedup as lozengeRow — unique IDs, no double render.
-                    ForEach(names.uniqued(), id: \.self) { name in
-                        EntityLozenge(name: name, entityType: entityType)
+            if let names {
+                if names.isEmpty {
+                    Text("—").font(.caption2).foregroundStyle(.secondary)
+                } else {
+                    FlowLayout(spacing: 4) {
+                        // Same #1966 dedup as lozengeRow — unique IDs, no double render.
+                        ForEach(names.uniqued(), id: \.self) { name in
+                            EntityLozenge(name: name, entityType: entityType)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+            } else {
+                Color.clear.frame(height: 14)
             }
         }
         // Top-align so cells in the same row don't vertically center —
@@ -268,63 +202,10 @@ struct ArtifactEntityCell: View {
         // Finder's table-cell behaviour.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.vertical, 2)
-        .onAppear { Task { await load() } }
+        .onAppear { store.ensureLoaded(documentId) }
+        .onChange(of: documentId) { store.ensureLoaded(documentId) }
         .onChange(of: executionObserver.workflowCompletedCount) {
-            Task { await load(forceRefresh: true) }
-        }
-    }
-
-    @MainActor
-    private func load(forceRefresh: Bool = false) async {
-        let cacheKey = "\(documentId)|own"
-        let artifacts: [Artifact]
-        if !forceRefresh, let cached = artifactService.artifactsByDocument[cacheKey] {
-            artifacts = cached
-        } else if let fetched = try? await artifactService.getArtifacts(
-            forDocumentId: documentId, forceRefresh: forceRefresh, includeDescendants: false
-        ) {
-            artifacts = fetched
-        } else {
-            loaded = true
-            return
-        }
-        for artifact in artifacts where artifact.artifactType == entityType {
-            switch entityType {
-            case "people", "places", "organizations":
-                names = extractNames(artifact, key: "name")
-            case "events":
-                names = extractNames(artifact, key: "event")
-            case "keywords":
-                names = extractKeywords(artifact)
-            case "dates":
-                names = extractDates(artifact)
-            default:
-                break
-            }
-        }
-        loaded = true
-    }
-
-    private func extractNames(_ artifact: Artifact, key: String) -> [String] {
-        guard let data = artifact.data,
-              let value = data["items"]?.value,
-              let items = value as? [[String: Any]] else { return [] }
-        return items.compactMap { $0[key] as? String }
-    }
-
-    private func extractKeywords(_ artifact: Artifact) -> [String] {
-        guard let data = artifact.data,
-              let value = data["keywords"]?.value,
-              let array = value as? [String] else { return [] }
-        return array
-    }
-
-    private func extractDates(_ artifact: Artifact) -> [String] {
-        guard let data = artifact.data,
-              let value = data["items"]?.value,
-              let items = value as? [[String: Any]] else { return [] }
-        return items.compactMap { item in
-            (item["date_normalized"] as? String) ?? (item["date"] as? String)
+            store.reconcileCompletions(executionObserver)
         }
     }
 }
