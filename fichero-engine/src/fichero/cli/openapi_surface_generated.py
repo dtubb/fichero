@@ -1405,6 +1405,7 @@ def register_generated_openapi_commands(
     @target_app.command("create-invite")
     def auth_create_invite_post(
         ctx: typer.Context,
+        channel: Optional[str] = typer.Option(None, "--channel", help="Request field: channel."),
         display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
         username: str = typer.Option(..., "--username", help="Request field: username."),
     ) -> None:
@@ -1413,9 +1414,11 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/auth/invites"
             params = None
             payload = _build_json_payload({
+                "channel": channel,
                 "display_name": display_name,
                 "username": username,
             }, {
+                "channel": {'type': 'string', 'enum': ['qr', 'messages', 'email'], 'title': 'Channel', 'default': 'qr', 'x-cli-required': False},
                 "display_name": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
                 "username": {'type': 'string', 'minLength': 1, 'title': 'Username', 'x-cli-required': True},
             }, required=True)
@@ -10033,6 +10036,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("enroll-device")
+    def pair_enroll_device_post(
+        ctx: typer.Context,
+        device_name: str = typer.Option(..., "--device-name", help="Request field: device_name."),
+        enrollment_secret: str = typer.Option(..., "--enrollment-secret", help="Request field: enrollment_secret."),
+    ) -> None:
+        """Enroll Device (POST /api/pair/enroll)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/enroll"
+            params = None
+            payload = _build_json_payload({
+                "device_name": device_name,
+                "enrollment_secret": enrollment_secret,
+            }, {
+                "device_name": {'type': 'string', 'minLength': 1, 'title': 'Device Name', 'x-cli-required': True},
+                "enrollment_secret": {'type': 'string', 'minLength': 1, 'title': 'Enrollment Secret', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('policies')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for policies endpoints.', no_args_is_help=True)
@@ -13337,11 +13360,28 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("delete")
+    def users_delete_delete(
+        ctx: typer.Context,
+        user_id: str = typer.Argument(..., help="Path parameter: user_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Delete User (DELETE /api/users/{user_id})."""
+        if not yes:
+            typer.confirm("Delete users?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/users/{user_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("update")
     def users_update_patch(
         ctx: typer.Context,
         user_id: str = typer.Argument(..., help="Path parameter: user_id."),
         active: Optional[bool] = typer.Option(None, "--active/--no-active", help="Request field: active."),
+        display_name: Optional[str] = typer.Option(None, "--display-name", help="Request field: display_name."),
+        is_owner: Optional[bool] = typer.Option(None, "--is-owner/--no-is-owner", help="Request field: is_owner."),
         password: Optional[str] = typer.Option(None, "--password", help="Request field: password."),
     ) -> None:
         """Update User (PATCH /api/users/{user_id})."""
@@ -13350,9 +13390,13 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "active": active,
+                "display_name": display_name,
+                "is_owner": is_owner,
                 "password": password,
             }, {
                 "active": {'type': 'boolean', 'nullable': True, 'title': 'Active', 'x-cli-required': False},
+                "display_name": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
+                "is_owner": {'type': 'boolean', 'nullable': True, 'title': 'Is Owner', 'x-cli-required': False},
                 "password": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'Password', 'x-cli-required': False},
             }, required=True)
             return client.request("PATCH", endpoint_path, params=params, json=payload)

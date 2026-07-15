@@ -6983,6 +6983,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "StatusResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/pair/enroll",
+        "operation_id": "enroll_device_api_pair_enroll_post",
+        "summary": "Enroll Device",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EnrollmentRequest",
+        "response_model": "PairResponse"
       }
     ],
     "policies": [
@@ -9174,6 +9184,18 @@
         "query_params": [],
         "request_model": "CreateUserRequest",
         "response_model": "UserResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/users/{user_id}",
+        "operation_id": "delete_user_api_users__user_id__delete",
+        "summary": "Delete User",
+        "path_params": [
+          "user_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StatusResponse"
       },
       {
         "method": "PATCH",
