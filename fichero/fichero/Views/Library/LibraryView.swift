@@ -441,23 +441,30 @@ struct LibraryView: View {
                         artifactService: artifactService
                     )
                 }
-                syncPagesByParentId()
+                // Mode-specific caches only when their view is the one shown on
+                // appear (#3867/#3870); switching in later re-syncs via
+                // onChange(displayMode). refreshLibraryProjection self-gates.
+                if displayMode == .table { syncPagesByParentId() }
                 loadSortSettings(for: folderId)
                 syncSortOrder()
                 recomputeFiltered()
                 refreshLibraryProjection()
                 consumePendingOpen()
             }
+            // Merged the two former documentStore.revision observers into one
+            // (#3870) — SwiftUI would run both every revision.
             .onChange(of: documentStore.revision) { _, _ in
-                // A window opened via "Open in New Tab/Window" may still be
-                // loading its documents when it first appears; retry the
-                // pending-open hand-off once rows arrive (#1685).
+                // Pending-open hand-off retry once rows arrive (#1685).
                 recomputeFiltered()
-                refreshLibraryProjection()
+                refreshLibraryProjection()               // no-op unless canvas/space (#3867)
+                if displayMode == .table { syncPagesByParentId() }  // outline-only (#3870)
                 consumePendingOpen()
             }
-            .onChange(of: documentStore.revision) { _, _ in
-                syncPagesByParentId()
+            // Recompute mode-specific caches lazily on switch-in, since the
+            // per-revision paths now skip them off-mode (#3867 / #3870).
+            .onChange(of: displayMode) { _, _ in
+                refreshLibraryProjection()
+                if displayMode == .table { syncPagesByParentId() }
             }
             .onChange(of: entities) { _, _ in
                 recomputeFiltered()
@@ -784,7 +791,20 @@ extension LibraryView {
 // MARK: - Spatial projection
 
 extension LibraryView {
+    /// The spatial projection only feeds the `.canvas` / `.space` canvases, so
+    /// mapping every document + entity through `SpatialLibraryProjector` on each
+    /// documentStore/entity change is wasted work in icon/list/table (#3867).
+    static func usesSpatialProjection(_ mode: ViewDisplayMode) -> Bool {
+        switch mode {
+        case .canvas, .space, .workspace: return true
+        case .icon, .list, .table: return false
+        }
+    }
+
     private func refreshLibraryProjection() {
+        // Skip the full documents+entities map unless a spatial canvas is shown.
+        // Recomputed lazily on switch INTO canvas/space (see onChange(displayMode)).
+        guard Self.usesSpatialProjection(displayMode) else { return }
         cachedLibraryProjection = SpatialLibraryProjector.project(
             SpatialLibraryInput(
                 documents: documents.map {
