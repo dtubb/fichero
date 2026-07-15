@@ -108,6 +108,7 @@
   "GET /api/documents/{document_id}/outline": "store missing",
   "GET /api/entities/alias-map": "store missing",
   "GET /api/entities/claim-counts": "store missing",
+  "GET /api/entities/digest": "WebKit document view consumes the digest; no native Swift store surface (#3765)",
   "GET /api/entities/{entity_id}/export": "engine half of #3703; Swift drag-export wiring pending in the same issue",
   "GET /api/folders/{entity_type}/folders": "store missing",
   "GET /api/folders/{folder_id}/views": "store missing",
