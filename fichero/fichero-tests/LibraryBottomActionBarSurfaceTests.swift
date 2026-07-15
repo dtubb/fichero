@@ -74,6 +74,22 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("Self.workflowIsRunnable(workflowId: workflowId, in: workflows)"))
     }
 
+    func testSidebarRunWorkflowBindsListAndExecutionToRowLibrary() throws {
+        // Sweep guardrail (#3820 follow-up): the sidebar single-item Run-Workflow
+        // entry point is the reference-correct pattern — it lists AND executes
+        // from the SAME `library` reference, so it can never send a workflow_id
+        // the execution library can't resolve. Lock that so it can't regress
+        // into the environment-shared-service divergence #3820 fixed elsewhere.
+        let rowSource = try Self.appSource("Views/Sidebar/SidebarItemRow.swift")
+        // List source: the row's own library workflowStore.
+        XCTAssertTrue(rowSource.contains("var workflowStore: WorkflowStore? { library?.workflowStore }"))
+
+        let runSource = try Self.appSource("Views/Sidebar/SidebarItemRow+Workflow.swift")
+        // Execution: the SAME library's stream service (not the environment's).
+        XCTAssertTrue(runSource.contains("let stream = library.workflowStreamService"))
+        XCTAssertTrue(runSource.contains("try await stream.execute("))
+    }
+
     func testBatchWorkflowRefreshesDocumentsAsWorkflowStepsComplete() throws {
         let source = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
 
