@@ -299,8 +299,9 @@ struct ReadingPaneView: View {
     /// Knowledge tab — explore what we know. A native sub-mode switcher for the
     /// exploration views (Graph, Claims, Timeline, Map — Timeline/Map are
     /// sub-modes, not top tabs, #3504) sits alongside a set-apart **Digest**
-    /// section (the AI summary), so the digest reads as a distinct section rather
-    /// than a co-equal sub-mode or its own tab (#3505/#3512, design Q1).
+    /// section, so the digest reads as a distinct section rather than a co-equal
+    /// sub-mode or its own tab (#3505/#3512, design Q1). Digest is NOT an AI
+    /// summary — it renders every claim grouped by entity (see below).
     /// Transcript is excluded — it lives in the Page tab. The surface is the
     /// shared `DocumentKGSurface` WebKit view, driven by `activeTab`.
     @ViewBuilder
@@ -321,8 +322,12 @@ struct ReadingPaneView: View {
 
                 Spacer(minLength: 8)
 
-                // Digest is the AI summary SECTION, set apart from the
-                // exploration sub-modes (design Q1 / #3512).
+                // Digest: claims grouped by the entity they are about, with page
+                // labels + source excerpts (document_view.html renderDigest). It is
+                // NOT an AI summary and involves no LLM call — the old comment and
+                // help text said otherwise, which is why nobody could say what it
+                // was (Daniel: "Digest — not sure what that is", #3765 Q2). Set
+                // apart from the exploration sub-modes (design Q1 / #3512).
                 Divider().frame(height: 16)
                 Button {
                     activeTab = .digest
