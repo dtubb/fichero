@@ -1229,14 +1229,17 @@ class DatabaseEmbeddingMixin:
             return
 
         # Lazily initialise a task-tracking set (prevents GC of in-flight tasks)
-        # and a semaphore to bound concurrent background DB connections.
+        # and semaphores to bound concurrent background DB connections per loop.
         if not hasattr(self, "_bg_embedding_tasks"):
             self._bg_embedding_tasks: set = set()
-        if not hasattr(self, "_bg_embedding_semaphore"):
-            self._bg_embedding_semaphore = asyncio.Semaphore(2)
+        if not hasattr(self, "_bg_embedding_semaphores"):
+            self._bg_embedding_semaphores: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
 
         bg_tasks: set = self._bg_embedding_tasks
-        sem: asyncio.Semaphore = self._bg_embedding_semaphore
+        sem = self._bg_embedding_semaphores.get(loop)
+        if sem is None:
+            sem = asyncio.Semaphore(2)
+            self._bg_embedding_semaphores[loop] = sem
 
         async def _runner() -> None:
             async with sem:

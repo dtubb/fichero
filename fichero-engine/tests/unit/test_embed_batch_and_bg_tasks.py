@@ -190,7 +190,7 @@ async def test_schedule_embedding_task_semaphore_limits_concurrency() -> None:
         for _ in range(6):
             mixin._schedule_embedding_task(["rec"], label="entity")
 
-        assert hasattr(mixin, "_bg_embedding_semaphore")
+        assert len(mixin._bg_embedding_semaphores) == 1
 
         tasks = list(mixin._bg_embedding_tasks)
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -198,3 +198,21 @@ async def test_schedule_embedding_task_semaphore_limits_concurrency() -> None:
     assert peak_active <= 2, (
         f"Semaphore should cap concurrency at 2; peak was {peak_active}"
     )
+
+
+def test_schedule_embedding_task_uses_a_semaphore_per_event_loop() -> None:
+    mixin = _FakeMixin()
+
+    async def schedule_three() -> list[object]:
+        for _ in range(3):
+            mixin._schedule_embedding_task(["rec"], label="entity")
+        return await asyncio.gather(*list(mixin._bg_embedding_tasks), return_exceptions=True)
+
+    with patch("fichero.db.Database") as MockDB:
+        MockDB.return_value.embed_entities.return_value = None
+        MockDB.return_value.close.return_value = None
+
+        assert not any(isinstance(result, RuntimeError) for result in asyncio.run(schedule_three()))
+        assert not any(isinstance(result, RuntimeError) for result in asyncio.run(schedule_three()))
+
+    assert len(mixin._bg_embedding_semaphores) == 2
