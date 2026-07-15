@@ -6,6 +6,7 @@ mocking for LangGraph-dependent paths.
 """
 
 import asyncio
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -420,11 +421,14 @@ class TestGlobalCacheStats:
 
 
 class TestExecuteWorkflow:
-    def test_execute_returns_accepted_with_thread_and_stream_url(self, client, db):
+    @pytest.mark.parametrize("selected_doc_id", ["folder-id", "image-id"])
+    def test_execute_returns_accepted_with_thread_and_stream_url(
+        self, client, db, selected_doc_id
+    ):
         wf = _make_workflow(db, "Gate Workflow")
         payload = {
             "workflow_id": wf.id,
-            "inputs": {"selected_doc_ids": ["doc-1"]},
+            "inputs": {"selected_doc_ids": [selected_doc_id]},
         }
 
         # Keep the route hermetic WITHOUT breaking the event loop. The earlier
@@ -475,7 +479,7 @@ class TestExecuteWorkflow:
         assert run.workflow_id == wf.id
         assert run.workflow_name == "Gate Workflow"
         assert run.status == "accepted"
-        assert run.workflow_snapshot["inputs"]["selected_doc_ids"] == ["doc-1"]
+        assert run.workflow_snapshot["inputs"]["selected_doc_ids"] == [selected_doc_id]
         # The route must have spawned a dedicated workflow worker thread (#1000).
         assert any(
             t.name.startswith("workflow-") for t in created_threads
@@ -516,7 +520,7 @@ class TestExecuteWorkflow:
             r = client.post("/api/workflow-execution/execute", json=payload)
         assert r.status_code == 404
 
-    def test_execute_rejects_empty_workflow(self, client, db):
+    def test_execute_rejects_empty_workflow(self, client, db, caplog):
         wf = Workflow(
             name="Empty Workflow",
             description="No nodes",
@@ -528,11 +532,15 @@ class TestExecuteWorkflow:
         db.save(wf)
         payload = {"workflow_id": wf.id, "inputs": {}}
 
-        r = client.post("/api/workflow-execution/execute", json=payload)
+        with caplog.at_level(
+            logging.WARNING, logger="fichero.api.routes.workflow_execution.core"
+        ):
+            r = client.post("/api/workflow-execution/execute", json=payload)
 
         assert r.status_code == 400
         assert "Workflow validation failed" in r.json()["detail"]
         assert "Workflow has no nodes" in r.json()["detail"]
+        assert "Workflow validation failed" in caplog.text
 
     def test_execute_rejects_unknown_tool(self, client, db):
         wf = _make_workflow(db, "Bad Tool Workflow")

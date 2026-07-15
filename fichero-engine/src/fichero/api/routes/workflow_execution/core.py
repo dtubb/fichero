@@ -117,9 +117,16 @@ def _validate_workflow_for_execution(workflow: Workflow) -> None:
             errors.append(str(exc))
 
     if errors:
+        detail = f"Workflow validation failed: {'; '.join(errors)}"
+        logger.warning(
+            "Workflow validation failed for id=%s name=%r: %s",
+            workflow.id,
+            workflow.name,
+            detail,
+        )
         raise HTTPException(
             status_code=400,
-            detail=f"Workflow validation failed: {'; '.join(errors)}",
+            detail=detail,
         )
 
 
