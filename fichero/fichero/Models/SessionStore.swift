@@ -87,17 +87,25 @@ final class SessionStore {
             currentUser = nil
             phase = .disabled
         default:
-            // 401 (no/expired session) or an inconclusive probe: decide between
-            // first-run owner setup and normal login using the account count.
-            // But first, ask `/auth/identity`: when multi-user is OFF the local
-            // bootstrap credential is already sufficient and the login wall must
-            // stay hidden even if `/auth/me` returns 401 (#3330).
-            let multiuserEnabled = await multiuserEnabled()
-            let accountsExist = await accountsExist()
+            // 401 (no/expired session) or an inconclusive probe. Ask
+            // `/api/auth/identity` (#3819): it reports whether multi-user is on
+            // AND whether the credential already resolves to a user. The engine
+            // bootstraps the local owner automatically, so on a fresh
+            // single-user install identity returns that owner under
+            // `auth_kind == "bootstrap"` even though `/auth/me` 401s — proceed
+            // as that owner, never a create-user wall. (When multi-user is OFF
+            // the credential is likewise sufficient, #3330.)
+            let identity = await identity()
+            let multiuserEnabled = identity?.multiuserEnabled
+            let identityUserResolved = identity?.user != nil
+            // The account-count probe only decides the owner-setup/login split
+            // when identity resolved *no* user, so skip it once it did.
+            let accountsExist = identityUserResolved ? nil : await accountsExist()
             phase = Self.resolvePhase(
                 meStatusCode: meCode,
                 accountsExist: accountsExist,
-                multiuserEnabled: multiuserEnabled
+                multiuserEnabled: multiuserEnabled,
+                identityUserResolved: identityUserResolved
             )
             if phase != .authenticated { currentUser = nil }
         }
@@ -108,15 +116,26 @@ final class SessionStore {
     /// account-count probe could not be resolved (e.g. a remote engine where
     /// the bootstrap path isn't available) — in that case we fail closed to the
     /// login screen rather than assuming a fresh install.
+    ///
+    /// `identityUserResolved` is true when `GET /api/auth/identity` resolved the
+    /// credential to a user (#3819). The engine bootstraps the local owner
+    /// automatically, so on a fresh single-user install identity returns that
+    /// owner (`auth_kind == "bootstrap"`) even though `/auth/me` 401s (the
+    /// bootstrap credential carries no *session* user). When identity resolves a
+    /// user we proceed as that owner — the create-owner/login wall must NEVER
+    /// fire just because no users row was pre-seeded. That wall exists only to
+    /// stop a library from 401/403ing when the credential resolves to nobody.
     nonisolated static func resolvePhase(
         meStatusCode: Int,
         accountsExist: Bool?,
-        multiuserEnabled: Bool? = nil
+        multiuserEnabled: Bool? = nil,
+        identityUserResolved: Bool = false
     ) -> Phase {
         switch meStatusCode {
         case 200: return .authenticated
         case 404: return .disabled
         case _ where multiuserEnabled == false: return .disabled
+        case _ where identityUserResolved: return .disabled
         default: return accountsExist == false ? .needsOwnerSetup : .needsLogin
         }
     }
@@ -268,12 +287,16 @@ final class SessionStore {
         }
     }
 
-    private func multiuserEnabled() async -> Bool? {
+    /// `GET /api/auth/identity` — reports multi-user state AND, when the
+    /// credential resolves to a user (including the auto-bootstrapped local
+    /// owner), that user. `nil` when the probe couldn't be resolved. See
+    /// `resolvePhase` for how the result gates first-run (#3819).
+    private func identity() async -> Components.Schemas.AuthIdentityResponse? {
         do {
             let response = try await client.api.identityApiAuthIdentityGet()
             switch response {
             case .ok(let ok):
-                return try ok.body.json.multiuserEnabled
+                return try ok.body.json
             case .undocumented:
                 return nil
             }

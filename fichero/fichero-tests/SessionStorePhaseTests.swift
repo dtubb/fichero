@@ -52,6 +52,44 @@ struct SessionStorePhaseTests {
         #expect(SessionStore.resolvePhase(meStatusCode: -1, accountsExist: nil) == .needsLogin)
     }
 
+    // MARK: - Identity-resolved owner / first-run bootstrap (#3819)
+
+    @Test("an identity-resolved user proceeds and never shows a create-user wall")
+    func identityResolvedUserProceeds() {
+        // `GET /api/auth/identity` resolved the credential to a user — on a
+        // fresh single-user install that's the auto-bootstrapped local owner
+        // (auth_kind == "bootstrap"), even though `/auth/me` 401s. Proceed as
+        // that owner regardless of whether a users row was pre-seeded.
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: 401,
+            accountsExist: false,
+            multiuserEnabled: true,
+            identityUserResolved: true
+        ) == .disabled)
+        // Existing-owner second launch: still resolves a user, still proceeds —
+        // no login wall the local owner has no password for.
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: 401,
+            accountsExist: true,
+            multiuserEnabled: true,
+            identityUserResolved: true
+        ) == .disabled)
+    }
+
+    @Test("no identity user with zero accounts still routes to owner setup (remote)")
+    func noIdentityUserKeepsRemoteWall() {
+        // identityUserResolved defaults false; when the credential resolves to
+        // nobody the wall still applies so a remote library never 401/403s.
+        #expect(SessionStore.resolvePhase(meStatusCode: 401, accountsExist: false) == .needsOwnerSetup)
+        #expect(SessionStore.resolvePhase(meStatusCode: 401, accountsExist: true) == .needsLogin)
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: 401,
+            accountsExist: false,
+            multiuserEnabled: true,
+            identityUserResolved: false
+        ) == .needsOwnerSetup)
+    }
+
     @Test("auth error messages never echo secrets and stay category-specific")
     func authErrorMessagesAreSafe() {
         let messages = [
