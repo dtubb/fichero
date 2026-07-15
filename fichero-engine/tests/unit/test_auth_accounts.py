@@ -91,6 +91,24 @@ def test_bootstrap_first_user_creates_owner(client, app_db, monkeypatch):
     assert app_db.get_user_by_username("owner").is_owner is True
 
 
+def test_fresh_local_bootstrap_identity_creates_owner_without_onboarding(
+    client, app_db, monkeypatch
+):
+    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+
+    response = client.get("/api/auth/identity", headers=_bearer(initialize_token()))
+
+    assert response.status_code == 200
+    assert response.json()["auth_kind"] == "bootstrap"
+    assert response.json()["user"] == {
+        "id": app_db.get_user_by_username("owner").id,
+        "username": "owner",
+        "display_name": "Owner",
+        "is_owner": True,
+    }
+    assert response.json()["is_owner_access"] is True
+
+
 def test_login_success_returns_session_and_me(client, app_db, monkeypatch):
     _enable_multiuser(monkeypatch)
     app_db.create_user(
