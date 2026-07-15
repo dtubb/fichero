@@ -11,7 +11,7 @@ extension AISettingsView {
                 Text("Force extraction into one language regardless of the source's own language. Auto detects per source.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Picker("Primary Language", selection: $defaults.primaryLanguage) {
+                Picker("Primary Language", selection: $store.defaults.primaryLanguage) {
                     Text("Auto (detect per source)").tag("")
                     Text("English").tag("en")
                     Text("Spanish").tag("es")
@@ -26,26 +26,26 @@ extension AISettingsView {
                 Text("Used by Summarize, Extract, and Classify tools.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $defaults.textProvider)
+                providerPicker(selection: $store.defaults.textProvider)
                 // tier:.text filters the dropdown to LLM-shaped models
                 // (excludes Apple Vision OCR / Apple Speech). (#940)
-                modelPicker(selection: $defaults.textModel, models: textModels, tier: .text)
+                modelPicker(selection: $store.defaults.textModel, models: textModels, tier: .text)
             }
 
             Section("Vision") {
                 Text("Used by Describe and Analyze tools for image understanding.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $defaults.visionProvider)
-                modelPicker(selection: $defaults.visionModel, models: visionModels, tier: .vision)
+                providerPicker(selection: $store.defaults.visionProvider)
+                modelPicker(selection: $store.defaults.visionModel, models: visionModels, tier: .vision)
             }
 
             Section("Audio") {
                 Text("Used by Transcription tools for speech-to-text.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $defaults.audioProvider)
-                modelPicker(selection: $defaults.audioModel, models: audioModels, tier: .audio)
+                providerPicker(selection: $store.defaults.audioProvider)
+                modelPicker(selection: $store.defaults.audioModel, models: audioModels, tier: .audio)
             }
 
             if featureManager.isWorkflowToolsVideoEnabled {
@@ -53,8 +53,8 @@ extension AISettingsView {
                     Text("Used by video analysis tools.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    providerPicker(selection: $defaults.videoProvider)
-                    modelPicker(selection: $defaults.videoModel, models: videoModels, tier: .vision)
+                    providerPicker(selection: $store.defaults.videoProvider)
+                    modelPicker(selection: $store.defaults.videoModel, models: videoModels, tier: .vision)
                 }
             }
 
@@ -68,10 +68,10 @@ extension AISettingsView {
                 Text(smallHelp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $defaults.smallProvider)
+                providerPicker(selection: $store.defaults.smallProvider)
                 // $small resolves a chat/completion LLM — filter to the
                 // text tier so OCR / transcription models can't be picked. (#1290)
-                modelPicker(selection: $defaults.smallModel, models: smallModels, tier: .text)
+                modelPicker(selection: $store.defaults.smallModel, models: smallModels, tier: .text)
             }
 
             Section("Default Medium Model ($medium)") {
@@ -82,8 +82,8 @@ extension AISettingsView {
                 Text(mediumHelp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $defaults.mediumProvider)
-                modelPicker(selection: $defaults.mediumModel, models: mediumModels, tier: .text)
+                providerPicker(selection: $store.defaults.mediumProvider)
+                modelPicker(selection: $store.defaults.mediumModel, models: mediumModels, tier: .text)
             }
 
             Section("Default Large Model ($large)") {
@@ -94,34 +94,34 @@ extension AISettingsView {
                 Text(largeHelp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $defaults.largeProvider)
+                providerPicker(selection: $store.defaults.largeProvider)
                 // $large resolves a frontier chat LLM — filter to the
                 // text tier so OCR / transcription models can't be picked. (#1290)
-                modelPicker(selection: $defaults.largeModel, models: largeModels, tier: .text)
+                modelPicker(selection: $store.defaults.largeModel, models: largeModels, tier: .text)
             }
 
             Section("Vision Small Model ($vision_small)") {
                 Text("Vision workflow nodes that declare $vision_small resolve to this fast image model.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $defaults.visionSmallProvider)
-                modelPicker(selection: $defaults.visionSmallModel, models: visionSmallModels, tier: .vision)
+                providerPicker(selection: $store.defaults.visionSmallProvider)
+                modelPicker(selection: $store.defaults.visionSmallModel, models: visionSmallModels, tier: .vision)
             }
 
             Section("Vision Medium Model ($vision_medium)") {
                 Text("Vision workflow nodes that declare $vision_medium resolve to this balanced image model.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $defaults.visionMediumProvider)
-                modelPicker(selection: $defaults.visionMediumModel, models: visionMediumModels, tier: .vision)
+                providerPicker(selection: $store.defaults.visionMediumProvider)
+                modelPicker(selection: $store.defaults.visionMediumModel, models: visionMediumModels, tier: .vision)
             }
 
             Section("Vision Large Model ($vision_large)") {
                 Text("Vision workflow nodes that declare $vision_large resolve to this frontier image model.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $defaults.visionLargeProvider)
-                modelPicker(selection: $defaults.visionLargeModel, models: visionLargeModels, tier: .vision)
+                providerPicker(selection: $store.defaults.visionLargeProvider)
+                modelPicker(selection: $store.defaults.visionLargeModel, models: visionLargeModels, tier: .vision)
             }
 
             Section {
@@ -133,7 +133,7 @@ extension AISettingsView {
                 .foregroundStyle(.secondary)
 
                 Button("Reset All Defaults", role: .destructive) {
-                    Task { await resetDefaults() }
+                    Task { await resetAll() }
                 }
             }
         }
@@ -143,59 +143,59 @@ extension AISettingsView {
         // default. Pre-fix, switching provider left the stale model
         // selected (which would 404 at runtime) and required
         // tab-away-and-back to refresh the picker. (#936)
-        .onChange(of: defaults.textProvider) { _, newValue in
+        .onChange(of: store.defaults.textProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $textModels, selecting: $defaults.textModel,
+                for: newValue, into: $textModels, selecting: $store.defaults.textModel,
                 )
         }
-        .onChange(of: defaults.visionProvider) { _, newValue in
+        .onChange(of: store.defaults.visionProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $visionModels, selecting: $defaults.visionModel,
+                for: newValue, into: $visionModels, selecting: $store.defaults.visionModel,
                 )
         }
-        .onChange(of: defaults.audioProvider) { _, newValue in
+        .onChange(of: store.defaults.audioProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $audioModels, selecting: $defaults.audioModel,
+                for: newValue, into: $audioModels, selecting: $store.defaults.audioModel,
                 )
         }
-        .onChange(of: defaults.videoProvider) { _, newValue in
+        .onChange(of: store.defaults.videoProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $videoModels, selecting: $defaults.videoModel,
+                for: newValue, into: $videoModels, selecting: $store.defaults.videoModel,
                 )
         }
-        .onChange(of: defaults.embeddingsProvider) { _, newValue in
+        .onChange(of: store.defaults.embeddingsProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $embeddingsModels, selecting: $defaults.embeddingsModel,
+                for: newValue, into: $embeddingsModels, selecting: $store.defaults.embeddingsModel,
                 )
         }
-        .onChange(of: defaults.smallProvider) { _, newValue in
+        .onChange(of: store.defaults.smallProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $smallModels, selecting: $defaults.smallModel,
+                for: newValue, into: $smallModels, selecting: $store.defaults.smallModel,
                 )
         }
-        .onChange(of: defaults.mediumProvider) { _, newValue in
+        .onChange(of: store.defaults.mediumProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $mediumModels, selecting: $defaults.mediumModel,
+                for: newValue, into: $mediumModels, selecting: $store.defaults.mediumModel,
                 )
         }
-        .onChange(of: defaults.largeProvider) { _, newValue in
+        .onChange(of: store.defaults.largeProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $largeModels, selecting: $defaults.largeModel,
+                for: newValue, into: $largeModels, selecting: $store.defaults.largeModel,
                 )
         }
-        .onChange(of: defaults.visionSmallProvider) { _, newValue in
+        .onChange(of: store.defaults.visionSmallProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $visionSmallModels, selecting: $defaults.visionSmallModel,
+                for: newValue, into: $visionSmallModels, selecting: $store.defaults.visionSmallModel,
                 )
         }
-        .onChange(of: defaults.visionMediumProvider) { _, newValue in
+        .onChange(of: store.defaults.visionMediumProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $visionMediumModels, selecting: $defaults.visionMediumModel,
+                for: newValue, into: $visionMediumModels, selecting: $store.defaults.visionMediumModel,
                 )
         }
-        .onChange(of: defaults.visionLargeProvider) { _, newValue in
+        .onChange(of: store.defaults.visionLargeProvider) { _, newValue in
             loadModelsResettingSelection(
-                for: newValue, into: $visionLargeModels, selecting: $defaults.visionLargeModel,
+                for: newValue, into: $visionLargeModels, selecting: $store.defaults.visionLargeModel,
                 )
         }
     }
@@ -228,12 +228,12 @@ extension AISettingsView {
                         .monospacedDigit()
                         .frame(width: 30)
                 }
-                TextField("Max Tokens", text: $defaults.maxTokens)
+                TextField("Max Tokens", text: $store.defaults.maxTokens)
                     .textFieldStyle(.roundedBorder)
             }
 
             Section("Prompt") {
-                TextField("Prompt Prefix (prepended to all prompts)", text: $defaults.promptPrefix, axis: .vertical)
+                TextField("Prompt Prefix (prepended to all prompts)", text: $store.defaults.promptPrefix, axis: .vertical)
                     .lineLimit(3...6)
             }
         }

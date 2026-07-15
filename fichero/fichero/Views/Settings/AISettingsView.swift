@@ -1,16 +1,21 @@
+import FicheroAPIClient
+import OSLog
 import SwiftUI
 
 // MARK: - AI Settings
 
 /// Settings for AI providers, defaults, and local model downloads.
+///
+/// The AI defaults (the persisted settings) live in an `@Observable`
+/// `AISettingsStore` this view OBSERVES — the view no longer owns that state or
+/// calls the endpoints itself (#3222 / observable-data-layer rule). The per-tier
+/// model-picker lists below are transient UI population derived from
+/// `store.defaults`; moving those into the store is a follow-up.
 struct AISettingsView: View {
     @Environment(AppState.self) var appState
     @ObservedObject var featureManager = FeatureManager.shared
 
-    @State var defaults = AIDefaults()
-    @State var isLoading = true
-    @State var isSaving = false
-    @State var errorMessage: String?
+    @State var store = AISettingsStore()
     @State private var selectedTab = AISettingsTab.defaults
 
     // Model lists per category
@@ -53,7 +58,7 @@ struct AISettingsView: View {
                     }
                 }
                 .formStyle(.grouped)
-            } else if isLoading {
+            } else if store.isLoading {
                 Form {
                     Section {
                         ProgressView("Loading defaults...")
@@ -88,7 +93,7 @@ struct AISettingsView: View {
                 }
             }
 
-            if let error = errorMessage {
+            if let error = store.errorMessage {
                 Text(error)
                     .foregroundStyle(.red)
                     .font(.caption)
@@ -98,16 +103,18 @@ struct AISettingsView: View {
         }
         .task {
             guard !Task.isCancelled else { return }
-            await loadDefaults()
+            store.attach(appState)
+            await store.load()
+            await loadModelLists()
         }
         .onChange(of: showsModelManagementTabs, initial: true) { _, isVisible in
             if !isVisible {
                 selectedTab = effectiveSelectedTab
             }
         }
-        .onChange(of: defaults) {
+        .onChange(of: store.defaults) {
             Task {
-                await saveDefaults()
+                await store.save()
             }
         }
     }
@@ -119,4 +126,105 @@ enum AISettingsTab: Hashable {
     case downloads
     case localLLM
     case advanced
+}
+
+// MARK: - AI Settings Store (#3222)
+
+/// The endpoints the AI-settings store needs. A protocol seam so the store is the
+/// only endpoint accessor (observable-data-layer rule) AND so its error-surfacing
+/// paths are testable with a fake that throws. `AppState` already implements every
+/// member, so it conforms retroactively.
+@MainActor
+protocol AIDefaultsProviding: AnyObject {
+    var providers: [Components.Schemas.ProviderResponse] { get }
+    func loadProviders() async
+    func fetchAIDefaults() async throws -> AIDefaults
+    func saveAIDefaults(_ defaults: AIDefaults) async throws
+    func resetAIDefaults() async throws
+}
+
+extension AppState: AIDefaultsProviding {}
+
+/// Observable store for the AI defaults settings (#3222). Owns the persisted
+/// `defaults`, the load/save/reset lifecycle, and — crucially — surfaces every
+/// failure as `errorMessage` instead of swallowing it. The first-launch
+/// Apple-Intelligence seed is persisted here too; a save failure there is reported,
+/// never shown as if it saved (the exact silent `try?` #3222 removed).
+@MainActor
+@Observable
+final class AISettingsStore {
+    /// The persisted defaults. Mutable so the pickers bind to it; a change triggers
+    /// `save()` from the view's `onChange`.
+    var defaults = AIDefaults()
+    private(set) var isLoading = true
+    private(set) var isSaving = false
+    private(set) var errorMessage: String?
+
+    private var endpoint: (any AIDefaultsProviding)?
+    private let log = Logger(subsystem: "app.fichero.fichero", category: "AISettings")
+
+    /// Bind the store to its endpoint accessor. Called from the view's `.task`
+    /// because `@Environment` isn't available at `@State` init.
+    func attach(_ endpoint: any AIDefaultsProviding) {
+        self.endpoint = endpoint
+    }
+
+    func load() async {
+        guard let endpoint else { return }
+        isLoading = true
+        defer { isLoading = false }
+
+        await endpoint.loadProviders()
+
+        do {
+            var loaded = try await endpoint.fetchAIDefaults()
+            let appleAvailable = endpoint.providers.contains { $0.providerType == "apple" }
+            let beforeSeed = loaded
+            loaded.seedAppleDefaultsIfNeeded(appleAvailable: appleAvailable)
+            defaults = loaded
+
+            if loaded != beforeSeed {
+                // Persist the seeded defaults; surface a failure instead of showing
+                // values that silently evaporate on next launch (#3222 /
+                // prefer-raise-over-silent-fallback). Never a silent `try?`.
+                do {
+                    try await endpoint.saveAIDefaults(loaded)
+                    errorMessage = nil
+                } catch {
+                    log.error("Failed to persist seeded Apple defaults: \(error.localizedDescription)")
+                    errorMessage = "Couldn't save the default AI models: \(error.localizedDescription)"
+                }
+            } else {
+                errorMessage = nil
+            }
+        } catch {
+            log.error("Failed to load AI defaults: \(error.localizedDescription)")
+            errorMessage = "Failed to load: \(error.localizedDescription)"
+        }
+    }
+
+    func save() async {
+        guard let endpoint, !isLoading else { return }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await endpoint.saveAIDefaults(defaults)
+            errorMessage = nil
+        } catch {
+            log.error("Failed to save AI defaults: \(error.localizedDescription)")
+            errorMessage = "Failed to save: \(error.localizedDescription)"
+        }
+    }
+
+    func reset() async {
+        guard let endpoint else { return }
+        do {
+            try await endpoint.resetAIDefaults()
+            defaults = AIDefaults()
+            errorMessage = nil
+        } catch {
+            log.error("Failed to reset AI defaults: \(error.localizedDescription)")
+            errorMessage = "Failed to reset: \(error.localizedDescription)"
+        }
+    }
 }
