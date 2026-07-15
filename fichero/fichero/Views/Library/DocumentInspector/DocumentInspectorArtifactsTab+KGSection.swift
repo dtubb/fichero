@@ -114,12 +114,14 @@ struct KnowledgeGraphInspectorSection: View {
         isApplyingBulkAction || isPruningTrivialClaims
     }
 
-    private var claimsById: [String: Components.Schemas.KnowledgeClaim] {
-        Dictionary(uniqueKeysWithValues: claims.compactMap { claim in
-            guard let id = claim.id else { return nil }
-            return (id, claim)
-        })
-    }
+    // Cached derivations of the grouping pipeline. Recomputed once per data change
+    // (`recomputeGrouped`) instead of on every render/selection click — the #2307
+    // anti-pattern this file still had (#3863). Mirrors the sibling EntitiesTab fix.
+    // Inputs: claims, canonicalGroups, hiddenKindsCSV.
+    @State private var claimsById: [String: Components.Schemas.KnowledgeClaim] = [:]
+    @State private var grouped: [(EntityKind, [GroupedItem])] = []
+    @State private var orderedClaimIds: [String] = []
+    @State private var textDigest: [(EntityKind, [TextDigestEntry])] = []
 
     private func setHidden(_ kind: EntityKind, hidden: Bool) {
         var set = hiddenKinds
@@ -127,21 +129,72 @@ struct KnowledgeGraphInspectorSection: View {
         hiddenKindsCSV = set.map(\.rawValue).sorted().joined(separator: ",")
     }
 
-    private var grouped: [(EntityKind, [GroupedItem])] {
+    /// The single grouping pass (#3863). Builds the claim lookup, the grouped +
+    /// sorted sections, the flat ordered-claim-id list, and the text digest (with
+    /// its markdown AttributedStrings pre-rendered) in ONE pass, into @State the
+    /// body reads. Runs on data change, not on every render/selection click.
+    private func recomputeGrouped() {
+        let byId = Dictionary(uniqueKeysWithValues: claims.compactMap { claim -> (String, Components.Schemas.KnowledgeClaim)? in
+            guard let id = claim.id else { return nil }
+            return (id, claim)
+        })
+        claimsById = byId
+
+        let groups = groupedSections(using: byId)
+        grouped = groups
+
+        orderedClaimIds = Self.orderedClaimIds(from: groups)
+
+        textDigest = groups.map { kind, items in
+            let entries = items.map { item -> TextDigestEntry in
+                // SwiftUI markdown bold for the entity name — rendered ONCE here, not
+                // per render inside the digest ForEach (#3863).
+                let raw = Self.digestMarkup(
+                    displayName: item.displayName,
+                    contexts: [item.context] + item.extraClaims.map(\.context)
+                )
+                let attributed = (try? AttributedString(markdown: raw)) ?? AttributedString(raw)
+                return TextDigestEntry(id: item.id, displayName: item.displayName, kind: kind, attributed: attributed)
+            }
+            return (kind, entries)
+        }
+    }
+
+    /// The flat claim-id order the selection/highlight code walks: each item's
+    /// primary claim followed by its extra claims, in section order. Pure so the
+    /// ordering invariant is testable independent of the view. (#3863)
+    static func orderedClaimIds(from groups: [(EntityKind, [GroupedItem])]) -> [String] {
+        groups.flatMap { _, items in
+            items.flatMap { item in [item.claimId] + item.extraClaims.map(\.claimId) }
+        }
+    }
+
+    /// The digest line's markdown: the entity name bolded, then its contexts joined
+    /// with "; ". Pure so the format is testable without rendering. (#3863)
+    static func digestMarkup(displayName: String, contexts: [String]) -> String {
+        "**\(displayName)** \(contexts.joined(separator: "; "))"
+    }
+
+    /// Build the visible, sorted `(kind, [GroupedItem])` sections from the canonical
+    /// groups + a claim lookup. Split out of `recomputeGrouped` for length; called
+    /// only from there.
+    private func groupedSections(
+        using byId: [String: Components.Schemas.KnowledgeClaim]
+    ) -> [(EntityKind, [GroupedItem])] {
         let hidden = hiddenKinds
         return canonicalGroups.compactMap { group -> (EntityKind, [GroupedItem])? in
             guard let kind = EntityKind(groupKind: group.kind), !hidden.contains(kind) else { return nil }
             var items: [GroupedItem] = []
             for item in group.items {
                 guard let firstClaimId = item.claimIds.first else { continue }
-                let firstClaim = claimsById[firstClaimId]
+                let firstClaim = byId[firstClaimId]
                 let primaryContext = (item.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 let excerpt = (item.sourceExcerpt ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 let context = !primaryContext.isEmpty
                     ? primaryContext
                     : (!excerpt.isEmpty ? excerpt : (firstClaim?.text ?? item.canonicalName))
                 let extraClaims: [GroupedItem.ExtraClaim] = item.claimIds.dropFirst().compactMap { claimId in
-                    let claim = claimsById[claimId]
+                    let claim = byId[claimId]
                     return GroupedItem.ExtraClaim(
                         claimId: claimId,
                         context: claim?.text ?? context,
@@ -176,14 +229,6 @@ struct KnowledgeGraphInspectorSection: View {
         }
     }
 
-    private var orderedClaimIds: [String] {
-        grouped.flatMap { _, items in
-            items.flatMap { item in
-                [item.claimId] + item.extraClaims.map(\.claimId)
-            }
-        }
-    }
-
     private var selectedClaims: [Components.Schemas.KnowledgeClaim] {
         orderedClaimIds.compactMap { claimId in
             guard claimSelection.contains(claimId) else { return nil }
@@ -197,8 +242,8 @@ struct KnowledgeGraphInspectorSection: View {
         let id: String
         let displayName: String
         let kind: EntityKind
-        // Each element is "verb objectPhrase" or bare claim text.
-        let svoLines: [String]
+        // The bold-name markdown rendered once in `recomputeGrouped`, not per render.
+        let attributed: AttributedString
     }
 
     private struct EntityAccumulator {
@@ -207,19 +252,17 @@ struct KnowledgeGraphInspectorSection: View {
         var svoLines: [String]
     }
 
-    private var textDigest: [(EntityKind, [TextDigestEntry])] {
-        grouped.map { kind, items in
-            let entries = items.map { item in
-                let lines = [item.context] + item.extraClaims.map(\.context)
-                return TextDigestEntry(
-                    id: item.id,
-                    displayName: item.displayName,
-                    kind: kind,
-                    svoLines: lines
-                )
-            }
-            return (kind, entries)
-        }
+    /// A claim paired with its NON-optional id, so merge menus can `ForEach` over
+    /// `\.id` without a body-side `filter { $0.id != nil }` or optional identity.
+    private struct IdentifiedClaim: Identifiable {
+        let id: String
+        let claim: Components.Schemas.KnowledgeClaim
+    }
+
+    private func identifiedClaims(
+        from claims: [Components.Schemas.KnowledgeClaim]
+    ) -> [IdentifiedClaim] {
+        claims.compactMap { claim in claim.id.map { IdentifiedClaim(id: $0, claim: claim) } }
     }
 
     // MARK: - Text digest view
@@ -242,18 +285,10 @@ struct KnowledgeGraphInspectorSection: View {
                             .foregroundStyle(.secondary)
 
                         ForEach(entries) { entry in
-                            let prose = entry.svoLines.joined(separator: "; ")
-                            // SwiftUI markdown bold for the entity name.
-                            let raw = "**\(entry.displayName)** \(prose)"
-                            if let attributed = try? AttributedString(markdown: raw) {
-                                Text(attributed)
-                                    .font(bodyTextFont)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            } else {
-                                Text(raw)
-                                    .font(bodyTextFont)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
+                            // Pre-rendered in recomputeGrouped (#3863).
+                            Text(entry.attributed)
+                                .font(bodyTextFont)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
@@ -288,6 +323,14 @@ struct KnowledgeGraphInspectorSection: View {
         .onChange(of: claimStore.changeToken) {
             Task { await loadStatements() }
         }
+        // Regroup ONCE per data change, not per render (#3863). loadStatements sets
+        // claims + canonicalGroups (fed by .task + changeToken above); the filter is
+        // a client-side toggle. Reading @State grouped/orderedClaimIds/textDigest in
+        // the body then costs nothing.
+        .onAppear { recomputeGrouped() }
+        .onChange(of: canonicalGroups) { recomputeGrouped() }
+        .onChange(of: claims) { recomputeGrouped() }
+        .onChange(of: hiddenKindsCSV) { recomputeGrouped() }
         .alert(
             pendingMergePlan.map {
                 "Merge \($0.claimCount) claims into \"\($0.survivorName)\"?"
@@ -647,13 +690,15 @@ struct KnowledgeGraphInspectorSection: View {
         let canMerge = InspectorClaimBulkSelection.mergePlan(for: targetClaims) != nil
         return Menu {
             if canMerge {
-                ForEach(targetClaims.filter { $0.id != nil }, id: \.id) { claim in
-                    if let id = claim.id,
-                       let plan = InspectorClaimBulkSelection.mergePlan(
-                            for: targetClaims, survivorId: id) {
+                // Precompute the mergeable claims with NON-optional identity, off the
+                // view body: no per-render `.filter { $0.id != nil }` and no optional
+                // `id: \.id` (#3863).
+                ForEach(identifiedClaims(from: targetClaims)) { identified in
+                    if let plan = InspectorClaimBulkSelection.mergePlan(
+                        for: targetClaims, survivorId: identified.id) {
                         Button(mergeDestinationLabel(
-                            name: claim.displayMergeName,
-                            isRecommended: id == recommendedId
+                            name: identified.claim.displayMergeName,
+                            isRecommended: identified.id == recommendedId
                         )) {
                             pendingMergePlan = plan
                         }
