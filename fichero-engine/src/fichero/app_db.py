@@ -247,6 +247,7 @@ class AppDatabase:
                 token_hash VARCHAR NOT NULL UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 expires_at TIMESTAMP NOT NULL,
+                channel VARCHAR NOT NULL DEFAULT 'qr',
                 consumed_at TIMESTAMP,
                 revoked BOOLEAN DEFAULT FALSE
             )
@@ -286,6 +287,14 @@ class AppDatabase:
             # process dies before the next checkpoint the WAL is poisoned and every
             # restart crashes natively. CHECKPOINT here keeps the migration durable
             # and out of the recovery WAL. See app-db migration incident 2026-06-12.
+            self.conn.execute("CHECKPOINT")
+
+        _invite_cols = {
+            row[1] for row in self.conn.execute("PRAGMA table_info(invites)").fetchall()
+        }
+        if "channel" not in _invite_cols:
+            self.conn.execute("ALTER TABLE invites ADD COLUMN channel VARCHAR DEFAULT 'qr'")
+            self.conn.execute("UPDATE invites SET channel = 'qr' WHERE channel IS NULL")
             self.conn.execute("CHECKPOINT")
 
         # Per-library ACL tables (global identity scope, not per-library DB).
@@ -1482,6 +1491,7 @@ class AppDatabase:
         username: str,
         display_name: str,
         token_hash: str,
+        channel: str,
         ttl: timedelta,
     ) -> AccountInvite:
         """Insert a new invite row and return the typed record."""
@@ -1492,15 +1502,16 @@ class AppDatabase:
             token_hash=token_hash,
             created_at=now,
             expires_at=now + ttl,
+            channel=channel,
         )
         with self._lock:
             self.conn.execute(
                 """
                 INSERT INTO invites (
                     id, username, display_name, token_hash,
-                    created_at, expires_at, consumed_at, revoked
+                    created_at, expires_at, channel, consumed_at, revoked
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     invite.id,
@@ -1509,6 +1520,7 @@ class AppDatabase:
                     invite.token_hash,
                     invite.created_at,
                     invite.expires_at,
+                    invite.channel,
                     invite.consumed_at,
                     invite.revoked,
                 ],
@@ -1524,8 +1536,9 @@ class AppDatabase:
             token_hash=row[3],
             created_at=row[4],
             expires_at=row[5],
-            consumed_at=row[6],
-            revoked=row[7],
+            channel=row[6],
+            consumed_at=row[7],
+            revoked=row[8],
         )
 
     def get_invite(self, invite_id: str) -> AccountInvite | None:
@@ -1534,7 +1547,7 @@ class AppDatabase:
             result = self.conn.execute(
                 """
                 SELECT id, username, display_name, token_hash,
-                       created_at, expires_at, consumed_at, revoked
+                       created_at, expires_at, channel, consumed_at, revoked
                 FROM invites
                 WHERE id = ?
                 """,
@@ -1548,7 +1561,7 @@ class AppDatabase:
             result = self.conn.execute(
                 """
                 SELECT id, username, display_name, token_hash,
-                       created_at, expires_at, consumed_at, revoked
+                       created_at, expires_at, channel, consumed_at, revoked
                 FROM invites
                 WHERE token_hash = ?
                 """,
@@ -1563,7 +1576,7 @@ class AppDatabase:
             rows = self.conn.execute(
                 """
                 SELECT id, username, display_name, token_hash,
-                       created_at, expires_at, consumed_at, revoked
+                       created_at, expires_at, channel, consumed_at, revoked
                 FROM invites
                 WHERE revoked = FALSE AND consumed_at IS NULL AND expires_at > ?
                 ORDER BY created_at DESC, username
@@ -1579,7 +1592,7 @@ class AppDatabase:
             result = self.conn.execute(
                 """
                 SELECT id, username, display_name, token_hash,
-                       created_at, expires_at, consumed_at, revoked
+                       created_at, expires_at, channel, consumed_at, revoked
                 FROM invites
                 WHERE username = ? AND revoked = FALSE AND consumed_at IS NULL AND expires_at > ?
                 ORDER BY created_at DESC

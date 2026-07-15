@@ -12,6 +12,7 @@ import os
 from datetime import datetime, timedelta
 from functools import cache
 import sys
+from typing import Literal
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -21,7 +22,7 @@ from pydantic import BaseModel, Field
 from fichero import accounts
 from fichero.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero.app_db import AppDatabase, get_app_db
-from fichero.models import AccountInvite, AccountUser, AuthIdentityResponse, AuthIdentityUser
+from fichero.models import AccountInvite, AccountUser, ActionAudit, AuthIdentityResponse, AuthIdentityUser
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ SESSION_TTL = timedelta(days=30)
 LOGIN_RATE_LIMIT = 5
 LOGIN_RATE_WINDOW = timedelta(minutes=1)
 INVITE_TTL = timedelta(minutes=15)
+EMAIL_INVITE_TTL = timedelta(days=1)
 INVITE_RATE_LIMIT = 5
 INVITE_RATE_WINDOW = timedelta(minutes=1)
 
@@ -104,6 +106,7 @@ class SessionListResponse(BaseModel):
 class InviteRequest(BaseModel):
     username: str = Field(min_length=1)
     display_name: str | None = Field(default=None, min_length=1)
+    channel: Literal["qr", "messages", "email"] = "qr"
 
 
 class InviteRedeemRequest(BaseModel):
@@ -117,6 +120,7 @@ class InviteResponse(BaseModel):
     display_name: str
     created_at: datetime
     expires_at: datetime
+    channel: Literal["qr", "messages", "email"]
 
 
 class InviteListResponse(BaseModel):
@@ -368,6 +372,7 @@ def _invite_response(invite: AccountInvite) -> InviteResponse:
         display_name=invite.display_name,
         created_at=invite.created_at,
         expires_at=invite.expires_at,
+        channel=invite.channel,
     )
 
 
@@ -499,7 +504,8 @@ def create_invite(
         username=username,
         display_name=display_name,
         token_hash=accounts.hash_token(raw_token),
-        ttl=INVITE_TTL,
+        channel=body.channel,
+        ttl=EMAIL_INVITE_TTL if body.channel == "email" else INVITE_TTL,
     )
     return InviteMintResponse(
         invite=_invite_response(invite),
@@ -554,6 +560,16 @@ def redeem_invite(
         ttl=SESSION_TTL,
     )
     app_db.consume_invite(invite.id, when=now)
+    app_db.save_action_audit(
+        ActionAudit(
+            action_name="invite.redeemed",
+            actor=f"invite:{invite.id}",
+            target_ids=[invite.id],
+            params={"username": invite.username, "channel": invite.channel},
+            created_at=now,
+        )
+    )
+    logger.warning("Invite redeemed for %s via %s", invite.username, invite.channel)
     return LoginResponse(session_token=raw_session_token, user=_to_public_user(user))
 
 
