@@ -47,6 +47,10 @@ struct LibraryView: View {
     var onToolbarSearchSubmit: (String) -> Void = { _ in }
 
     @State var searchText: String = ""
+    /// Precomputed lowercased ⌘F search keys per docId (#3865). Rebuilt only when
+    /// the document set changes, so keystroke filtering is a dict lookup, not a
+    /// fresh full-OCR scan. See `rebuildDocumentSearchKeys`.
+    @State var documentSearchKeys: [String: String] = [:]
     /// Bottom-bar file import presenter (#2313).
     @State var showingFileImporter = false
     @FocusState var filterFieldFocused: Bool
@@ -465,8 +469,15 @@ struct LibraryView: View {
             .onChange(of: scopedLibraryReference?.activityStore.backendWork) { _, _ in
                 refreshPendingStatusesFromLiveUpdate()
             }
-            .onChange(of: searchText) { _, _ in
-                recomputeFiltered()
+            // Debounce ⌘F keystrokes (#3865): `.task(id:)` cancels the pending
+            // task per keystroke → filter runs once after a ~200ms pause, not per
+            // key. Empty query (clear) applies instantly; reuses the current index.
+            .task(id: searchText) {
+                if !searchText.isEmpty {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    if Task.isCancelled { return }
+                }
+                recomputeFiltered(rebuildIndex: false)
             }
             .onChange(of: folderId) { _, newId in
                 loadSortSettings(for: newId)
