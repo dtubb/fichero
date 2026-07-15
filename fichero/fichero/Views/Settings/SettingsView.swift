@@ -49,17 +49,16 @@ struct SettingsView: View {
                 }
 
                 Section("Engine & Access") {
-                    // Engine group (#3396): Backend folded in as a sub-section.
-                    if featureManager.isSettingsEngineTabEnabled || featureManager.isSettingsBackendTabEnabled {
+                    // Engine (multi-user toggle, restart, stats) + Library Access
+                    // (People / Devices+QR / Capture) hold real, keepable capabilities.
+                    // Their EXISTENCE must not hang off per-feature migration flags —
+                    // those are `.alpha`-tier, so both vanished for beta testers, which
+                    // is why Daniel had "nowhere to turn on the qrcode" and no way to
+                    // enable multi-user to share with people (#3811/#3776). Reachable
+                    // for internal + tester builds; still hidden in release until the
+                    // fail-closed engine-refusal P0 lands (#3776).
+                    if Self.showsTesterSettingsPane(tier: featureManager.activeBuildTier) {
                         row(.engine, "Engine", "square.grid.3x1.below.line.grid.1x2")
-                    }
-                    // Library Access group (#3396): People + Devices (pairing/QR) +
-                    // Capture. Its EXISTENCE must not hang off per-feature migration
-                    // flags — the sharing/QR pane is `.alpha`-tier, so it vanished for
-                    // beta testers and Daniel had "nowhere to turn on the qrcode"
-                    // (#3811/#3776). Show it to internal + tester builds; still hidden
-                    // in release until the fail-closed engine-refusal P0 lands (#3776).
-                    if Self.showsLibraryAccessSettings(tier: featureManager.activeBuildTier) {
                         row(.connect, "Library Access", "lock.shield")
                     }
                 }
@@ -89,14 +88,17 @@ struct SettingsView: View {
         Label(title, systemImage: symbol).tag(tab)
     }
 
-    /// Whether the Library Access pane (People / Devices+QR / Capture) is reachable
-    /// in this build. It holds real, keepable capabilities, so its existence must
-    /// NOT depend on a per-feature migration flag — the `.alpha`-tier
-    /// `settings_share_tab` flag hid the QR from beta testers, which is the whole of
-    /// #3811 ("nowhere to turn on the qrcode"). Visible to internal + tester builds;
+    /// Whether the Engine & Access panes (Engine/Backend and Library Access —
+    /// People / Devices+QR / Capture) are reachable in this build. They hold real,
+    /// keepable capabilities (the multi-user toggle, device pairing + QR, users),
+    /// so their existence must NOT depend on a per-feature migration flag — those
+    /// flags are `.alpha`-tier, so in a beta build the sharing/QR pane vanished and
+    /// Daniel had "nowhere to turn on the qrcode" (and no way to enable multi-user
+    /// to share with people) — #3811/#3776. Reachable in internal + tester builds;
     /// still hidden in release until the fail-closed engine-refusal P0 is verified
-    /// (#3776). When that lands, this gate goes too and the pane is simply always on.
-    static func showsLibraryAccessSettings(tier: FeatureTier) -> Bool {
+    /// (#3776). When that lands, this gate goes too and the panes are simply always
+    /// on — turning a capability on is one action, never "enable the subsystem first".
+    static func showsTesterSettingsPane(tier: FeatureTier) -> Bool {
         tier != .release
     }
 
@@ -309,19 +311,17 @@ private enum EngineGroupSection: String, CaseIterable, SettingsGroupSection {
 /// Engine tab (#3396): folds the former Backend tab in as a sub-section. Reuses
 /// EngineSettingsView + BackendSettingsView unchanged.
 private struct EngineGroupSettingsView: View {
-    /// Injected by the Settings scene (#3033/#3034) — the panes must not reach
-    /// for the singleton themselves. @EnvironmentObject, not @Environment:
-    /// FeatureManager is @AppStorage-backed and so must stay an
-    /// ObservableObject until #3743 re-backs its flags on UserDefaults.
-    @EnvironmentObject private var featureManager: FeatureManager
     @State private var selection: EngineGroupSection = .engine
 
     private var availableSections: [EngineGroupSection] {
+        // Engine + Backend are real capabilities; their existence no longer hangs
+        // off per-feature migration flags (#3811/#3776). The sidebar row gate
+        // (`SettingsView.showsTesterSettingsPane`) decides reachability per build.
         var sections: [EngineGroupSection] = []
         #if canImport(AppKit)
-        if featureManager.isSettingsEngineTabEnabled { sections.append(.engine) }
+        sections.append(.engine)
         #endif
-        if featureManager.isSettingsBackendTabEnabled { sections.append(.backend) }
+        sections.append(.backend)
         return sections
     }
 
