@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import XCTest
 
@@ -68,6 +69,61 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("documentService.getRoots()"))
         XCTAssertFalse(source.contains("api.get(\"/documents\""))
         XCTAssertFalse(source.contains("api.post(\"/documents\""))
+    }
+
+    // MARK: - Batch library-item column metadata (#3758)
+
+    /// Test seam: a DocumentStore whose generated client is bound to a stubbed
+    /// URLProtocol session, so `libraryItemColumns` exercises the real
+    /// request/response mapping without a live engine.
+    private static func makeStubbedStore() -> DocumentStore {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ColumnsStubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let client = FicheroClient(
+            baseURL: URL(string: "https://test.fichero")!,
+            libraryPath: "/tmp/test.fichero",
+            session: session
+        )
+        return DocumentStore(apiClient: APIClient(client: client))
+    }
+
+    func testLibraryItemColumnsReturnsRowsFromBackendThroughTheStore() async throws {
+        // The store is the only endpoint accessor: it POSTs the item ids and
+        // returns the parsed per-item rows.
+        ColumnsStubURLProtocol.handler = { request in
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/api/library-items/columns")
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data(#"{"items":[{"item_id":"a"},{"item_id":"b"}]}"#.utf8))
+        }
+        defer { ColumnsStubURLProtocol.handler = nil }
+
+        let store = Self.makeStubbedStore()
+        let rows = try await store.libraryItemColumns(itemIds: ["a", "b"])
+
+        XCTAssertEqual(rows.map(\.itemId), ["a", "b"])
+    }
+
+    func testLibraryItemColumnsShortCircuitsOnEmptyInputWithoutHittingTheNetwork() async throws {
+        // Empty input must not reach the backend (it would just echo an empty
+        // set anyway) — the store returns [] directly.
+        ColumnsStubURLProtocol.handler = { request in
+            XCTFail("empty item ids must not hit the network")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"items":[]}"#.utf8))
+        }
+        defer { ColumnsStubURLProtocol.handler = nil }
+
+        let store = Self.makeStubbedStore()
+        let rows = try await store.libraryItemColumns(itemIds: [])
+
+        XCTAssertTrue(rows.isEmpty)
     }
 
     // MARK: - AppViewMode.category
@@ -512,5 +568,32 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             createdAt: Date(), updatedAt: Date()
         )
     }
+}
+
+/// File-local URLProtocol stub for the batch-column-metadata store tests
+/// (#3758). A dedicated class — not the shared `MockURLProtocol` — so its
+/// static handler can never collide with another suite running in parallel.
+private final class ColumnsStubURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }
 // swiftlint:enable file_length
