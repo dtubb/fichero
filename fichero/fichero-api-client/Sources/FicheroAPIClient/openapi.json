@@ -12722,6 +12722,48 @@
         }
       }
     },
+    "/api/registry/attach-bookmark": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Attach Library Bookmark",
+        "description": "Persist a host bookmark and open its library in the running engine.\n\nThe caller must have already granted this process file access.  A failure\nto open the live database is returned to the caller, never hidden behind a\nsuccessful registry record.",
+        "operationId": "attach_library_bookmark_api_registry_attach_bookmark_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachLibraryBookmarkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnownLibrary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/registry/update-access": {
       "post": {
         "tags": [
@@ -35944,6 +35986,31 @@
         "title": "ArtifactUpdate",
         "description": "Request to update an artifact's editable fields. Used by the V2\ninspector's per-panel edit. Only `content` is editable today; provider,\nmodel, version etc. are immutable provenance and stay set by the tool\nthat produced them."
       },
+      "AttachLibraryBookmarkRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          },
+          "bookmark": {
+            "type": "string",
+            "nullable": true,
+            "title": "Bookmark"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "AttachLibraryBookmarkRequest",
+        "description": "Attach a library selected after the engine has started.\n\n``bookmark`` is opaque host-owned data.  This process deliberately does\nnot resolve it or attempt to acquire macOS sandbox access from it."
+      },
       "AttachRequest": {
         "properties": {
           "text": {
@@ -48211,6 +48278,11 @@
             "type": "string",
             "nullable": true,
             "title": "Name"
+          },
+          "bookmark": {
+            "type": "string",
+            "nullable": true,
+            "title": "Bookmark"
           },
           "added_at": {
             "type": "string",

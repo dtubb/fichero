@@ -1673,6 +1673,9 @@ class KnownLibrary(BaseModel):
     id: str = Field(default_factory=_new_id)
     path: str  # Absolute path to .fichero package (unique constraint)
     name: str | None = None  # Optional display name (defaults to basename)
+    # Opaque host-owned security-scoped bookmark.  The engine persists it but
+    # never resolves it; macOS access grants belong to the sandbox host.
+    bookmark: str | None = None
 
     # Timestamps for CLI UX (sort by last_accessed for "recent" list)
     added_at: datetime = Field(default_factory=datetime.now)

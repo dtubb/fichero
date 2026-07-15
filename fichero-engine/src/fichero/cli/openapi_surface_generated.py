@@ -11060,6 +11060,29 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("attach-library-bookmark")
+    def registry_attach_library_bookmark_post(
+        ctx: typer.Context,
+        bookmark: Optional[str] = typer.Option(None, "--bookmark", help="Request field: bookmark."),
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        path: str = typer.Option(..., "--path", help="Request field: path."),
+    ) -> None:
+        """Attach Library Bookmark (POST /api/registry/attach-bookmark)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/registry/attach-bookmark"
+            params = None
+            payload = _build_json_payload({
+                "bookmark": bookmark,
+                "name": name,
+                "path": path,
+            }, {
+                "bookmark": {'type': 'string', 'nullable': True, 'title': 'Bookmark', 'x-cli-required': False},
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
+                "path": {'type': 'string', 'title': 'Path', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-open-libraries")
     def registry_list_open_libraries_get(
         ctx: typer.Context,

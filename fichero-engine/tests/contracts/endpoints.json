@@ -7668,6 +7668,16 @@
         "response_model": "KnownLibrary"
       },
       {
+        "method": "POST",
+        "path": "/registry/attach-bookmark",
+        "operation_id": "attach_library_bookmark_api_registry_attach_bookmark_post",
+        "summary": "Attach Library Bookmark",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AttachLibraryBookmarkRequest",
+        "response_model": "KnownLibrary"
+      },
+      {
         "method": "GET",
         "path": "/registry/open",
         "operation_id": "list_open_libraries_api_registry_open_get",

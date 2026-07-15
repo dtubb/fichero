@@ -13,6 +13,7 @@ Endpoints:
   GET /api/registry                 — List all known libraries
   GET /api/registry/open            — List live backend library handles
   POST /api/registry/add            — Add a library path to registry
+  POST /api/registry/attach-bookmark — Register and open a live library handle
   POST /api/registry/update-access  — Mark library as accessed (for sorting)
   DELETE /api/registry/{path}       — Remove from registry (idempotent)
 """
@@ -31,7 +32,7 @@ from urllib.parse import unquote
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.auth import actor_from_request
@@ -54,6 +55,20 @@ from fichero.storage import snapshot_library, settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class AttachLibraryBookmarkRequest(BaseModel):
+    """Attach a library selected after the engine has started.
+
+    ``bookmark`` is opaque host-owned data.  This process deliberately does
+    not resolve it or attempt to acquire macOS sandbox access from it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: str
+    name: str | None = None
+    bookmark: str | None = None
 
 
 def _escape_visible(value: str) -> str:
@@ -1002,6 +1017,64 @@ def add_known_library(
     except Exception as e:
         logger.error("Failed to add known library: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/registry/attach-bookmark", response_model=KnownLibrary)
+def attach_library_bookmark(
+    body: AttachLibraryBookmarkRequest,
+    db: Database = Depends(get_global_database),
+) -> KnownLibrary:
+    """Persist a host bookmark and open its library in the running engine.
+
+    The caller must have already granted this process file access.  A failure
+    to open the live database is returned to the caller, never hidden behind a
+    successful registry record.
+    """
+    normalized_path = nfc_path(body.path)
+    pkg_path = Path(normalized_path).expanduser()
+    if not pkg_path.is_absolute():
+        raise HTTPException(status_code=400, detail="Path must be absolute")
+    pkg_path = pkg_path.resolve()
+    if not pkg_path.exists():
+        raise HTTPException(status_code=400, detail=f"Path does not exist: {normalized_path}")
+    if not pkg_path.is_dir() or pkg_path.suffix != ".fichero":
+        raise HTTPException(
+            status_code=400,
+            detail="Path must be a .fichero package directory",
+        )
+
+    stored_path = nfc_path(str(pkg_path))
+    try:
+        # Open before persisting so a returned record always represents a live
+        # attach.  DatabaseManager makes repeated opens idempotent.
+        db_manager.get_database(stored_path)
+    except Exception as exc:
+        logger.error("Failed to open attached library %s: %s", pkg_path, exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to open library database: {exc}",
+        ) from exc
+
+    try:
+        existing = db.query(KnownLibrary, path=stored_path)
+        if existing:
+            library = existing[0]
+            library.last_accessed = datetime.now()
+            if body.name is not None:
+                library.name = nfc_path(body.name)
+            if body.bookmark is not None:
+                library.bookmark = body.bookmark
+        else:
+            library = KnownLibrary(
+                path=stored_path,
+                name=nfc_path(body.name) if body.name is not None else pkg_path.name,
+                bookmark=body.bookmark,
+            )
+        db.save(library)
+        return library
+    except Exception as exc:
+        logger.error("Failed to attach known library %s: %s", pkg_path, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/registry/update-access")
