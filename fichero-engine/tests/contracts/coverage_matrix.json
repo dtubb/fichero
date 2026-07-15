@@ -615,12 +615,12 @@
     },
     {
       "domain": "registry",
-      "total": 7,
+      "total": 8,
       "swiftui_wired": 3,
-      "swiftui_unwired": 4,
-      "swiftui_allowlisted": 4,
-      "swiftui_coverage": 0.4286,
-      "cli_wired": 7,
+      "swiftui_unwired": 5,
+      "swiftui_allowlisted": 5,
+      "swiftui_coverage": 0.375,
+      "cli_wired": 8,
       "cli_untested": 0,
       "cli_allowlisted": 0,
       "cli_coverage": 1.0

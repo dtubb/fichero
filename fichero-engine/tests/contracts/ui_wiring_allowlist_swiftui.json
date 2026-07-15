@@ -120,6 +120,7 @@
   "/api/projects/{project_id}/include/{inclusion_id}": "baseline: not yet wired",
   "/api/projects/{project_id}/items": "baseline: not yet wired",
   "/api/providers/apple-intelligence/probe": "baseline: not yet wired",
+  "/api/registry/attach-bookmark": "#3773 runtime library attach: engine endpoint lands first; SwiftUI host mint-and-transmit is the pending #3773 Swift half",
   "/api/registry/open": "baseline: registry open endpoint not yet wired",
   "/api/registry/unicode-collisions": "prompt-first mojibake collision surface (#3075) - frontend prompt/store follow-up still pending",
   "/api/registry/unicode-collisions/merge": "prompt-first mojibake merge-confirm surface (#3075) - frontend prompt/store follow-up still pending",

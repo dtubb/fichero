@@ -484,5 +484,8 @@
   "PUT /api/search/saved/{search_id}": "store missing",
   "PUT /api/settings/ai-defaults": "store missing",
   "PUT /api/settings/model-profiles/{profile_id}": "store missing - #2058 backend model-profile API; Settings UI/store wiring deferred",
-  "PUT /api/triggers/{trigger_id}": "store missing"
+  "PUT /api/triggers/{trigger_id}": "store missing",
+  "POST /api/pair/enroll": "store missing (#3789 zero-touch enrollment; SwiftUI wiring pending)",
+  "POST /api/registry/attach-bookmark": "store missing (#3773 runtime library attach; SwiftUI host mint+transmit pending)",
+  "DELETE /api/users/{user_id}": "store missing (#3859 owner delete-user; SwiftUI wiring pending)"
 }
