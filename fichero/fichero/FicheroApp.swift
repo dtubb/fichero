@@ -500,6 +500,7 @@ struct FicheroApp: App {
         // Single-instance `Window`, sized to its content.
         Window("About Fichero", id: "about") {
             AboutView()
+                .environment(appState)
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
