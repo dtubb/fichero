@@ -27,6 +27,9 @@ def test_python_module_help_imports_cleanly():
 
     assert result.returncode == 0, result.stderr
     assert "Fichero CLI" in result.stdout
+    # CLI surface must include the #3860 device-enrollment + user-management groups.
+    assert "pair" in result.stdout
+    assert "users" in result.stdout
 
 
 def test_python_module_entity_help_imports_cleanly():
