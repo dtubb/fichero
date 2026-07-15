@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Content
 
 /// Data loading modifiers (initial task + cache rebuilding)
 struct DataLoadingModifiers: ViewModifier {
-    @Environment(FeatureManager.self) private var featureManager
+    @EnvironmentObject private var featureManager: FeatureManager
     let documentStore: DocumentStore
     let workflowStore: WorkflowStore
     let conversationService: ConversationServiceGenerated

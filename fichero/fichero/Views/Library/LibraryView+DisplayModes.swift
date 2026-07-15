@@ -479,7 +479,9 @@ struct LibrarySelectableRow<Identity: Equatable, Content: View>: View, Equatable
     let tint: Color
     @ViewBuilder let content: Content
 
-    static func == (lhs: Self, rhs: Self) -> Bool {
+    // nonisolated: this View is implicitly @MainActor, but Equatable's `==` must be
+    // nonisolated (Swift 6). Safe — all compared properties are immutable value types.
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.identity == rhs.identity
             && lhs.isSelected == rhs.isSelected
             && lhs.tint == rhs.tint
