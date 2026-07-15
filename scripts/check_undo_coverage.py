@@ -37,6 +37,9 @@ UNDO_SOURCES = sorted(
 )
 KNOWN_GAPS = load_known_gaps(Path(__file__).with_name("check_undo_coverage_known_gaps.json"))
 REVERSE_MARKERS = ("undo", "rollback", "restore")
+NON_UNDO_MUTATIONS = {
+    "POST /api/sandbox/security-scoped-access": "process-local capability grant; no persisted user state",
+}
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,8 @@ def scan() -> list[Row]:
             if method.lower() not in {"post", "put", "patch", "delete"}:
                 continue
             endpoint = endpoint_key(method, path)
+            if endpoint in NON_UNDO_MUTATIONS:
+                continue
             evidence: tuple[str, ...] = tuple(
                 str(source.relative_to(ROOT))
                 for source in UNDO_SOURCES
