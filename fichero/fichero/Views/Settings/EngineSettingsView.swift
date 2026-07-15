@@ -39,8 +39,14 @@ struct EngineSettingsView: View {
                 }
 
                 LabeledContent("Multi-user mode") {
-                    Toggle("", isOn: $multiuserEnabled)
+                    Toggle("", isOn: multiuserBinding)
                         .labelsHidden()
+                        // Only the Mac hosting the library can change its multi-user
+                        // mode (the engine reads the flag at startup and we restart it
+                        // to apply). On a remote-connected Mac the switch would write a
+                        // local flag the host never sees — a silent no-op — so disable
+                        // it there instead of offering a dead control (#3776).
+                        .disabled(isRestarting || !EngineConfig.engineIsLocal)
                 }
 
                 Text(multiuserStatusDescription)
@@ -89,19 +95,35 @@ struct EngineSettingsView: View {
     /// desired setting the toggle writes, applied on the next engine restart.
     private var backendMultiuser: Bool { appState.identityStore.multiuserEnabled }
 
+    /// Flipping multi-user is ONE action. The engine reads this flag at startup, so
+    /// the app restarts its OWN engine to apply the change — the user does not press
+    /// a separate "Restart" to finish our lifecycle management (#3776). Off by
+    /// default; this does not make multi-user always-on and the engine's fail-closed
+    /// enforcement is unchanged. The `.task` alignment writes `multiuserEnabled`
+    /// directly, bypassing this setter, so opening Settings never restarts.
+    private var multiuserBinding: Binding<Bool> {
+        Binding(
+            get: { multiuserEnabled },
+            set: { newValue in
+                multiuserEnabled = newValue
+                // No-op if the engine already reflects the desired state.
+                guard newValue != backendMultiuser else { return }
+                Task { await restartEngine() }
+            }
+        )
+    }
+
     private var multiuserStatusDescription: String {
         guard appState.isBackendRunning else {
             return multiuserEnabled
-                ? "Multi-user will be enforced the next time the engine starts."
-                : "The engine will run without multi-user until you enable it."
+                ? "Multi-user will be enforced when the engine starts."
+                : "The engine runs without multi-user."
         }
-        let actual = backendMultiuser
+        // The toggle applies itself by restarting, so there is no "please restart"
+        // instruction to give — just report what the engine is doing now.
+        return backendMultiuser
             ? "The engine is enforcing per-library access."
             : "The engine is not enforcing per-library access."
-        guard multiuserEnabled != backendMultiuser else { return actual }
-        return actual + (multiuserEnabled
-            ? " Restart the engine to turn multi-user on."
-            : " Restart the engine to turn multi-user off.")
     }
 
     private func restartEngine() async {
@@ -114,6 +136,9 @@ struct EngineSettingsView: View {
             await appState.checkBackendHealth()
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
+            // Re-read the engine's real multi-user state so the status line and the
+            // toggle reflect what the restarted engine is actually enforcing (#3331).
+            await appState.identityStore.load()
         } catch {
             restartError = error.localizedDescription
         }
