@@ -172,6 +172,14 @@ class TestTaskQueue:
 
 
 class TestTaskExecution:
+    async def wait_for_completion(self, task_queue, task_id):
+        for _ in range(30):
+            task = await task_queue.get_task(task_id)
+            if task and task.status not in (TaskStatus.PENDING, TaskStatus.RUNNING):
+                return task
+            await asyncio.sleep(0.1)
+        return await task_queue.get_task(task_id)
+
     """Test suite for task execution."""
 
     @pytest.fixture
@@ -213,11 +221,7 @@ class TestTaskExecution:
 
         task = await task_queue.create_task(TaskType.REINDEX, "Empty Reindex")
 
-        # Wait for task to complete
-        await asyncio.sleep(0.5)
-
-        # Get updated task
-        updated = await task_queue.get_task(task.task_id)
+        updated = await self.wait_for_completion(task_queue, task.task_id)
         assert updated.status == TaskStatus.COMPLETED
         assert updated.result is not None
         assert updated.result.success is True
@@ -232,10 +236,7 @@ class TestTaskExecution:
 
         task = await task_queue.create_task(TaskType.METRICS, "Empty Metrics")
 
-        # Wait for task to complete
-        await asyncio.sleep(0.5)
-
-        updated = await task_queue.get_task(task.task_id)
+        updated = await self.wait_for_completion(task_queue, task.task_id)
         assert updated.status == TaskStatus.COMPLETED
         assert updated.result is not None
         assert updated.result.details["document_count"] == 0
@@ -245,10 +246,7 @@ class TestTaskExecution:
         """Test repair task completes successfully."""
         task = await task_queue.create_task(TaskType.REPAIR, "Repair Task")
 
-        # Wait for task to complete
-        await asyncio.sleep(0.5)
-
-        updated = await task_queue.get_task(task.task_id)
+        updated = await self.wait_for_completion(task_queue, task.task_id)
         assert updated.status == TaskStatus.COMPLETED
         assert updated.result.success is True
         assert updated.result.message  # any non-empty completion message
