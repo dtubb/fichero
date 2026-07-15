@@ -13,6 +13,43 @@ extension SidebarView {
         let activityItems: [SidebarItem]
     }
 
+    /// The header-derived buckets that only change when the library header is
+    /// rebuilt (#3862). Cached in `rebuildCaches` so the body stops re-filtering
+    /// `header.children` on every sidebar state change. The chain/schedule/
+    /// trigger buckets are NOT cached here — they're small @State maps that
+    /// mutate outside `rebuildCaches`, so they stay computed live.
+    struct CachedLibraryItemBuckets {
+        let documentItems: [SidebarItem]
+        let searchItems: [SidebarItem]
+        let workflowItems: [SidebarItem]
+    }
+
+    /// Filter a library header's children into the document / search / workflow
+    /// buckets. Pure over the header, so it can be memoised per library.
+    static func computeLibraryItemBuckets(from libraryHeader: SidebarItem) -> CachedLibraryItemBuckets {
+        let allChildren = libraryHeader.children ?? []
+        let documentItems = allChildren.filter { item in
+            if case .document = item.itemType { return true }
+            if case .folder = item.itemType, item.category == .folder { return true }
+            return false
+        }
+        let searchItems = allChildren.filter { item in
+            if case .savedSearch = item.itemType { return true }
+            if case .folder = item.itemType, item.category == .search { return true }
+            return false
+        }
+        let workflowItems = allChildren.filter { item in
+            if case .workflow = item.itemType { return true }
+            if case .folder = item.itemType, item.category == .workflow { return true }
+            return false
+        }
+        return CachedLibraryItemBuckets(
+            documentItems: documentItems,
+            searchItems: searchItems,
+            workflowItems: workflowItems
+        )
+    }
+
     @ViewBuilder
     func unifiedLibrarySection(_ libraryHeader: SidebarItem) -> some View {
         if let libraryId = libraryHeader.libraryId,
@@ -58,22 +95,18 @@ extension SidebarView {
         library: LibraryManager.LibraryReference,
         libraryId: UUID
     ) -> UnifiedLibraryBuckets {
-        let allChildren = libraryHeader.children ?? []
-        let documentItems = allChildren.filter { item in
-            if case .document = item.itemType { return true }
-            if case .folder = item.itemType, item.category == .folder { return true }
-            return false
-        }
-        let searchItems = allChildren.filter { item in
-            if case .savedSearch = item.itemType { return true }
-            if case .folder = item.itemType, item.category == .search { return true }
-            return false
-        }
-        let workflowItems = allChildren.filter { item in
-            if case .workflow = item.itemType { return true }
-            if case .folder = item.itemType, item.category == .workflow { return true }
-            return false
-        }
+        // Reuse the header-derived filtering cached by `rebuildCaches` (#3862);
+        // fall back to computing it for a header not yet cached (first render).
+        // While a search filter is active the passed header has FILTERED
+        // children, so bypass the (unfiltered) cache and compute from it — a
+        // rare, user-driven path, unlike the poll/scroll churn the cache targets.
+        let query = sidebarFilterText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let itemBuckets = query.isEmpty
+            ? (cachedLibraryItemBuckets[libraryId] ?? Self.computeLibraryItemBuckets(from: libraryHeader))
+            : Self.computeLibraryItemBuckets(from: libraryHeader)
+        let documentItems = itemBuckets.documentItems
+        let searchItems = itemBuckets.searchItems
+        let workflowItems = itemBuckets.workflowItems
         let isGlobalLibrary = libraryId == LibraryManager.globalLibraryId
         let chainItems = (isGlobalLibrary && FeatureManager.shared.isWorkflowChainsEnabled)
             ? chains.map { SidebarItem.fromChain($0, libraryId: libraryId) }

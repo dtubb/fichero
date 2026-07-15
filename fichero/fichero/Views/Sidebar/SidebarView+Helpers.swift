@@ -52,14 +52,54 @@ extension SidebarView {
 
     /// Rebuild all sidebar item caches from ALL libraries
     func rebuildCaches() {
-        cachedLibraryHeaders = libraryManager.openLibraries.map { buildLibraryHeader(for: $0) }
+        cachedLibraryHeaders = libraryManager.openLibraries.map { library in
+            let header = buildLibraryHeader(for: library)
+            cacheLibraryDerivedState(header: header, library: library)
+            return header
+        }
     }
 
     /// Rebuild one library header in place, preserving every other library snapshot.
     func rebuildCaches(for libraryId: UUID) {
         guard let library = libraryManager.getLibrary(id: libraryId) else { return }
         let header = buildLibraryHeader(for: library)
+        cacheLibraryDerivedState(header: header, library: library)
         cachedLibraryHeaders = sidebarReplacingLibraryHeader(cachedLibraryHeaders, with: header)
+    }
+
+    /// Recompute and store the per-library derived state that used to be redone
+    /// on every body eval / poll (#3862): the filtered item buckets (so the body
+    /// stops re-filtering `header.children`) and the tree signature (so the
+    /// documentStore observer can skip a no-op rebuild).
+    private func cacheLibraryDerivedState(header: SidebarItem, library: LibraryManager.LibraryReference) {
+        cachedLibraryItemBuckets[library.id] = Self.computeLibraryItemBuckets(from: header)
+        sidebarTreeSignatures[library.id] = sidebarTreeSignature(for: library)
+    }
+
+    /// Hash of ONLY the fields that shape the sidebar document tree (#3862).
+    /// Deliberately excludes per-doc processing status/content, so a status poll
+    /// that mutates `currentDocuments` (or a status override on `collections`)
+    /// does NOT force a whole-tree rebuild — the sidebar never renders status
+    /// (`SidebarItem.fromDocument` sets `showProgress: false`).
+    ///
+    /// `sidebarDocuments` is `collections + childrenCache.values` and dictionary
+    /// iteration order is unstable, so sort by id for a deterministic signature.
+    func sidebarTreeSignature(for library: LibraryManager.LibraryReference) -> Int {
+        var hasher = Hasher()
+        for doc in library.documentStore.sidebarDocuments.sorted(by: { $0.id < $1.id }) {
+            hasher.combine(doc.id)
+            hasher.combine(doc.parentId)
+            hasher.combine(doc.name)
+            hasher.combine(doc.sortOrder)
+            hasher.combine(doc.sequence)
+            hasher.combine(doc.docType)
+            hasher.combine(doc.fileType)
+            // Structure drives PDF outline rows; ids catch a re-parse that keeps
+            // the same count.
+            hasher.combine(doc.structure.count)
+            for node in doc.structure { hasher.combine(node.id) }
+        }
+        return hasher.finalize()
     }
 
     /// Recursively find an item by ID

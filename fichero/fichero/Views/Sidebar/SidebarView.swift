@@ -43,6 +43,13 @@ struct SidebarView: View {
 
     // Cached sidebar items - rebuilt when service data changes (via Combine observers)
     @State var cachedLibraryHeaders: [SidebarItem] = []
+    // #3862: last hash of ONLY the tree-shaping doc fields per library. Lets the
+    // documentStore observer skip a whole-tree rebuild when a status poll mutated
+    // currentDocuments/status but the sidebar structure is unchanged.
+    @State var sidebarTreeSignatures: [UUID: Int] = [:]
+    // #3862: header-derived, filtered item buckets cached per library so the body
+    // stops re-filtering `header.children` on every sidebar state change.
+    @State var cachedLibraryItemBuckets: [UUID: CachedLibraryItemBuckets] = [:]
     @State var sidebarFilterText = ""
 
     // Chain service for workflows sidebar (global - not per-library yet)
