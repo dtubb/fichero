@@ -109,6 +109,7 @@
   "/api/model-comparison/recommend-models": "#2204 backend model recommendation API; Settings/model-picker UI wiring tracked by #2116",
   "/api/notes/{note_id}/links": "baseline: not yet wired",
   "/api/notes/{note_id}/links/{link_id}": "baseline: not yet wired",
+  "/api/pair/enroll": "#3789 zero-touch enrollment is engine-only until the Swift keychain-sync pairing flow lands",
   "/api/policies/orchestration": "baseline: not yet wired",
   "/api/policies/orchestration/evaluate": "baseline: not yet wired",
   "/api/policies/orchestration/{rule_id}": "baseline: not yet wired",
