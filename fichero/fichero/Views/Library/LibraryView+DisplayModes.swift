@@ -256,16 +256,19 @@ extension LibraryView {
                     if isShowingEntitiesCollection {
                         ForEach(filteredEntities, id: \.stableInspectorId) { entity in
                             let entityId = entitySelectionId(for: entity)
-                            EntityRow(
-                                entity: entity,
-                                claimCount: entity.corroborationCount ?? 0,
-                                style: .browser
-                            )
+                            LibrarySelectableRow(
+                                identity: entity,
+                                isSelected: selection.contains(entityId),
+                                tint: selectionFill
+                            ) {
+                                EntityRow(
+                                    entity: entity,
+                                    claimCount: entity.corroborationCount ?? 0,
+                                    style: .browser
+                                )
+                            }
+                            .equatable()
                             .id(entityId)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(selection.contains(entityId) ? selectionFill : Color.clear)
-                            .contentShape(Rectangle())
                             .onTapGesture(count: 2) {
                                 handleEntityDoubleClick(entity)
                             }
@@ -278,20 +281,27 @@ extension LibraryView {
                         }
                     } else {
                         ForEach(filteredDocuments) { doc in
-                            MailStyleRow(
-                                document: doc,
+                            LibrarySelectableRow(
+                                // Identity must capture EVERYTHING the row content
+                                // renders from — the document AND which entity-type
+                                // tags are shown — so a filter change still re-renders
+                                // the row (isSelected/tint cover selection + focus).
+                                identity: DocRowIdentity(document: doc, visibleEntityTypes: listVisibleEntityTypes),
                                 isSelected: selection.contains(doc.id),
-                                visibleEntityTypes: listVisibleEntityTypes
-                            ) { tag in
-                                searchText = tag
-                                showFilterBar = true
+                                tint: selectionFill
+                            ) {
+                                MailStyleRow(
+                                    document: doc,
+                                    isSelected: selection.contains(doc.id),
+                                    visibleEntityTypes: listVisibleEntityTypes
+                                ) { tag in
+                                    searchText = tag
+                                    showFilterBar = true
+                                }
                             }
+                            .equatable()
                             .id(doc.id)
                             .draggable(libraryItemDrag(for: doc))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(selection.contains(doc.id) ? selectionFill : Color.clear)
-                            .contentShape(Rectangle())
                             .onTapGesture(count: 2) {
                                 handleDoubleClick(doc)
                             }
@@ -447,5 +457,40 @@ extension LibraryView {
         .help("Filter entity types shown")
     }
 
+}
+
+/// A list row whose selection tint is diffed by VALUE — the row's data `identity`,
+/// `isSelected`, and `tint` — not the whole selection `Set` (#3868). Marked
+/// `Equatable` and applied with `.equatable()` so one selection click only
+/// re-renders the rows whose selection actually changed; unchanged rows are skipped
+/// even though their content holds closures (which would otherwise defeat SwiftUI's
+/// field diffing). The tap / context-menu actions are applied OUTSIDE this wrapper,
+/// so they're excluded from `==` — safe because they act on the same `identity`.
+/// Everything a document list row renders from besides its selection state, so the
+/// `.equatable()` skip stays correct when the visible-tag filter changes (#3868).
+struct DocRowIdentity: Equatable {
+    let document: Document
+    let visibleEntityTypes: Set<String>
+}
+
+struct LibrarySelectableRow<Identity: Equatable, Content: View>: View, Equatable {
+    let identity: Identity
+    let isSelected: Bool
+    let tint: Color
+    @ViewBuilder let content: Content
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.identity == rhs.identity
+            && lhs.isSelected == rhs.isSelected
+            && lhs.tint == rhs.tint
+    }
+
+    var body: some View {
+        content
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(isSelected ? tint : Color.clear)
+            .contentShape(Rectangle())
+    }
 }
 // swiftlint:enable file_length
