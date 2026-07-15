@@ -59,4 +59,25 @@ final class ViewSettingsEnumsTests: XCTestCase {
         // would break the bridge.
         XCTAssertEqual(PreviewMode.allCases.count, PreviewLayout.allCases.count)
     }
+
+    // MARK: - TranscriptLayout (#3805)
+
+    /// Diplomatic must be the default: the manuscript's line structure is real data
+    /// and must never be lost silently (Daniel). Reading reflow is opt-in.
+    func testTranscriptLayoutDefaultsToDiplomatic() {
+        XCTAssertEqual(TranscriptLayout.defaultValue, .diplomatic)
+    }
+
+    /// Raw values are the persisted @AppStorage identity — a rename would silently
+    /// reset every user's choice, so pin them along with the stable storage key.
+    func testTranscriptLayoutRawValuesAndStorageKeyAreStable() {
+        XCTAssertEqual(TranscriptLayout.diplomatic.rawValue, "diplomatic")
+        XCTAssertEqual(TranscriptLayout.reading.rawValue, "reading")
+        XCTAssertEqual(TranscriptLayout.storageKey, "fichero.reader.transcriptLayout")
+        XCTAssertEqual(TranscriptLayout.allCases.count, 2)
+        for layout in TranscriptLayout.allCases {
+            XCTAssertFalse(layout.label.isEmpty, "\(layout) label")
+            XCTAssertEqual(layout.id, layout.rawValue)
+        }
+    }
 }
