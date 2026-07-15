@@ -54,6 +54,10 @@ def test_unicode_escapes(body, expected):
     assert expected in _strip_rtf(make_rtf(body))
 
 
+def test_ansicpg_multibyte_escapes():
+    assert "中文" in _strip_rtf(r"{\rtf1\ansi\ansicpg936 \'d6\'d0\'ce\'c4}")
+
+
 def test_word_with_multiple_accents():
     # "actu\'f3 como notario" → "actuó como notario"
     rtf = make_rtf(r"actu\'f3 como notario")
