@@ -1,3 +1,4 @@
+@testable import Fichero
 import XCTest
 
 /// Source-surface tests for the Library bottom action bar's mini-toolbar
@@ -42,6 +43,35 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
         XCTAssertTrue(pickerSource.contains("@Environment(LibraryManager.self) private var libraryManager"))
         XCTAssertTrue(pickerSource.contains("@Environment(WindowState.self) private var windowState"))
         XCTAssertTrue(pickerSource.contains("libraryManager.getLibrary(id: windowState.libraryId)"))
+    }
+
+    // MARK: - Run-Workflow library-context coherence (#3820)
+
+    func testWorkflowIsRunnableOnlyWhenPresentInExecutionLibrary() {
+        // A single library item's Run-Workflow menu must offer only workflows
+        // resolvable in the library it executes against — otherwise the engine
+        // 400s on an unknown workflow_id (the #3820 root cause).
+        let workflows = [
+            WorkflowSidebarItem(id: "wf-a", name: "Alpha"),
+            WorkflowSidebarItem(id: "wf-b", name: "Beta")
+        ]
+        XCTAssertTrue(LibraryView.workflowIsRunnable(workflowId: "wf-a", in: workflows))
+        XCTAssertTrue(LibraryView.workflowIsRunnable(workflowId: "wf-b", in: workflows))
+        // An id from a different library (or a stale menu) is refused, not sent.
+        XCTAssertFalse(LibraryView.workflowIsRunnable(workflowId: "wf-from-other-library", in: workflows))
+        XCTAssertFalse(LibraryView.workflowIsRunnable(workflowId: "wf-a", in: []))
+    }
+
+    func testRunBatchWorkflowExecutesThroughTheMenuSourceLibrary() throws {
+        // Locks the fix: both the menu list and the execution derive from the
+        // SAME reference (`activeLibraryReference` / its workflowStreamService),
+        // never the environment's shared service, so they can't diverge.
+        let source = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
+        XCTAssertTrue(source.contains("activeLibraryReference?.workflowStore.workflows"))
+        XCTAssertTrue(source.contains("guard let library = activeLibraryReference"))
+        XCTAssertTrue(source.contains("let stream = library.workflowStreamService"))
+        XCTAssertTrue(source.contains("try await stream.execute("))
+        XCTAssertTrue(source.contains("Self.workflowIsRunnable(workflowId: workflowId, in: workflows)"))
     }
 
     func testBatchWorkflowRefreshesDocumentsAsWorkflowStepsComplete() throws {

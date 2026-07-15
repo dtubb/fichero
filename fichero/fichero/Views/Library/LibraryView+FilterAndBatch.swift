@@ -25,8 +25,16 @@ extension LibraryView {
     }
 
     var libraryWorkflows: [WorkflowSidebarItem] {
-        let lib = libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
-        return lib?.workflowStore.workflows ?? []
+        // #3820 — source from the SAME reference the execution uses
+        // (`activeLibraryReference`), so the menu can never list a workflow the
+        // run would execute against a different library and 400 on.
+        activeLibraryReference?.workflowStore.workflows ?? []
+    }
+
+    /// A workflow id can only be run in the library it will execute against.
+    /// Pure so the guard in `runBatchWorkflow` is unit-testable (#3820).
+    static func workflowIsRunnable(workflowId: String, in workflows: [WorkflowSidebarItem]) -> Bool {
+        workflows.contains { $0.id == workflowId }
     }
 
     // MARK: - Filtered Documents
@@ -712,11 +720,27 @@ extension LibraryView {
         guard !selectedDocumentIdsForBatch.isEmpty else { return }
 
         let docIds = selectedDocumentIdsForBatch
-        let library = libraryManager.getLibrary(id: windowState.libraryId)
-        let activeWorkflows = library?.workflowStore.workflows
-        let workflowName = activeWorkflows?.first(where: { $0.id == workflowId })?.name
-            ?? libraryManager.globalLibrary?.workflowStore.workflows.first(where: { $0.id == workflowId })?.name
-            ?? workflowId
+        // #3820 — run through the SAME library reference that sourced the
+        // Run-Workflow menu (`libraryWorkflows` → `activeLibraryReference`), NOT
+        // the environment's shared WorkflowStreamService. When those diverged
+        // (the window's library vs. the global fallback), the menu offered a
+        // workflow_id unresolvable in the execution's library → engine 400 on
+        // single items. The sidebar path already binds list + execution to one
+        // library (which is why folders worked); mirror that here.
+        guard let library = activeLibraryReference else {
+            logger.error("runBatchWorkflow: no library reference — cannot run \(workflowId)")
+            return
+        }
+        let workflows = library.workflowStore.workflows
+        // Defensive: only send an id the execution library can resolve. With the
+        // coherent context above this holds by construction; the guard stops a
+        // stale menu from ever firing a doomed 400 request.
+        guard Self.workflowIsRunnable(workflowId: workflowId, in: workflows) else {
+            logger.error("runBatchWorkflow: \(workflowId) not in execution library — refusing to send")
+            return
+        }
+        let stream = library.workflowStreamService
+        let workflowName = workflows.first(where: { $0.id == workflowId })?.name ?? workflowId
 
         logger.info("Starting SSE workflow \(workflowId) on \(docIds.count) documents via context menu")
 
@@ -728,7 +752,7 @@ extension LibraryView {
         )
         var streamCompleted = false
         do {
-                let response = try await workflowStreamService.execute(
+                let response = try await stream.execute(
                     workflowId: workflowId,
                     inputs: ["selected_doc_ids": docIds],
                     providerOverride: providerOverride,
@@ -738,15 +762,15 @@ extension LibraryView {
                         executionObserver.promoteExecution(
                             from: executionThreadId,
                             to: threadId,
-                            onCancel: { [weak workflowStreamService] in
+                            onCancel: { [weak stream] in
                                 Task { @MainActor in
-                                    try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                                    try? await stream?.stopWorkflow(threadId: threadId)
                                 }
                             }
                         )
                         executionThreadId = threadId
                     },
-                    onEvent: { [weak documentStore = library?.documentStore] event in
+                    onEvent: { [weak documentStore = library.documentStore] event in
                     if handleBatchWorkflowEvent(
                         event,
                         threadId: executionThreadId,
