@@ -479,6 +479,7 @@ final class EmbeddedBackendService {
         }
         environment["FICHERO_FEATURE_TIER"] =
             FeatureManager.shared.activeBuildTier.environmentValue
+        environment["FICHERO_MULTIUSER"] = EngineConfig.multiuserEnabled ? "1" : "0"
         #if os(macOS)
         // Sandboxed (Mac App Store) engine: hand it the security-scoped bookmarks for
         // the user's libraries (#3747). A dynamic Powerbox grant does NOT inherit into

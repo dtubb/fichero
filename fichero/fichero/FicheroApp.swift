@@ -456,7 +456,7 @@ struct FicheroApp: App {
                     FocusedNewWorkflowButton()
                 }
 
-                if featureManager.allFeaturesEnabled {
+                if featureManager.allFeaturesEffectivelyEnabled {
                     FocusedNewComparisonButton()
                     FocusedNewChainButton()
                 }

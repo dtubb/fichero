@@ -19,27 +19,30 @@ final class FeatureManagerTests: XCTestCase {
 
     func testV001DefaultsDisableOffTierSurfaces() {
         let featureManager = FeatureManager.shared
-        featureManager.resetToV001()
 
-        // Enabled in v0.0.1
-        XCTAssertTrue(featureManager.isLibraryEnabled)
-        XCTAssertTrue(featureManager.isSearchEnabled)
-        XCTAssertTrue(featureManager.isWorkflowsEnabled)
-        XCTAssertTrue(featureManager.isWorkflowEditorAdvancedViewsEnabled)
-        XCTAssertTrue(featureManager.isActivityEnabled)
-        XCTAssertTrue(featureManager.isSettingsGeneralTabEnabled)
-        // Workflow execution surfaces promoted to release defaults (#252).
-        XCTAssertTrue(featureManager.isWorkflowImportExportEnabled)
-        XCTAssertTrue(featureManager.isWorkflowLangGraphPreviewEnabled)
-        XCTAssertTrue(featureManager.isWorkflowFilesToolbarButtonEnabled)
-        XCTAssertTrue(featureManager.isWorkflowRunOnSelectionEnabled)
+        withFeatureTier("release") {
+            featureManager.resetToV001()
 
-        // Batches promoted to v0.0.1 defaults alongside workflows.
-        XCTAssertTrue(featureManager.isBatchesEnabled)
+            // Enabled in v0.0.1
+            XCTAssertTrue(featureManager.isLibraryEnabled)
+            XCTAssertTrue(featureManager.isSearchEnabled)
+            XCTAssertTrue(featureManager.isWorkflowsEnabled)
+            XCTAssertTrue(featureManager.isWorkflowEditorAdvancedViewsEnabled)
+            XCTAssertTrue(featureManager.isActivityEnabled)
+            XCTAssertTrue(featureManager.isSettingsGeneralTabEnabled)
+            // Workflow execution surfaces promoted to release defaults (#252).
+            XCTAssertTrue(featureManager.isWorkflowImportExportEnabled)
+            XCTAssertTrue(featureManager.isWorkflowLangGraphPreviewEnabled)
+            XCTAssertTrue(featureManager.isWorkflowFilesToolbarButtonEnabled)
+            XCTAssertTrue(featureManager.isWorkflowRunOnSelectionEnabled)
 
-        // Disabled in v0.0.1
-        XCTAssertFalse(featureManager.isChatEnabled)
-        XCTAssertFalse(featureManager.isAutomationEnabled)
+            // Batches promoted to v0.0.1 defaults alongside workflows.
+            XCTAssertTrue(featureManager.isBatchesEnabled)
+
+            // Disabled in v0.0.1
+            XCTAssertFalse(featureManager.isChatEnabled)
+            XCTAssertFalse(featureManager.isAutomationEnabled)
+        }
     }
 
     func testAlphaBuildDefaultsExposeInternalReviewSettingsAndIntegrationSurfaces() {
@@ -56,6 +59,19 @@ final class FeatureManagerTests: XCTestCase {
             XCTAssertTrue(featureManager.isSettingsModelsTabEnabled)
             XCTAssertTrue(featureManager.isMCPEnabled)
             XCTAssertTrue(featureManager.isIntegrationsEnabled)
+        }
+    }
+
+    func testDevBuildExposesAllImplementedFeatures() {
+        let featureManager = FeatureManager.shared
+
+        withFeatureTier("dev") {
+            featureManager.resetToV001()
+
+            XCTAssertTrue(featureManager.allFeaturesEffectivelyEnabled)
+            XCTAssertTrue(featureManager.isChatEnabled)
+            XCTAssertTrue(featureManager.isAutomationEnabled)
+            XCTAssertTrue(featureManager.isWorkflowToolsAgentsEnabled)
         }
     }
 

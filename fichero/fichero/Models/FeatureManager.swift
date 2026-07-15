@@ -163,6 +163,11 @@ class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_len
         return .dev
     }
 
+    /// Development builds deliberately expose every implemented feature.
+    var allFeaturesEffectivelyEnabled: Bool {
+        allFeaturesEnabled || activeBuildTier == .dev
+    }
+
     @available(*, deprecated, message: "use activeBuildTier == .dev")
     static var isDevFeatureTier: Bool { shared.activeBuildTier == .dev }
 
@@ -171,7 +176,7 @@ class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_len
     }
 
     private func isEnabled(_ key: FeatureKey, _ enabled: Bool) -> Bool {
-        isVisible(key) && (allFeaturesEnabled || enabled)
+        isVisible(key) && (allFeaturesEffectivelyEnabled || enabled)
     }
 
     var isWorkflowsEnabled: Bool { isEnabled(.workflows, workflowsEnabledInternal) }
@@ -363,7 +368,7 @@ class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_len
     }
 
     func isWorkflowToolExplicitlyEnabled(_ toolName: String) -> Bool {
-        if allFeaturesEnabled {
+        if allFeaturesEffectivelyEnabled {
             return true
         }
         let normalized = normalizeWorkflowToolName(toolName)
