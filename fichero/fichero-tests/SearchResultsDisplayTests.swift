@@ -68,6 +68,41 @@ final class SearchResultsDisplayTests: XCTestCase {
         )
     }
 
+    // MARK: - KeywordCloudSizing (the hoisted, compute-once path — #3870)
+
+    func testKeywordCloudSizingMatchesPerCallFontSize() {
+        // The cloud-scanned range is computed ONCE; the result must match the old
+        // per-pill `fontSize(for:cloud:)` for every entry, so hoisting changed only
+        // cost, not behaviour.
+        let cloud: [KeywordCloudEntryDTO] = [
+            KeywordCloudEntryDTO(name: "a", count: 1),
+            KeywordCloudEntryDTO(name: "b", count: 5),
+            KeywordCloudEntryDTO(name: "c", count: 20)
+        ]
+        let sizing = KeywordCloudSizing(cloud: cloud)
+        for entry in cloud {
+            XCTAssertEqual(
+                sizing.fontSize(for: entry),
+                SearchResultsDisplay.fontSize(for: entry, cloud: cloud),
+                accuracy: 0.001
+            )
+        }
+        // And the endpoints clamp as documented.
+        XCTAssertEqual(sizing.fontSize(for: cloud[0]), 11)
+        XCTAssertEqual(sizing.fontSize(for: cloud[2]), 17)
+    }
+
+    func testKeywordCloudSizingDegenerateInputsFallBackTo12() {
+        // No spread → default 12; empty cloud → default 12.
+        let flat = [KeywordCloudEntryDTO(name: "x", count: 7), KeywordCloudEntryDTO(name: "y", count: 7)]
+        XCTAssertEqual(KeywordCloudSizing(cloud: flat).fontSize(for: flat[0]), 12)
+        let empty: [KeywordCloudEntryDTO] = []
+        XCTAssertEqual(
+            KeywordCloudSizing(cloud: empty).fontSize(for: KeywordCloudEntryDTO(name: "z", count: 1)),
+            12
+        )
+    }
+
     func testSavedSearchReplayRestoresSortAndSearchType() throws {
         let viewSource = try Self.appSource("Views/Search/SearchView.swift")
         let helperSource = try Self.appSource("Views/Search/SearchView+Helpers.swift")

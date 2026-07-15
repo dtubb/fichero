@@ -226,7 +226,7 @@ extension LibraryView {
 
     private func scheduleThumbnailPrefetch(around documentId: String) {
         guard !isShowingEntitiesCollection,
-              let index = filteredDocuments.firstIndex(where: { $0.id == documentId }) else { return }
+              let index = documentIndexById[documentId] else { return }
 
         let behind = max(gridColumnCount * 2, 8)
         let ahead = max(gridColumnCount * 8, 24)

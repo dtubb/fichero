@@ -184,9 +184,13 @@ struct LibraryView: View {
     // extension (a different file), so these must be at least internal to be visible there.
     @State var filteredDocuments: [Document] = []
     @State var filteredEntities: [Components.Schemas.KnowledgeEntity] = []
-    /// Stable key for .task(id:) in iconsView — updated inside recomputeFiltered()
-    /// to reset thumbnail prefetch state when the visible document set changes.
-    @State var thumbnailPrefetchKey: String = ""
+    /// Stable key for .onChange in iconsView — updated inside recomputeFiltered()
+    /// to reset thumbnail prefetch state when the visible document set changes. A
+    /// hash of the ids (Int), not a joined String of every id (#3870).
+    @State var thumbnailPrefetchKey: Int = 0
+    /// id → index in `filteredDocuments`, rebuilt in recomputeFiltered() so
+    /// prefetch scheduling is an O(1) lookup, not an O(n) firstIndex per cell (#3870).
+    @State var documentIndexById: [String: Int] = [:]
     @State var prefetchedThumbnailIds: Set<String> = []
     @State var thumbnailPrefetchTask: Task<Void, Never>?
 

@@ -71,6 +71,9 @@ struct SearchResultsEmptyState: View {
                             Text("Browse by keyword")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
+                            // Count range computed ONCE for the whole cloud, not
+                            // re-scanned per pill (#3870).
+                            let cloudSizing = KeywordCloudSizing(cloud: keywordCloud)
                             FlowLayout(spacing: 4) {
                                 ForEach(keywordCloud) { entry in
                                     Button {
@@ -78,7 +81,7 @@ struct SearchResultsEmptyState: View {
                                     } label: {
                                         Text(entry.name)
                                             .font(.system(
-                                                size: SearchResultsDisplay.fontSize(for: entry, cloud: keywordCloud)
+                                                size: cloudSizing.fontSize(for: entry)
                                             ))
                                             .padding(.horizontal, 10)
                                             .padding(.vertical, 4)
