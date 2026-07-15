@@ -488,13 +488,17 @@ extension ContentView {
     /// Extracted so it can be conditionally shown/hidden per-window (#1448).
     @ViewBuilder
     var widescreenReadingPane: some View {
+        // Compute the page count ONCE (#3866): reading `pdfDocPages` twice here
+        // (isEmpty + count) recomputed a filter+sort per read — 2x O(n log n) per
+        // render. The pane needs only the count, so use the sort-free accessor.
+        let pageCount = pdfDocPageCount
         // Each SplittablePane instance renders ReadingPaneView independently,
         // giving left and right split panes their own @State (including pin).
         adaptiveSplittablePane(storageKey: "reading") {
             ReadingPaneView(
                 liveDocument: detailDocument,
                 liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
-                livePageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
+                livePageCount: pageCount == 0 ? nil : pageCount,
                 scrollSync: documentScrollSync,
                 onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
                 onClose: { setPaneVisible(.reading, false) }

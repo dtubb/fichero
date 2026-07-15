@@ -64,11 +64,18 @@ extension ContentView {
         Self.pdfPageIndex(for: pageFocusDocument ?? detailDocument)
     }
 
-    /// Page-child documents for the previewed PDF, sorted by sequence.
-    var pdfDocPages: [Document] {
-        documentStore.currentDocuments
-            .filter { $0.docType == .page }
-            .sorted { ($0.sequence ?? 0) < ($1.sequence ?? 0) }
+    /// Number of page-child documents for the previewed PDF (#3866). The reading
+    /// pane needs only the COUNT, so this skips the O(n log n) filter+sort +
+    /// array allocation that the old `pdfDocPages` accessor cost — read twice per
+    /// render for `isEmpty ? nil : count`.
+    var pdfDocPageCount: Int {
+        Self.pdfDocPageCount(in: documentStore.currentDocuments)
+    }
+
+    /// Pure page-child count over a document set — no sort, no allocation
+    /// (`lazy`). Static so it's unit-testable without a ContentView. (#3866)
+    static func pdfDocPageCount(in documents: [Document]) -> Int {
+        documents.lazy.filter { $0.docType == .page }.count
     }
 
 }
