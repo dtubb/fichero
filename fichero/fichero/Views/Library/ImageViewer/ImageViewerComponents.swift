@@ -272,13 +272,28 @@ struct ZoomableImagePreview: View {
 
             readerToolbar
         }
-        .onAppear {
-            image = renderedImage ?? url.flatMap { NSImage(contentsOf: $0) }
-            if let img = image {
-                imageSize = img.size
-            } else if renderedImage == nil {
-                Self.logger.error("Failed to load NSImage from: \(url?.path ?? "<no url>")")
+        // Decode the overview image OFF the main thread (#3864). `.task(id: url)`
+        // reruns on every URL change and cancels the superseded load, so a fast
+        // page-flip never applies a stale decode; the render stays on the main
+        // thread only for the cheap NSImage wrap.
+        .task(id: url) {
+            if let renderedImage {
+                image = renderedImage
+                imageSize = renderedImage.size
+                return
             }
+            guard let url else { image = nil; return }
+            let cgImage = await decodeSDRCGImage(from: url)
+            guard !Task.isCancelled else { return }
+            if let cgImage {
+                let decoded = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+                image = decoded
+                imageSize = decoded.size
+            } else {
+                Self.logger.error("Failed to load NSImage from: \(url.path)")
+            }
+        }
+        .onAppear {
             if let key = scaleKey {
                 if let saved = loadSavedScale(for: key) {
                     scale = saved
@@ -293,18 +308,11 @@ struct ZoomableImagePreview: View {
         .onChange(of: annotationStore.changeToken) { _, _ in
             loadAnnotations()
         }
-        .onChange(of: url) { _, newURL in
-            image = renderedImage ?? newURL.flatMap { NSImage(contentsOf: $0) }
-            if let img = image {
-                imageSize = img.size
-            } else if renderedImage == nil {
-                Self.logger.error("Failed to load NSImage from: \(newURL?.path ?? "<no url>")")
-            }
-            // Restore saved zoom for this scaleKey if present. Otherwise
-            // leave scale untouched — the NSViewRepresentable's
-            // updateNSView handles fit-to-window in the same frame as the
-            // new image is set, so we don't go through a 1.0 intermediate
-            // that would flash at 100%. (#773)
+        .onChange(of: url) { _, _ in
+            // The image itself is (re)loaded off-main by `.task(id: url)` above.
+            // Restore saved zoom for this scaleKey if present. Otherwise leave scale
+            // untouched — the representable fits the new image in the same frame it
+            // arrives, so we don't flash through a 1.0 intermediate. (#773)
             if let key = scaleKey, let saved = loadSavedScale(for: key) {
                 scale = saved
             }
