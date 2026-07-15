@@ -519,6 +519,7 @@ class TestExecuteWorkflow:
         ):
             r = client.post("/api/workflow-execution/execute", json=payload)
         assert r.status_code == 404
+        assert r.json() == {"detail": "Workflow not found in this library: no-such-workflow"}
 
     def test_execute_rejects_empty_workflow(self, client, db, caplog):
         wf = Workflow(

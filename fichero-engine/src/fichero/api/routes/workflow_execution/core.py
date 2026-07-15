@@ -249,7 +249,8 @@ async def execute_workflow(
         workflow = store.get(request.workflow_id)
         if not workflow:
             raise HTTPException(
-                status_code=404, detail=f"Workflow not found: {request.workflow_id}"
+                status_code=404,
+                detail=f"Workflow not found in this library: {request.workflow_id}",
             )
 
         _validate_workflow_for_execution(workflow)
