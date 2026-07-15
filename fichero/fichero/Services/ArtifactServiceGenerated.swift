@@ -1047,13 +1047,6 @@ final class EntityServiceGenerated {
         try await endpointData(path: "/api/entities/claim-counts")
     }
 
-    func entityDigest(limit: Int = 50) async throws -> Data {
-        try await endpointData(
-            path: "/api/entities/digest",
-            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
-        )
-    }
-
     func resolveEntityValue(_ value: String) async throws -> Data {
         let encoded = value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
         return try await endpointData(path: "/api/entities/resolve/\(encoded)")
