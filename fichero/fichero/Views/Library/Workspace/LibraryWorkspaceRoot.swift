@@ -36,7 +36,7 @@ enum LibraryWorkspaceSelection {
 /// iPad, and visionOS embed the same workspace directly.
 struct LibraryWorkspaceRoot: View {
     @Environment(AppState.self) private var appState
-    @Environment(FeatureManager.self) private var featureManager
+    @EnvironmentObject private var featureManager: FeatureManager
     @Environment(LibraryManager.self) private var libraryManager
     #if canImport(UIKit) && !os(macOS)
     @Environment(MobileCaptureQueueStore.self) private var captureQueue
