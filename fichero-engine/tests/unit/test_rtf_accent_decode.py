@@ -46,6 +46,14 @@ def test_full_spanish_sentence():
     assert result == "público compareció actuó año Nóvita", repr(result)
 
 
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [(r"\u20013?\u25991?", "中文"), (r"\u2360?\u2306?", "सं")],
+)
+def test_unicode_escapes(body, expected):
+    assert expected in _strip_rtf(make_rtf(body))
+
+
 def test_word_with_multiple_accents():
     # "actu\'f3 como notario" → "actuó como notario"
     rtf = make_rtf(r"actu\'f3 como notario")

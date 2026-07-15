@@ -35,8 +35,10 @@ def _page_number(page_label: str | None) -> int | None:
 
 
 def _transcript_for_document(db: Database, document: Document) -> str:
+    from fichero.loaders.document_loader import _strip_rtf
+
     if document.page_content:
-        return document.page_content
+        return _strip_rtf(document.page_content)
 
     child_pages = db.query(Document, parent_id=document.id, doc_type=DocType.page)
     child_pages.sort(key=lambda doc: (doc.sequence or 0, doc.name))
@@ -45,7 +47,7 @@ def _transcript_for_document(db: Database, document: Document) -> str:
     for page in child_pages:
         if page.page_content:
             label = page.sequence or "?"
-            chunks.append(f"Page {label}\n{page.page_content}")
+            chunks.append(f"Page {label}\n{_strip_rtf(page.page_content)}")
     return "\n\n".join(chunks)
 
 
