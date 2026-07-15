@@ -59,7 +59,6 @@ KNOWN_GAPS: dict[str, str] = {
     'POST /api/canvas/folders/{folder_id}/arrange': "#1920 baseline - cli-only",
     'POST /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
     'POST /api/library/links': "#1920 baseline - cli-only",
-    'POST /api/library-items/columns': "engine-side column browser; Swift wiring tracked in #3758",
     'POST /api/registry/unicode-collisions/merge': "#1920 baseline - cli-only",
     'PUT /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
     'PUT /api/folders/{entity_type}/move': "#1920 baseline - cli-only",

@@ -867,3 +867,36 @@ enum DocumentServiceError: Error, LocalizedError {
         }
     }
 }
+
+// MARK: - Batch library-item column metadata (#3758)
+
+extension DocumentServiceGenerated {
+    /// Batch per-item column metadata (#3758) — for each of `itemIds`, the
+    /// entity / annotation / note / bbox counts aggregated across that item's
+    /// document scope. Read-only, set-based: it powers the library list and
+    /// column-browser columns, never mutates. Typed OpenAPI op — no hand-rolled
+    /// URL. The backend caps the batch at 200 ids (422 beyond that). Lives on an
+    /// extension so the primary service type stays within its body-length limit.
+    func libraryItemColumns(
+        itemIds: [String],
+        includeDescendants: Bool = false
+    ) async throws -> [Components.Schemas.LibraryItemColumnsRow] {
+        let request = Components.Schemas.LibraryItemColumnsRequest(
+            itemIds: itemIds,
+            includeDescendants: includeDescendants
+        )
+        let response = try await client.api.libraryItemColumnsApiLibraryItemsColumnsPost(
+            body: .json(request)
+        )
+
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+}

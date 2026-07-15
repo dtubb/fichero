@@ -1,4 +1,5 @@
 import Combine
+import FicheroAPIClient
 import Foundation
 import Observation
 import OSLog
@@ -348,6 +349,23 @@ final class DocumentStore {
             )
             return []
         }
+    }
+
+    /// Batch per-item column metadata (#3758): entity / annotation / note /
+    /// bbox counts for the given library items, feeding the library list and
+    /// column-browser columns. Read-only. The store is the only endpoint
+    /// accessor — views call this, never the service. Empty input
+    /// short-circuits (the backend returns an empty set anyway); the backend
+    /// caps a batch at 200 ids.
+    func libraryItemColumns(
+        itemIds: [String],
+        includeDescendants: Bool = false
+    ) async throws -> [Components.Schemas.LibraryItemColumnsRow] {
+        guard !itemIds.isEmpty else { return [] }
+        return try await documentService.libraryItemColumns(
+            itemIds: itemIds,
+            includeDescendants: includeDescendants
+        )
     }
 }
 
