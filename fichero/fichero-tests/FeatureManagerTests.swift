@@ -59,6 +59,19 @@ final class FeatureManagerTests: XCTestCase {
         }
     }
 
+    func testDevBuildExposesAllImplementedFeatures() {
+        let featureManager = FeatureManager.shared
+
+        withFeatureTier("dev") {
+            featureManager.resetToV001()
+
+            XCTAssertTrue(featureManager.allFeaturesEffectivelyEnabled)
+            XCTAssertTrue(featureManager.isChatEnabled)
+            XCTAssertTrue(featureManager.isAutomationEnabled)
+            XCTAssertTrue(featureManager.isWorkflowToolsAgentsEnabled)
+        }
+    }
+
     func testReleaseBuildStillHidesInternalReviewSurfaces() {
         let featureManager = FeatureManager.shared
 

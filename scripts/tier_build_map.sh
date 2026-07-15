@@ -40,8 +40,14 @@ case "$TIER" in
     IOS_SCHEME="Fichero (Release Local iOS)"; IOS_CONFIG="Release Local"
     ;;
 esac
-# TestFlight uses the sandboxed App Store target. DMG builds keep MAC_SCHEME.
+# TestFlight uses the sandboxed App Store target. Its configuration must retain
+# the requested tier so an internal Dev archive exposes the Dev surface.
 MAC_APP_STORE_SCHEME="Fichero (App Store)"
-MAC_APP_STORE_CONFIG="Release"
+case "$TIER" in
+  dev) MAC_APP_STORE_CONFIG="Dev Embedded" ;;
+  alpha) MAC_APP_STORE_CONFIG="Alpha Embedded" ;;
+  beta) MAC_APP_STORE_CONFIG="Beta Embedded" ;;
+  *) MAC_APP_STORE_CONFIG="Release" ;;
+esac
 export FICHERO_RELEASE_TIER="$TIER" MAC_SCHEME MAC_CONFIG IOS_SCHEME IOS_CONFIG \
   MAC_APP_STORE_SCHEME MAC_APP_STORE_CONFIG
