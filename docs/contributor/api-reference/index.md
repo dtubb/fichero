@@ -145,6 +145,16 @@ These routes are in the committed OpenAPI contract. They are documented here
 until their corresponding Swift service wrappers land; the engine CLI already
 exposes them.
 
+### Device enrollment
+
+`POST /api/pair/enroll`
+
+- Purpose: exchange an owner's synced enrollment secret for a new, distinct
+  per-device token.
+- Request body: `EnrollmentRequest` with the required `enrollment_secret`.
+- Response: `200` with `PairResponse`. The enrollment secret is not itself a
+  device credential, so the returned token remains independently revocable.
+
 ### Agent workspace membership
 
 `PATCH /api/chat/workspaces/{workspace_id}/members`

@@ -144,6 +144,8 @@ class CreateUserRequest(BaseModel):
 class UpdateUserRequest(BaseModel):
     password: str | None = Field(default=None, min_length=1)
     active: bool | None = None
+    display_name: str | None = Field(default=None, min_length=1)
+    is_owner: bool | None = None
 
 
 def _multiuser_disabled() -> None:
@@ -721,7 +723,40 @@ def update_user(
             app_db.revoke_all_devices_for_user(user_id)
         app_db.set_active(user_id, body.active)
 
+    if body.display_name is not None:
+        display_name = body.display_name.strip()
+        if not display_name:
+            raise HTTPException(status_code=422, detail="display_name is required")
+        app_db.set_display_name(user_id, display_name)
+
+    if body.is_owner is not None and body.is_owner != user.is_owner:
+        if not body.is_owner and len([candidate for candidate in app_db.list_users() if candidate.is_owner]) == 1:
+            raise HTTPException(status_code=409, detail="cannot demote the last owner")
+        app_db.set_is_owner(user_id, body.is_owner)
+
     updated = app_db.get_user(user_id)
     if updated is None:
         raise HTTPException(status_code=404, detail="user not found")
     return _to_public_user(updated)
+
+
+@users_router.delete("/{user_id}", response_model=StatusResponse)
+def delete_user(
+    request: Request,
+    user_id: str,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> StatusResponse:
+    """Remove a user and their active credentials and library grants."""
+    _multiuser_disabled()
+    _require_owner_or_bootstrap(request)
+
+    user = app_db.get_user(user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    session_user = _current_session_user(request)
+    if session_user is not None and session_user.id == user_id:
+        raise HTTPException(status_code=409, detail="cannot delete your own account")
+    if user.is_owner and len([candidate for candidate in app_db.list_users() if candidate.is_owner]) == 1:
+        raise HTTPException(status_code=409, detail="cannot delete the last owner")
+    app_db.delete_user(user_id)
+    return StatusResponse(status="ok")

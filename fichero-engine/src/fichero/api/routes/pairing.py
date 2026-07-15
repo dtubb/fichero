@@ -91,6 +91,11 @@ class PairRequest(BaseModel):
     device_name: str = Field(min_length=1)
 
 
+class EnrollmentRequest(BaseModel):
+    enrollment_secret: str = Field(min_length=1)
+    device_name: str = Field(min_length=1)
+
+
 class PairResponse(BaseModel):
     device_id: str
     device_token: str
@@ -444,6 +449,50 @@ def pair_device(
         )
         record.used = True
         _PAIRING_CODES.pop(code, None)
+        return _to_pair_response(device, raw_token)
+    except HTTPException:
+        _record_pair_attempt(request, now)
+        raise
+
+
+@router.post("/enroll", response_model=PairResponse)
+def enroll_device(
+    request: Request,
+    body: EnrollmentRequest,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> PairResponse:
+    """Exchange one owner's synced enrollment secret for a new device token."""
+    _require_secure_pairing_transport(request)
+    now = datetime.now()
+    _check_pair_rate_limit(request, now, record_attempt=False)
+
+    try:
+        secret = app_db.get_enrollment_secret_by_token_hash(
+            accounts.hash_token(body.enrollment_secret.strip())
+        )
+        if secret is None or secret.revoked:
+            raise HTTPException(status_code=401, detail="invalid enrollment secret")
+        user = app_db.get_user(secret.user_id)
+        if user is None or not user.active:
+            raise HTTPException(status_code=401, detail="invalid enrollment secret")
+
+        name = body.device_name.strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="device_name is required")
+        raw_token = accounts.new_session_token()
+        device = app_db.create_device(
+            name=name,
+            user_id=user.id,
+            token_hash=accounts.hash_token(raw_token),
+        )
+        _record_device_audit(
+            action_name="device.enroll",
+            actor=f"enrollment:{secret.id}",
+            params={"device_name": name},
+            device_id=device.id,
+            after=_to_public_device(device).model_dump(mode="json"),
+        )
+        logger.warning("Device enrolled for %s: %s", user.username, name)
         return _to_pair_response(device, raw_token)
     except HTTPException:
         _record_pair_attempt(request, now)

@@ -103,6 +103,41 @@ def test_pairing_rejects_replay_after_code_is_used(pairing_client, app_db):
     assert code not in pairing._PAIRING_CODES
 
 
+def test_enrollment_secret_mints_distinct_per_device_tokens(pairing_client, app_db):
+    owner = _create_owner(app_db)
+    enrollment_secret = accounts.new_session_token()
+    app_db.create_enrollment_secret(
+        user_id=owner.id,
+        token_hash=accounts.hash_token(enrollment_secret),
+    )
+
+    iphone = pairing_client.post(
+        "/api/pair/enroll",
+        json={"enrollment_secret": enrollment_secret, "device_name": "Owner iPhone"},
+    )
+    ipad = pairing_client.post(
+        "/api/pair/enroll",
+        json={"enrollment_secret": enrollment_secret, "device_name": "Owner iPad"},
+    )
+
+    assert iphone.status_code == 200
+    assert ipad.status_code == 200
+    assert iphone.json()["device_id"] != ipad.json()["device_id"]
+    assert iphone.json()["device_token"] != ipad.json()["device_token"]
+    assert app_db.get_device(iphone.json()["device_id"]).user_id == owner.id
+    assert app_db.get_device(ipad.json()["device_id"]).user_id == owner.id
+
+
+def test_enrollment_rejects_invalid_secret(pairing_client):
+    response = pairing_client.post(
+        "/api/pair/enroll",
+        json={"enrollment_secret": "not-a-real-secret", "device_name": "Attacker iPad"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "invalid enrollment secret"
+
+
 def test_pairing_rejects_code_at_exact_expiry_boundary(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")

@@ -1101,6 +1101,18 @@ class AccountInvite(BaseModel):
     revoked: bool = False
 
 
+class EnrollmentSecret(BaseModel):
+    """Hashed, revocable grant for enrolling one owner's own devices."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    user_id: str
+    token_hash: str
+    created_at: datetime = Field(default_factory=datetime.now)
+    revoked: bool = False
+
+
 class Device(BaseModel):
     """App-wide paired device credential stored in the global app database."""
 

@@ -1865,6 +1865,48 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Delete User",
+        "description": "Remove a user and their active credentials and library grants.",
+        "operationId": "delete_user_api_users__user_id__delete",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/pair/code": {
@@ -1904,6 +1946,49 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/enroll": {
+      "post": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Enroll Device",
+        "description": "Exchange one owner's synced enrollment secret for a new device token.",
+        "operationId": "enroll_device_api_pair_enroll_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollmentRequest"
               }
             }
           },
@@ -43052,6 +43137,26 @@
         "type": "object",
         "title": "EnhanceOperationRequest"
       },
+      "EnrollmentRequest": {
+        "properties": {
+          "enrollment_secret": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Enrollment Secret"
+          },
+          "device_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Device Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enrollment_secret",
+          "device_name"
+        ],
+        "title": "EnrollmentRequest"
+      },
       "EntitiesPageResponse": {
         "properties": {
           "entities": {
@@ -46649,6 +46754,16 @@
             "minLength": 1,
             "nullable": true,
             "title": "Display Name"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "qr",
+              "messages",
+              "email"
+            ],
+            "title": "Channel",
+            "default": "qr"
           }
         },
         "type": "object",
@@ -46680,6 +46795,15 @@
             "type": "string",
             "format": "date-time",
             "title": "Expires At"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "qr",
+              "messages",
+              "email"
+            ],
+            "title": "Channel"
           }
         },
         "type": "object",
@@ -46688,7 +46812,8 @@
           "username",
           "display_name",
           "created_at",
-          "expires_at"
+          "expires_at",
+          "channel"
         ],
         "title": "InviteResponse"
       },
@@ -61335,6 +61460,17 @@
             "type": "boolean",
             "nullable": true,
             "title": "Active"
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": true,
+            "title": "Display Name"
+          },
+          "is_owner": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Is Owner"
           }
         },
         "type": "object",

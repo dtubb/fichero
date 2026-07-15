@@ -28,6 +28,7 @@ from fichero.models import (
     AccountSession,
     AccountUser,
     Device,
+    EnrollmentSecret,
     LibraryAclOverride,
     LibraryRole,
     Model,
@@ -250,6 +251,17 @@ class AppDatabase:
                 channel VARCHAR NOT NULL DEFAULT 'qr',
                 consumed_at TIMESTAMP,
                 revoked BOOLEAN DEFAULT FALSE
+            )
+        """)
+
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS enrollment_secrets (
+                id VARCHAR PRIMARY KEY,
+                user_id VARCHAR NOT NULL,
+                token_hash VARCHAR NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                revoked BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
 
@@ -1055,6 +1067,34 @@ class AppDatabase:
         )
         return self.get_user(user_id)
 
+    def set_display_name(self, user_id: str, display_name: str) -> AccountUser | None:
+        """Update one user's display name."""
+        self._update_user_fk_safe("display_name = ?", [display_name.strip()], user_id)
+        return self.get_user(user_id)
+
+    def set_is_owner(self, user_id: str, is_owner: bool) -> AccountUser | None:
+        """Update one user's app-wide owner status."""
+        self._update_user_fk_safe("is_owner = ?", [is_owner], user_id)
+        return self.get_user(user_id)
+
+    def delete_user(self, user_id: str) -> bool:
+        """Delete a user and the credentials and grants that depend on it."""
+        with self._lock:
+            exists = self.conn.execute("SELECT 1 FROM users WHERE id = ?", [user_id]).fetchone()
+            if exists is None:
+                return False
+            for table in (
+                "library_acl_overrides",
+                "library_roles",
+                "sessions",
+                "devices",
+                "enrollment_secrets",
+            ):
+                self.conn.execute(f"DELETE FROM {table} WHERE user_id = ?", [user_id])
+            self.conn.execute("DELETE FROM users WHERE id = ?", [user_id])
+            self.conn.commit()
+        return True
+
     def _update_user_fk_safe(
         self,
         set_clause: str,
@@ -1622,6 +1662,41 @@ class AppDatabase:
             )
             self.conn.commit()
         return self.get_invite(invite_id)
+
+    # =========================================================================
+    # Enrollment secrets
+    # =========================================================================
+
+    def create_enrollment_secret(self, *, user_id: str, token_hash: str) -> EnrollmentSecret:
+        """Persist a hashed grant that can mint independent device credentials."""
+        secret = EnrollmentSecret(user_id=user_id, token_hash=token_hash)
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO enrollment_secrets (id, user_id, token_hash, created_at, revoked)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                [secret.id, secret.user_id, secret.token_hash, secret.created_at, secret.revoked],
+            )
+            self.conn.commit()
+        return secret
+
+    def get_enrollment_secret_by_token_hash(self, token_hash: str) -> EnrollmentSecret | None:
+        """Return a persistent enrollment grant by its stored hash."""
+        with self._lock:
+            row = self.conn.execute(
+                """
+                SELECT id, user_id, token_hash, created_at, revoked
+                FROM enrollment_secrets
+                WHERE token_hash = ?
+                """,
+                [token_hash],
+            ).fetchone()
+        if row is None:
+            return None
+        return EnrollmentSecret(
+            id=row[0], user_id=row[1], token_hash=row[2], created_at=row[3], revoked=row[4]
+        )
 
     # =========================================================================
     # Devices
