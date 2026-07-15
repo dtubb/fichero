@@ -201,6 +201,32 @@ private struct PreviewViewSettingsPane: View {
     }
 }
 
+/// How the Reader lays out a transcript (#3805). DIPLOMATIC is the default because
+/// the manuscript's line structure is real data and must never be lost silently
+/// (Daniel); READING reflow is opt-in. This is the persisted CHOICE only — the
+/// engine reflow rendering and the raw/cleaned text wiring land in separate slices,
+/// which read this same `storageKey`. Kept module-accessible (not private) so those
+/// slices can reference it; RawRepresentable String so `@AppStorage` stores it.
+enum TranscriptLayout: String, CaseIterable, Identifiable {
+    /// Preserve the manuscript's original line breaks exactly.
+    case diplomatic
+    /// Reflow the text to fit the window width — the manuscript lines are not kept.
+    case reading
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .diplomatic: "Diplomatic (preserve manuscript lines)"
+        case .reading: "Reading (reflow to fit)"
+        }
+    }
+
+    static let storageKey = "fichero.reader.transcriptLayout"
+    /// Diplomatic by default — never lose the manuscript line structure silently.
+    static let defaultValue = TranscriptLayout.diplomatic
+}
+
 /// Reader View settings — the Reader text font-size override (#3681). A stepper
 /// over the semantic base size, clamped `0.8…2.0` (Daniel). The consumer wiring
 /// (WebKit CSS injection + native reader text) lands with #3681; this is the
@@ -211,9 +237,25 @@ private struct ReaderViewSettingsPane: View {
     private var readerScale = ViewSettings.FontScale.defaultValue
     @AppStorage(ReaderTextWrap.storageKey)
     private var textWrap = ReaderTextWrap.tidy
+    @AppStorage(TranscriptLayout.storageKey)
+    private var transcriptLayout = TranscriptLayout.defaultValue
 
     var body: some View {
         Form {
+            Section("Transcript") {
+                Picker("Layout", selection: $transcriptLayout) {
+                    ForEach(TranscriptLayout.allCases) { layout in
+                        Text(layout.label).tag(layout)
+                    }
+                }
+                Text("Diplomatic keeps the manuscript's original line breaks — that "
+                     + "line structure is real data. Reading reflows the text to fit "
+                     + "the window: easier to read, but the manuscript lines are lost. "
+                     + "Diplomatic is the default; Reading is opt-in.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Text") {
                 Stepper(
                     value: $readerScale,
