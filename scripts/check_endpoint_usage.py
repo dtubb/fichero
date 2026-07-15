@@ -35,6 +35,7 @@ HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "tra
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is
 # listed here and exits 1 when a new gap appears.
 KNOWN_GAPS: dict[str, str] = {
+    'GET /api/entities/digest': "CLI/engine-only: the app renders the entity digest via the WebKit document view, not this endpoint; the dead Swift entityDigest() wrapper was removed in #3765.",
     'DELETE /api/chains/executions/{execution_id}': "#1920 baseline - cli-only",
     'DELETE /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
     'DELETE /api/library/links/{link_id}': "#1920 baseline - cli-only",
@@ -62,7 +63,6 @@ KNOWN_GAPS: dict[str, str] = {
     'POST /api/registry/unicode-collisions/merge': "#1920 baseline - cli-only",
     'PUT /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
     'PUT /api/folders/{entity_type}/move': "#1920 baseline - cli-only",
-    'PUT /api/kg/entity-curation/authority/settings': "engine-side authority curation; Inspector wiring tracked in #3757",
     'PUT /api/schedules/{schedule_id}': "#1920 baseline - cli-only",
     'PUT /api/triggers/{trigger_id}': "#1920 baseline - cli-only",
     'POST /api/agent-memory': "#2152 agent memory - cli-only (SwiftUI deferred)",
@@ -161,7 +161,6 @@ KNOWN_GAPS: dict[str, str] = {
     'POST /api/kg/interpretations/patterns/{pattern_id}/claims/{claim_id}': "#3299 hermeneutics engine/CLI surface; SwiftUI deferred",
     'POST /api/kg/interpretations/suggestions': "#3299 hermeneutics engine/CLI surface; SwiftUI deferred",
     'GET /api/kg/review/summary': "#1920 baseline - cli-only",
-    'GET /api/kg/entity-curation/authority/settings': "engine-side authority curation; Inspector wiring tracked in #3757",
     'POST /api/kg/entity-curation/authority/link': "engine-side authority curation; Inspector wiring tracked in #3757",
     'POST /api/kg/entity-curation/authority/refresh': "engine-side authority curation; Inspector wiring tracked in #3757",
     'POST /api/local-inference/profiles/validate': "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred",

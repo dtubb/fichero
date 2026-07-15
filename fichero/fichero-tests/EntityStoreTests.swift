@@ -375,6 +375,63 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertEqual(store.entities.map(\.canonicalName), ["Beta"])
     }
 
+    func testAuthoritySettingsLoadAndToggleFlowThroughTheStore() async throws {
+        // #3757 — the store is the only endpoint accessor: GET reflects the
+        // persisted setting into the observable flag, PUT advances it to
+        // exactly what the backend returns.
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "GET", path: "/api/kg/entity-curation/authority/settings",
+                    statusCode: 200,
+                    body: Data(#"{"external_authority_enabled": true}"#.utf8)
+                ),
+                .init(
+                    method: "PUT", path: "/api/kg/entity-curation/authority/settings",
+                    statusCode: 200,
+                    body: Data(#"{"external_authority_enabled": false}"#.utf8)
+                )
+            ]
+        )
+
+        let store = makeStore()
+        XCTAssertFalse(store.externalAuthorityEnabled)
+
+        await store.loadAuthoritySettings()
+        XCTAssertTrue(store.externalAuthorityEnabled)
+        XCTAssertNil(store.authoritySettingsError)
+
+        try await store.setExternalAuthorityEnabled(false)
+        XCTAssertFalse(store.externalAuthorityEnabled)
+
+        let requests = MockFicheroURLProtocol.recordedRequests()
+        XCTAssertTrue(requests.contains {
+            $0.httpMethod == "GET" && $0.url?.path == "/api/kg/entity-curation/authority/settings"
+        })
+        XCTAssertTrue(requests.contains {
+            $0.httpMethod == "PUT" && $0.url?.path == "/api/kg/entity-curation/authority/settings"
+        })
+    }
+
+    func testAuthoritySettingsLoadFailurePublishesErrorAndLeavesFlagUnchanged() async throws {
+        // A failed probe must fail soft: keep the last-known flag and surface
+        // the error, never flip the setting on a transport failure (#3757).
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "GET", path: "/api/kg/entity-curation/authority/settings",
+                    statusCode: 500, body: Data()
+                )
+            ]
+        )
+
+        let store = makeStore()
+        await store.loadAuthoritySettings()
+
+        XCTAssertFalse(store.externalAuthorityEnabled)
+        XCTAssertNotNil(store.authoritySettingsError)
+    }
+
     private func makeStore() -> EntityStore {
         let client = FicheroClient(baseURL: URL(string: "https://127.0.0.1:8765")!, libraryPath: "/tmp/test.fichero")
         let entityService = EntityServiceGenerated(ficheroClient: client)

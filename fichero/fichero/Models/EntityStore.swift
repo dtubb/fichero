@@ -393,6 +393,37 @@ final class EntityStore: ObservableDomainStore {
         }
     }
 
+    // MARK: - External authority curation (#3757)
+
+    /// Whether external authority linking (Wikidata / VIAF / LoC) is enabled for
+    /// this library. Views observe this; the store is the only endpoint accessor
+    /// (observable-data-layer, #1863) — a view never calls the curation service
+    /// directly.
+    private(set) var externalAuthorityEnabled = false
+    private(set) var isLoadingAuthoritySettings = false
+    private(set) var authoritySettingsError: String?
+
+    /// Load the external-authority setting from the backend. Fails soft: on
+    /// error the flag stays at its last value and the error is published for
+    /// the view to surface.
+    func loadAuthoritySettings() async {
+        isLoadingAuthoritySettings = true
+        authoritySettingsError = nil
+        defer { isLoadingAuthoritySettings = false }
+        do {
+            externalAuthorityEnabled = try await kgCurationService.externalAuthorityEnabled()
+        } catch {
+            authoritySettingsError = "Couldn't load authority settings: \(error.localizedDescription)"
+        }
+    }
+
+    /// Enable/disable external authority linking, then reflect the persisted
+    /// value the backend returns. Throws so the calling view can surface a
+    /// precise message; the observable flag is only advanced on success.
+    func setExternalAuthorityEnabled(_ enabled: Bool) async throws {
+        externalAuthorityEnabled = try await kgCurationService.setExternalAuthorityEnabled(enabled)
+    }
+
     // MARK: - ChangeEventConsumer (called by LibraryChangeStream, NOT by views)
 
     nonisolated var changeDomain: String { "entity" }
