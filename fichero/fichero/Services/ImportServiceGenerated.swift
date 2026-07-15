@@ -67,18 +67,21 @@ class ImportServiceGenerated {
                 let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
 
                 if exists && isDirectory.boolValue {
-                    // Persist sandbox permission when folder is added.
-                    FolderAccessManager.shared.saveBookmarkIfDirectory(url)
-
-                    // Import folder using async task pattern
+                    // After-start attach (#3773): grant the sandboxed engine access
+                    // to the folder and AWAIT it before the ingest request reads it.
                     logger.info("Detected folder: \(url.lastPathComponent), using async folder import")
-                    let documentIds = try await importFolderAndWait(
-                        url,
-                        mode: mode,
-                        parentId: parentId,
-                        recursive: true,
-                        extractText: extractText,
-                        autoEmbed: autoEmbed
+                    let documentIds = try await FolderAccessManager.grantThenEngineWork(
+                        grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
+                        engineWork: {
+                            try await importFolderAndWait(
+                                url,
+                                mode: mode,
+                                parentId: parentId,
+                                recursive: true,
+                                extractText: extractText,
+                                autoEmbed: autoEmbed
+                            )
+                        }
                     )
                     logger.info("Successfully imported folder with \(documentIds.count) documents: \(url.lastPathComponent)")
                     // Note: We only have document IDs, not full documents
@@ -194,25 +197,29 @@ class ImportServiceGenerated {
     ) async throws -> IngestTask {
         logger.info("Starting async folder import: \(url.lastPathComponent)")
 
-        // Persist sandbox permission when folder import starts directly.
-        FolderAccessManager.shared.saveBookmarkIfDirectory(url)
-
-        // Enable security-scoped access in sandboxed builds; non-sandboxed builds
-        // return false but the URL remains accessible via normal file I/O.
+        // Enable app-side security-scoped access in sandboxed builds; non-sandboxed
+        // builds return false but the URL remains accessible via normal file I/O.
         let didStartAccess = url.startAccessingSecurityScopedResource()
         defer {
             if didStartAccess { url.stopAccessingSecurityScopedResource() }
         }
 
-        let response = try await client.api.ingestFolderApiIngestFolderPost(
-            body: .json(.init(
-                path: url.path,
-                parentId: parentId,
-                copyMode: mode == .copy,
-                recursive: recursive,
-                extractText: extractText,
-                autoEmbed: autoEmbed
-            ))
+        // After-start attach (#3773): grant the sandboxed ENGINE access to the
+        // folder and AWAIT it before the ingest request reads it.
+        let response = try await FolderAccessManager.grantThenEngineWork(
+            grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
+            engineWork: {
+                try await client.api.ingestFolderApiIngestFolderPost(
+                    body: .json(.init(
+                        path: url.path,
+                        parentId: parentId,
+                        copyMode: mode == .copy,
+                        recursive: recursive,
+                        extractText: extractText,
+                        autoEmbed: autoEmbed
+                    ))
+                )
+            }
         )
 
         switch response {
