@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 #if canImport(AppKit)
 import AppKit
 import SwiftUI
@@ -17,31 +18,32 @@ import OSLog
 /// does this automatically via its representation system, but the ImageIO
 /// path returns raw pixels. Without the manual rotate, iPhone photos taken
 /// in portrait or upside-down come in sideways.
-private func loadSDRImage(from url: URL) -> NSImage? {
-    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
-        return NSImage(contentsOf: url)
-    }
-    let options: [CFString: Any] = [
-        kCGImageSourceDecodeRequest: kCGImageSourceDecodeToSDR,
-        kCGImageSourceShouldCache: true
-    ]
-    guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) else {
-        return NSImage(contentsOf: url)
-    }
-
-    let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-    let orientationRaw = (props?[kCGImagePropertyOrientation] as? UInt32) ?? 1
-    let orientation = CGImagePropertyOrientation(rawValue: orientationRaw) ?? .up
-    let finalCGImage: CGImage = {
+/// The SDR + orientation-corrected decode, off the main thread (#3864). Returns a
+/// `Sendable` `CGImage` (safe to construct off the main actor and cross back); the
+/// caller wraps it in an `NSImage` on the main actor. A 40MP scan decodes on a
+/// background executor so opening a preview / flipping pages no longer blocks the
+/// main thread inside `makeNSView` / `updateNSView`. Mirrors the `Task.detached`
+/// pattern in `StorageServiceGenerated.decodeImage`.
+// Internal so the sibling `ImageViewerComponents` overview image reuses this exact
+// SDR + orientation decode (same off-main path, matching orientation).
+func decodeSDRCGImage(from url: URL) async -> CGImage? {
+    await Task.detached(priority: .userInitiated) {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceDecodeRequest: kCGImageSourceDecodeToSDR,
+            kCGImageSourceShouldCache: true
+        ]
+        guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let orientationRaw = (props?[kCGImagePropertyOrientation] as? UInt32) ?? 1
+        let orientation = CGImagePropertyOrientation(rawValue: orientationRaw) ?? .up
         guard orientation != .up else { return cgImage }
-        let ci = CIImage(cgImage: cgImage).oriented(orientation)
+        let oriented = CIImage(cgImage: cgImage).oriented(orientation)
         let ctx = CIContext(options: nil)
-        return ctx.createCGImage(ci, from: ci.extent) ?? cgImage
-    }()
-    return NSImage(
-        cgImage: finalCGImage,
-        size: CGSize(width: finalCGImage.width, height: finalCGImage.height)
-    )
+        return ctx.createCGImage(oriented, from: oriented.extent) ?? cgImage
+    }.value
 }
 
 // This file requires large bodies due to complex AppKit integration
@@ -132,22 +134,24 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         imageView.loupeMagnification = loupeMagnification
         imageView.loupeSize = loupeSize
 
-        let initialImage = overrideImage ?? url.flatMap(loadSDRImage)
-        if let image = initialImage {
-            imageView.image = image
-            imageView.frame = NSRect(origin: .zero, size: image.size)
-            Self.logger.info("makeNSView: Set image size=\(image.size.width)x\(image.size.height)")
-            Task { @MainActor in
-                self.imageSize = image.size
-            }
-        } else {
-            Self.logger.error("makeNSView: Failed to load image")
-        }
-        context.coordinator.currentOverrideImage = overrideImage
-
         scrollView.documentView = imageView
         context.coordinator.scrollView = scrollView
         context.coordinator.imageView = imageView
+
+        // An override image is already decoded in memory — apply it synchronously.
+        // A URL is decoded OFF the main thread (#3864); the placeholder (hidden
+        // scroll view) shows until the ready image arrives, fit in the same turn.
+        context.coordinator.currentOverrideImage = overrideImage
+        if let overrideImage {
+            imageView.image = overrideImage
+            imageView.frame = NSRect(origin: .zero, size: overrideImage.size)
+            Self.logger.info("makeNSView: Set image size=\(overrideImage.size.width)x\(overrideImage.size.height)")
+            Task { @MainActor in
+                self.imageSize = overrideImage.size
+            }
+        } else if let url {
+            loadImageAsync(url: url, into: imageView, scrollView: scrollView, coordinator: context.coordinator)
+        }
         Self.logger.info(
             "makeNSView: Set documentView, bounds=\(scrollView.bounds.width)x\(scrollView.bounds.height)"
         )
@@ -183,8 +187,12 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        // Fit-to-window and center on first layout when bounds are known
-        if context.coordinator.needsInitialCenter && scrollView.bounds.width > 0 && scrollView.bounds.height > 0 {
+        // Fit-to-window and center on first layout when bounds are known AND the
+        // image has actually decoded (#3864 — the decode is now async, so an early
+        // updateNSView can run before the image exists; don't reveal an empty frame).
+        let hasImage = (context.coordinator.imageView as? NSImageView)?.image != nil
+        if context.coordinator.needsInitialCenter && hasImage
+            && scrollView.bounds.width > 0 && scrollView.bounds.height > 0 {
             context.coordinator.needsInitialCenter = false
             // Fit to window on first layout (like Preview.app)
             if let fitScale = context.coordinator.calculateFitScale() {
@@ -236,25 +244,18 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             let needsImageUpdate = overrideImage != nil ? overrideChanged : urlChanged
 
             if needsImageUpdate {
-                let newImage = overrideImage ?? url.flatMap(loadSDRImage)
-                if let image = newImage {
-                    imageView.image = image
-                    imageView.frame = NSRect(origin: .zero, size: image.size)
+                if let overrideImage {
+                    // Already-decoded override: apply synchronously, fit in the same
+                    // frame so the new image never renders at the old magnification
+                    // for a frame (#773/#777).
+                    imageView.image = overrideImage
+                    imageView.frame = NSRect(origin: .zero, size: overrideImage.size)
                     imageView.loupePosition = nil  // Reset loupe on image change
                     context.coordinator.currentURL = url
                     context.coordinator.currentOverrideImage = overrideImage
                     Task { @MainActor in
-                        self.imageSize = image.size
+                        self.imageSize = overrideImage.size
                     }
-                    // Apply the right zoom IN THE SAME FRAME as the new image
-                    // is set. Otherwise the new image renders at the previous
-                    // image's magnification for one frame, then snaps —
-                    // visible flash. The current `scale` binding holds either
-                    // the previous image's saved scale (if user customized it)
-                    // or the previous fit. Always recalculate fit for the new
-                    // image here; the parent will overwrite via `scale`
-                    // binding on next updateNSView if a saved scale exists for
-                    // this image. (#773 + #777)
                     if let fitScale = context.coordinator.calculateFitScale() {
                         scrollView.magnification = fitScale
                         Task { @MainActor in
@@ -263,6 +264,11 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                     }
                     centerImage(scrollView: scrollView, imageView: imageView)
                     if scrollView.alphaValue < 1 { scrollView.alphaValue = 1 }
+                } else if let url {
+                    // Decode the new page OFF the main thread (#3864). The previous
+                    // page stays visible until the ready image swaps in fitted, in one
+                    // turn — no main-thread block, no wrong-magnification flash.
+                    loadImageAsync(url: url, into: imageView, scrollView: scrollView, coordinator: context.coordinator)
                 }
             }
         }
@@ -291,6 +297,39 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             self.coordinator = coord
         }
         return coord
+    }
+
+    /// Decode `url` OFF the main thread, then apply the ready image on the main actor
+    /// (#3864). Marks the URL requested immediately so re-renders during the decode
+    /// don't re-kick it, and takes a token so a superseded page-flip's late decode is
+    /// dropped. Fits in the same turn as the image when bounds are known; otherwise
+    /// defers to `updateNSView`'s (image-gated) initial fit.
+    private func loadImageAsync(
+        url: URL,
+        into imageView: TrackingImageView,
+        scrollView: NSScrollView,
+        coordinator: Coordinator
+    ) {
+        coordinator.currentURL = url
+        coordinator.currentOverrideImage = nil
+        let token = coordinator.beginImageLoad()
+        Task { @MainActor in
+            guard let cgImage = await decodeSDRCGImage(from: url),
+                  coordinator.isCurrentImageLoad(token) else { return }
+            let image = NSImage(cgImage: cgImage, size: CGSize(width: cgImage.width, height: cgImage.height))
+            imageView.image = image
+            imageView.frame = NSRect(origin: .zero, size: image.size)
+            imageView.loupePosition = nil
+            self.imageSize = image.size
+            if let fitScale = coordinator.calculateFitScale() {
+                scrollView.magnification = fitScale
+                self.scale = fitScale
+                centerImage(scrollView: scrollView, imageView: imageView)
+                if scrollView.alphaValue < 1 { scrollView.alphaValue = 1 }
+            } else {
+                coordinator.needsInitialCenter = true
+            }
+        }
     }
 
     /// Center the image by expanding the image view frame when the scaled image
@@ -340,6 +379,15 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         var scrollView: NSScrollView?
         var imageView: NSView?
         var currentURL: URL?
+        /// Monotonic token for async image loads (#3864): each `loadImageAsync` bumps
+        /// it, and a completing decode applies only if it's still the latest — so a
+        /// fast page-flip drops the superseded decode instead of flashing it in.
+        private var imageLoadToken = 0
+        func beginImageLoad() -> Int {
+            imageLoadToken += 1
+            return imageLoadToken
+        }
+        func isCurrentImageLoad(_ token: Int) -> Bool { token == imageLoadToken }
         /// Tracks the last override image set so we detect changes by identity (#1402).
         weak var currentOverrideImage: NSImage?
         var onVisibleRectChanged: ((CGRect) -> Void)?
@@ -641,9 +689,38 @@ import CoreImage
 import ImageIO
 import OSLog
 
-private func loadSDRImage(from url: URL) -> PlatformImage? {
-    // iOS: load normally. Orientation metadata is handled by UIImage.
-    return PlatformImage(contentsOfFile: url.path)
+/// Decode `url` to a `Sendable` `CGImage` (+ its EXIF orientation) OFF the main
+/// thread (#3864), so a large scan no longer decodes inside makeUIView/updateUIView.
+/// The caller wraps it in a `UIImage` on the main actor, preserving orientation via
+/// `UIImage(cgImage:scale:orientation:)` (UIImage would otherwise apply it for us,
+/// but a bare `CGImage` carries none).
+private func decodeCGImage(from url: URL) async -> (cgImage: CGImage, orientation: UIImage.Orientation)? {
+    await Task.detached(priority: .userInitiated) {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(
+                source, 0, [kCGImageSourceShouldCache: true] as CFDictionary
+              ) else { return nil }
+        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let raw = (props?[kCGImagePropertyOrientation] as? UInt32) ?? 1
+        return (cgImage, uiImageOrientation(fromEXIF: raw))
+    }.value
+}
+
+/// Map an EXIF/`CGImagePropertyOrientation` raw value to the matching (same-named)
+/// `UIImage.Orientation`. The frameworks name the same physical orientations
+/// identically even though their raw values differ.
+private func uiImageOrientation(fromEXIF raw: UInt32) -> UIImage.Orientation {
+    switch CGImagePropertyOrientation(rawValue: raw) ?? .up {
+    case .up: return .up
+    case .upMirrored: return .upMirrored
+    case .down: return .down
+    case .downMirrored: return .downMirrored
+    case .left: return .left
+    case .leftMirrored: return .leftMirrored
+    case .right: return .right
+    case .rightMirrored: return .rightMirrored
+    @unknown default: return .up
+    }
 }
 
 /// UIViewRepresentable wrapper for an image view with basic zoom/pan on iOS.
@@ -703,23 +780,23 @@ struct ImageWithCursorTracking: UIViewRepresentable {
         imageView.loupeMagnification = loupeMagnification
         imageView.loupeSize = loupeSize
 
-        let initialImage = overrideImage ?? url.flatMap(loadSDRImage)
-        if let image = initialImage {
-            imageView.image = image
-            imageView.frame = CGRect(origin: .zero, size: image.size)
-            scrollView.contentSize = image.size
-            Self.logger.info("makeUIView: Set image size=\(image.size.width)x\(image.size.height)")
-            Task { @MainActor in
-                self.imageSize = image.size
-            }
-        } else {
-            Self.logger.error("makeUIView: Failed to load image")
-        }
-        context.coordinator.currentOverrideImage = overrideImage
-
         scrollView.addSubview(imageView)
         context.coordinator.scrollView = scrollView
         context.coordinator.imageView = imageView
+
+        // Override images are already decoded; a URL is decoded OFF-main (#3864).
+        context.coordinator.currentOverrideImage = overrideImage
+        if let overrideImage {
+            imageView.image = overrideImage
+            imageView.frame = CGRect(origin: .zero, size: overrideImage.size)
+            scrollView.contentSize = overrideImage.size
+            Self.logger.info("makeUIView: Set image size=\(overrideImage.size.width)x\(overrideImage.size.height)")
+            Task { @MainActor in
+                self.imageSize = overrideImage.size
+            }
+        } else if let url {
+            loadImageAsync(url: url, into: imageView, scrollView: scrollView, coordinator: context.coordinator)
+        }
 
         context.coordinator.onVisibleRectChanged = { rect in
             Task { @MainActor in
@@ -741,7 +818,10 @@ struct ImageWithCursorTracking: UIViewRepresentable {
     func updateUIView(_ scrollView: UIScrollView, context: Context) {
         context.coordinator.owner = self
 
-        if context.coordinator.needsInitialCenter,
+        // Only fit once the image has decoded (async now, #3864) so we don't consume
+        // needsInitialCenter over an empty view.
+        let hasImage = (context.coordinator.imageView as? UIImageView)?.image != nil
+        if context.coordinator.needsInitialCenter, hasImage,
            scrollView.bounds.width > 0,
            scrollView.bounds.height > 0 {
             context.coordinator.needsInitialCenter = false
@@ -784,16 +864,15 @@ struct ImageWithCursorTracking: UIViewRepresentable {
             let needsImageUpdate = overrideImage != nil ? overrideChanged : urlChanged
 
             if needsImageUpdate {
-                let newImage = overrideImage ?? url.flatMap(loadSDRImage)
-                if let image = newImage {
-                    imageView.image = image
-                    imageView.frame = CGRect(origin: .zero, size: image.size)
-                    scrollView.contentSize = image.size
+                if let overrideImage {
+                    imageView.image = overrideImage
+                    imageView.frame = CGRect(origin: .zero, size: overrideImage.size)
+                    scrollView.contentSize = overrideImage.size
                     imageView.loupePosition = nil
                     context.coordinator.currentURL = url
                     context.coordinator.currentOverrideImage = overrideImage
                     Task { @MainActor in
-                        self.imageSize = image.size
+                        self.imageSize = overrideImage.size
                     }
                     if let fitScale = context.coordinator.calculateFitScale() {
                         scrollView.zoomScale = fitScale
@@ -803,6 +882,9 @@ struct ImageWithCursorTracking: UIViewRepresentable {
                     }
                     context.coordinator.centerContent()
                     if scrollView.alpha < 1 { scrollView.alpha = 1 }
+                } else if let url {
+                    // Decode the new page OFF-main (#3864); previous page stays until ready.
+                    loadImageAsync(url: url, into: imageView, scrollView: scrollView, coordinator: context.coordinator)
                 }
             }
         }
@@ -827,12 +909,52 @@ struct ImageWithCursorTracking: UIViewRepresentable {
         return coord
     }
 
+    /// Decode `url` OFF the main thread, then wrap + apply the ready image (#3864),
+    /// dropping a superseded page-flip's late decode via the coordinator's token and
+    /// fitting in the same turn once bounds are known.
+    private func loadImageAsync(
+        url: URL,
+        into imageView: TrackingImageView,
+        scrollView: UIScrollView,
+        coordinator: Coordinator
+    ) {
+        coordinator.currentURL = url
+        coordinator.currentOverrideImage = nil
+        let token = coordinator.beginImageLoad()
+        Task { @MainActor in
+            guard let decoded = await decodeCGImage(from: url),
+                  coordinator.isCurrentImageLoad(token) else { return }
+            let image = UIImage(cgImage: decoded.cgImage, scale: 1, orientation: decoded.orientation)
+            imageView.image = image
+            imageView.frame = CGRect(origin: .zero, size: image.size)
+            scrollView.contentSize = image.size
+            imageView.loupePosition = nil
+            self.imageSize = image.size
+            if let fitScale = coordinator.calculateFitScale() {
+                scrollView.zoomScale = fitScale
+                self.scale = fitScale
+                coordinator.centerContent()
+                if scrollView.alpha < 1 { scrollView.alpha = 1 }
+            } else {
+                coordinator.needsInitialCenter = true
+            }
+        }
+    }
+
     @MainActor
     final class Coordinator: NSObject, UIScrollViewDelegate {
         var owner: ImageWithCursorTracking
         weak var scrollView: UIScrollView?
         weak var imageView: UIView?
         var currentURL: URL?
+        /// Monotonic token for async image loads (#3864) — a completing decode applies
+        /// only if it's still the latest, so a fast page-flip drops the stale one.
+        private var imageLoadToken = 0
+        func beginImageLoad() -> Int {
+            imageLoadToken += 1
+            return imageLoadToken
+        }
+        func isCurrentImageLoad(_ token: Int) -> Bool { token == imageLoadToken }
         weak var currentOverrideImage: PlatformImage?
         var onVisibleRectChanged: ((CGRect) -> Void)?
         var onScaleChanged: ((CGFloat) -> Void)?
