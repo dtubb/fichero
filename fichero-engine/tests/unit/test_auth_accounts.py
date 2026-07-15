@@ -709,6 +709,53 @@ def test_owner_can_change_password_for_role_holder_without_losing_acl_rows(
     assert new_login.status_code == 200
 
 
+def test_owner_can_rename_user_and_change_owner_status(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    owner = app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    member = app_db.create_user(
+        username="member",
+        display_name="Member",
+        password_hash=accounts.hash_password("password"),
+        is_owner=False,
+    )
+    owner_token = _login(client, owner.username, "password")
+
+    response = client.patch(
+        f"/api/users/{member.id}",
+        headers=_bearer(owner_token),
+        json={"display_name": "Renamed Member", "is_owner": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "Renamed Member"
+    assert response.json()["is_owner"] is True
+
+
+def test_update_user_refuses_to_demote_last_owner(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    owner = app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    owner_token = _login(client, owner.username, "password")
+
+    response = client.patch(
+        f"/api/users/{owner.id}",
+        headers=_bearer(owner_token),
+        json={"is_owner": False},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "cannot demote the last owner"
+
+
 def test_set_active_preserves_acl_rows_for_role_holder(app_db):
     user = app_db.create_user(
         username="ann",

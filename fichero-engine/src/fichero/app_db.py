@@ -1067,6 +1067,16 @@ class AppDatabase:
         )
         return self.get_user(user_id)
 
+    def set_display_name(self, user_id: str, display_name: str) -> AccountUser | None:
+        """Update one user's display name."""
+        self._update_user_fk_safe("display_name = ?", [display_name.strip()], user_id)
+        return self.get_user(user_id)
+
+    def set_is_owner(self, user_id: str, is_owner: bool) -> AccountUser | None:
+        """Update one user's app-wide owner status."""
+        self._update_user_fk_safe("is_owner = ?", [is_owner], user_id)
+        return self.get_user(user_id)
+
     def _update_user_fk_safe(
         self,
         set_clause: str,

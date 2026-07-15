@@ -144,6 +144,8 @@ class CreateUserRequest(BaseModel):
 class UpdateUserRequest(BaseModel):
     password: str | None = Field(default=None, min_length=1)
     active: bool | None = None
+    display_name: str | None = Field(default=None, min_length=1)
+    is_owner: bool | None = None
 
 
 def _multiuser_disabled() -> None:
@@ -720,6 +722,17 @@ def update_user(
             app_db.revoke_all_for_user(user_id)
             app_db.revoke_all_devices_for_user(user_id)
         app_db.set_active(user_id, body.active)
+
+    if body.display_name is not None:
+        display_name = body.display_name.strip()
+        if not display_name:
+            raise HTTPException(status_code=422, detail="display_name is required")
+        app_db.set_display_name(user_id, display_name)
+
+    if body.is_owner is not None and body.is_owner != user.is_owner:
+        if not body.is_owner and len([candidate for candidate in app_db.list_users() if candidate.is_owner]) == 1:
+            raise HTTPException(status_code=409, detail="cannot demote the last owner")
+        app_db.set_is_owner(user_id, body.is_owner)
 
     updated = app_db.get_user(user_id)
     if updated is None:
