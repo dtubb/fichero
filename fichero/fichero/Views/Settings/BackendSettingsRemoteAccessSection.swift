@@ -54,7 +54,7 @@ enum PairingBlocker: Equatable {
         case .addressMissing: return "Fichero needs this Mac's address"
         case .addressInsecure: return "Sharing needs HTTPS"
         case .addressInvalid: return "That address doesn't work"
-        case .pinNotDerived: return "Fichero couldn't prepare the security certificate"
+        case .pinNotDerived: return "Preparing the security certificate"
         }
     }
 
@@ -73,7 +73,9 @@ enum PairingBlocker: Equatable {
         case .addressInvalid(let reason):
             return reason
         case .pinNotDerived:
-            return "The certificate for this address hasn't been minted yet. Fichero can restart its engine and prepare it."
+            return "Fichero mints the certificate for this address automatically when sharing "
+                + "starts — the QR appears as soon as it's ready. Turning sharing off and on "
+                + "again re-mints it if needed."
         }
     }
 
@@ -84,8 +86,12 @@ enum PairingBlocker: Equatable {
         switch self {
         case .engineNotRunning: return "Start Engine"
         case .sharingNotStarted: return "Turn On Sharing"
-        case .pinNotDerived: return "Prepare Certificate"
-        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid: return nil
+        // No "Prepare Certificate" button: turning sharing on mints the certificate
+        // itself, so this is a transient "preparing" state, never a step the user
+        // must trigger (#3811). If minting genuinely fails it stays an honest message
+        // and toggling sharing off/on re-runs the mint — not a dead control.
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerived:
+            return nil
         }
     }
 }

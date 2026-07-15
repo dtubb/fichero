@@ -190,11 +190,7 @@ struct ShareSettingsView: View {
                 publicBaseURL = Self.autoLocalBaseURL
             }
             await applySharing()
-        case .pinNotDerived:
-            // Restart mints TLS material and re-derives the pin.
-            await applySharing()
-            await refreshPairingCode()
-        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid:
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerived:
             break  // no button offered — see PairingBlocker.actionTitle
         }
     }
@@ -458,6 +454,10 @@ struct ShareSettingsView: View {
             await appState.checkBackendHealth()
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
+            // The external engine already serves TLS; the health handshake bootstraps
+            // its pin. Load it as part of THIS action so the QR appears without a
+            // separate "Prepare Certificate" step (#3811).
+            loadSPKIPin()
             if hostingEnabled {
                 await refreshDevices()
             }
@@ -467,10 +467,16 @@ struct ShareSettingsView: View {
         backendService.stop()
         do {
             try await backendService.start()
-            loadSPKIPin()
             await appState.checkBackendHealth()
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
+            // Load the SPKI pin AFTER the health handshake. Turning sharing on mints
+            // and persists the certificate as part of THIS action, so by the time the
+            // pairing card evaluates its blocker the pin is ready and the QR appears —
+            // no separate "Prepare Certificate" step (#3811). Reading it here covers
+            // both the pin the restart pre-persists and one the live TLS handshake
+            // bootstraps.
+            loadSPKIPin()
             if hostingEnabled { await refreshDevices() }
         } catch {
             shareError = error.localizedDescription
