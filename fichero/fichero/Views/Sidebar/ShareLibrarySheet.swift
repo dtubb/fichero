@@ -26,6 +26,15 @@ struct ShareLibrarySheet: View {
     // (ShareSettingsView), so this reflects whether sharing is on and where.
     @AppStorage(RemoteAccessConfig.publicBaseURLKey) private var publicBaseURL = ""
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
+    @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
+
+    // Optional so this cross-platform sheet never traps if presented outside the
+    // main window's environment (e.g. iOS). When present (the macOS sidebar case),
+    // "Share" can do its OWN host/cert setup instead of sending the user to Settings
+    // — you share a thing by sharing it, not by first enabling a subsystem (#3776).
+    @Environment(EmbeddedBackendService.self) private var backendService: EmbeddedBackendService?
+    @Environment(AppState.self) private var appState: AppState?
+    @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
 
     // Share form
     @State var personChoice: String = ""
@@ -163,13 +172,15 @@ extension ShareLibrarySheet {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if let reason = shareLinkUnavailableReason {
+                // Honest fallback only — the common "sharing is off" case is now
+                // handled by Share itself (it turns hosting on), so this renders for
+                // the genuine cannot-proceed cases (remote engine / iOS) or the brief
+                // certificate-minting window. reason.detail explains each honestly; no
+                // stale "go to Settings, then reopen" breadcrumb (#3811).
                 VStack(alignment: .leading, spacing: 6) {
                     Text(reason.headline)
                         .font(.headline)
                     Text(reason.detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("Turn on sharing in Settings → Library Access → Devices, then reopen this.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -338,12 +349,70 @@ extension ShareLibrarySheet {
             // the pairing payload built in `pairingLink`.
             _ = try await library.actionsService.shareLibrary(user: personChoice, role: role)
             didShare = true
+            // Share by sharing it: if this Mac can host but sharing isn't on yet,
+            // turn it on as PART of this one action — mint the cert, start hosting —
+            // so the recipient gets a working link without a separate trip to Settings
+            // (#3811/#3776). No-op when hosting is already on or this Mac can't host
+            // (remote engine / iOS), where the honest fallback card renders instead.
+            if !hostingEnabled && canHostFromHere {
+                await enableHostingForShare()
+            }
             loadSPKIPin()
             await mintPairingCodeIfPossible()
             await loadMembers()
         } catch {
             shareError = error.localizedDescription
         }
+    }
+
+    /// Whether this Mac can prepare its own hosting for the share link: the host
+    /// services are in scope AND this is the machine that runs the library's engine.
+    var canHostFromHere: Bool {
+        backendService != nil && appState != nil && libraryManager != nil && EngineConfig.engineIsLocal
+    }
+
+    /// Turn on hosting as part of "Share", mirroring `ShareSettingsView.applySharing`
+    /// (the ONE pairing surface) so there is a single behaviour, not a divergent one:
+    /// derive the address, restart the engine with TLS to mint the certificate, then
+    /// load the pin AFTER the health handshake (the #3811 ordering fix).
+    /// ponytail: this mirrors applySharing; the durable home is a shared
+    /// enable-hosting primitive both call — extract when the engine lane exposes one.
+    @MainActor
+    func enableHostingForShare() async {
+        guard let backendService, let appState, let libraryManager else { return }
+        hostingEnabled = true
+        bonjourEnabled = true
+        if publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            publicBaseURL = Self.autoLocalBaseURL
+        }
+
+        if backendService.isUsingExternalBackend {
+            await appState.checkBackendHealth()
+            appState.reconfigureGeneratedClientsForCurrentHost()
+            libraryManager.reconfigureGeneratedClientsForCurrentHost()
+            return
+        }
+
+        backendService.stop()
+        do {
+            try await backendService.start()
+            await appState.checkBackendHealth()
+            appState.reconfigureGeneratedClientsForCurrentHost()
+            libraryManager.reconfigureGeneratedClientsForCurrentHost()
+        } catch {
+            shareError = error.localizedDescription
+        }
+    }
+
+    /// Derives https://<hostname>.local:<port> from the system Bonjour name — the
+    /// same automatic address `ShareSettingsView` derives, so both agree.
+    static var autoLocalBaseURL: String {
+        var host = ProcessInfo.processInfo.hostName.lowercased()
+        if !host.hasSuffix(".local") {
+            host = (host.components(separatedBy: ".").first ?? host) + ".local"
+        }
+        let port = URL(string: EngineConfig.defaultHostString)?.port ?? 8765
+        return "https://\(host):\(port)"
     }
 
     func loadSPKIPin() {
