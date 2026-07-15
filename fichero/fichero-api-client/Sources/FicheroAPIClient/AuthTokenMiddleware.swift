@@ -474,14 +474,16 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         // Token is resolved off THIS request's baseURL, not the global host
         // (#2866): the app can hold multiple backends (local + N remote) at
         // once, and each carries its own bootstrap/device/session credential.
-        // A login *session* token (multi-user) takes priority over the
-        // bootstrap/device token: once a user is signed in, their session
-        // carries the identity + per-library role the library load needs. When
-        // no session exists yet (pre-login, first-owner bootstrap) we fall back
-        // to the bootstrap/device token so /api/users and create-owner still work.
+        // A local embedded engine must use its current bootstrap secret. A stale
+        // Keychain session otherwise overrides the fresh sandbox token after an
+        // engine restart and traps the app in a 401 reset loop (#3852). Remote
+        // hosts retain session-first multi-user authentication.
         if !isUnauthenticated {
             let host = baseURL.absoluteString
-            if let session = Self.readSessionToken(hostString: host) {
+            let isLoopback = Self.prefersLocalhostEngineToken(hostString: host)
+            if isLoopback, let token = await Self.waitForToken(hostString: host) {
+                request.headerFields[.authorization] = "Bearer \(token)"
+            } else if !isLoopback, let session = Self.readSessionToken(hostString: host) {
                 request.headerFields[.authorization] = "Bearer \(session)"
             } else if let token = await Self.waitForToken(hostString: host) {
                 request.headerFields[.authorization] = "Bearer \(token)"
