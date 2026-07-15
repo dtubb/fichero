@@ -76,6 +76,12 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+            // The section list is the only navigation between panes, and this view
+            // deliberately mimics macOS System Settings — whose source list is never
+            // collapsible. Drop the automatic sidebar-toggle so the list can't be
+            // hidden into a navigation dead end (#3812). Scoped to this split view,
+            // so the main window's sidebar toggle is untouched.
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             detail(for: appState.selectedSettingsTab)
         }
