@@ -225,4 +225,20 @@ struct LibraryChangeStreamTransportTests {
         // so a lone transient could hit the threshold; now only genuine errors do.
         #expect(LibraryChangeStream.shouldSurfaceUnavailable(failureCount: 1) == false)
     }
+
+    // MARK: - No launch flash before the first connect (#3874)
+
+    @Test("a drop during the initial connect window never surfaces the pill (#3874)")
+    func initialConnectWindowNeverSurfaces() {
+        // Never connected yet: even past the two-strike threshold the pill stays
+        // hidden — the app-level BackendConnectionView owns "not connected yet",
+        // so the per-surface pill must not flash on launch.
+        #expect(LibraryChangeStream.shouldSurfaceAfterDrop(failureCount: 2, hasConnectedBefore: false) == false)
+        #expect(LibraryChangeStream.shouldSurfaceAfterDrop(failureCount: 5, hasConnectedBefore: false) == false)
+
+        // After a successful connect, a genuine drop still surfaces on the second
+        // consecutive miss (the existing debounce is preserved).
+        #expect(LibraryChangeStream.shouldSurfaceAfterDrop(failureCount: 1, hasConnectedBefore: true) == false)
+        #expect(LibraryChangeStream.shouldSurfaceAfterDrop(failureCount: 2, hasConnectedBefore: true) == true)
+    }
 }
