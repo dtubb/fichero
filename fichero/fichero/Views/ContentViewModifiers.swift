@@ -7,6 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Content
 
 /// Data loading modifiers (initial task + cache rebuilding)
 struct DataLoadingModifiers: ViewModifier {
+    @Environment(FeatureManager.self) private var featureManager
     let documentStore: DocumentStore
     let workflowStore: WorkflowStore
     let conversationService: ConversationServiceGenerated
@@ -20,13 +21,17 @@ struct DataLoadingModifiers: ViewModifier {
                         guard !Task.isCancelled else { return }
                         await documentStore.loadCollections()
                     }
-                    group.addTask {
-                        guard !Task.isCancelled else { return }
-                        await workflowStore.loadWorkflows()
+                    if featureManager.isVisible(.workflows) {
+                        group.addTask {
+                            guard !Task.isCancelled else { return }
+                            await workflowStore.loadWorkflows()
+                        }
                     }
-                    group.addTask {
-                        guard !Task.isCancelled else { return }
-                        try? await conversationService.loadConversations()
+                    if featureManager.isVisible(.chat) {
+                        group.addTask {
+                            guard !Task.isCancelled else { return }
+                            try? await conversationService.loadConversations()
+                        }
                     }
                     group.addTask {
                         guard !Task.isCancelled else { return }

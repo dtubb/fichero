@@ -36,6 +36,7 @@ enum LibraryWorkspaceSelection {
 /// iPad, and visionOS embed the same workspace directly.
 struct LibraryWorkspaceRoot: View {
     @Environment(AppState.self) private var appState
+    @Environment(FeatureManager.self) private var featureManager
     @Environment(LibraryManager.self) private var libraryManager
     #if canImport(UIKit) && !os(macOS)
     @Environment(MobileCaptureQueueStore.self) private var captureQueue
@@ -107,7 +108,9 @@ struct LibraryWorkspaceRoot: View {
                 // pill until the user taps Reconnect (#3351).
                 guard appState.isBackendRunning else { return }
                 library.changeStream.start()
-                library.activityStore.start()
+                if featureManager.isVisible(.activity) {
+                    library.activityStore.start()
+                }
             }
         }
         .environment(library.documentStore)

@@ -234,12 +234,16 @@ extension LibraryManager {
         libraryManagerLogger.info("⏱ loadLibraryData documents loaded (\(docCount) items)")
 
         guard !Task.isCancelled else { return }
-        await library.workflowStore.loadWorkflows()
-        libraryManagerLogger.info("⏱ loadLibraryData workflows loaded")
+        if FeatureManager.shared.isVisible(.workflows) {
+            await library.workflowStore.loadWorkflows()
+            libraryManagerLogger.info("⏱ loadLibraryData workflows loaded")
+        }
 
         guard !Task.isCancelled else { return }
-        try? await library.conversationServiceGenerated.loadConversations()
-        libraryManagerLogger.info("⏱ loadLibraryData conversations loaded")
+        if FeatureManager.shared.isVisible(.chat) {
+            try? await library.conversationServiceGenerated.loadConversations()
+            libraryManagerLogger.info("⏱ loadLibraryData conversations loaded")
+        }
 
         guard !Task.isCancelled else { return }
         try? await library.savedSearchServiceGenerated.loadSavedSearches()

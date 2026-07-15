@@ -92,6 +92,18 @@ final class FeatureManagerTests: XCTestCase {
         }
     }
 
+    func testReleaseTierHidesBetaStartupServices() {
+        let betaStartupServices: [FeatureKey] = [.providers, .workflows, .chat, .activity]
+
+        for feature in betaStartupServices {
+            XCTAssertLessThan(
+                FeatureTiers.map[feature]!.tier.rank,
+                FeatureTier.release.rank,
+                "\(feature.rawValue) must not start against a release-tier engine"
+            )
+        }
+    }
+
     // The Engine & Access panes (Engine/Backend + Library Access: People /
     // Devices+QR / Capture) hold real, keepable capabilities, so their EXISTENCE
     // must not hang off the `.alpha`-tier `settings_*_tab` flags — those hid the QR

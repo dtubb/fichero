@@ -483,6 +483,11 @@ class AppState {
     }
 
     func loadProviders() async {
+        guard FeatureManager.shared.isVisible(.providers) else {
+            providers = []
+            hasCheckedProviders = true
+            return
+        }
         do {
             providers = try await providerService.listProviders()
 
