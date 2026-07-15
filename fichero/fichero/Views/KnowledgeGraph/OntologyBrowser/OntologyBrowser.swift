@@ -166,6 +166,23 @@ struct OntologyBrowser: View {
         }
     }
 
+    // Compiled ONCE and reused (#3869). `range(of:options:.regularExpression)`
+    // recompiles the pattern on every call; over a library-wide entity list that was
+    // up to three recompiles per entity, twice per entity (date + non-date filter).
+    // Patterns are compile-time constants so the `try?` never actually yields nil;
+    // optional-chained matching below just avoids a banned force-try.
+    private static let dateNumericRegex = try? NSRegularExpression(
+        pattern: #"^\d{3,4}([-/]\d{1,2}){0,2}(\b|$)"#
+    )
+    private static let dateMonthEarlyRegex = try? NSRegularExpression(
+        pattern: #"^(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?)\b"#,
+        options: [.caseInsensitive]
+    )
+    private static let dateMonthLateRegex = try? NSRegularExpression(
+        pattern: #"^(sep(t)?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?)\b"#,
+        options: [.caseInsensitive]
+    )
+
     /// Date rows are still returned by older KG data as ordinary entities.
     /// Keep them available without mixing them into the named-entity scan.
     static func isDateEntity(_ entity: Components.Schemas.KnowledgeEntity) -> Bool {
@@ -173,18 +190,10 @@ struct OntologyBrowser: View {
             return true
         }
         let name = entity.canonicalName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.range(
-            of: #"^\d{3,4}([-/]\d{1,2}){0,2}(\b|$)"#,
-            options: .regularExpression
-        ) != nil
-        || name.range(
-            of: #"^(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?)\b"#,
-            options: [.regularExpression, .caseInsensitive]
-        ) != nil
-        || name.range(
-            of: #"^(sep(t)?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?)\b"#,
-            options: [.regularExpression, .caseInsensitive]
-        ) != nil
+        let range = NSRange(name.startIndex..., in: name)
+        return dateNumericRegex?.firstMatch(in: name, range: range) != nil
+            || dateMonthEarlyRegex?.firstMatch(in: name, range: range) != nil
+            || dateMonthLateRegex?.firstMatch(in: name, range: range) != nil
     }
 
     // ponytail: recompute inputs — entityStore.libraryEntities, hiddenKindsCSV, suppressOcrGarbage
@@ -198,8 +207,19 @@ struct OntologyBrowser: View {
             result = result.filter { !Self.isOcrGarbage($0.canonicalName) }
         }
         filteredEntities = result
-        nonDateEntities = result.filter { !Self.isDateEntity($0) }
-        dateEntities = result.filter(Self.isDateEntity)
+        // One pass, one isDateEntity call per entity — not two filters that each
+        // re-scan the whole list and re-run the (now cached) date regexes (#3869).
+        var nonDate: [Components.Schemas.KnowledgeEntity] = []
+        var dates: [Components.Schemas.KnowledgeEntity] = []
+        for entity in result {
+            if Self.isDateEntity(entity) {
+                dates.append(entity)
+            } else {
+                nonDate.append(entity)
+            }
+        }
+        nonDateEntities = nonDate
+        dateEntities = dates
     }
 
     // MARK: - Load-state accessors
