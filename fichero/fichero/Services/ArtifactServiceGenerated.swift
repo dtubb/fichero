@@ -594,6 +594,30 @@ final class EntityServiceGenerated {
         )
     }
 
+    /// POST /api/kg/entity-curation/authority/refresh (#3757) — fetch and cache
+    /// external-authority snapshots (Wikidata / VIAF / LoC) matching `query`.
+    /// Returns the raw `{ items, count }` envelope; the store parses it. This is
+    /// the only opt-in outbound-network call — refresh is always explicit.
+    func refreshAuthoritySnapshots(query: String, limit: Int = 10) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/entity-curation/authority/refresh",
+            method: "POST",
+            jsonBody: ["query": query, "limit": limit]
+        )
+    }
+
+    /// POST /api/kg/entity-curation/authority/link (#3757) — persist an
+    /// entity→authority link from a previously refreshed snapshot. Returns the
+    /// raw audit envelope; the store treats a non-throwing call as success.
+    @discardableResult
+    func linkAuthority(entityId: String, authority: String, authorityId: String) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/entity-curation/authority/link",
+            method: "POST",
+            jsonBody: ["entity_id": entityId, "authority": authority, "authority_id": authorityId]
+        )
+    }
+
     /// Merge multiple entities into a single absorbing entity with audit.
     /// Backed by `/api/kg/entity-curation/merge`.
     func mergeEntities(

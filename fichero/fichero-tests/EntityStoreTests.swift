@@ -432,6 +432,80 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertNotNil(store.authoritySettingsError)
     }
 
+    func testParseAuthorityCandidatesKeepsCompleteItemsAndDropsIncomplete() {
+        // #3757 — the `items` envelope is freeform; parse defensively. An item
+        // missing the required authority / id / label is dropped, not crashed.
+        let data = Data(#"""
+        {"items":[
+          {"authority":"wikidata","authority_id":"Q42","label":"Douglas Adams","description":"author","source_url":"https://wd/Q42"},
+          {"authority":"viaf","authority_id":"113230702","label":"Adams, Douglas"},
+          {"authority":"loc"}
+        ],"count":3}
+        """#.utf8)
+
+        let candidates = EntityStore.parseAuthorityCandidates(data)
+        XCTAssertEqual(candidates.map(\.id), ["wikidata|Q42", "viaf|113230702"])
+        XCTAssertEqual(candidates.first?.label, "Douglas Adams")
+        XCTAssertEqual(candidates.first?.description, "author")
+        XCTAssertEqual(candidates.first?.sourceURL, "https://wd/Q42")
+        XCTAssertNil(candidates.last?.description)
+    }
+
+    func testAuthorityRefreshAndLinkFlowThroughTheStore() async throws {
+        // #3757 — the store is the only endpoint accessor: refresh returns
+        // parsed candidates; link posts and succeeds on a 2xx.
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "POST", path: "/api/kg/entity-curation/authority/refresh",
+                    statusCode: 200,
+                    body: Data(#"{"items":[{"authority":"wikidata","authority_id":"Q42","label":"Douglas Adams"}],"count":1}"#.utf8)
+                ),
+                .init(
+                    method: "POST", path: "/api/kg/entity-curation/authority/link",
+                    statusCode: 200,
+                    body: Data("{}".utf8)
+                )
+            ]
+        )
+
+        let store = makeStore()
+
+        let candidates = try await store.refreshAuthorityCandidates(query: "Douglas Adams")
+        XCTAssertEqual(candidates.map(\.id), ["wikidata|Q42"])
+
+        try await store.linkAuthority(entityId: "entity-1", authority: "wikidata", authorityId: "Q42")
+
+        let requests = MockFicheroURLProtocol.recordedRequests()
+        XCTAssertTrue(requests.contains {
+            $0.httpMethod == "POST" && $0.url?.path == "/api/kg/entity-curation/authority/refresh"
+        })
+        XCTAssertTrue(requests.contains {
+            $0.httpMethod == "POST" && $0.url?.path == "/api/kg/entity-curation/authority/link"
+        })
+    }
+
+    func testAuthorityLinkPropagatesBackendFailure() async throws {
+        // A non-2xx link must throw so the sheet surfaces it — never a silent
+        // success (#3757).
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "POST", path: "/api/kg/entity-curation/authority/link",
+                    statusCode: 404, body: Data()
+                )
+            ]
+        )
+
+        let store = makeStore()
+        do {
+            try await store.linkAuthority(entityId: "missing", authority: "wikidata", authorityId: "Q42")
+            XCTFail("Expected linkAuthority to throw on a 404")
+        } catch {
+            // expected
+        }
+    }
+
     private func makeStore() -> EntityStore {
         let client = FicheroClient(baseURL: URL(string: "https://127.0.0.1:8765")!, libraryPath: "/tmp/test.fichero")
         let entityService = EntityServiceGenerated(ficheroClient: client)

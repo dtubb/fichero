@@ -103,6 +103,10 @@ struct EntityDetailView: View {
     @State var metadataSaveMessage: String?
     @State var isSavingMetadata = false
     @State private var showDigestSheet = false
+    /// #3757 — external-authority (Wikidata / VIAF / LoC) search-and-link sheet.
+    /// Internal (not private) so the header button in the +Metadata extension
+    /// can drive it.
+    @State var showAuthorityLinkSheet = false
     @State var showContradictionTriageSheet = false
     @State var showClaimReviewQueueSheet = false
 
@@ -286,6 +290,8 @@ struct EntityDetailView: View {
                 }
                 .buttonStyle(.bordered)
                 .help("Every subject-verb-object statement we know about this entity")
+
+                authorityLinkButton
             }
 
             if let description = cleanedDisplayText(entity.description) {
@@ -316,6 +322,9 @@ struct EntityDetailView: View {
             EntityDigestContent(entity: entity, entityService: entityService)
                 .frame(minWidth: 780, minHeight: 560)
                 .padding(20)
+        }
+        .sheet(isPresented: $showAuthorityLinkSheet) {
+            EntityAuthorityLinkSheet(entity: entity, entityStore: entityStore)
         }
     }
 }
