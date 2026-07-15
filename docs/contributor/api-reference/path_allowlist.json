@@ -394,6 +394,7 @@
   "/api/pair/devices": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
   "/api/pair/devices/renew": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
   "/api/pair/devices/{device_id}/revoke": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+  "/api/pair/enroll": "Zero-touch device enrollment endpoint (#3789); the API reference index documents route families + the committed schema render, per-path markdown callout is a follow-up.",
   "/api/policies/orchestration": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
   "/api/policies/orchestration/evaluate": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
   "/api/policies/orchestration/{rule_id}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
