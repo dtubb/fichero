@@ -75,4 +75,19 @@ final class FeatureManagerTests: XCTestCase {
             XCTAssertFalse(featureManager.isIntegrationsEnabled)
         }
     }
+
+    // The Engine & Access panes (Engine/Backend + Library Access: People /
+    // Devices+QR / Capture) hold real, keepable capabilities, so their EXISTENCE
+    // must not hang off the `.alpha`-tier `settings_*_tab` flags — those hid the QR
+    // and the multi-user toggle from beta testers ("nowhere to turn on the qrcode",
+    // #3811). Reachable in internal + tester builds; still hidden in release until
+    // the fail-closed engine-refusal P0 lands (#3776).
+    func testTesterSettingsPanesReachableForTestersHiddenInRelease() {
+        XCTAssertTrue(SettingsView.showsTesterSettingsPane(tier: .dev))
+        XCTAssertTrue(SettingsView.showsTesterSettingsPane(tier: .alpha))
+        // The regression case: beta testers must see the sharing/QR + Engine panes.
+        XCTAssertTrue(SettingsView.showsTesterSettingsPane(tier: .beta))
+        // Release stays gated until #3776's P0 verification.
+        XCTAssertFalse(SettingsView.showsTesterSettingsPane(tier: .release))
+    }
 }
