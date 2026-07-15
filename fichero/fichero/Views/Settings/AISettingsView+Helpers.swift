@@ -10,13 +10,13 @@ extension AISettingsView {
 
     var temperatureBinding: Binding<Double> {
         Binding(
-            get: { Double(defaults.temperature) ?? 0.7 },
-            set: { defaults.temperature = String(format: "%.1f", $0) }
+            get: { Double(store.defaults.temperature) ?? 0.7 },
+            set: { store.defaults.temperature = String(format: "%.1f", $0) }
         )
     }
 
     var temperatureDisplay: String {
-        defaults.temperature.isEmpty ? "0.7" : defaults.temperature
+        store.defaults.temperature.isEmpty ? "0.7" : store.defaults.temperature
     }
 
     @ViewBuilder
@@ -218,108 +218,50 @@ extension AISettingsView {
         }
     }
 
-    // MARK: - Data Actions
+    // MARK: - Model-picker lists
 
-    func loadDefaults() async {
-        isLoading = true
-        defer { isLoading = false }
-
-        // Refresh providers list so the picker reflects providers added
-        // since AppState's last load.
-        await appState.loadProviders()
-
-        do {
-            defaults = try await appState.fetchAIDefaults()
-
-            let appleAvailable = appState.providers.contains(where: { $0.providerType == "apple" })
-            let beforeSeed = defaults
-            defaults.seedAppleDefaultsIfNeeded(appleAvailable: appleAvailable)
-            if defaults != beforeSeed {
-                // Surface a seed-persist failure instead of showing values that
-                // silently evaporate on next launch (#3222 / prefer-raise-over-
-                // silent-fallback). Scoped catch so a save failure doesn't abort
-                // loading the model-picker lists below.
-                do {
-                    try await appState.saveAIDefaults(defaults)
-                } catch {
-                    settingsLogger.error(
-                        "Failed to persist seeded Apple defaults: \(error.localizedDescription)"
-                    )
-                    errorMessage = "Couldn't save the default AI models: \(error.localizedDescription)"
-                }
-            }
-
-            if !defaults.textProvider.isEmpty {
-                loadModels(for: defaults.textProvider, into: $textModels)
-            }
-            if !defaults.visionProvider.isEmpty {
-                loadModels(for: defaults.visionProvider, into: $visionModels)
-            }
-            if !defaults.audioProvider.isEmpty {
-                loadModels(for: defaults.audioProvider, into: $audioModels)
-            }
-            if !defaults.videoProvider.isEmpty {
-                loadModels(for: defaults.videoProvider, into: $videoModels)
-            }
-            if !defaults.embeddingsProvider.isEmpty {
-                loadModels(for: defaults.embeddingsProvider, into: $embeddingsModels)
-            }
-            if !defaults.smallProvider.isEmpty {
-                loadModels(for: defaults.smallProvider, into: $smallModels)
-            }
-            if !defaults.mediumProvider.isEmpty {
-                loadModels(for: defaults.mediumProvider, into: $mediumModels)
-            }
-            if !defaults.largeProvider.isEmpty {
-                loadModels(for: defaults.largeProvider, into: $largeModels)
-            }
-            if !defaults.visionSmallProvider.isEmpty {
-                loadModels(for: defaults.visionSmallProvider, into: $visionSmallModels)
-            }
-            if !defaults.visionMediumProvider.isEmpty {
-                loadModels(for: defaults.visionMediumProvider, into: $visionMediumModels)
-            }
-            if !defaults.visionLargeProvider.isEmpty {
-                loadModels(for: defaults.visionLargeProvider, into: $visionLargeModels)
-            }
-        } catch {
-            settingsLogger.error("Failed to load AI defaults: \(error.localizedDescription)")
-            errorMessage = "Failed to load: \(error.localizedDescription)"
+    /// Populate the per-tier model-picker lists from the store's loaded defaults.
+    /// The defaults load + seed + persistence now lives in `AISettingsStore`; this
+    /// only fills the transient picker lists the view owns, reading `store.defaults`.
+    /// ponytail: these still call `appState` for the model catalog — moving the
+    /// model-list loading into the store is a scoped follow-up to #3222.
+    func loadModelLists() async {
+        let defaults = store.defaults
+        // One (provider, target-list) lane per tier — a loop instead of 11 ifs so a
+        // new tier is one line, not another branch.
+        let lanes: [(provider: String, models: Binding<[ModelInfo]>)] = [
+            (defaults.textProvider, $textModels),
+            (defaults.visionProvider, $visionModels),
+            (defaults.audioProvider, $audioModels),
+            (defaults.videoProvider, $videoModels),
+            (defaults.embeddingsProvider, $embeddingsModels),
+            (defaults.smallProvider, $smallModels),
+            (defaults.mediumProvider, $mediumModels),
+            (defaults.largeProvider, $largeModels),
+            (defaults.visionSmallProvider, $visionSmallModels),
+            (defaults.visionMediumProvider, $visionMediumModels),
+            (defaults.visionLargeProvider, $visionLargeModels)
+        ]
+        for lane in lanes where !lane.provider.isEmpty {
+            loadModels(for: lane.provider, into: lane.models)
         }
     }
 
-    func saveDefaults() async {
-        guard !isLoading else { return }
-        isSaving = true
-        defer { isSaving = false }
-        do {
-            try await appState.saveAIDefaults(defaults)
-            errorMessage = nil
-        } catch {
-            settingsLogger.error("Failed to save AI defaults: \(error.localizedDescription)")
-            errorMessage = "Failed to save: \(error.localizedDescription)"
-        }
-    }
-
-    func resetDefaults() async {
-        do {
-            try await appState.resetAIDefaults()
-            defaults = AIDefaults()
-            textModels = []
-            visionModels = []
-            audioModels = []
-            videoModels = []
-            embeddingsModels = []
-            smallModels = []
-            mediumModels = []
-            largeModels = []
-            visionSmallModels = []
-            visionMediumModels = []
-            visionLargeModels = []
-            errorMessage = nil
-        } catch {
-            settingsLogger.error("Failed to reset AI defaults: \(error.localizedDescription)")
-            errorMessage = "Failed to reset: \(error.localizedDescription)"
-        }
+    /// Reset button handler: the store resets the defaults (and surfaces any
+    /// failure honestly), then the view clears its picker lists.
+    func resetAll() async {
+        await store.reset()
+        guard store.errorMessage == nil else { return }
+        textModels = []
+        visionModels = []
+        audioModels = []
+        videoModels = []
+        embeddingsModels = []
+        smallModels = []
+        mediumModels = []
+        largeModels = []
+        visionSmallModels = []
+        visionMediumModels = []
+        visionLargeModels = []
     }
 }
