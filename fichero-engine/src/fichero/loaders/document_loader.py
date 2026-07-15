@@ -52,6 +52,7 @@ _RTF_SKIP_GROUP_WORDS = frozenset(
 
 # Matches RTF hex-escape sequences: \'XX where XX are two hex digits.
 _RTF_HEX_FULL_RE = re.compile(r"\\'([0-9a-fA-F]{2})")
+_RTF_HEX_RUN_RE = re.compile(r"(?:\\'[0-9a-fA-F]{2})+")
 _RTF_UNICODE_RE = re.compile(r"\\u(-?\d+)\?")
 
 
@@ -85,7 +86,19 @@ def _strip_rtf(text: str) -> str:
         return chr(value if value >= 0 else value + 65536)
 
     stripped = _RTF_UNICODE_RE.sub(_decode_unicode, stripped)
-    stripped = _RTF_HEX_FULL_RE.sub(_decode_rtf_hex_byte, stripped)
+    codepage = re.search(r"\\ansicpg(\d+)", stripped)
+    encoding = f"cp{codepage.group(1)}" if codepage else "cp1252"
+
+    def _decode_hex_run(match: "re.Match[str]") -> str:
+        raw = bytes(int(value, 16) for value in _RTF_HEX_FULL_RE.findall(match.group()))
+        try:
+            return raw.decode(encoding)
+        except LookupError:
+            return raw.decode("cp1252", errors="replace")
+        except UnicodeDecodeError:
+            return raw.decode(encoding, errors="replace")
+
+    stripped = _RTF_HEX_RUN_RE.sub(_decode_hex_run, stripped)
 
     output: list[str] = []
     # skip_until_depth > 0: skip content until depth drops below this value.
