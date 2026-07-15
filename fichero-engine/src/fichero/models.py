@@ -31,7 +31,7 @@ Usage:
 from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 import base64
 import logging
@@ -1096,6 +1096,7 @@ class AccountInvite(BaseModel):
     token_hash: str
     created_at: datetime = Field(default_factory=datetime.now)
     expires_at: datetime
+    channel: Literal["qr", "messages", "email"] = "qr"
     consumed_at: datetime | None = None
     revoked: bool = False
 

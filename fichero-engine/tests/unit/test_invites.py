@@ -156,6 +156,78 @@ def test_invite_is_one_time_only(app_db, monkeypatch):
     assert second.json()["code"] == "invite_consumed"
 
 
+def test_invites_keep_short_qr_ttl_but_email_lives_for_a_day(app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    base_now = datetime(2026, 7, 5, 12, 0, 0)
+
+    class FrozenDateTime(datetime):
+        current = base_now
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.current if tz is None else tz.fromutc(cls.current.replace(tzinfo=tz))
+
+    monkeypatch.setattr(auth_accounts, "datetime", FrozenDateTime)
+    monkeypatch.setattr("fichero.app_db.datetime", FrozenDateTime)
+
+    with _client(app_db, monkeypatch) as client:
+        qr = client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={"username": "qr-user", "display_name": "QR User", "channel": "qr"},
+        )
+        messages = client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={
+                "username": "messages-user",
+                "display_name": "Messages User",
+                "channel": "messages",
+            },
+        )
+        email = client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={"username": "email-user", "display_name": "Email User", "channel": "email"},
+        )
+
+    assert qr.status_code == 200
+    assert messages.status_code == 200
+    assert email.status_code == 200
+    assert qr.json()["invite"]["expires_at"] == (base_now + timedelta(minutes=15)).isoformat()
+    assert messages.json()["invite"]["expires_at"] == (
+        base_now + timedelta(minutes=15)
+    ).isoformat()
+    assert email.json()["invite"]["expires_at"] == (base_now + timedelta(days=1)).isoformat()
+    assert qr.json()["invite"]["channel"] == "qr"
+    assert messages.json()["invite"]["channel"] == "messages"
+    assert email.json()["invite"]["channel"] == "email"
+
+
+def test_invite_redemption_records_a_durable_notice(app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+
+    with _client(app_db, monkeypatch) as client:
+        invite = client.post(
+            "/api/auth/invites",
+            headers=_bearer(initialize_token()),
+            json={"username": "invitee", "display_name": "Invitee", "channel": "email"},
+        )
+        redeemed = client.post(
+            "/api/auth/invites/redeem",
+            json={
+                "invite_token": invite.json()["invite_token"],
+                "new_password": "password-1",
+            },
+        )
+
+    assert redeemed.status_code == 200
+    notices = [audit for audit in app_db.list_action_audits() if audit.action_name == "invite.redeemed"]
+    assert len(notices) == 1
+    assert notices[0].target_ids == [invite.json()["invite"]["id"]]
+    assert notices[0].params == {"username": "invitee", "channel": "email"}
+
+
 def test_expired_invite_fails(app_db, monkeypatch):
     _enable_multiuser(monkeypatch)
     base_now = datetime(2026, 7, 5, 12, 0, 0)
