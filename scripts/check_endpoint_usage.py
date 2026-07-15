@@ -161,8 +161,6 @@ KNOWN_GAPS: dict[str, str] = {
     'POST /api/kg/interpretations/patterns/{pattern_id}/claims/{claim_id}': "#3299 hermeneutics engine/CLI surface; SwiftUI deferred",
     'POST /api/kg/interpretations/suggestions': "#3299 hermeneutics engine/CLI surface; SwiftUI deferred",
     'GET /api/kg/review/summary': "#1920 baseline - cli-only",
-    'POST /api/kg/entity-curation/authority/link': "engine-side authority curation; Inspector wiring tracked in #3757",
-    'POST /api/kg/entity-curation/authority/refresh': "engine-side authority curation; Inspector wiring tracked in #3757",
     'POST /api/local-inference/profiles/validate': "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred",
     'POST /api/local-inference/profiles/{profile_id}/health': "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred",
     'GET /api/settings/model-profiles': "#2058 backend model-profile API; Settings UI/store wiring deferred",
