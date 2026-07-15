@@ -1077,6 +1077,24 @@ class AppDatabase:
         self._update_user_fk_safe("is_owner = ?", [is_owner], user_id)
         return self.get_user(user_id)
 
+    def delete_user(self, user_id: str) -> bool:
+        """Delete a user and the credentials and grants that depend on it."""
+        with self._lock:
+            exists = self.conn.execute("SELECT 1 FROM users WHERE id = ?", [user_id]).fetchone()
+            if exists is None:
+                return False
+            for table in (
+                "library_acl_overrides",
+                "library_roles",
+                "sessions",
+                "devices",
+                "enrollment_secrets",
+            ):
+                self.conn.execute(f"DELETE FROM {table} WHERE user_id = ?", [user_id])
+            self.conn.execute("DELETE FROM users WHERE id = ?", [user_id])
+            self.conn.commit()
+        return True
+
     def _update_user_fk_safe(
         self,
         set_clause: str,
