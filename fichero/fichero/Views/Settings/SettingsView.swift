@@ -53,10 +53,13 @@ struct SettingsView: View {
                     if featureManager.isSettingsEngineTabEnabled || featureManager.isSettingsBackendTabEnabled {
                         row(.engine, "Engine", "square.grid.3x1.below.line.grid.1x2")
                     }
-                    // Library Access group (#3396): Connect + Users + Capture consolidated.
-                    if featureManager.isSettingsShareTabEnabled
-                        || featureManager.isSettingsUsersTabEnabled
-                        || featureManager.isSettingsCaptureTabEnabled {
+                    // Library Access group (#3396): People + Devices (pairing/QR) +
+                    // Capture. Its EXISTENCE must not hang off per-feature migration
+                    // flags — the sharing/QR pane is `.alpha`-tier, so it vanished for
+                    // beta testers and Daniel had "nowhere to turn on the qrcode"
+                    // (#3811/#3776). Show it to internal + tester builds; still hidden
+                    // in release until the fail-closed engine-refusal P0 lands (#3776).
+                    if Self.showsLibraryAccessSettings(tier: featureManager.activeBuildTier) {
                         row(.connect, "Library Access", "lock.shield")
                     }
                 }
@@ -84,6 +87,17 @@ struct SettingsView: View {
     /// `List(selection:)` drives `appState.selectedSettingsTab`.
     private func row(_ tab: SettingsTab, _ title: LocalizedStringKey, _ symbol: String) -> some View {
         Label(title, systemImage: symbol).tag(tab)
+    }
+
+    /// Whether the Library Access pane (People / Devices+QR / Capture) is reachable
+    /// in this build. It holds real, keepable capabilities, so its existence must
+    /// NOT depend on a per-feature migration flag — the `.alpha`-tier
+    /// `settings_share_tab` flag hid the QR from beta testers, which is the whole of
+    /// #3811 ("nowhere to turn on the qrcode"). Visible to internal + tester builds;
+    /// still hidden in release until the fail-closed engine-refusal P0 is verified
+    /// (#3776). When that lands, this gate goes too and the pane is simply always on.
+    static func showsLibraryAccessSettings(tier: FeatureTier) -> Bool {
+        tier != .release
     }
 
     // A flat tab → pane dispatch; its cyclomatic complexity is inherent to the
@@ -337,20 +351,20 @@ private enum LibraryAccessSection: String, CaseIterable, SettingsGroupSection {
 /// (device pairing / QR), Users (people/roles), and Capture (capture permissions)
 /// tabs, consolidated. Reuses each pane unchanged.
 private struct LibraryAccessSettingsView: View {
-    /// Injected by the Settings scene (#3033/#3034) — the panes must not reach
-    /// for the singleton themselves. @EnvironmentObject, not @Environment:
-    /// FeatureManager is @AppStorage-backed and so must stay an
-    /// ObservableObject until #3743 re-backs its flags on UserDefaults.
-    @EnvironmentObject private var featureManager: FeatureManager
     @State private var selection: LibraryAccessSection = .people
 
     private var availableSections: [LibraryAccessSection] {
-        var sections: [LibraryAccessSection] = []
-        if featureManager.isSettingsUsersTabEnabled { sections.append(.people) }
+        // People / Devices (pairing + QR) / Capture are all real, keepable
+        // capabilities (#3776) — the user's control is the sharing toggle inside
+        // Devices, not whether the pane is compiled in. Their existence no longer
+        // hangs off per-feature migration flags, which is what made the QR vanish
+        // for beta testers (#3811). The sidebar row gate
+        // (`SettingsView.showsLibraryAccessSettings`) decides reachability per build.
+        var sections: [LibraryAccessSection] = [.people]
         #if canImport(AppKit)
-        if featureManager.isSettingsShareTabEnabled { sections.append(.devices) }
+        sections.append(.devices)
         #endif
-        if featureManager.isSettingsCaptureTabEnabled { sections.append(.capture) }
+        sections.append(.capture)
         return sections
     }
 
