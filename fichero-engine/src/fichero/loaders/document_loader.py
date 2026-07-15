@@ -52,6 +52,7 @@ _RTF_SKIP_GROUP_WORDS = frozenset(
 
 # Matches RTF hex-escape sequences: \'XX where XX are two hex digits.
 _RTF_HEX_FULL_RE = re.compile(r"\\'([0-9a-fA-F]{2})")
+_RTF_UNICODE_RE = re.compile(r"\\u(-?\d+)\?")
 
 
 def _decode_rtf_hex_byte(m: "re.Match[str]") -> str:
@@ -79,6 +80,11 @@ def _strip_rtf(text: str) -> str:
     # plain text.  Only the full \'XX form is decoded; the bare 'XX form
     # (no backslash) is NOT decoded because it matches legitimate apostrophes
     # in plain text ("class of '92", "the '49ers") and corrupts them. (#2505)
+    def _decode_unicode(match: "re.Match[str]") -> str:
+        value = int(match.group(1))
+        return chr(value if value >= 0 else value + 65536)
+
+    stripped = _RTF_UNICODE_RE.sub(_decode_unicode, stripped)
     stripped = _RTF_HEX_FULL_RE.sub(_decode_rtf_hex_byte, stripped)
 
     output: list[str] = []
@@ -204,10 +210,10 @@ class DocumentLoader(MediaLoader):
     async def _load_text_file(self, path: Path) -> MediaContent:
         """Load plain text file directly."""
         try:
-            text = path.read_text(encoding="utf-8")
+            text = path.read_text(encoding="utf-8-sig")
         except UnicodeDecodeError:
             # Try other encodings
-            for encoding in ["latin-1", "cp1252", "iso-8859-1"]:
+            for encoding in ["utf-16", "latin-1", "cp1252", "iso-8859-1"]:
                 try:
                     text = path.read_text(encoding=encoding)
                     break
