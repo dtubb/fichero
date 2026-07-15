@@ -275,7 +275,10 @@ struct DocumentInspector: View {
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
             tabs.append(.edits)
         }
-        tabs.append(.info)
+        // Info is no longer a standalone tab — it is folded into the Source body's
+        // Content/Info/Outline picker (SourceSectionMode, #3876). Not appending it
+        // here means a persisted `.info` selection clamps to `.content` (Source)
+        // instead of stranding on the old full-screen Info view with no picker.
         return tabs
     }
 
@@ -340,17 +343,11 @@ struct DocumentInspector: View {
     }
 
     @ViewBuilder
+    // Kept for switch exhaustiveness — `.info` is no longer a selectable tab (#3876,
+    // folded into SourceSectionMode). Delegates to the one shared Info body so there
+    // is no divergent copy.
     private func infoTab(for doc: Document) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                DocumentInspectorInfoTab(document: doc)
-                if !doc.metadata.isEmpty || doc.path != nil {
-                    DocumentInspectorMetadataTab(document: doc)
-                }
-                Spacer()
-            }
-            .padding()
-        }
+        SourceInfoView(document: doc)
     }
 
     // MARK: - Empty State

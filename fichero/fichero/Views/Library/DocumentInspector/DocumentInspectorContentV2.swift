@@ -1,6 +1,8 @@
 import FicheroAPIClient
 import SwiftUI
 
+// swiftlint:disable file_length
+
 /// V2 inspector Content tab. Tinderbox-style layout:
 ///   - DisplayAttributesStrip at top (compact key-value).
 ///   - One ArtifactPanel per artifact below.
@@ -545,9 +547,10 @@ struct SourceOutlineView: View {
     }
 }
 
-/// The Source section body: a deliberate **mode** toggle between the page
-/// Content view and the native document Outline (#3440) — Outline is a hierarchy
-/// mode within Source, not another permanent inspector tab.
+/// The Source section body: ONE segmented toggle over the page **Content**, the
+/// document **Info** (metadata), and the native document **Outline** (#3440/#3876).
+/// This is the single Source picker — the former separate Content/Info facet picker
+/// above it is gone; Info is the middle segment here.
 struct SourceSectionView: View {
     let document: Document
 
@@ -557,6 +560,7 @@ struct SourceSectionView: View {
         VStack(spacing: 0) {
             Picker("Source view", selection: $mode) {
                 Text("Content").tag(SourceSectionMode.content)
+                Text("Info").tag(SourceSectionMode.info)
                 Text("Outline").tag(SourceSectionMode.outline)
             }
             .pickerStyle(.segmented)
@@ -571,6 +575,9 @@ struct SourceSectionView: View {
                 Divider()
                 DocumentInspectorContentV2(document: document, mode: .pageContentOnly)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .info:
+                SourceInfoView(document: document)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .outline:
                 SourceOutlineView(documentId: document.id)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -579,7 +586,28 @@ struct SourceSectionView: View {
     }
 }
 
+/// The document's Info + Metadata body — the Source section's Info mode (#3876).
+/// One home for the info content, whether reached from the Source segmented picker
+/// or the folded (exhaustiveness-only) Info tab.
+struct SourceInfoView: View {
+    let document: Document
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                DocumentInspectorInfoTab(document: document)
+                if !document.metadata.isEmpty || document.path != nil {
+                    DocumentInspectorMetadataTab(document: document)
+                }
+                Spacer()
+            }
+            .padding()
+        }
+    }
+}
+
 enum SourceSectionMode: String, CaseIterable {
     case content
+    case info
     case outline
 }
