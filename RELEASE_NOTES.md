@@ -2,6 +2,33 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.14
+
+### Improved
+
+**Dev testing builds.** Dev archives now expose every implemented feature while
+keeping the release and beta profiles conservative. Embedded-engine launches
+also set their multi-user mode explicitly, so a local single-user build does
+not inherit an authentication setting from the shell that launched it.
+
+**Reader, inspector, and knowledge graph.** The reader restores its WebKit
+transcript view, entity statements are named consistently, and external
+authority settings are wired through the app store.
+
+**Sharing and pairing.** Pairing links are registered with macOS, can be
+copied, and report actionable failures. The app now routes those links instead
+of treating them as library folders.
+
+### Fixed
+
+- Fixed App Store embedded-engine packaging and signing validation, including
+  nested executables, static archives, and debug-symbol bundles.
+- Fixed workflow error detail so validation failures name the actual engine
+  reason rather than a generic server error.
+- Fixed fresh single-user startup so it does not incorrectly require creating
+  an account.
+- Fixed task tests to wait for completion instead of relying on timing.
+
 ## 2026.07.13.4-beta
 
 Inspector and startup hardening after the first notarized beta.
