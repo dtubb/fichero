@@ -36,6 +36,14 @@ final class ActivityStreamService {
         failureCount >= 2
     }
 
+    /// Whether a transient drop should surface the paused pill. Only AFTER a
+    /// successful connect — never during the initial connect window, where the
+    /// app-level BackendConnectionView owns "not connected yet". Stops the pill
+    /// flashing on launch (#3874). Once connected, the two-strike debounce applies.
+    static func shouldSurfaceAfterDrop(failureCount: Int, hasConnectedBefore: Bool) -> Bool {
+        hasConnectedBefore && shouldSurfaceUnavailable(failureCount: failureCount)
+    }
+
     init(activityService: ActivityServiceGenerated) {
         self.activityService = activityService
     }
@@ -63,9 +71,11 @@ final class ActivityStreamService {
     private func runLoop(onEvent: @escaping @MainActor (ActivityItem) -> Void) async {
         var backoffNanos: UInt64 = 1_000_000_000
         var consecutiveUnavailableCycles = 0
+        var hasConnectedBefore = false
         while !Task.isCancelled {
             do {
                 try await subscribeOnce(onEvent: onEvent)
+                hasConnectedBefore = true
                 consecutiveUnavailableCycles = 0
                 backoffNanos = 1_000_000_000
             } catch StreamError.accessDenied {
@@ -81,8 +91,13 @@ final class ActivityStreamService {
                 if !Task.isCancelled {
                     log.error("activity stream dropped: \(error.localizedDescription, privacy: .public)")
                     consecutiveUnavailableCycles += 1
-                    liveUpdatesUnavailable = Self.shouldSurfaceUnavailable(
-                        failureCount: consecutiveUnavailableCycles
+                    // Surface the pill only for a drop AFTER a successful connect;
+                    // during the initial connect window the app-level
+                    // BackendConnectionView owns "not connected yet", so the pill
+                    // stays hidden and doesn't flash on launch (#3874).
+                    liveUpdatesUnavailable = Self.shouldSurfaceAfterDrop(
+                        failureCount: consecutiveUnavailableCycles,
+                        hasConnectedBefore: hasConnectedBefore
                     )
                 }
             }

@@ -250,6 +250,15 @@ final class LibraryChangeStream {
         failureCount >= 2
     }
 
+    /// Whether a transient drop should surface the per-surface paused pill.
+    /// Only AFTER a successful connect — never during the initial connect window
+    /// (never connected yet), where the app-level BackendConnectionView already
+    /// owns "not connected yet". This is what stops the pill flashing on launch
+    /// (#3874). Once connected, the usual two-strike debounce applies.
+    static func shouldSurfaceAfterDrop(failureCount: Int, hasConnectedBefore: Bool) -> Bool {
+        hasConnectedBefore && shouldSurfaceUnavailable(failureCount: failureCount)
+    }
+
     // MARK: - Internals
 
     /// Distinguishes an authorization failure (terminal — don't retry) from a
@@ -285,8 +294,13 @@ final class LibraryChangeStream {
                         "change-stream dropped: \(error.localizedDescription, privacy: .public)"
                     )
                     consecutiveUnavailableCycles += 1
-                    liveUpdatesUnavailable = Self.shouldSurfaceUnavailable(
-                        failureCount: consecutiveUnavailableCycles
+                    // Surface the paused pill only for a drop AFTER a successful
+                    // connect; during the initial connect window the app-level
+                    // BackendConnectionView owns "not connected yet", so the pill
+                    // stays hidden and doesn't flash on launch (#3874).
+                    liveUpdatesUnavailable = Self.shouldSurfaceAfterDrop(
+                        failureCount: consecutiveUnavailableCycles,
+                        hasConnectedBefore: hasConnectedBefore
                     )
                 }
             }
