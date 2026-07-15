@@ -325,7 +325,10 @@ struct DocumentThumbnailView: View {
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? effectiveSelectedTint.opacity(0.1) : Color.clear)
+                // #3875: focused tiles get a real Finder-blue highlight (accent
+                // via effectiveSelectedTint), not a barely-there wash; collapses
+                // to gray when the window isn't key / pane isn't focused.
+                .fill(isSelected ? effectiveSelectedTint.opacity(0.2) : Color.clear)
         )
     }
 
@@ -448,7 +451,10 @@ struct EntityThumbnailView: View {
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? effectiveSelectedTint.opacity(0.1) : Color.clear)
+                // #3875: focused tiles get a real Finder-blue highlight (accent
+                // via effectiveSelectedTint), not a barely-there wash; collapses
+                // to gray when the window isn't key / pane isn't focused.
+                .fill(isSelected ? effectiveSelectedTint.opacity(0.2) : Color.clear)
         )
     }
 }
