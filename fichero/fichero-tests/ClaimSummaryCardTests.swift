@@ -352,6 +352,23 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertTrue(EntityDetailView.parseDuplicateCandidates(Data(), excluding: "x").isEmpty)
     }
 
+    private func makeKnowledgeEntity(
+        id: String,
+        name: String,
+        type: Components.Schemas.EntityTypeOutput
+    ) -> Components.Schemas.KnowledgeEntity {
+        Components.Schemas.KnowledgeEntity(
+            id: id,
+            canonicalName: name,
+            entityType: type,
+            aliases: nil,
+            description: nil,
+            language: nil,
+            metadata: nil,
+            mergedIntoId: nil
+        )
+    }
+
     func testLocationEntitiesHideGenericClaimsSection() {
         let location = makeKnowledgeEntity(id: "entity-1", name: "Andagoya", type: .location)
         let person = makeKnowledgeEntity(id: "entity-2", name: "Crawfurd", type: .person)
