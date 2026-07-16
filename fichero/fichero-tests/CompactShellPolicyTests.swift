@@ -6,7 +6,10 @@ import XCTest
 final class CompactShellPolicyTests: XCTestCase {
     /// Every `AppViewMode` case, so this list fails to compile if the enum
     /// gains a case without the test being updated alongside the policy switch.
-    private static let allModes: [AppViewMode] = [
+    /// nonisolated(unsafe): AppViewMode's associated model types aren't all
+    /// Sendable, but this is an immutable test constant never mutated across
+    /// domains — safe by construction (Swift 6).
+    private nonisolated(unsafe) static let allModes: [AppViewMode] = [
         .library(nil), .search(nil), .chat(nil), .comparison(nil),
         .workflow(nil), .chain(nil), .batches, .batch(nil),
         .automation, .schedule(nil), .trigger(nil), .activity(nil)
