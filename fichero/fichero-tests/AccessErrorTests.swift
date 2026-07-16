@@ -25,6 +25,25 @@ struct AccessErrorTests {
         #expect(error == .forbidden(reason: nil, message: "Forbidden"))
     }
 
+    /// #3919: the engine's real scoped-library denial, verbatim from
+    /// `validate_library_path_header` (fichero-engine `api/main.py`). It is an
+    /// access/location failure, so it must classify to `.forbidden` and ask for
+    /// access — never `.signIn`, which is what renders "Reset Sign-In & Retry".
+    @Test func scopedLibraryDenialAsksForAccessNotSignIn() {
+        let body = Data(
+            #"{"detail":"Library path is not in an allowed location or not a .fichero package."}"#.utf8
+        )
+        let error = AccessError.classify(statusCode: 403, body: body)
+        #expect(
+            error == .forbidden(
+                reason: nil,
+                message: "Library path is not in an allowed location or not a .fichero package."
+            )
+        )
+        #expect(error?.recovery == .requestAccess)
+        #expect(error?.recovery != .signIn)
+    }
+
     @Test func status403WithNoBodyFallsBackToGenericMessage() {
         let error = AccessError.classify(statusCode: 403, body: nil)
         #expect(error == .forbidden(reason: nil, message: nil))

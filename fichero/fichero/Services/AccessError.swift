@@ -156,9 +156,13 @@ extension AccessError {
     /// its generic error UI — no regression, just no richer denial view).
     ///
     /// Recognizes an already-typed `AccessError` and the `DocumentStore`'s
-    /// collapsed `.unauthorized` bucket (its 401/403 path). The collapsed case
-    /// maps to `.forbidden` with no message; the access-denied view then uses
-    /// identity to decide sign-in vs. request-access.
+    /// collapsed `.unauthorized` bucket — its 401 path only: since #3919 a 403
+    /// arrives already typed (with the engine's reason intact) and is returned
+    /// as-is by the branch above. The collapsed case still maps to `.forbidden`
+    /// with no message; the access-denied view then uses identity to decide
+    /// sign-in vs. request-access. That mapping is deliberately left alone —
+    /// routing it to `.unauthenticated` would offer to reset a sign-in on a path
+    /// that never prompted for one.
     static func from(_ error: Error?) -> AccessError? {
         guard let error else { return nil }
         if let access = error as? AccessError { return access }
