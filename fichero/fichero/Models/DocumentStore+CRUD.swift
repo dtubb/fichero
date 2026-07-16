@@ -226,7 +226,7 @@ extension DocumentStore {
         case 400:
             throw DocumentStoreError.badRequest(detail: EngineErrorDetail.message(from: data))
         case 401, 403:
-            throw Self.importAccessFailure(statusCode: httpResponse.statusCode, body: data)
+            throw DocumentStoreError.unauthorized
         case 404:
             throw DocumentStoreError.notFound
         case 413:
@@ -250,26 +250,6 @@ extension DocumentStore {
         publish(.collectionsUpdated(collections))
 
         return document
-    }
-
-    /// The 401/403 split for the import path (#3919).
-    ///
-    /// A 403 here is a *scoped* access failure — the engine's
-    /// `validate_library_path_header` refusing the library ("Library path is not
-    /// in an allowed location or not a .fichero package.") — and its detail IS
-    /// the message the user needs. Collapsing it into `.unauthorized` dropped the
-    /// body entirely, so `AccessError.from` could only invent `.forbidden(nil,
-    /// nil)` and the UI showed a generic "You don't have access to this."
-    ///
-    /// Classification goes through `AccessError.classify`, the one classifier, so
-    /// the engine's structured markers (stale bootstrap token, expired device)
-    /// stay honoured here instead of being re-read differently at this call site.
-    /// A 401 keeps today's `.unauthorized` — unchanged.
-    nonisolated static func importAccessFailure(statusCode: Int, body: Data?) -> Error {
-        guard statusCode == 403 else { return DocumentStoreError.unauthorized }
-        // Non-nil for 403 by construction; the fallback only keeps this total.
-        return AccessError.classify(statusCode: statusCode, body: body)
-            ?? AccessError.forbidden(reason: nil, message: nil)
     }
 
     /// Move a document to a new parent.
