@@ -58,6 +58,15 @@ _TRANSLATE_TERMINALS = {
     "Translate + Double-Check": ("text_translate", "text_translate_review"),
 }
 
+_SPECIAL_OUTPUT_ASSERTIONS = {
+    "Transcribe Paleography (Ensemble + Deep Review)",
+    *_TRANSCRIBE_TERMINALS,
+    *_TRANSLATE_TERMINALS,
+}
+
+# Terminal tools without declared ports cannot expose a value through the graph.
+_TERMINAL_OUTPUT_EXCEPTIONS: dict[str, str] = {}
+
 
 @pytest.mark.parametrize("selection_shape", ["folder", "file"])
 def test_catalogue_default_workflow_lands_artifacts_and_kg_rows(
@@ -244,6 +253,8 @@ def test_all_default_workflows_complete_with_deterministic_tool_stubs(
         _assert_transcribe_terminal_outputs(final_state, _TRANSCRIBE_TERMINALS[preset_name])
     if preset_name in _TRANSLATE_TERMINALS:
         _assert_translate_terminal_outputs(final_state, _TRANSLATE_TERMINALS[preset_name])
+    if preset_name not in _SPECIAL_OUTPUT_ASSERTIONS:
+        _assert_declared_terminal_outputs(workflow, final_state, preset_name)
 
 
 def _install_deterministic_workflow_stubs(
@@ -512,6 +523,10 @@ def _install_generic_tool_smoke_stubs(
             # Source-node friendliness.
             if tool_name in {"files", "folder", "collection"}:
                 payload["selected_doc_ids"] = ["stub-doc-1"]
+            tool_def = workflow_registry.get_tool_def(tool_name)
+            if tool_def:
+                for port in tool_def.output_ports:
+                    payload.setdefault(port.id, text)
             return payload
 
         return _stub
@@ -561,6 +576,21 @@ def _assert_translate_terminal_outputs(final_state: dict, node_ids: tuple[str, .
     outputs = final_state.get("outputs") or {}
     for node_id in node_ids:
         assert outputs.get(node_id, {}).get("text"), f"{node_id} emitted no text"
+
+
+def _assert_declared_terminal_outputs(workflow, final_state: dict, preset_name: str) -> None:
+    """Every non-family preset exposes one declared terminal output (#3803)."""
+    if preset_name in _TERMINAL_OUTPUT_EXCEPTIONS:
+        return
+    sources = {edge.source for edge in workflow.edges}
+    outputs = final_state.get("outputs") or {}
+    for node in (node for node in workflow.nodes if node.id not in sources):
+        tool_def = workflow_registry.get_tool_def(node.tool)
+        assert tool_def and tool_def.output_ports, f"{preset_name}: {node.id} has no declared output port"
+        node_output = outputs.get(node.id) or {}
+        assert any(node_output.get(port.id) for port in tool_def.output_ports), (
+            f"{preset_name}: terminal {node.id} emitted no declared output"
+        )
 
 
 def _assert_workflow_completed(final_state: dict) -> None:
