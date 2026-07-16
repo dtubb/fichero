@@ -6,21 +6,6 @@ import SwiftUI
 
 extension ContentView {
 
-    private var libraryLoadErrorMessage: String? {
-        guard !documentStore.isLoading else { return nil }
-        guard selectedDocuments.isEmpty else { return nil }
-
-        if let error = documentStore.error {
-            return error.localizedDescription
-        }
-
-        if !documentStore.isConnected {
-            return "Cannot connect to the local API server."
-        }
-
-        return nil
-    }
-
     // MARK: - Content View Router (Middle Column)
 
     /// Attach targets the chat composer paperclip offers (#2449 step 2): the open

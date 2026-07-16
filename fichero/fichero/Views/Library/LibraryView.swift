@@ -236,15 +236,45 @@ struct LibraryView: View {
         return ref.changeStream.liveUpdatesUnavailable || ref.activityStore.liveUpdatesPaused
     }
 
+    /// The library has never loaded and nothing has failed — startup, not an
+    /// outage (#3937).
+    private var isAwaitingFirstLoad: Bool {
+        guard !isShowingEntitiesCollection else { return false }
+        return Self.isAwaitingFirstLoad(hasLoadedSuccessfully: isConnected, error: documentStore.error)
+    }
+
+    /// A store that has never loaded is starting up, not offline (#3937).
+    ///
+    /// `DocumentStore.isConnected` only flips true once a load SUCCEEDS, so on its
+    /// own it cannot tell "healthy but not asked for data yet" from "offline". The
+    /// absence of an error is what separates the two — which is why this can never
+    /// mask a real outage: the instant a load fails, `error` is set and the
+    /// failure branches win.
+    ///
+    /// Pure so the invariant is testable without a live engine, the same reason
+    /// `BackendConnectionView.connectionFailureTitle` is pure (#3341).
+    static func isAwaitingFirstLoad(hasLoadedSuccessfully: Bool, error: Error?) -> Bool {
+        !hasLoadedSuccessfully && error == nil
+    }
+
+    /// True only when a load failed because the engine could not be REACHED
+    /// (#3937) — the one state that earns the outage pane. Every other failure
+    /// keeps its own message via `errorState`, and no failure at all is not an
+    /// outage. Reuses the one `AccessError` classifier instead of re-reading
+    /// `URLError` codes here. An already-typed `AccessError` never arrives: the
+    /// access-denied branch above claims it first.
+    static func isEngineOutage(_ error: Error?) -> Bool {
+        guard let error else { return false }
+        return AccessError.classify(error) == .engineUnreachable
+    }
+
     // Extracted from `body` to keep the body modifier chain within the Swift
     // type-checker's budget — adding the #2307 onChange handlers tipped the
     // single expression over "unable to type-check in reasonable time".
     // See memory: librarywindow-body-typecheck-timeout.
     @ViewBuilder
     private var libraryContent: some View {
-        if !isConnected {
-            connectionErrorState
-        } else if isCollectionLoading {
+        if isCollectionLoading || isAwaitingFirstLoad {
             loadingState
         } else if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
             // Never a silent 403 / blank pane (F6): a denied library read lands on
@@ -258,6 +288,8 @@ struct LibraryView: View {
                 onSignIn: nil,
                 onResetPin: { RemoteCertificatePinning.clearPersistedSPKIPin(hostString: EngineConfig.hostString) }
             )
+        } else if !isShowingEntitiesCollection, Self.isEngineOutage(documentStore.error) {
+            connectionErrorState
         } else if let activeErrorMessage {
             errorState(message: activeErrorMessage)
         } else if isCollectionEmpty {
@@ -534,23 +566,27 @@ extension LibraryView {
         Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
     }
 
+    /// Shown only for a load that failed because the engine was unreachable
+    /// (`isEngineOutage`) — never for a library that simply hasn't loaded yet.
+    /// The engine is started and managed by the app, so the copy never asks the
+    /// user to go check a service or a port they don't run.
     private var connectionErrorState: some View {
         VStack(spacing: 16) {
             Image(systemName: "wifi.slash")
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
 
-            Text("Backend Not Connected")
+            Text("Can't Reach the Engine")
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("The Fichero backend is not responding. Make sure the server is running on port 8765.")
+            Text("Fichero can't reach its engine right now, so this library can't load. Try again in a moment.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 400)
 
-            Button("Retry Connection") {
+            Button("Try Again") {
                 onRetry()
             }
             .keyboardShortcut("r", modifiers: .command)
