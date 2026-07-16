@@ -150,7 +150,9 @@ class AppState {
     // MARK: - Initialization
 
     init() {
-        logger.info("⏱ AppState.init entry")
+        // First marker on the timeline: its elapsed value IS the pre-main cost
+        // (dyld + static init), which nothing measured before (#3946).
+        LaunchProfile.milestone("AppState.init entry")
         // Initialize services with app-wide clients
         self.providerService = ProviderServiceGenerated(ficheroClient: ficheroClient)
         self.mcpService = MCPService(apiClient: apiClient)
@@ -161,7 +163,7 @@ class AppState {
         self.localInferenceStore = LocalInferenceStore(client: ficheroClient)
         self.appleAvailabilityStore = AppleAvailabilityStore(client: ficheroClient)
         self.kgQueryStore = KGQueryStore(client: ficheroClient)
-        logger.info("⏱ AppState.init services ready")
+        LaunchProfile.milestone("AppState.init services ready")
         // #2960: engine is `@Observable`; the computed backend shims read
         // `engine.phase` directly, so views observing them track the engine
         // transitively. The former `objectWillChange` re-publish is retired.
@@ -417,13 +419,13 @@ class AppState {
 
     func checkBackendHealth() async {
         reconfigureGeneratedClientsForCurrentHost()
-        logger.info("⏱ checkBackendHealth entry")
+        LaunchProfile.milestone("checkBackendHealth entry")
         // Enter the checking/starting phase; the outcome below resolves it to
         // ready / unreachable / authRejected (via confirmAuthAndLoad).
         backendAccessError = nil
         engine.markStarting()
 
-        logger.info("⏱ checkBackendHealth request-start")
+        LaunchProfile.milestone("checkBackendHealth request-start")
         do {
             let response = try await ficheroClient.api.healthCheckApiHealthGet(headers: .init())
             switch response {

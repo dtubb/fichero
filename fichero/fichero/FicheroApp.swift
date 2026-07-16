@@ -190,8 +190,10 @@ struct FicheroApp: App {
                 if restart {
                     backendService.stop()
                 }
+                LaunchProfile.milestone("engine spawn requested")
                 try await backendService.start()
                 let backendMs = Date().timeIntervalSince(backendStart) * 1000
+                LaunchProfile.milestone("engine spawn returned")
                 logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
             }
 
@@ -214,6 +216,7 @@ struct FicheroApp: App {
             }
 
             let readyMs = Date().timeIntervalSince(backendStart) * 1000
+            LaunchProfile.milestone("first authenticated ready")
             logger.info("⏱ engine authenticated and ready: \(readyMs, format: .fixed(precision: 1))ms")
 
             backendService.status = .running

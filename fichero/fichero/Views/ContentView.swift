@@ -1,8 +1,6 @@
-import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "ContentView")
 // swiftlint:disable file_length
 
 /// Identifies which main pane has keyboard focus for Tab cycling
@@ -275,7 +273,8 @@ struct ContentView: View {
             } else {
                 mainContentView
                     .onAppear {
-                        logger.info("⏱ ContentView first-frame — main content visible")
+                        // The end of the launch timeline: real content on screen.
+                        LaunchProfile.milestone("ContentView first-frame — main content visible")
                     }
             }
         }

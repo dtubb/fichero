@@ -541,6 +541,10 @@ final class EmbeddedBackendService {
         try process.run()
 
         let pid = process.processIdentifier
+        // The gap between "engine spawn requested" and this marker is everything
+        // the app does BEFORE the engine gets to start: the port pre-flight and
+        // the TLS material prep (#3936/#3928). That cost was invisible.
+        LaunchProfile.milestone("engine process launched (pid \(pid))")
         logger.info("Backend process launched successfully (PID: \(pid))")
 
         // Store PID and process reference
@@ -679,12 +683,25 @@ final class EmbeddedBackendService {
     private func waitForSpawnedBackend() async throws {
         let startTime = Date()
         var pollInterval: Duration = .milliseconds(100)
+        var markedBound = false
 
         while true {
             if Task.isCancelled { throw CancellationError() }
 
             let result = await probeReadiness()
             lastReadiness = result
+
+            // The engine answered health AND echoed our launch nonce: the socket
+            // is bound and it is OUR process. Distinct from ready — the token
+            // exchange may still be pending — and it is the boundary between
+            // "engine starting up" (its import + lifespan) and "app finishing
+            // auth", which is the split a launch profile has to show (#3946).
+            // `.notResponding` also covers health-200-but-registry-5xx, so this
+            // marks the first CONFIRMED bind, never an earlier guess.
+            if !markedBound, result != .notResponding {
+                markedBound = true
+                LaunchProfile.milestone("engine bound (health + identity answered)")
+            }
 
             switch Self.spawnWaitStep(
                 readiness: result,
