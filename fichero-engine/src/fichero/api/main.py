@@ -74,6 +74,7 @@ from fichero.models import (
 )
 from fichero.paths import migrate_legacy_engine_state
 from fichero.remote_backend import build_remote_backend_status
+from fichero.security_scoped_access import granted_paths
 from fichero.storage import (
     start_periodic_snapshot_task,
     stop_periodic_snapshot_task,
@@ -948,6 +949,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
     - ~/Desktop (iCloud-syncable, natural place for libraries)
     - ~/Fichero
     - ~/Dropbox
+    - ~/code
     - ~/Library/Application Support
     - ~/Library/Containers/<one container>/Data/Library/Application Support —
       the sandboxed host app's own container, scoped via
@@ -958,6 +960,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
     - test temp dirs under /var/folders and /private/var/folders (macOS)
     - /tmp and /private/tmp — Linux CI and macOS sandbox pytest tmp_path
     - FICHERO_LIBRARY_ALLOWED_ROOTS entries for remote/server deployments
+    - security-scoped bookmark grants held by this engine process
 
     Symlink tolerance: when "Desktop & Documents in iCloud" is ON, ~/Documents
     is a symlink into ~/Library/Mobile Documents/com~apple~CloudDocs/Documents.
@@ -995,6 +998,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
         Path("/private/tmp"),
         *_configured_library_allowed_roots(),
     ]
+    allowed_roots += [Path(path).expanduser().resolve() for path in granted_paths()]
 
     # SECURITY: is_relative_to() is purely lexical and does NOT normalize
     # "..", so an un-resolved candidate like ~/Documents/../../etc/x.fichero

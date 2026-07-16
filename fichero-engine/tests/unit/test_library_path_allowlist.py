@@ -16,7 +16,9 @@ to a path outside every allowed root and got a 403. The allowlist must now:
 import os
 from pathlib import Path
 
-from fichero.api.main import _is_allowed_library_path
+import fichero.api.main as api_main
+
+_is_allowed_library_path = api_main._is_allowed_library_path
 
 
 def test_icloud_physical_documents_path_allowed():
@@ -287,3 +289,29 @@ def test_benign_dotdot_within_allowed_root_still_allowed():
     (the resolved candidate handles it; only the lexical spoof is closed)."""
     p = f"{Path.home()}/Documents/sub/../X.fichero"
     assert _is_allowed_library_path(p) is True
+
+
+def test_security_scoped_grant_allows_library_outside_container_home(monkeypatch):
+    """A Powerbox grant outranks the sandbox container's HOME-based roots."""
+    container_home = Path("/Users/container")
+    library = Path("/Users/real-user/code/marshall_diaries/X.fichero")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: container_home))
+    monkeypatch.setattr(api_main, "granted_paths", lambda: frozenset({str(library.parent)}))
+
+    assert _is_allowed_library_path(str(library)) is True
+
+
+def test_ungranted_library_outside_container_home_is_rejected(monkeypatch):
+    """Changing HOME to a sandbox container does not widen the allowlist."""
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: Path("/Users/container")))
+    monkeypatch.setattr(api_main, "granted_paths", lambda: frozenset())
+
+    assert _is_allowed_library_path("/Users/real-user/X.fichero") is False
+
+
+def test_grant_does_not_allow_dotdot_escape(monkeypatch):
+    """A grant only permits descendants of its resolved path."""
+    granted = Path("/Users/real-user/granted")
+    monkeypatch.setattr(api_main, "granted_paths", lambda: frozenset({str(granted)}))
+
+    assert _is_allowed_library_path(str(granted / ".." / "outside" / "X.fichero")) is False
