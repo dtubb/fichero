@@ -305,6 +305,7 @@ if [ "$RUN_IOS_TESTFLIGHT" = true ]; then
     "${AUTH_ARGS[@]}" \
     MARKETING_VERSION="$TESTFLIGHT_MARKETING_VERSION" \
     CURRENT_PROJECT_VERSION="$TESTFLIGHT_BUILD_VERSION" \
+    FICHERO_FEATURE_TIER="$IOS_ARCHIVE_FEATURE_TIER" \
     archive; then
     echo "error: iOS archive failed; check Xcode signing and remote-client release settings" >&2
     exit 1
