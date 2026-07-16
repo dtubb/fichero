@@ -516,7 +516,6 @@
 		C0FFEE0000000000000000A2 /* PairingRestoreDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE0000000000000000A1 /* PairingRestoreDiagnostics.swift */; };
 		C0FFEE0000000000000000A3 /* PairingRestoreDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE0000000000000000A1 /* PairingRestoreDiagnostics.swift */; };
 		C10000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000001 /* SparkleUpdater.swift */; };
-		C10000010000000000000002 /* AppInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000002 /* AppInstaller.swift */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
 		C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */; };
 		C340001000000000PROMPT01 /* PromptPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C340001100000000PROMPT01 /* PromptPreviewPanel.swift */; };
@@ -613,7 +612,6 @@
 		FEED00000000000000000018 /* SearchResultRowFromAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202674D52F48963F008EAB5D /* SearchResultRowFromAPI.swift */; };
 		FEED00000000000000000019 /* FocusedCommandButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BFB2DD2F04328300EAA55A /* FocusedCommandButtons.swift */; };
 		FEED0000000000000000001A /* FicheroApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101 /* FicheroApp.swift */; };
-		FEED0000000000000000001B /* AppInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000002 /* AppInstaller.swift */; };
 		FEED0000000000000000001C /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000001 /* SparkleUpdater.swift */; };
 		FEED0000000000000000001D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 102 /* ContentView.swift */; };
 		FEED0000000000000000001E /* Document.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103 /* Document.swift */; };
@@ -1743,7 +1741,6 @@
 		C07B489C8F89204C43BD6E46 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AISettingsView.swift; path = fichero/Views/Settings/AISettingsView.swift; sourceTree = SOURCE_ROOT; };
 		C0FFEE0000000000000000A1 /* PairingRestoreDiagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PairingRestoreDiagnostics.swift; sourceTree = "<group>"; };
 		C10000110000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
-		C10000110000000000000002 /* AppInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInstaller.swift; sourceTree = "<group>"; };
 		C1424784E87E1971372F0109 /* CitationDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CitationDetailView.swift; sourceTree = "<group>"; };
 		C1E16D1FB324019CBF50B37D /* CanvasInteractionController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasInteractionController.swift; sourceTree = "<group>"; };
 		C340001100000000PROMPT01 /* PromptPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptPreviewPanel.swift; sourceTree = "<group>"; };
@@ -2600,7 +2597,6 @@
 				A1BFB2C62F042C0500EAA55A /* ViewSettings.swift */,
 				20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */,
 				20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */,
-				C10000110000000000000002 /* AppInstaller.swift */,
 				C10000110000000000000001 /* SparkleUpdater.swift */,
 				FBE84D175FC1F5C5644EB914 /* WindowSeed.swift */,
 				956F66055D569E37A35E0377 /* ViewDisplayMode.swift */,
@@ -3612,7 +3608,6 @@
 				202674D62F48963F008EAB5D /* SearchResultRowFromAPI.swift in Sources */,
 				A1BFB2E02F04328300EAA55A /* FocusedCommandButtons.swift in Sources */,
 				001 /* FicheroApp.swift in Sources */,
-				C10000010000000000000002 /* AppInstaller.swift in Sources */,
 				C10000010000000000000001 /* SparkleUpdater.swift in Sources */,
 				002 /* ContentView.swift in Sources */,
 				003 /* Document.swift in Sources */,
@@ -4218,7 +4213,6 @@
 				FEED00000000000000000018 /* SearchResultRowFromAPI.swift in Sources */,
 				FEED00000000000000000019 /* FocusedCommandButtons.swift in Sources */,
 				FEED0000000000000000001A /* FicheroApp.swift in Sources */,
-				FEED0000000000000000001B /* AppInstaller.swift in Sources */,
 				FEED0000000000000000001C /* SparkleUpdater.swift in Sources */,
 				FEED0000000000000000001D /* ContentView.swift in Sources */,
 				FEED0000000000000000001E /* Document.swift in Sources */,
