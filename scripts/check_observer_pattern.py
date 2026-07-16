@@ -112,6 +112,18 @@ KNOWN_VIOLATIONS["fichero/fichero/Views/Settings/SettingsView.swift"] = (
     "it and the panes bind @EnvironmentObject rather than reaching for .shared. "
     "Tracked for conversion in #3743."
 )
+KNOWN_VIOLATIONS.update({
+    "fichero/fichero/Views/ContentViewModifiers.swift": (
+        "FeatureManager remains @AppStorage-backed ObservableObject; the app root injects it "
+        "and this modifier binds it with @EnvironmentObject rather than reading .shared. "
+        "Tracked for conversion in #3743."
+    ),
+    "fichero/fichero/Views/Library/Workspace/LibraryWorkspaceRoot.swift": (
+        "FeatureManager remains @AppStorage-backed ObservableObject; the app root injects it "
+        "and this workspace root binds it with @EnvironmentObject rather than reading .shared. "
+        "Tracked for conversion in #3743."
+    ),
+})
 
 
 def _strip_preview_blocks(text: str) -> str:
