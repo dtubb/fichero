@@ -87,6 +87,10 @@ final class LibrarySmokeUITests: XCTestCase {
             embeddedApp.wait(for: .runningForeground, timeout: 45),
             "Embedded engine launch did not reach the foreground."
         )
+        XCTAssertTrue(
+            embeddedApp.windows.firstMatch.waitForExistence(timeout: 15),
+            "No window appeared after embedded engine launch."
+        )
         // Give the bundled engine time to bind and the deferred saved-library
         // restore time to run. The unit test covers the ordering predicate;
         // this exercises the real app process and engine bundle together.
