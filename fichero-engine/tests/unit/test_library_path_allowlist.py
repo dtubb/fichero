@@ -315,3 +315,11 @@ def test_grant_does_not_allow_dotdot_escape(monkeypatch):
     monkeypatch.setattr(api_main, "granted_paths", lambda: frozenset({str(granted)}))
 
     assert _is_allowed_library_path(str(granted / ".." / "outside" / "X.fichero")) is False
+
+
+def test_rejected_path_log_includes_path_home_and_failed_check(caplog):
+    api_main._log_rejected_library_path("/Users/real-user/X.fichero")
+
+    assert "path=/Users/real-user/X.fichero" in caplog.text
+    assert f"home={Path.home()}" in caplog.text
+    assert "failed_check=roots" in caplog.text

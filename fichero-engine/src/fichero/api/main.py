@@ -96,6 +96,11 @@ class LibraryAccessDeniedError(HTTPException):
         self.payload = payload
 
 
+def _log_rejected_library_path(path: str) -> None:
+    failed_check = "suffix" if Path(path).expanduser().suffix != ".fichero" else "roots"
+    logger.warning("Rejected library path: path=%s home=%s failed_check=%s", path, Path.home(), failed_check)
+
+
 def _install_warning_filters() -> None:
     """Suppress lancedb's over-broad fork-safety advisory.
 
@@ -878,6 +883,7 @@ async def validate_library_path_header(request: Request, call_next):
     """Validate library header early, even when dependencies are overridden in tests."""
     library_path = optional_library_path(request)
     if library_path and not _is_allowed_library_path(library_path):
+        _log_rejected_library_path(library_path)
         from fastapi.responses import JSONResponse
 
         return JSONResponse(
@@ -1069,6 +1075,7 @@ def _get_library_database_for_access(
         )
 
     if not _is_allowed_library_path(x_fichero_library_path):
+        _log_rejected_library_path(x_fichero_library_path)
         raise HTTPException(
             status_code=403,
             detail="Library path is not in an allowed location or not a .fichero package.",
@@ -1222,6 +1229,7 @@ async def health_check(
 
     if x_fichero_library_path:
         if not _is_allowed_library_path(x_fichero_library_path):
+            _log_rejected_library_path(x_fichero_library_path)
             raise HTTPException(
                 status_code=403,
                 detail="Library path is not in an allowed location or not a .fichero package.",
