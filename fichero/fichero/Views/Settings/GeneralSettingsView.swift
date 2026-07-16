@@ -8,6 +8,8 @@ struct GeneralSettingsView: View {
     @AppStorage("defaultImportMode") private var defaultImportMode: String = IngestMode.link.rawValue
     @AppStorage("autoExtractText") private var autoExtractText: Bool = true
     @AppStorage("autoCreateEmbeddings") private var autoCreateEmbeddings: Bool = true
+    // #1869 — single on/off; key shared with WorkflowCompletionNotifier. Default ON.
+    @AppStorage(WorkflowCompletionNotifier.enabledDefaultsKey) private var notificationsEnabled: Bool = true
 
     // Typography settings
     @AppStorage("editor.fontName") private var fontName: String = "System"
@@ -74,6 +76,13 @@ struct GeneralSettingsView: View {
             Section("Ingestion") {
                 Toggle("Auto-extract text from documents", isOn: $autoExtractText)
                 Toggle("Auto-create search embeddings", isOn: $autoCreateEmbeddings)
+            }
+
+            Section("Notifications") {
+                Toggle("Notify when a workflow finishes", isOn: $notificationsEnabled)
+                Text("Shows a system notification when a workflow run completes or fails.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {

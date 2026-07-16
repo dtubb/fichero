@@ -2,6 +2,9 @@ import FicheroAPIClient
 import Foundation
 import Observation
 import OSLog
+#if os(macOS)
+import UserNotifications
+#endif
 
 /// Shared, per-library home for **live** workflow execution state, keyed by
 /// `threadId` (#2546).
@@ -133,11 +136,81 @@ final class WorkflowExecutionStore {
         executions[threadId] = execution
 
         switch event {
-        case .complete, .cancelled, .error, .systemicError:
+        case .complete:
+            unsubscribe(threadId: threadId)
+            WorkflowCompletionNotifier.notify(name: execution.name, outcome: .completed)
+        case .error(_, let error), .systemicError(_, let error, _, _):
+            unsubscribe(threadId: threadId)
+            WorkflowCompletionNotifier.notify(name: execution.name, outcome: .failed(error))
+        case .cancelled:
+            // User-initiated stop — no notification (the brief is completed/failed only).
             unsubscribe(threadId: threadId)
         default:
             break
         }
+    }
+}
+
+// MARK: - Completion notifications (#1869)
+
+/// Posts a local system notification when a workflow run the app ALREADY observes
+/// reaches a terminal state (#1869). Front-end only: it reacts to the same
+/// completed/failed events `WorkflowExecutionStore` reduces — it does no backend
+/// work and adds no new event plumbing.
+///
+/// Dead-simple: a single on/off preference (default ON), and authorization is
+/// requested lazily the first time a notification is actually posted (the system
+/// shows its prompt only once). When the preference is off it posts nothing and
+/// never prompts.
+enum WorkflowCompletionNotifier {
+    /// What finished, carrying the failure message only when it failed.
+    enum Outcome {
+        case completed
+        case failed(String)
+    }
+
+    /// The single on/off preference, shared with the Settings toggle. Default ON:
+    /// an UNSET key reads as enabled (UserDefaults.bool returns false for unset,
+    /// so the presence check is required to make the default ON, not off).
+    static let enabledDefaultsKey = "notificationsEnabled"
+
+    static var isEnabled: Bool {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: enabledDefaultsKey) != nil else { return true }
+        return defaults.bool(forKey: enabledDefaultsKey)
+    }
+
+    /// Post a completed/failed notification for a finished run. No-op (and no
+    /// authorization prompt) when the preference is off.
+    @MainActor
+    static func notify(name: String, outcome: Outcome) {
+        guard isEnabled else { return }
+        #if os(macOS)
+        let body: String
+        switch outcome {
+        case .completed:
+            body = "Completed"
+        case .failed(let error):
+            body = error.isEmpty ? "Failed" : "Failed — \(error)"
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = name.isEmpty ? "Workflow" : name
+        content.body = body
+        content.sound = .default
+
+        let center = UNUserNotificationCenter.current()
+        // Lazy, once: requestAuthorization only shows the system prompt the first
+        // time; later calls just return the existing decision without a prompt.
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            center.add(UNNotificationRequest(
+                identifier: UUID().uuidString,
+                content: content,
+                trigger: nil  // deliver immediately
+            ))
+        }
+        #endif
     }
 }
 
