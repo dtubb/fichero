@@ -307,9 +307,17 @@ struct WorkflowListView: View {
         WorkflowLibraryRow(workflow: workflow)
             .tag(workflow.id)
             .contentShape(Rectangle())
-            .onTapGesture(count: 2) {
+            // Single click opens the workflow in the node editor (#3918). A
+            // simultaneousGesture runs ALONGSIDE List(selection:) rather than
+            // replacing it, so click/keyboard selection, multi-select, and the
+            // context menu are all preserved — an exclusive .onTapGesture (the old
+            // count:2 double-click) fights the list's own selection recognizer.
+            // Keyboard arrow navigation changes selection without firing this
+            // mouse tap, so it never opens on mere navigation; right-click opens
+            // the context menu, not the workflow.
+            .simultaneousGesture(TapGesture().onEnded {
                 openWorkflow(workflow)
-            }
+            })
             .contextMenu {
                 workflowContextMenu(for: workflow)
             }
