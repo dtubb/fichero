@@ -43,6 +43,15 @@ FIXTURE_TEXT = (
     "Regression Person signed the fixture deed in Regression Place in 1842."
 )
 
+_TRANSCRIBE_TERMINALS = {
+    "Transcribe": ("transcribe",),
+    "Transcribe Manuscript": ("transcribe",),
+    "Transcribe Typescript": ("transcribe",),
+    "Transcribe HTR": ("transcribe_review",),
+    "Transcribe (Auto-Detect)": ("transcribe-ts",),
+    "Transcribe Spanish Script (19th-20th C.)": ("spanish-script-v2",),
+}
+
 
 @pytest.mark.parametrize("selection_shape", ["folder", "file"])
 def test_catalogue_default_workflow_lands_artifacts_and_kg_rows(
@@ -210,7 +219,13 @@ def test_all_default_workflows_complete_with_deterministic_tool_stubs(
     state["workflow_id"] = workflow.id
     state["task_id"] = f"default-smoke-{preset_name.lower().replace(' ', '-')}"
 
-    final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
+    final_state = asyncio.run(
+        build_graph(
+            workflow,
+            enable_parallel=preset_name != "Transcribe (Auto-Detect)",
+            skip_cache=True,
+        ).ainvoke(state)
+    )
     assert not final_state.get("error"), (preset_name, final_state.get("error"))
     completed = set(final_state.get("completed_nodes") or [])
     expected = _expected_completed_nodes_for_smoke(workflow)
@@ -219,6 +234,8 @@ def test_all_default_workflows_complete_with_deterministic_tool_stubs(
     )
     if preset_name == "Transcribe Paleography (Ensemble + Deep Review)":
         _assert_paleography_ensemble_flow(final_state)
+    if preset_name in _TRANSCRIBE_TERMINALS:
+        _assert_transcribe_terminal_outputs(final_state, _TRANSCRIBE_TERMINALS[preset_name])
 
 
 def _install_deterministic_workflow_stubs(
@@ -520,6 +537,13 @@ def _assert_paleography_ensemble_flow(final_state: dict) -> None:
     assert {"zoom", "t1a", "t1b", "t1c", "t2", "t3", "t4"} <= set(outputs)
     assert outputs["zoom"]["files"]
     assert all(outputs[node]["text"] for node in ("t1a", "t1b", "t1c", "t2", "t3", "t4"))
+
+
+def _assert_transcribe_terminal_outputs(final_state: dict, node_ids: tuple[str, ...]) -> None:
+    """Every transcribe-family preset must finish with transcription text."""
+    outputs = final_state.get("outputs") or {}
+    for node_id in node_ids:
+        assert outputs.get(node_id, {}).get("text"), f"{node_id} emitted no text"
 
 
 def _assert_workflow_completed(final_state: dict) -> None:
