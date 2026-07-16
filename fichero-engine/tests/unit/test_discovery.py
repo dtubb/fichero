@@ -188,8 +188,6 @@ def test_lifespan_starts_and_stops_bonjour_when_env_enabled(monkeypatch) -> None
     monkeypatch.setattr(api_main, "start_bonjour_advertiser", start_fake)
     monkeypatch.setattr(api_main, "_seed_builtin_providers", lambda: None)
     monkeypatch.setattr(api_main, "_collapse_duplicate_providers", lambda: None)
-    monkeypatch.setattr(api_main, "_recover_stale_runs_on_startup", _recover_none)
-    monkeypatch.setattr(api_main, "_prewarm_embeddings", lambda: None)
     monkeypatch.setattr(api_main, "_watch_parent_process", _never_runs)
     monkeypatch.setattr(api_main, "start_periodic_snapshot_task", lambda: None)
 
@@ -199,7 +197,13 @@ def test_lifespan_starts_and_stops_bonjour_when_env_enabled(monkeypatch) -> None
     monkeypatch.setattr(api_main, "stop_periodic_snapshot_task", stop_snapshot)
 
     with TestClient(api_main.app):
-        assert calls == ["start"]
+        # NOT asserted here any more (#3920): Bonjour registration is blocking
+        # i/o, so it now runs in an executor instead of on the loop thread before
+        # the yield — the socket must not wait on a service discovery broadcast.
+        # Whether it has landed by the time startup completes is deliberately
+        # unspecified; what IS guaranteed is that it starts, and that shutdown
+        # awaits that start before stopping it (no zombie advertiser).
+        pass
 
     assert calls == ["start", "snapshot-stop", "stop"]
 

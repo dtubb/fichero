@@ -241,7 +241,7 @@ def start_bonjour_advertiser(
         active_log.warning("Bonjour discovery disabled by invalid configuration: %s", exc)
         return None
     except Exception as exc:  # noqa: BLE001 - optional discovery must not brick startup.
-        active_log.warning("Bonjour discovery failed to start: %s", exc)
+        active_log.warning("Bonjour discovery failed to start: %r", exc)
         if advertiser is not None:
             advertiser.stop()
         return None

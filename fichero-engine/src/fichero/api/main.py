@@ -553,79 +553,6 @@ def prefetch_library_caches(package_path: Path) -> dict:
     return stats
 
 
-def _discover_known_library_paths() -> list[str]:
-    """Return known .fichero library roots for startup maintenance."""
-    try:
-        # Import from library_discovery, NOT __main__ — __main__ imports `typer`
-        # (a CLI-only dep) at module load, which the Briefcase engine bundle
-        # doesn't ship, so importing it here raised ModuleNotFoundError and
-        # silently broke startup library-discovery recovery (#3163).
-        from fichero.library_discovery import _discover_libraries
-
-        return list(_discover_libraries())
-    except Exception:
-        logger.exception("Could not discover known libraries for startup recovery")
-        return []
-
-
-async def _recover_stale_runs_on_startup(
-    library_paths: Sequence[str] | None = None,
-) -> int:
-    """Recover stale workflow runs in known libraries during engine startup."""
-    from fichero.workflows.activity_store import ActivityStore
-
-    recovered_total = 0
-    targets = (
-        list(library_paths)
-        if library_paths is not None
-        else _discover_known_library_paths()
-    )
-    for library_path in targets:
-        try:
-            package_path = Path(library_path)
-            if package_path.suffix != ".fichero":
-                continue
-            db_path = package_path / "fichero.duckdb"
-            if not db_path.exists():
-                continue
-            # At startup there are zero live workers (the process just
-            # started), so ALL 'running' rows are stale — use max_age_hours=0
-            # to catch even recently-started threads that were interrupted by
-            # the restart. (#2223)
-            recovered = await ActivityStore(str(db_path)).recover_stale_runs(
-                max_age_hours=0
-            )
-            recovered_total += recovered
-            if recovered:
-                logger.info(
-                    "Startup stale-run recovery: recovered %d run(s) in %s",
-                    recovered,
-                    library_path,
-                )
-        except Exception:
-            logger.exception(
-                "Startup stale-run recovery failed for %s (continuing)",
-                library_path,
-            )
-    return recovered_total
-
-
-def _log_stale_run_recovery_result(task) -> None:
-    """Log background stale-run recovery completion without surfacing to startup."""
-    if task.cancelled():
-        logger.info("Startup stale-run recovery cancelled")
-        return
-    try:
-        recovered_total = task.result()
-    except Exception:
-        logger.exception("Startup stale-run recovery failed")
-        return
-    if recovered_total:
-        logger.info("Startup stale-run recovery finished: recovered %d run(s)", recovered_total)
-    else:
-        logger.info("Startup stale-run recovery finished: no stale runs found")
-
-
 async def _watch_parent_process() -> None:
     """If FICHERO_PARENT_PID is set, exit when that PID disappears.
 
@@ -750,53 +677,37 @@ async def lifespan(app: FastAPI):
     # a detectable multi-worker configuration.
     pairing.warn_pairing_single_process_invariant()
 
-    # Recover stale workflow runs left in 'running' by prior crashes/restarts
-    # (#1350), but never block the server socket from binding. On machines
-    # with many known libraries or slow external volumes, walking every library
-    # here can exceed the Swift app's launch health timeout.
-    stale_run_recovery_task = asyncio.create_task(_recover_stale_runs_on_startup())
-    stale_run_recovery_task.add_done_callback(_log_stale_run_recovery_result)
-
-    # Pre-warm embeddings model and per-library caches in background (#1918).
-    # _prewarm_embeddings now populates _EMBEDDER_CACHE (not a discarded instance)
-    # so the subsequent prefetch_library_caches calls are near-zero-cost embedder
-    # warm + cheap LanceDB count_rows() per known library.
-    loop = asyncio.get_event_loop()
-
-    def _prewarm_and_prefetch() -> None:
-        _prewarm_embeddings()
-        for lib_path in _discover_known_library_paths():
-            try:
-                stats = prefetch_library_caches(Path(lib_path))
-                logger.info(
-                    "prefetch_library_caches: %s — embedder_warmed=%s lance_tables=%d",
-                    lib_path,
-                    stats["embedder_warmed"],
-                    stats["lance_tables_opened"],
-                )
-            except Exception as exc:
-                logger.warning(
-                    "prefetch_library_caches failed for %s: %s", lib_path, exc
-                )
-
-    loop.run_in_executor(None, _prewarm_and_prefetch)
-
     # Watch FICHERO_PARENT_PID (set by EmbeddedBackendService on spawn).
     # If the Swift app dies without a chance to call .stop() (e.g. SIGKILL,
     # crash, force-quit), this self-terminates the engine so it doesn't
     # become an orphan holding port 8765.
     parent_watcher = asyncio.create_task(_watch_parent_process())
     periodic_snapshot_task = start_periodic_snapshot_task()
-    bonjour_advertiser = start_bonjour_advertiser(log=logger)
-    app.state.bonjour_advertiser = bonjour_advertiser
+    # Bonjour is off the bind path (#3920): registration is blocking i/o (zeroconf
+    # says so itself), so it runs in an executor AFTER startup rather than on the
+    # loop thread before the yield. Nothing about serving depends on it.
+    app.state.bonjour_advertiser = None
+
+    def _start_bonjour() -> None:
+        try:
+            app.state.bonjour_advertiser = start_bonjour_advertiser(log=logger)
+        except Exception as exc:
+            # Was logging an EMPTY message on every launch (#3920) — repr keeps
+            # the type and args, so a failure is diagnosable instead of silent.
+            logger.warning("Bonjour discovery failed to start: %r", exc)
+
+    bonjour_started = asyncio.get_running_loop().run_in_executor(None, _start_bonjour)
 
     yield
-    if not stale_run_recovery_task.done():
-        stale_run_recovery_task.cancel()
     parent_watcher.cancel()
     await stop_periodic_snapshot_task(periodic_snapshot_task)
-    if bonjour_advertiser is not None:
-        bonjour_advertiser.stop()
+    # Await the start before stopping: a short-lived process (a test, a failed
+    # launch) can reach shutdown while the executor has not run yet, and the
+    # advertiser would then register AFTER we tried to stop it — a zombie that
+    # outlives the engine. Awaiting costs nothing once it has already run.
+    await bonjour_started
+    if app.state.bonjour_advertiser is not None:
+        app.state.bonjour_advertiser.stop()
     await shutdown_managed_local_inference_services()
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")

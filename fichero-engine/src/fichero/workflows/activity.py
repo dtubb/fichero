@@ -603,9 +603,16 @@ async def _recover_stale_runs_bg(tracker: "ActivityTracker", db_path: str) -> No
     Called once per library when its ActivityTracker is first created (#1350).
     Any exception is caught and logged so it can never break startup or
     library-open.
+
+    ``max_age_hours=0`` carries #2223 across from the deleted startup sweep
+    (#3920): the tracker is created ONCE per library per process, so at this
+    moment no run in THIS process can be in flight — every ``running`` row
+    belongs to a process that is already gone, regardless of how recently it
+    started. The default of 2 hours would silently skip a run that died five
+    minutes ago, which is the exact bug #2223 fixed.
     """
     try:
-        recovered = await tracker.store.recover_stale_runs()
+        recovered = await tracker.store.recover_stale_runs(max_age_hours=0)
         if recovered:
             logger.info(
                 "recover_stale_runs: recovered %d stale run(s) for library %s",
