@@ -5,17 +5,16 @@ import OpenAPIRuntime
 /// Middleware that adds the `X-Fichero-Library-Path` header to every
 /// library-scoped request on the generated `FicheroClient`.
 ///
-/// This is the generated-client counterpart to the legacy `APIClient`'s
-/// `configureRequest` (`Services/APIClient.swift`). Before this existed, the
-/// header was passed BY HAND at every generated call site
-/// (`headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")`),
+/// Before this existed, the header was passed BY HAND at every generated call
+/// site (`headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")`),
 /// which is error-prone: required ops 422/fail-to-compile when forgotten,
 /// optional ops silently 422 or return wrong-library data (#1710, #1666).
 ///
-/// **One source of truth for "is this endpoint app-wide?"** — the skip-list
-/// in `isAppWidePath(_:)` mirrors the legacy `configureRequest` exactly
-/// (health / providers-except-refs / settings / registry). Keep the two in
-/// sync; the goal is to eventually delete the legacy one.
+/// **`isAppWidePath(_:)` is the one and only source of truth for "is this
+/// endpoint app-wide?"** — there is no second list to keep in sync. `APIClient`
+/// wraps `FicheroClient` and gets the header from this middleware; the
+/// raw-URLSession path (`URLRequest.addEngineAuth(libraryPath:)`) takes the
+/// library path as an explicit argument and has no skip-list of its own.
 ///
 /// **Library path is read LIVE on every request** (via the `currentLibraryPath`
 /// closure), not snapshotted at construction. This mirrors how
@@ -39,20 +38,35 @@ public struct LibraryPathMiddleware: ClientMiddleware {
     }
 
     /// App-wide endpoints that must NOT carry the `X-Fichero-Library-Path`
-    /// header. Mirrors `APIClient.configureRequest` exactly:
+    /// header:
     /// - `/health` — readiness probe, no library yet.
     /// - `/providers` (except `/providers/refs`) — provider catalogue is global;
     ///   provider *references* are library-specific and DO get the header.
     /// - `/settings` — app-wide settings.
     /// - `/registry` — the known-library registry is GLOBAL (one registry of all
     ///   `.fichero` packages), not scoped to any one library (#1661).
+    /// - `/auth` + `/users` — WHO YOU ARE is not a library-scoped question, and
+    ///   accounts are app-level (#3932). Sending the header made a *path* problem
+    ///   masquerade as an *authentication* problem: the engine 403s any request
+    ///   whose header fails `_is_allowed_library_path`, so `/auth/me`,
+    ///   `/auth/identity` and `/users` all 403'd together, identity resolved nil,
+    ///   and the app raised a sign-in wall — every probe that could have
+    ///   disambiguated being 403'd by the same cause. `/registry` stayed 200
+    ///   throughout precisely because it is on this list.
+    ///
+    ///   NOT `/authz` — that IS library-scoped (`authz.py` takes
+    ///   `require_library_path`), and it must keep the header. `matchesRootPath`
+    ///   is prefix-with-`/` exact, so `/api/authz/library` does not match
+    ///   `/api/auth`; the tests pin that one-character distinction.
     public static func isAppWidePath(_ path: String) -> Bool {
         let isHealth = matchesRootPath(path, allowedPath: "/api/health")
         let isAppWideProvider = matchesRootPath(path, allowedPath: "/api/providers")
             && !matchesRootPath(path, allowedPath: "/api/providers/refs")
         let isSettings = matchesRootPath(path, allowedPath: "/api/settings")
         let isRegistry = matchesRootPath(path, allowedPath: "/api/registry")
-        return isHealth || isAppWideProvider || isSettings || isRegistry
+        let isAuth = matchesRootPath(path, allowedPath: "/api/auth")
+        let isUsers = matchesRootPath(path, allowedPath: "/api/users")
+        return isHealth || isAppWideProvider || isSettings || isRegistry || isAuth || isUsers
     }
 
     private static func matchesRootPath(_ path: String, allowedPath: String) -> Bool {

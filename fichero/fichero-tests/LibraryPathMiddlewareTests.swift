@@ -4,9 +4,16 @@
 //
 //  Guards the central X-Fichero-Library-Path injection on the generated
 //  FicheroClient (#1710). The middleware replaces hand-passing the header at
-//  every generated call site. These tests pin the app-wide skip-list (which
-//  mirrors the legacy APIClient.configureRequest) so a library-scoped op can't
-//  silently drift into being treated as app-wide (or vice-versa).
+//  every generated call site. These tests pin the app-wide skip-list so a
+//  library-scoped op can't silently drift into being treated as app-wide (or
+//  vice-versa).
+//
+//  The vice-versa direction is the expensive one (#3932): the engine 403s ANY
+//  request whose library header fails _is_allowed_library_path, so an app-wide
+//  endpoint that wrongly carries the header inherits a PATH failure as an AUTH
+//  failure. When /auth/me, /auth/identity and /users all carried it, a bad
+//  library path 403'd every probe that could have explained itself, and the app
+//  raised a sign-in wall over what was really an unreadable folder.
 //
 
 @testable import Fichero
@@ -26,11 +33,33 @@ struct LibraryPathMiddlewareTests {
             "/api/providers/refs",          // provider *references* are library-specific
             "/api/storage/images",
             "/api/tasks/tasks/health",
-            "/api/local-inference/profiles/profile-123/health"
+            "/api/local-inference/profiles/profile-123/health",
+            // /authz asks "who may do what IN THIS LIBRARY" — the engine's
+            // authz.py takes require_library_path on each of these, so they 400
+            // without the header. One character from /api/auth, which is skipped.
+            "/api/authz/library",
+            "/api/authz/members",
+            "/api/authz/share"
         ]
     )
     func libraryScopedPathsGetHeader(path: String) {
         #expect(LibraryPathMiddleware.isAppWidePath(path) == false)
+    }
+
+    /// The one-character trap (#3932): `/api/auth` is app-wide and skipped,
+    /// `/api/authz` is library-scoped and must NOT be. A prefix test loose enough
+    /// to treat "authz" as "auth" would silently strip the header from every ACL
+    /// call and 400 them all — the mirror-image of the bug being fixed.
+    @Test("/api/authz is library-scoped and never confused with the app-wide /api/auth")
+    func authzIsNotAuth() {
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/auth") == true)
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/auth/me") == true)
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/authz") == false)
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/authz/library") == false)
+        // Same shape for the /users skip: a longer path that merely starts with
+        // those characters is a different endpoint, not an app-wide one.
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/users") == true)
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/usersettings") == false)
     }
 
     // #2407: the exact endpoints that showed the 403→retry→200 burst on iPad are
@@ -65,11 +94,37 @@ struct LibraryPathMiddlewareTests {
             "/api/settings",
             "/api/settings/ai",
             "/api/registry",
-            "/api/registry/libraries"
+            "/api/registry/libraries",
+            // #3932 — "who am I" is not a library-scoped question, and accounts
+            // are app-level. Every route on the engine's auth_router / users_router
+            // (auth_accounts.py), none of which reads the library header.
+            "/api/auth/me",
+            "/api/auth/identity",
+            "/api/auth/login",
+            "/api/auth/logout",
+            "/api/auth/invites",
+            "/api/auth/invites/redeem",
+            "/api/auth/sessions",
+            "/api/users",
+            "/api/users/user-123"
         ]
     )
     func appWidePathsAreSkipped(path: String) {
         #expect(LibraryPathMiddleware.isAppWidePath(path) == true)
+    }
+
+    /// The exact cascade #3932 fixes, pinned as one test: a bad library path 403s
+    /// every request carrying the header, so while these four carried it, `/auth/me`
+    /// 403'd, the `/auth/identity` fallback 403'd, `accountsExist()` 403'd, identity
+    /// resolved nil, and `resolvePhase` had nothing left to conclude but
+    /// `.needsLogin` — a sign-in wall over an unreadable folder. `/api/registry`
+    /// answered 200 throughout only because it was already on the skip-list, which
+    /// is precisely why the engine looked healthy while the app claimed otherwise.
+    @Test("the identity probes that raised a false sign-in wall carry no library header")
+    func identityProbesAreAppWide() {
+        for path in ["/api/auth/me", "/api/auth/identity", "/api/auth/login", "/api/users"] {
+            #expect(LibraryPathMiddleware.isAppWidePath(path), "\(path) must not carry the library header")
+        }
     }
 
     // An NFD library path must leave as an NFC header value (#3076) so the app

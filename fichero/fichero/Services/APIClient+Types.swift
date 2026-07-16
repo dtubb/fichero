@@ -75,7 +75,10 @@ extension URLRequest {
     /// Attach `Authorization: Bearer <token>` (#742) and, if provided, the
     /// per-library `X-Fichero-Library-Path` header. Use on every raw
     /// URLSession callsite that does not flow through the OpenAPI middleware
-    /// (FicheroClient) or `APIClient.configureRequest`.
+    /// (FicheroClient). The caller decides whether a request is library-scoped
+    /// by passing `libraryPath` or omitting it — there is no skip-list here;
+    /// `LibraryPathMiddleware.isAppWidePath` owns that question for the
+    /// generated client.
     mutating func addEngineAuth(libraryPath: String? = nil) {
         for (field, value) in engineAuthHeaders(for: url, libraryPath: libraryPath) {
             setValue(value, forHTTPHeaderField: field)
