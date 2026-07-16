@@ -317,6 +317,7 @@ struct FicheroApp: App {
         .environment(appState)
         .environment(viewSettings)
         .environment(libraryManager)
+        .environmentObject(featureManager)
         .environment(claimFocusState)
         .environment(kgFocusState)
         .environment(appState.mcpService)

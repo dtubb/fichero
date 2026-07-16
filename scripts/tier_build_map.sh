@@ -11,7 +11,7 @@
 #   release (default)      Fichero (Release Embedded)/Release    Fichero (Release Local iOS)/Release Local
 #   beta                   Fichero (Beta Embedded)/Beta Embedded Fichero (Beta Local iOS)/Beta
 #   alpha                  Fichero (Alpha Embedded)/Alpha Embedded  Fichero (Alpha Local iOS)/Alpha
-#   dev                    Fichero (Dev Embedded)/Dev Embedded   Fichero (Dev Local iOS)/Debug
+#   dev                    Fichero (Dev Embedded)/Dev Embedded   Fichero (Release Local iOS)/Release Local
 #
 # Unknown values fall back to release (release-safe). iOS is always Local -- the
 # Python engine cannot run on-device, so there is no iOS Embedded variant.
@@ -32,7 +32,9 @@ case "$TIER" in
     ;;
   dev)
     MAC_SCHEME="Fichero (Dev Embedded)";      MAC_CONFIG="Dev Embedded"
-    IOS_SCHEME="Fichero (Dev Local iOS)";     IOS_CONFIG="Debug"
+    # TestFlight rejects Debug archives. Keep the signed release-local iOS
+    # scheme, then override only FICHERO_FEATURE_TIER below for internal Dev.
+    IOS_SCHEME="Fichero (Release Local iOS)"; IOS_CONFIG="Release Local"
     ;;
   *)
     echo "tier_build_map: unknown FICHERO_RELEASE_TIER='$TIER' -- defaulting to release" >&2
@@ -49,5 +51,6 @@ case "$TIER" in
   beta) MAC_APP_STORE_CONFIG="Beta Embedded" ;;
   *) MAC_APP_STORE_CONFIG="Release" ;;
 esac
-export FICHERO_RELEASE_TIER="$TIER" MAC_SCHEME MAC_CONFIG IOS_SCHEME IOS_CONFIG \
+IOS_ARCHIVE_FEATURE_TIER="$TIER"
+export FICHERO_RELEASE_TIER="$TIER" IOS_ARCHIVE_FEATURE_TIER MAC_SCHEME MAC_CONFIG IOS_SCHEME IOS_CONFIG \
   MAC_APP_STORE_SCHEME MAC_APP_STORE_CONFIG
