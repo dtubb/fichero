@@ -83,6 +83,9 @@ extension LibraryManager {
 
     /// Get previously open library paths
     func getSavedLibraryPaths() -> [String] {
+        if let testLibrary = uiTestRestoredLibraryURL() {
+            return [testLibrary.path]
+        }
         return UserDefaults.standard.stringArray(forKey: Self.openLibraryPathsKey) ?? []
     }
 

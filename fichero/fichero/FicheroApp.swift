@@ -95,7 +95,7 @@ struct FicheroApp: App {
         // the developer's real libraries). The isolated global library — rooted
         // under FICHERO_UITEST_HOME — still loads lazily via LibraryManager so
         // the window has something to show.
-        if isUITesting() {
+        if isUITesting() && !isEmbeddedEngineUITesting() {
             openUITestLibraryOverrideIfNeeded()
             return
         }
@@ -107,9 +107,11 @@ struct FicheroApp: App {
         // sweep enumerates and SIGTERMs processes we do not own, which the App
         // Sandbox forbids. Compiled out rather than no-op'd at runtime so the
         // MAS binary carries no /usr/bin/pgrep or /usr/sbin/lsof at all.
-        AppInstaller.promptToMoveToApplicationsIfNeeded()
-        let installerMs = Date().timeIntervalSince(startupClock) * 1000
-        logger.info("⏱ AppInstaller check: \(installerMs, format: .fixed(precision: 1))ms")
+        if !isEmbeddedEngineUITesting() {
+            AppInstaller.promptToMoveToApplicationsIfNeeded()
+            let installerMs = Date().timeIntervalSince(startupClock) * 1000
+            logger.info("⏱ AppInstaller check: \(installerMs, format: .fixed(precision: 1))ms")
+        }
         #endif
 
         // Saved libraries are restored only after the embedded engine completes

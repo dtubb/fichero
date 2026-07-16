@@ -14,6 +14,26 @@ func isUITesting() -> Bool {
     ProcessInfo.processInfo.arguments.contains("--uitesting")
 }
 
+/// Opt-in UI-test mode that exercises the real embedded macOS engine. Normal
+/// UI smoke tests remain inert so they can run without a Briefcase bundle.
+func isEmbeddedEngineUITesting() -> Bool {
+    isUITesting() && ProcessInfo.processInfo.arguments.contains("--uitesting-embedded")
+}
+
+/// A disposable restored-library fixture for the embedded-engine launch smoke.
+/// It lives under the app's existing UI-test support directory, never in the
+/// developer's defaults or library tree.
+func uiTestRestoredLibraryURL() -> URL? {
+    guard isEmbeddedEngineUITesting(),
+          ProcessInfo.processInfo.environment["FICHERO_UITEST_RESTORE_LIBRARY"] == "1",
+          let root = uiTestSupportDirectory() else {
+        return nil
+    }
+    let library = root.appendingPathComponent("Restored.fichero", isDirectory: true)
+    try? FileManager.default.createDirectory(at: library, withIntermediateDirectories: true)
+    return library
+}
+
 /// During UI testing the harness points the app at a disposable Application
 /// Support directory (passed via `FICHERO_UITEST_HOME`) so the smoke tests
 /// never read or write the developer's real `global.fichero`. Returns nil

@@ -69,6 +69,38 @@ final class LibrarySmokeUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground, "App left the foreground after launch.")
     }
 
+    /// Runs only in an embedded macOS scheme. It exercises the real startup
+    /// ordering with one saved library, while keeping all data under the test
+    /// support directory.
+    @MainActor
+    func testEmbeddedEngineLaunchRestoresLibraryAfterReadiness() throws {
+        let embeddedApp = XCUIApplication()
+        embeddedApp.launchArguments = ["--uitesting", "--uitesting-embedded"]
+        embeddedApp.launchEnvironment = [
+            "FICHERO_UITEST_HOME": tempHome.path,
+            "FICHERO_UITEST_RESTORE_LIBRARY": "1",
+            "FICHERO_ALL_FEATURES": "1"
+        ]
+
+        embeddedApp.launch()
+
+        XCTAssertTrue(
+            embeddedApp.wait(for: .runningForeground, timeout: 45),
+            "Embedded engine launch did not reach the foreground."
+        )
+        XCTAssertTrue(
+            embeddedApp.windows.firstMatch.waitForExistence(timeout: 15),
+            "No window appeared after embedded engine launch."
+        )
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertEqual(
+            embeddedApp.state,
+            .runningForeground,
+            "App left the foreground while restoring a saved library after engine readiness."
+        )
+        embeddedApp.terminate()
+    }
+
     // Flow 5 — the in-content view-mode icon rail was removed (#2032):
     // presentation lives in the View menu (LibraryLayoutSection, ⌘1–4), not in
     // a floating in-content icon bar, so the former
