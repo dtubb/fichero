@@ -217,6 +217,8 @@ def test_all_default_workflows_complete_with_deterministic_tool_stubs(
     assert expected <= completed, (
         f"{preset_name}: expected all nodes completed; missing={sorted(expected - completed)}"
     )
+    if preset_name == "Transcribe Paleography (Ensemble + Deep Review)":
+        _assert_paleography_ensemble_flow(final_state)
 
 
 def _install_deterministic_workflow_stubs(
@@ -510,6 +512,14 @@ def _expected_completed_nodes_for_smoke(workflow) -> set[str]:
                 branch_only.add(edge.target)
                 changed = True
     return {node.id for node in workflow.nodes if node.id not in branch_only}
+
+
+def _assert_paleography_ensemble_flow(final_state: dict) -> None:
+    """The ensemble's zoomed drafts must reach both review stages (#3905)."""
+    outputs = final_state.get("outputs") or {}
+    assert {"zoom", "t1a", "t1b", "t1c", "t2", "t3", "t4"} <= set(outputs)
+    assert outputs["zoom"]["files"]
+    assert all(outputs[node]["text"] for node in ("t1a", "t1b", "t1c", "t2", "t3", "t4"))
 
 
 def _assert_workflow_completed(final_state: dict) -> None:
