@@ -325,7 +325,7 @@ enum EngineConfig {
         return EngineProvisioningInputs(
             isMacOS: allowsEmbeddedLocalDefault,
             isDebugBuild: isDebugBuild,
-            isInertHost: isPreview || isRunningXCTests() || isUITesting(),
+            isInertHost: isPreview || isRunningXCTests() || (isUITesting() && !isEmbeddedEngineUITesting()),
             hostRequiresRemoteConnection: requiresExternalBackendConnection,
             hasExplicitConfiguredHost: hasConfiguredHost
         )

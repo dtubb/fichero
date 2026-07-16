@@ -43,6 +43,10 @@ extension LibraryManager {
     /// The heartbeat (AppState) and iOS capture-queue resume layer on in the
     /// callers, since those aren't library concerns.
     func refreshAfterBackendBecameReady() async {
+        // Flip readiness before any library work so restore's registry writes
+        // cannot race the engine's socket bind.
+        backendIsReady = true
+        restoreSavedLibraries()
         await KnownLibraryRegistryStore.shared.refresh()
         adoptPairedRemoteLibrary()
         reconcileOpenLibrariesFromRegistry()

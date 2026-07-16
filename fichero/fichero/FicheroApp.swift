@@ -95,7 +95,7 @@ struct FicheroApp: App {
         // the developer's real libraries). The isolated global library — rooted
         // under FICHERO_UITEST_HOME — still loads lazily via LibraryManager so
         // the window has something to show.
-        if isUITesting() {
+        if isUITesting() && !isEmbeddedEngineUITesting() {
             openUITestLibraryOverrideIfNeeded()
             return
         }
@@ -107,15 +107,15 @@ struct FicheroApp: App {
         // sweep enumerates and SIGTERMs processes we do not own, which the App
         // Sandbox forbids. Compiled out rather than no-op'd at runtime so the
         // MAS binary carries no /usr/bin/pgrep or /usr/sbin/lsof at all.
-        AppInstaller.promptToMoveToApplicationsIfNeeded()
-        let installerMs = Date().timeIntervalSince(startupClock) * 1000
-        logger.info("⏱ AppInstaller check: \(installerMs, format: .fixed(precision: 1))ms")
+        if !isEmbeddedEngineUITesting() {
+            AppInstaller.promptToMoveToApplicationsIfNeeded()
+            let installerMs = Date().timeIntervalSince(startupClock) * 1000
+            logger.info("⏱ AppInstaller check: \(installerMs, format: .fixed(precision: 1))ms")
+        }
         #endif
 
-        let restoreStart = Date()
-        LibraryManager.shared.restoreSavedLibraries()
-        let restoreMs = Date().timeIntervalSince(restoreStart) * 1000
-        logger.info("⏱ restoreSavedLibraries: \(restoreMs, format: .fixed(precision: 1))ms")
+        // Saved libraries are restored only after the embedded engine completes
+        // its authenticated health probe. Restoring here races its :8765 bind.
     }
 
     // MARK: - File Opening
@@ -227,6 +227,9 @@ struct FicheroApp: App {
                 return
             }
 
+            let readyMs = Date().timeIntervalSince(backendStart) * 1000
+            logger.info("⏱ engine authenticated and ready: \(readyMs, format: .fixed(precision: 1))ms")
+
             backendService.status = .running
             backendService.errorMessage = nil
             // The heartbeat is the single ongoing poller once ready (#3108); its
@@ -240,7 +243,10 @@ struct FicheroApp: App {
             await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host)
             // The one shared post-ready side-effect block (#3113); adopt is a
             // no-op on an embedded/local host, so no `usesExternal` branch here.
+            let restorationStart = Date()
             await libraryManager.refreshAfterBackendBecameReady()
+            let restorationMs = Date().timeIntervalSince(restorationStart) * 1000
+            logger.info("⏱ post-ready library restoration: \(restorationMs, format: .fixed(precision: 1))ms")
         } catch BackendError.portConflict(let pid) {
             // A process we didn't spawn holds :8765 → surface the in-window
             // decision (#3111): Stop it / Use it / Quit. Never a pre-window
