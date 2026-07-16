@@ -68,6 +68,34 @@ fi
 rm -f "$bad_bundle_ids"
 echo "  Embedded engine cleanup: no reserved com.apple.* bundle identifiers found"
 
+ENGINE_PYTHON=""
+# Bytecode magic is per minor version: Python 3.13 .pyc would be ignored by
+# the bundled 3.12 runtime, so accept only an executable Python 3.12.
+for candidate in \
+  "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/3.12/Python" \
+  "$(command -v python3.12 || true)" \
+  "$(command -v python3 || true)"; do
+  if [ -n "$candidate" ] && "$candidate" -c 'import sys; raise SystemExit(sys.version_info[:2] != (3, 12))' 2>/dev/null; then
+    ENGINE_PYTHON="$candidate"
+    break
+  fi
+done
+if [ -z "$ENGINE_PYTHON" ]; then
+  echo "error: embedded engine requires a Python 3.12 interpreter to precompile bytecode" >&2
+  exit 1
+fi
+
+"$ENGINE_PYTHON" -m compileall -q -j 8 \
+  "$ENGINE_APP/Contents/Resources/app" \
+  "$ENGINE_APP/Contents/Resources/app_packages"
+"$ENGINE_PYTHON" -c 'import importlib.util, pathlib, sys; p = next(pathlib.Path(sys.argv[1]).glob("Contents/Resources/**/__pycache__/*.pyc"), None); raise SystemExit(p is None or p.read_bytes()[:4] != importlib.util.MAGIC_NUMBER)' "$ENGINE_APP"
+pyc_count="$(find "$ENGINE_APP/Contents/Resources" -name '*.pyc' | wc -l | tr -d ' ')"
+if [ "$pyc_count" -eq 0 ]; then
+  echo "error: embedded engine bytecode compilation produced no .pyc files" >&2
+  exit 1
+fi
+echo "  Embedded engine cleanup: precompiled $pyc_count Python files"
+
 if [ -n "$SIGN_IDENTITY" ]; then
   macho_list="$(mktemp)"
   find "$ENGINE_APP" -type f -exec file {} + 2>/dev/null \
