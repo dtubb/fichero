@@ -88,6 +88,11 @@ extension LibraryManager {
 
     /// Restore libraries from saved paths
     func restoreSavedLibraries() {
+        guard backendIsReady else {
+            libraryManagerLogger.info("Deferring saved-library restoration until backend ready")
+            return
+        }
+
         // Canonicalize any legacy NFD-keyed defaults before reading them (#3076);
         // idempotent, so running on every launch is harmless.
         Self.migrateStoredPathsToNFC()
