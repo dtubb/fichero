@@ -4846,42 +4846,60 @@
 		20969FAF3000614800D06A60 /* Alpha */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = Alpha;
 		};
 		20969FB03000614800D06A60 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = Beta;
 		};
 		20969FB13000614800D06A60 /* Dev Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = "Dev Embedded";
 		};
 		20969FB23000614800D06A60 /* Alpha Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = "Alpha Embedded";
 		};
 		20969FB33000614800D06A60 /* Beta Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = "Beta Embedded";
 		};
 		20969FB43000614800D06A60 /* Release Local */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = "Release Local";
 		};
