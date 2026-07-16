@@ -48,20 +48,10 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertEqual(hierarchy.breadcrumb.map(\.id), ["root", "leaf"])
     }
 
-    // MARK: - DocumentStoreError
-
-    func testDocumentStoreErrorDescriptions() {
-        XCTAssertEqual(DocumentStoreError.fileNotFound("/x").errorDescription, "File not found: /x")
-        XCTAssertEqual(DocumentStoreError.fileNotReadable("/y").errorDescription, "Cannot read file: /y")
-        XCTAssertEqual(DocumentStoreError.invalidFilename.errorDescription, "Invalid or empty filename")
-        XCTAssertEqual(DocumentStoreError.invalidParentId.errorDescription, "Invalid parent folder ID")
-        XCTAssertEqual(DocumentStoreError.invalidResponse.errorDescription, "Invalid server response")
-        XCTAssertEqual(DocumentStoreError.badRequest.errorDescription, "Invalid request")
-        XCTAssertEqual(DocumentStoreError.unauthorized.errorDescription, "Unauthorized access")
-        XCTAssertEqual(DocumentStoreError.notFound.errorDescription, "Resource not found")
-        XCTAssertEqual(DocumentStoreError.fileTooLarge.errorDescription, "File is too large to upload")
-        XCTAssertEqual(DocumentStoreError.serverError(500).errorDescription, "Server error (HTTP 500)")
-    }
+    // `testDocumentStoreErrorDescriptions` was deleted with `DocumentStoreError`
+    // itself (#3919): its only thrower, `DocumentStore.importFile(at:)`, had no
+    // callers, so the enum was unthrowable and the test only proved that dead
+    // strings still read correctly.
 
     func testDocumentStoreLoadsSidebarRootsThroughGeneratedService() throws {
         let source = try Self.appSource("Models/DocumentStore.swift")

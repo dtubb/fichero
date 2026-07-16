@@ -69,21 +69,8 @@ final class EngineErrorDetailTests: XCTestCase {
         XCTAssertNil(EngineErrorDetail.message(from: data(#"{"detail": []}"#)))
     }
 
-    // MARK: - The rendered error strings (the whole point)
-
-    /// A 400 renders the engine's reason, and a 500 with no body still renders sanely —
-    /// exactly the two assertions the issue asked for.
-    func testDocumentStoreErrorRendersDetailAndFallsBack() {
-        let withDetail = DocumentStoreError.badRequest(detail: "Workflow validation failed: X")
-        XCTAssertEqual(withDetail.errorDescription, "Workflow validation failed: X")
-
-        let noDetail = DocumentStoreError.badRequest(detail: nil)
-        XCTAssertEqual(noDetail.errorDescription, "Invalid request")
-
-        let serverWithDetail = DocumentStoreError.serverError(503, detail: "Engine restarting")
-        XCTAssertEqual(serverWithDetail.errorDescription, "Engine restarting (HTTP 503)")
-
-        let serverNoDetail = DocumentStoreError.serverError(500, detail: nil)
-        XCTAssertEqual(serverNoDetail.errorDescription, "Server error (HTTP 500)")
-    }
+    // `testDocumentStoreErrorRendersDetailAndFallsBack` (#3802) was deleted with
+    // `DocumentStoreError` (#3919) — it rendered that enum's cases, and the enum's
+    // only thrower had no callers. `EngineErrorDetail.message(from:)` itself stays
+    // live (WorkflowExecutionService) and is still covered by the tests above.
 }

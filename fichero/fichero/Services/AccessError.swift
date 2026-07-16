@@ -155,17 +155,13 @@ extension AccessError {
     /// taxonomy, or `nil` when it isn't an access failure (so the caller keeps
     /// its generic error UI — no regression, just no richer denial view).
     ///
-    /// Recognizes an already-typed `AccessError` and the `DocumentStore`'s
-    /// collapsed `.unauthorized` bucket (its 401/403 path). The collapsed case
-    /// maps to `.forbidden` with no message; the access-denied view then uses
-    /// identity to decide sign-in vs. request-access.
+    /// Recognizes an already-typed `AccessError`. It also used to lift
+    /// `DocumentStoreError.unauthorized` — that enum's 401/403 bucket — into
+    /// `.forbidden`, but the only function that threw it had no callers and was
+    /// deleted with the enum (#3919), leaving that branch unreachable.
     static func from(_ error: Error?) -> AccessError? {
         guard let error else { return nil }
-        if let access = error as? AccessError { return access }
-        if let storeError = error as? DocumentStoreError, case .unauthorized = storeError {
-            return .forbidden(reason: nil, message: nil)
-        }
-        return nil
+        return error as? AccessError
     }
 }
 
