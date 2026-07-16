@@ -227,6 +227,10 @@ struct BackendConnectionView: View {
         }
         .buttonStyle(.borderedProminent)
         .disabled(backendService.isStarting)
+        // Stable across the copy this button cycles through ("Restart Engine" /
+        // "Retry Connection" / "Retry After Restarting Engine") — a UI test
+        // asserts the ACTION exists, not the wording (#3919).
+        .accessibilityIdentifier("backend.action.restartEngine")
     }
 
     /// The in-window replacement for the old pre-window port-conflict NSAlert
@@ -300,6 +304,9 @@ struct BackendConnectionView: View {
         }
         .buttonStyle(.bordered)
         .disabled(backendService.isStarting)
+        // #3919's assertion target: this button must be ABSENT for any failure
+        // whose remedy isn't `.signIn` (a scoped 403, an unreachable engine).
+        .accessibilityIdentifier("backend.action.resetSignIn")
     }
 
     @ViewBuilder
@@ -395,6 +402,7 @@ struct BackendConnectionView: View {
                     Text(failureTitle)
                         .font(.headline)
                         .foregroundColor(.red)
+                        .accessibilityIdentifier("backend.connection.title")
 
                     if let error = failureDetail {
                         Text(error)

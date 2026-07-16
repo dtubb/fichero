@@ -35,11 +35,18 @@ struct BackendRootGate<Content: View, Setup: View>: View {
         // re-publishes its phase changes (#3107).
         switch appState.engine.phase {
         case .ready:
+            // The authenticated library content root (#3919). Named so a UI test
+            // can assert the app reached real content, rather than inferring it
+            // from the absence of the connection view.
             content()
+                .accessibilityIdentifier("library.content.ready")
         case .setupNeeded:
             setup()
         case .starting, .portConflict, .authRejected, .unreachable, .failed:
+            // Named so a UI test can assert the gate is BLOCKING (#3919) — the
+            // recovery UI had no stable identifier, so nothing could assert on it.
             BackendConnectionView(appState: appState, onRetry: onRetry)
+                .accessibilityIdentifier("backend.rootGate")
         }
     }
 }
