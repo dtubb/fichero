@@ -4,23 +4,36 @@ import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "LaunchProfile")
 
-/// The launch timeline (#3946): every milestone says what happened and how long
-/// since the process started, so one command tells the whole story in order:
+/// The launch timeline (#3946), emitted twice for two different readers:
+///
+/// **A log line, for `log stream`** — every milestone carries elapsed-since-
+/// process-start, so one command answers "where did the 23 seconds go", and a
+/// phase duration is just the gap between two lines:
 ///
 ///     log stream --info --predicate 'subsystem == "app.fichero.fichero"'
 ///
-/// The markers this replaces logged "entry" / "services ready" with no number,
-/// so a launch could be read as a sequence but never as a cost.
+/// **A signpost, for Instruments** — because a log line cannot be a trace.
+/// Signposts nest, carry real intervals, and Instruments renders them natively:
+/// the `.pointsOfInterest` category lands on the Points of Interest track in
+/// EVERY template (Time Profiler included) with no configuration, so a launch
+/// shows up as labelled bars above the sampled stacks rather than as text you
+/// have to correlate by hand.
 ///
-/// **The epoch is the kernel's process-start time, not our first line of Swift.**
-/// That distinction is the whole first interval: "app start → AppState.init" is
-/// dyld, static init, and everything before our code runs. Measured from our own
-/// first line it would report as ~0ms and hide itself.
+/// **The epoch is the kernel's process-start time**, not our first line of Swift.
+/// That distinction is the entire first interval: "app start → AppState.init" is
+/// dyld + static init + everything before our code, and measuring it from our own
+/// first line would report it as ~0ms and hide it.
 enum LaunchProfile {
+    /// `.pointsOfInterest` is what makes these show up without configuring an
+    /// os_signpost instrument by hand.
+    static let signposter = OSSignposter(
+        subsystem: "app.fichero.fichero",
+        category: .pointsOfInterest
+    )
+
     /// Process start, from `KERN_PROC_PID`. Falls back to first touch — which
-    /// makes the first interval read ~0 instead of negative or absurd — and says
-    /// so loudly, because a launch profile that quietly measures the wrong thing
-    /// is worse than none.
+    /// makes the first interval read ~0 instead of absurd — and says so loudly,
+    /// because a profile that quietly measures the wrong thing is worse than none.
     static let epoch: Date = {
         if let start = processStartDate() { return start }
         logger.warning("⏱ launch epoch unavailable — times are from first touch, NOT process start")
@@ -30,14 +43,58 @@ enum LaunchProfile {
     /// Milliseconds since the process started.
     static var elapsedMs: Double { Date().timeIntervalSince(epoch) * 1000 }
 
-    /// Record a launch milestone on the absolute timeline.
+    /// Record a launch milestone: one line on the absolute timeline, one signpost
+    /// event for Instruments.
     ///
-    /// Milestones are absolute (since process start) rather than durations: the
-    /// question a launch profile has to answer is "where did the 23 seconds go",
-    /// which needs one ordered timeline, not a scatter of independent stopwatches.
-    /// Phase durations are then just the gaps between two milestones.
-    static func milestone(_ name: String) {
-        logger.info("⏱ \(name, privacy: .public) @ \(elapsedMs, format: .fixed(precision: 1))ms")
+    /// Milestones are absolute rather than durations because the question is
+    /// "where did the time go", which needs one ordered timeline, not a scatter of
+    /// independent stopwatches. The signpost carries no elapsed value — Instruments
+    /// timestamps it, which is the whole point of using signposts over log lines.
+    ///
+    /// `name` is a `StaticString` so it can be the signpost's real name (varying
+    /// data goes in `detail`); a dynamic name would collapse every milestone into
+    /// one indistinguishable lane in Instruments.
+    static func milestone(_ name: StaticString, detail: String = "") {
+        let label = detail.isEmpty ? name.description : "\(name.description) (\(detail))"
+        logger.info("⏱ \(label, privacy: .public) @ \(elapsedMs, format: .fixed(precision: 1))ms")
+        signposter.emitEvent(name, id: .exclusive, "\(detail, privacy: .public)")
+    }
+
+    /// Open a signpost interval for a launch phase. The caller holds the returned
+    /// state and closes it with `endPhase` — usually via `defer`, so a phase that
+    /// throws still renders as a bar that ends where it failed.
+    static func beginPhase(_ name: StaticString) -> OSSignpostIntervalState {
+        signposter.beginInterval(name, id: signposter.makeSignpostID())
+    }
+
+    static func endPhase(_ name: StaticString, _ state: OSSignpostIntervalState) {
+        signposter.endInterval(name, state)
+    }
+
+    // MARK: - The whole-launch interval
+
+    /// The one interval whose ends live in different types — `AppState.init` opens
+    /// it, `ContentView`'s first frame closes it — so it cannot be a local `defer`
+    /// and needs exactly this much state.
+    ///
+    /// It starts at the earliest code we own, NOT at process start: a signpost
+    /// cannot be emitted retroactively. The pre-main run-up is what the log line's
+    /// elapsed value covers, and what Instruments' App Launch template already
+    /// measures on its own.
+    @MainActor private static var launchState: OSSignpostIntervalState?
+
+    @MainActor static func beginLaunch() {
+        guard launchState == nil else { return }
+        launchState = beginPhase("launch")
+    }
+
+    /// Idempotent: only the FIRST frame closes the launch. `onAppear` fires again
+    /// on later re-appearances, and re-closing would either crash or draw a
+    /// nonsense bar across the whole session.
+    @MainActor static func endLaunch() {
+        guard let state = launchState else { return }
+        launchState = nil
+        endPhase("launch", state)
     }
 
     /// The kernel's start time for this process. Reading our OWN pid is permitted

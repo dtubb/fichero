@@ -274,7 +274,11 @@ struct ContentView: View {
                 mainContentView
                     .onAppear {
                         // The end of the launch timeline: real content on screen.
+                        // `endLaunch` is idempotent — onAppear fires again on
+                        // later re-appearances, which must not reopen or redraw
+                        // the launch interval.
                         LaunchProfile.milestone("ContentView first-frame — main content visible")
+                        LaunchProfile.endLaunch()
                     }
             }
         }

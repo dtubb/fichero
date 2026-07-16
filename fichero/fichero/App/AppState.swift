@@ -150,8 +150,10 @@ class AppState {
     // MARK: - Initialization
 
     init() {
-        // First marker on the timeline: its elapsed value IS the pre-main cost
-        // (dyld + static init), which nothing measured before (#3946).
+        // Opens the whole-launch signpost interval; ContentView's first frame
+        // closes it. The milestone's elapsed value IS the pre-main cost (dyld +
+        // static init), which nothing measured before (#3946).
+        LaunchProfile.beginLaunch()
         LaunchProfile.milestone("AppState.init entry")
         // Initialize services with app-wide clients
         self.providerService = ProviderServiceGenerated(ficheroClient: ficheroClient)

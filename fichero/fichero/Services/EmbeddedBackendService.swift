@@ -544,7 +544,7 @@ final class EmbeddedBackendService {
         // The gap between "engine spawn requested" and this marker is everything
         // the app does BEFORE the engine gets to start: the port pre-flight and
         // the TLS material prep (#3936/#3928). That cost was invisible.
-        LaunchProfile.milestone("engine process launched (pid \(pid))")
+        LaunchProfile.milestone("engine process launched", detail: "pid \(pid)")
         logger.info("Backend process launched successfully (PID: \(pid))")
 
         // Store PID and process reference
@@ -681,6 +681,12 @@ final class EmbeddedBackendService {
     /// decided whether the user saw the app or a failure gate. The engine's cold
     /// start is not something the app can predict, so it stopped guessing.
     private func waitForSpawnedBackend() async throws {
+        // The engine's own startup, as one bar in Instruments. `defer` closes it
+        // on every exit, so a launch that fails still renders a bar that ends
+        // where it gave up rather than a dangling interval.
+        let waitPhase = LaunchProfile.beginPhase("engine startup wait")
+        defer { LaunchProfile.endPhase("engine startup wait", waitPhase) }
+
         let startTime = Date()
         var pollInterval: Duration = .milliseconds(100)
         var markedBound = false
