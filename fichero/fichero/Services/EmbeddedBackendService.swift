@@ -267,7 +267,10 @@ final class EmbeddedBackendService {
             logger.info("Adopted user-approved existing engine on port 8765")
         case .spawnOurs:
             try launchEmbeddedBackend()
-            try await waitForBackend(timeout: 90)
+            // Bounded by the child, not a clock (#3930) — we spawned this engine,
+            // so its liveness is knowable and a fixed budget is just the app
+            // racing its own subprocess.
+            try await waitForSpawnedBackend()
             _ = await AuthTokenMiddleware.waitForToken(timeout: 10)
             status = .running
             logger.info("Embedded backend started successfully")
@@ -614,11 +617,119 @@ final class EmbeddedBackendService {
     }
     #endif
 
+    // MARK: - The spawned engine's wait (#3930)
+
+    /// How long a SPAWNED engine may stay alive without ever serving before we
+    /// stop believing it. This is an INSANITY cap for a hung process, not a
+    /// budget the engine is expected to fit inside: a real cold start is import
+    /// + lifespan + bind (~23s measured, and slower on a busy machine or a cold
+    /// file cache). Nothing normal should ever come near it.
+    static let spawnedEngineInsanityCap: TimeInterval = 300
+
+    /// One step of the spawned-engine wait, as a pure decision (#3930).
+    ///
+    /// A live child that has not bound yet is NOT a failure — it is startup, and
+    /// there is nothing to tell the user and nothing for them to do. Only two
+    /// things end the wait early: it served, or it died.
+    ///
+    /// Order matters: an exit diagnosis beats the cap, so a child that dies at
+    /// the cap boundary still reports why it died rather than "never became
+    /// ready". Pure so the timing invariants are testable without an engine —
+    /// the `BackendConnectionView.connectionFailureTitle` pattern (#3341).
+    enum SpawnWaitStep: Equatable {
+        case ready
+        case keepWaiting
+        /// The child exited; `diagnosis` is the terminationHandler's reason + log tail.
+        case engineExited(diagnosis: String)
+        /// Alive, but never served before the insanity cap.
+        case neverBecameReady
+    }
+
+    static func spawnWaitStep(
+        readiness: EngineReadiness,
+        exitDiagnosis: String?,
+        elapsed: TimeInterval,
+        cap: TimeInterval = spawnedEngineInsanityCap
+    ) -> SpawnWaitStep {
+        if readiness == .ready { return .ready }
+        if let exitDiagnosis { return .engineExited(diagnosis: exitDiagnosis) }
+        if elapsed >= cap { return .neverBecameReady }
+        return .keepWaiting
+    }
+
+    /// Non-nil once the spawned child has exited unexpectedly. The
+    /// `terminationHandler` set on the process has already flipped `.failed` and
+    /// put the exit code + `engine.log` tail into `errorMessage`, so the reason
+    /// is assembled before we ask.
+    ///
+    /// Read from that handler rather than by polling `kill(pid, 0)`: for OUR OWN
+    /// child, `kill(pid, 0)` keeps SUCCEEDING while the process sits as a zombie
+    /// awaiting reap, so PID polling can report a dead engine as alive. The
+    /// handler fires on reap, which is the moment the truth is knowable.
+    private func spawnedEngineExitDiagnosis() -> String? {
+        guard status == .failed, let errorMessage, !errorMessage.isEmpty else { return nil }
+        return errorMessage
+    }
+
+    /// Wait for the engine WE spawned, bounded by its liveness (#3930).
+    ///
+    /// The old fixed budget made the app race its own engine, and whoever won
+    /// decided whether the user saw the app or a failure gate. The engine's cold
+    /// start is not something the app can predict, so it stopped guessing.
+    private func waitForSpawnedBackend() async throws {
+        let startTime = Date()
+        var pollInterval: Duration = .milliseconds(100)
+
+        while true {
+            if Task.isCancelled { throw CancellationError() }
+
+            let result = await probeReadiness()
+            lastReadiness = result
+
+            switch Self.spawnWaitStep(
+                readiness: result,
+                exitDiagnosis: spawnedEngineExitDiagnosis(),
+                elapsed: Date().timeIntervalSince(startTime)
+            ) {
+            case .ready:
+                logger.info("Backend readiness passed (health 200 + identity + authenticated probe)")
+                return
+            case .engineExited(let diagnosis):
+                // Surface the real reason NOW rather than polling a dead process
+                // until the cap and then blaming a timeout.
+                logger.error("Engine exited during startup — surfacing immediately (#3930)")
+                throw BackendError.engineDidNotStart(diagnosis: diagnosis)
+            case .neverBecameReady:
+                logger.error("Engine alive but never served within the insanity cap (#3930)")
+                throw BackendError.engineDidNotStart(diagnosis: Self.insanityCapDiagnosis())
+            case .keepWaiting:
+                break
+            }
+
+            try await Task.sleep(for: pollInterval)
+            if Date().timeIntervalSince(startTime) > 1 {
+                pollInterval = .milliseconds(500)
+            }
+        }
+    }
+
+    private static func insanityCapDiagnosis() -> String {
+        let minutes = Int(spawnedEngineInsanityCap / 60)
+        let base = "The engine started but never began serving after \(minutes) minutes."
+        let tail = tailEngineLog(lines: 20)
+        return tail.isEmpty ? base : "\(base)\n\n\(tail)"
+    }
+
     /// Poll until the engine is genuinely READY (#2862): not just answering
     /// health-200, but the instance we spawned (nonce echo) AND accepting the
     /// app's token (authenticated /api/registry 200). Throws `.timeout` if it
     /// never reaches `.ready`. The last probe result is stored in
     /// `lastReadiness` for #2864's diagnosis.
+    ///
+    /// The CLOCK-bounded wait, for engines we did not spawn and cannot watch: a
+    /// remote host, a dev-run uvicorn, an adopted engine on :8765. There is no
+    /// child there, so a timeout is the only honest bound. The engine we spawn
+    /// uses `waitForSpawnedBackend()` instead (#3930).
     private func waitForBackend(timeout: TimeInterval) async throws {
         let startTime = Date()
         // Poll aggressively at first (100ms) so we catch the backend as soon as
@@ -963,6 +1074,11 @@ enum BackendError: LocalizedError {
     case backendAppNotFound
     case launchFailed(Error)
     case timeout
+    /// The engine we SPAWNED never served: it exited, or stayed alive without
+    /// ever binding until the insanity cap (#3930). `diagnosis` carries the
+    /// engine.log tail, so a launch failure explains itself instead of reporting
+    /// a bare timeout the user can do nothing with.
+    case engineDidNotStart(diagnosis: String)
     /// A process we didn't spawn holds port 8765 (#3111). Carries the holder's
     /// PID (when known) so the in-window portConflict phase can name it. Handled
     /// by the launch orchestrator (→ `markPortConflict`), never shown as a raw
@@ -993,6 +1109,8 @@ enum BackendError: LocalizedError {
             return "Failed to launch backend app: \(error.localizedDescription)"
         case .timeout:
             return "Backend failed to start within timeout"
+        case .engineDidNotStart(let diagnosis):
+            return diagnosis
         }
     }
 }
