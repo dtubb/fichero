@@ -246,6 +246,33 @@ def _register_builtin_tools(tool_defs: dict) -> None:
         sort_order=21,
     )
 
+    tool_defs["zoom"] = ToolDef(
+        name="zoom",
+        display_name="Zoom",
+        description="Crop and magnify image regions or line strips",
+        category="transform",
+        icon="plus.magnifyingglass",
+        color="pink",
+        input_ports=[PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES)],
+        output_ports=[PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES)],
+        config_schema={
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["region", "tile"], "default": "tile"},
+                "x": {"type": "integer"}, "y": {"type": "integer"},
+                "width": {"type": "integer"}, "height": {"type": "integer"},
+                "rows": {"type": "integer", "default": 0, "minimum": 0},
+                "overlap": {"type": "number", "default": 0.15, "minimum": 0.0, "maximum": 0.3},
+                "scale": {"type": "number", "default": 2.0, "minimum": 1.0, "maximum": 6.0},
+                "output_format": {"type": "string", "enum": ["jpg", "png", "tiff", "webp"], "default": "jpg"},
+                "compression_quality": {"type": "integer", "default": 90, "minimum": 1, "maximum": 100},
+                "output_dir": {"type": "string", "default": ""},
+            },
+        },
+        supports_batch=True,
+        sort_order=27,
+    )
+
     tool_defs["rotate"] = ToolDef(
         name="rotate",
         display_name="Rotate",
