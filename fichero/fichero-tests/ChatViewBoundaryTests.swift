@@ -1,3 +1,5 @@
+@testable import Fichero
+import SwiftUI
 import XCTest
 
 final class ChatViewBoundaryTests: XCTestCase {

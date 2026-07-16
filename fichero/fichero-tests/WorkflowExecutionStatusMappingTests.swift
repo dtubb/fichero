@@ -5,6 +5,7 @@ import XCTest
 /// checks the canonical raws (completed/error/failed/cancelled/stopped/deleted);
 /// this pins the untested branches: `paused`, the synonym groups, the nil/unknown
 /// → .running default, and case-insensitivity. Pure static mapping, no engine.
+@MainActor  // mapStatus is main-actor-isolated (Swift 6); sync helpers need the case isolated.
 final class WorkflowExecutionStatusMappingTests: XCTestCase {
 
     private func map(_ raw: String?) -> ExecutionStatus {
