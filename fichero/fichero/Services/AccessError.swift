@@ -150,21 +150,6 @@ enum AccessError: LocalizedError, Equatable {
     }
 }
 
-extension AccessError {
-    /// Best-effort lift of an arbitrary thrown/stored error into the access
-    /// taxonomy, or `nil` when it isn't an access failure (so the caller keeps
-    /// its generic error UI — no regression, just no richer denial view).
-    ///
-    /// Recognizes an already-typed `AccessError`. It also used to lift
-    /// `DocumentStoreError.unauthorized` — that enum's 401/403 bucket — into
-    /// `.forbidden`, but the only function that threw it had no callers and was
-    /// deleted with the enum (#3919), leaving that branch unreachable.
-    static func from(_ error: Error?) -> AccessError? {
-        guard let error else { return nil }
-        return error as? AccessError
-    }
-}
-
 /// Permissive decoder for the engine's structured denial body. The engine emits
 /// a top-level machine `code` (e.g. `"stale_bootstrap_token"`, auth.py) alongside
 /// a `detail` that is either a plain string or a nested object — so we accept

@@ -48,11 +48,6 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertEqual(hierarchy.breadcrumb.map(\.id), ["root", "leaf"])
     }
 
-    // `testDocumentStoreErrorDescriptions` was deleted with `DocumentStoreError`
-    // itself (#3919): its only thrower, `DocumentStore.importFile(at:)`, had no
-    // callers, so the enum was unthrowable and the test only proved that dead
-    // strings still read correctly.
-
     func testDocumentStoreLoadsSidebarRootsThroughGeneratedService() throws {
         let source = try Self.appSource("Models/DocumentStore.swift")
 

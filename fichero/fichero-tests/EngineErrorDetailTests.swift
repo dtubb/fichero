@@ -68,9 +68,4 @@ final class EngineErrorDetailTests: XCTestCase {
     func testValidationArrayWithNoUsableMessagesYieldsNil() {
         XCTAssertNil(EngineErrorDetail.message(from: data(#"{"detail": []}"#)))
     }
-
-    // `testDocumentStoreErrorRendersDetailAndFallsBack` (#3802) was deleted with
-    // `DocumentStoreError` (#3919) — it rendered that enum's cases, and the enum's
-    // only thrower had no callers. `EngineErrorDetail.message(from:)` itself stays
-    // live (WorkflowExecutionService) and is still covered by the tests above.
 }

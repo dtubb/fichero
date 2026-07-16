@@ -18,8 +18,3 @@ struct DocumentHierarchy {
         ancestors + [document]
     }
 }
-
-// `DocumentStoreError` lived here until #3919. Every one of its cases was thrown
-// from exactly one place — `DocumentStore.importFile(at:)`, a hand-rolled
-// multipart importer superseded by `ImportServiceGenerated` and left with no
-// callers — so the whole enum went unthrowable when that function was deleted.

@@ -246,7 +246,7 @@ struct LibraryView: View {
             connectionErrorState
         } else if isCollectionLoading {
             loadingState
-        } else if !isShowingEntitiesCollection, let denial = AccessError.from(documentStore.error) {
+        } else if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
             // Never a silent 403 / blank pane (F6): a denied library read lands on
             // the explicit access state — which library, why, who you are, and the
             // next action — instead of the generic "couldn't load" text.

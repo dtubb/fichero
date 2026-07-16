@@ -11,7 +11,7 @@ import SwiftUI
 /// is *yours* but the engine is refusing) restart the engine.
 ///
 /// Rendered by `LibraryView` in place of the generic error state whenever the
-/// store's error classifies as an access failure (`AccessError.from`).
+/// store's error is an `AccessError`.
 struct LibraryAccessDeniedView: View {
     let libraryName: String
     let error: AccessError
