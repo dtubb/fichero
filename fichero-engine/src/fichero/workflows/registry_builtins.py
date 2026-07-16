@@ -273,6 +273,19 @@ def _register_builtin_tools(tool_defs: dict) -> None:
         sort_order=27,
     )
 
+    tool_defs["consistency-check"] = ToolDef(
+        name="consistency-check", display_name="Consistency Check",
+        description="Flag deterministic numeral, name, and formula inconsistencies",
+        category="transform", icon="checklist", color="orange",
+        input_ports=[
+            PortDef(id="text", name="Text", port_type="input", data_type=DataType.TEXT),
+            PortDef(id="documents", name="Documents", port_type="input", data_type=DataType.JSON),
+        ],
+        output_ports=[PortDef(id="inconsistencies", name="Inconsistencies", port_type="output", data_type=DataType.JSON)],
+        config_schema={"type": "object", "properties": {"check_formula_completeness": {"type": "boolean", "default": False}}},
+        supports_batch=True, sort_order=28,
+    )
+
     tool_defs["rotate"] = ToolDef(
         name="rotate",
         display_name="Rotate",

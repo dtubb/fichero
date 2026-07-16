@@ -285,6 +285,7 @@ def _load_tool_implementations():
         # This ensures tools have their full config schemas (including prompt field)
         from fichero.workflows import tools  # noqa: F401
         from fichero.workflows.tools import zoom  # noqa: F401
+        from fichero.workflows.tools import consistency_check  # noqa: F401
 
         logger.debug("Loaded tool implementations")
     except ImportError as e:
