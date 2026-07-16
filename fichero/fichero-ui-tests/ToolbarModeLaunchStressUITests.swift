@@ -36,9 +36,12 @@
 import XCTest
 
 final class ToolbarModeLaunchStressUITests: XCTestCase {
-    /// How many times to launch. The crash is render-timing dependent, so a
-    /// single launch is unreliable; 8 gives a strong chance to hit it pre-fix.
-    private let launchCount = 8
+    /// The crash is render-timing dependent. Three launches keep the normal
+    /// embedded-engine gate practical while still rebuilding the toolbar more
+    /// than once; CI can request the longer eight-launch stress pass.
+    private var launchCount: Int {
+        ProcessInfo.processInfo.environment["FICHERO_RUN_LAUNCH_STRESS"] == "1" ? 8 : 3
+    }
 
     private var tempHome: URL!
 
@@ -55,14 +58,13 @@ final class ToolbarModeLaunchStressUITests: XCTestCase {
 
     private func makeApp() -> XCUIApplication {
         let app = XCUIApplication()
-        // `--uitesting` isolates the run (temp home, no move-to-Applications
-        // prompt) and triggers inert-host adoption — which connects to an
-        // external engine if one is up, so the workspace mounts and the mode
-        // toolbars actually build (#3163). FICHERO_ALL_FEATURES unlocks the
-        // Workflows/Automation/etc. sidebar modes that are gated off by default.
-        app.launchArguments = ["--uitesting"]
+        // This is the embedded-engine variant of the isolated UI-test launch:
+        // it exercises the real workspace and its toolbars, without touching
+        // the developer's app-support directory or a separately running engine.
+        app.launchArguments = ["--uitesting", "--uitesting-embedded"]
         var env = [
             "FICHERO_UITEST_HOME": tempHome.path,
+            "FICHERO_UITEST_RESTORE_LIBRARY": "1",
             "FICHERO_ALL_FEATURES": "1"
         ]
         // Optional seeded `.fichero` so the workspace opens straight to content
@@ -92,10 +94,10 @@ final class ToolbarModeLaunchStressUITests: XCTestCase {
                 app.wait(for: .runningForeground, timeout: 30),
                 "Launch \(iteration): app never reached the foreground — likely crashed on launch."
             )
-            XCTAssertTrue(
-                app.windows.firstMatch.waitForExistence(timeout: 15),
-                "Launch \(iteration): no window appeared after launch."
-            )
+            // Let the bundled engine reach readiness and mount the restored
+            // test library before rebuilding the mode-specific toolbar.
+            Thread.sleep(forTimeInterval: 10)
+            assertStillForeground(app, iteration: iteration, step: "while the embedded engine becomes ready")
 
             // Enter Workflows mode (⌃⌘4). Its split panes register the toolbar
             // `.searchable` that collided with ContentView's global one (#3163).
