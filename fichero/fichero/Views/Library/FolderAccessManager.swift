@@ -126,15 +126,19 @@ class FolderAccessManager {
         return String(data: data, encoding: .utf8)
     }
 
-    /// Save a security-scoped bookmark
-    func saveBookmark(for url: URL) {
+    /// Mint + persist a security-scoped bookmark for `url` and register it in
+    /// `accessedFolders`. Returns the bookmark data (to hand to the engine), or nil
+    /// when the path is transient or minting failed. Does NOT contact the engine —
+    /// callers choose sync fire-and-forget (`saveBookmark`) or awaited
+    /// (`saveBookmarkIfDirectory`) handoff.
+    private func mintAndStoreBookmark(for url: URL) -> Data? {
         // Never bookmark transient temp paths — they're cleaned up after ingest
         // and will always fail to resolve on next launch, producing noisy errors.
         guard !url.path.contains("/fichero-drop-"),
               !url.path.hasPrefix("/var/folders/"),
               !url.path.hasPrefix("/tmp/") else {
             logger.debug("Skipping bookmark for transient path: \(url.path)")
-            return
+            return nil
         }
         do {
             // Start accessing to create bookmark
@@ -157,59 +161,92 @@ class FolderAccessManager {
             }
 
             logger.info("Saved bookmark for: \(url.path)")
-
-            // Hand it to the RUNNING engine (#3773). Storing it is not enough: the
-            // spawn-time payload is an environment variable, and an environment
-            // cannot change after the process starts — so a library picked now would
-            // be invisible to the live engine and unreadable until the app relaunched.
-            handOffToEngine(path: url.path, bookmark: bookmarkData)
-
             // Don't stop accessing - we need it throughout the app session
+            return bookmarkData
         } catch {
             logger.error("Failed to save bookmark: \(error.localizedDescription)")
+            return nil
         }
     }
 
-    /// Post a freshly-minted bookmark to the live engine. App Store build only.
+    /// Save a security-scoped bookmark, handing it to the RUNNING engine
+    /// fire-and-forget (#3773). Fine for callers that don't immediately read the
+    /// folder through the engine (the open panel, restore-refresh). Storing it is
+    /// not enough on its own: the spawn-time payload is an environment variable,
+    /// and an environment cannot change after the process starts — so a library
+    /// picked now would be invisible to the live engine until the app relaunched.
     ///
-    /// Fire-and-forget by necessity — saveBookmark() is synchronous and called from
-    /// several non-async paths (the open panel, the import flows). That is sound
-    /// because the grant is IDEMPOTENT on the engine and re-sent at every spawn via
-    /// the env var, so the worst case is ordering: if the engine is asked to open the
-    /// library before this lands, the open fails with a permission error the app
-    /// already surfaces, and the retry succeeds because the grant is there by then.
-    /// It does not silently half-open a library, which is the outcome that matters.
+    /// Callers that DO read the path through the engine right after (folder import,
+    /// opening a package) must use `saveBookmarkIfDirectory`, which AWAITS the grant.
+    func saveBookmark(for url: URL) {
+        guard let bookmarkData = mintAndStoreBookmark(for: url) else { return }
+        handOffToEngine(path: url.path, bookmark: bookmarkData)
+    }
+
+    /// Hand a freshly-minted bookmark to the live engine, fire-and-forget. App
+    /// Store build only. See `grantEngineAccess` for the ORDERED variant a caller
+    /// can await before it reads the folder through the engine (#3773).
+    ///
+    /// Sound for sync callers because the grant is IDEMPOTENT on the engine and
+    /// re-sent at every spawn via the env var, so the worst case is ordering: the
+    /// open fails with a permission error the app surfaces, and the retry succeeds.
     private func handOffToEngine(path: String, bookmark: Data) {
         #if FICHERO_APP_STORE
-        guard let service = engineAccessService else {
-            // Before the client exists there is no engine to tell. Not an error: the
-            // spawn-time env var covers everything minted this early.
-            logger.debug("No engine access service yet; \(path) will be granted at next spawn")
-            return
-        }
         Task { @MainActor in
-            do {
-                try await service.grantAccess(toPath: path, bookmark: bookmark)
-                engineAccessFailure = nil
-            } catch {
-                // Loud, not silent: the engine cannot read this folder, and the user
-                // needs to know that now rather than meet a DuckDB permission error.
-                logger.error("Engine refused folder access for \(path): \(error.localizedDescription)")
-                engineAccessFailure = error.localizedDescription
-            }
+            // Fire-and-forget: this caller does not immediately read the path, so a
+            // denial is swallowed here — it is still surfaced via engineAccessFailure
+            // (set before the throw) and re-sent at the next spawn.
+            try? await grantEngineAccess(path: path, bookmark: bookmark)
         }
         #endif
     }
 
-    /// Persist access for a directory selected via file importer.
-    /// This captures permission at add-time so later reads do not re-prompt.
-    func saveBookmarkIfDirectory(_ url: URL) {
+    /// Await the engine's grant for a freshly-minted bookmark (#3773). The ordered
+    /// counterpart to `handOffToEngine`: a caller about to open/ingest the path
+    /// through the engine awaits this so the grant is in place BEFORE the engine
+    /// reads it — otherwise the read races the grant and the library stays
+    /// unreadable until the app relaunches.
+    ///
+    /// THROWS when a live engine grant is denied, so the caller stops rather than
+    /// reading a folder the engine can't open. Returns normally (no throw) for the
+    /// two legitimate no-grant-needed cases: before the engine client exists (the
+    /// spawn-time env var covers anything minted that early) and on the
+    /// non-App-Store build (no sandbox — nothing to grant).
+    private func grantEngineAccess(path: String, bookmark: Data) async throws {
+        #if FICHERO_APP_STORE
+        guard let service = engineAccessService else {
+            logger.debug("No engine access service yet; \(path) will be granted at next spawn")
+            return
+        }
+        do {
+            try await service.grantAccess(toPath: path, bookmark: bookmark)
+            engineAccessFailure = nil
+        } catch {
+            // Loud AND fatal to the caller's engine work: the engine cannot read
+            // this folder, so ingesting/opening it would fail later with an
+            // inscrutable DuckDB permission error. Surface it and stop the read.
+            logger.error("Engine refused folder access for \(path): \(error.localizedDescription)")
+            engineAccessFailure = error.localizedDescription
+            throw error
+        }
+        #endif
+    }
+
+    /// Persist access for a directory (a picked folder, or a `.fichero` package)
+    /// and AWAIT the engine grant before returning, so a caller about to read that
+    /// path through the engine can't race the grant (#3773). Captures permission
+    /// at add-time so later reads do not re-prompt.
+    ///
+    /// THROWS if a live engine grant is denied — the caller must not proceed to
+    /// read a path the engine can't open.
+    func saveBookmarkIfDirectory(_ url: URL) async throws {
         var isDirectory: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
         guard exists, isDirectory.boolValue else {
             return
         }
-        saveBookmark(for: url)
+        guard let bookmarkData = mintAndStoreBookmark(for: url) else { return }
+        try await grantEngineAccess(path: url.path, bookmark: bookmarkData)
     }
 
     /// Restore bookmarks on app launch
@@ -300,7 +337,7 @@ class FolderAccessManager {
         logger.debug("Bookmark persistence is macOS-only; ignoring on iOS for: \(url.path)")
     }
 
-    func saveBookmarkIfDirectory(_ url: URL) {
+    func saveBookmarkIfDirectory(_ url: URL) async throws {
         // iOS: importing through document picker already grants access.
     }
 
@@ -311,3 +348,26 @@ class FolderAccessManager {
 }
 
 #endif
+
+// The grant-before-engine-read ordering seam (#3773), shared across platforms.
+extension FolderAccessManager {
+    /// Sequence the sandbox grant before engine work that reads the granted path.
+    /// Both after-start attach paths — folder import and opening a package — route
+    /// through here so the grant runs to completion FIRST; if the engine read
+    /// raced ahead, a library added after the engine started would be unreadable
+    /// until the app relaunched.
+    ///
+    /// A DENIED grant throws BEFORE `engineWork` runs, so the engine is never asked
+    /// to read a path it can't open (the error propagates to the caller). One
+    /// awaited seam so the ordering is unit-testable without a live sandbox
+    /// (FICHERO_APP_STORE is off in the test target, so the real grant is a no-op
+    /// there — this pins the contract both paths rely on).
+    @MainActor
+    static func grantThenEngineWork<T>(
+        grant: () async throws -> Void,
+        engineWork: () async throws -> T
+    ) async rethrows -> T {
+        try await grant()
+        return try await engineWork()
+    }
+}

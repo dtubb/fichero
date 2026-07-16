@@ -68,15 +68,43 @@ extension LibraryManager {
         // Save open libraries for restoration on next launch
         saveOpenLibraryPaths()
 
-        scheduleLoadWhenBackendReady(for: library)
-        Task {
-            await KnownLibraryRegistryStore.shared.noteOpenedLibrary(
-                url: url,
-                displayName: displayName
-            )
-        }
+        loadAndRegister(library, at: url, displayName: displayName, needsSecurityAccess: needsSecurityAccess)
 
         return library
+    }
+
+    /// Kick off the engine load + registry-add for a freshly opened library.
+    ///
+    /// For a user-picked package (needsSecurityAccess), grant the sandboxed engine
+    /// access to it and AWAIT that grant BEFORE the load/registry requests, which
+    /// are the engine's first reads of the package — otherwise they race the grant
+    /// and the library stays unreadable until the app relaunches (#3773). Temporary
+    /// libraries live in the app's own container and need no grant.
+    private func loadAndRegister(
+        _ library: LibraryReference,
+        at url: URL,
+        displayName: String,
+        needsSecurityAccess: Bool
+    ) {
+        guard needsSecurityAccess else {
+            scheduleLoadWhenBackendReady(for: library)
+            Task {
+                await KnownLibraryRegistryStore.shared.noteOpenedLibrary(url: url, displayName: displayName)
+            }
+            return
+        }
+        Task { @MainActor in
+            // try?: a denied grant is already surfaced via engineAccessFailure and
+            // must stop the load/registry (grantThenEngineWork skips engineWork on a
+            // grant throw) without crashing the open.
+            try? await FolderAccessManager.grantThenEngineWork(
+                grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
+                engineWork: {
+                    scheduleLoadWhenBackendReady(for: library)
+                    await KnownLibraryRegistryStore.shared.noteOpenedLibrary(url: url, displayName: displayName)
+                }
+            )
+        }
     }
 
     /// Switch the whole app to a known-registry library by its (possibly remote)
