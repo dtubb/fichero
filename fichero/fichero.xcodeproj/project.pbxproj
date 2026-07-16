@@ -4849,6 +4849,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
 				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = Alpha;
 		};
@@ -4858,6 +4859,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
 				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = Beta;
 		};
@@ -4867,6 +4869,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
 				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = "Dev Embedded";
 		};
@@ -4876,6 +4879,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
 				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = "Alpha Embedded";
 		};
@@ -4885,6 +4889,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
 				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = "Beta Embedded";
 		};
@@ -4894,6 +4899,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroUITests;
 				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = "Release Local";
 		};
