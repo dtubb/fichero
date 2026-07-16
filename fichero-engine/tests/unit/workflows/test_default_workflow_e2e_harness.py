@@ -52,6 +52,12 @@ _TRANSCRIBE_TERMINALS = {
     "Transcribe Spanish Script (19th-20th C.)": ("spanish-script-v2",),
 }
 
+_TRANSLATE_TERMINALS = {
+    "Translate": ("text_translate",),
+    "Translate (DeepL)": ("translate",),
+    "Translate + Double-Check": ("text_translate", "text_translate_review"),
+}
+
 
 @pytest.mark.parametrize("selection_shape", ["folder", "file"])
 def test_catalogue_default_workflow_lands_artifacts_and_kg_rows(
@@ -236,6 +242,8 @@ def test_all_default_workflows_complete_with_deterministic_tool_stubs(
         _assert_paleography_ensemble_flow(final_state)
     if preset_name in _TRANSCRIBE_TERMINALS:
         _assert_transcribe_terminal_outputs(final_state, _TRANSCRIBE_TERMINALS[preset_name])
+    if preset_name in _TRANSLATE_TERMINALS:
+        _assert_translate_terminal_outputs(final_state, _TRANSLATE_TERMINALS[preset_name])
 
 
 def _install_deterministic_workflow_stubs(
@@ -543,6 +551,13 @@ def _assert_paleography_ensemble_flow(final_state: dict) -> None:
 
 def _assert_transcribe_terminal_outputs(final_state: dict, node_ids: tuple[str, ...]) -> None:
     """Every transcribe-family preset must finish with transcription text."""
+    outputs = final_state.get("outputs") or {}
+    for node_id in node_ids:
+        assert outputs.get(node_id, {}).get("text"), f"{node_id} emitted no text"
+
+
+def _assert_translate_terminal_outputs(final_state: dict, node_ids: tuple[str, ...]) -> None:
+    """Every translate-family preset must finish with translated text (#3907)."""
     outputs = final_state.get("outputs") or {}
     for node_id in node_ids:
         assert outputs.get(node_id, {}).get("text"), f"{node_id} emitted no text"
