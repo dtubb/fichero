@@ -13,25 +13,28 @@
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <description><![CDATA[
 <h3>Improved</h3>
-<p><strong>Dev testing builds.</strong> Dev archives now expose every implemented feature while
-keeping the release and beta profiles conservative. Embedded-engine launches
-also set their multi-user mode explicitly, so a local single-user build does
-not inherit an authentication setting from the shell that launched it.</p>
-<p><strong>Reader, inspector, and knowledge graph.</strong> The reader restores its WebKit
-transcript view, entity statements are named consistently, and external
-authority settings are wired through the app store.</p>
-<p><strong>Sharing and pairing.</strong> Pairing links are registered with macOS, can be
-copied, and report actionable failures. The app now routes those links instead
-of treating them as library folders.</p>
+<p><strong>Faster embedded-engine startup.</strong> The bundled engine now ships with
+precompiled Python bytecode, waits until it is ready before restoring saved
+libraries, and binds before doing optional heavyweight work. It no longer opens
+every known library or warms embeddings during local startup.</p>
+<p><strong>Faster library UI.</strong> This build removes an artifact/entity N+1 fetch,
+avoids unnecessary sidebar rebuilds, moves full-image decoding off the main
+thread, and improves library filtering, reader, and knowledge-graph work.</p>
+<p><strong>Paleography workflows.</strong> New zoom/image-preparation tools, ensemble
+transcription, and deterministic consistency checks are available in the
+workflow library.</p>
 <h3>Fixed</h3>
 <ul>
-<li>Fixed App Store embedded-engine packaging and signing validation, including
-  nested executables, static archives, and debug-symbol bundles.</li>
-<li>Fixed workflow error detail so validation failures name the actual engine
-  reason rather than a generic server error.</li>
-<li>Fixed fresh single-user startup so it does not incorrectly require creating
-  an account.</li>
-<li>Fixed task tests to wait for completion instead of relying on timing.</li>
+<li>Fixed local and embedded engines incorrectly showing a sign-in wall. A
+  loopback engine now treats its host as the owner and keeps library-scope
+  failures scoped to that library instead of calling them authentication
+  failures.</li>
+<li>Fixed healthy launches briefly rendering as <em>Backend Not Connected</em>
+  and removed a launch-blocking move-to-Applications modal.</li>
+<li>Fixed sandboxed builds opening a library added after engine launch, and
+  hardened App Store helper signing and embedded-engine packaging.</li>
+<li>Fixed workflow selection so one click opens the selected workflow in the
+  node editor.</li>
 </ul>
 ]]></description>
             <enclosure
