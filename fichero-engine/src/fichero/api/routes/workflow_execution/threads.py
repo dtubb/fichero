@@ -22,13 +22,27 @@ from fichero.workflows.run_status import (
     is_terminal,
 )
 
-# Module-level (no circular dep — checkpointer.py imports nothing from this
-# package). Must be a module attribute so tests can patch
-# `threads.AsyncDuckDBCheckpointer.from_db_path`.
-from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 
 from .schemas import ThreadListResponse, workflow_internal_error
 from .core import get_thread_status
+
+# Resolved on first access, not at import (#3950): checkpointer.py pulls
+# langgraph, and this router is imported at engine startup.
+#
+# It MUST remain a module attribute so tests can patch
+# `threads.AsyncDuckDBCheckpointer.from_db_path` — that patch does a getattr on
+# this module, which fires __getattr__ below, imports the real class and
+# patches it. The call-time imports in the handlers then resolve to the same
+# (patched) class object, so the test seam is unchanged.
+def __getattr__(name: str):
+    """Resolve AsyncDuckDBCheckpointer on first access (PEP 562)."""
+    if name == "AsyncDuckDBCheckpointer":
+        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer as _cls
+
+        globals()[name] = _cls
+        return _cls
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -315,6 +329,7 @@ async def get_thread_history(
     try:
         # Get checkpointer
         from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
+
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
         # Check if thread exists
@@ -522,6 +537,8 @@ async def list_threads(
         List of threads with their current status
     """
     try:
+        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
+
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
         thread_ids = await checkpointer.alist_threads(limit=limit)
@@ -563,6 +580,8 @@ async def delete_thread(
         404: Thread not found
     """
     try:
+        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
+
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
         # Check if thread exists in either canonical store. Accepted runs are

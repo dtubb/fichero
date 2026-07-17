@@ -26,7 +26,9 @@ from fichero.models import DocType, Document, FileType, ImageEditChain
 from fichero.workflows.batch import BatchItemStatus, BatchStatus
 from fichero.storage import resolve_source
 from fichero.image_ops import apply_operation
-from fichero.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean
+# NOTE: apply_fuzzy_clean is imported inside the one handler that uses it
+# (#3950). Importing any module in the tools package runs tools/__init__.py,
+# which imports every tool and with them Quartz, MCP and langgraph.
 
 router = APIRouter(prefix="/images", tags=["images"])
 
@@ -507,6 +509,9 @@ def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         return enhanced
 
     if name == "fuzzy_clean":
+        # Imported here rather than at module scope: runs tools/__init__ (#3950).
+        from fichero.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean
+
         return apply_fuzzy_clean(
             image,
             despeckle_radius=int(params.get("despeckle_radius", 3)),

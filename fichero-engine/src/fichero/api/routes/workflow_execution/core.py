@@ -10,7 +10,7 @@ import logging
 import queue
 import threading
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, TYPE_CHECKING
 from uuid import uuid4
 
 from fastapi import (
@@ -26,17 +26,8 @@ from fichero.db import Database
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.models import Workflow
 from fichero.workflows.activity import get_activity_tracker
-from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 from fichero.workflows.workflow_store import WorkflowStore
-from fichero.workflows.runtime import (
-    create_compiled_app_with_checkpointer,
-    to_workflow_def,
-)
-from fichero.workflows.builder import build_graph
-from fichero.workflows.validation import (
-    validate_workflow_connections,
-    validate_workflow_preflight,
-)
+
 
 from .schemas import (
     ExecuteAcceptedResponse,
@@ -52,6 +43,31 @@ from .runner import (
     _run_workflow_in_background,
     _set_workflow_state,
 )
+
+# NOTE: checkpointer / runtime / builder / validation are imported at CALL time,
+# not here (#3950). Between them they pull langgraph and every tool (Quartz,
+# MCP) — the engine paid all of it just to register this router at startup.
+#
+# AsyncDuckDBCheckpointer stays reachable as a MODULE ATTRIBUTE via __getattr__
+# below, because tests patch
+# `...workflow_execution.core.AsyncDuckDBCheckpointer.from_db_path`. That patch
+# does a getattr on this module, which fires __getattr__, imports the real
+# class and patches it — so the call-time imports inside the handlers below
+# resolve to the same (patched) class object. Deferring the import must not
+# break the seam the tests hold onto.
+if TYPE_CHECKING:  # pragma: no cover - import-time typing only
+    from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
+
+
+def __getattr__(name: str):
+    """Resolve the heavy workflow-execution names on first access (PEP 562)."""
+    if name == "AsyncDuckDBCheckpointer":
+        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer as _cls
+
+        globals()[name] = _cls
+        return _cls
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -81,7 +97,7 @@ def _sanitize_for_json(value: Any) -> Any:
 
 def _build_workflow_with_checkpointer(
     workflow: Workflow,
-    checkpointer: AsyncDuckDBCheckpointer,
+    checkpointer: "AsyncDuckDBCheckpointer",
     interrupt_before: list[str] | None = None,
     interrupt_after: list[str] | None = None,
     enable_parallel: bool = True,
@@ -89,6 +105,12 @@ def _build_workflow_with_checkpointer(
     """
     Build a workflow with checkpointing using the shared runtime path.
     """
+    # Imported here rather than at module scope: pulls langgraph (#3950).
+    from fichero.workflows.runtime import (  # noqa: PLC0415
+        create_compiled_app_with_checkpointer,
+        to_workflow_def,
+    )
+
     workflow_def = to_workflow_def(workflow)
     return create_compiled_app_with_checkpointer(
         workflow_def,
@@ -101,6 +123,14 @@ def _build_workflow_with_checkpointer(
 
 def _validate_workflow_for_execution(workflow: Workflow) -> None:
     """Fail fast on malformed workflows before spawning a background run."""
+    # Imported here rather than at module scope: pulls langgraph + every tool (#3950).
+    from fichero.workflows.builder import build_graph  # noqa: PLC0415
+    from fichero.workflows.runtime import to_workflow_def  # noqa: PLC0415
+    from fichero.workflows.validation import (  # noqa: PLC0415
+        validate_workflow_connections,
+        validate_workflow_preflight,
+    )
+
     workflow_def = to_workflow_def(workflow)
     errors = [
         *validate_workflow_connections(workflow_def),
@@ -404,6 +434,9 @@ async def resume_workflow(
     """
     try:
         # Get checkpointer
+        # Imported here rather than at module scope: pulls langgraph (#3950).
+        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
+
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
         # Get checkpoint
@@ -533,6 +566,9 @@ async def get_thread_status(
     """
     try:
         # Get checkpointer
+        # Imported here rather than at module scope: pulls langgraph (#3950).
+        from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
+
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
         # Get checkpoint

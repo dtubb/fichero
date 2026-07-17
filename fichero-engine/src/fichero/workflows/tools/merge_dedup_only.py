@@ -40,8 +40,12 @@ from fichero.workflows.tools.progress import emit_progress_event
 from fichero.workflows.tools.sources import files_tool
 from fichero.workflows.tools._workflow_change_emit import emit_workflow_kg_changes
 from fichero.workflows.types import DataType, PortDef, State
-from fichero.api.routes.claim_curation import ClaimMergeRequest, merge_claims
-from fichero.api.routes.kg_entity_curation import EntityMergeRequest, merge_entities
+# NOTE: the api.routes.* handlers are imported at CALL time, not here (#3950).
+# A tool importing an API ROUTE is a layering inversion, and it made
+# `import fichero.workflows.tools` impossible standalone:
+#     tools/__init__ -> this module -> api.routes.claim_curation
+#     -> api.main -> api.routes.claim_curation (half-initialised)
+# See the two use sites in _merge_entity_group / _merge_claim_group below.
 from fichero.actions.registry import ActionContext
 
 logger = logging.getLogger(__name__)
@@ -228,6 +232,9 @@ async def merge_dedup_only(
         for source_document_id in entity.source_document_ids or []:
             _record_source_page(db, target_entity, source_document_id)
 
+        # Imported here rather than at module scope: cycle via api.main (#3950).
+        from fichero.api.routes.kg_entity_curation import EntityMergeRequest, merge_entities
+
         await merge_entities(
             EntityMergeRequest(
                 absorbing_entity_id=target_id,
@@ -316,6 +323,9 @@ async def merge_dedup_only(
         absorbed = [claim for claim in live_claims if claim.id != survivor.id]
         if not absorbed:
             continue
+        # Imported here rather than at module scope: cycle via api.main (#3950).
+        from fichero.api.routes.claim_curation import ClaimMergeRequest, merge_claims
+
         await merge_claims(
             ClaimMergeRequest(
                 surviving_claim_id=survivor.id,

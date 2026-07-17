@@ -22,10 +22,39 @@ from typing import Any, AsyncIterator, Optional
 
 import duckdb
 
-from fichero.workflows.runtime import create_compiled_app, build_initial_state
+# NOTE: fichero.workflows.runtime is imported at CALL time, not here (#3950).
+# It pulls builder -> langgraph -> the whole tool universe (~700 modules,
+# seconds of import). This module is imported by api/routes/batch.py just to
+# get BatchStatus/BatchItem/BatchManager — dataclasses and enums that describe
+# a batch. Compiling a graph is something a batch does when it RUNS, not
+# something the type definitions need. Keeping this at module scope made
+# binding the HTTP socket wait for langgraph.
 from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.activity_store import duckdb_connection_lock
 from fichero.workflows.workflow_store import WorkflowStore
+
+# Passthrough wrappers (#3950).
+#
+# Deferring these imports must not remove them as MODULE ATTRIBUTES: tests
+# patch `fichero.workflows.batch.<name>`, which needs (1) the attribute to exist for mock.patch,
+# and (2) the call site to resolve it as a module GLOBAL so the patch takes
+# effect. A function-local import satisfies neither and would let those tests
+# pass while silently running the real implementation.
+
+
+def create_compiled_app(*args, **kwargs):
+    """Passthrough to fichero.workflows.runtime.create_compiled_app; imports it on first call (#3950)."""
+    from fichero.workflows.runtime import create_compiled_app as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
+
+def build_initial_state(*args, **kwargs):
+    """Passthrough to fichero.workflows.runtime.build_initial_state; imports it on first call (#3950)."""
+    from fichero.workflows.runtime import build_initial_state as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
 
 logger = logging.getLogger(__name__)
 MAX_BATCH_CACHE_SIZE = 512

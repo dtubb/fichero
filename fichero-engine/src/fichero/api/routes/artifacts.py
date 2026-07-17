@@ -15,7 +15,9 @@ from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.llm import LLMConfig, translate_text
+# NOTE: fichero.llm is imported inside the one handler that translates (#3950).
+# It pulls langchain_core -> transformers. Every other endpoint in this module
+# is plain artifact CRUD and paid that cost for nothing.
 from fichero.models import Artifact, ArtifactTypeListResponse, Document
 
 logger = logging.getLogger(__name__)
@@ -598,6 +600,9 @@ def _action_translate(
             status_code=422,
             detail=f"Document {params.document_id} has no text content to translate",
         )
+
+    # Imported here rather than at module scope: pulls langchain_core (#3950).
+    from fichero.llm import LLMConfig, translate_text
 
     # Build an LLMConfig — explicit provider wins, else default
     llm_config = LLMConfig(

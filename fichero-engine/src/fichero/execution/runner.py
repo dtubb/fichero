@@ -12,22 +12,72 @@ import re
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from fichero.db import Database
 from fichero.models import Workflow
-from fichero.workflows.builder import SystemicErrorDetected, build_graph
 from fichero.workflows.activity import get_activity_tracker
-from fichero.workflows.runtime import (
-    build_initial_state,
-    create_compiled_app,
-    to_workflow_def,
-)
 from fichero.workflows.registry import get_tool_def
 
 from fichero.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest, SSEEvent
 
 logger = logging.getLogger(__name__)
+
+# NOTE: builder / runtime are imported at CALL time, not here (#3950). Between
+# them they pull langgraph (via workflows.checkpointer) and every tool. This
+# module is reachable from api/routes/workflow_execution at engine startup, so
+# those imports ran before the HTTP socket was ever bound.
+if TYPE_CHECKING:  # pragma: no cover - import-time typing only
+    from fichero.workflows.builder import SystemicErrorDetected
+
+
+def build_graph(*args, **kwargs):
+    """Build a workflow graph, importing the builder on first call.
+
+    A passthrough wrapper, NOT a deferred import inside the caller, and that is
+    deliberate: tests do `monkeypatch.setattr(runner, "build_graph", fake)` and
+    the call site resolves `build_graph` as a module global. Importing it
+    locally inside `_run_workflow_in_background` would bind a LOCAL name that
+    shadows the patched global — the fake would be silently ignored and those
+    tests would still pass while exercising the real builder. Keeping the name
+    a module attribute preserves that seam exactly (#3950).
+    """
+    from fichero.workflows.builder import build_graph as _build_graph  # noqa: PLC0415
+
+    return _build_graph(*args, **kwargs)
+
+
+# Passthrough wrappers for the runtime entry points (#3950).
+#
+# Deferring these imports must not remove them as MODULE ATTRIBUTES: tests
+# patch `fichero.execution.runner.<name>`, which requires (1) the attribute to exist for
+# mock.patch to find, and (2) the call site to resolve it as a module GLOBAL so
+# the patch actually takes effect. A function-local import at the call site
+# satisfies neither — it would let those tests pass while silently running the
+# real runtime. A module __getattr__ satisfies only (1), since LOAD_GLOBAL
+# inside this module never consults it. Hence wrappers.
+
+
+def to_workflow_def(*args, **kwargs):
+    """Passthrough to fichero.workflows.runtime.to_workflow_def; imports it on first call (#3950)."""
+    from fichero.workflows.runtime import to_workflow_def as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
+
+def create_compiled_app(*args, **kwargs):
+    """Passthrough to fichero.workflows.runtime.create_compiled_app; imports it on first call (#3950)."""
+    from fichero.workflows.runtime import create_compiled_app as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
+
+def build_initial_state(*args, **kwargs):
+    """Passthrough to fichero.workflows.runtime.build_initial_state; imports it on first call (#3950)."""
+    from fichero.workflows.runtime import build_initial_state as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
 
 __all__ = [
     "WorkflowEventHub",
@@ -248,7 +298,7 @@ def _classify_provider_error(error_text: str) -> dict[str, str]:
     }
 
 
-def _systemic_failure_message(e: SystemicErrorDetected) -> tuple[str, dict[str, str]]:
+def _systemic_failure_message(e: "SystemicErrorDetected") -> tuple[str, dict[str, str]]:
     """Build a user-facing workflow failure message from a systemic error.
 
     #2612: provider/auth/quota failures (e.g. 402 out of credits) must
@@ -521,6 +571,12 @@ async def _run_workflow_in_background(
     :class:`WorkflowEventHub` that fans them out to every SSE subscriber
     (#2546). The producer interface is unchanged: ``.put(event)``.
     """
+    # SystemicErrorDetected is caught below; an `except` clause is a global
+    # lookup, so it must be bound in this scope. The runtime entry points are
+    # NOT imported here — they are module-level passthroughs above, because
+    # tests patch them (#3950).
+    from fichero.workflows.builder import SystemicErrorDetected  # noqa: PLC0415
+
     # Re-acquire the Database on THIS worker thread. The `db` passed in
     # belongs to the API thread, and a DuckDB Connection is not
     # thread-safe — db_manager keys connections by thread, so this

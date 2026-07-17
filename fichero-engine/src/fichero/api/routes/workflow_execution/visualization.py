@@ -8,12 +8,30 @@ from pydantic import BaseModel
 from fichero.db import Database
 from fichero.api.main import get_library_database
 from fichero.workflows.workflow_store import WorkflowStore
-from fichero.workflows.runtime import to_workflow_def
+# NOTE: runtime.to_workflow_def is imported at CALL time, not here (#3950):
+# runtime -> builder -> langgraph + every tool. build_graph below was
+# already deferred this way.
 
 from .runner import _generate_workflow_python_code
 from .schemas import workflow_internal_error
 
 logger = logging.getLogger(__name__)
+# Passthrough wrappers (#3950).
+#
+# Deferring these imports must not remove them as MODULE ATTRIBUTES: tests
+# patch `fichero.api.routes.workflow_execution.visualization.<name>`, which needs (1) the attribute to exist for mock.patch,
+# and (2) the call site to resolve it as a module GLOBAL so the patch takes
+# effect. A function-local import satisfies neither and would let those tests
+# pass while silently running the real implementation.
+
+
+def to_workflow_def(*args, **kwargs):
+    """Passthrough to fichero.workflows.runtime.to_workflow_def; imports it on first call (#3950)."""
+    from fichero.workflows.runtime import to_workflow_def as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
+
 router = APIRouter()
 
 

@@ -26,7 +26,26 @@ from pydantic import BaseModel, Field
 
 from fichero.workflows.safe_condition import safe_eval_expression
 from fichero.workflows.types import WorkflowDef
-from fichero.workflows.executor import WorkflowExecutor
+# NOTE: fichero.workflows.executor is imported at CALL time, not here (#3950).
+# It pulls builder -> langgraph + every tool (Quartz, MCP). api/routes/chains.py
+# imports this module for its chain *types*; actually executing a chain is what
+# needs the executor. See the one use site in _run_chain below.
+
+# Passthrough wrappers (#3950).
+#
+# Deferring these imports must not remove them as MODULE ATTRIBUTES: tests
+# patch `fichero.execution.chaining.<name>`, which needs (1) the attribute to exist for mock.patch,
+# and (2) the call site to resolve it as a module GLOBAL so the patch takes
+# effect. A function-local import satisfies neither and would let those tests
+# pass while silently running the real implementation.
+
+
+def WorkflowExecutor(*args, **kwargs):
+    """Passthrough to fichero.workflows.executor.WorkflowExecutor; imports it on first call (#3950)."""
+    from fichero.workflows.executor import WorkflowExecutor as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
 
 logger = logging.getLogger(__name__)
 

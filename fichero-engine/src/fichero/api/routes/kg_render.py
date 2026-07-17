@@ -13,7 +13,8 @@ from fichero.api.auth import action_context
 from fichero.actions.registry import ActionContext, registry
 from fichero.db import Database
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
-from fichero.llm import LLMConfig, chat
+# NOTE: fichero.llm is imported inside the one handler that uses it (#3950).
+# It pulls langchain_core (~600 modules) onto the engine startup path.
 from fichero.kg.paragraph import (
     ParagraphRenderRequest,
     ParagraphRenderResponse,
@@ -21,6 +22,28 @@ from fichero.kg.paragraph import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Passthrough wrappers, NOT deferred imports at the call sites (#3950).
+#
+# These names are part of this module's TEST SURFACE — tests patch
+# `fichero.api.routes.kg_render.<name>`. Two things must both hold:
+#   1. the name exists as a module attribute, or mock.patch raises
+#      AttributeError ("module has no attribute ...");
+#   2. the call site resolves it as a module GLOBAL, so the patch takes effect.
+# A function-local import at the call site satisfies NEITHER: it removes the
+# attribute AND binds a local that shadows any patch — letting a test pass
+# while silently exercising the real implementation. A module-level __getattr__
+# (PEP 562) fixes (1) but not (2), because LOAD_GLOBAL inside this module never
+# consults it. The wrapper satisfies both and still keeps fichero.llm
+# (langchain_core) off the engine startup path.
+
+
+def chat(*args, **kwargs):
+    """Passthrough to fichero.llm.chat; imports it on first call (#3950)."""
+    from fichero.llm import chat as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
 
 router = APIRouter(prefix="/kg/render", tags=["knowledge-graph"])
 
@@ -120,6 +143,10 @@ async def generate_entity_bio(
     from fichero.app_db import get_app_db  # noqa: PLC0415
 
     defaults = get_app_db().get_ai_defaults()
+    # LLMConfig only — `chat` resolves to the module-level passthrough above,
+    # which tests patch. A local import of it here would shadow that patch.
+    from fichero.llm import LLMConfig  # noqa: PLC0415
+
     llm_config = LLMConfig(
         provider=defaults.get("default_text_provider") or "apple",
         model=defaults.get("default_text_model") or "apple-intelligence",

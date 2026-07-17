@@ -36,7 +36,9 @@ from fichero.api.routes.documents import (
 )
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.keychain import has_api_key
-from fichero.llm import LLMConfig, get_langchain_model
+# NOTE: fichero.llm is imported inside _build_model below, not here (#3950).
+# It pulls langchain_core -> transformers, which the engine must not pay for
+# just to register this router at startup.
 from fichero.node_aliases import DanglingAliasError, is_alias, resolve_alias
 from fichero.providers import get_provider_info
 from fichero.prompts import compose_system_prompt
@@ -85,6 +87,28 @@ def _read_file_content(path: str | None, max_chars: int = 5000) -> str | None:
     except Exception as e:
         logger.debug(f"Could not read file {path}: {e}")
         return None
+
+
+# Passthrough wrappers, NOT deferred imports at the call sites (#3950).
+#
+# These names are part of this module's TEST SURFACE — tests patch
+# `fichero.api.routes.chat.<name>`. Two things must both hold:
+#   1. the name exists as a module attribute, or mock.patch raises
+#      AttributeError ("module has no attribute ...");
+#   2. the call site resolves it as a module GLOBAL, so the patch takes effect.
+# A function-local import at the call site satisfies NEITHER: it removes the
+# attribute AND binds a local that shadows any patch — letting a test pass
+# while silently exercising the real implementation. A module-level __getattr__
+# (PEP 562) fixes (1) but not (2), because LOAD_GLOBAL inside this module never
+# consults it. The wrapper satisfies both and still keeps fichero.llm
+# (langchain_core) off the engine startup path.
+
+
+def get_langchain_model(*args, **kwargs):
+    """Passthrough to fichero.llm.get_langchain_model; imports it on first call (#3950)."""
+    from fichero.llm import get_langchain_model as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
 
 
 router = APIRouter()
@@ -347,6 +371,11 @@ def _get_langchain_llm(db: Database, provider: str = None, model: str = None):
     # Get provider info for API base
     provider_db = db.query(ProviderModel, provider_type=provider)
     api_base = provider_db[0].api_base if provider_db else None
+
+    # LLMConfig only — get_langchain_model resolves to the module-level
+    # passthrough above, which tests patch. A local import of it here would
+    # shadow that patch (#3950).
+    from fichero.llm import LLMConfig  # noqa: PLC0415
 
     return get_langchain_model(
         LLMConfig(

@@ -18,7 +18,8 @@ from fichero.api.library_header import require_library_path
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
-from fichero.llm import get_model_cost
+# NOTE: fichero.llm is imported inside the one handler that prices a model
+# (#3950) — it pulls langchain_core at startup for a cost lookup.
 from fichero.workflows.types import (
     ToolDef,
     PortDef,
@@ -38,6 +39,28 @@ from fichero.workflows.registry import (
 from fichero.models import ReinstallDefaultWorkflowsResponse
 
 logger = logging.getLogger(__name__)
+# Passthrough wrappers, NOT deferred imports at the call sites (#3950).
+#
+# These names are part of this module's TEST SURFACE — tests patch
+# `fichero.api.routes.workflows.<name>`. Two things must both hold:
+#   1. the name exists as a module attribute, or mock.patch raises
+#      AttributeError ("module has no attribute ...");
+#   2. the call site resolves it as a module GLOBAL, so the patch takes effect.
+# A function-local import at the call site satisfies NEITHER: it removes the
+# attribute AND binds a local that shadows any patch — letting a test pass
+# while silently exercising the real implementation. A module-level __getattr__
+# (PEP 562) fixes (1) but not (2), because LOAD_GLOBAL inside this module never
+# consults it. The wrapper satisfies both and still keeps fichero.llm
+# (langchain_core) off the engine startup path.
+
+
+def get_model_cost(*args, **kwargs):
+    """Passthrough to fichero.llm.get_model_cost; imports it on first call (#3950)."""
+    from fichero.llm import get_model_cost as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
+
 router = APIRouter()
 
 

@@ -48,9 +48,32 @@ from fichero.api.routes.provider_models import (  # noqa: F401 (re-exported for 
     generate_model_description,
 )
 from fichero.api.routes.provider_keys import router as keys_router
-from fichero.llm import probe_apple_intelligence_bridge
+# NOTE: fichero.llm is imported inside the one handler that probes the
+# Apple Intelligence bridge (#3950) — it pulls langchain_core at startup.
 
 logger = logging.getLogger(__name__)
+# Passthrough wrappers, NOT deferred imports at the call sites (#3950).
+#
+# These names are part of this module's TEST SURFACE — tests patch
+# `fichero.api.routes.providers.<name>`. Two things must both hold:
+#   1. the name exists as a module attribute, or mock.patch raises
+#      AttributeError ("module has no attribute ...");
+#   2. the call site resolves it as a module GLOBAL, so the patch takes effect.
+# A function-local import at the call site satisfies NEITHER: it removes the
+# attribute AND binds a local that shadows any patch — letting a test pass
+# while silently exercising the real implementation. A module-level __getattr__
+# (PEP 562) fixes (1) but not (2), because LOAD_GLOBAL inside this module never
+# consults it. The wrapper satisfies both and still keeps fichero.llm
+# (langchain_core) off the engine startup path.
+
+
+def probe_apple_intelligence_bridge(*args, **kwargs):
+    """Passthrough to fichero.llm.probe_apple_intelligence_bridge; imports it on first call (#3950)."""
+    from fichero.llm import probe_apple_intelligence_bridge as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
+
 router = APIRouter(dependencies=[Depends(_require_authenticated_or_bootstrap)])
 
 # Include sub-routers

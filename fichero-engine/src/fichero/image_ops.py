@@ -7,7 +7,12 @@ from typing import Any
 from fastapi import HTTPException
 from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
-from fichero.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean
+# NOTE: apply_fuzzy_clean is imported at CALL time, not here (#3950).
+# fuzzy_clean_images lives in the tools package, and importing ANY module in
+# that package runs tools/__init__.py — which imports every one of the ~60
+# tools, and with them Quartz, MCP and langgraph. api/routes/image_editing.py
+# imports this module, so that one name cost the engine the whole AI stack
+# at startup.
 
 
 def detect_deskew_angle(image: Image.Image) -> float:
@@ -139,8 +144,12 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
             edited = enhancer(edited).enhance(float(params.get(key, 1.0)))
         return edited
     if name == "fuzzy_clean":
+        from fichero.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean  # noqa: PLC0415  (#3950)
+
         return apply_fuzzy_clean(image, despeckle_radius=int(params.get("despeckle_radius", 3)), background_clean=bool(params.get("background_clean", True)))
     if name == "denoise":
+        from fichero.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean  # noqa: PLC0415  (#3950)
+
         return apply_fuzzy_clean(image, despeckle_radius=int(params.get("radius", 3)), background_clean=False)
     if name == "adaptive_binarize":
         gray = image.convert("L")

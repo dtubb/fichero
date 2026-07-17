@@ -27,9 +27,73 @@ from fichero.workflows.registry_builtins import _register_builtin_tools
 
 logger = logging.getLogger(__name__)
 
-# Global tool registry
-TOOLS: dict[str, Callable] = {}
-TOOL_DEFS: dict[str, ToolDef] = {}
+# Global tool registry.
+#
+# Private names + a module __getattr__ (below) so that reading `registry.TOOLS`
+# triggers the tool load first. PEP 562's __getattr__ only fires for names NOT
+# in module globals, so these MUST stay underscore-prefixed — re-adding a
+# module-level `TOOLS = ...` would silently disable the whole mechanism and
+# hand callers the incomplete built-in defs again.
+_TOOLS: dict[str, Callable] = {}
+_TOOL_DEFS: dict[str, ToolDef] = {}
+
+# Tool implementations are imported on first read, not at module import (#3950).
+_TOOLS_LOADED = False
+_LOADING_TOOLS = False
+
+
+def _ensure_tools_loaded() -> None:
+    """Import tool implementations exactly once, on first read of the registry.
+
+    WHY THIS EXISTS
+    ---------------
+    `_register_builtin_tools()` installs ~135 basic defs. The @register_tool
+    decorators in tools/ then OVERRIDE them with full config schemas (including
+    the prompt field). Between those two points the registry holds INCOMPLETE
+    definitions, and a reader in that window silently gets wrong data — worse
+    than slow. So every public read path calls this first, and the dicts are
+    only reachable through it.
+
+    WHY IT RAISES
+    -------------
+    The previous version caught ImportError and logged it at DEBUG. That is
+    exactly how zoom and consistency_check vanished from the registry with no
+    error (#3951), and it also meant `import fichero.workflows.registry`
+    standalone left a permanently incomplete registry that looked healthy.
+    A tool registry that cannot load its tools is broken; say so, loudly.
+    """
+    global _TOOLS_LOADED, _LOADING_TOOLS
+    if _TOOLS_LOADED:
+        return
+    if _LOADING_TOOLS:
+        # Re-entrant: tools/mcp.py imports TOOLS/TOOL_DEFS from this module
+        # while the tools package is still executing. Hand back the dicts
+        # as-is — they are the same objects the decorators are populating.
+        return
+    _LOADING_TOOLS = True
+    try:
+        # This ONE import is the whole mechanism: every tool registers by being
+        # imported in tools/__init__.py. Do NOT special-case individual tools
+        # here (#3951) — zoom and consistency_check were listed separately and
+        # so were registered ONLY by the eager call this replaced. A tool that
+        # is not in tools/__init__.py is a tool that does not exist.
+        from fichero.workflows import tools  # noqa: F401
+
+        _TOOLS_LOADED = True
+        logger.debug("Loaded tool implementations")
+    finally:
+        _LOADING_TOOLS = False
+
+
+def __getattr__(name: str):
+    """Expose TOOLS / TOOL_DEFS, loading implementations first (PEP 562)."""
+    if name == "TOOLS":
+        _ensure_tools_loaded()
+        return _TOOLS
+    if name == "TOOL_DEFS":
+        _ensure_tools_loaded()
+        return _TOOL_DEFS
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def register_tool(
@@ -79,7 +143,7 @@ def register_tool(
 
     def decorator(func: Callable) -> Callable:
         # Store the function
-        TOOLS[name] = func
+        _TOOLS[name] = func
 
         # Default ports only when omitted (None), not when explicitly empty.
         # Source tools intentionally pass [] to indicate no input ports.
@@ -93,7 +157,7 @@ def register_tool(
         ]
 
         # Store metadata
-        TOOL_DEFS[name] = ToolDef(
+        _TOOL_DEFS[name] = ToolDef(
             name=name,
             display_name=display_name,
             description=description,
@@ -129,35 +193,40 @@ TOOL_ALIASES: dict[str, str] = {
 
 def get_tool(name: str) -> Callable | None:
     """Get a tool function by name."""
+    _ensure_tools_loaded()
     # Check direct registration first
-    if name in TOOLS:
-        return TOOLS[name]
+    if name in _TOOLS:
+        return _TOOLS[name]
     # Check aliases
     if name in TOOL_ALIASES:
-        return TOOLS.get(TOOL_ALIASES[name])
+        return _TOOLS.get(TOOL_ALIASES[name])
     return None
 
 
 def get_tool_def(name: str) -> ToolDef | None:
     """Get tool metadata by name."""
-    return TOOL_DEFS.get(name)
+    _ensure_tools_loaded()
+    return _TOOL_DEFS.get(name)
 
 
 def list_tools() -> list[ToolDef]:
     """List all registered tools, sorted by sort_order then name."""
-    tools = list(TOOL_DEFS.values())
+    _ensure_tools_loaded()
+    tools = list(_TOOL_DEFS.values())
     return sorted(tools, key=lambda t: (t.sort_order, t.name))
 
 
 def list_tools_by_category(category: str) -> list[ToolDef]:
     """List tools in a specific category, sorted by sort_order."""
-    tools = [t for t in TOOL_DEFS.values() if t.category == category]
+    _ensure_tools_loaded()
+    tools = [t for t in _TOOL_DEFS.values() if t.category == category]
     return sorted(tools, key=lambda t: (t.sort_order, t.name))
 
 
 def get_categories() -> list[str]:
     """Get all unique tool categories."""
-    categories = set(t.category for t in TOOL_DEFS.values())
+    _ensure_tools_loaded()
+    categories = set(t.category for t in _TOOL_DEFS.values())
     # Return in preferred order
     order = [
         "source",
@@ -196,7 +265,8 @@ def enrich_node_with_ports(node: NodeDef) -> NodeDef:
         If the tool is not found, returns the node unchanged (preserving any
         existing ports for backward compatibility with tests/inline definitions).
     """
-    tool_def = TOOL_DEFS.get(node.tool)
+    _ensure_tools_loaded()
+    tool_def = _TOOL_DEFS.get(node.tool)
     if not tool_def:
         # Tool not in registry - preserve existing ports for backward compatibility
         # This allows tests and inline workflow definitions to work
@@ -249,7 +319,8 @@ def create_node_from_tool(
     Note: The returned node has ports populated for immediate use in the UI.
     When saving to database, use node.model_dump_for_storage() to exclude ports.
     """
-    tool_def = TOOL_DEFS.get(tool_name)
+    _ensure_tools_loaded()
+    tool_def = _TOOL_DEFS.get(tool_name)
     if not tool_def:
         return None
 
@@ -269,36 +340,6 @@ def create_node_from_tool(
     )
 
 
-# =============================================================================
-# Import tool implementations
-# =============================================================================
-
-
-def _load_tool_implementations():
-    """Load actual tool implementations.
-
-    Importing the tools module triggers all @register_tool decorators,
-    which override the basic built-in definitions with full config schemas.
-    """
-    try:
-        # Import the entire tools module to trigger all @register_tool decorators
-        # This ensures tools have their full config schemas (including prompt field).
-        #
-        # This ONE import is the whole mechanism: every tool registers by being
-        # imported in tools/__init__.py. Do NOT special-case individual tools here
-        # (#3951) — zoom and consistency_check were listed separately and so were
-        # registered ONLY by this eager call. They survived purely because this
-        # function runs at module import; the moment tool loading is deferred
-        # (#3950/#3926) they vanished from the registry with no error, and the
-        # paleography ensemble depends on both. A tool that is not in
-        # tools/__init__.py is a tool that does not exist.
-        from fichero.workflows import tools  # noqa: F401
-
-        logger.debug("Loaded tool implementations")
-    except ImportError as e:
-        logger.debug(f"Tool implementations not loaded: {e}")
-
-
-# Register all tools on module import
-_register_builtin_tools(TOOL_DEFS)
-_load_tool_implementations()
+# Register the built-in tool defs at import (cheap: plain data, no deps).
+# Implementations load on first read — see _ensure_tools_loaded() above (#3950).
+_register_builtin_tools(_TOOL_DEFS)

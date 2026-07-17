@@ -698,6 +698,41 @@ async def lifespan(app: FastAPI):
 
     bonjour_started = asyncio.get_running_loop().run_in_executor(None, _start_bonjour)
 
+    # Warm the AI stack AFTER the socket is bound, never before it (#3950).
+    #
+    # langchain / langgraph / MCP / the ~60 tools / Quartz are no longer
+    # imported at module scope, so the engine binds without them. They are
+    # still wanted in memory before the user clicks Workflows, so import them
+    # here: the user is reading their library while this runs and never sees
+    # it. Lazy-on-click would instead put a multi-second spinner in front of
+    # the one interaction that should feel instant.
+    #
+    # In an executor, NOT via call_soon: importing is blocking, CPU-bound work
+    # and would starve the event loop it ran on — the same mistake, and the
+    # same fix, as Bonjour above (#3920).
+    def _warm_workflow_stack() -> None:
+        try:
+            # One call: _ensure_tools_loaded() imports the tools package, which
+            # is what pulls langgraph, MCP and Quartz behind it. Going through
+            # the registry (rather than importing the modules directly) means
+            # this warms exactly what a real read path would, so the warm-up
+            # cannot drift out of sync with what the engine actually loads.
+            from fichero.workflows.registry import _ensure_tools_loaded
+
+            _ensure_tools_loaded()
+            logger.info("Workflow tool stack warmed")
+        except Exception as exc:
+            # Deliberately not fatal: a failed warm-up must not take down an
+            # engine that is already serving. It is logged at WARNING with a
+            # repr, though — never swallowed. If the import is genuinely
+            # broken, the first real workflow request raises loudly from
+            # _ensure_tools_loaded(), which does not catch (#3951).
+            logger.warning("Workflow tool warm-up failed: %r", exc)
+
+    warm_started = asyncio.get_running_loop().run_in_executor(
+        None, _warm_workflow_stack
+    )
+
     yield
     parent_watcher.cancel()
     await stop_periodic_snapshot_task(periodic_snapshot_task)
@@ -708,6 +743,11 @@ async def lifespan(app: FastAPI):
     await bonjour_started
     if app.state.bonjour_advertiser is not None:
         app.state.bonjour_advertiser.stop()
+    # Same reasoning as bonjour_started: a short-lived process (most tests)
+    # reaches shutdown before the warm-up executor has run. Awaiting it here
+    # keeps the import from racing interpreter teardown, and costs nothing once
+    # it has already finished.
+    await warm_started
     await shutdown_managed_local_inference_services()
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")

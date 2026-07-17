@@ -106,6 +106,20 @@ from fichero.workflows.tools import mcp
 # Research tools
 from fichero.workflows.tools import research
 
+# The model_comparison tool lives OUTSIDE this package, in
+# fichero/workflows/model_comparison.py. It is imported here anyway because
+# this file — not any other import — is what owns tool registration (#3951).
+#
+# Before #3950 it registered only as a side effect of
+# api/routes/model_comparison.py importing the module at engine startup. That
+# is precisely how zoom and consistency_check vanished: a tool whose
+# registration depends on some unrelated module happening to be imported is a
+# tool that silently disappears the moment that import moves. Deferring the
+# route imports made it real — the registry dropped to 117 tools with no error.
+#
+# If this import is ever removed, model_comparison stops existing.
+from fichero.workflows import model_comparison  # noqa: F401  (#3950/#3951)
+
 # Transform tools (fan-in, reshape, cleanup)
 from fichero.workflows.tools import aggregate
 from fichero.workflows.tools import sub_workflow  # noqa: F401  (#2201)

@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
-import fichero.api.routes.documents  # noqa: F401  (registers document.* actions)
+# NOTE: fichero.api.routes.documents is imported inside the tool body, not
+# here (#3950). A tool importing an API ROUTE is a layering inversion, and it
+# created a second import cycle:
+#     tools/__init__ -> this module -> api.routes.documents
+#     -> api.main -> api.routes.chat -> api.routes.documents (half-initialised)
+# which made `import fichero.workflows.tools` impossible standalone and so
+# blocked any background warm-up. The route import is a side effect that
+# registers the document.* actions — those are needed when this tool RUNS,
+# which is precisely when the deferred import fires.
 from fichero.actions.registry import ActionContext, registry
-from fichero.api.routes.documents import DocumentCreate
 from fichero.db import db_manager
 from fichero.models import DocType, Document
 from fichero.workflows.registry import register_tool
@@ -86,6 +93,12 @@ async def organize_same_documents(
     raw_clusters = list(inputs.get("clusters") or [])
     if not raw_clusters:
         raise ValueError("Organize same documents requires clusters")
+
+    # Imported here rather than at module scope (#3950). The bare module import
+    # is load-bearing: it registers the document.* actions that registry.invoke
+    # below depends on. Keep both.
+    import fichero.api.routes.documents  # noqa: F401  (registers document.* actions)
+    from fichero.api.routes.documents import DocumentCreate
 
     ctx = ActionContext(
         actor="workflow",

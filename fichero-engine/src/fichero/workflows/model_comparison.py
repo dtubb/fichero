@@ -15,22 +15,27 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from datetime import datetime
 
 from enum import Enum
 
 from pydantic import BaseModel, Field
 
-from fichero.llm import (
-    AppleUnavailableError,
-    LLMConfig,
-    chat_workflow,
-    resolve_model_alias,
-    vision,
-)
+# NOTE: fichero.llm is imported at CALL time, not here (#3950). It pulls
+# langchain_core (~450 modules beyond the fastapi floor). api/routes/
+# model_comparison.py imports this module at engine startup just to register
+# the model_comparison tool and expose estimate_cost — neither of which needs
+# a chat model. TYPE_CHECKING covers the annotations, which are already
+# strings thanks to `from __future__ import annotations` above.
+if TYPE_CHECKING:  # pragma: no cover - import-time typing only
+    from fichero.llm import LLMConfig
 from fichero.models import Artifact
-from fichero.workflows.runtime import build_initial_state, create_compiled_app
+# NOTE: fichero.workflows.runtime is imported at CALL time, not here (#3950).
+# It pulls builder -> langgraph + every tool. This module is imported by
+# api/routes/model_comparison.py at app startup purely to register the
+# model_comparison tool and expose estimate_cost; compiling a graph is
+# something a comparison does when it RUNS. See the use site below.
 from fichero.workflows.registry import get_tool_def, register_tool
 from fichero.workflows.types import DataType, PortDef, State
 
@@ -485,6 +490,11 @@ class ModelComparisonEngine:
         timeout_seconds: int,
     ) -> tuple[Any, ModelSpec | None]:
         """Invoke a model and record when Apple guardrail fallback is used."""
+        # Imported here rather than at module scope: pulls langchain_core (#3950).
+        # AppleUnavailableError is caught below — an `except` clause is a global
+        # lookup, so the name must be bound in this scope before the try.
+        from fichero.llm import AppleUnavailableError, resolve_model_alias  # noqa: PLC0415
+
         try:
             return await self._invoke_model(spec, prompt, system_prompt, timeout_seconds), None
         except AppleUnavailableError:
@@ -511,6 +521,9 @@ class ModelComparisonEngine:
         system_prompt: str | None,
         timeout_seconds: int,
     ) -> Any:
+        # Imported here rather than at module scope: pulls langchain_core (#3950).
+        from fichero.llm import LLMConfig, chat_workflow  # noqa: PLC0415
+
         config = LLMConfig(
             provider=spec.provider,
             model=spec.model,
@@ -618,6 +631,9 @@ class ModelComparisonEngine:
         timeout_seconds: int,
     ) -> ModelResult:
         """Run a single vision model."""
+        # Imported here rather than at module scope: pulls langchain_core (#3950).
+        from fichero.llm import LLMConfig, vision  # noqa: PLC0415
+
         start_time = time.time()
 
         try:
@@ -854,6 +870,9 @@ class ModelComparisonEngine:
         """Run a workflow tool with a specific model."""
         from fichero.workflows.types import State
 
+        # Imported here rather than at module scope: pulls langchain_core (#3950).
+        from fichero.llm import LLMConfig  # noqa: PLC0415
+
         start_time = time.time()
 
         try:
@@ -1012,6 +1031,9 @@ class ModelComparisonEngine:
         # .duckdb FILE, not the directory — passing the directory raises
         # IOException: Is a directory (#2211).
         from pathlib import Path as _Path  # noqa: PLC0415
+
+        # Imported here rather than at module scope: pulls langgraph (#3950).
+        from fichero.workflows.runtime import build_initial_state, create_compiled_app  # noqa: PLC0415
 
         db_path: str | _Path = library_path
         if library_path:

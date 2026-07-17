@@ -45,9 +45,21 @@ def test_zoom_and_consistency_check_register_via_tools_init() -> None:
 
 
 def test_registry_special_cases_no_individual_tools() -> None:
-    """_load_tool_implementations imports the PACKAGE, never individual tools."""
+    """The tool loader imports the PACKAGE, never individual tools.
+
+    The loader was `_load_tool_implementations` (eager, called at module
+    import) and is now `_ensure_tools_loaded` (lazy, called from every read
+    path) as of #3950. The invariant is unchanged and is what this asserts:
+    whatever loads the tools must import the package as a whole, because a
+    tool listed individually here registers only on that path and vanishes
+    the moment loading moves (#3951).
+    """
     source = Path(registry.__file__).read_text()
-    start = source.index("def _load_tool_implementations")
+    assert "def _ensure_tools_loaded" in source, (
+        "the tool loader has been renamed again — retarget this test at it "
+        "rather than deleting it; it is the #3951 guard"
+    )
+    start = source.index("def _ensure_tools_loaded")
     body = source[start : source.index("\n\n\n", start)]
     offenders = [
         line.strip()

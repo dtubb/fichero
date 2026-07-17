@@ -13,7 +13,7 @@ from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.db import Database
-from fichero.llm import LLMConfig
+# NOTE: fichero.llm is imported inside _draft_plan below, not here (#3950).
 from fichero.research_models import (
     PlanStatus,
     ProjectStatus,
@@ -26,8 +26,16 @@ from fichero.research_models import (
     TaskStatus,
 )
 from fichero.models import ResearchCrudListResponse
-from fichero.workflows.tools.agent import react_agent
-from fichero.workflows.tools import research as _research_tools  # noqa: F401
+# NOTE: react_agent is imported inside _draft_plan below, not here (#3950).
+# Importing any module in the tools package runs tools/__init__.py, which
+# imports every tool and with them Quartz, MCP and langgraph.
+#
+# The `from fichero.workflows.tools import research as _research_tools` side
+# effect that used to sit here has been REMOVED, not deferred: it registered
+# the research tools, but tools/__init__.py:107 already imports `research`, so
+# the tool-loading path owns that registration (#3951 — a tool registers by
+# being imported in tools/__init__.py, and nowhere else). Registration no
+# longer depends on this route module happening to be imported.
 
 router = APIRouter()
 
@@ -309,6 +317,11 @@ async def _build_term_plan(
 ) -> dict[str, Any]:
     """Use the existing ReAct agent to draft a minimal research plan."""
     from fichero.app_db import get_app_db
+
+    # Imported here rather than at module scope (#3950): fichero.llm pulls
+    # langchain_core, and tools.agent runs tools/__init__ -> every tool.
+    from fichero.llm import LLMConfig
+    from fichero.workflows.tools.agent import react_agent
 
     defaults = get_app_db().get_ai_defaults()
     llm_config = LLMConfig(
