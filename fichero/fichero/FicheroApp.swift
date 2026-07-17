@@ -11,14 +11,31 @@ import SwiftUI
 
 // MARK: - App Delegate
 
-/// Custom AppDelegate to handle app lifecycle events (especially termination)
+/// Custom AppDelegate — the APP-scoped owner of the engine lifecycle (#3945).
+/// The engine is started here in `applicationDidFinishLaunching` and stopped in
+/// `applicationWillTerminate`, NOT from a window's `.task`. Opening or closing a
+/// window is not an engine event; windows read the controller off the delegate
+/// and observe its `EngineSession` phase, they never trigger it.
+@MainActor
 final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "FicheroAppDelegate")
-    weak var backendService: EmbeddedBackendService?
+
+    /// The single app-scoped engine lifecycle controller (#3945). Owns the
+    /// spawn/watch/stop (`EmbeddedBackendService`) and the connect/probe/heartbeat
+    /// (`AppState`) halves; `EngineSession` inside it is the sole phase writer.
+    let controller = EngineLifecycleController()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        logger.info("App did finish launching — starting engine app-scoped (#3945)")
+        // The engine's async startup lives here, not in a scene `.task`: `@main
+        // App.init` is synchronous and `.task` is per-scene, so the delegate is the
+        // one app-level hook that fires exactly once, independent of any window.
+        Task { await controller.start() }
+    }
 
     func applicationWillTerminate(_ notification: Notification) {
         logger.info("App will terminate - stopping backend...")
-        backendService?.stop()
+        controller.stop()
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
@@ -27,25 +44,27 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
 }
 
 @main
-// swiftlint:disable:next type_body_length
 struct FicheroApp: App {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "FicheroApp")
     @Environment(\.openWindow) private var openWindow
     // App delegate for lifecycle events
     @NSApplicationDelegateAdaptor(FicheroAppDelegate.self) private var appDelegate
 
-    // Backend service - manages embedded Python backend
-    @State private var backendService = EmbeddedBackendService()
-
-    // Backend connection state
-    @State private var appState = AppState()
+    // The engine lifecycle is app-owned (#3945): the AppDelegate holds the single
+    // EngineLifecycleController. These read its instances so the whole App body —
+    // every appState/backendService reference and the .environment injections —
+    // stays unchanged, while ownership + startup move to the delegate. @Observable
+    // objects are tracked wherever their properties are read in body; @State is
+    // only about ownership/lifetime, which now belongs to the controller.
+    private var backendService: EmbeddedBackendService { appDelegate.controller.backendService }
+    private var appState: AppState { appDelegate.controller.appState }
     @State private var viewSettings = ViewSettings()
     @StateObject private var featureManager = FeatureManager.shared
     @State private var claimFocusState = ClaimFocusState.shared
     @State private var kgFocusState = KGFocusState.shared
 
-    // Library manager - singleton managing all open libraries
-    @State private var libraryManager = LibraryManager.shared
+    // Library manager - the app-owned controller holds the shared singleton (#3945).
+    private var libraryManager: LibraryManager { appDelegate.controller.libraryManager }
 
     // App-level fallback observer injected into secondary scenes (artifact-detail,
     // citation-detail, etc.) that don't go through LibraryWindow. Prevents
@@ -146,137 +165,6 @@ struct FicheroApp: App {
         // App auto-activates on URL handling
     }
 
-    /// The ONE macOS connect sequence (#3108): used by the launch task AND the
-    /// connection view's Retry button, so retry never re-implements `start()`.
-    /// `restart` respawns a wedged embedded engine before probing; the launch
-    /// path passes false. `start()`'s own re-entrancy guard makes a retry fired
-    /// while a start is already in flight a no-op.
-    @MainActor
-    private func connectBackend(restart: Bool) async {
-        // A new window OR native tab shares the app-level connection
-        // (`backendService` / `appState` are one @State per app): both are opened
-        // via `openWindow(id: "main")` (WindowOpener), so both re-run THIS `.task`
-        // and must ATTACH to the already-connected engine, not re-run connect+auth
-        // — otherwise the status flips back to `.starting` and the user sees a
-        // reconnect spinner + token/registry churn on every surface (#3394/#3407).
-        // Window SPLITS never reach here at all: a SplittablePane is an in-window
-        // view, not a new scene, so it triggers no connect. Only a not-yet-
-        // connected first window or an explicit Retry (`restart`) proceeds.
-        if EmbeddedBackendService.shouldReuseExistingConnection(
-            restart: restart,
-            status: backendService.status,
-            isBackendReady: appState.isBackendRunning
-        ) {
-            logger.info("connectBackend: already connected — new window/tab attaches, no reconnect (#3394/#3407)")
-            return
-        }
-        // Consume the single provisioning decision (#3109) instead of
-        // re-deriving the mode here. `connectsToRemoteHost` is the old
-        // `requiresExternalBackendConnection` branch.
-        let strategy = EngineConfig.engineProvisioningStrategy()
-        let usesExternal = strategy.connectsToRemoteHost
-        logger.info("Launch provisioning strategy: \(String(describing: strategy), privacy: .public) (#3109)")
-        // Back to `.starting` so the connection view shows the booting splash
-        // (and clears any prior failure diagnosis) while we probe.
-        appState.engine.markStarting()
-        backendService.status = .starting
-        backendService.errorMessage = nil
-
-        let backendStart = Date()
-        do {
-            if !usesExternal {
-                // Respawn a stuck engine on an explicit retry; a fresh launch
-                // just starts. The port pre-flight / orphan sweep lives in start().
-                if restart {
-                    backendService.stop()
-                }
-                LaunchProfile.milestone("engine spawn requested")
-                try await backendService.start()
-                let backendMs = Date().timeIntervalSince(backendStart) * 1000
-                LaunchProfile.milestone("engine spawn returned")
-                logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
-            }
-
-            // Health probe after the engine is up — re-probing with backoff
-            // before parking, so a transient miss while the engine finishes
-            // startup (it's often serving 200s a beat later) doesn't wall a
-            // healthy engine (#3162).
-            await appState.checkBackendHealthUntilReady()
-            guard appState.isBackendRunning else {
-                backendService.status = .failed
-                backendService.errorMessage = appState.backendError
-                logger.error(
-                    "Backend not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
-                )
-                // Keep re-probing in the background so we recover to the workspace
-                // the moment the engine answers — never park forever on a healthy
-                // engine (#3162). The heartbeat's own guard makes this idempotent.
-                appState.startBackendHeartbeat()
-                return
-            }
-
-            let readyMs = Date().timeIntervalSince(backendStart) * 1000
-            LaunchProfile.milestone("first authenticated ready")
-            logger.info("⏱ engine authenticated and ready: \(readyMs, format: .fixed(precision: 1))ms")
-
-            backendService.status = .running
-            backendService.errorMessage = nil
-            // The heartbeat is the single ongoing poller once ready (#3108); its
-            // own guard makes repeated calls idempotent.
-            appState.startBackendHeartbeat()
-            // Proactively renew the device token if near expiry (#3096), before it
-            // can lapse into a 401. A Mac can pair as a remote client too, so this
-            // belongs on the macOS connect path as well as iOS — no-op for the
-            // embedded/local host (loopback has no stored expiry); a failed renew
-            // keeps the old token (the expired → re-pair path is the safety net).
-            await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host)
-            // The one shared post-ready side-effect block (#3113); adopt is a
-            // no-op on an embedded/local host, so no `usesExternal` branch here.
-            let restorationStart = Date()
-            await libraryManager.refreshAfterBackendBecameReady()
-            let restorationMs = Date().timeIntervalSince(restorationStart) * 1000
-            logger.info("⏱ post-ready library restoration: \(restorationMs, format: .fixed(precision: 1))ms")
-        } catch BackendError.portConflict(let pid) {
-            // A process we didn't spawn holds :8765 → surface the in-window
-            // decision (#3111): Stop it / Use it / Quit. Never a pre-window
-            // NSAlert, never self-terminate (#3042).
-            logger.info("Port 8765 held by PID \(pid.map(String.init) ?? "unknown") — portConflict phase")
-            appState.engine.markPortConflict(pid: pid)
-            backendService.status = .failed
-        } catch {
-            // An adopted squatter that answers health but rejects our token is
-            // authRejected, not a generic failure — the authenticated probe is
-            // the gate (#2864/#3111).
-            if backendService.lastReadiness == .authRejected {
-                appState.engine.markAuthRejected(
-                    "The engine already on port 8765 rejected this app's credentials."
-                )
-                backendService.status = .failed
-            } else {
-                logger.error("Failed to start backend: \(error.localizedDescription)")
-                await showBackendError(error)
-            }
-        }
-    }
-
-    @MainActor
-    private func showBackendError(_ error: Error) async {
-        // Do NOT terminate the app (#3042). The window's BackendRootGate (#2864)
-        // already renders the full-window BackendConnectionView — with the error
-        // text AND a Retry/Restart button — for any non-usable backend state.
-        // A modal Quit here fired BEFORE that gate could show, so a start failure
-        // (e.g. Debug ⌘R with no external engine on :8765, where the engine is
-        // deliberately not embedded) killed the window instead of surfacing an
-        // actionable diagnosis. Flip the service to .failed and let the gate do
-        // its job — the window stays up and the user can start the engine + retry.
-        logger.error("Backend failed to start: \(error.localizedDescription, privacy: .public)")
-        // The single phase owner drives the gate (#3107); service status is kept
-        // in sync as secondary lifecycle bookkeeping.
-        appState.engine.markFailed(error.localizedDescription)
-        backendService.status = .failed
-        backendService.errorMessage = error.localizedDescription
-    }
-
     /// The shared library-window root + its environment. Used by BOTH the
     /// primary `id: "main"` window and the value-seeded Duplicate Window group
     /// (#2262), so there is exactly one LibraryWindow scene definition — the
@@ -292,7 +180,7 @@ struct FicheroApp: App {
             // The connection view's Retry runs the SAME connect sequence as
             // launch, respawning a wedged embedded engine (#3108) — the button
             // no longer re-implements start().
-            onRetry: { await connectBackend(restart: true) },
+            onRetry: { await appDelegate.controller.retry() },
             setup: {
                 // `.setupNeeded` never occurs on macOS (the engine is embedded,
                 // not paired); render the connection view for symmetry if it does.
@@ -335,11 +223,11 @@ struct FicheroApp: App {
                         libraryManager: libraryManager
                     )
                 }
-                .task {
-                    appDelegate.backendService = backendService
-                    // Launch and the Retry button share ONE connect sequence (#3108).
-                    await connectBackend(restart: false)
-                }
+            // The engine is started by FicheroAppDelegate.applicationDidFinishLaunching,
+            // NOT here (#3945). A window no longer triggers connect/auth — it only
+            // observes EngineSession — so opening a second window/tab can't re-run
+            // the sequence, which is what shouldReuseExistingConnection existed to
+            // suppress (#3394/#3407). That guard is now unreachable from the app.
         }
         .defaultSize(width: 1400, height: 900)
         .windowStyle(.titleBar)

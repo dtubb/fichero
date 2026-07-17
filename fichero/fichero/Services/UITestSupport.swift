@@ -68,5 +68,8 @@ func uiTestLibraryOverrideURL(
 @MainActor
 func openUITestLibraryOverrideIfNeeded() {
     guard let libraryURL = uiTestLibraryOverrideURL() else { return }
-    LibraryManager.shared.openLibrary(at: libraryURL)
+    // Discard the returned LibraryReference: this UI-test hook only needs the
+    // side effect (open the library and make it current); the caller reads the
+    // active library through LibraryManager, not this return value (#3978).
+    _ = LibraryManager.shared.openLibrary(at: libraryURL)
 }

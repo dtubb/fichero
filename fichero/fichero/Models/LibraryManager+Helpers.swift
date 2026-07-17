@@ -172,6 +172,10 @@ extension LibraryManager {
         loadingLibraryIds.insert(library.id)
         defer { loadingLibraryIds.remove(library.id) }
 
+        // Ensure the .fichero package exists on disk (mkdir + Info.plist). Moved
+        // off LibraryManager.shared's synchronous init so it no longer runs before
+        // the first frame; idempotent, so running it per library is safe (#3974).
+        createPackageStructure(at: library.url)
         await initializeBackendDatabase(for: library)
         await loadLibraryData(for: library)
         await ensureInboxFolder(for: library)

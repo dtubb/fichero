@@ -3,7 +3,11 @@ import Foundation
 import Observation
 import OSLog
 #if os(macOS)
-import UserNotifications
+// @preconcurrency: the UN* types (UNUserNotificationCenter, UNMutableNotificationContent,
+// UNNotificationRequest) captured in requestAuthorization's @Sendable completion handler
+// are Apple SDK types that predate Sendable annotation — they are the only offenders, so
+// the import silences the non-Sendable-capture warnings without changing behavior (#3977).
+@preconcurrency import UserNotifications
 #endif
 
 /// Shared, per-library home for **live** workflow execution state, keyed by
