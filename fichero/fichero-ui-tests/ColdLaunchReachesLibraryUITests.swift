@@ -2,29 +2,16 @@
 //  ColdLaunchReachesLibraryUITests.swift
 //  FicheroUITests
 //
-//  The one launch test worth having: a cold embedded launch reaches the library
-//  on its own, and never once offers the user a way to fix it.
+//  The launch test that encodes Daniel's bar: a cold embedded launch reaches the
+//  library on its own, and NEVER offers the user a way to fix it.
 //
 //  The existing embedded smoke test asserts process liveness and that a window
-//  exists — both of which stay TRUE through the exact bug Daniel hit. A window
+//  exists — both of which stay TRUE through the exact bug that shipped. A window
 //  showing "Can't Authenticate to Engine / Reset Sign-In" is still a window, and
-//  the app is still running. That test would have gone green through the whole
-//  incident, which is why this one asserts what actually went wrong.
+//  the app is still running. That test slept through the whole incident.
 //
-//  WHY "no recovery button" IS the assertion, rather than "no gate":
-//  BackendConnectionView legitimately renders during `.starting` — it IS the
-//  booting splash, and a 23s cold engine means the user sees it. What must never
-//  happen on a healthy launch is a FAILURE phase, and the recovery buttons are
-//  exactly the thing that only renders in one (BackendConnectionView shows its
-//  action row only when `showsFailureState` is true). So the buttons are the
-//  precise signal, and the splash is not.
-//
-//  CANNOT RUN YET (#3902): no scheme references fichero-tests.xctestplan, and the
-//  FicheroTests target carries a single build setting (PRODUCT_NAME) — no
-//  SWIFT_VERSION, no INFOPLIST. Written now so it runs the moment that lands.
-//
-//  Also requires an EMBEDDED scheme: `--uitesting-embedded` exercises the real
-//  bundled engine, which Debug does not embed (#3042).
+//  Requires an EMBEDDED scheme: `--uitesting-embedded` exercises the real bundled
+//  engine, which Debug does not embed (#3042).
 //
 
 import XCTest
@@ -33,11 +20,22 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
     private var app: XCUIApplication!
     private var tempHome: URL!
 
-    /// A cold engine is ~23.1s (import 9.6 + lifespan 13.5 + bind 0.5), and this
-    /// test exists precisely because that is slower than people expect. Generous
-    /// enough that a busy machine cannot make it flaky — the wait ends the moment
-    /// the library appears, so the ceiling costs nothing on a healthy run.
+    /// Ceiling, not an expectation. The engine measures ~5.27s mean (0.48s
+    /// spread) since #3920, and #3930 means a slow engine is no longer a gate —
+    /// so this only has to be generous enough that a busy machine cannot make the
+    /// test flaky. The wait ends the instant the library appears, so a healthy run
+    /// never pays it.
     private let launchDeadline: TimeInterval = 120
+
+    /// How long to keep watching AFTER the library appears.
+    ///
+    /// This is the heart of the test. The reported failure was library FIRST,
+    /// then "Can't Authenticate to Engine" seconds later — the 5s heartbeat
+    /// probing `/api/registry`, getting a 401, and flipping a ready session to
+    /// `.authRejected`. A test that returns the moment `library.content.ready`
+    /// appears would go green through precisely that. 15s covers at least two
+    /// heartbeat ticks.
+    private let settleWindow: TimeInterval = 15
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -59,12 +57,8 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
         if let tempHome { try? FileManager.default.removeItem(at: tempHome) }
     }
 
-    /// A healthy cold launch reaches the library with no user action, and never
-    /// offers one.
-    ///
-    /// Polls rather than checking once at the end: a recovery button that appears
-    /// and then resolves is still the bug — the user saw a dead end and clicked
-    /// it. The end state alone cannot tell you that happened.
+    /// A healthy cold launch reaches the library with no user action, never offers
+    /// one, and does not sprout one afterwards.
     @MainActor
     func testColdEmbeddedLaunchReachesLibraryWithoutEverOfferingRecovery() throws {
         app.launch()
@@ -78,33 +72,72 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
         // `otherElements`.
         let libraryContent = app.descendants(matching: .any)
             .matching(identifier: "library.content.ready").firstMatch
-        let resetSignIn = app.buttons["backend.action.resetSignIn"]
-        let restartEngine = app.buttons["backend.action.restartEngine"]
 
+        // Phase 1 — reach the library, checking on every poll that no recovery UI
+        // has appeared. Polled rather than asserted once at the end: a prompt that
+        // appears and then resolves is still the bug (the user saw a dead end and
+        // clicked it), and an end-state check cannot see that it happened.
         let deadline = Date().addingTimeInterval(launchDeadline)
+        var reachedLibrary = false
         while Date() < deadline {
-            // A healthy launch never enters a failure phase, so neither recovery
-            // action may EVER render — not even for one frame.
-            XCTAssertFalse(
-                resetSignIn.exists,
-                "Reset Sign-In was offered during a healthy cold launch. There is no sign-in to "
-                + "reset on an embedded engine, so the button appearing is itself the failure."
-            )
-            XCTAssertFalse(
-                restartEngine.exists,
-                "Restart Engine was offered during a healthy cold launch. The engine was starting "
-                + "normally; the app gave up on it and asked the user to do its job."
-            )
-
+            assertNoRecoveryUI(phase: "during startup")
             if libraryContent.exists {
-                return  // Reached the library, having never offered a way out.
+                reachedLibrary = true
+                break
             }
             Thread.sleep(forTimeInterval: 0.25)
         }
 
-        XCTFail(
+        XCTAssertTrue(
+            reachedLibrary,
             "Cold embedded launch never reached library.content.ready within \(Int(launchDeadline))s, "
-            + "without surfacing a recovery action either — the launch stalled silently."
+            + "and never surfaced a recovery action either — the launch stalled silently."
+        )
+
+        // Phase 2 — the launch is not over when the library appears. Keep watching
+        // across the heartbeat: a ready session that flips to .authRejected raises
+        // the gate OVER the library, which is what Daniel actually saw.
+        let settleDeadline = Date().addingTimeInterval(settleWindow)
+        while Date() < settleDeadline {
+            assertNoRecoveryUI(phase: "after the library appeared")
+            XCTAssertTrue(
+                libraryContent.exists,
+                "The library disappeared after loading — the session was torn back down post-ready."
+            )
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+    }
+
+    /// The recovery UI must never render on a healthy launch, in any form.
+    ///
+    /// `backend.connection.title` is the load-bearing assertion: it renders iff
+    /// `showsFailureState`, so it catches EVERY failure phase — including
+    /// `.portConflict`, which offers "Stop It / Use the Existing Engine / Quit"
+    /// and would slip past a check that only knows the two named buttons.
+    /// The buttons are asserted too, because they are the specific bar: on an
+    /// embedded engine there is no sign-in to reset and no engine for the user to
+    /// restart, so either button appearing IS the failure.
+    @MainActor
+    private func assertNoRecoveryUI(phase: String, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertFalse(
+            app.descendants(matching: .any).matching(identifier: "backend.connection.title").firstMatch.exists,
+            "A failure screen appeared \(phase) on a healthy cold launch.",
+            file: file,
+            line: line
+        )
+        XCTAssertFalse(
+            app.buttons["backend.action.resetSignIn"].exists,
+            "Reset Sign-In was offered \(phase). There is no sign-in to reset on an embedded "
+            + "engine, so the button appearing is itself the failure.",
+            file: file,
+            line: line
+        )
+        XCTAssertFalse(
+            app.buttons["backend.action.restartEngine"].exists,
+            "Restart Engine was offered \(phase). The engine starts and is managed by the app; "
+            + "asking the user to restart it is the app giving up on its own job.",
+            file: file,
+            line: line
         )
     }
 }
