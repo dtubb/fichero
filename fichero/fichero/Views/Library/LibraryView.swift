@@ -58,26 +58,6 @@ struct LibraryView: View {
     @SceneStorage("library.sortFieldsByFolder") var sortFieldsByFolderJSON: String = "{}"
     @SceneStorage("library.sortAscendingByFolder") var sortAscendingByFolderJSON: String = "{}"
 
-    // Sort field / direction / filter-bar visibility now live on the shared
-    // store (#1477). These computed forwarders keep the existing call sites and
-    // `$`-bindings working unchanged.
-    var sortFieldRaw: String {
-        get { libraryToolbar.sortFieldRaw }
-        nonmutating set { libraryToolbar.sortFieldRaw = newValue }
-    }
-    var sortAscending: Bool {
-        get { libraryToolbar.sortAscending }
-        nonmutating set { libraryToolbar.sortAscending = newValue }
-    }
-    var showFilterBar: Bool {
-        get { libraryToolbar.showFilterBar }
-        nonmutating set { libraryToolbar.showFilterBar = newValue }
-    }
-
-    var sortField: LibrarySortField {
-        libraryToolbar.sortField
-    }
-
     // Workflow picker state
     @State var showWorkflowPicker = false
     @State var selectedDocumentIdsForBatch: [String] = []
@@ -151,30 +131,6 @@ struct LibraryView: View {
     @State var entities: [Components.Schemas.KnowledgeEntity] = []
     @State private var spatialSelectedNodeId: String?
     @State private var cachedLibraryProjection = SpatialLibraryProjection(nodes: [], links: [])
-
-    // internal (not private): accessed from LibraryView+DisplayModes extension (separate file)
-    var scopedLibraryReference: LibraryManager.LibraryReference? {
-        libraryManager.getLibrary(id: windowState.libraryId)
-    }
-    private var libraryReference: LibraryManager.LibraryReference? {
-        libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
-    }
-    /// Canvas stores are shared per library (#3082), but must never silently
-    /// swap to another library's client/scope while this window's library is
-    /// still loading or unavailable (#3198).
-    private var canvasLayoutStore: CanvasLayoutStore? { scopedLibraryReference?.canvasLayoutStore }
-    private var canvasItemStore: CanvasItemStore? { scopedLibraryReference?.canvasItemStore }
-
-    /// Extracted from `.focusedSceneValue` so the Swift type-checker doesn't
-    /// time out on the inline ternary-with-closure expression.
-    private var runWorkflowOnSelectionAction: (() -> Void)? {
-        guard !isShowingEntitiesCollection, !selection.isEmpty,
-              featureManager.isWorkflowRunOnSelectionEnabled else { return nil }
-        return {
-            selectedDocumentIdsForBatch = Array(selection)
-            showWorkflowPicker = true
-        }
-    }
 
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?
@@ -561,6 +517,52 @@ struct LibraryView: View {
 
 // MARK: - Connection error + bottom inset (#3160: kept out of the type body)
 extension LibraryView {
+    // Sort field / direction / filter-bar visibility now live on the shared
+    // store (#1477). These computed forwarders keep the existing call sites and
+    // `$`-bindings working unchanged.
+    var sortFieldRaw: String {
+        get { libraryToolbar.sortFieldRaw }
+        nonmutating set { libraryToolbar.sortFieldRaw = newValue }
+    }
+
+    var sortAscending: Bool {
+        get { libraryToolbar.sortAscending }
+        nonmutating set { libraryToolbar.sortAscending = newValue }
+    }
+
+    var showFilterBar: Bool {
+        get { libraryToolbar.showFilterBar }
+        nonmutating set { libraryToolbar.showFilterBar = newValue }
+    }
+
+    var sortField: LibrarySortField { libraryToolbar.sortField }
+
+    // internal (not private): accessed from LibraryView+DisplayModes extension (separate file)
+    var scopedLibraryReference: LibraryManager.LibraryReference? {
+        libraryManager.getLibrary(id: windowState.libraryId)
+    }
+
+    private var libraryReference: LibraryManager.LibraryReference? {
+        libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
+    }
+
+    /// Canvas stores are shared per library (#3082), but must never silently
+    /// swap to another library's client/scope while this window's library is
+    /// still loading or unavailable (#3198).
+    private var canvasLayoutStore: CanvasLayoutStore? { scopedLibraryReference?.canvasLayoutStore }
+    private var canvasItemStore: CanvasItemStore? { scopedLibraryReference?.canvasItemStore }
+
+    /// Extracted from `.focusedSceneValue` so the Swift type-checker doesn't
+    /// time out on the inline ternary-with-closure expression.
+    private var runWorkflowOnSelectionAction: (() -> Void)? {
+        guard !isShowingEntitiesCollection, !selection.isEmpty,
+              featureManager.isWorkflowRunOnSelectionEnabled else { return nil }
+        return {
+            selectedDocumentIdsForBatch = Array(selection)
+            showWorkflowPicker = true
+        }
+    }
+
     private func refreshPendingStatusesFromLiveUpdate() {
         guard hasProcessingDocuments, let parentId = folderId else { return }
         Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
