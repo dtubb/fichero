@@ -401,8 +401,10 @@ class LibraryManager {
             return
         }
 
-        // Create package structure if needed
-        createPackageStructure(at: globalURL)
+        // Package structure (mkdir + Info.plist) is created lazily in
+        // loadLibraryDataIfNeeded once the backend is ready — NOT here. This runs
+        // inside LibraryManager.shared's init during App construction, before the
+        // first frame, and synchronous disk I/O on that path delays launch (#3974).
 
         // Load or create Global library document
         let document = FicheroDocument()
