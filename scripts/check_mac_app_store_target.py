@@ -118,6 +118,8 @@ def main() -> int:
         ent = settings.get("CODE_SIGN_ENTITLEMENTS", "")
         if "FicheroAppStore.entitlements" not in ent:
             fail(f"{MAS_TARGET}/{cfg_name} must use FicheroAppStore.entitlements, got {ent!r}")
+        if settings.get("CODE_SIGN_INJECT_BASE_ENTITLEMENTS") != "NO":
+            fail(f"{MAS_TARGET}/{cfg_name} must set CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO so the helper keeps its two-key inherit contract")
         if "FICHERO_APP_STORE" not in settings.get("SWIFT_ACTIVE_COMPILATION_CONDITIONS", ""):
             fail(f"{MAS_TARGET}/{cfg_name} is missing the FICHERO_APP_STORE compilation condition")
 
