@@ -43,6 +43,7 @@
 		048 /* WorkflowExecutionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149 /* WorkflowExecutionObserver.swift */; };
 		049 /* DocumentServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148 /* DocumentServiceGenerated.swift */; };
 		04EC79C508ADFCB840661C01 /* BookmarksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EA02CD36EF110174B8E2206 /* BookmarksView.swift */; };
+		07776782808C783E1F4AF8DF /* EngineLifecycleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AD58A9604A19DAAE6983A01 /* EngineLifecycleController.swift */; };
 		079E7B626FA4EE5877BB24B0 /* FicheroApp_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29941DE439073B7364322ECF /* FicheroApp_iOS.swift */; };
 		08A233915452687AD06DA9DE /* DocumentInspectorArtifactsTab+Previews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73BB27716102361159F020CD /* DocumentInspectorArtifactsTab+Previews.swift */; };
 		097E07610FB8E2B3AB4A6264 /* CitationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1424784E87E1971372F0109 /* CitationDetailView.swift */; };
@@ -519,6 +520,7 @@
 		C10000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000001 /* SparkleUpdater.swift */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
 		C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */; };
+		C2BE0A6960B4398CE2110077 /* EngineLifecycleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AD58A9604A19DAAE6983A01 /* EngineLifecycleController.swift */; };
 		C340001000000000PROMPT01 /* PromptPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C340001100000000PROMPT01 /* PromptPreviewPanel.swift */; };
 		C37B1043409A6ED500E30F29 /* BackupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91100495C9D776E200E2F9C0 /* BackupsView.swift */; };
 		C38F232612EE4EEB87E62A76 /* FicheroAppEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48FFFFE4A294ADC2F1299E2D /* FicheroAppEntities.swift */; };
@@ -1293,6 +1295,7 @@
 		16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleDetailView.swift; sourceTree = "<group>"; };
 		16C939F2EE06FF349761CA2F /* ActivityMonitorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityMonitorView.swift; sourceTree = "<group>"; };
 		19C6A533EA3E96E1F5AE19ED /* AppNavigationHistory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppNavigationHistory.swift; sourceTree = "<group>"; };
+		1AD58A9604A19DAAE6983A01 /* EngineLifecycleController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EngineLifecycleController.swift; sourceTree = "<group>"; };
 		1B98F1F8C255A9F7C3386A59 /* ResearchModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchModels.swift; sourceTree = "<group>"; };
 		1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIDefaults.swift; path = fichero/Views/Settings/AIDefaults.swift; sourceTree = SOURCE_ROOT; };
 		1C527476477074D83F628468 /* ClaimStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClaimStore.swift; sourceTree = "<group>"; };
@@ -2429,6 +2432,7 @@
 				AE34A7C933EA9305CAAA50FA /* AccessError.swift */,
 				110C8D9D75D6823D7B1EF43D /* DeviceTokenRenewal.swift */,
 				9F3A4A14186A5886AC932517 /* ChangeStreamTransport.swift */,
+				1AD58A9604A19DAAE6983A01 /* EngineLifecycleController.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -4177,6 +4181,7 @@
 				6FC9AFB7D35EBFB12E9F8225 /* CitationExportButton.swift in Sources */,
 				A6AD2F07985565F991995037 /* ArtifactEntityStore.swift in Sources */,
 				B87B28ED2A0DAC77675C461B /* LaunchProfile.swift in Sources */,
+				C2BE0A6960B4398CE2110077 /* EngineLifecycleController.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -4783,6 +4788,7 @@
 				FEED0000000000000000024C /* CitationExportButton.swift in Sources */,
 				23BB0DDC9E8089CB1452632D /* ArtifactEntityStore.swift in Sources */,
 				F2E929E26D14B40F55EDB9D1 /* LaunchProfile.swift in Sources */,
+				07776782808C783E1F4AF8DF /* EngineLifecycleController.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
@@ -6073,8 +6079,8 @@
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2026071702;
@@ -6139,8 +6145,8 @@
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2026071702;
@@ -6220,8 +6226,8 @@
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2026071702;
@@ -6301,8 +6307,8 @@
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2026071702;
@@ -6382,8 +6388,8 @@
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2026071702;
@@ -6448,8 +6454,8 @@
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2026071702;
@@ -6529,8 +6535,8 @@
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2026071702;
@@ -6610,8 +6616,8 @@
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2026071702;
