@@ -17,7 +17,7 @@
 [tool.briefcase]
 project_name = "Fichero"
 bundle = "com.fichero.fichero"
-version = "2026.7.17"
+version = "2026.7.17.2"
 url = "https://www.tubb.ca/fichero/"
 license.file = "LICENSE"
 author = "Daniel Tubb"
@@ -149,7 +149,7 @@ fichero = [
 
 [project]
 name = "fichero"
-version = "2026.7.17"
+version = "2026.7.17.2"
 description = "Headless engine for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 readme = "README.md"
 requires-python = ">=3.10"
