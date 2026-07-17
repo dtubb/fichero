@@ -42,6 +42,37 @@ from fichero.workflows.types import DataType, PortDef, State
 logger = logging.getLogger(__name__)
 
 
+# Passthrough wrappers (#3950).
+#
+# Deferring these imports must not remove them as MODULE ATTRIBUTES: tests
+# patch `fichero.workflows.model_comparison.<name>`, which needs (1) the
+# attribute to exist for mock.patch to find, and (2) the call site to resolve
+# it as a module GLOBAL so the patch takes effect. A function-local import
+# satisfies neither and would let those tests pass while silently calling the
+# real LLM.
+
+
+def chat_workflow(*args, **kwargs):
+    """Passthrough to fichero.llm.chat_workflow; imports it on first call (#3950)."""
+    from fichero.llm import chat_workflow as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
+
+def vision(*args, **kwargs):
+    """Passthrough to fichero.llm.vision; imports it on first call (#3950)."""
+    from fichero.llm import vision as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
+
+def create_compiled_app(*args, **kwargs):
+    """Passthrough to fichero.workflows.runtime.create_compiled_app; imports it on first call (#3950)."""
+    from fichero.workflows.runtime import create_compiled_app as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
+
 # =============================================================================
 # Data Models
 # =============================================================================
@@ -521,8 +552,9 @@ class ModelComparisonEngine:
         system_prompt: str | None,
         timeout_seconds: int,
     ) -> Any:
-        # Imported here rather than at module scope: pulls langchain_core (#3950).
-        from fichero.llm import LLMConfig, chat_workflow  # noqa: PLC0415
+        # LLMConfig only — chat_workflow is a module-level passthrough below,
+        # because tests patch it; a local import here would shadow the patch.
+        from fichero.llm import LLMConfig  # noqa: PLC0415
 
         config = LLMConfig(
             provider=spec.provider,
@@ -631,8 +663,9 @@ class ModelComparisonEngine:
         timeout_seconds: int,
     ) -> ModelResult:
         """Run a single vision model."""
-        # Imported here rather than at module scope: pulls langchain_core (#3950).
-        from fichero.llm import LLMConfig, vision  # noqa: PLC0415
+        # LLMConfig only — `vision` is a module-level passthrough below,
+        # because tests patch it; a local import here would shadow the patch.
+        from fichero.llm import LLMConfig  # noqa: PLC0415
 
         start_time = time.time()
 
@@ -1032,8 +1065,9 @@ class ModelComparisonEngine:
         # IOException: Is a directory (#2211).
         from pathlib import Path as _Path  # noqa: PLC0415
 
-        # Imported here rather than at module scope: pulls langgraph (#3950).
-        from fichero.workflows.runtime import build_initial_state, create_compiled_app  # noqa: PLC0415
+        # build_initial_state only — create_compiled_app is a module-level
+        # passthrough below, because tests patch it.
+        from fichero.workflows.runtime import build_initial_state  # noqa: PLC0415
 
         db_path: str | _Path = library_path
         if library_path:

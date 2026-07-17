@@ -37,6 +37,22 @@ from fichero.models import ResearchCrudListResponse
 # being imported in tools/__init__.py, and nowhere else). Registration no
 # longer depends on this route module happening to be imported.
 
+# Passthrough wrapper (#3950).
+#
+# `react_agent` must stay a MODULE ATTRIBUTE: tests patch
+# `fichero.api.routes.research_crud.react_agent`, which needs the attribute to
+# exist AND the call site to resolve it as a module global. Importing any
+# module in the tools package runs tools/__init__.py (every tool, Quartz, MCP,
+# langgraph), so the import itself stays deferred to first call.
+
+
+async def react_agent(*args, **kwargs):
+    """Passthrough to tools.agent.react_agent; imports it on first call (#3950)."""
+    from fichero.workflows.tools.agent import react_agent as _impl  # noqa: PLC0415
+
+    return await _impl(*args, **kwargs)
+
+
 router = APIRouter()
 
 
@@ -318,10 +334,9 @@ async def _build_term_plan(
     """Use the existing ReAct agent to draft a minimal research plan."""
     from fichero.app_db import get_app_db
 
-    # Imported here rather than at module scope (#3950): fichero.llm pulls
-    # langchain_core, and tools.agent runs tools/__init__ -> every tool.
-    from fichero.llm import LLMConfig
-    from fichero.workflows.tools.agent import react_agent
+    # LLMConfig only — react_agent is a module-level passthrough below,
+    # because tests patch it; a local import here would shadow the patch.
+    from fichero.llm import LLMConfig  # noqa: PLC0415
 
     defaults = get_app_db().get_ai_defaults()
     llm_config = LLMConfig(
