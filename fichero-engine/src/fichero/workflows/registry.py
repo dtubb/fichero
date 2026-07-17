@@ -282,10 +282,17 @@ def _load_tool_implementations():
     """
     try:
         # Import the entire tools module to trigger all @register_tool decorators
-        # This ensures tools have their full config schemas (including prompt field)
+        # This ensures tools have their full config schemas (including prompt field).
+        #
+        # This ONE import is the whole mechanism: every tool registers by being
+        # imported in tools/__init__.py. Do NOT special-case individual tools here
+        # (#3951) — zoom and consistency_check were listed separately and so were
+        # registered ONLY by this eager call. They survived purely because this
+        # function runs at module import; the moment tool loading is deferred
+        # (#3950/#3926) they vanished from the registry with no error, and the
+        # paleography ensemble depends on both. A tool that is not in
+        # tools/__init__.py is a tool that does not exist.
         from fichero.workflows import tools  # noqa: F401
-        from fichero.workflows.tools import zoom  # noqa: F401
-        from fichero.workflows.tools import consistency_check  # noqa: F401
 
         logger.debug("Loaded tool implementations")
     except ImportError as e:

@@ -113,6 +113,10 @@ from fichero.workflows.tools import ocr_cleanup  # noqa: F401  (#925)
 from fichero.workflows.tools import text_reflow  # noqa: F401  (#1260)
 from fichero.workflows.tools import book_index  # noqa: F401  (#1278)
 from fichero.workflows.tools import split_chapters  # noqa: F401  (#1315)
+from fichero.workflows.tools import consistency_check  # noqa: F401  (#3910)
+
+# Transform tools
+from fichero.workflows.tools import zoom  # noqa: F401  (#3903)
 
 # Output tools
 from fichero.workflows.tools import write_file
