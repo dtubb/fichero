@@ -6,6 +6,42 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.07.17</title>
+            <pubDate>Fri, 17 Jul 2026 04:26:52 -0300</pubDate>
+            <sparkle:version>2026071701</sparkle:version>
+            <sparkle:shortVersionString>2026.07.17</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h3>Improved</h3>
+<p><strong>Dev testing builds.</strong> Dev archives now expose every implemented feature while
+keeping the release and beta profiles conservative. Embedded-engine launches
+also set their multi-user mode explicitly, so a local single-user build does
+not inherit an authentication setting from the shell that launched it.</p>
+<p><strong>Reader, inspector, and knowledge graph.</strong> The reader restores its WebKit
+transcript view, entity statements are named consistently, and external
+authority settings are wired through the app store.</p>
+<p><strong>Sharing and pairing.</strong> Pairing links are registered with macOS, can be
+copied, and report actionable failures. The app now routes those links instead
+of treating them as library folders.</p>
+<h3>Fixed</h3>
+<ul>
+<li>Fixed App Store embedded-engine packaging and signing validation, including
+  nested executables, static archives, and debug-symbol bundles.</li>
+<li>Fixed workflow error detail so validation failures name the actual engine
+  reason rather than a generic server error.</li>
+<li>Fixed fresh single-user startup so it does not incorrectly require creating
+  an account.</li>
+<li>Fixed task tests to wait for completion instead of relying on timing.</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.07.17/Fichero.dmg"
+                length="493659856"
+                type="application/octet-stream"
+                sparkle:edSignature="phRf8mabLIaOA2u4/SuMavX1v2pLPC6hrzxWP70880tFM3G1NKZF6dTYlv6WIAZe9AsEcgHHBD/Wd/bWLfNOAQ=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.07.10-beta</title>
             <pubDate>Fri, 10 Jul 2026 14:29:00 -0300</pubDate>
             <sparkle:version>2026071001</sparkle:version>
