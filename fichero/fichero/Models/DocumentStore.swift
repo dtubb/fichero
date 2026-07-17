@@ -187,6 +187,25 @@ final class DocumentStore {
         }
     }
 
+    // MARK: - Transient-failure retry (#3972)
+    /// Transient engine-unreachable/transport failures may retry; auth/TLS/permission are definitive. Pure seam (#3972).
+    static func isRetriableLoadFailure(_ error: Error) -> Bool {
+        switch AccessError.classify(error) {
+        case .engineUnreachable, .transport: return true
+        default: return false
+        }
+    }
+    /// Retry a fetch with short backoff on a transient failure so one blip doesn't trip the outage pane while 200s still flow (#3972).
+    private func fetchWithRetry<T>(_ operation: () async throws -> T) async throws -> T {
+        var attempt = 0
+        while true {
+            do { return try await operation() } catch {
+                attempt += 1
+                guard attempt <= 3, Self.isRetriableLoadFailure(error) else { throw error }
+                try await Task.sleep(for: .seconds(0.3 * Double(attempt)))
+            }
+        }
+    }
     // MARK: - Loading Collections
 
     var sidebarDocuments: [Document] {
@@ -201,7 +220,7 @@ final class DocumentStore {
 
         do {
             logger.info("Loading root documents for sidebar...")
-            collections = applyStatusOverrides(try await documentService.getRoots())
+            collections = applyStatusOverrides(try await fetchWithRetry { try await documentService.getRoots() })
             childrenCache.removeAll()
             isConnected = true
             logger.info("Loaded \(self.collections.count) root documents")
@@ -249,7 +268,7 @@ final class DocumentStore {
         guard childrenCache[document.id] == nil else { return }
 
         do {
-            let children = applyStatusOverrides(try await documentService.getChildren(document.id))
+            let children = applyStatusOverrides(try await fetchWithRetry { try await documentService.getChildren(document.id) })
             childrenCache[document.id] = children
             logger.info("Cached \(children.count) sidebar children for \(document.id)")
         } catch {
@@ -266,7 +285,7 @@ final class DocumentStore {
         logger.info("loadChildren called for document: \(document.id), library path: \(libraryPath)")
 
         do {
-            let children = applyStatusOverrides(try await documentService.getChildren(document.id))
+            let children = applyStatusOverrides(try await fetchWithRetry { try await documentService.getChildren(document.id) })
             self.childrenCache[document.id] = children
             self.currentDocuments = children
             logger.info("loadChildren succeeded, got \(children.count) children")
