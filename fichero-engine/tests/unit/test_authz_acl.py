@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -790,11 +791,13 @@ def test_library_creator_is_bootstrapped_as_owner(app_db, users, monkeypatch, tm
 
 
 def test_acl_enforcement_stays_at_shared_choke_points():
-    root = "fichero-engine/src/fichero"
-    with open(f"{root}/actions/registry.py", encoding="utf-8") as handle:
-        registry_source = handle.read()
-    with open(f"{root}/api/main.py", encoding="utf-8") as handle:
-        api_source = handle.read()
+    # Resolve from this file, not the cwd: the documented gate runs pytest from
+    # fichero-engine/, where a repo-root-relative path raised FileNotFoundError
+    # and turned this ACL check red for a reason that has nothing to do with
+    # ACLs. A security test that fails for a false reason gets ignored.
+    root = Path(__file__).resolve().parents[2] / "src" / "fichero"
+    registry_source = (root / "actions" / "registry.py").read_text(encoding="utf-8")
+    api_source = (root / "api" / "main.py").read_text(encoding="utf-8")
 
     assert "class ActionRegistry" in registry_source
     assert "def invoke(" in registry_source
