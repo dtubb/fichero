@@ -203,6 +203,44 @@ def test_warm_up_runs_after_bind_and_loads_the_stack() -> None:
     )
 
 
+def test_concurrent_readers_never_see_a_half_loaded_registry() -> None:
+    """The warm-up thread must not let a request thread read an incomplete registry.
+
+    The lifespan warms the tool stack on an executor thread while requests are
+    already being served, so two threads reach _ensure_tools_loaded() at once.
+    A bare `if _loading: return` re-entrancy guard would let the REQUEST thread
+    skip the load and read the registry mid-population — 116 incomplete defs,
+    silently, which is the #3950 trap resurrected as a race. The guard is keyed
+    to the loading thread's ident so only that thread may re-enter; everyone
+    else blocks.
+
+    This test fails against a bare-bool guard.
+    """
+    out = _run(
+        """
+        import threading
+        from fichero.workflows import registry
+
+        results, barrier = [], threading.Barrier(8)
+
+        def read():
+            barrier.wait()          # maximise overlap on the load
+            results.append(len(registry.list_tools()))
+
+        threads = [threading.Thread(target=read) for _ in range(8)]
+        for t in threads: t.start()
+        for t in threads: t.join()
+        print(min(results), max(results))
+        """
+    )
+    low, high = (int(x) for x in out.split())
+    assert low == high, (
+        f"concurrent readers saw DIFFERENT registry sizes ({low} vs {high}) — a "
+        f"thread read the registry while it was still being populated"
+    )
+    assert low >= 135, f"concurrent readers saw an incomplete registry: {low} defs"
+
+
 def test_tool_load_failure_raises_loudly() -> None:
     """A broken tool import must NOT be swallowed.
 

@@ -14,6 +14,7 @@ Each tool defines:
 from __future__ import annotations
 
 import logging
+import threading
 import uuid
 from typing import Callable, Any
 
@@ -39,7 +40,10 @@ _TOOL_DEFS: dict[str, ToolDef] = {}
 
 # Tool implementations are imported on first read, not at module import (#3950).
 _TOOLS_LOADED = False
-_LOADING_TOOLS = False
+# Guards the load against the lifespan warm-up thread racing a request thread.
+_TOOLS_LOCK = threading.Lock()
+# Ident of the thread currently importing, so IT alone may re-enter (see below).
+_LOADING_THREAD_ID: int | None = None
 
 
 def _ensure_tools_loaded() -> None:
@@ -61,28 +65,42 @@ def _ensure_tools_loaded() -> None:
     error (#3951), and it also meant `import fichero.workflows.registry`
     standalone left a permanently incomplete registry that looked healthy.
     A tool registry that cannot load its tools is broken; say so, loudly.
+
+    THREAD SAFETY
+    -------------
+    The lifespan warms this on an executor THREAD while requests are already
+    being served, so two threads can arrive here at once. The re-entrancy pass
+    below is therefore keyed to the loading THREAD, not a bare bool: a plain
+    `if _loading: return` would let a *request* thread skip the load and read
+    the half-populated registry — resurrecting the 116-incomplete-defs bug as
+    a race. Other threads block on the lock and get a complete registry.
     """
-    global _TOOLS_LOADED, _LOADING_TOOLS
+    global _TOOLS_LOADED, _LOADING_THREAD_ID
     if _TOOLS_LOADED:
         return
-    if _LOADING_TOOLS:
-        # Re-entrant: tools/mcp.py imports TOOLS/TOOL_DEFS from this module
-        # while the tools package is still executing. Hand back the dicts
-        # as-is — they are the same objects the decorators are populating.
+    if _LOADING_THREAD_ID == threading.get_ident():
+        # Re-entrant on the SAME thread: tools/mcp.py imports TOOLS/TOOL_DEFS
+        # from this module while the tools package is still executing. Hand the
+        # dicts back as-is — they are the same objects the decorators are
+        # populating, and blocking here would deadlock on ourselves.
         return
-    _LOADING_TOOLS = True
-    try:
-        # This ONE import is the whole mechanism: every tool registers by being
-        # imported in tools/__init__.py. Do NOT special-case individual tools
-        # here (#3951) — zoom and consistency_check were listed separately and
-        # so were registered ONLY by the eager call this replaced. A tool that
-        # is not in tools/__init__.py is a tool that does not exist.
-        from fichero.workflows import tools  # noqa: F401
+    with _TOOLS_LOCK:
+        # Re-check: another thread may have finished while we waited.
+        if _TOOLS_LOADED:
+            return
+        _LOADING_THREAD_ID = threading.get_ident()
+        try:
+            # This ONE import is the whole mechanism: every tool registers by
+            # being imported in tools/__init__.py. Do NOT special-case
+            # individual tools here (#3951) — zoom and consistency_check were
+            # listed separately and so were registered ONLY by the eager call
+            # this replaced. A tool not in tools/__init__.py does not exist.
+            from fichero.workflows import tools  # noqa: F401
 
-        _TOOLS_LOADED = True
-        logger.debug("Loaded tool implementations")
-    finally:
-        _LOADING_TOOLS = False
+            _TOOLS_LOADED = True
+            logger.debug("Loaded tool implementations")
+        finally:
+            _LOADING_THREAD_ID = None
 
 
 def __getattr__(name: str):
