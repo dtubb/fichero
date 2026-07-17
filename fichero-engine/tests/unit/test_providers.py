@@ -389,6 +389,32 @@ class TestProviderAPIRoutes:
         assert qwen3["supports_vision"] is True
         assert qwen3["supports_pdf_input"] is True
 
+    def test_list_models_for_provider_openrouter(self, client):
+        """Test GET /api/providers/models/openrouter returns LiteLLM's catalog.
+
+        Regression lock for the "No models configured" / "can't add openrouter
+        models" report: OpenRouter has no entry in RECOMMENDED_MODELS (unlike
+        openai/google/huggingface above), so it falls through to LiteLLM's
+        static registry via ``is_provider_model``, which matches on the
+        ``openrouter/`` prefix. This asserts that path actually surfaces
+        models instead of silently returning an empty list.
+        """
+        response = client.get("/api/providers/models/openrouter")
+
+        assert response.status_code == 200
+        data = response.json()["items"]
+        assert len(data) > 0, "OpenRouter model browser should not be empty"
+
+        model_ids = [m["model_id"] for m in data]
+        # Display id has the "openrouter/" prefix stripped...
+        assert any(model_id.startswith("anthropic/") for model_id in model_ids)
+        assert not any(model_id.startswith("openrouter/") for model_id in model_ids)
+
+        # ...while full_name retains the LiteLLM-routable identifier.
+        sample = next(m for m in data if m["model_id"].startswith("anthropic/"))
+        assert sample["full_name"].startswith("openrouter/")
+        assert sample["provider"] == "openrouter"
+
     def test_list_models_preserves_unknown_pricing_without_marking_free(self, client):
         from fichero.api.routes.provider_models import generate_model_description
 
