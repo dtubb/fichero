@@ -1223,8 +1223,16 @@ final class EmbeddedBackendService {
         #endif
     }
 
+    #endif
+
     /// Last `lines` lines of the engine log, for surfacing a real cause when
     /// the engine dies (#2863). Empty string if the log can't be read.
+    ///
+    /// Deliberately OUTSIDE `#if os(macOS)`: this is FileManager + String and
+    /// needs no macOS API, but `insanityCapDiagnosis()` — which calls it — is
+    /// unguarded, and iOS instantiates this class (`FicheroApp_iOS.swift:14`).
+    /// While this sat inside the macOS block the iOS build failed with
+    /// "Cannot find 'tailEngineLog' in scope", and the green macOS build hid it.
     static func tailEngineLog(lines: Int) -> String {
         let logURL = FileManager.default
             .urls(for: .libraryDirectory, in: .userDomainMask)[0]
@@ -1235,7 +1243,6 @@ final class EmbeddedBackendService {
         let tail = contents.split(separator: "\n", omittingEmptySubsequences: false).suffix(lines)
         return tail.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    #endif
 }
 
 // MARK: - Readiness probe payload
