@@ -45,10 +45,11 @@ struct LaunchPathNoModalTests {
     }
 
     /// The other half of "it launches": having removed the blocker, the launch
-    /// path must still reach the engine spawn.
+    /// path must still reach the engine spawn — now owned by the app-scoped
+    /// EngineLifecycleController (#3945), not FicheroApp/a window.
     @Test("launch proceeds to the engine spawn")
     func launchProceedsToEngineSpawn() throws {
-        let source = try Self.appSource("FicheroApp.swift")
+        let source = try Self.appSource("Services/EngineLifecycleController.swift")
         #expect(source.contains("try await backendService.start()"))
     }
 }
