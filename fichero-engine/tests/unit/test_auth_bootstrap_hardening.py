@@ -72,6 +72,74 @@ def test_multiuser_bootstrap_owner_can_invoke_registry_writes_across_domains(
         ), f"{action_name} returned {response.status_code}: {response.text}"
 
 
+def test_multiuser_loopback_bootstrap_identity_is_the_login_gate_contract(
+    client, app_db, monkeypatch
+):
+    """The exact triple the Mac app's login gate reads (#3941).
+
+    SessionStore.resolvePhase decides whether to show a sign-in wall from these
+    three facts. Pin all of them together: each one alone looks like a different
+    bug, and it was the *combination* that put a login wall in front of the Mac
+    that owns the engine.
+
+    ``user`` is null on purpose — the bootstrap credential carries no *session*
+    user — which is why the gate must key off ``is_owner_access`` and NOT off
+    ``user`` (#3819 tried the latter and could never fire here).
+    """
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    _ensure_owner(app_db)
+
+    assert client.get("/api/auth/me").status_code == 401, (
+        "/auth/me deliberately 401s the bootstrap credential: it reports the "
+        "session user and bootstrap has none. A 401 here must NOT be read as "
+        "'show a login wall' — see identity below."
+    )
+
+    identity = client.get("/api/auth/identity")
+
+    assert identity.status_code == 200
+    assert identity.json() == {
+        "multiuser_enabled": True,
+        "auth_kind": "bootstrap",
+        "user": None,
+        "is_owner_access": True,
+    }
+
+
+def test_non_loopback_bootstrap_secret_cannot_claim_owner_access(
+    test_package, app_db, monkeypatch
+):
+    """is_owner_access is loopback-only — the Mac app's gate depends on it.
+
+    The gate ungates the library whenever the engine reports is_owner_access
+    (#3941), so a remote caller holding a leaked bootstrap secret must never be
+    able to elicit that field. Bootstrap auth is rejected before identity runs.
+    """
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+    _ensure_owner(app_db)
+
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    try:
+        with TestClient(
+            api_main.app,
+            client=("192.0.2.10", 5000),
+            headers={"X-Fichero-Library-Path": str(test_package)},
+        ) as client:
+            response = client.get(
+                "/api/auth/identity",
+                headers={"Authorization": f"Bearer {initialize_token()}"},
+            )
+            assert response.status_code == 401
+            assert "is_owner_access" not in response.text
+    finally:
+        api_main.app.dependency_overrides.clear()
+        monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+        importlib.reload(api_main)
+
+
 def test_non_loopback_bootstrap_secret_cannot_invoke_registry_write(
     test_package, app_db, monkeypatch
 ):
