@@ -49,12 +49,21 @@ extension LibraryView {
     // instead of re-lowercasing every doc's OCR text per keystroke; every other
     // caller (documents/entities/folder/sort changes) rebuilds with the default.
     func recomputeFiltered(rebuildIndex: Bool = true) {
-        if rebuildIndex { rebuildDocumentSearchKeys() }
+        // The per-doc search keys are only read when filtering (searchText
+        // non-empty, below). Skip the O(n) rebuild — name + a 4KB OCR excerpt,
+        // lowercased per doc — on the empty-filter path, which is exactly what
+        // runs at launch and on every live `revision` tick (#3195). The keys are
+        // built lazily the first time a query actually needs them.
+        if rebuildIndex && !searchText.isEmpty { rebuildDocumentSearchKeys() }
 
         // Documents — match against the precomputed lowercased key (name + a
         // bounded OCR excerpt + status), not a fresh full-pageContent scan (#3865).
         var docs = documents
         if !searchText.isEmpty {
+            // Lazy build (#3195): if the doc set changed while the filter was
+            // empty the cache is stale/empty — rebuild once here, not per
+            // keystroke (preserving the #3865 cached-key guarantee for typing).
+            if documentSearchKeys.count != documents.count { rebuildDocumentSearchKeys() }
             let query = searchText.localizedLowercase
             docs = docs.filter { doc in
                 (documentSearchKeys[doc.id] ?? Self.documentSearchKey(for: doc)).contains(query)
