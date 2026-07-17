@@ -72,6 +72,10 @@ struct AnnotatableTextView: NSViewRepresentable {
         /// Sync content + highlight backgrounds. Cheap-guards on unchanged text,
         /// font size, and highlights so typing/scrolling doesn't rebuild
         /// attributes — but a Reader font-scale change (font size) does (#3681).
+        /// `@MainActor`: touches main-actor `NSTextView.textStorage`/`.string`;
+        /// every caller (`makeNSView`/`updateNSView`) already runs on the main
+        /// actor, so this only makes the existing isolation explicit (#3977).
+        @MainActor
         func apply(text: String, highlights: [Range<Int>], font: NSFont) {
             guard let textView, let storage = textView.textStorage else { return }
             let textChanged = lastText != text
