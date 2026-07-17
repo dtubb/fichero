@@ -12,7 +12,6 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
-from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
@@ -622,6 +621,12 @@ async def chat(
         conv.messages,
         max_turns=MAX_HISTORY_TURNS,
     )
+    # Lazy import (#3976): langchain_core is only needed when a chat actually
+    # runs, not at engine startup. Importing it at module scope pulled ~24
+    # langchain_core modules onto the boot path — the single biggest slice of
+    # the engine bind. Mirrors the existing _build_model/_build_history_messages
+    # deferral (#3950).
+    from langchain_core.messages import HumanMessage, SystemMessage
     messages = [
         SystemMessage(content=_build_chat_system_prompt(bool(context_docs))),
         *history_messages,

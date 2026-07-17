@@ -31,13 +31,20 @@ _SRC = str(Path(__file__).resolve().parents[2] / "src")
 
 # Heavy dependencies that must NOT be imported just to serve the app.
 # Each costs seconds of import time and none is needed to bind a socket.
-HEAVY_MODULES = ["langgraph", "mcp", "Quartz"]
+#
+# langchain_core.messages (#3976): chat.py imported it at MODULE scope, which
+# pulled ~24 langchain_core modules AND `requests` onto the boot path — the
+# single biggest slice of the engine bind (import went 6.8s -> 2.1s in the venv
+# when it was deferred into the chat handler). Guard the `.messages` subtree,
+# NOT bare langchain_core: a deliberate #1083 warning-filter import keeps
+# langchain_core._api present at startup and that is intentional and light.
+HEAVY_MODULES = ["langgraph", "mcp", "Quartz", "langchain_core.messages", "requests"]
 
-# Ceiling on modules imported to build the app. Measured before this change:
-# 1799. The point of the budget is to fail loudly if someone reintroduces an
-# eager edge into the AI stack — not to chase a precise number, so it has
-# headroom above the measured post-change value.
-MODULE_BUDGET = 1300
+# Ceiling on modules imported to build the app. Measured 1799 before #3950,
+# ~1200 after; 962 after #3976 dropped the langchain_core.messages/requests
+# chain. The budget sits just above the current value: it fails loudly if an
+# eager edge into the AI/HTTP stack is reintroduced — not to chase a number.
+MODULE_BUDGET = 1050
 
 
 def _run(code: str) -> str:
