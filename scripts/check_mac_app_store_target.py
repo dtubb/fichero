@@ -120,6 +120,8 @@ def main() -> int:
             fail(f"{MAS_TARGET}/{cfg_name} must use FicheroAppStore.entitlements, got {ent!r}")
         if settings.get("CODE_SIGN_INJECT_BASE_ENTITLEMENTS") != "NO":
             fail(f"{MAS_TARGET}/{cfg_name} must set CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO so the helper keeps its two-key inherit contract")
+        if settings.get("CONFIGURATION_BUILD_DIR") != "$(BUILD_DIR)/$(CONFIGURATION)-AppStore":
+            fail(f"{MAS_TARGET}/{cfg_name} must write to its own AppStore product directory")
         if "FICHERO_APP_STORE" not in settings.get("SWIFT_ACTIVE_COMPILATION_CONDITIONS", ""):
             fail(f"{MAS_TARGET}/{cfg_name} is missing the FICHERO_APP_STORE compilation condition")
 
