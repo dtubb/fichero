@@ -16,7 +16,11 @@ import OSLog
 @Observable
 final class ModelComparisonService {
     let logger = Logger(subsystem: "app.fichero.fichero", category: "ModelComparisonService")
-    private nonisolated var hostChangeObservation: NSObjectProtocol?
+    // @ObservationIgnored so the @Observable macro doesn't wrap this in tracked
+    // storage — that's what made `nonisolated(unsafe)` "have no effect" (#3977) and
+    // why plain `nonisolated` won't compile on the mutable stored property. With it
+    // ignored, `nonisolated(unsafe)` is effective and lets `deinit` read it.
+    @ObservationIgnored private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
     var isComparing = false
     var lastResult: ComparisonResult?
