@@ -18,6 +18,7 @@ struct ProviderDetailView: View {
     @State private var showModelBrowser = false
     @State private var userModels: [Components.Schemas.UserModelResponse] = []
     @State private var isLoadingModels = false
+    @State private var modelsLoadError: String?
 
     @Environment(ProviderServiceGenerated.self) var providerService
     private let maskedKeyPlaceholder = "••••••••••••••••"
@@ -175,9 +176,30 @@ struct ProviderDetailView: View {
                 Section {
                     if isLoadingModels {
                         ProgressView("Loading models...")
+                    } else if let modelsLoadError {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                Text("Couldn't load models")
+                            }
+                            Text(modelsLoadError)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Button("Retry") {
+                                Task { await loadModels() }
+                            }
+                        }
                     } else if userModels.isEmpty {
-                        Text("No models configured")
-                            .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("No models configured")
+                                .foregroundColor(.secondary)
+                            Button {
+                                showModelBrowser = true
+                            } label: {
+                                Label("Add Models…", systemImage: "plus.circle")
+                            }
+                        }
                     } else {
                         ForEach(userModels) { model in
                             HStack {
@@ -217,6 +239,12 @@ struct ProviderDetailView: View {
                             }
                             .padding(.vertical, 2)
                         }
+
+                        Button {
+                            showModelBrowser = true
+                        } label: {
+                            Label("Add Models…", systemImage: "plus.circle")
+                        }
                     }
                 } header: {
                     HStack {
@@ -228,6 +256,8 @@ struct ProviderDetailView: View {
                             Image(systemName: "plus")
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Add Models")
+                        .help("Add Models")
                     }
                 }
             }
@@ -281,12 +311,14 @@ struct ProviderDetailView: View {
     private func loadModels() async {
         isLoadingModels = true
         userModels = []
+        modelsLoadError = nil
         defer { isLoadingModels = false }
 
         do {
             userModels = try await providerService.listProviderModels(providerId: provider.id)
         } catch {
             providersViewLogger.error("Load models failed: \(String(describing: error))")
+            modelsLoadError = error.localizedDescription
         }
     }
 

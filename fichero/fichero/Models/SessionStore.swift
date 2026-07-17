@@ -5,16 +5,21 @@ import OSLog
 
 /// Observable auth/session state for multi-user login (EPIC #2021/#2022).
 ///
-/// When the engine runs with `FICHERO_MULTIUSER=1` every library request needs
-/// a logged-in *session* (identity + per-library role). The bootstrap `.api-key`
-/// is owner-capable for admin endpoints but carries no user, so without a
-/// session the library 401/403s. This store drives the login gate:
+/// When the engine runs with `FICHERO_MULTIUSER=1` a *remote* request needs a
+/// logged-in session (identity + per-library role). A **loopback** request
+/// bearing the bootstrap `.api-key` does not: the engine treats that shared
+/// secret as a standing owner-capable superuser regardless of multi-user state,
+/// because any process that can read the 0600 file is already the Mac's owner
+/// (see `fichero/api/auth.py`). This store drives the login gate:
 ///
 /// - `refresh()` probes `GET /api/auth/me` on launch to restore a session.
 ///   404 means the backend has multi-user turned off (no gate at all); 200
-///   means a stored session is still valid; 401 means we must sign in — and a
-///   secondary `GET /api/users` probe (allowed under the loopback bootstrap
-///   token) decides between the first-run "create owner" screen and normal login.
+///   means a stored session is still valid. A 401 does NOT imply a wall — the
+///   bootstrap credential is *deliberately* 401'd by `/auth/me`, which reports
+///   the session user and has none. `GET /api/auth/identity` is the authority:
+///   its `is_owner_access` answers "is this caller the owner?" directly, and
+///   only when that is false does a `GET /api/users` probe decide between the
+///   first-run "create owner" screen and normal login.
 /// - `login` / `createOwner` mint a session token, stored in the **Keychain**
 ///   via `AuthTokenMiddleware` so every subsequent request carries it.
 /// - `logout` revokes the server session and clears the Keychain.
@@ -98,14 +103,17 @@ final class SessionStore {
             let identity = await identity()
             let multiuserEnabled = identity?.multiuserEnabled
             let identityUserResolved = identity?.user != nil
-            // The account-count probe only decides the owner-setup/login split
-            // when identity resolved *no* user, so skip it once it did.
-            let accountsExist = identityUserResolved ? nil : await accountsExist()
+            let isOwnerAccess = identity?.isOwnerAccess ?? false
+            // The account-count probe only decides the owner-setup/login split,
+            // so skip it once the credential already resolves to an owner.
+            let accountsExist =
+                (identityUserResolved || isOwnerAccess) ? nil : await accountsExist()
             phase = Self.resolvePhase(
                 meStatusCode: meCode,
                 accountsExist: accountsExist,
                 multiuserEnabled: multiuserEnabled,
-                identityUserResolved: identityUserResolved
+                identityUserResolved: identityUserResolved,
+                isOwnerAccess: isOwnerAccess
             )
             if phase != .authenticated { currentUser = nil }
         }
@@ -117,24 +125,36 @@ final class SessionStore {
     /// the bootstrap path isn't available) — in that case we fail closed to the
     /// login screen rather than assuming a fresh install.
     ///
-    /// `identityUserResolved` is true when `GET /api/auth/identity` resolved the
-    /// credential to a user (#3819). The engine bootstraps the local owner
-    /// automatically, so on a fresh single-user install identity returns that
-    /// owner (`auth_kind == "bootstrap"`) even though `/auth/me` 401s (the
-    /// bootstrap credential carries no *session* user). When identity resolves a
-    /// user we proceed as that owner — the create-owner/login wall must NEVER
-    /// fire just because no users row was pre-seeded. That wall exists only to
-    /// stop a library from 401/403ing when the credential resolves to nobody.
+    /// `isOwnerAccess` mirrors `GET /api/auth/identity`'s `is_owner_access`: the
+    /// engine's own verdict that this credential is the owner. It is true for
+    /// `auth_kind == "bootstrap"` — the loopback-only, same-Mac, 0600 `.api-key`
+    /// — which the engine treats as a standing superuser whether or not
+    /// multi-user is on. The Mac running the engine is the owner; it must never
+    /// see a login wall, or there is no way to reach Settings to configure the
+    /// very accounts the wall demands (#3941).
+    ///
+    /// `identityUserResolved` (#3819) is kept for the session case but CANNOT
+    /// carry the bootstrap one: `auth.py` populates `request.state.user` from
+    /// `_resolve_single_user_owner()` only when multi-user is OFF, and pins it
+    /// to `None` on the multi-user bootstrap path — so `identity.user` is
+    /// structurally always null there and this flag never fires.
+    ///
+    /// Neither flag is load-bearing for library access: with multi-user ON and
+    /// the bootstrap token, `/api/documents`, `/api/entities`, `/api/activity`
+    /// and `/api/authz/library` all return 200. The wall gated access the engine
+    /// had already granted.
     nonisolated static func resolvePhase(
         meStatusCode: Int,
         accountsExist: Bool?,
         multiuserEnabled: Bool? = nil,
-        identityUserResolved: Bool = false
+        identityUserResolved: Bool = false,
+        isOwnerAccess: Bool = false
     ) -> Phase {
         switch meStatusCode {
         case 200: return .authenticated
         case 404: return .disabled
         case _ where multiuserEnabled == false: return .disabled
+        case _ where isOwnerAccess: return .disabled
         case _ where identityUserResolved: return .disabled
         default: return accountsExist == false ? .needsOwnerSetup : .needsLogin
         }

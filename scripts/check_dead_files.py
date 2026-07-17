@@ -40,6 +40,7 @@ IDENTIFIER = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/CacheModel.swift": "#1945 — candidate dead file: CacheModel, CacheWrapper",
+    "Models/DocumentStoreTypes.swift": "#3961 — candidate dead file: DocumentHierarchy. Never used in production (git log -S proves it); only its own 3 tests reference it. Surfaced when #3919 removed the file's other types. Delete or wire it — do not let this entry outlive the decision.",
     "Models/DragDropModel.swift": "#1945 — candidate dead file: DragDropModel",
     "Views/Actions/ActionPickerView.swift": "#1945 — candidate dead file: action picker helper types",
     "Views/Automation/ScheduleCreationSheet.swift": "#1945 — candidate dead file: ScheduleCreationSheet",

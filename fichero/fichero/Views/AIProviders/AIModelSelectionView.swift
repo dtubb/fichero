@@ -42,6 +42,7 @@ struct AIModelSelectionView: View {
 
     @State private var models: [ModelInfo] = []
     @State private var isLoading = true
+    @State private var loadError: String?
     @State private var searchText = ""
     @State private var sortOrder: ModelSortOrder = .recommended
     @State private var filters = ModelFilters()
@@ -213,6 +214,10 @@ struct AIModelSelectionView: View {
             if isLoading {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let loadError {
+                ModelLoadErrorView(message: loadError) {
+                    Task { await loadModels() }
+                }
             } else if filteredModels.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "cpu")
@@ -254,12 +259,14 @@ struct AIModelSelectionView: View {
 
     private func loadModels() async {
         isLoading = true
+        loadError = nil
         defer { isLoading = false }
 
         do {
             models = try await providerService.listAvailableModels(providerType: providerType)
         } catch {
             logger.error("Load models failed: \(String(describing: error))")
+            loadError = error.localizedDescription
         }
     }
 
@@ -277,6 +284,29 @@ struct AIModelSelectionView: View {
                 logger.error("Add model failed: \(String(describing: error))")
             }
         }
+    }
+}
+
+/// Error state shown when fetching available models fails, with a retry action.
+struct ModelLoadErrorView: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 40))
+                .foregroundColor(.orange)
+            Text("Couldn't load models")
+                .foregroundColor(.secondary)
+            Text(message)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            Button("Retry", action: retry)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
