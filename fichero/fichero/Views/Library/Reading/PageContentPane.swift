@@ -41,7 +41,7 @@ struct PageContentPane: View { // swiftlint:disable:this type_body_length
 
     var body: some View {
         VStack(spacing: 0) {
-            if let doc = pageDoc {
+            if pageDoc != nil {
                 if editState.isEditing {
                     TextEditor(text: $editState.draftContent)
                         .editorScaledFont(.body, design: .serif)

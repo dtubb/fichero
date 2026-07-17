@@ -1,6 +1,6 @@
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OpenAPIRuntime
 import OSLog
 
@@ -16,7 +16,7 @@ import OSLog
 @Observable
 final class ModelComparisonService {
     let logger = Logger(subsystem: "app.fichero.fichero", category: "ModelComparisonService")
-    private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
+    private nonisolated var hostChangeObservation: NSObjectProtocol?
 
     var isComparing = false
     var lastResult: ComparisonResult?

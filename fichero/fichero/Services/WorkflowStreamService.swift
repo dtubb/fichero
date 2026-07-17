@@ -266,7 +266,10 @@ class WorkflowStreamService {
     func resumeWorkflow(threadId: String, onEvent: ((WorkflowStreamEvent) -> Void)? = nil) async throws {
         logger.info("Resuming workflow thread: \(threadId)")
 
-        try await executionService.resumeWorkflow(threadId: threadId)
+        // Discard the returned ExecutionThread snapshot: only the side effect
+        // (backend resumes the run) matters here — the stream resubscription
+        // below drives live state. Failures still propagate via `try` (#3978).
+        _ = try await executionService.resumeWorkflow(threadId: threadId)
 
         // Resubscribe to the stream
         isStreaming = true
