@@ -90,6 +90,73 @@ struct SessionStorePhaseTests {
         ) == .needsOwnerSetup)
     }
 
+    // MARK: - Loopback bootstrap owner is never gated (#3941)
+
+    @Test("the exact payload a live loopback engine returns must not gate")
+    func liveLoopbackBootstrapPayloadNeverGates() {
+        // Captured verbatim from a running embedded engine with multi-user
+        // persisted ON, the app holding the 0600 bootstrap token:
+        //
+        //   GET /api/auth/me       -> 401
+        //   GET /api/auth/identity -> {"multiuser_enabled": true,
+        //                              "auth_kind": "bootstrap",
+        //                              "user": null,
+        //                              "is_owner_access": true}
+        //
+        // `user` is null — so identityUserResolved is false and #3819's flag
+        // cannot fire. Before #3941 this fell through to `.needsLogin` and put
+        // a sign-in wall in front of the Mac that owns the engine. The engine
+        // had already answered the question: is_owner_access.
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: 401,
+            accountsExist: true,
+            multiuserEnabled: true,
+            identityUserResolved: false,
+            isOwnerAccess: true
+        ) == .disabled)
+    }
+
+    @Test("owner access ungates whatever the account probe says")
+    func ownerAccessOutranksAccountCount() {
+        // accountsExist must not change the answer: the bootstrap caller is the
+        // owner on an empty install and on a populated one alike. Zero accounts
+        // previously meant `.needsOwnerSetup` — asking the owner to create the
+        // owner.
+        for accountsExist in [true, false, nil] as [Bool?] {
+            #expect(SessionStore.resolvePhase(
+                meStatusCode: 401,
+                accountsExist: accountsExist,
+                multiuserEnabled: true,
+                isOwnerAccess: true
+            ) == .disabled)
+        }
+    }
+
+    @Test("owner access does not paper over a real remote session expiry")
+    func remoteSessionExpiryStillGates() {
+        // A remote engine never reports is_owner_access for a session-less
+        // caller (bootstrap is loopback-only, auth.py rejects it otherwise), so
+        // the wall must still stand when the engine says we are NOT the owner.
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: 401,
+            accountsExist: true,
+            multiuserEnabled: true,
+            identityUserResolved: false,
+            isOwnerAccess: false
+        ) == .needsLogin)
+    }
+
+    @Test("an unreachable identity probe still fails closed to login")
+    func identityProbeFailureFailsClosed() {
+        // `identity()` returning nil means we could not ask. isOwnerAccess
+        // defaults to false — never assume owner because a probe broke.
+        #expect(SessionStore.resolvePhase(
+            meStatusCode: 401,
+            accountsExist: nil,
+            multiuserEnabled: nil
+        ) == .needsLogin)
+    }
+
     @Test("auth error messages never echo secrets and stay category-specific")
     func authErrorMessagesAreSafe() {
         let messages = [

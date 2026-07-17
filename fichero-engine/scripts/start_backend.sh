@@ -64,6 +64,25 @@ if [ -z "${FICHERO_MULTIUSER:-}" ] && [ -n "$DEFAULTS_MULTIUSER_ENABLED" ]; then
   esac
 fi
 
+# Multi-user is authz; a public/tailnet URL is transport, and transport must
+# never decide authz (#2124). Publishing the engine used to force
+# FICHERO_MULTIUSER=1 — which put a login wall in front of the Mac that owns
+# the engine — and its absence forced 0, silently overriding a user who had
+# turned multi-user ON in Settings. Both directions overrode the app setting
+# read just above.
+#
+# Multi-user means accounts for other PEOPLE (#2021/#2022). Your own remote
+# devices don't need it: a paired iPhone authenticates with a per-device token,
+# which `auth.py` honours whether multi-user is on or off. So reachability is
+# not a reason to demand accounts.
+#
+# Export only when something actually decided: an explicit env override or the
+# app setting. Otherwise leave it unset and let the engine fall back to its own
+# persisted setting, which defaults OFF (`fichero/multiuser.py`).
+if [ -n "${FICHERO_MULTIUSER:-}" ]; then
+  export FICHERO_MULTIUSER
+fi
+
 if [ -z "${FICHERO_TLS_CERTFILE:-}" ] && [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
   # Restore persisted Share/remote-access URL when no env override is set.
   if [ -z "${FICHERO_PUBLIC_BASE_URL:-}" ] && [ "$DEFAULTS_REMOTE_ENABLED" = true ] && [ -n "$DEFAULTS_PUBLIC_BASE_URL" ]; then
@@ -112,12 +131,10 @@ PY
   )"
   export FICHERO_TLS_CERTFILE FICHERO_TLS_KEYFILE FICHERO_TLS_SPKI_HASH
   if [ -n "${FICHERO_PUBLIC_BASE_URL:-}" ]; then
-    export FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-1}" FICHERO_PUBLIC_BASE_URL
+    export FICHERO_PUBLIC_BASE_URL
     if [ "$DEFAULTS_BONJOUR_ENABLED" = true ]; then
       export FICHERO_ENABLE_BONJOUR="${FICHERO_ENABLE_BONJOUR:-1}"
     fi
-  else
-    export FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-0}"
   fi
   if command -v defaults >/dev/null 2>&1; then
     EXISTING_ENGINE_HOST="$(defaults read app.fichero.fichero fichero.engine.host 2>/dev/null || true)"
