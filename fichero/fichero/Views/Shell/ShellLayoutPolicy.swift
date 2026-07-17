@@ -14,7 +14,10 @@ extension ContentView {
         let collapseInspector: Bool
     }
 
-    static func shouldUseCompactNavigationFlow(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+    // nonisolated: pure — reads only its argument + a compile-time `#if`, touches no
+    // main-actor state. Lets nonisolated policy callers (AdaptiveAppleShellRoute.resolve,
+    // CompactShellPolicy.route) invoke it without crossing the actor boundary (#3977).
+    nonisolated static func shouldUseCompactNavigationFlow(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
         #if os(macOS)
         false
         #else

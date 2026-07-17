@@ -1,7 +1,7 @@
 // swiftlint:disable file_length
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OpenAPIRuntime
 import OSLog
 
@@ -336,7 +336,7 @@ final class AnnotationService {
             // List items arrive as untyped containers (backend `items: list[Any]`);
             // DocumentAnnotation decodes them directly (carrying document/page/folder
             // ids). Scope is already enforced by the query above.
-            annotations = decoded.items.compactMap { try? annotation(from: $0) }
+            annotations = decoded.items.compactMap { annotation(from: $0) }
         } catch {
             // Backend may not be wired yet during parallel development — degrade
             // to an empty list rather than crashing the inspector (#1276).

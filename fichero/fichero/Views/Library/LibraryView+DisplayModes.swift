@@ -468,19 +468,21 @@ extension LibraryView {
 /// so they're excluded from `==` — safe because they act on the same `identity`.
 /// Everything a document list row renders from besides its selection state, so the
 /// `.equatable()` skip stays correct when the visible-tag filter changes (#3868).
-struct DocRowIdentity: Equatable {
+struct DocRowIdentity: Equatable, Sendable {
     let document: Document
     let visibleEntityTypes: Set<String>
 }
 
-struct LibrarySelectableRow<Identity: Equatable, Content: View>: View, Equatable {
+struct LibrarySelectableRow<Identity: Equatable & Sendable, Content: View>: View, Equatable {
     let identity: Identity
     let isSelected: Bool
     let tint: Color
     @ViewBuilder let content: Content
 
     // nonisolated: this View is implicitly @MainActor, but Equatable's `==` must be
-    // nonisolated (Swift 6). Safe — all compared properties are immutable value types.
+    // nonisolated (Swift 6). Safe — all compared properties are immutable value types;
+    // `Identity: Sendable` lets `==` read `identity` cross-actor like the Sendable
+    // `isSelected`/`tint` lets it already compares (#3977).
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.identity == rhs.identity
             && lhs.isSelected == rhs.isSelected
