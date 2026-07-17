@@ -35,6 +35,20 @@ struct EngineReadinessProbeTests {
         #expect(classify(200, nonce: "n", expected: "n", pid: 1, registry: 200) == .ready)
     }
 
+    @Test("proven-readiness fast path fires only for .ready (#3975)")
+    @MainActor
+    func provenReadinessFastPathOnlyForReady() {
+        // AppState.checkBackendHealthUntilReady short-circuits the redundant
+        // re-probe (~3-4 round-trips) ONLY when the spawn already proved `.ready`.
+        // Every other value — including nil (remote host / a retry before start) —
+        // must fall through to the full probe + #3162 backoff.
+        #expect(AppState.shouldReuseProvenReadiness(.ready))
+        #expect(AppState.shouldReuseProvenReadiness(nil) == false)
+        #expect(AppState.shouldReuseProvenReadiness(.authRejected) == false)
+        #expect(AppState.shouldReuseProvenReadiness(.notResponding) == false)
+        #expect(AppState.shouldReuseProvenReadiness(.identityMismatch(pid: 123)) == false)
+    }
+
     @Test("registry 401 / 403 → authRejected (the blank-window-401 cause)")
     func authRejected() {
         #expect(classify(200, registry: 401) == .authRejected)

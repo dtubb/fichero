@@ -323,32 +323,53 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(contentSource.contains("Label(\"View\", systemImage: \"rectangle.split.3x1\")"))
     }
 
-    func testMacLaunchResyncsBackendStateAfterEngineStartup() throws {
-        let appSource = try Self.appSource("FicheroApp.swift")
-        let appStateSource = try Self.appSource("App/AppState.swift")
+    func testEngineLaunchSequenceIsOwnedByLifecycleController() throws {
+        // #3945: the engine launch sequence is owned by EngineLifecycleController
+        // (app-scoped), NOT by FicheroApp / a window. Assert the sequence lives
+        // there, in order: spawn → readiness probe → heartbeat → library-ready
+        // side-effects. (Rewritten from the old FicheroApp-grep version, which went
+        // stale when PR #1 moved this orchestration off the window.)
+        let controllerSource = try Self.appSource("Services/EngineLifecycleController.swift")
 
         guard
-            let startRange = appSource.range(of: "try await backendService.start()"),
-            let resyncRange = appSource.range(
-                of: "await appState.checkBackendHealth()",
-                range: startRange.upperBound..<appSource.endIndex
+            let startRange = controllerSource.range(of: "try await backendService.start()"),
+            let probeRange = controllerSource.range(
+                of: "checkBackendHealthUntilReady(",
+                range: startRange.upperBound..<controllerSource.endIndex
             ),
-            let heartbeatRange = appSource.range(
+            let heartbeatRange = controllerSource.range(
                 of: "appState.startBackendHeartbeat()",
-                range: resyncRange.upperBound..<appSource.endIndex
+                range: probeRange.upperBound..<controllerSource.endIndex
             ),
-            let readyRange = appSource.range(
-                of: "await libraryManager.backendDidBecomeReady()",
-                range: heartbeatRange.upperBound..<appSource.endIndex
+            let readyRange = controllerSource.range(
+                of: "await libraryManager.refreshAfterBackendBecameReady()",
+                range: heartbeatRange.upperBound..<controllerSource.endIndex
             )
         else {
-            return XCTFail("launch sequence changed unexpectedly")
+            return XCTFail("engine launch sequence changed unexpectedly in EngineLifecycleController")
         }
 
-        XCTAssertLessThan(startRange.lowerBound, resyncRange.lowerBound)
-        XCTAssertLessThan(resyncRange.lowerBound, heartbeatRange.lowerBound)
+        XCTAssertLessThan(startRange.lowerBound, probeRange.lowerBound)
+        XCTAssertLessThan(probeRange.lowerBound, heartbeatRange.lowerBound)
         XCTAssertLessThan(heartbeatRange.lowerBound, readyRange.lowerBound)
-        XCTAssertFalse(appStateSource.contains("await checkBackendHealth()"))
+
+        // Ownership moved off the window (#3945): FicheroApp must NOT spawn the
+        // engine anymore — that's the whole point of the app-owns-engine change.
+        let appSource = try Self.appSource("FicheroApp.swift")
+        XCTAssertFalse(
+            appSource.contains("try await backendService.start()"),
+            "FicheroApp still spawns the engine — it must be owned by EngineLifecycleController (#3945)"
+        )
+    }
+
+    @MainActor
+    func testIsRetriableLoadFailureSeparatesTransientFromDefinitive() {
+        // #3972: one transient blip must NOT trip the app-wide outage pane, so
+        // transient engine-unreachable / transport failures are retriable…
+        XCTAssertTrue(DocumentStore.isRetriableLoadFailure(URLError(.timedOut)))
+        XCTAssertTrue(DocumentStore.isRetriableLoadFailure(URLError(.cannotConnectToHost)))
+        // …while a definitive TLS-pin failure surfaces immediately (not retriable).
+        XCTAssertFalse(DocumentStore.isRetriableLoadFailure(URLError(.secureConnectionFailed)))
     }
 
     func testBackendRetryRunsSameReadinessSideEffectsAsStartup() throws {

@@ -113,7 +113,13 @@ final class EngineLifecycleController {
             // Health probe after the engine is up — re-probing with backoff before
             // parking, so a transient miss while the engine finishes startup (it's
             // often serving 200s a beat later) doesn't wall a healthy engine (#3162).
-            await appState.checkBackendHealthUntilReady()
+            // #3975: hand over the readiness the spawn ALREADY proved (health + nonce
+            // + authenticated /api/registry 200). When it's `.ready`, the connection
+            // layer skips the redundant re-probe + second health GET and goes straight
+            // to warm-up — removing ~3-4 serial round-trips between serving and ready.
+            // A nil/non-ready value (remote host, or a retry before start) falls
+            // through to the full probe, so the #3162 backoff is untouched there.
+            await appState.checkBackendHealthUntilReady(provenReadiness: backendService.lastReadiness)
             guard appState.isBackendRunning else {
                 backendService.status = .failed
                 backendService.errorMessage = appState.backendError
