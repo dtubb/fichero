@@ -393,9 +393,9 @@ run_platform_checks() {
       -scheme "${XCODE_SCHEME}" \
       -destination 'platform=macOS'
 
-    run_xcode_test "xcodebuild macOS test (Swift suite + CrossLanguageGate -> Python gate)" \
+    run_xcode_test "xcodebuild macOS test (FicheroTests test plan)" \
       -project "${XCODE_PROJECT}" \
-      -scheme "${XCODE_SCHEME}" \
+      -scheme "FicheroTests" \
       -destination 'platform=macOS' \
       -resultBundlePath "$(mktemp -d)/verify.xcresult"
 
