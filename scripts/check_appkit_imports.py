@@ -44,7 +44,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "App/ViewSettings.swift": "#3682 — Reader/Editor font scale multiplies the SEMANTIC base size, which only NSFont/UIFont.preferredFont(forTextStyle:) can report (SwiftUI exposes no point size). Both sides are #if canImport-guarded; #2101",
     "Views/Library/ImageEditor/LiveEditPreview.swift": "#3673 — Core Image live preview bridges CGImage → NSImage/UIImage for display; Core Image itself is AppKit/UIKit-side. #if canImport-guarded; #2101",
     "App/AppState.swift": "#3341/#3369 — app state owns macOS activation/recovery routing; migrate remaining AppKit hooks under #2101",
-    "App/AppInstaller.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "App/LibraryWindow.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "App/SparkleUpdater.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "FicheroApp.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
