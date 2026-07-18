@@ -93,6 +93,11 @@ extension LibraryManager {
             }
             return
         }
+        // Block any other load trigger (restore / backendDidBecomeReady) from
+        // reading this package until the grant lands (#3986-A). Set SYNCHRONOUSLY,
+        // before the Task, so a tight backend-ready loop can't slip a load in
+        // between here and the grant scheduling.
+        libraryIdsAwaitingGrant.insert(library.id)
         Task { @MainActor in
             // try?: a denied grant is already surfaced via engineAccessFailure and
             // must stop the load/registry (grantThenEngineWork skips engineWork on a
@@ -100,6 +105,9 @@ extension LibraryManager {
             try? await FolderAccessManager.grantThenEngineWork(
                 grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
                 engineWork: {
+                    // Grant completed — clear the gate BEFORE scheduling the load so
+                    // this path's own load is the first read of the package.
+                    libraryIdsAwaitingGrant.remove(library.id)
                     scheduleLoadWhenBackendReady(for: library)
                     await KnownLibraryRegistryStore.shared.noteOpenedLibrary(url: url, displayName: displayName)
                 }
@@ -271,6 +279,17 @@ extension LibraryManager {
 
         // Best-effort unregister from the global registry. Failure here is
         // non-fatal — the library is already gone from the app's open set.
+        //
+        // This DELETE is ALSO the app→engine close (#3939): the engine's
+        // `remove_known_library` handler calls `db_manager.close_database(path)`
+        // before it removes the registry row (fichero-engine .../library_registry.py,
+        // added by #3393 c286b4e8b), so this releases the engine's DB handle/cache
+        // — it is not a registry-only removal. There is no separate close endpoint
+        // to call, and none should be invented.
+        // Follow-up (#3939): reference-count shared opens — two windows can hold the
+        // same library, and this close_database yanks the handle from the other
+        // window. The engine close must key off the app's authoritative open set,
+        // not a single window's close. Needs a backend refcount / open-set change.
         Task {
             do {
                 // Generated remove_known_library op (#3030); runtime encodes the

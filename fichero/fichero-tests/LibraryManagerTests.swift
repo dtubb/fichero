@@ -17,6 +17,7 @@ final class LibraryManagerTests: XCTestCase {
         libraryManager.backendIsReady = false
         libraryManager.loadedLibraryIds = []
         libraryManager.loadingLibraryIds = []
+        libraryManager.libraryIdsAwaitingGrant = []
         libraryManager.librariesLoadVersion = 0
 
         // Create a temporary test directory
@@ -34,6 +35,7 @@ final class LibraryManagerTests: XCTestCase {
         libraryManager.backendIsReady = false
         libraryManager.loadedLibraryIds = []
         libraryManager.loadingLibraryIds = []
+        libraryManager.libraryIdsAwaitingGrant = []
         libraryManager.librariesLoadVersion = 0
 
         // Clean up temporary test directory
@@ -91,9 +93,9 @@ final class LibraryManagerTests: XCTestCase {
 
     func testReconciliationIsNoOpWhenInSync() {
         let global = LibraryManager.globalLibraryId
-        let a = UUID()
+        let libA = UUID()
         let plan = LibraryManager.registryReconciliation(
-            openLibraries: [(id: global, path: "/L/Global.fichero"), (id: a, path: "/L/A.fichero")],
+            openLibraries: [(id: global, path: "/L/Global.fichero"), (id: libA, path: "/L/A.fichero")],
             registryPaths: ["/L/Global.fichero", "/L/A.fichero"],
             globalLibraryId: global
         )
@@ -105,16 +107,95 @@ final class LibraryManagerTests: XCTestCase {
         // Same library, one side NFD (decomposed "é"), the other NFC — must match,
         // so a Unicode-normalization mismatch never double-opens or false-drops.
         let global = LibraryManager.globalLibraryId
-        let a = UUID()
+        let libA = UUID()
         let nfd = "/L/Cafe\u{0301}.fichero"   // e + combining acute
         let nfc = "/L/Caf\u{00E9}.fichero"    // é precomposed
         let plan = LibraryManager.registryReconciliation(
-            openLibraries: [(id: a, path: nfd)],
+            openLibraries: [(id: libA, path: nfd)],
             registryPaths: [nfc],
             globalLibraryId: global
         )
         XCTAssertTrue(plan.pathsToOpen.isEmpty, "NFD-open vs NFC-registry is the same library")
         XCTAssertTrue(plan.idsToDrop.isEmpty)
+    }
+
+    // MARK: - Reconcile snapshot guard (#3988)
+
+    func testShouldReconcileOnlyWhenFetchSucceededAndNonEmpty() {
+        XCTAssertTrue(
+            LibraryManager.shouldReconcile(fetchError: nil, registryPaths: ["/L/A.fichero"]),
+            "a clean, non-empty snapshot reconciles"
+        )
+    }
+
+    func testShouldNotReconcileAfterFailedFetch() {
+        // A failed fetch leaves `libraries` STALE — reconciling could false-drop an
+        // open library, so a non-nil fetchError must block reconcile even when the
+        // (stale) snapshot is non-empty.
+        XCTAssertFalse(
+            LibraryManager.shouldReconcile(
+                fetchError: "offline",
+                registryPaths: ["/L/A.fichero"]
+            ),
+            "a failed fetch must never reconcile against its stale snapshot"
+        )
+    }
+
+    func testShouldNotReconcileOnEmptySnapshot() {
+        // Empty is ambiguous (genuinely-empty backend vs cold-store failure); never
+        // clear the sidebar on it. (Successful-empty → reconcile-to-empty deferred.)
+        XCTAssertFalse(
+            LibraryManager.shouldReconcile(fetchError: nil, registryPaths: []),
+            "an empty snapshot is treated as 'do not touch'"
+        )
+    }
+
+    // MARK: - Load-success gating (#3986-B)
+
+    func testLibraryLoadSucceededOnlyWhenConnectedAndNoError() {
+        XCTAssertTrue(
+            LibraryManager.libraryLoadSucceeded(error: nil, isConnected: true),
+            "a connected load with no error counts as loaded"
+        )
+    }
+
+    func testLibraryLoadNotSucceededWhenDisconnected() {
+        XCTAssertFalse(
+            LibraryManager.libraryLoadSucceeded(error: nil, isConnected: false),
+            "a load that never connected must not be marked loaded"
+        )
+    }
+
+    func testLibraryLoadNotSucceededWhenErrorSwallowed() {
+        // DocumentStore swallows a load failure into `error` (never throws), so a
+        // non-nil error must count as failure even if `isConnected` is stale-true.
+        struct LoadFailure: Error {}
+        XCTAssertFalse(
+            LibraryManager.libraryLoadSucceeded(error: LoadFailure(), isConnected: true),
+            "a swallowed load error must not be marked loaded"
+        )
+    }
+
+    // MARK: - Grant-before-load gating (#3986-A)
+
+    func testLoadDefersWhileLibraryAwaitsSandboxGrant() async {
+        // A library whose sandbox grant is still in flight must not load — the
+        // guard short-circuits before any package read, so the restore /
+        // backend-ready path can't beat the grant's network round-trip (#3773).
+        let library = libraryManager.createNewLibrary()
+        libraryManager.backendIsReady = true
+        libraryManager.libraryIdsAwaitingGrant.insert(library.id)
+
+        await libraryManager.loadLibraryDataIfNeeded(for: library)
+
+        XCTAssertFalse(
+            libraryManager.loadedLibraryIds.contains(library.id),
+            "a grant-pending library must not be marked loaded"
+        )
+        XCTAssertFalse(
+            libraryManager.loadingLibraryIds.contains(library.id),
+            "a grant-pending library must not even start loading"
+        )
     }
 
     // MARK: - Library Creation Tests

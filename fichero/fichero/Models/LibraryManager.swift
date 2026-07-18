@@ -45,6 +45,16 @@ class LibraryManager {
     var loadedLibraryIds: Set<UUID> = []
     var loadingLibraryIds: Set<UUID> = []
 
+    /// Security-scoped libraries whose sandbox grant is still in flight (#3986-A).
+    /// A user-picked package on the MAS/sandbox build must NOT be loaded until its
+    /// grant's network round-trip completes — otherwise the restore / backend-ready
+    /// path races the grant and the engine reads the package before it has access
+    /// (#3773). `loadAndRegister` adds the id when it issues the grant and the
+    /// grant's own engineWork removes it, so only that path fires the first load.
+    /// Non-sandbox builds and temporary/remote/global libraries never enter this
+    /// set (their grant is a no-op) and so are never deferred.
+    var libraryIdsAwaitingGrant: Set<UUID> = []
+
     /// Bumped each time a library's data finishes loading. SidebarView observes
     /// this via @State to trigger rebuildCaches() — ensures the sidebar
     /// populates on iPhone even when its .task fires before loadCollections() (#2472).
