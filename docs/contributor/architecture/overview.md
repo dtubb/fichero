@@ -1,4 +1,4 @@
-(AI generated. Not reviewed.)
+<!-- Verified against api/main.py (_is_allowed_library_path), db_manager.py, FicheroClient.swift (2026-07-18). -->
 
 # Fichero Architecture Overview
 
@@ -11,7 +11,7 @@ Fichero is a two-part system:
 
 ```text
 fichero (SwiftUI app)
-    -> HTTP (localhost:8765)
+    -> HTTPS (127.0.0.1:8765, loopback-only, cert-pinned)
 fichero-engine (FastAPI)
     -> DuckDB + LanceDB
     -> workflow engine + tools
@@ -23,13 +23,17 @@ fichero-engine (FastAPI)
 Fichero libraries are `.fichero` package directories. The backend accepts
 library paths only under the allowlisted user-data roots:
 
-- `~/Documents`
-- `~/Desktop`
-- `~/Dropbox`
-- `~/Library/Application Support`
+- `~/Documents`, `~/Desktop`, `~/Fichero`
+- `~/Dropbox`, `~/code`
+- `~/Library/Application Support`, `~/Library/CloudStorage`
 - `~/Library/Mobile Documents/com~apple~CloudDocs` for iCloud Drive and
   iCloud-synced Desktop/Documents
-- test/temp roots used by CI and local pytest
+- OS temp roots (`/tmp`, `/private/tmp`, `/var/folders`, `/private/var/folders`)
+  used by CI and local pytest
+- any roots listed in `FICHERO_LIBRARY_ALLOWED_ROOTS` (os.pathsep-separated),
+  plus folders the app has granted via a security-scoped bookmark
+
+(The authoritative list is `_is_allowed_library_path` in `fichero-engine/src/fichero/api/main.py`.)
 
 The `.fichero` suffix is still required. When Desktop/Documents are synced to
 iCloud, macOS may expose `~/Documents` as a symlink into Mobile Documents; the
