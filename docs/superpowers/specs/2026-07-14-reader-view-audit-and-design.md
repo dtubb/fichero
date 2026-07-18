@@ -245,7 +245,7 @@ Reader**:
   `EditorView` (image editing / `ZoomableImagePreview`,
   `Views/Preview/ImageViewer/ImageViewerComponents.swift:14,495`) otherwise.
 - The standard-layout `previewView` (`ContentView+ViewBuilders.swift:521-549`)
-  does the same via `PDFReadingView` (`Views/Preview/PDF/PDFReadingView.swift:25,33`).
+  does the same via `PDFReadingView` (`Views/Preview/PDFViewer/PDFReadingView.swift:25,33`).
 - Quick-look/media preview components: `QuickLookPreviewViews.swift:14-135`,
   `MediaStreamPreview.swift:22`.
 - There is a Preview settings pane (`SettingsView.swift:160`,

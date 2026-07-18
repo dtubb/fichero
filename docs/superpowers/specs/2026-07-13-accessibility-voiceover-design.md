@@ -65,7 +65,7 @@ inside them:
 
 - `Views/Spatial/*` — SpatialView, Spatial2DCanvasItems/Gestures, SpatialNodeThumbnail (0)
 - `Views/Preview/DocumentCanvas.swift` (0)
-- `Views/Preview/PDF/PDFPageView.swift`, `PDFLoupeOverlay.swift` (0)
+- `Views/Preview/PDFViewer/PDFPageView.swift`, `PDFLoupeOverlay.swift` (0)
 - `Views/Reader/Page/AnnotatableTextView.swift` (0) — the annotation surface
 - `Views/Preview/ImageViewer/*` — partial: `ImageViewerComponents` (14) and
   `MagnifierPanel` (8) are labelled; `NavigatorMiniMap`, `TrackingImageView`,

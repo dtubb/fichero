@@ -54,8 +54,8 @@ GRANDFATHERED_FILES: set[str] = {
     # fetches through StorageServiceGenerated), NOT URLSession.data(for:). Neither
     # file imports or touches URLSession. Listed so the ratchet stays green without
     # loosening the regex for everyone else.
-    "Views/Preview/PDF/PDFLoupeOverlay.swift",
-    "Views/Preview/PDF/PDFThumbnailView.swift",
+    "Views/Preview/PDFViewer/PDFLoupeOverlay.swift",
+    "Views/Preview/PDFViewer/PDFThumbnailView.swift",
     "Services/ActivityStreamService.swift",     # SSE
     "Services/ChangeStreamTransport.swift",     # SSE
     "Services/WorkflowStreamService.swift",     # SSE

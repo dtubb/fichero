@@ -55,7 +55,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library/ViewModes/LibraryView+ColumnConfig.swift": "#1945 — candidate dead file: ColumnDefinition",
     "Views/Library/ViewModes/LibraryView+DisplayModes.swift": "#1945 — candidate dead file: KgKindMapping",
     "Views/Preview/ImageViewer/ScrollWheelZoom.swift": "#1945 — candidate dead file: scroll-wheel zoom bridge types",
-    "Views/Preview/PDF/PageImageGrid.swift": "#1945 — candidate dead file: page image grid helper types",
+    "Views/Preview/PDFViewer/PageImageGrid.swift": "#1945 — candidate dead file: page image grid helper types",
     "Views/Library/Workspace/CollectionWorkspaceStub.swift": "#1945 — candidate dead file: workspace stub helper",
     "Views/Shell/PaneVisibility.swift": "#1945 — candidate dead file: pane visibility helpers",
     "Views/Sidebar/SidebarView+LibraryHeaderHelpers.swift": "#1945 — candidate dead file: library header helper row",
