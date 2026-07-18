@@ -56,7 +56,7 @@ own job statement ("Reader = READ + EXPLORE one document visually",
 ## 2. Audit: current state of ReadingPaneView
 
 All citations are against `main` at 51f940b1d (2026-07-13) in `~/code/fichero`.
-Primary file: `fichero/fichero/Views/Library/Reading/ReadingPaneView.swift`.
+Primary file: `fichero/fichero/Views/Reader/ReadingPaneView.swift`.
 
 ### 2.1 The mode tree as shipped
 
@@ -245,7 +245,7 @@ Reader**:
   `EditorView` (image editing / `ZoomableImagePreview`,
   `Views/Preview/ImageViewer/ImageViewerComponents.swift:14,495`) otherwise.
 - The standard-layout `previewView` (`ContentView+ViewBuilders.swift:521-549`)
-  does the same via `PDFReadingView` (`Views/Library/Reading/PDFReadingView.swift:25,33`).
+  does the same via `PDFReadingView` (`Views/Reader/PDFReadingView.swift:25,33`).
 - Quick-look/media preview components: `QuickLookPreviewViews.swift:14-135`,
   `MediaStreamPreview.swift:22`.
 - There is a Preview settings pane (`SettingsView.swift:160`,
@@ -312,7 +312,7 @@ a WebKit surface users can currently only reach as Digest.)
 ## 7. PDFPageView — Preview or Reader?
 
 **Preview (source-viewing infrastructure), despite living in
-`Views/Library/Reading/`.**
+`Views/Reader/`.**
 
 - `PDFPageView` is the PDFKit `NSViewRepresentable` used only by
   `PDFPageWithToolbar` (`PDFPageWithToolbar.swift:234`).
@@ -326,7 +326,7 @@ a WebKit surface users can currently only reach as Digest.)
   rule that is Preview's job. Recommendation for the repo-hygiene plan: when
   the Page-tab source rendering leaves the Reader (§9), `PDFPageView`,
   `PDFPageWithToolbar`, `PDFLoupeOverlay`, `PDFThumbnailView`,
-  `PDFReadingView` should be re-homed out of `Views/Library/Reading/` into
+  `PDFReadingView` should be re-homed out of `Views/Reader/` into
   the Preview grouping. File moves only, after the IA fix — not before.
 
 ## 8. Proposed IA
@@ -414,7 +414,7 @@ entries — see §12.)
   `ReadingPaneView.swift:398-436`).
 - Longer-term (file moves, hygiene milestone, §7): `PDFPageView`,
   `PDFPageWithToolbar`, `PDFLoupeOverlay`, `PDFThumbnailView`,
-  `PDFReadingView` out of `Views/Library/Reading/`.
+  `PDFReadingView` out of `Views/Reader/`.
 
 **STAYS in the Reader:**
 - The WebKit transcript + digest (`DocumentKGSurface` / `DocumentKGWebPane`)
@@ -470,7 +470,7 @@ Plan:
    View-menu transcript action actually reaches the transcript (the current
    clamp would have failed such a test — that's the regression test #3765
    deserves).
-9. Land as one lane owning `Views/Library/Reading/` + `ViewMenuCommands.swift`
+9. Land as one lane owning `Views/Reader/` + `ViewMenuCommands.swift`
    (disjoint-files rule); no engine change required for step 1-8.
 
 ## 11. Questions for Daniel (each with a recommendation)

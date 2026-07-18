@@ -15,7 +15,7 @@ makes it worse.
 The bloat comes from the Inspector trying to be three surfaces at once. There
 are really three:
 
-- **Reader** (`Views/Library/Reading/`) — the visual canvas: PDF/text pages,
+- **Reader** (`Views/Reader/`) — the visual canvas: PDF/text pages,
   thumbnails, loupe, annotations shown *in place*. WebKit-based. Job:
   **explore / move around / visualize** (node editor, force graph).
 - **OntologyBrowser** (`KnowledgeGraph/OntologyBrowser/`) — library-wide

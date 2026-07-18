@@ -64,7 +64,7 @@ artifacts inspector panes (`*InspectorPane`, `*ListView`, `*DetailView`,
 
 **Target:** finish the split that `ImageViewer/`/`ImageEditor/`/`DocumentInspector/`
 already started —
-- `Views/Library/Reading/` — `PDF*`, `DocumentTextReader`, `PageContentPane`,
+- `Views/Reader/` — `PDF*`, `DocumentTextReader`, `PageContentPane`,
   `ImmersiveReaderView`, reading layout.
 - `Views/Library/Representations/` — `Representation*`,
   `StackedRepresentationPanes`, `DisplayAttributesStrip` (ties **UI Reform —

@@ -11,7 +11,7 @@ Inspector reconciliation completing + a worker freeing up (2-worker cap).
 The Reader is the **WebKit visual canvas** for one document ("Reader view
 (WebKit) + all its options"). Two render paths:
 
-- **Native PDF/image** (`Views/Library/Reading/`): PDFReadingView, PDFPageView,
+- **Native PDF/image** (`Views/Reader/`): PDFReadingView, PDFPageView,
   PDFThumbnailView, PDFLoupeOverlay, PageImageGrid, DocumentTextReader,
   ImmersiveReaderView — the source page images/text.
 - **WebKit HTML views**: transcript, knowledge-graph, entities, claims,
