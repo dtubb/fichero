@@ -16,6 +16,39 @@ There is a Manager (Claude Opus), that manages Workers who write code. The Manag
 GitHub Issues plus Milestones is the source of truth for the backlog. Work lands on
 the milestone branch; there are no per-task branches.
 
+## The worktree and worker workflow
+
+The repository uses a manager-with-workers workflow. The manager chooses ready
+issues from the roadmap, dispatches a worker for a milestone, reviews the
+result, and owns the merge and full gate. Workers make the focused code or
+documentation change in their own worktree, commit it, and notify the manager;
+they do not push or run the manager's full build gate.
+
+Use `scripts/spawn-worker.sh` to create a worker. It fetches `origin`, creates a
+worktree under `$FICHERO_WORKTREES` (by default a sibling `fichero-worktrees/`)
+from `origin/main`, opens a detached tmux session, activates the shared virtual
+environment, and starts the selected agent. Supported worker commands are
+`claude`, `opus`, `sonnet`, `haiku`, and `codex`.
+
+Before editing, a worker claims the issue with `gh issue edit N --add-assignee
+@me --add-label status:in-progress`. It skips issues already assigned or marked
+in progress, and reports design or ownership blockers with:
+
+```bash
+bash scripts/notify_manager.sh --blocked "why this issue is blocked"
+```
+
+After a commit, notify the manager with its issue number and SHA:
+
+```bash
+bash scripts/notify_manager.sh "done #123 (<sha>); next #456"
+```
+
+The notifier appends to the manager inbox and sends a best-effort tmux status
+message. Workers commit directly to their milestone branch and never push it.
+The manager runs the merge gate (`scripts/verify_all.sh`) and merges through a
+pull request after review.
+
 ## More detail
 
 See [AGENTS.md](AGENTS.md) for the operational manual (hard rules, commit
