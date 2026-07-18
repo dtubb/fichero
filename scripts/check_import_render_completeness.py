@@ -9,7 +9,7 @@ Rule (reform master plan §N / §H, lines 144-145):
 The type-system boundary where this is exactly enforceable: the engine assigns
 each imported document a `DocType` / `FileType` (`fichero-engine/.../models.py`).
 The Swift app decodes those at one canonical point — the `convertFromGenerated*`
-switches in `Services/DocumentServiceGenerated.swift` — which map every generated
+switches in `Services/DocumentService.swift` — which map every generated
 (== engine) case to a local renderable `DocType` / `FileType`. If the engine can
 produce a type that decoder does not handle, the document cannot be classified
 and cannot render. So "every imported type renders" reduces to:
@@ -40,7 +40,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PY_MODELS = ROOT / "fichero-engine" / "src" / "fichero" / "models.py"
-DECODER = ROOT / "fichero" / "fichero" / "Services" / "DocumentServiceGenerated.swift"
+DECODER = ROOT / "fichero" / "fichero" / "Services" / "DocumentService.swift"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 # Engine enum  ->  the Swift decoder switch that classifies it into a renderer.
@@ -133,7 +133,7 @@ def main() -> int:
             print(f"      {key}  ←  {bad[key]}")
         print(
             "\nFix: map the importable type to a renderer in the convertFromGenerated* "
-            f"switch in DocumentServiceGenerated.swift. Rule: {RULE_DOC}."
+            f"switch in DocumentService.swift. Rule: {RULE_DOC}."
         )
         return 1
 

@@ -22,7 +22,15 @@ def collect_violations(root: Path = ROOT) -> list[str]:
     embedded_backend = (root / EMBEDDED_BACKEND.relative_to(ROOT)).read_text(encoding="utf-8")
 
     checks = {
-        "FicheroApp_iOS.swift is registered in the app target": "FicheroApp_iOS.swift in Sources" in project,
+        # Post-#3754 the app target uses a PBXFileSystemSynchronizedRootGroup
+        # (folder = source of truth), so files are auto-compiled instead of being
+        # listed as `FicheroApp_iOS.swift in Sources` build-file entries. The file
+        # being on disk under the synchronized `fichero/` folder IS registration.
+        "FicheroApp_iOS.swift is compiled by the app target (synchronized fichero/ folder)": (
+            IOS_APP.exists()
+            and "isa = PBXFileSystemSynchronizedRootGroup;" in project
+            and "path = fichero;" in project
+        ),
         "app target supports iPhone/iPad simulator/device builds": (
             "iphoneos iphonesimulator" in project and 'TARGETED_DEVICE_FAMILY = "1,2' in project
         ),

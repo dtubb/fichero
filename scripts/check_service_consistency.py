@@ -49,8 +49,8 @@ INFRASTRUCTURE_FILES = {
 # FicheroClient / generated OpenAPI operations.
 KNOWN_VIOLATIONS: dict[str, str] = {
     "ActionInvokeService.swift": "#1848 — action layer cli-only, store/UI deferred",
-    "ImageEditingServiceGenerated.swift": "#1943 — image editing service still hand-builds image endpoints",
-    "WorkflowServiceGenerated.swift": "#1943 — workflow service still has raw preview transport helper",
+    "ImageEditingService.swift": "#1943 — image editing service still hand-builds image endpoints",
+    "WorkflowService.swift": "#1943 — workflow service still has raw preview transport helper",
 }
 
 # Raw transport that is intentionally allowed because the generated client
@@ -72,8 +72,8 @@ SANCTIONED_RAW_TRANSPORT: dict[str, str] = {
         "#3106 — readiness bootstrap must probe health/registry before the "
         "generated client and signed-in library context are usable"
     ),
-    "ArtifactServiceGenerated.swift": (
-        "#1943 — same file also hosts EntityServiceGenerated; remaining raw helpers "
+    "ArtifactService.swift": (
+        "#1943 — same file also hosts EntityService; remaining raw helpers "
         "decode flexible citation/classification/hermeneutics payloads that generated "
         "types expose as untyped containers"
     ),

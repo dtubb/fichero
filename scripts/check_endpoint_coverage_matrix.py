@@ -28,7 +28,7 @@ from matrix_guardrail_common import (
 )
 
 SWIFT_SOURCES = [
-    *sorted((ROOT / "fichero" / "fichero" / "Services").rglob("*ServiceGenerated.swift")),
+    *sorted((ROOT / "fichero" / "fichero" / "Services").rglob("*Service.swift")),
     *sorted((ROOT / "fichero" / "fichero" / "Models").glob("*Store.swift")),
 ]
 CLI_SOURCES = sorted((ROOT / "fichero-engine" / "src" / "fichero" / "cli").rglob("*.py"))

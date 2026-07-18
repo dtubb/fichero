@@ -146,6 +146,31 @@ def synchronized_roots(objects: dict[str, PBXObject]) -> list[str]:
     return sorted(root for root in roots if root)
 
 
+def target_synchronized_prefixes(objects: dict[str, PBXObject]) -> set[str]:
+    """Repo-relative path prefixes covered by the target's synchronized root groups.
+
+    Post-#3754 the Fichero app target compiles its whole source tree via a
+    PBXFileSystemSynchronizedRootGroup (folder = source of truth) instead of
+    listing each file in PBXSourcesBuildPhase. Every .swift under such a folder
+    is compiled by construction, so an orphan is impossible there — files are
+    only ever "unregistered" if they live OUTSIDE every synchronized root the
+    target references (or outside an explicit Sources phase).
+    """
+    prefixes: set[str] = set()
+    for obj in objects.values():
+        if obj.isa != "PBXNativeTarget":
+            continue
+        if _unquote(obj.fields.get("name", "")) != TARGET_NAME:
+            continue
+        for group_id in obj.lists.get("fileSystemSynchronizedGroups", []):
+            group = objects.get(group_id)
+            if group and group.isa == "PBXFileSystemSynchronizedRootGroup":
+                part = _path_part(group.fields.get("path"))
+                if part:
+                    prefixes.add(_join("fichero", part))
+    return prefixes
+
+
 def parent_map(objects: dict[str, PBXObject]) -> dict[str, str]:
     parents: dict[str, str] = {}
     for parent_id, obj in objects.items():
@@ -239,11 +264,16 @@ def disk_swift_files() -> list[str]:
 def scan() -> dict[str, list[str]]:
     objects = parse_pbxproj()
     registered = registered_swift_files(objects)
+    sync_prefixes = target_synchronized_prefixes(objects)
     found: dict[str, list[str]] = {}
 
     for rel in disk_swift_files():
-        if rel not in registered:
-            found[rel] = [f"not in {TARGET_NAME} PBXSourcesBuildPhase"]
+        if rel in registered:
+            continue
+        # Covered by a synchronized root group on the target (#3754) → compiled.
+        if any(rel == prefix or rel.startswith(prefix + "/") for prefix in sync_prefixes):
+            continue
+        found[rel] = [f"not in {TARGET_NAME} target (no Sources entry, not under a synchronized root)"]
 
     return found
 

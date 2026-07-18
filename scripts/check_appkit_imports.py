@@ -52,7 +52,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/Platform/PlatformPasteboard.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Models/SpaceTheme.swift": "#2713 — Spatial renderer color bridge uses NSColor/UIColor behind #if canImport; #2101",
     "Models/WorkflowExporter.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Services/ImageEditingServiceGenerated.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Services/ImageEditingService.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Services/EngineConfig.swift": "#2381 — macOS launch-mode bridge reads Option-key state via NSEvent; #2101",
     "Services/RemoteClientPairing.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Auth/AuthGateView.swift": "#3331 — auth gate loads the platform app icon via NSApp/UIImage fallback; #2101",

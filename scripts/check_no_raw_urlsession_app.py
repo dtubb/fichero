@@ -59,11 +59,10 @@ GRANDFATHERED_FILES: set[str] = {
     "Services/ActivityStreamService.swift",     # SSE
     "Services/ChangeStreamTransport.swift",     # SSE
     "Services/WorkflowStreamService.swift",     # SSE
-    "Services/EmbeddedBackendService.swift",    # engine health / lifecycle
     # MIGRATE (delete when the sub-issue lands)
-    "Services/ImageEditingServiceGenerated.swift",  # #3028 (binary preview KEEP)
-    "Services/ArtifactServiceGenerated.swift",  # #3029 (entity free-form-container KEEP)
-    "Services/WorkflowServiceGenerated.swift",  # #3029 (visualization.png binary KEEP; op mis-declares JSON)
+    "Services/ImageEditingService.swift",  # #3028 (binary preview KEEP)
+    "Services/ArtifactService.swift",  # #3029 (entity free-form-container KEEP)
+    "Services/WorkflowService.swift",  # #3029 (visualization.png binary KEEP; op mis-declares JSON)
 }
 
 
