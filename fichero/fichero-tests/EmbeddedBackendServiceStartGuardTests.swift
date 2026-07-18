@@ -116,3 +116,47 @@ struct ConnectionReuseDecisionTests {
             restart: false, status: .running, isBackendReady: true) == true)
     }
 }
+
+/// The spawned engine's security posture (auth on/off, bind surface) must come
+/// only from the FICHERO_* the app sets — never from a stray FICHERO_* inherited
+/// from the shell that launched the app (#3933). `childEnvironmentBase` strips
+/// every inherited FICHERO_* before the app layers its own on top.
+@Suite("Spawned-engine environment sanitisation (#3933)")
+struct SpawnedEngineEnvironmentTests {
+
+    @Test("inherited FICHERO_* keys are stripped from the child's base env")
+    func inheritedFicheroVarsAreStripped() {
+        let inherited = [
+            // The two the issue calls out: auth kill-switch + LAN bind widening.
+            "FICHERO_DISABLE_AUTH": "1",
+            "FICHERO_LAN_HOST": "0.0.0.0",
+            "FICHERO_ALLOW_NON_LOOPBACK_BIND": "I_UNDERSTAND_SHARED_SECRET_RISK",
+            // A not-yet-invented FICHERO_* must fail closed too.
+            "FICHERO_SOME_FUTURE_FLAG": "danger",
+            // Non-FICHERO vars the interpreter needs must survive untouched.
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/Users/test",
+            "LANG": "en_US.UTF-8"
+        ]
+
+        let base = EmbeddedBackendService.childEnvironmentBase(inheriting: inherited)
+
+        // No FICHERO_* survives inheritance — the app is the only source.
+        #expect(base.keys.allSatisfy { !$0.hasPrefix("FICHERO_") })
+        #expect(base["FICHERO_DISABLE_AUTH"] == nil)
+        #expect(base["FICHERO_LAN_HOST"] == nil)
+        #expect(base["FICHERO_ALLOW_NON_LOOPBACK_BIND"] == nil)
+        #expect(base["FICHERO_SOME_FUTURE_FLAG"] == nil)
+
+        // Everything else passes through so the bundled interpreter still runs.
+        #expect(base["PATH"] == "/usr/bin:/bin")
+        #expect(base["HOME"] == "/Users/test")
+        #expect(base["LANG"] == "en_US.UTF-8")
+    }
+
+    @Test("an env with no FICHERO_* is returned unchanged")
+    func nonFicheroEnvIsUntouched() {
+        let inherited = ["PATH": "/bin", "TMPDIR": "/tmp", "USER": "test"]
+        #expect(EmbeddedBackendService.childEnvironmentBase(inheriting: inherited) == inherited)
+    }
+}
