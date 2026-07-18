@@ -313,7 +313,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     func testPersistentShellChromeStaysInSplitColumns() throws {
         let contentSource = try Self.appSource("Views/ContentView.swift")
         let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
-        let workspaceRootSource = try Self.appSource("Views/Library/LibraryWorkspaceRoot.swift")
+        let workspaceRootSource = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
 
         XCTAssertTrue(contentSource.contains("NavigationSplitView("))
         XCTAssertTrue(contentSource.contains("detailShellColumn"))
