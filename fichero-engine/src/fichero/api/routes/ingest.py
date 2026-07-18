@@ -6,6 +6,7 @@ File and folder ingestion endpoints.
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import Literal, Optional
 from uuid import uuid4
@@ -21,8 +22,34 @@ from fichero.models import Document
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# In-memory task tracking (simple implementation)
+# In-memory task tracking. Terminal tasks are short-lived so a long-running
+# embedded engine does not retain every import's document id list indefinitely.
 _tasks: dict[str, dict] = {}
+_TASK_TTL_SECONDS = 15 * 60
+_MAX_TERMINAL_TASKS = 100
+
+
+def _prune_tasks(now: float | None = None) -> None:
+    """Discard expired terminal task results and cap the remaining history."""
+    now = time.monotonic() if now is None else now
+    terminal = [
+        (task_id, task)
+        for task_id, task in _tasks.items()
+        if task["status"] in {"completed", "failed"}
+    ]
+    for task_id, task in terminal:
+        if now - task["finished_at"] >= _TASK_TTL_SECONDS:
+            del _tasks[task_id]
+
+    remaining = sorted(
+        (
+            (task["finished_at"], task_id)
+            for task_id, task in _tasks.items()
+            if task["status"] in {"completed", "failed"}
+        )
+    )
+    for _, task_id in remaining[:-_MAX_TERMINAL_TASKS]:
+        del _tasks[task_id]
 
 
 # Request/Response models
@@ -219,7 +246,9 @@ async def ingest_folder(
         "processed": 0,
         "error": None,
         "document_ids": [],
+        "library_path": x_fichero_library_path,
     }
+    _prune_tasks()
 
     # Background ingest (capture db and package_path for use in background task)
     def do_background_ingest():
@@ -240,11 +269,13 @@ async def ingest_folder(
                 bg_db, request, package_path, on_progress=on_progress
             )
             _tasks[task_id]["status"] = "completed"
+            _tasks[task_id]["finished_at"] = time.monotonic()
             _tasks[task_id]["progress"] = 1.0
             _tasks[task_id]["document_ids"] = [d.id for d in docs]
             logger.info(f"Folder ingest complete: {path} ({len(docs)} files)")
         except Exception as e:
             _tasks[task_id]["status"] = "failed"
+            _tasks[task_id]["finished_at"] = time.monotonic()
             _tasks[task_id]["error"] = str(e)
             logger.error(f"Folder ingest failed: {path}: {e}")
 
@@ -369,12 +400,18 @@ async def ingest_xlsx(
 
 
 @router.get("/status/{task_id}")
-async def get_ingest_status(task_id: str) -> IngestTaskStatus:
+async def get_ingest_status(
+    task_id: str,
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> IngestTaskStatus:
     """Get status of an ingest task."""
+    _prune_tasks()
     if task_id not in _tasks:
         raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
 
     task = _tasks[task_id]
+    if task["library_path"] != x_fichero_library_path:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
     return IngestTaskStatus(
         task_id=task_id,
         status=task["status"],
