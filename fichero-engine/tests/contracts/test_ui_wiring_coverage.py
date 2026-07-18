@@ -34,7 +34,7 @@ _spec.loader.exec_module(_mod)
 _CLI_INTENTIONAL_ALLOWLIST = {
     "/api/activity/stream",
     "/api/storage/debug/{doc_id}",
-    "/api/tasks/tasks/health",
+    "/api/tasks/health",
     "/api/workflow-execution/stream/{thread_id}",
 }
 

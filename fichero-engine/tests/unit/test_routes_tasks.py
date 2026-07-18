@@ -6,7 +6,6 @@ Routes require X-Fichero-Library-Path header — provided automatically by the
 needing a real APScheduler instance.
 """
 
-import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -58,9 +57,9 @@ def _make_mock_queue(task: MagicMock | None = None) -> MagicMock:
 
 
 # The tasks router uses prefix="/tasks" and is mounted at "/api/tasks",
-# so actual routes are at /api/tasks/tasks/...
+# so actual routes are at /api/tasks/...
 
-BASE = "/api/tasks/tasks"
+BASE = "/api/tasks"
 
 
 class TestQueueNotInitialized:
@@ -81,7 +80,7 @@ class TestQueueNotInitialized:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/tasks/tasks/reindex
+# POST /api/tasks/reindex
 # ---------------------------------------------------------------------------
 
 
@@ -98,7 +97,7 @@ class TestCreateReindexTask:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/tasks/tasks/metrics
+# POST /api/tasks/metrics
 # ---------------------------------------------------------------------------
 
 
@@ -114,7 +113,7 @@ class TestCreateMetricsTask:
 
 
 # ---------------------------------------------------------------------------
-# GET /api/tasks/tasks
+# GET /api/tasks
 # ---------------------------------------------------------------------------
 
 
@@ -145,7 +144,7 @@ class TestListTasks:
 
 
 # ---------------------------------------------------------------------------
-# GET /api/tasks/tasks/{task_id}
+# GET /api/tasks/{task_id}
 # ---------------------------------------------------------------------------
 
 

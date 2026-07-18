@@ -8867,8 +8867,8 @@
     "tasks": [
       {
         "method": "GET",
-        "path": "/tasks/tasks",
-        "operation_id": "list_tasks_api_tasks_tasks_get",
+        "path": "/tasks",
+        "operation_id": "list_tasks_api_tasks_get",
         "summary": "List background tasks",
         "path_params": [],
         "query_params": [
@@ -8898,8 +8898,8 @@
       },
       {
         "method": "GET",
-        "path": "/tasks/tasks/health",
-        "operation_id": "get_task_system_health_api_tasks_tasks_health_get",
+        "path": "/tasks/health",
+        "operation_id": "get_task_system_health_api_tasks_health_get",
         "summary": "Get task system health",
         "path_params": [],
         "query_params": [],
@@ -8908,8 +8908,8 @@
       },
       {
         "method": "POST",
-        "path": "/tasks/tasks/kg-metrics",
-        "operation_id": "create_kg_metrics_task_api_tasks_tasks_kg_metrics_post",
+        "path": "/tasks/kg-metrics",
+        "operation_id": "create_kg_metrics_task_api_tasks_kg_metrics_post",
         "summary": "Create knowledge graph metrics job",
         "path_params": [],
         "query_params": [],
@@ -8918,8 +8918,8 @@
       },
       {
         "method": "GET",
-        "path": "/tasks/tasks/kg-metrics/{task_id}/data",
-        "operation_id": "get_kg_metrics_data_api_tasks_tasks_kg_metrics__task_id__data_get",
+        "path": "/tasks/kg-metrics/{task_id}/data",
+        "operation_id": "get_kg_metrics_data_api_tasks_kg_metrics__task_id__data_get",
         "summary": "Get KG metrics data",
         "path_params": [
           "task_id"
@@ -8930,8 +8930,8 @@
       },
       {
         "method": "POST",
-        "path": "/tasks/tasks/metrics",
-        "operation_id": "create_metrics_task_api_tasks_tasks_metrics_post",
+        "path": "/tasks/metrics",
+        "operation_id": "create_metrics_task_api_tasks_metrics_post",
         "summary": "Trigger metrics recomputation",
         "path_params": [],
         "query_params": [],
@@ -8940,8 +8940,8 @@
       },
       {
         "method": "GET",
-        "path": "/tasks/tasks/metrics/{task_id}/data",
-        "operation_id": "get_metrics_data_api_tasks_tasks_metrics__task_id__data_get",
+        "path": "/tasks/metrics/{task_id}/data",
+        "operation_id": "get_metrics_data_api_tasks_metrics__task_id__data_get",
         "summary": "Get metrics data",
         "path_params": [
           "task_id"
@@ -8952,8 +8952,8 @@
       },
       {
         "method": "POST",
-        "path": "/tasks/tasks/reindex",
-        "operation_id": "create_reindex_task_api_tasks_tasks_reindex_post",
+        "path": "/tasks/reindex",
+        "operation_id": "create_reindex_task_api_tasks_reindex_post",
         "summary": "Create reindex job",
         "path_params": [],
         "query_params": [],
@@ -8962,8 +8962,8 @@
       },
       {
         "method": "GET",
-        "path": "/tasks/tasks/reindex/{task_id}/progress",
-        "operation_id": "get_reindex_progress_api_tasks_tasks_reindex__task_id__progress_get",
+        "path": "/tasks/reindex/{task_id}/progress",
+        "operation_id": "get_reindex_progress_api_tasks_reindex__task_id__progress_get",
         "summary": "Get reindex progress",
         "path_params": [
           "task_id"
@@ -8974,8 +8974,8 @@
       },
       {
         "method": "POST",
-        "path": "/tasks/tasks/vector-repair",
-        "operation_id": "create_vector_repair_task_api_tasks_tasks_vector_repair_post",
+        "path": "/tasks/vector-repair",
+        "operation_id": "create_vector_repair_task_api_tasks_vector_repair_post",
         "summary": "Create vector repair job",
         "path_params": [],
         "query_params": [],
@@ -8984,8 +8984,8 @@
       },
       {
         "method": "GET",
-        "path": "/tasks/tasks/vector-repair/{task_id}/progress",
-        "operation_id": "get_vector_repair_progress_api_tasks_tasks_vector_repair__task_id__progress_get",
+        "path": "/tasks/vector-repair/{task_id}/progress",
+        "operation_id": "get_vector_repair_progress_api_tasks_vector_repair__task_id__progress_get",
         "summary": "Get vector repair progress",
         "path_params": [
           "task_id"
@@ -8996,8 +8996,8 @@
       },
       {
         "method": "DELETE",
-        "path": "/tasks/tasks/{task_id}",
-        "operation_id": "delete_task_api_tasks_tasks__task_id__delete",
+        "path": "/tasks/{task_id}",
+        "operation_id": "delete_task_api_tasks__task_id__delete",
         "summary": "Delete completed task",
         "path_params": [
           "task_id"
@@ -9008,8 +9008,8 @@
       },
       {
         "method": "GET",
-        "path": "/tasks/tasks/{task_id}",
-        "operation_id": "get_task_api_tasks_tasks__task_id__get",
+        "path": "/tasks/{task_id}",
+        "operation_id": "get_task_api_tasks__task_id__get",
         "summary": "Get task status",
         "path_params": [
           "task_id"
@@ -9020,8 +9020,8 @@
       },
       {
         "method": "POST",
-        "path": "/tasks/tasks/{task_id}/cancel",
-        "operation_id": "cancel_task_api_tasks_tasks__task_id__cancel_post",
+        "path": "/tasks/{task_id}/cancel",
+        "operation_id": "cancel_task_api_tasks__task_id__cancel_post",
         "summary": "Cancel pending task",
         "path_params": [
           "task_id"
@@ -9032,8 +9032,8 @@
       },
       {
         "method": "GET",
-        "path": "/tasks/tasks/{task_id}/result",
-        "operation_id": "get_task_result_api_tasks_tasks__task_id__result_get",
+        "path": "/tasks/{task_id}/result",
+        "operation_id": "get_task_result_api_tasks__task_id__result_get",
         "summary": "Get task result",
         "path_params": [
           "task_id"

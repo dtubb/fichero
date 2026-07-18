@@ -25,7 +25,7 @@ from fichero.workflows.tasks import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(tags=["tasks"])
 
 
 # Request/Response Models

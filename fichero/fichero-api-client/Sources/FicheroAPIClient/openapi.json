@@ -18437,7 +18437,7 @@
         }
       }
     },
-    "/api/tasks/tasks/reindex": {
+    "/api/tasks/reindex": {
       "post": {
         "tags": [
           "tasks",
@@ -18445,7 +18445,7 @@
         ],
         "summary": "Create reindex job",
         "description": "Creates a background task to reindex all documents in LanceDB.",
-        "operationId": "create_reindex_task_api_tasks_tasks_reindex_post",
+        "operationId": "create_reindex_task_api_tasks_reindex_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18479,7 +18479,7 @@
         }
       }
     },
-    "/api/tasks/tasks/metrics": {
+    "/api/tasks/metrics": {
       "post": {
         "tags": [
           "tasks",
@@ -18487,7 +18487,7 @@
         ],
         "summary": "Trigger metrics recomputation",
         "description": "Creates a background task to recompute library metrics.",
-        "operationId": "create_metrics_task_api_tasks_tasks_metrics_post",
+        "operationId": "create_metrics_task_api_tasks_metrics_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18521,7 +18521,7 @@
         }
       }
     },
-    "/api/tasks/tasks": {
+    "/api/tasks": {
       "get": {
         "tags": [
           "tasks",
@@ -18529,7 +18529,7 @@
         ],
         "summary": "List background tasks",
         "description": "List all background tasks with optional filtering.",
-        "operationId": "list_tasks_api_tasks_tasks_get",
+        "operationId": "list_tasks_api_tasks_get",
         "parameters": [
           {
             "name": "status",
@@ -18607,7 +18607,7 @@
         }
       }
     },
-    "/api/tasks/tasks/{task_id}": {
+    "/api/tasks/{task_id}": {
       "get": {
         "tags": [
           "tasks",
@@ -18615,7 +18615,7 @@
         ],
         "summary": "Get task status",
         "description": "Get detailed status and progress for a specific task.",
-        "operationId": "get_task_api_tasks_tasks__task_id__get",
+        "operationId": "get_task_api_tasks__task_id__get",
         "parameters": [
           {
             "name": "task_id",
@@ -18657,7 +18657,7 @@
         ],
         "summary": "Delete completed task",
         "description": "Delete a task that has completed, failed, or been cancelled.",
-        "operationId": "delete_task_api_tasks_tasks__task_id__delete",
+        "operationId": "delete_task_api_tasks__task_id__delete",
         "parameters": [
           {
             "name": "task_id",
@@ -18686,7 +18686,7 @@
         }
       }
     },
-    "/api/tasks/tasks/{task_id}/cancel": {
+    "/api/tasks/{task_id}/cancel": {
       "post": {
         "tags": [
           "tasks",
@@ -18694,7 +18694,7 @@
         ],
         "summary": "Cancel pending task",
         "description": "Cancel a task that hasn't started yet.",
-        "operationId": "cancel_task_api_tasks_tasks__task_id__cancel_post",
+        "operationId": "cancel_task_api_tasks__task_id__cancel_post",
         "parameters": [
           {
             "name": "task_id",
@@ -18730,7 +18730,7 @@
         }
       }
     },
-    "/api/tasks/tasks/{task_id}/result": {
+    "/api/tasks/{task_id}/result": {
       "get": {
         "tags": [
           "tasks",
@@ -18738,7 +18738,7 @@
         ],
         "summary": "Get task result",
         "description": "Get the result of a completed task (reindex counts, metrics data, etc.).",
-        "operationId": "get_task_result_api_tasks_tasks__task_id__result_get",
+        "operationId": "get_task_result_api_tasks__task_id__result_get",
         "parameters": [
           {
             "name": "task_id",
@@ -18758,7 +18758,7 @@
                 "schema": {
                   "$ref": "#/components/schemas/TaskResultResponse",
                   "nullable": true,
-                  "title": "Response Get Task Result Api Tasks Tasks  Task Id  Result Get"
+                  "title": "Response Get Task Result Api Tasks  Task Id  Result Get"
                 }
               }
             }
@@ -18776,7 +18776,7 @@
         }
       }
     },
-    "/api/tasks/tasks/reindex/{task_id}/progress": {
+    "/api/tasks/reindex/{task_id}/progress": {
       "get": {
         "tags": [
           "tasks",
@@ -18784,7 +18784,7 @@
         ],
         "summary": "Get reindex progress",
         "description": "Get specific progress info for a reindex task.",
-        "operationId": "get_reindex_progress_api_tasks_tasks_reindex__task_id__progress_get",
+        "operationId": "get_reindex_progress_api_tasks_reindex__task_id__progress_get",
         "parameters": [
           {
             "name": "task_id",
@@ -18820,7 +18820,7 @@
         }
       }
     },
-    "/api/tasks/tasks/metrics/{task_id}/data": {
+    "/api/tasks/metrics/{task_id}/data": {
       "get": {
         "tags": [
           "tasks",
@@ -18828,7 +18828,7 @@
         ],
         "summary": "Get metrics data",
         "description": "Get computed metrics from a completed metrics task.",
-        "operationId": "get_metrics_data_api_tasks_tasks_metrics__task_id__data_get",
+        "operationId": "get_metrics_data_api_tasks_metrics__task_id__data_get",
         "parameters": [
           {
             "name": "task_id",
@@ -18864,7 +18864,7 @@
         }
       }
     },
-    "/api/tasks/tasks/vector-repair": {
+    "/api/tasks/vector-repair": {
       "post": {
         "tags": [
           "tasks",
@@ -18872,7 +18872,7 @@
         ],
         "summary": "Create vector repair job",
         "description": "Creates a background task to repair LanceDB vector index consistency.",
-        "operationId": "create_vector_repair_task_api_tasks_tasks_vector_repair_post",
+        "operationId": "create_vector_repair_task_api_tasks_vector_repair_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18906,7 +18906,7 @@
         }
       }
     },
-    "/api/tasks/tasks/kg-metrics": {
+    "/api/tasks/kg-metrics": {
       "post": {
         "tags": [
           "tasks",
@@ -18914,7 +18914,7 @@
         ],
         "summary": "Create knowledge graph metrics job",
         "description": "Creates a background task to recompute knowledge graph metrics.",
-        "operationId": "create_kg_metrics_task_api_tasks_tasks_kg_metrics_post",
+        "operationId": "create_kg_metrics_task_api_tasks_kg_metrics_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -18948,7 +18948,7 @@
         }
       }
     },
-    "/api/tasks/tasks/vector-repair/{task_id}/progress": {
+    "/api/tasks/vector-repair/{task_id}/progress": {
       "get": {
         "tags": [
           "tasks",
@@ -18956,7 +18956,7 @@
         ],
         "summary": "Get vector repair progress",
         "description": "Get specific progress info for a vector repair task.",
-        "operationId": "get_vector_repair_progress_api_tasks_tasks_vector_repair__task_id__progress_get",
+        "operationId": "get_vector_repair_progress_api_tasks_vector_repair__task_id__progress_get",
         "parameters": [
           {
             "name": "task_id",
@@ -18992,7 +18992,7 @@
         }
       }
     },
-    "/api/tasks/tasks/kg-metrics/{task_id}/data": {
+    "/api/tasks/kg-metrics/{task_id}/data": {
       "get": {
         "tags": [
           "tasks",
@@ -19000,7 +19000,7 @@
         ],
         "summary": "Get KG metrics data",
         "description": "Get computed metrics from a completed KG metrics task.",
-        "operationId": "get_kg_metrics_data_api_tasks_tasks_kg_metrics__task_id__data_get",
+        "operationId": "get_kg_metrics_data_api_tasks_kg_metrics__task_id__data_get",
         "parameters": [
           {
             "name": "task_id",
@@ -19036,7 +19036,7 @@
         }
       }
     },
-    "/api/tasks/tasks/health": {
+    "/api/tasks/health": {
       "get": {
         "tags": [
           "tasks",
@@ -19044,7 +19044,7 @@
         ],
         "summary": "Get task system health",
         "description": "Get health status and statistics for the background task system.",
-        "operationId": "get_task_system_health_api_tasks_tasks_health_get",
+        "operationId": "get_task_system_health_api_tasks_health_get",
         "responses": {
           "200": {
             "description": "Successful Response",
