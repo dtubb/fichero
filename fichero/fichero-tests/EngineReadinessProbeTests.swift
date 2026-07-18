@@ -91,3 +91,41 @@ struct EngineReadinessProbeTests {
         #expect(probe.registryURL.path == "/api/registry")
     }
 }
+
+/// #3948: the probe's auth header is derived by `engineAuthHeaders`, which used
+/// to block the main actor up to 3s per call (`waitForTokenBlocking`'s
+/// Thread.sleep loop) whenever the token was absent — a freeze every heartbeat.
+/// It now reads the token once, non-blocking; when there is no token the request
+/// is sent header-free and the resulting 401 classifies as `authRejected`, which
+/// is the honest outcome (blocking never changed that outcome — it only delayed
+/// reaching it). `waitForTokenBlocking` was deleted, so this whole class of
+/// main-actor freeze is compiler-unreachable.
+@Suite("engineAuthHeaders is non-blocking (#3948)")
+struct EngineAuthHeadersTests {
+
+    @Test("an unpaired remote host with no token yields a header-free request")
+    func unpairedRemoteHasNoAuthHeader() {
+        // A never-paired remote resolves to the .remote token kind, whose Keychain
+        // lookup returns nil — so no Authorization header, returned immediately
+        // rather than after a 3s blocking wait for a token that will never arrive.
+        let headers = engineAuthHeaders(
+            for: URL(string: "https://unpaired-host.invalid:9999/api/registry")
+        )
+        #expect(headers["Authorization"] == nil)
+    }
+
+    @Test("an unauthenticated path never carries an Authorization header")
+    func unauthenticatedPathSkipsAuth() {
+        let headers = engineAuthHeaders(for: URL(string: "https://127.0.0.1:8765/api/health"))
+        #expect(headers["Authorization"] == nil)
+    }
+
+    @Test("a library-scoped raw request still carries the library header")
+    func libraryHeaderIsAttached() {
+        let headers = engineAuthHeaders(
+            for: URL(string: "https://127.0.0.1:8765/api/documents"),
+            libraryPath: "/tmp/Test.fichero"
+        )
+        #expect(headers["X-Fichero-Library-Path"] == "/tmp/Test.fichero")
+    }
+}

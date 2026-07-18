@@ -54,8 +54,16 @@ func engineAuthHeaders(for url: URL?, libraryPath: String? = nil) -> [String: St
     let path = url?.path ?? ""
     // Resolve the token for THIS request's host (#2866), not the global
     // default — raw requests can target any of the backends the app holds.
+    //
+    // Read the token ONCE, non-blocking (#3948). This is a synchronous helper
+    // reachable on the main actor (readiness probe, 5s heartbeat, waitForBackend
+    // poll); the old `waitForTokenBlocking` slept up to 3s per call, freezing the
+    // main actor every heartbeat when `.api-key` was absent. The outcome is
+    // identical either way: if no token is on disk the request goes header-free
+    // and 401s — the honest result the probe already classifies as `authRejected`
+    // — so blocking only ever added a beachball in front of the same answer.
     if !AuthTokenMiddleware.isUnauthenticatedPath(path),
-       let token = AuthTokenMiddleware.waitForTokenBlocking(hostString: url?.absoluteString) {
+       let token = AuthTokenMiddleware.readTokenFromDisk(hostString: url?.absoluteString) {
         headers["Authorization"] = "Bearer \(token)"
     }
     if let libraryPath {
