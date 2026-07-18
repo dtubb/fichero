@@ -14,13 +14,11 @@ final class FicheroAppDelegateTests: XCTestCase {
 
     func testApplicationWillTerminateStopsBackendService() {
         let delegate = FicheroAppDelegate()
-        let backendService = EmbeddedBackendService()
-        backendService.status = .running
-        delegate.backendService = backendService
+        delegate.controller.backendService.status = .running
 
         delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
 
-        XCTAssertEqual(backendService.status, .stopped)
+        XCTAssertEqual(delegate.controller.backendService.status, .stopped)
     }
 }
 #endif

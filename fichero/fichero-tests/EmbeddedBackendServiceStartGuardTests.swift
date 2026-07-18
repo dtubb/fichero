@@ -122,6 +122,7 @@ struct ConnectionReuseDecisionTests {
 /// from the shell that launched the app (#3933). `childEnvironmentBase` strips
 /// every inherited FICHERO_* before the app layers its own on top.
 @Suite("Spawned-engine environment sanitisation (#3933)")
+@MainActor
 struct SpawnedEngineEnvironmentTests {
 
     @Test("inherited FICHERO_* keys are stripped from the child's base env")
