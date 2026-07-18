@@ -46,38 +46,6 @@ struct ActivityMonitorWindow: View {
     }
 }
 
-struct ActivityDetailWindow: View {
-    @Environment(LibraryManager.self) private var libraryManager
-    @State private var selectionState = ActivityWindowSelectionState.shared
-
-    private var library: LibraryManager.LibraryReference? {
-        if let id = libraryManager.currentLibraryId,
-           let library = libraryManager.getLibrary(id: id) {
-            return library
-        }
-        return libraryManager.globalLibrary
-    }
-
-    var body: some View {
-        Group {
-            if let library, let selectedRun = selectionState.selectedRun {
-                ActivityDetailView(selectedRun: selectedRun)
-                    .environment(library.activityStore)
-                    .environment(library.apiClient)
-                    .environment(library.workflowExecutionStore)
-            } else {
-                ContentUnavailableView(
-                    "No Activity Selected",
-                    systemImage: "info.circle",
-                    description: Text("Double-click a run in the Activity window to inspect it.")
-                )
-            }
-        }
-        .navigationTitle("Activity Details")
-        .frame(minWidth: 720, minHeight: 520)
-    }
-}
-
 #if os(macOS)
 struct ActivityWindowMenuButton: View {
     @Environment(\.openWindow) private var openWindow

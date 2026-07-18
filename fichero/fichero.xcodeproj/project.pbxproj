@@ -434,6 +434,7 @@
 		A48C3E366EB68F5DFBD38499 /* ThinkingModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */; };
 		A6400FE26A8158543B1FD124 /* SplittablePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0B24DE95228CEA6B853324 /* SplittablePane.swift */; };
 		A6AD2F07985565F991995037 /* ArtifactEntityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE70F7B7D331135FEFF34739 /* ArtifactEntityStore.swift */; };
+		A6D5EF7E10789BFEF5121312 /* ActivityDetailWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05ABA9CAE153116A22708EEE /* ActivityDetailWindow.swift */; };
 		A78E883CED66AEE3DC11477B /* ClaimAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16AE4AAB56FEB5190D97239 /* ClaimAttributionView.swift */; };
 		A98A6F971E62F9DA640BCA54 /* ResearchWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B8B6B4FF52EDA955679CF0 /* ResearchWorkspaceView.swift */; };
 		AA10000000000000000031B0 /* LocalInferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10000000000000000031A0 /* LocalInferenceStore.swift */; };
@@ -526,6 +527,7 @@
 		C38F232612EE4EEB87E62A76 /* FicheroAppEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48FFFFE4A294ADC2F1299E2D /* FicheroAppEntities.swift */; };
 		C559CD1D045F9710AD81C44E /* CollectionWorkspaceStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C9BD4E928F0D32E6EABBA7 /* CollectionWorkspaceStub.swift */; };
 		C5B7DEB948261159D439C454 /* DocumentNotesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00A8552DEACF83751D617C6 /* DocumentNotesTab.swift */; };
+		C60C0003436D91B1A2423E0B /* ActivityDetailWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05ABA9CAE153116A22708EEE /* ActivityDetailWindow.swift */; };
 		C835851846598745D40790B6 /* EntityDetailView+FilterChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = D18BA434B3CB3A8C31139293 /* EntityDetailView+FilterChips.swift */; };
 		C866DE6CD23ED6AF11B48FF0 /* DocumentStore+ChangeStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D040114E6D969FD49C8317E /* DocumentStore+ChangeStream.swift */; };
 		C8B0CB90BD1E1AFBFFF80F5A /* ContentViewHelperViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D6A52184F57ACFC6926FBB /* ContentViewHelperViews.swift */; };
@@ -1245,6 +1247,7 @@
 		034BEE1157D9D2C95C1F885A /* CanvasDropResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasDropResolver.swift; sourceTree = "<group>"; };
 		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
 		052B352354B208CBDD7F8A1F /* SidebarView+UnifiedLibrarySections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+UnifiedLibrarySections.swift"; sourceTree = "<group>"; };
+		05ABA9CAE153116A22708EEE /* ActivityDetailWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityDetailWindow.swift; sourceTree = "<group>"; };
 		0690C2C95A7BBA1840E71AED /* CheckerboardPattern.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CheckerboardPattern.swift; sourceTree = "<group>"; };
 		08C74251DECC247DF8B5A816 /* DocumentInspectorInfoTab+Citations.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorInfoTab+Citations.swift"; sourceTree = "<group>"; };
 		09D8F04A6421AEC5B5370E92 /* CanvasDropOutcome.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasDropOutcome.swift; sourceTree = "<group>"; };
@@ -2568,6 +2571,7 @@
 				16C939F2EE06FF349761CA2F /* ActivityMonitorView.swift */,
 				811A6E6F398CBE8A81AEB7CE /* ActivityMonitorWindow.swift */,
 				4F5ED84DA059F760ECDB09B4 /* BackendWorkPill.swift */,
+				05ABA9CAE153116A22708EEE /* ActivityDetailWindow.swift */,
 			);
 			path = Activity;
 			sourceTree = "<group>";
@@ -4184,6 +4188,7 @@
 				A6AD2F07985565F991995037 /* ArtifactEntityStore.swift in Sources */,
 				B87B28ED2A0DAC77675C461B /* LaunchProfile.swift in Sources */,
 				C2BE0A6960B4398CE2110077 /* EngineLifecycleController.swift in Sources */,
+				A6D5EF7E10789BFEF5121312 /* ActivityDetailWindow.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -4791,6 +4796,7 @@
 				23BB0DDC9E8089CB1452632D /* ArtifactEntityStore.swift in Sources */,
 				F2E929E26D14B40F55EDB9D1 /* LaunchProfile.swift in Sources */,
 				07776782808C783E1F4AF8DF /* EngineLifecycleController.swift in Sources */,
+				C60C0003436D91B1A2423E0B /* ActivityDetailWindow.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
