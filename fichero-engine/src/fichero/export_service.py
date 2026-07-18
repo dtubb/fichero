@@ -1247,7 +1247,7 @@ def _render_document_markdown(
     for asset in assets:
         lines.extend([f"![{doc.name}]({asset.markdown_path})", ""])
 
-    content = (doc.page_content or "").strip()
+    content = (doc.page_content or "").strip() or _page_child_text(db, doc)
     if content:
         lines.extend([content, ""])
 
@@ -1269,9 +1269,21 @@ def _document_text(db: Database, doc: Document) -> str:
     parts = []
     if doc.page_content and doc.page_content.strip():
         parts.append(doc.page_content.strip())
+    elif page_text := _page_child_text(db, doc):
+        parts.append(page_text)
     for artifact in _text_artifacts(db, doc.id):
         parts.append(f"{artifact.artifact_type}: {artifact.content.strip()}")
     return "\n\n".join(parts).strip() or "No text content available."
+
+
+def _page_child_text(db: Database, doc: Document) -> str:
+    pages = db.query(Document, parent_id=doc.id, doc_type=DocType.page)
+    pages.sort(key=lambda page: (page.sequence or 0, page.name.lower()))
+    return "\n\n".join(
+        page.page_content.strip()
+        for page in pages
+        if page.page_content and page.page_content.strip()
+    )
 
 
 def _docx_knowledge_graph_appendix(

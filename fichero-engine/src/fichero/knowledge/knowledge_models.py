@@ -1900,6 +1900,10 @@ class KnowledgeClaim(BaseModel):
         default=1,
         description="Number of distinct source documents supporting this claim.",
     )
+    mention_count: int = Field(
+        default=1,
+        description="Number of extracted mentions collapsed into this claim.",
+    )
     weighted_corroboration_count: float = Field(
         default=1.0,
         description=(

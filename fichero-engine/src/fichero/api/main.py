@@ -625,6 +625,9 @@ def _ensure_bootstrap_token_written() -> None:
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     import asyncio
+    from fichero.api.change_stream import reset_sse_shutdown, signal_sse_shutdown
+
+    reset_sse_shutdown()
 
     # Write/rotate the bootstrap auth token NOW that the server is actually
     # starting, so the Swift app can read ~/Library/Application Support/Fichero/
@@ -734,6 +737,7 @@ async def lifespan(app: FastAPI):
     )
 
     yield
+    signal_sse_shutdown()
     parent_watcher.cancel()
     await stop_periodic_snapshot_task(periodic_snapshot_task)
     # Await the start before stopping: a short-lived process (a test, a failed
@@ -898,6 +902,44 @@ def _is_sandbox_container_app_support(path: Path, home: Path) -> bool:
     return len(parts) >= 5 and parts[1:4] == ("Data", "Library", "Application Support")
 
 
+def _is_allowed_local_path(path: str) -> bool:
+    """Return whether a local file path is below an engine-approved root."""
+    try:
+        expanded = Path(path).expanduser()
+        resolved = expanded.resolve()
+    except Exception:
+        return False
+
+    home = Path.home().resolve()
+    icloud = home / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+    allowed_roots = [
+        home / "Documents",
+        home / "Desktop",
+        home / "Fichero",
+        home / "Dropbox",
+        home / "code",
+        home / "Library" / "Application Support",
+        home / "Library" / "CloudStorage",
+        icloud,
+        Path("/var/folders"),
+        Path("/private/var/folders"),
+        Path("/tmp"),
+        Path("/private/tmp"),
+        *_configured_library_allowed_roots(),
+        *(Path(grant).expanduser().resolve() for grant in granted_paths()),
+    ]
+    candidates = [resolved]
+    if ".." not in expanded.parts:
+        candidates.append(expanded)
+    return any(
+        candidate.is_relative_to(root)
+        for candidate in candidates
+        for root in allowed_roots
+    ) or any(
+        _is_sandbox_container_app_support(candidate, home) for candidate in candidates
+    )
+
+
 def _is_allowed_library_path(library_path: str) -> bool:
     """Validate that a library path is in an allowed location.
 
@@ -929,7 +971,6 @@ def _is_allowed_library_path(library_path: str) -> bool:
     """
     try:
         expanded = Path(library_path).expanduser()
-        resolved = expanded.resolve()
     except Exception:
         return False
 
@@ -938,40 +979,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
     if expanded.suffix != ".fichero":
         return False
 
-    home = Path.home().resolve()
-    icloud = home / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
-    allowed_roots = [
-        home / "Documents",
-        home / "Desktop",
-        home / "Fichero",
-        home / "Dropbox",
-        home / "code",  # corpus libraries (e.g. ~/code/marshall_diaries/*.fichero)
-        home / "Library" / "Application Support",
-        home / "Library" / "CloudStorage",
-        icloud,
-        Path("/var/folders"),
-        Path("/private/var/folders"),
-        Path("/tmp"),
-        Path("/private/tmp"),
-        *_configured_library_allowed_roots(),
-    ]
-    allowed_roots += [Path(path).expanduser().resolve() for path in granted_paths()]
-
-    # SECURITY: is_relative_to() is purely lexical and does NOT normalize
-    # "..", so an un-resolved candidate like ~/Documents/../../etc/x.fichero
-    # would lexically pass a root check while resolving elsewhere. Only trust
-    # the un-resolved (expanded) candidate when it contains no ".." parts;
-    # legitimate ".."-containing paths are still honoured via `resolved`.
-    candidates = [resolved]
-    if ".." not in expanded.parts:
-        candidates.append(expanded)
-    return any(
-        candidate.is_relative_to(root)
-        for candidate in candidates
-        for root in allowed_roots
-    ) or any(
-        _is_sandbox_container_app_support(candidate, home) for candidate in candidates
-    )
+    return _is_allowed_local_path(library_path)
 
 
 async def get_library_database(

@@ -10,6 +10,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fichero.workflows.tasks import TaskType, TaskStatus
+from fichero.workflows.task_types import TaskResult
 
 
 # ---------------------------------------------------------------------------
@@ -162,3 +163,18 @@ class TestGetTask:
         with patch("fichero.api.routes.tasks.get_task_queue", return_value=queue):
             r = client.get(f"{BASE}/no-such-task")
         assert r.status_code == 404
+
+
+class TestTaskResults:
+    def test_running_task_result_returns_202(self, client):
+        task = _make_mock_task(status=TaskStatus.RUNNING)
+        with patch("fichero.api.routes.tasks.get_task_queue", return_value=_make_mock_queue(task)):
+            response = client.get(f"{BASE}/task-1/result")
+        assert response.status_code == 202
+
+    def test_completed_metrics_missing_fields_returns_409(self, client):
+        task = _make_mock_task(task_type=TaskType.METRICS, status=TaskStatus.COMPLETED)
+        task.result = TaskResult(success=True, message="done", details={})
+        with patch("fichero.api.routes.tasks.get_task_queue", return_value=_make_mock_queue(task)):
+            response = client.get(f"{BASE}/metrics/task-1/data")
+        assert response.status_code == 409
