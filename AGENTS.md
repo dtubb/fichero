@@ -357,6 +357,7 @@ that must never be public goes outside `docs/` entirely — not merely out of `n
 | `CONSTITUTION.md` | Product north star: what we're building, why, what it's not, hard constraints |
 | `AGENTS.md` | This file — operational manual + hard rules |
 | `docs/contributor/architecture/` | Architecture docs |
+| `docs/contributor/architecture/vocabulary.md` | Shared backend/frontend terminology |
 | `USER.md` | About Daniel — who he is, constraints |
 | `STATE.md` | Local working notes (gitignored, not in the repo) — current branch, focus, next session |
 | `MEMORY.md` | Local working notes (gitignored, not in the repo) — persistent lessons and decisions |
