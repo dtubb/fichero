@@ -139,6 +139,35 @@ def test_export_eleventy_site_output_stays_document_only(db, tmp_path):
     assert "Knowledge Graph Appendix" not in body
 
 
+def test_markdown_export_aggregates_ordered_page_child_text_for_parent_document(db, tmp_path):
+    parent = Document(
+        id="paged-parent",
+        name="Scanned book",
+        doc_type=DocType.file,
+        file_type=FileType.pdf,
+    )
+    pages = [
+        Document(
+            id=f"paged-{sequence}",
+            name=f"Page {sequence}",
+            parent_id=parent.id,
+            doc_type=DocType.page,
+            sequence=sequence,
+            page_content=text,
+        )
+        for sequence, text in enumerate(("First page.", "Second page.", "Third page."), 1)
+    ]
+    for document in (parent, *pages):
+        db.save(document)
+
+    result = export_markdown_folder(db, tmp_path / "export", target_id=parent.id)
+    markdown = next(file for file in result.files if file.document_id == parent.id)
+
+    body = open(markdown.path, encoding="utf-8").read()
+    assert body.index("First page.") < body.index("Second page.") < body.index("Third page.")
+    assert "_No text content available._" not in body
+
+
 def test_iter_export_records_empty_corpus_returns_no_records(db):
     assert list(iter_export_records(db)) == []
 
