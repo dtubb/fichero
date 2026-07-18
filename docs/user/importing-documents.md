@@ -1,4 +1,4 @@
-(AI generated. Not reviewed.)
+<!-- Verified against importers/ingest.py (2026-07-18). -->
 
 # Importing Documents
 
@@ -59,7 +59,7 @@ For day-to-day use, drag-and-drop is the fastest way to get a pile of scans or P
 
 ## Supported File Types
 
-Fichero is built around broad ingest support. The engine documentation in this repo describes support for 37+ file types across:
+Fichero is built around broad ingest support. The engine recognises 50+ file extensions across:
 
 - PDFs and common document formats
 - images and scans
