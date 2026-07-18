@@ -45,10 +45,6 @@ public struct AuthTokenMiddleware: ClientMiddleware {
 
     public init() {}
 
-    // Backward-compat shim: older call sites pass a token but it's ignored
-    // (we always read fresh from disk).
-    public init(token: String?) {}
-
     public static func isUnauthenticatedPath(_ path: String) -> Bool {
         unauthenticatedPaths.contains { allowedPath in
             if path == allowedPath { return true }

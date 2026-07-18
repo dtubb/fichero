@@ -938,27 +938,6 @@ final class EmbeddedBackendService {
         await EngineReadinessProbe(hostURL: backendURL, expectedNonce: expectedLaunchNonce).probe()
     }
 
-    private func backendSupportsWorkflowRoutes() async -> Bool {
-        let workflowsURL = backendURL.appendingPathComponent("api/workflows")
-        var request = URLRequest(url: workflowsURL)
-        request.httpMethod = "GET"
-        request.addEngineAuth()
-        let session = RemoteCertificatePinning.configuredSession()
-
-        do {
-            let (_, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                return false
-            }
-            // Missing library header may return 422; route absence returns 404.
-            // 401 means engine present but token mismatch — treat as supported
-            // so we don't double-launch.
-            return httpResponse.statusCode != 404
-        } catch {
-            return false
-        }
-    }
-
     // MARK: - Token & identity helpers (#2862)
 
     /// 32 cryptographically-random bytes, base64url without padding — same
@@ -1258,7 +1237,6 @@ private final class DataBox: @unchecked Sendable {
 
 enum BackendError: LocalizedError {
     case notRunning
-    case bundleNotFound
     case backendAppNotFound
     case launchFailed(Error)
     case timeout
@@ -1280,8 +1258,6 @@ enum BackendError: LocalizedError {
         case .portConflict(let pid):
             let who = pid.map(String.init) ?? "unknown"
             return "Port 8765 is held by another process (PID \(who))."
-        case .bundleNotFound:
-            return "App bundle resources not found"
         case .backendAppNotFound:
             // Debug builds don't embed the engine (the embed phase is Release-only),
             // so the usual cause in a Debug ⌘R is simply no engine running on :8765.

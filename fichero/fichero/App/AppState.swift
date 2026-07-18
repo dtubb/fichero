@@ -66,7 +66,6 @@ class AppState {
     /// single `engine.diagnosis` now backs them (connection view reads either).
     var backendError: String? { engine.diagnosis }
     var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
-    var indexedCount: Int = 0
     var backendVersion: String?
     private(set) var backendAccessError: AccessError?
     /// True while starting/probing. Backed by `engine.phase == .starting`.
