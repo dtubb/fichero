@@ -246,7 +246,8 @@ final class LibraryChangeStream {
         min(current * 2, 30_000_000_000)
     }
 
-    static func shouldSurfaceUnavailable(failureCount: Int) -> Bool {
+    // nonisolated: pure failure-count logic, no main-actor state (see ActivityStreamService, #3902).
+    nonisolated static func shouldSurfaceUnavailable(failureCount: Int) -> Bool {
         failureCount >= 2
     }
 
@@ -255,7 +256,7 @@ final class LibraryChangeStream {
     /// (never connected yet), where the app-level BackendConnectionView already
     /// owns "not connected yet". This is what stops the pill flashing on launch
     /// (#3874). Once connected, the usual two-strike debounce applies.
-    static func shouldSurfaceAfterDrop(failureCount: Int, hasConnectedBefore: Bool) -> Bool {
+    nonisolated static func shouldSurfaceAfterDrop(failureCount: Int, hasConnectedBefore: Bool) -> Bool {
         hasConnectedBefore && shouldSurfaceUnavailable(failureCount: failureCount)
     }
 

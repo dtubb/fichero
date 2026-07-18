@@ -32,7 +32,10 @@ final class ActivityStreamService {
     /// transient drop (retry with backoff).
     private enum StreamError: Error { case accessDenied }
 
-    static func shouldSurfaceUnavailable(failureCount: Int) -> Bool {
+    // nonisolated: pure failure-count logic with no main-actor state. Without this it
+    // inherits @MainActor from the service and every #expect() assertion calling it from
+    // a nonisolated test context fails to compile (#3902).
+    nonisolated static func shouldSurfaceUnavailable(failureCount: Int) -> Bool {
         failureCount >= 2
     }
 
@@ -40,7 +43,7 @@ final class ActivityStreamService {
     /// successful connect — never during the initial connect window, where the
     /// app-level BackendConnectionView owns "not connected yet". Stops the pill
     /// flashing on launch (#3874). Once connected, the two-strike debounce applies.
-    static func shouldSurfaceAfterDrop(failureCount: Int, hasConnectedBefore: Bool) -> Bool {
+    nonisolated static func shouldSurfaceAfterDrop(failureCount: Int, hasConnectedBefore: Bool) -> Bool {
         hasConnectedBefore && shouldSurfaceUnavailable(failureCount: failureCount)
     }
 
