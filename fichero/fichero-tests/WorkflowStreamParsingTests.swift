@@ -553,27 +553,6 @@ struct SSEEventDataDecodingTests {
     }
 }
 
-// MARK: - ExecuteAcceptedResponse Tests
-
-struct ExecuteAcceptedResponseTests {
-
-    @Test("Decode execute accepted response")
-    func decodeResponse() throws {
-        let json = Data("""
-        {
-            "thread_id": "t-abc",
-            "workflow_id": "w-123",
-            "workflow_name": "My Workflow",
-            "status": "running",
-            "stream_url": "/api/stream/t-abc"
-        }
-        """.utf8)
-
-        let response = try JSONDecoder().decode(ExecuteAcceptedResponse.self, from: json)
-        #expect(response.threadId == "t-abc")
-        #expect(response.workflowId == "w-123")
-        #expect(response.workflowName == "My Workflow")
-        #expect(response.status == "running")
-        #expect(response.streamUrl == "/api/stream/t-abc")
-    }
-}
+// ExecuteAcceptedResponse decoding is covered by the dedicated
+// ExecuteAcceptedResponseTests.swift (kept single-purpose to avoid a duplicate
+// type name here).
