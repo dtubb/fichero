@@ -17,7 +17,7 @@ A navigation map of the SwiftUI app (`fichero/fichero/`). Line counts are approx
   - `AppInstaller.swift`, `SparkleUpdater.swift` — install + Sparkle auto-update.
 - **`Views/Shell/ContentView/ContentView.swift`** + extensions — the main resizable multi-pane layout, split across:
   `ContentView+State.swift`, `+ViewBuilders.swift`, `+Navigation.swift`, `+Actions.swift`, `+Persistence.swift`, and `ContentViewModifiers.swift`.
-- **`Views/DocumentTabView.swift`** — per-window entry point, service initialization.
+- **`Views/Shell/DocumentTabView.swift`** — per-window entry point, service initialization.
 
 ## Layout
 

@@ -236,7 +236,7 @@ document’s broader historical provenance.
 
 ## Citation Linkage Contract
 
-Shell/Capture/import itself does not create citations, but it must not block or sever
+Capture/import itself does not create citations, but it must not block or sever
 later citation extraction.
 
 Acceptance rule:

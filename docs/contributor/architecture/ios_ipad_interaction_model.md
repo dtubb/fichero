@@ -51,7 +51,7 @@ column is only treated as collapsible in compact mode
 (`fichero/fichero/Views/Shell/ContentView/ContentView+State.swift:345-351`). The inspector
 defaults to `.docked` outside compact width, and the runtime presenter maps both
 `.docked` and `.floating` requests back to a docked inspector presentation
-(`fichero/fichero/Views/Library/InspectorPresenter.swift:48-69`,
+(`fichero/fichero/Views/Inspector/InspectorPresenter.swift:48-69`,
 `145-163`). I also verified the current SwiftUI sources do not apply a
 `.navigationSplitViewStyle(...)` override anywhere under `fichero/fichero/`,
 so the shipped iPad layout is the default pinned-column split behavior.
@@ -80,10 +80,10 @@ Until that work lands, the shipped implementation remains the wrapped
 
 The inspector presenter already has compact-aware behavior. Its placement logic
 chooses `.sheet` on compact width and `.docked` otherwise
-(`fichero/fichero/Views/Library/InspectorPresenter.swift:48-58`), and the
+(`fichero/fichero/Views/Inspector/InspectorPresenter.swift:48-58`), and the
 runtime modifier turns compact inspector presentation into either a sheet or a
 navigation push rather than forcing a docked column
-(`fichero/fichero/Views/Library/InspectorPresenter.swift:60-69`,
+(`fichero/fichero/Views/Inspector/InspectorPresenter.swift:60-69`,
 `145-163`).
 
 `preferredCompactColumn` already points compact collapse at the detail side of

@@ -90,14 +90,14 @@ struct SidebarSelectionTests {
     func compactInspectorSheetDefaultsToLarge() throws {
         // The sheet must NOT default to [.medium, .large] (which opens at 50%);
         // it should default to a single .large detent so iPhone opens full-height.
-        let source = try appSource("Views/Library/InspectorPresenter.swift")
+        let source = try appSource("Views/Inspector/InspectorPresenter.swift")
         #expect(source.contains("detents: Set<PresentationDetent> = [.large]"))
         #expect(!source.contains("[.medium, .large]"))
     }
 
     @Test("#1736 Open in New Tab captures the originating window before opening")
     func openInNewTabCapturesHostWindowBeforeOpen() throws {
-        let source = try appSource("Views/OpenAffordances.swift")
+        let source = try appSource("Views/Shell/OpenAffordances.swift")
         let hostCapture = try #require(source.range(of: "let hostWindow = NSApp.keyWindow ?? NSApp.mainWindow"))
         // Prefix with indentation to skip the docstring comment at line 34 and match the code call.
         let openCall = try #require(source.range(of: "\n            openWindow(id: \"main\")"))
@@ -108,7 +108,7 @@ struct SidebarSelectionTests {
 
     @Test("#1736 Open in New Window disables automatic tabbing")
     func openInNewWindowDisablesAutomaticTabbing() throws {
-        let source = try appSource("Views/OpenAffordances.swift")
+        let source = try appSource("Views/Shell/OpenAffordances.swift")
 
         #expect(source.contains("NSWindow.allowsAutomaticWindowTabbing = false"))
         #expect(source.contains("newWindow.tabbingMode = .disallowed"))
