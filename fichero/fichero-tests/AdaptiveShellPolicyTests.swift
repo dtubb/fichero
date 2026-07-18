@@ -311,7 +311,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testPersistentShellChromeStaysInSplitColumns() throws {
-        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let contentSource = try Self.appSource("Views/ContentView+Toolbar.swift")
         let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
         let workspaceRootSource = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
 
@@ -343,8 +343,8 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         let principalSource = contentSource[principalRange.lowerBound...]
 
         XCTAssertTrue(principalSource.contains("Text(toolbarTitle)"))
-        XCTAssertTrue(principalSource.contains("TextField(\"Search \\(toolbarTitle)\", text: $toolbarSearchText)"))
-        XCTAssertTrue(principalSource.contains("runToolbarSearch(toolbarSearchText)"))
+        XCTAssertTrue(principalSource.contains("ToolbarSearchableModifier"))
+        XCTAssertTrue(principalSource.contains("Text(toolbarTitle)"))
     }
 
     func testBottomEdgeFiltersStayPaneScoped() throws {
