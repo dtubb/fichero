@@ -256,7 +256,11 @@ PY
 }
 
 XCODE_PROJECT="fichero/fichero.xcodeproj"
-XCODE_SCHEME="Fichero"
+# The scheme/test rework split the old single "Fichero" scheme into
+# per-platform/per-channel schemes (there is no bare "Fichero" any more), so
+# the macOS and iOS build legs must target different schemes.
+XCODE_SCHEME_MACOS="Fichero (Dev Local)"
+XCODE_SCHEME_IOS="Fichero (Dev Local iOS)"
 VISION_SUPPORTED=0
 
 if rg -q 'SUPPORTED_PLATFORMS = ".*xros' "${XCODE_PROJECT}/project.pbxproj"; then
@@ -390,7 +394,7 @@ run_platform_checks() {
   if [[ "$run_macos" -eq 1 ]]; then
     run_xcode_build "xcodebuild macOS build" \
       -project "${XCODE_PROJECT}" \
-      -scheme "${XCODE_SCHEME}" \
+      -scheme "${XCODE_SCHEME_MACOS}" \
       -destination 'platform=macOS'
 
     run_xcode_test "xcodebuild macOS test (FicheroTests test plan)" \
@@ -428,12 +432,12 @@ run_platform_checks() {
 
     run_xcode_build "xcodebuild iPhone Simulator build" \
       -project "${XCODE_PROJECT}" \
-      -scheme "${XCODE_SCHEME}" \
+      -scheme "${XCODE_SCHEME_IOS}" \
       -destination "id=${iphone_udid}"
 
     run_xcode_build "xcodebuild iPad Simulator build" \
       -project "${XCODE_PROJECT}" \
-      -scheme "${XCODE_SCHEME}" \
+      -scheme "${XCODE_SCHEME_IOS}" \
       -destination "id=${ipad_udid}"
 
     if [[ "${VISION_SUPPORTED}" -eq 1 ]]; then
@@ -442,7 +446,7 @@ run_platform_checks() {
       if [[ -n "${vision_udid}" ]]; then
         run_xcode_build "xcodebuild visionOS Simulator build" \
           -project "${XCODE_PROJECT}" \
-          -scheme "${XCODE_SCHEME}" \
+          -scheme "${XCODE_SCHEME_IOS}" \
           -destination "id=${vision_udid}"
       else
         skip_check "xcodebuild visionOS Simulator build" "no available visionOS simulator"
