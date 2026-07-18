@@ -2091,7 +2091,10 @@
 				017DF74AC5DDEA4A8C3EC87E /* Intents */,
 				29941DE439073B7364322ECF /* FicheroApp_iOS.swift */,
 				ABE3FF6189E1B62002280DA6 /* CanvasScene */,
-				77C13DE1389DDE7AD8432B99 /* fichero */,
+				260102B79F8EB99B2561241D /* FicheroAppStore.entitlements */,
+				26B77FD8CB675BFD1613A650 /* FicheroEngineAppStore.entitlements */,
+				52440A8752BDED470C516D71 /* Info.plist */,
+				76C1AE92211558E4BE2A59CC /* FicheroEngine.entitlements */,
 			);
 			path = fichero;
 			sourceTree = "<group>";
@@ -2503,17 +2506,6 @@
 				EF8C2AF12DD3E6EAB64C68B4 /* WorkspaceItemPicker.swift */,
 			);
 			path = Workspace;
-			sourceTree = "<group>";
-		};
-		77C13DE1389DDE7AD8432B99 /* fichero */ = {
-			isa = PBXGroup;
-			children = (
-				260102B79F8EB99B2561241D /* FicheroAppStore.entitlements */,
-				26B77FD8CB675BFD1613A650 /* FicheroEngineAppStore.entitlements */,
-				52440A8752BDED470C516D71 /* Info.plist */,
-				76C1AE92211558E4BE2A59CC /* FicheroEngine.entitlements */,
-			);
-			name = fichero;
 			sourceTree = "<group>";
 		};
 		8D536EAF7F2C38E1DD16992F /* Canvas */ = {
