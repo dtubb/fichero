@@ -14,7 +14,9 @@ final class InspectorSectionTests: XCTestCase {
     }
 
     func testEveryFacetExceptEditsMapsToExactlyOneSection() {
-        for tab in InspectorTab.allCases where tab != .edits {
+        // #3876 folded Info into the Source body's Content/Info/Outline picker,
+        // so the standalone `.info` facet no longer owns a section either.
+        for tab in InspectorTab.allCases where tab != .edits && tab != .info {
             let owning = InspectorSection.allCases.filter { $0.facets.contains(tab) }
             XCTAssertEqual(
                 owning.count, 1,
@@ -32,7 +34,7 @@ final class InspectorSectionTests: XCTestCase {
     }
 
     func testApprovedGrouping() {
-        XCTAssertEqual(InspectorSection.source.facets, [.content, .info])
+        XCTAssertEqual(InspectorSection.source.facets, [.content])
         XCTAssertEqual(InspectorSection.artifacts.facets, [.artifacts])
         XCTAssertEqual(InspectorSection.knowledge.facets, [.entities, .knowledgeGraph, .citations])
         XCTAssertEqual(InspectorSection.notes.facets, [.notes, .annotations, .interpretations])

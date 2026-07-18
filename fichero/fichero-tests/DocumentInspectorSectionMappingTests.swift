@@ -41,11 +41,14 @@ final class DocumentInspectorSectionMappingTests: XCTestCase {
         XCTAssertEqual(DocumentInspector.section(for: .interpretations, in: doc), .notes)
     }
 
-    func testEditsIsNoLongerAvailableAndClampsToContent() {
+    func testEditsIsAvailableForImageDocsAndFallsBackToSource() {
         let doc = imageDoc()
-        // Even for an image doc (which used to get an Edits tab), Edits is gone.
-        XCTAssertEqual(DocumentInspector.clampedSelectedTab(.edits, for: doc), .content)
-        // And a stale persisted `.edits` selection resolves into the Source tab.
+        // #3593 reversed #3434: edit controls came back into the Inspector for
+        // image/PDF/page docs (Lightroom-style), so a persisted `.edits`
+        // selection is no longer clamped away for an image doc.
+        XCTAssertEqual(DocumentInspector.clampedSelectedTab(.edits, for: doc), .edits)
+        // Edits still isn't mapped to any of the 4 top-level sections, so the
+        // section lookup falls back to Source.
         XCTAssertEqual(DocumentInspector.section(for: .edits, in: doc), .source)
     }
 

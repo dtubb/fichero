@@ -96,7 +96,7 @@ final class BreadcrumbBuilderTests: XCTestCase {
             parentLookup: lookup
         )
 
-        XCTAssertEqual(result, "Folder A › p.4")
+        XCTAssertEqual(result, "Library › Folder A › page_0004 › p.4")
     }
 
     func testBreadcrumbWithMissingParent() {
