@@ -26,9 +26,9 @@ RULE_DOC = "agents/ROADMAP.md"
 # Rekeyed to stable content signatures so unrelated line shifts do not churn the backlog.
 KNOWN_VIOLATIONS: dict[str, str] = {
     "Activity/ActivityOverviewView+Cards.swift#76a86e98cc": "#1912 baseline",
-    "KnowledgeGraph/OntologyBrowser/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",
-    "KnowledgeGraph/OntologyBrowser/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
-    "KnowledgeGraph/OntologyBrowser/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
+    "Library/ViewModes/Ontology/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",
+    "Library/ViewModes/Ontology/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
+    "Library/ViewModes/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
     "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
     "Library/LibraryView+DisplayModes.swift#19c3b271df": "#1912 baseline (rehashed: #3705 .draggable; #3875 selection-fill; #3868 extracted a value-typed selectable row wrapper; the collection itself is unchanged)",
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
