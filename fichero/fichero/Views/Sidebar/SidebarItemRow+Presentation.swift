@@ -42,7 +42,7 @@ extension SidebarItemRow {
                 }
                 .onAppear {
                     Task { @MainActor in
-                        await workflowRunProviderCache.ensureLoaded(chatService: library?.chatServiceGenerated)
+                        await workflowRunProviderCache.ensureLoaded(chatService: library?.chatService)
                     }
                 }
             }

@@ -309,7 +309,7 @@ struct ActivityLogView: View {
         isLoading = true
         error = nil
         do {
-            let activityService = ActivityServiceGenerated(apiClient: apiClient)
+            let activityService = ActivityService(apiClient: apiClient)
             workflowRun = try await activityService.getWorkflowRun(threadId: threadId)
         } catch {
             self.error = error.localizedDescription

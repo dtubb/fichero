@@ -120,7 +120,7 @@ struct ZoomableImagePreview: View {
     @AppStorage("imagePreview.magnifierLocked") private var magnifierLocked = false
     @AppStorage("imagePreview.loupeLocked") private var loupeLocked = false
 
-    @Environment(StorageServiceGenerated.self) private var storageService
+    @Environment(StorageService.self) private var storageService
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
 
     // Bounding-box annotation state (#2458). `isDrawingRegion` arms the overlay
@@ -526,7 +526,7 @@ struct ZoomableImagePreview: View {
     }
 
     @Environment(DocumentStore.self) private var documentStore
-    @Environment(StorageServiceGenerated.self) private var storageService
+    @Environment(StorageService.self) private var storageService
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var scale: CGFloat = 1.0
@@ -889,7 +889,7 @@ struct FullScreenImagePreview: View {
 
 #Preview("Compact Zoomable Image Preview") {
     ZoomableImagePreview(renderedImage: UIImage(systemName: "photo"))
-        .environment(StorageServiceGenerated(ficheroClient: FicheroClient(libraryPath: nil)))
+        .environment(StorageService(ficheroClient: FicheroClient(libraryPath: nil)))
         .frame(width: 280, height: 360)
 }
 #endif

@@ -32,7 +32,7 @@ struct ImageEditorView: View {
     var selectedDocumentIDs: Set<String> = []
 
     @Environment(APIClient.self) private var apiClient
-    @Environment(StorageServiceGenerated.self) private var storageService
+    @Environment(StorageService.self) private var storageService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @State private var model = ImageEditorModel()
 

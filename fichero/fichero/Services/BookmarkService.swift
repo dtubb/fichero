@@ -17,7 +17,7 @@ struct BookmarkItem: Identifiable, Hashable {
 /// gracefully: failures set `error` and leave `bookmarks` untouched.
 @MainActor
 @Observable
-final class BookmarkServiceGenerated {
+final class BookmarkService {
     private let client: FicheroClient
     private(set) var bookmarks: [BookmarkItem] = []
     var error: String?

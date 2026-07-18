@@ -1,5 +1,5 @@
 // swiftlint:disable file_length
-// This file hosts both ArtifactServiceGenerated AND EntityServiceGenerated
+// This file hosts both ArtifactService AND EntityService
 // because Services is a non-synchronized PBXGroup (per MEMORY note
 // [[feedback_swift_file_sync]]). Splitting would require pbxproj
 // surgery; suppressing here is the lower-risk path until we decide
@@ -10,13 +10,13 @@ import Observation
 import OpenAPIRuntime
 import OSLog
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "ArtifactServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ArtifactService")
 
 /// ArtifactService using the generated OpenAPI client.
 /// Manages document artifacts (transcripts, descriptions, etc.)
 @MainActor
 @Observable
-class ArtifactServiceGenerated {
+class ArtifactService {
     private let client: FicheroClient
 
     /// Cached artifacts by document ID
@@ -306,18 +306,18 @@ private struct CitationUsageListPayload: Decodable {
     let items: [EntityCitationUsage]
 }
 
-// EntityServiceGenerated lives in this file (instead of its own) because the
+// EntityService lives in this file (instead of its own) because the
 // Xcode project's main target uses traditional file references; new .swift
 // files would need pbxproj edits. See MEMORY: feedback_swift_file_sync.md.
 
 private let entityServiceLogger = Logger(
     subsystem: "app.fichero.fichero",
-    category: "EntityServiceGenerated"
+    category: "EntityService"
 )
 
 private let kgCurationServiceLogger = Logger(
     subsystem: "app.fichero.fichero",
-    category: "KGCurationServiceGenerated"
+    category: "KGCurationService"
 )
 
 /// Service wrapper for the dedicated `/api/entities` and `/api/claims`
@@ -325,14 +325,14 @@ private let kgCurationServiceLogger = Logger(
 /// `KnowledgeClaim` rows (#728); this service is the read path the
 /// Inspector consumes.
 ///
-/// Note: there is also a `KnowledgeGraphServiceGenerated` that wraps the
+/// Note: there is also a `KnowledgeGraphService` that wraps the
 /// `/api/knowledge-graph/*` routes — those return the `EntityCoreference`
 /// shape used by the merge/split UI. This service is for the simpler
 /// per-document entity/claim views in the Inspector.
 @MainActor
 @Observable
 // swiftlint:disable:next type_body_length
-final class EntityServiceGenerated {
+final class EntityService {
     private let client: FicheroClient
     private let session: URLSession
 
@@ -2292,7 +2292,7 @@ final class EntityServiceGenerated {
 // swiftlint:disable type_body_length
 @MainActor
 @Observable
-final class KGCurationServiceGenerated {
+final class KGCurationService {
     private let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {

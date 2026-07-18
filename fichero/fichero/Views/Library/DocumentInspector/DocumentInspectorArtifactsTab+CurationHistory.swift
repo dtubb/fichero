@@ -9,7 +9,7 @@ import SwiftUI
 /// Only rendered when there are audit records — keeps the panel tight
 /// for the common case where no curation has happened.
 struct KGCurationHistorySection: View {
-    let entityService: EntityServiceGenerated
+    let entityService: EntityService
 
     @State private var audits: [Components.Schemas.EntityAuditResponse] = []
     @State private var isLoading = false

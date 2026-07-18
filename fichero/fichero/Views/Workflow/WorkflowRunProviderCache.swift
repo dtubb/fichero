@@ -11,7 +11,7 @@ final class WorkflowRunProviderCache {
 
     private init() {}
 
-    func ensureLoaded(chatService: ChatServiceGenerated?) async {
+    func ensureLoaded(chatService: ChatService?) async {
         guard !loaded else { return }
         guard let chatService else { return }
         do {

@@ -43,7 +43,7 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     @AppStorage("inspector.attributeStrip.metadata") private var shownMetadataRaw: String = ""
 
     /// Knowledge-graph reads come from the same service the KG tab uses.
-    @Environment(EntityServiceGenerated.self) private var entityService
+    @Environment(EntityService.self) private var entityService
 
     /// The shared KG stores the Entities/Claims tabs render from. The strip
     /// doesn't derive its counts from them directly — its counts honour the

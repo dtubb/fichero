@@ -31,7 +31,7 @@ func parseEngineDate(_ dateString: String) -> Date? {
 }
 
 /// Container for the generated `FicheroClient` and the app-wide DI object every
-/// service is constructed with (`@EnvironmentObject`, `*ServiceGenerated(apiClient:)`).
+/// service is constructed with (`@EnvironmentObject`, `*Service(apiClient:)`).
 ///
 /// As of #3030 the hand-rolled `get/post/put/patch/delete` transport shims are
 /// gone — every service now calls generated typed operations via `.api`. What

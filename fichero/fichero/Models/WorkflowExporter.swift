@@ -23,7 +23,7 @@ enum WorkflowExporter {
 
     /// Export a workflow to a JSON file via save panel (calls backend API)
     @MainActor
-    static func exportToFile(_ workflowId: String, name: String, using service: WorkflowServiceGenerated) async {
+    static func exportToFile(_ workflowId: String, name: String, using service: WorkflowService) async {
         do {
             // Get export data from backend
             let exportData = try await service.exportWorkflow(workflowId)
@@ -48,7 +48,7 @@ enum WorkflowExporter {
     /// Import a workflow from a JSON file via open panel (calls backend API)
     /// Returns the imported workflow ID on success, nil on cancel/failure
     @MainActor
-    static func importFromFile(using service: WorkflowServiceGenerated) async throws -> String? {
+    static func importFromFile(using service: WorkflowService) async throws -> String? {
         // Show open panel
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
@@ -98,12 +98,12 @@ enum WorkflowExporter {
 // iOS stub: workflow import/export uses document picker on iOS; these methods no-op.
 enum WorkflowExporter {
     @MainActor
-    static func exportToFile(_ workflowId: String, name: String, using service: WorkflowServiceGenerated) async {
+    static func exportToFile(_ workflowId: String, name: String, using service: WorkflowService) async {
         // No-op on iOS.
     }
 
     @MainActor
-    static func importFromFile(using service: WorkflowServiceGenerated) async throws -> String? {
+    static func importFromFile(using service: WorkflowService) async throws -> String? {
         // iOS: import would be handled via UIDocumentPickerViewController.
         return nil
     }

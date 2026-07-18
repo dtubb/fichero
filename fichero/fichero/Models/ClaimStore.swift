@@ -6,7 +6,7 @@ import OSLog
 /// Observable domain store for knowledge claims (#1862, mirrors `EntityStore`).
 ///
 /// The single endpoint accessor for the claim list a view renders. A view never
-/// calls `EntityServiceGenerated` / `KGCurationServiceGenerated` claim methods
+/// calls `EntityService` / `KGCurationService` claim methods
 /// directly: it observes `claims` and dispatches the named actions below. Each
 /// action performs the typed write and then refreshes the current scope — today
 /// via an explicit reload, and via `apply(_:)` once the per-library change-stream
@@ -49,14 +49,14 @@ final class ClaimStore: ObservableDomainStore {
     private(set) var changeToken: Int = 0
 
     // ─── Transport: the EXISTING generated wrappers, unchanged ───
-    private let entityService: EntityServiceGenerated
-    private let kgCurationService: KGCurationServiceGenerated
+    private let entityService: EntityService
+    private let kgCurationService: KGCurationService
     private let libraryPath: String
     private let log = Logger(subsystem: "app.fichero.fichero", category: "ClaimStore")
 
     init(
-        entityService: EntityServiceGenerated,
-        kgCurationService: KGCurationServiceGenerated,
+        entityService: EntityService,
+        kgCurationService: KGCurationService,
         libraryPath: String
     ) {
         self.entityService = entityService

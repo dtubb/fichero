@@ -2,7 +2,7 @@ import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
 
-extension ImportServiceGenerated {
+extension ImportService {
     /// Build the multipart body for the generated `POST /api/documents/import` upload.
     /// ponytail: exposed static helper so tests can verify filename/content
     ///          without a real network call or security-scoped URL.

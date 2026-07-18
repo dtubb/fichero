@@ -3,11 +3,11 @@ import Foundation
 import OpenAPIRuntime
 import OSLog
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActivityServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActivityService")
 
 /// Service for interacting with the Activity API using generated OpenAPI client
 @MainActor
-class ActivityServiceGenerated {
+class ActivityService {
     let client: FicheroClient
 
     /// Initialize with FicheroClient (preferred - non-throwing)
@@ -206,7 +206,7 @@ class ActivityServiceGenerated {
 
 // MARK: - Type Conversions
 
-extension ActivityServiceGenerated {
+extension ActivityService {
     /// Convert generated ActivityResponse to app ActivityItem
     func convertToActivityItem(_ response: Components.Schemas.ActivityResponse) -> ActivityItem {
         // Convert metadata from OpenAPIObjectContainer to [String: AnyValueAsString]

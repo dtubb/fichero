@@ -15,8 +15,8 @@ struct LibraryOutlineModelTests {
     @MainActor private func makeModel() -> LibraryOutlineModel {
         let client = FicheroClient(libraryPath: "/tmp/test-outline.fichero")
         return LibraryOutlineModel(
-            service: EntityServiceGenerated(ficheroClient: client),
-            artifactService: ArtifactServiceGenerated(ficheroClient: client)
+            service: EntityService(ficheroClient: client),
+            artifactService: ArtifactService(ficheroClient: client)
         )
     }
 

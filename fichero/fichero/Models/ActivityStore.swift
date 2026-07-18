@@ -5,7 +5,7 @@ import OSLog
 /// Per-library activity store (#2448).
 ///
 /// Single point for activity/run data in the library.  Views never call
-/// `ActivityServiceGenerated` directly: they observe `refreshToken` and call
+/// `ActivityService` directly: they observe `refreshToken` and call
 /// `loadRuns()` / `loadItems()` through the store.
 ///
 /// **Live-refresh strategy:**
@@ -15,7 +15,7 @@ import OSLog
 @Observable
 final class ActivityStore: ChangeEventConsumer {
     // ─── Service ──────────────────────────────────────────────────────────────
-    let activityService: ActivityServiceGenerated
+    let activityService: ActivityService
 
     // ─── Refresh signal (views observe this) ──────────────────────────────────
     /// Bumped whenever an activity SSE event arrives or a reconnect resync fires.
@@ -56,7 +56,7 @@ final class ActivityStore: ChangeEventConsumer {
     private(set) var runLoadFailures: [String] = []
     private(set) var isRebuildingRuns = false
 
-    init(service: ActivityServiceGenerated) {
+    init(service: ActivityService) {
         self.activityService = service
         self.streamService = ActivityStreamService(activityService: service)
     }

@@ -58,17 +58,17 @@ struct ContentView: View {
     @Environment(AppState.self) var appState
     @Environment(APIClient.self) var apiClient
     @Environment(DocumentStore.self) var documentStore: DocumentStore
-    @Environment(ConversationServiceGenerated.self) var conversationService
-    @Environment(ImportServiceGenerated.self) var importService
+    @Environment(ConversationService.self) var conversationService
+    @Environment(ImportService.self) var importService
     @Environment(WindowState.self) var windowState
     @Environment(WorkflowStore.self) var workflowStore
-    @Environment(SavedSearchServiceGenerated.self) var savedSearchService
+    @Environment(SavedSearchService.self) var savedSearchService
     @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
-    @Environment(ArtifactServiceGenerated.self) var artifactService
-    @Environment(EntityServiceGenerated.self) var entityService
-    @Environment(KGCurationServiceGenerated.self) var kgCurationService
+    @Environment(ArtifactService.self) var artifactService
+    @Environment(EntityService.self) var entityService
+    @Environment(KGCurationService.self) var kgCurationService
     @Environment(ArtifactStore.self) var artifactStore
     @Environment(EntityStore.self) var entityStore
     @Environment(ClaimStore.self) var claimStore

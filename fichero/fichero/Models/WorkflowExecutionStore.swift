@@ -49,10 +49,10 @@ final class WorkflowExecutionStore {
     // the library uses. `ficheroClient` mints the per-thread stream services;
     // `activityService` seeds finished/mid-flight runs via `getWorkflowRun`.
     private let ficheroClient: FicheroClient
-    private let activityService: ActivityServiceGenerated
+    private let activityService: ActivityService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "WorkflowExecutionStore")
 
-    init(ficheroClient: FicheroClient, activityService: ActivityServiceGenerated) {
+    init(ficheroClient: FicheroClient, activityService: ActivityService) {
         self.ficheroClient = ficheroClient
         self.activityService = activityService
     }

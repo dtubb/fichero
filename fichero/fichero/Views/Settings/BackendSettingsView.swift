@@ -8,7 +8,7 @@ struct BackendSettingsView: View {
     @Environment(EmbeddedBackendService.self) var backendService
     // storageService is per-LIBRARY, not in the Settings scene environment — reach it
     // optionally via libraryManager (which IS injected here). A required @EnvironmentObject
-    // would trap "No ObservableObject of type StorageServiceGenerated" and crash this tab.
+    // would trap "No ObservableObject of type StorageService" and crash this tab.
     @Environment(LibraryManager.self) var libraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 

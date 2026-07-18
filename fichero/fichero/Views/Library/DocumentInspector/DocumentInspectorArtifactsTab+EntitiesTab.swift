@@ -26,7 +26,7 @@ struct DocumentInspectorEntitiesTab: View {
     /// observes the store and routes mutations through its named actions; the
     /// store (and, once it emits, the change-stream) republishes the list.
     @Environment(EntityStore.self) private var entityStore
-    @Environment(EntityServiceGenerated.self) private var entityService
+    @Environment(EntityService.self) private var entityService
     /// Per-window entity-search bus (#3437).
     @Environment(EntitySearchState.self) private var entitySearchState: EntitySearchState?
     /// Cross-view KG focus — drives "Show in Graph" (#3452).

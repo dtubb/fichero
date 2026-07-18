@@ -1,5 +1,5 @@
 //
-//  ActivityServiceGeneratedTests.swift
+//  ActivityServiceTests.swift
 //  FicheroTests
 //
 //  Response-mapping coverage for the generated OpenAPI Activity client (#2413 #2392).
@@ -11,11 +11,11 @@ import Foundation
 import OpenAPIRuntime
 import Testing
 
-@Suite("ActivityServiceGenerated response mapping")
+@Suite("ActivityService response mapping")
 @MainActor
-struct ActivityServiceGeneratedTests {
+struct ActivityServiceTests {
 
-    private let service = ActivityServiceGenerated(ficheroClient: FicheroClient(libraryPath: nil))
+    private let service = ActivityService(ficheroClient: FicheroClient(libraryPath: nil))
 
     @Test("convertToActivityItem preserves declared fields and coerces metadata to strings")
     func activityItemMapping() throws {

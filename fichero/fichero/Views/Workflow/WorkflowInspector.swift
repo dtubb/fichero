@@ -20,7 +20,7 @@ struct WorkflowInspector: View {
     @State var isLoadingMCPTools: Bool = false
     @State var mcpToolsGrouped: [String: [MCPToolInfo]] = [:]
 
-    @Environment(WorkflowServiceGenerated.self) var workflowServiceGenerated
+    @Environment(WorkflowService.self) var workflowService
     @Environment(MCPService.self) var mcpService
     @Environment(AppState.self) var appState
     @ObservedObject var featureManager = FeatureManager.shared

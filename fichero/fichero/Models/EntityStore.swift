@@ -36,7 +36,7 @@ struct AuthorityCandidate: Identifiable, Hashable {
 /// Observable domain store for knowledge entities (#1885, keystone template).
 ///
 /// The single endpoint accessor for the entity list a view renders. A view
-/// never calls `EntityServiceGenerated` / `KGCurationServiceGenerated`
+/// never calls `EntityService` / `KGCurationService`
 /// directly: it observes `entities` and dispatches the named actions below.
 /// Each action performs the typed write and then refreshes the current scope —
 /// today via an explicit reload (no backend push yet), and via `apply(_:)`
@@ -63,8 +63,8 @@ final class EntityStore: ObservableDomainStore {
     private(set) var loadErrorsByDocumentId: [String: String] = [:]
 
     // ─── Transport: the EXISTING generated wrappers, unchanged ───
-    private let entityService: EntityServiceGenerated
-    private let kgCurationService: KGCurationServiceGenerated
+    private let entityService: EntityService
+    private let kgCurationService: KGCurationService
     private let libraryPath: String
     private let log = Logger(subsystem: "app.fichero.fichero", category: "EntityStore")
 
@@ -76,8 +76,8 @@ final class EntityStore: ObservableDomainStore {
     private var lastLibraryQuery: String?
 
     init(
-        entityService: EntityServiceGenerated,
-        kgCurationService: KGCurationServiceGenerated,
+        entityService: EntityService,
+        kgCurationService: KGCurationService,
         libraryPath: String
     ) {
         self.entityService = entityService

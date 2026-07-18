@@ -10,7 +10,7 @@
 //  filesystem path into a SINGLE URL segment (so the `{library_path}` route
 //  matches and the backend decodes it back to the raw path). The single-segment
 //  encoding is what the old client did by hand — regressing it 404s the delete.
-//  Reuses `MockURLProtocol` from StorageServiceGeneratedTests (same target).
+//  Reuses `MockURLProtocol` from StorageServiceTests (same target).
 //
 
 @testable import Fichero

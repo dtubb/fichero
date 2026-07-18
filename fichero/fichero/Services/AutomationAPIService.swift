@@ -4,7 +4,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "AutomationServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "AutomationAPIService")
 
 /// Service for automation operations (schedules and triggers).
 /// NOTE: The corresponding backend routes (schedules.py, triggers.py) exist but are not
@@ -12,7 +12,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Automat
 /// empty results until the routes are properly registered.
 @MainActor
 @Observable
-class AutomationServiceGenerated {
+class AutomationAPIService {
     private let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {
@@ -26,19 +26,19 @@ class AutomationServiceGenerated {
     }
 
     func pauseSchedule(scheduleId: String) async throws -> ScheduleInfo {
-        throw AutomationServiceGeneratedError.notImplemented
+        throw AutomationAPIServiceError.notImplemented
     }
 
     func resumeSchedule(scheduleId: String) async throws -> ScheduleInfo {
-        throw AutomationServiceGeneratedError.notImplemented
+        throw AutomationAPIServiceError.notImplemented
     }
 
     func triggerSchedule(scheduleId: String) async throws -> ScheduleRunInfo {
-        throw AutomationServiceGeneratedError.notImplemented
+        throw AutomationAPIServiceError.notImplemented
     }
 
     func deleteSchedule(scheduleId: String) async throws {
-        throw AutomationServiceGeneratedError.notImplemented
+        throw AutomationAPIServiceError.notImplemented
     }
 
     // MARK: - Trigger Operations
@@ -48,27 +48,27 @@ class AutomationServiceGenerated {
     }
 
     func pauseTrigger(triggerId: String) async throws -> TriggerInfo {
-        throw AutomationServiceGeneratedError.notImplemented
+        throw AutomationAPIServiceError.notImplemented
     }
 
     func resumeTrigger(triggerId: String) async throws -> TriggerInfo {
-        throw AutomationServiceGeneratedError.notImplemented
+        throw AutomationAPIServiceError.notImplemented
     }
 
     func deleteTrigger(triggerId: String) async throws {
-        throw AutomationServiceGeneratedError.notImplemented
+        throw AutomationAPIServiceError.notImplemented
     }
 
     func updateSchedule(scheduleId: String, newName: String) async throws {
-        throw AutomationServiceGeneratedError.notImplemented
+        throw AutomationAPIServiceError.notImplemented
     }
 
     func updateTrigger(triggerId: String, newName: String) async throws {
-        throw AutomationServiceGeneratedError.notImplemented
+        throw AutomationAPIServiceError.notImplemented
     }
 }
 
-enum AutomationServiceGeneratedError: LocalizedError {
+enum AutomationAPIServiceError: LocalizedError {
     case notImplemented
 
     var errorDescription: String? {

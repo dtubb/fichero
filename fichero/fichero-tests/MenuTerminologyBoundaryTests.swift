@@ -6,7 +6,7 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertTrue(fileMenuSource.contains("Button(\"Close Library\")"))
         XCTAssertTrue(fileMenuSource.contains("Button(\"Save Library As...\")"))
         XCTAssertTrue(fileMenuSource.contains("Label(\"Markdown Static Site...\", systemImage: \"globe\")"))
-        XCTAssertTrue(fileMenuSource.contains("library.documentServiceGenerated.exportEleventySite("))
+        XCTAssertTrue(fileMenuSource.contains("library.documentService.exportEleventySite("))
         XCTAssertTrue(fileMenuSource.contains("Text(\"Couldn’t load recent libraries\")"))
         XCTAssertTrue(fileMenuSource.contains(".disabled(registry.libraries.isEmpty && registry.fetchError == nil)"))
         XCTAssertFalse(fileMenuSource.contains("Close Database"))

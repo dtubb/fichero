@@ -4,14 +4,14 @@ import Foundation
 import OpenAPIRuntime
 import Testing
 
-@Suite("ImportServiceGenerated generated-client request")
+@Suite("ImportService generated-client request")
 @MainActor
-struct ImportServiceGeneratedTests {
+struct ImportServiceTests {
 
     @Test("upload input carries filename, content, and parent folder")
     func uploadInputCarriesFilenameContentAndParent() async throws {
         let data = Data("hello fichero".utf8)
-        let input = ImportServiceGenerated.makeImportUploadInput(
+        let input = ImportService.makeImportUploadInput(
             data: data,
             filename: "report.pdf",
             parentId: "folder-1"

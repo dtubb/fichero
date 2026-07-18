@@ -19,7 +19,7 @@ struct KnowledgeGraphViewModeFocus: Equatable {
 // swiftlint:disable type_body_length
 /// Browser panel for exploring entities and their associated claims.
 /// Wires #498 — per-library Knowledge Graph view, peer to Workflows
-/// and Activity. Uses `EntityServiceGenerated` (\`/api/entities\` +
+/// and Activity. Uses `EntityService` (\`/api/entities\` +
 /// \`/api/claims\`).
 ///
 /// The view is split across focused files (#1703):

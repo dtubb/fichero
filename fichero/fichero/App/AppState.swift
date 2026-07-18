@@ -135,9 +135,9 @@ class AppState {
 
     private let apiClient = APIClient()  // App-wide APIClient for legacy services
     private let ficheroClient = FicheroClient(baseURL: EngineConfig.host)  // App-wide generated client
-    let providerService: ProviderServiceGenerated  // Public for @EnvironmentObject injection
+    let providerService: ProviderAPIService  // Public for @EnvironmentObject injection
     let mcpService: MCPService  // Public for @EnvironmentObject injection
-    let modelService: ModelServiceGenerated  // Public for @EnvironmentObject injection (HuggingFace browsing)
+    let modelService: ModelService  // Public for @EnvironmentObject injection (HuggingFace browsing)
     let usersStore: UsersStore  // Public for Settings → Users tab
     let sessionStore: SessionStore  // Public for the login gate (#2021/#2022)
     let identityStore: IdentityStore  // Public for the access UX (F5): who am I / owner?
@@ -155,9 +155,9 @@ class AppState {
         LaunchProfile.beginLaunch()
         LaunchProfile.milestone("AppState.init entry")
         // Initialize services with app-wide clients
-        self.providerService = ProviderServiceGenerated(ficheroClient: ficheroClient)
+        self.providerService = ProviderAPIService(ficheroClient: ficheroClient)
         self.mcpService = MCPService(apiClient: apiClient)
-        self.modelService = ModelServiceGenerated(ficheroClient: ficheroClient)
+        self.modelService = ModelService(ficheroClient: ficheroClient)
         self.usersStore = UsersStore(client: ficheroClient)
         self.sessionStore = SessionStore(client: ficheroClient)
         self.identityStore = IdentityStore(client: ficheroClient)

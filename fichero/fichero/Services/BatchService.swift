@@ -4,13 +4,13 @@ import Foundation
 import OpenAPIRuntime
 import OSLog
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "BatchServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "BatchService")
 
 /// Service for batch operations using generated OpenAPI client
 /// Note: Batch endpoints are global (not library-scoped)
 @MainActor
 @Observable
-class BatchServiceGenerated {
+class BatchService {
     private let client: FicheroClient
 
     /// Initialize with FicheroClient (preferred)
@@ -31,9 +31,9 @@ class BatchServiceGenerated {
             return try okResponse.body.json.items
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw BatchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -69,9 +69,9 @@ class BatchServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw BatchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -87,9 +87,9 @@ class BatchServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw BatchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -104,9 +104,9 @@ class BatchServiceGenerated {
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw BatchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -121,9 +121,9 @@ class BatchServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw BatchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -139,9 +139,9 @@ class BatchServiceGenerated {
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw BatchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -156,9 +156,9 @@ class BatchServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw BatchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -174,9 +174,9 @@ class BatchServiceGenerated {
             return  // SSE streaming started
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw BatchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -191,9 +191,9 @@ class BatchServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw BatchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -209,16 +209,16 @@ class BatchServiceGenerated {
             return  // SSE streaming started
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw BatchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw BatchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw BatchServiceError.unexpectedResponse(statusCode)
         }
     }
 }
 
 // MARK: - App Type Convenience Methods
 
-extension BatchServiceGenerated {
+extension BatchService {
     /// List batches returning app BatchInfo type (for backward compatibility)
     func listBatchesAsInfo(status: String? = nil, limit: Int = 100) async throws -> [BatchInfo] {
         let batches = try await listBatches(status: status, limit: limit)
@@ -289,7 +289,7 @@ extension BatchServiceGenerated {
 
 // MARK: - Error Types
 
-enum BatchServiceGeneratedError: LocalizedError {
+enum BatchServiceError: LocalizedError {
     case validationError(String)
     case unexpectedResponse(Int)
 

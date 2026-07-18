@@ -17,7 +17,7 @@ import OSLog
 /// `reference.*` event refreshes the current scope (debounced). A delete with
 /// known `reference_ids` is removed in place first.
 ///
-/// Wraps the EXISTING `EntityServiceGenerated.listDocumentCitations` transport
+/// Wraps the EXISTING `EntityService.listDocumentCitations` transport
 /// unchanged (iterate-never-replace).
 @MainActor
 @Observable
@@ -32,12 +32,12 @@ final class ReferenceStore: ObservableDomainStore {
     private(set) var currentDocumentId: String?
 
     // ─── Transport: the EXISTING generated wrapper, unchanged ───
-    private let entityService: EntityServiceGenerated
+    private let entityService: EntityService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "ReferenceStore")
 
     let reloadDebouncer = ReloadDebouncer()
 
-    init(entityService: EntityServiceGenerated) {
+    init(entityService: EntityService) {
         self.entityService = entityService
     }
 

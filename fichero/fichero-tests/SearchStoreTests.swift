@@ -8,7 +8,7 @@ import Testing
 struct SearchStoreTests {
 
     private func makeStore() -> SearchStore {
-        SearchStore(searchService: SearchServiceGenerated(ficheroClient: FicheroClient(libraryPath: nil)))
+        SearchStore(searchService: SearchService(ficheroClient: FicheroClient(libraryPath: nil)))
     }
 
     @Test("blank searches clear state without reaching the search service")

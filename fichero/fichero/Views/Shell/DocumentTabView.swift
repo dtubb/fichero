@@ -32,14 +32,14 @@ struct DocumentTabView: View {
 
     // All services come from the environment (shared per-library, not per-tab)
     @Environment(DocumentStore.self) var documentStore: DocumentStore
-    @Environment(SavedSearchServiceGenerated.self) var savedSearchService
-    @Environment(SearchServiceGenerated.self) var searchService
-    @Environment(ConversationServiceGenerated.self) var conversationService
-    @Environment(ChatServiceGenerated.self) var chatService
+    @Environment(SavedSearchService.self) var savedSearchService
+    @Environment(SearchService.self) var searchService
+    @Environment(ConversationService.self) var conversationService
+    @Environment(ChatService.self) var chatService
     @Environment(WorkflowStore.self) var workflowStore
-    @Environment(ImportServiceGenerated.self) var importService
-    @Environment(DocumentServiceGenerated.self) var documentService
-    @Environment(StorageServiceGenerated.self) var storageService
+    @Environment(ImportService.self) var importService
+    @Environment(DocumentService.self) var documentService
+    @Environment(StorageService.self) var storageService
     @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(ResearchService.self) var researchService
     @Environment(WindowState.self) var windowState
@@ -47,9 +47,9 @@ struct DocumentTabView: View {
     // @Observable objects injected by LibraryWindow — must be forwarded explicitly
     // when ContentView() is constructed below (SwiftUI does not re-propagate
     // @Environment(T.self) values across an explicit .environment() chain).
-    @Environment(ArtifactServiceGenerated.self) var artifactService
-    @Environment(EntityServiceGenerated.self) var entityService
-    @Environment(KGCurationServiceGenerated.self) var kgCurationService
+    @Environment(ArtifactService.self) var artifactService
+    @Environment(EntityService.self) var entityService
+    @Environment(KGCurationService.self) var kgCurationService
     @Environment(ArtifactStore.self) var artifactStore
     @Environment(EntityStore.self) var entityStore
     @Environment(ClaimStore.self) var claimStore
@@ -151,9 +151,9 @@ struct DocumentTabView: View {
                     // Forward the @Observable artifact service so the library
                     // subtree built after `selectCollection` (LibraryView →
                     // inspector / artifact cells) can read it via
-                    // @Environment(ArtifactServiceGenerated.self). Without this,
+                    // @Environment(ArtifactService.self). Without this,
                     // opening a library or selecting a collection traps with
-                    // "No Observable object of type ArtifactServiceGenerated
+                    // "No Observable object of type ArtifactService
                     // found." (#3350)
                     .environment(artifactService)
                     // The inspector reads the entity / KG services + stores

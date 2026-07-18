@@ -96,12 +96,12 @@ struct SidebarItemRow: View {
     }
 
     var documentStore: DocumentStore? { library?.documentStore }
-    var savedSearchService: SavedSearchServiceGenerated? { library?.savedSearchServiceGenerated }
-    var conversationService: ConversationServiceGenerated? { library?.conversationServiceGenerated }
+    var savedSearchService: SavedSearchService? { library?.savedSearchService }
+    var conversationService: ConversationService? { library?.conversationService }
     var workflowStore: WorkflowStore? { library?.workflowStore }
     var chainService: ChainService? { library?.chainService }
-    var automationService: AutomationServiceGenerated? { library?.automationService }
-    var importService: ImportServiceGenerated? { library?.importService }
+    var automationService: AutomationAPIService? { library?.automationService }
+    var importService: ImportService? { library?.importService }
 
     @State var isDropTargeted = false
     @State var workflowRunProviderCache = WorkflowRunProviderCache.shared

@@ -4,17 +4,17 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "ProviderServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ProviderAPIService")
 
 /// Service for managing AI providers using generated OpenAPI client
 /// Note: Most provider endpoints are global (not library-scoped).
 /// Only provider refs endpoints are library-scoped.
-// TODO: Refactor ProviderServiceGenerated - extract catalog vs refs into separate services
+// TODO: Refactor ProviderAPIService - extract catalog vs refs into separate services
 // Type body is 369 lines, target <350
 @MainActor
 @Observable
 // swiftlint:disable:next type_body_length
-class ProviderServiceGenerated {
+class ProviderAPIService {
     private let client: FicheroClient
 
     /// Initialize with FicheroClient (preferred)
@@ -37,7 +37,7 @@ class ProviderServiceGenerated {
         case .ok(let okResponse):
             return try okResponse.body.json.items
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -52,9 +52,9 @@ class ProviderServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -68,7 +68,7 @@ class ProviderServiceGenerated {
         case .ok(let okResponse):
             return try okResponse.body.json.items
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -95,9 +95,9 @@ class ProviderServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -112,9 +112,9 @@ class ProviderServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -143,9 +143,9 @@ class ProviderServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -160,9 +160,9 @@ class ProviderServiceGenerated {
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -182,9 +182,9 @@ class ProviderServiceGenerated {
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -199,9 +199,9 @@ class ProviderServiceGenerated {
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -222,9 +222,9 @@ class ProviderServiceGenerated {
             )
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -241,9 +241,9 @@ class ProviderServiceGenerated {
             return try okResponse.body.json.items
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -294,9 +294,9 @@ class ProviderServiceGenerated {
             return try okResponse.body.json.items
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -324,9 +324,9 @@ class ProviderServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -341,9 +341,9 @@ class ProviderServiceGenerated {
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -360,9 +360,9 @@ class ProviderServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -376,7 +376,7 @@ class ProviderServiceGenerated {
         case .ok(let okResponse):
             return try okResponse.body.json.items
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -393,9 +393,9 @@ class ProviderServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -420,9 +420,9 @@ class ProviderServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -437,9 +437,9 @@ class ProviderServiceGenerated {
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
+            throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -474,7 +474,7 @@ class ProviderServiceGenerated {
 
 // MARK: - Error Types
 
-enum ProviderServiceGeneratedError: LocalizedError {
+enum ProviderAPIServiceError: LocalizedError {
     case validationError(String)
     case unexpectedResponse(Int)
 

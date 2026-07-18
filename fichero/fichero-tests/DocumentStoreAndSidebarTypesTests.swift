@@ -20,7 +20,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     // Note: DocumentCreateRequest / DocumentUpdateRequest were removed in #3030
-    // (create/update now go through DocumentServiceGenerated →
+    // (create/update now go through DocumentService →
     // Components.Schemas.DocumentCreate/DocumentUpdate). Their snake_case
     // encoding is now the generated client's contract, exercised via the
     // generated-op request tests in DocumentListMigrationTests.
@@ -406,9 +406,9 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let contentViewSource = try Self.appSource("Views/ContentView.swift")
         let builderSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
         let requiredSnippets = [
-            "@Environment(ArtifactServiceGenerated.self) var artifactService",
-            "@Environment(EntityServiceGenerated.self) var entityService",
-            "@Environment(KGCurationServiceGenerated.self) var kgCurationService",
+            "@Environment(ArtifactService.self) var artifactService",
+            "@Environment(EntityService.self) var entityService",
+            "@Environment(KGCurationService.self) var kgCurationService",
             "@Environment(ArtifactStore.self) var artifactStore",
             "@Environment(EntityStore.self) var entityStore",
             "@Environment(ClaimStore.self) var claimStore",
@@ -435,8 +435,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             XCTAssertTrue(tabSource.contains(snippet), "Missing snippet: \(snippet)")
         }
         XCTAssertTrue(contentViewSource.contains("@EnvironmentObject var featureManager: FeatureManager"))
-        XCTAssertTrue(contentViewSource.contains("@Environment(ArtifactServiceGenerated.self) var artifactService"))
-        XCTAssertTrue(contentViewSource.contains("@Environment(EntityServiceGenerated.self) var entityService"))
+        XCTAssertTrue(contentViewSource.contains("@Environment(ArtifactService.self) var artifactService"))
+        XCTAssertTrue(contentViewSource.contains("@Environment(EntityService.self) var entityService"))
         XCTAssertTrue(builderSource.contains(".environment(artifactService)"))
         XCTAssertTrue(builderSource.contains(".environment(entityService)"))
     }
@@ -463,7 +463,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     func testBackendSettingsAppliesValidEngineHostAndShowsInvalidURL() throws {
         let settingsSource = try Self.appSource("Views/Settings/BackendSettingsView.swift")
         let libraryManagerSource = try Self.appSource("Models/LibraryManager.swift")
-        let storageSource = try Self.appSource("Services/StorageServiceGenerated.swift")
+        let storageSource = try Self.appSource("Services/StorageService.swift")
 
         XCTAssertTrue(settingsSource.contains("Text(\"Invalid URL\")"))
         XCTAssertTrue(settingsSource.contains(".disabled(hostIsInvalid)"))

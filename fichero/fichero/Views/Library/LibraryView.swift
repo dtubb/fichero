@@ -76,8 +76,8 @@ struct LibraryView: View {
     @Environment(\.openWindow) var openWindow
     @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(DocumentStore.self) var documentStore: DocumentStore
-    @Environment(EntityServiceGenerated.self) var entityService
-    @Environment(ArtifactServiceGenerated.self) var artifactService
+    @Environment(EntityService.self) var entityService
+    @Environment(ArtifactService.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
     @ObservedObject var featureManager = FeatureManager.shared
@@ -916,7 +916,7 @@ private extension LibraryView {
         displayMode: .icon,
         folderId: nil
     )
-    .environment(ArtifactServiceGenerated(ficheroClient: client))
+    .environment(ArtifactService(ficheroClient: client))
     .frame(width: 600, height: 500)
 }
 
@@ -936,6 +936,6 @@ private extension LibraryView {
         displayMode: .icon,
         folderId: nil
     )
-    .environment(ArtifactServiceGenerated(ficheroClient: client))
+    .environment(ArtifactService(ficheroClient: client))
     .frame(width: 600, height: 500)
 }

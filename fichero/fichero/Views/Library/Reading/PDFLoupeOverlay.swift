@@ -16,7 +16,7 @@ struct PDFLoupeOverlay: NSViewRepresentable {
     let cursorPosition: CGPoint
     let magnification: CGFloat
     let loupeSize: CGFloat
-    @Environment(StorageServiceGenerated.self) private var storageService
+    @Environment(StorageService.self) private var storageService
 
     func makeNSView(context: Context) -> PDFLoupeNSView {
         let view = PDFLoupeNSView()
@@ -53,7 +53,7 @@ final class PDFLoupeNSView: NSView {
     }
 
     /// Re-renders the page thumbnail only when document or page index changes.
-    func refreshPageImageIfNeeded(storageService: StorageServiceGenerated) {
+    func refreshPageImageIfNeeded(storageService: StorageService) {
         let key = "\(documentId):\(pageIndex)"
         guard key != cachedKey else { return }
         cachedKey = key

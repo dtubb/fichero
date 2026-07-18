@@ -71,8 +71,8 @@ extension SidebarView {
             }
             guard !ordered.isEmpty else { return }
             Task {
-                try? await library.savedSearchServiceGenerated.reorderSavedSearches(ordered)
-                try? await library.savedSearchServiceGenerated.loadSavedSearches()
+                try? await library.savedSearchService.reorderSavedSearches(ordered)
+                try? await library.savedSearchService.loadSavedSearches()
             }
         case .workflow, .chain:
             let ordered = reordered.compactMap { item -> String? in
@@ -81,7 +81,7 @@ extension SidebarView {
             }
             guard !ordered.isEmpty else { return }
             Task {
-                try? await library.workflowServiceGenerated.reorderWorkflows(ordered)
+                try? await library.workflowService.reorderWorkflows(ordered)
                 await library.workflowStore.loadWorkflows()
             }
         default:

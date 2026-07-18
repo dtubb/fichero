@@ -11,7 +11,7 @@ private let relatedClaimsLogger = Logger(
 
 /// Inspector panel that surfaces claims from across the library
 /// semantically similar to claims extracted from the current document.
-/// Uses `EntityServiceGenerated.findSimilarClaims` per doc-claim, dedups
+/// Uses `EntityService.findSimilarClaims` per doc-claim, dedups
 /// by claim id, ranks by similarity, caps at 10.
 ///
 /// Empty state means either (a) the doc has no extracted claims yet, or
@@ -20,7 +20,7 @@ private let relatedClaimsLogger = Logger(
 struct RelatedClaimsPanel: View {
     let documentId: String
 
-    @State private var related: [EntityServiceGenerated.SimilarClaim] = []
+    @State private var related: [EntityService.SimilarClaim] = []
     @State private var sourceDocNames: [String: String] = [:]
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -50,7 +50,7 @@ struct RelatedClaimsPanel: View {
     }
 
     @ViewBuilder
-    private func row(for claim: EntityServiceGenerated.SimilarClaim) -> some View {
+    private func row(for claim: EntityService.SimilarClaim) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(claim.text)
                 .font(.caption)
@@ -99,7 +99,7 @@ struct RelatedClaimsPanel: View {
 
             // 2) For each (up to 20), fetch top-3 similar; dedup by claim id;
             // keep the highest similarity per id; exclude self-doc; top 10.
-            var aggregated: [String: EntityServiceGenerated.SimilarClaim] = [:]
+            var aggregated: [String: EntityService.SimilarClaim] = [:]
             for claim in myClaims.prefix(20) {
                 guard let cid = claim.id else { continue }
                 let similar = try await library.entityService.findSimilarClaims(

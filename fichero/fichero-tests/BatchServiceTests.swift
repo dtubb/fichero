@@ -4,12 +4,12 @@ import Foundation
 import Testing
 
 @MainActor
-@Suite("BatchServiceGenerated")
-struct BatchServiceGeneratedTests {
+@Suite("BatchService")
+struct BatchServiceTests {
 
     private func makeService(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
-    ) -> BatchServiceGenerated {
+    ) -> BatchService {
         MockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
@@ -18,7 +18,7 @@ struct BatchServiceGeneratedTests {
             libraryPath: "/tmp/test.fichero",
             session: URLSession(configuration: configuration)
         )
-        return BatchServiceGenerated(ficheroClient: client)
+        return BatchService(ficheroClient: client)
     }
 
     private func response(for request: URLRequest, statusCode: Int = 200, body: Data) -> (HTTPURLResponse, Data) {

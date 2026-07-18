@@ -47,7 +47,7 @@ struct AIModelSelectionView: View {
     @State private var sortOrder: ModelSortOrder = .recommended
     @State private var filters = ModelFilters()
 
-    @Environment(ProviderServiceGenerated.self) var providerService
+    @Environment(ProviderAPIService.self) var providerService
 
     private var filteredModels: [ModelInfo] {
         var result = models

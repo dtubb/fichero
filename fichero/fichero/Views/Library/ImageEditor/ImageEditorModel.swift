@@ -12,7 +12,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEd
 
 /// View-model for the non-destructive image editor (#469).
 ///
-/// Owns the `ImageEditingServiceGenerated` and all async state so the view
+/// Owns the `ImageEditingService` and all async state so the view
 /// stays declarative. Every mutating op follows the same shape: run the
 /// backend op, refresh the chain, then re-render the *edited* preview so the
 /// canvas reflects the new chain immediately.
@@ -45,7 +45,7 @@ final class ImageEditorModel {
     /// `ImageEditorView` once the view is configured.
     var onEditApplied: ((String) -> Void)?
 
-    private var service: ImageEditingServiceGenerated?
+    private var service: ImageEditingService?
     private(set) var documentId: String = ""
 
     /// Client-side Core Image live-preview compositor (#3673). Built lazily from
@@ -69,7 +69,7 @@ final class ImageEditorModel {
     /// rebuilds state for the new document and reloads chain + preview.
     func configure(apiClient: APIClient, documentId: String, page: Int = 1) async {
         if service == nil {
-            service = ImageEditingServiceGenerated(apiClient: apiClient)
+            service = ImageEditingService(apiClient: apiClient)
         }
         self.documentId = documentId
         self.page = page
@@ -283,7 +283,7 @@ final class ImageEditorModel {
     /// chain + preview are refreshed at the end.
     func batchApply(
         documentIds: [String],
-        operation: @escaping (ImageEditingServiceGenerated, String) async throws -> Void
+        operation: @escaping (ImageEditingService, String) async throws -> Void
     ) async {
         guard let service, !documentIds.isEmpty else { return }
         isBusy = true
@@ -321,7 +321,7 @@ final class ImageEditorModel {
     /// Shared op runner: set busy, run, adopt the returned chain, re-render the
     /// edited preview (forcing the toggle on so the user sees the result), then
     /// clear busy. Errors surface to `errorMessage`.
-    private func runOp(_ body: @escaping (ImageEditingServiceGenerated) async throws -> ImageEditChain) async {
+    private func runOp(_ body: @escaping (ImageEditingService) async throws -> ImageEditChain) async {
         guard let service, !documentId.isEmpty else { return }
         isBusy = true
         defer { isBusy = false }

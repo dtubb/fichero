@@ -3,7 +3,7 @@ import Foundation
 import OpenAPIRuntime
 import OSLog
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "SandboxAccessServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "SandboxAccessService")
 
 /// Hands the RUNNING sandboxed engine a security-scoped bookmark for a library the
 /// user just picked (#3773), through `POST /api/sandbox/security-scoped-access`.
@@ -19,7 +19,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Sandbox
 ///
 /// A thin service over the generated OpenAPI client — no hand-rolled URLSession.
 @MainActor
-class SandboxAccessServiceGenerated {
+class SandboxAccessService {
     let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {

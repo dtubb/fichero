@@ -119,9 +119,9 @@ extension SidebarView {
                 undoManager?.setActionName("Move to Trash")
                 await library.documentStore.refresh()
             case .savedSearch(let search):
-                try await library.savedSearchServiceGenerated.deleteSavedSearch(search.id)
+                try await library.savedSearchService.deleteSavedSearch(search.id)
             case .conversation(let conversation):
-                try await library.conversationServiceGenerated.deleteConversation(conversation.id)
+                try await library.conversationService.deleteConversation(conversation.id)
             case .workflow(let workflow):
                 try await library.workflowStore.deleteWorkflow(workflow.id)
             case .chain(let chain):

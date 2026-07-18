@@ -49,7 +49,7 @@ struct WorkflowLibraryView: View {
 // swiftlint:disable:next type_body_length
 struct WorkflowListView: View {
     @Environment(WorkflowStore.self) var workflowStore
-    @Environment(WorkflowServiceGenerated.self) var workflowServiceGenerated
+    @Environment(WorkflowService.self) var workflowService
     @State private var searchText = ""
     @State private var selectedWorkflowId: String?
     @State private var selectedWorkflowIds: Set<String> = []
@@ -556,7 +556,7 @@ struct WorkflowListView: View {
         isImporting = true
         Task {
             do {
-                if let importedId = try await WorkflowExporter.importFromFile(using: workflowServiceGenerated) {
+                if let importedId = try await WorkflowExporter.importFromFile(using: workflowService) {
                     await loadWorkflows()
                     selectedWorkflowId = importedId
                 }
@@ -572,7 +572,7 @@ struct WorkflowListView: View {
             await WorkflowExporter.exportToFile(
                 workflow.id,
                 name: workflow.name,
-                using: workflowServiceGenerated
+                using: workflowService
             )
         }
     }
@@ -608,5 +608,5 @@ struct WorkflowListView: View {
     let ficheroClient = FicheroClient(libraryPath: "/tmp/preview.fichero")
     return WorkflowLibraryView(displayMode: .list)
         .environment(WorkflowStore(ficheroClient: ficheroClient))
-        .environment(WorkflowServiceGenerated(ficheroClient: ficheroClient))
+        .environment(WorkflowService(ficheroClient: ficheroClient))
 }

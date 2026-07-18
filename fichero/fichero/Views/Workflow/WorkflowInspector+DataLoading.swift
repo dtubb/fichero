@@ -30,7 +30,7 @@ extension WorkflowInspector {
         defer { isLoadingTools = false }
 
         do {
-            let response = try await workflowServiceGenerated.listToolsGrouped()
+            let response = try await workflowService.listToolsGrouped()
             toolCategories = response.categories
             let totalTools = response.categories.reduce(0) { $0 + $1.tools.count }
             let categoryCount = response.categories.count

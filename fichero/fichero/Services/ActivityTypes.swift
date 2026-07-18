@@ -3,7 +3,7 @@ import Foundation
 import OpenAPIRuntime
 
 // MARK: - Activity Types
-// Shared types used by ActivityServiceGenerated and views
+// Shared types used by ActivityService and views
 
 /// Wrapper to decode any JSON value as String
 struct AnyValueAsString: Codable, Hashable {

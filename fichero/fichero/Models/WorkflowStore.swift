@@ -29,7 +29,7 @@ final class WorkflowStore: ChangeEventConsumer {
     private(set) var changeToken: Int = 0
 
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowStore")
-    private let workflowService: WorkflowServiceGenerated
+    private let workflowService: WorkflowService
     private let ficheroClient: FicheroClient
     // Empty: backend ships the canonical default workflows (Transcribe,
     // Catalogue, Catalogue (composable)) via JSON in
@@ -43,7 +43,7 @@ final class WorkflowStore: ChangeEventConsumer {
 
     init(ficheroClient: FicheroClient) {
         self.ficheroClient = ficheroClient
-        self.workflowService = WorkflowServiceGenerated(ficheroClient: ficheroClient)
+        self.workflowService = WorkflowService(ficheroClient: ficheroClient)
     }
 
     func checkConnection() async {
@@ -190,7 +190,7 @@ final class WorkflowStore: ChangeEventConsumer {
 
     /// Move a workflow into a different folder path.
     ///
-    /// Thin wrapper over `WorkflowServiceGenerated.moveToFolder` which
+    /// Thin wrapper over `WorkflowService.moveToFolder` which
     /// patches the backend `folder_path` field (`PATCH /api/workflows/{id}`
     /// accepts a partial body with `folder_path` — see `workflows.py:649`).
     /// Updates the local `workflows` array on success so the sidebar

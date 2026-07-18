@@ -4,7 +4,7 @@ import Observation
 import OpenAPIRuntime
 import OSLog
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "SearchServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "SearchService")
 
 /// Service for search operations using generated OpenAPI client
 /// Lightweight DTO matching `KeywordCloudEntry` on the backend.
@@ -16,7 +16,7 @@ struct KeywordCloudEntryDTO: Decodable, Identifiable {
 
 @MainActor
 @Observable
-class SearchServiceGenerated {
+class SearchService {
     struct SearchRequestOptions {
         let query: String
         let limit: Int
@@ -86,9 +86,9 @@ class SearchServiceGenerated {
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw SearchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw SearchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -106,7 +106,7 @@ class SearchServiceGenerated {
                 tableExists: payload.tableExists
             )
         case .undocumented(let statusCode, _):
-            throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw SearchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -121,7 +121,7 @@ class SearchServiceGenerated {
             let result = try okResponse.body.json
             return ReindexStatus(status: result.status, message: result.message)
         case .undocumented(let statusCode, _):
-            throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw SearchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -139,9 +139,9 @@ class SearchServiceGenerated {
             return EmbedStatus(documentId: result.documentId, embedded: result.embedded)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw SearchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
-            throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
+            throw SearchServiceError.unexpectedResponse(statusCode)
         }
     }
 
@@ -162,7 +162,7 @@ class SearchServiceGenerated {
             return payload.items.map { KeywordCloudEntryDTO(name: $0.name, count: $0.count) }
         case .unprocessableContent(let error):
             let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+            throw SearchServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented:
             return []
         }
@@ -336,7 +336,7 @@ struct EmbedStatus: Codable {
 
 // MARK: - Error Types
 
-enum SearchServiceGeneratedError: LocalizedError {
+enum SearchServiceError: LocalizedError {
     case validationError(String)
     case unexpectedResponse(Int)
 

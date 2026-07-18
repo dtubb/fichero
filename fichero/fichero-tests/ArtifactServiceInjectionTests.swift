@@ -1,9 +1,9 @@
 import XCTest
 
-/// Guardrail for #3386 ("No Observable object of type ArtifactServiceGenerated
+/// Guardrail for #3386 ("No Observable object of type ArtifactService
 /// found"). SwiftUI's environment does NOT flow across separate `Scene`s, so
 /// every window/document scene root that can present a view reading
-/// `@Environment(ArtifactServiceGenerated.self)` must inject
+/// `@Environment(ArtifactService.self)` must inject
 /// `library.artifactService` itself — exactly like the About window injects
 /// `appState` (see `testMacAboutWindowInjectsAppState`).
 ///

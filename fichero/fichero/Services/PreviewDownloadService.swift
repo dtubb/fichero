@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Preview
 
 /// Centralized "download a document's source file to a temp path, then hand it
 /// to a system viewer" flow (#3207). Transport now goes through the generated
-/// OpenAPI client via `StorageServiceGenerated.fetchSourceFile` (#3726) — no raw
+/// OpenAPI client via `StorageService.fetchSourceFile` (#3726) — no raw
 /// URLSession, no hand-built URLRequest, so auth / pinning / library-path
 /// middleware stay central. This service owns what is left: the Content-Disposition
 /// filename rules, the HTTP-status → human message mapping, and the preview-cache
@@ -32,7 +32,7 @@ struct PreviewDownloadService: Sendable {
 
     /// The generated-client storage service does the transport (#3726). This
     /// service owns only the preview-cache lifecycle and the filename rules.
-    let storage: StorageServiceGenerated
+    let storage: StorageService
 
     /// Download the source file to `FicheroPreview/<id>_<name>` and return it,
     /// or a human error message. Any non-2xx surfaces the engine's JSON `detail`

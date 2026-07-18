@@ -8,7 +8,7 @@ struct PageContentPane: View { // swiftlint:disable:this type_body_length
     let document: Document?
 
     @Environment(ClaimFocusState.self) private var claimFocusState
-    @Environment(DocumentServiceGenerated.self) private var documentService
+    @Environment(DocumentService.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
     @State private var editState = PageContentPaneEditState()

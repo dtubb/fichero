@@ -24,9 +24,9 @@ private let inspectorClaimsLogger = Logger(
 struct KnowledgeGraphInspectorSection: View {
     let documentId: String
     let documentScope: InspectorClaimDocumentScope
-    let entityService: EntityServiceGenerated
-    let artifactService: ArtifactServiceGenerated
-    let kgCurationService: KGCurationServiceGenerated
+    let entityService: EntityService
+    let artifactService: ArtifactService
+    let kgCurationService: KGCurationService
     /// Called when the user clicks the source-page arrow on an entity row.
     /// Receives the source page document id; ContentView decides how to
     /// navigate (typically: select the parent file in the grid). Optional
@@ -970,7 +970,7 @@ struct KnowledgeGraphInspectorSection: View {
 
     private func pruneScope(
         for scope: InspectorEntityBulkActionScope
-    ) -> KGCurationServiceGenerated.PruneTrivialScope {
+    ) -> KGCurationService.PruneTrivialScope {
         switch scope {
         case .pageOrFolderOnly:
             return documentScope.pruneScope(documentId: documentId)
@@ -998,7 +998,7 @@ struct KnowledgeGraphInspectorSection: View {
     }
 
     private func applyPruneTrivialClaims(
-        scope: KGCurationServiceGenerated.PruneTrivialScope
+        scope: KGCurationService.PruneTrivialScope
     ) async {
         isPruningTrivialClaims = true
         claimActionMessage = nil
@@ -1066,7 +1066,7 @@ enum InspectorClaimDocumentScope {
         }
     }
 
-    func pruneScope(documentId: String) -> KGCurationServiceGenerated.PruneTrivialScope {
+    func pruneScope(documentId: String) -> KGCurationService.PruneTrivialScope {
         switch self {
         case .page:
             return .document(documentId: documentId)
@@ -1078,7 +1078,7 @@ enum InspectorClaimDocumentScope {
 
 struct PendingPruneConfirmation: Identifiable {
     let id = UUID()
-    let scope: KGCurationServiceGenerated.PruneTrivialScope
+    let scope: KGCurationService.PruneTrivialScope
     let title: String
     let message: String
 }

@@ -15,8 +15,8 @@ import SwiftUI
 /// workspace, ties #3533).
 struct ResearchChatPane: View {
     var project: ResearchProject
-    @Environment(ConversationServiceGenerated.self) var conversationServiceGenerated
-    @Environment(ChatServiceGenerated.self) var chatServiceGenerated
+    @Environment(ConversationService.self) var conversationService
+    @Environment(ChatService.self) var chatService
 
     @State private var chatSelectedDocuments: Set<String> = []
 

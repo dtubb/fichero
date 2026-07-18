@@ -73,9 +73,9 @@ struct DocumentInspector: View {
 
     @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
     @Environment(DocumentStore.self) private var documentStore
-    @Environment(EntityServiceGenerated.self) private var entityService
-    @Environment(ArtifactServiceGenerated.self) private var artifactService
-    @Environment(KGCurationServiceGenerated.self) private var kgCurationService
+    @Environment(EntityService.self) private var entityService
+    @Environment(ArtifactService.self) private var artifactService
+    @Environment(KGCurationService.self) private var kgCurationService
     @Environment(ClaimFocusState.self) private var claimFocusState
     @State private var focusedArtifact = FocusedArtifact.shared
     /// Cross-view KG focus. Entity selection now routes into the Entities tab's
@@ -376,7 +376,7 @@ private struct DocumentInspectorImageEditsTab: View {
     let document: Document
 
     @Environment(APIClient.self) private var apiClient
-    @Environment(StorageServiceGenerated.self) private var storageService
+    @Environment(StorageService.self) private var storageService
     @State private var model = ImageEditorModel()
 
     var body: some View {

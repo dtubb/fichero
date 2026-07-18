@@ -24,8 +24,8 @@ extension SidebarView {
             // Observe saved search + conversation changes. Both services are now
             // @Observable (#2960), so they have no Combine `$` publishers — use
             // Observation tracking, re-armed after each mutation.
-            observeSavedSearchService(library.savedSearchServiceGenerated, libraryId: library.id)
-            observeConversationService(library.conversationServiceGenerated, libraryId: library.id)
+            observeSavedSearchService(library.savedSearchService, libraryId: library.id)
+            observeConversationService(library.conversationService, libraryId: library.id)
 
             // Observe workflow changes. WorkflowStore is now @Observable (#1911),
             // so it has no Combine `$workflows` publisher — use Observation
@@ -53,7 +53,7 @@ extension SidebarView {
 
     /// Observe an @Observable SavedSearchService's `savedSearches` and rebuild
     /// caches after each mutation. Re-arm after each fire (one-shot tracking).
-    func observeSavedSearchService(_ service: SavedSearchServiceGenerated, libraryId: UUID) {
+    func observeSavedSearchService(_ service: SavedSearchService, libraryId: UUID) {
         withObservationTracking {
             _ = service.savedSearches
         } onChange: {
@@ -66,7 +66,7 @@ extension SidebarView {
 
     /// Observe an @Observable ConversationService's `conversations` and rebuild
     /// caches after each mutation. Re-arm after each fire (one-shot tracking).
-    func observeConversationService(_ service: ConversationServiceGenerated, libraryId: UUID) {
+    func observeConversationService(_ service: ConversationService, libraryId: UUID) {
         withObservationTracking {
             _ = service.conversations
         } onChange: {

@@ -10,8 +10,8 @@ struct DataLoadingModifiers: ViewModifier {
     @EnvironmentObject private var featureManager: FeatureManager
     let documentStore: DocumentStore
     let workflowStore: WorkflowStore
-    let conversationService: ConversationServiceGenerated
-    let savedSearchService: SavedSearchServiceGenerated
+    let conversationService: ConversationService
+    let savedSearchService: SavedSearchService
 
     func body(content: Content) -> some View {
         content
@@ -157,8 +157,8 @@ struct DropTargetModifiers: ViewModifier {
 struct MainContentModifiers: ViewModifier {
     let documentStore: DocumentStore
     let workflowStore: WorkflowStore
-    let conversationService: ConversationServiceGenerated
-    let savedSearchService: SavedSearchServiceGenerated
+    let conversationService: ConversationService
+    let savedSearchService: SavedSearchService
     let appState: AppState
 
     @Binding var sidebarMode: SidebarMode

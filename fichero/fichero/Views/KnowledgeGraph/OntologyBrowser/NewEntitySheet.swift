@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Simple form to create OR edit a KnowledgeEntity — fills the gap
 /// where everything in the KG today comes from extractors. Backed by
-/// `EntityServiceGenerated.upsertEntity` (create) or `patchEntity`
+/// `EntityService.upsertEntity` (create) or `patchEntity`
 /// (edit, when `editing` is non-nil). Calls `onCommit` with the
 /// new / updated entity so the browser can refresh.
 struct NewEntitySheet: View {

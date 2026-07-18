@@ -1,127 +1,215 @@
+import Observation
 import Foundation
+import Combine
+import OSLog
+import FicheroAPIClient
+import OpenAPIRuntime
 
-// MARK: - Chat Response Models
-// These types are shared across the app for chat-related functionality
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChatService")
 
-struct ChatAPIResponse: Codable {
-    let message: String
-    let sources: [DocumentSourceAPI]
-    let conversationId: String
-    let modelUsed: String?
-    // Retrieval telemetry — the search-as-a-tool step the chat backend always
-    // runs (GraphAwareRetriever). Surfaced so the UI can show what was searched.
-    let documentCount: Int
-    let contextCount: Int
-    let kgClaimsUsed: Int
-    let kgEntitiesUsed: Int
+/// ChatService using the generated OpenAPI client.
+/// This replaces the manual APIClient with type-safe generated calls.
+@MainActor
+@Observable
+class ChatService {
+    private let client: FicheroClient
 
-    enum CodingKeys: String, CodingKey {
-        case message
-        case sources
-        case conversationId = "conversation_id"
-        case modelUsed = "model_used"
-        case documentCount = "document_count"
-        case contextCount = "context_count"
-        case kgClaimsUsed = "kg_claims_used"
-        case kgEntitiesUsed = "kg_entities_used"
-    }
-}
-
-struct LLMProvider: Codable, Identifiable {
-    let id: String
-    let name: String
-    let models: [String]
-    let available: Bool
-    let supportsVision: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, models, available
-        case supportsVision = "supports_vision"
-    }
-}
-
-struct ExtractTextResponse: Codable {
-    let extracted: Int
-    let skipped: Int
-    let failed: Int
-    let errors: [String]
-}
-
-/// Document source from API response.
-struct DocumentSourceAPI: Codable, Identifiable {
-    let documentId: String
-    let documentName: String
-    let excerpt: String
-    let relevanceScore: Double
-
-    var id: String { documentId }
-
-    enum CodingKeys: String, CodingKey {
-        case documentId = "document_id"
-        case documentName = "document_name"
-        case excerpt
-        case relevanceScore = "relevance_score"
+    init(ficheroClient: FicheroClient) {
+        self.client = ficheroClient
     }
 
-    /// Convert to local DocumentSource model.
-    func toDocumentSource() -> DocumentSource {
-        DocumentSource(
-            id: documentId,
-            documentId: documentId,
-            documentName: documentName,
-            excerpt: excerpt,
-            relevanceScore: relevanceScore
+    // MARK: - Chat
+
+    /// Send a chat message and get a RAG response.  POST /api/chat
+    func chat(
+        message: String,
+        conversationId: String? = nil,
+        documentIds: [String]? = nil,
+        includeSources: Bool = true,
+        maxSources: Int = 5,
+        provider: String? = nil,
+        model: String? = nil
+    ) async throws -> ChatAPIResponse {
+        // Use typed fields — conversation_id, document_ids, provider, and
+        // model are all declared on ChatRequest. Using additionalProperties
+        // for declared fields races the typed-nil encoding (see 31fc4141).
+        let request = Components.Schemas.ChatRequest(
+            message: message,
+            conversationId: conversationId,
+            documentIds: documentIds,
+            includeSources: includeSources,
+            maxSources: maxSources,
+            provider: provider,
+            model: model
+        )
+
+        let response = try await client.api.chatApiChatPost(.init(
+            body: .json(request)
+        ))
+
+        switch response {
+        case .ok(let okResponse):
+            let chatResponse = try okResponse.body.json
+            return convertToChatAPIResponse(chatResponse)
+        default:
+            throw ChatServiceError.unexpectedResponse
+        }
+    }
+
+    // MARK: - Providers
+
+    /// List available LLM providers.  GET /api/chat/providers
+    func listProviders() async throws -> [LLMProvider] {
+        // Providers are app-wide (not per-library), so no library path header needed
+        let response = try await client.api.listProvidersApiChatProvidersGet(.init())
+
+        switch response {
+        case .ok(let okResponse):
+            let providers = try okResponse.body.json
+            return providers.items.map { convertToLLMProvider($0) }
+        default:
+            throw ChatServiceError.unexpectedResponse
+        }
+    }
+
+    // MARK: - Text Extraction
+
+    /// Extract text from documents (populates page_content for search/chat).  POST /api/chat/extract-text
+    func extractText(documentIds: [String]? = nil, force: Bool = false) async throws -> ExtractTextResponse {
+        // Use typed fields; see 31fc4141.
+        let request = Components.Schemas.ExtractTextRequest(
+            documentIds: documentIds,
+            force: force
+        )
+
+        let response = try await client.api.extractTextApiChatExtractTextPost(.init(
+            body: .json(request)
+        ))
+
+        switch response {
+        case .ok(let okResponse):
+            let extractResponse = try okResponse.body.json
+            return convertToExtractTextResponse(extractResponse)
+        default:
+            throw ChatServiceError.unexpectedResponse
+        }
+    }
+
+    // MARK: - Type Conversion
+
+    /// Convert generated ChatResponse to app ChatAPIResponse
+    private func convertToChatAPIResponse(_ response: Components.Schemas.ChatResponse) -> ChatAPIResponse {
+        ChatAPIResponse(
+            message: response.message,
+            sources: response.sources.map { source in
+                DocumentSourceAPI(
+                    documentId: source.documentId,
+                    documentName: source.documentName,
+                    excerpt: source.excerpt,
+                    relevanceScore: source.relevanceScore
+                )
+            },
+            conversationId: response.conversationId,
+            modelUsed: response.modelUsed,
+            documentCount: response.documentCount ?? 0,
+            contextCount: response.contextCount ?? 0,
+            kgClaimsUsed: response.kgClaimsUsed ?? 0,
+            kgEntitiesUsed: response.kgEntitiesUsed ?? 0
         )
     }
-}
 
-struct ConversationSummary: Codable, Identifiable {
-    let id: String
-    let title: String
-    let messageCount: Int
-    let createdAt: String
-    let updatedAt: String
-    let folderPath: String
-    let sortOrder: Int
+    /// Convert generated ProviderInfo to app LLMProvider
+    private func convertToLLMProvider(_ provider: Components.Schemas.ProviderInfo) -> LLMProvider {
+        // Infer vision capability from provider ID based on backend catalog
+        // TODO: Regenerate OpenAPI client to include supportsVision from API
+        let visionProviders: Set<String> = [
+            "apple", "ollama", "lmstudio", "huggingface", "openrouter",
+            "openai", "anthropic", "google", "groq", "together",
+            "mistral", "dashscope", "xai", "fireworks", "azure", "bedrock"
+        ]
 
-    enum CodingKeys: String, CodingKey {
-        case id
-        case title
-        case messageCount = "message_count"
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-        case folderPath = "folder_path"
-        case sortOrder = "sort_order"
+        return LLMProvider(
+            id: provider.id,
+            name: provider.name,
+            models: provider.models,
+            available: provider.available,
+            supportsVision: visionProviders.contains(provider.id)
+        )
+    }
+
+    /// Convert generated ExtractTextResponse to app ExtractTextResponse
+    private func convertToExtractTextResponse(_ response: Components.Schemas.ExtractTextResponse) -> ExtractTextResponse {
+        ExtractTextResponse(
+            extracted: response.extracted,
+            skipped: response.skipped,
+            failed: response.failed,
+            errors: response.errors
+        )
+    }
+
+    // MARK: - Agent workspaces (#3533 / #3547)
+
+    /// Save a conversation as a persistent agent WORKSPACE node (on-demand — a
+    /// chat is ephemeral until saved). POST /api/chat/conversations/{id}/workspace
+    func saveConversationAsWorkspace(
+        conversationId: String,
+        title: String?
+    ) async throws -> Components.Schemas.AgentWorkspace {
+        let response = try await client.api
+            .saveConversationAsWorkspaceApiChatConversationsConversationIdWorkspacePost(
+                path: .init(conversationId: conversationId),
+                body: .json(.init(title: title))
+            )
+        switch response {
+        case .ok(let okResponse): return try okResponse.body.json
+        default: throw ChatServiceError.unexpectedResponse
+        }
+    }
+
+    /// List saved agent workspaces. GET /api/chat/workspaces
+    func listAgentWorkspaces() async throws -> [Components.Schemas.AgentWorkspace] {
+        let response = try await client.api.listAgentWorkspacesApiChatWorkspacesGet()
+        switch response {
+        case .ok(let okResponse): return try okResponse.body.json.items
+        default: throw ChatServiceError.unexpectedResponse
+        }
+    }
+
+    /// Fetch one workspace (to restore its chat/agent session).
+    /// GET /api/chat/workspaces/{id}
+    func getAgentWorkspace(id: String) async throws -> Components.Schemas.AgentWorkspace {
+        let response = try await client.api
+            .getAgentWorkspaceApiChatWorkspacesWorkspaceIdGet(path: .init(workspaceId: id))
+        switch response {
+        case .ok(let okResponse): return try okResponse.body.json
+        default: throw ChatServiceError.unexpectedResponse
+        }
+    }
+
+    /// Delete a workspace (reversible-safe per the backend).
+    /// DELETE /api/chat/workspaces/{id}
+    func deleteAgentWorkspace(id: String) async throws {
+        let response = try await client.api
+            .deleteAgentWorkspaceApiChatWorkspacesWorkspaceIdDelete(path: .init(workspaceId: id))
+        switch response {
+        case .ok: return
+        default: throw ChatServiceError.unexpectedResponse
+        }
     }
 }
 
-struct ConversationDetail: Codable, Identifiable {
-    let id: String
-    let title: String
-    let messages: [ChatMessageAPI]
-    let createdAt: String
-    let updatedAt: String
-    let folderPath: String
-    let sortOrder: Int
+// MARK: - Error Types
 
-    enum CodingKeys: String, CodingKey {
-        case id
-        case title
-        case messages
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-        case folderPath = "folder_path"
-        case sortOrder = "sort_order"
-    }
-}
+enum ChatServiceError: Error, LocalizedError {
+    case unexpectedResponse
+    case invalidData
 
-struct ChatMessageAPI: Codable {
-    let role: String
-    let content: String
-
-    /// Convert to local ChatMessage model.
-    func toChatMessage() -> ChatMessage {
-        let chatRole: ChatRole = role == "user" ? .user : .assistant
-        return ChatMessage(role: chatRole, content: content)
+    var errorDescription: String? {
+        switch self {
+        case .unexpectedResponse:
+            return "Unexpected response from server"
+        case .invalidData:
+            return "Invalid data received"
+        }
     }
 }

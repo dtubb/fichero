@@ -8,7 +8,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "PromptP
 /// live when the node config changes.
 struct PromptPreviewPanel: View {
     let node: WorkflowNode
-    @Environment(WorkflowServiceGenerated.self) var workflowService
+    @Environment(WorkflowService.self) var workflowService
 
     @State private var assembledPrompt: String?
     @State private var isLoading: Bool = false

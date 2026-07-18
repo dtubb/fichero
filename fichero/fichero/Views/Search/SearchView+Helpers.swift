@@ -79,7 +79,7 @@ extension SearchView {
                     return
                 }
 
-                var doc = try await library.documentServiceGenerated.getDocument(id)
+                var doc = try await library.documentService.getDocument(id)
                 // Page-child docs have no path of their own — the preview
                 // needs the parent PDF's on-disk path. EditorView resolves
                 // it via documentStore.currentDocuments, but in the search
@@ -89,7 +89,7 @@ extension SearchView {
                 if doc.docType == .page || (doc.path == nil && doc.parentId != nil) {
                     let parentId = doc.parentId ?? (doc.metadata["pdf_parent_id"]?.value as? String)
                     if let parentId {
-                        if let parent = try? await library.documentServiceGenerated.getDocument(parentId),
+                        if let parent = try? await library.documentService.getDocument(parentId),
                            let parentPath = parent.path, !parentPath.isEmpty {
                             doc.metadata["pdf_path"] = AnyCodable(parentPath)
                             doc.metadata["pdf_parent_id"] = AnyCodable(parentId)
@@ -120,14 +120,14 @@ extension SearchView {
             return
         }
         do {
-            _ = try await library.savedSearchServiceGenerated.saveSearch(
+            _ = try await library.savedSearchService.saveSearch(
                 query: query,
                 isSmartSearch: true,
                 searchType: searchType,
                 sortBy: sortBy,
                 sortDirection: sortDirection
             )
-            try await library.savedSearchServiceGenerated.loadSavedSearches()
+            try await library.savedSearchService.loadSavedSearches()
         } catch {
             logger.error("Save search failed: \(error.localizedDescription)")
         }

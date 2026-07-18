@@ -23,7 +23,7 @@ struct ArtifactEntitiesView: View {
     /// LibraryView's listVisibleEntityTypes drives this for list rows.
     var visibleTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
 
-    @Environment(ArtifactServiceGenerated.self) var artifactService
+    @Environment(ArtifactService.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     /// Shared document-keyed store (#3861) — the single endpoint accessor. Every
@@ -170,7 +170,7 @@ struct ArtifactEntityCell: View {
     /// capsules; "—" when this doc has no artifact of that type.
     let entityType: String
 
-    @Environment(ArtifactServiceGenerated.self) var artifactService
+    @Environment(ArtifactService.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     /// Shared document-keyed store (#3861): the six per-type cells of one row now

@@ -21,11 +21,11 @@ extension SidebarView {
 
         Task {
             do {
-                let savedSearch = try await globalLibrary.savedSearchServiceGenerated.saveSearch(
+                let savedSearch = try await globalLibrary.savedSearchService.saveSearch(
                     query: "New Search",
                     isSmartSearch: true
                 )
-                try await globalLibrary.savedSearchServiceGenerated.loadSavedSearches()
+                try await globalLibrary.savedSearchService.loadSavedSearches()
                 rebuildCaches()
                 selectedItemId = "search:\(savedSearch.id)"
                 let newSearch = SavedSearch(
@@ -53,7 +53,7 @@ extension SidebarView {
 
         Task {
             do {
-                let response = try await globalLibrary.chatServiceGenerated.chat(
+                let response = try await globalLibrary.chatService.chat(
                     message: "Hello",
                     conversationId: nil,
                     documentIds: nil
@@ -73,7 +73,7 @@ extension SidebarView {
                 )
 
                 // Add to service's conversations array
-                globalLibrary.conversationServiceGenerated.conversations.append(newConv)
+                globalLibrary.conversationService.conversations.append(newConv)
 
                 // Rebuild caches so sidebar shows the new chat
                 rebuildCaches()
@@ -110,7 +110,7 @@ extension SidebarView {
                     folderPath: "/",
                     sortOrder: 0
                 )
-                let response = try await globalLibrary.workflowServiceGenerated.createWorkflow(newWorkflowDef)
+                let response = try await globalLibrary.workflowService.createWorkflow(newWorkflowDef)
                 await globalLibrary.workflowStore.loadWorkflows()
                 rebuildCaches()
                 let workflowItem = WorkflowSidebarItem(

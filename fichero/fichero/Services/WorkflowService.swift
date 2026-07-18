@@ -11,7 +11,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 /// This replaces the manual APIClient with type-safe generated calls.
 @MainActor
 @Observable
-class WorkflowServiceGenerated {
+class WorkflowService {
     private let client: FicheroClient
 
     /// Cached tools by name for quick lookup (populated when tools are loaded)
@@ -352,7 +352,7 @@ class WorkflowServiceGenerated {
     /// OpenAPI schema mis-declares the 200 body as `application/json`, so the
     /// generated client can't model it. This performs the authenticated binary
     /// GET itself (same `addEngineAuth` + `URLSession` pattern as
-    /// `StorageServiceGenerated`), keeping the diagram view free of hand-built
+    /// `StorageService`), keeping the diagram view free of hand-built
     /// URLs and raw `URLSession` (#1893). Returns `nil` on any non-200.
     func fetchDiagramImage(workflowId: String) async throws -> PlatformImage? {
         let url = client.baseURL
@@ -387,7 +387,7 @@ class WorkflowServiceGenerated {
 
 // MARK: - Type Conversions
 
-extension WorkflowServiceGenerated {
+extension WorkflowService {
     private func convertToToolInfo(_ tool: Components.Schemas.ToolResponse) -> ToolInfo {
         let configDict: [String: AnyCodableValue]
         if let configSchema = tool.configSchema {
@@ -535,7 +535,7 @@ extension WorkflowServiceGenerated {
 
 // MARK: - Workflow Definition Conversion
 
-extension WorkflowServiceGenerated {
+extension WorkflowService {
     private func convertToWorkflowDefinition(
         _ response: Components.Schemas.WorkflowResponse
     ) -> WorkflowDefinition {
@@ -655,7 +655,7 @@ extension WorkflowServiceGenerated {
 
 // MARK: - Generated Type Conversion
 
-extension WorkflowServiceGenerated {
+extension WorkflowService {
     private func convertToGeneratedWorkflowDef(
         _ workflow: WorkflowDefinition
     ) throws -> Components.Schemas.WorkflowDef {
@@ -817,7 +817,7 @@ extension WorkflowServiceGenerated {
 
 // MARK: - Container Helpers
 
-extension WorkflowServiceGenerated {
+extension WorkflowService {
     private func convertObjectContainerToDict(
         _ container: OpenAPIRuntime.OpenAPIObjectContainer
     ) -> [String: any Sendable] {

@@ -89,7 +89,7 @@ struct DocumentInspectorInfoTab: View {
     private func loadGeoPoints() async {
         geoPoints = []
         guard let service = libraryManager.getLibrary(id: windowState.libraryId)?
-            .documentServiceGenerated else { return }
+            .documentService else { return }
         geoPoints = (try? await service.documentGeoPoints(document.id)) ?? []
     }
 
@@ -322,7 +322,7 @@ struct DocumentInspectorInfoTab: View {
         defer { isUpdatingExclude = false }
 
         do {
-            let refreshed = try await library.documentServiceGenerated.batchExclude(
+            let refreshed = try await library.documentService.batchExclude(
                 documentIds: [document.id],
                 excluded: !isExcludedFromProcessing
             )

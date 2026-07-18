@@ -6,7 +6,7 @@ import SwiftUI
 /// prioritizes readability and a "published" feel over curation tools.
 struct EntityDigestView: View {
     @Environment(EntityStore.self) private var entityStore
-    @Environment(EntityServiceGenerated.self) private var entityService
+    @Environment(EntityService.self) private var entityService
     @State private var selectedEntityId: String?
     @State private var selectedEntityIds: Set<String> = []
     @State private var searchText = ""
@@ -220,7 +220,7 @@ struct EntityDigestView: View {
 /// The detailed digest for a single entity.
 struct EntityDigestContent: View {
     let entity: Components.Schemas.KnowledgeEntity
-    let entityService: EntityServiceGenerated
+    let entityService: EntityService
 
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
     @State private var selectedClaimRowId: String?

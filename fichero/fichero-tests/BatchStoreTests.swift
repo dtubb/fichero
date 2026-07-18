@@ -18,7 +18,7 @@ struct BatchStoreTests {
             libraryPath: "/tmp/test.fichero",
             session: URLSession(configuration: configuration)
         )
-        return BatchStore(batchService: BatchServiceGenerated(ficheroClient: client))
+        return BatchStore(batchService: BatchService(ficheroClient: client))
     }
 
     private func response(for request: URLRequest, statusCode: Int = 200, body: Data) -> (HTTPURLResponse, Data) {

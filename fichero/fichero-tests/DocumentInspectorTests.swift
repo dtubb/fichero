@@ -137,7 +137,7 @@ final class DocumentInspectorTests: XCTestCase {
             "Views/Library/DocumentInspector/DocumentInterpretationsTab.swift"
         )
         let interpretationStoreSource = try Self.appSource("Models/InterpretationStore.swift")
-        let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+        let serviceSource = try Self.appSource("Services/ArtifactService.swift")
 
         XCTAssertTrue(citationsSource.contains("@Environment(CitationStore.self)"))
         XCTAssertFalse(citationsSource.contains("LibraryManager.shared.globalLibrary?.citationStore"))
@@ -148,7 +148,7 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(interpretationsSource.contains("try await store.create("))
         XCTAssertTrue(interpretationsSource.contains("try await store.update("))
         XCTAssertFalse(interpretationsSource.contains("entityService."))
-        XCTAssertFalse(interpretationsTabSource.contains("EntityServiceGenerated"))
+        XCTAssertFalse(interpretationsTabSource.contains("EntityService"))
         XCTAssertTrue(interpretationStoreSource.contains("func loadFrameworks() async"))
         XCTAssertTrue(serviceSource.contains("client.api.listInterpretationsApiHermeneuticsInterpretationsGet"))
         XCTAssertTrue(serviceSource.contains("client.api.createInterpretationApiHermeneuticsInterpretationsPost"))
@@ -377,11 +377,11 @@ final class DocumentInspectorTests: XCTestCase {
         let source = try Self.appSource("Views/Library/DisplayAttributesStrip.swift")
 
         // The content-tab strip reads the shared ArtifactStore, not a view-local
-        // ArtifactServiceGenerated fetch (#3427).
+        // ArtifactService fetch (#3427).
         XCTAssertTrue(source.contains("@Environment(ArtifactStore.self)"))
         XCTAssertTrue(source.contains("artifactStore.items"))
         XCTAssertTrue(source.contains("artifactStore.setScope("))
-        XCTAssertFalse(source.contains("@Environment(ArtifactServiceGenerated.self)"))
+        XCTAssertFalse(source.contains("@Environment(ArtifactService.self)"))
         XCTAssertFalse(source.contains("artifactService.getArtifacts"))
     }
 }

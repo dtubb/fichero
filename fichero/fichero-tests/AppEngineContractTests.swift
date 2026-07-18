@@ -48,7 +48,7 @@ final class AppEngineContractTests: XCTestCase {
     // MARK: - Reads round-trip (engine HTTP == library ground truth)
 
     func test_documents_match_library() async throws {
-        let svc = DocumentServiceGenerated(ficheroClient: engine.client)
+        let svc = DocumentService(ficheroClient: engine.client)
 
         let collections = try await svc.getCollections()
         XCTAssertEqual(collections.count, try expected("collections"), "collections via /documents/collections")
@@ -58,13 +58,13 @@ final class AppEngineContractTests: XCTestCase {
     }
 
     func test_workflows_match_library() async throws {
-        let svc = WorkflowServiceGenerated(ficheroClient: engine.client)
+        let svc = WorkflowService(ficheroClient: engine.client)
         let workflows = try await svc.listWorkflows()
         XCTAssertEqual(workflows.count, try expected("workflows"), "workflows via /workflows")
     }
 
     func test_artifacts_match_library() async throws {
-        let svc = ArtifactServiceGenerated(ficheroClient: engine.client)
+        let svc = ArtifactService(ficheroClient: engine.client)
         let artifacts = try await svc.getArtifacts(forDocumentId: try seededID("doc_letter"))
         XCTAssertEqual(artifacts.count, try expected("artifacts_for_letter"), "artifacts on seeded letter doc")
     }
@@ -85,7 +85,7 @@ final class AppEngineContractTests: XCTestCase {
     // MARK: - Write round-trip (exercises the live create/read/delete path)
 
     func test_create_read_delete_round_trip() async throws {
-        let svc = DocumentServiceGenerated(ficheroClient: engine.client)
+        let svc = DocumentService(ficheroClient: engine.client)
         let name = "itest-write-\(UUID().uuidString.prefix(8))"
 
         let created = try await svc.createCollection(name: name)

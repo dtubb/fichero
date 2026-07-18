@@ -115,19 +115,19 @@ struct ServiceHostReconfigurationTests {
         #expect(apiClient.client.currentLibraryPath == "/tmp/Lib.fichero")
     }
 
-    // #2349: ImageEditingServiceGenerated's raw-bytes `previewURL` path bypasses
+    // #2349: ImageEditingService's raw-bytes `previewURL` path bypasses
     // the generated `client.api` and builds URLs off the engine root directly.
     // It must read that root LIVE off the shared wrapped client (not a snapshot),
     // or image previews stay pinned to the host that was current when the editor
     // opened after a mid-session pairing / Settings host change.
-    @Test("ImageEditingServiceGenerated previewURL follows an apiClient host rebind")
+    @Test("ImageEditingService previewURL follows an apiClient host rebind")
     @MainActor
     func imageEditingPreviewURLFollowsRebind() {
         let first = URL(string: "https://first.tailnet.example")!
         let second = URL(string: "https://second.tailnet.example")!
 
         let apiClient = APIClient(baseURL: first, libraryPath: "/tmp/Lib.fichero")
-        let service = ImageEditingServiceGenerated(apiClient: apiClient)
+        let service = ImageEditingService(apiClient: apiClient)
         #expect(service.previewURL(documentId: "doc1", applyEdits: false).host == "first.tailnet.example")
 
         apiClient.reconfigure(baseURL: second)

@@ -68,8 +68,8 @@ struct ChatView: View {
     @State var selectedProvider: String = ""
     @State var selectedModel: String = ""
 
-    @Environment(ChatServiceGenerated.self) var chatService
-    @Environment(ConversationServiceGenerated.self) var conversationService
+    @Environment(ChatService.self) var chatService
+    @Environment(ConversationService.self) var conversationService
     /// Saved-workspace store (#3533) — a chat is ephemeral until saved on-demand.
     @Environment(WorkspaceStore.self) var workspaceStore
 

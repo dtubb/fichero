@@ -10,7 +10,7 @@ import OSLog
 @MainActor
 @Observable
 final class ActivityStreamService {
-    private let activityService: ActivityServiceGenerated
+    private let activityService: ActivityService
     @ObservationIgnored private let urlSession: URLSession = RemoteCertificatePinning.configuredSession()
     @ObservationIgnored private let log = Logger(subsystem: "app.fichero.fichero", category: "ActivityStreamService")
     @ObservationIgnored nonisolated(unsafe) private var task: Task<Void, Never>?
@@ -47,7 +47,7 @@ final class ActivityStreamService {
         hasConnectedBefore && shouldSurfaceUnavailable(failureCount: failureCount)
     }
 
-    init(activityService: ActivityServiceGenerated) {
+    init(activityService: ActivityService) {
         self.activityService = activityService
     }
 

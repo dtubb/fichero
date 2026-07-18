@@ -3,7 +3,7 @@
 //  FicheroTests
 //
 //  Bounded thumbnail-cache eviction (#719). The eager-prefetch path warms
-//  StorageServiceGenerated.thumbnailCache for every image in a folder; this
+//  StorageService.thumbnailCache for every image in a folder; this
 //  verifies the cache stays bounded (FIFO, oldest-first) so a folder with
 //  thousands of images can't grow it without limit.
 //
@@ -17,8 +17,8 @@ import Testing
 @MainActor
 struct StorageThumbnailCacheTests {
 
-    private func makeService() -> StorageServiceGenerated {
-        StorageServiceGenerated(ficheroClient: FicheroClient(libraryPath: nil))
+    private func makeService() -> StorageService {
+        StorageService(ficheroClient: FicheroClient(libraryPath: nil))
     }
 
     private let dummy = Image(systemName: "photo")
@@ -26,7 +26,7 @@ struct StorageThumbnailCacheTests {
     @Test("cache count never exceeds the limit")
     func cacheStaysBounded() {
         let service = makeService()
-        let limit = StorageServiceGenerated.thumbnailCacheLimit
+        let limit = StorageService.thumbnailCacheLimit
         for index in 0..<(limit + 50) {
             service.cacheThumbnail(dummy, for: "doc-\(index)")
         }
@@ -36,7 +36,7 @@ struct StorageThumbnailCacheTests {
     @Test("oldest entries are evicted first; newest survive")
     func evictsOldestFirst() {
         let service = makeService()
-        let limit = StorageServiceGenerated.thumbnailCacheLimit
+        let limit = StorageService.thumbnailCacheLimit
         for index in 0..<(limit + 5) {
             service.cacheThumbnail(dummy, for: "doc-\(index)")
         }

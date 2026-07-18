@@ -11,7 +11,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Convers
 /// This replaces the manual APIClient with type-safe generated calls.
 @MainActor
 @Observable
-class ConversationServiceGenerated {
+class ConversationService {
     private let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {

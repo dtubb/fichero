@@ -6,7 +6,7 @@ import OSLog
 /// Observable domain store for semantic search (#1903, mirrors `NoteStore`).
 ///
 /// The single endpoint accessor for search-result data. A view never holds
-/// raw `@State` result arrays or calls `SearchServiceGenerated` directly: it
+/// raw `@State` result arrays or calls `SearchService` directly: it
 /// observes `results`, `isSearching`, and the other state below, and
 /// dispatches the named actions. `apply(_:)` invalidates stale results when
 /// documents change so the next query always reflects the current index.
@@ -32,11 +32,11 @@ final class SearchStore: ChangeEventConsumer {
     /// cached results may be stale and should re-run the current query.
     private(set) var changeToken: Int = 0
 
-    // ─── Transport: the EXISTING SearchServiceGenerated wrapper, unchanged ───
-    private let searchService: SearchServiceGenerated
+    // ─── Transport: the EXISTING SearchService wrapper, unchanged ───
+    private let searchService: SearchService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "SearchStore")
 
-    init(searchService: SearchServiceGenerated) {
+    init(searchService: SearchService) {
         self.searchService = searchService
     }
 

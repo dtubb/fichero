@@ -6,7 +6,7 @@
 //  generated `document_outline` operation. These lock the contract the view now
 //  depends on: a 200 decodes the outline rows, and a non-`.ok` response THROWS
 //  rather than surfacing an empty tree (prefer-raise-over-silent-fallback).
-//  Reuses `MockURLProtocol` from StorageServiceGeneratedTests (same test target).
+//  Reuses `MockURLProtocol` from StorageServiceTests (same test target).
 //
 
 @testable import Fichero

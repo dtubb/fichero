@@ -98,13 +98,13 @@ final class DocumentStore {
     /// converters. Store methods route documents-domain reads/writes through
     /// this instead of the hand-rolled `api.get/post/delete`.
     @ObservationIgnored
-    let documentService: DocumentServiceGenerated
+    let documentService: DocumentService
 
     /// Typed locations client (#3577). Shares `api`'s FicheroClient. Resolves a
     /// navigation `Location` (page-child → parent, page range) through the one
     /// engine route so the UI doesn't re-implement that resolution.
     @ObservationIgnored
-    let locationService: LocationServiceGenerated
+    let locationService: LocationService
 
     /// Publish a document change event.
     func publish(_ change: DocumentChange) {
@@ -171,8 +171,8 @@ final class DocumentStore {
     /// This ensures operations in one window don't affect other windows.
     init(apiClient: APIClient) {
         self.api = apiClient
-        self.documentService = DocumentServiceGenerated(ficheroClient: apiClient.client)
-        self.locationService = LocationServiceGenerated(ficheroClient: apiClient.client)
+        self.documentService = DocumentService(ficheroClient: apiClient.client)
+        self.locationService = LocationService(ficheroClient: apiClient.client)
     }
 
     // MARK: - Connection

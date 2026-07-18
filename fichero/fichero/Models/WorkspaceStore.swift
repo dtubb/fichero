@@ -7,7 +7,7 @@ import OSLog
 ///
 /// The single endpoint accessor for the workspace list: a view observes
 /// `workspaces` and dispatches the named actions below; the store owns fetching
-/// (never a view calling `ChatServiceGenerated` directly). `chat = agent =
+/// (never a view calling `ChatService` directly). `chat = agent =
 /// workspace` (#3540) — a chat is ephemeral until saved on-demand.
 ///
 /// One instance per library (registered on `LibraryReference`), shared across
@@ -21,10 +21,10 @@ final class WorkspaceStore {
     private(set) var loadError: String?
 
     // ─── Transport: the EXISTING generated chat service, unchanged ───
-    private let chatService: ChatServiceGenerated
+    private let chatService: ChatService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "WorkspaceStore")
 
-    init(chatService: ChatServiceGenerated) {
+    init(chatService: ChatService) {
         self.chatService = chatService
     }
 

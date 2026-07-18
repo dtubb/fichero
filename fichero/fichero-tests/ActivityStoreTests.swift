@@ -16,7 +16,7 @@ import Testing
 @MainActor
 private func makeStore() -> ActivityStore {
     let client = FicheroClient(libraryPath: "/tmp/test.fichero")
-    let service = ActivityServiceGenerated(ficheroClient: client)
+    let service = ActivityService(ficheroClient: client)
     return ActivityStore(service: service)
 }
 

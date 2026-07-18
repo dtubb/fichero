@@ -2,15 +2,15 @@ import SwiftUI
 
 /// Bookmark surface (#2755): bookmark the current document, list saved
 /// bookmarks, and open one (resolve → its target document). All persistence
-/// goes through the typed `BookmarkServiceGenerated`.
+/// goes through the typed `BookmarkService`.
 struct BookmarksView: View {
     /// The document offered for bookmarking (the row the sheet was opened from).
     let document: Document
     /// Opens a resolved target document in the host window.
     var onOpen: (Document) -> Void
 
-    @Environment(BookmarkServiceGenerated.self) private var bookmarkService
-    @Environment(DocumentServiceGenerated.self) private var documentService
+    @Environment(BookmarkService.self) private var bookmarkService
+    @Environment(DocumentService.self) private var documentService
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = ""

@@ -49,7 +49,7 @@ struct ArtifactEntityBundle: Equatable {
 /// requests for the same document collapse to one fetch (`inFlight`); a workflow
 /// completion invalidates ONLY the document ids that run actually touched.
 ///
-/// Wraps the EXISTING `ArtifactServiceGenerated` transport unchanged (the
+/// Wraps the EXISTING `ArtifactService` transport unchanged (the
 /// iterate-never-replace rule): the store owns *when* to fetch and the per-doc
 /// dedupe; the service still owns *how* (and its own `artifactsByDocument` cache).
 @MainActor
@@ -69,23 +69,23 @@ final class ArtifactEntityStore {
     /// same run N times.
     private var seenCompletedThreadIds: Set<String> = []
 
-    private let artifactService: ArtifactServiceGenerated
+    private let artifactService: ArtifactService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "ArtifactEntityStore")
 
-    init(artifactService: ArtifactServiceGenerated) {
+    init(artifactService: ArtifactService) {
         self.artifactService = artifactService
     }
 
     // MARK: - Per-service sharing
 
-    // ponytail: one store per ArtifactServiceGenerated (i.e. per library),
+    // ponytail: one store per ArtifactService (i.e. per library),
     // resolved from the service the views already hold in their environment —
     // avoids threading a new @Environment object through the window/scene roots
     // (a separate lane). The map is never pruned; libraries are few, so the
     // upgrade path (clear on library close) isn't worth its wiring yet.
     private static var registry: [ObjectIdentifier: ArtifactEntityStore] = [:]
 
-    static func shared(for artifactService: ArtifactServiceGenerated) -> ArtifactEntityStore {
+    static func shared(for artifactService: ArtifactService) -> ArtifactEntityStore {
         let key = ObjectIdentifier(artifactService)
         if let existing = registry[key] { return existing }
         let store = ArtifactEntityStore(artifactService: artifactService)

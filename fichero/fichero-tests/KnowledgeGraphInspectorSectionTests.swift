@@ -127,7 +127,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(source.contains("documentId: document.id"))
         XCTAssertTrue(source.contains(".onTapGesture"))
         XCTAssertTrue(source.contains("@Environment(ArtifactStore.self)"))
-        XCTAssertFalse(source.contains("@Environment(ArtifactServiceGenerated.self)"))
+        XCTAssertFalse(source.contains("@Environment(ArtifactService.self)"))
         XCTAssertTrue(source.contains("await artifactStore.setScope("))
         XCTAssertTrue(source.contains("await artifactStore.delete([artifact])"))
         XCTAssertTrue(source.contains("try await artifactStore.update("))
@@ -296,7 +296,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let source = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
         )
-        let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+        let serviceSource = try Self.appSource("Services/ArtifactService.swift")
         // After the EntityStore migration, bulk curation calls live in EntityStore, not the view.
         let storeSource = try Self.appSource("Models/EntityStore.swift")
 
@@ -414,7 +414,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let rowSource = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift"
         )
-        let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+        let serviceSource = try Self.appSource("Services/ArtifactService.swift")
 
         // deleteEntity now goes through EntityStore; the view still owns the delete button UI.
         let storeSource = try Self.appSource("Models/EntityStore.swift")
@@ -600,7 +600,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let rowSource = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift"
         )
-        let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+        let serviceSource = try Self.appSource("Services/ArtifactService.swift")
 
         XCTAssertTrue(source.contains("batchSetClaimCurationState"))
         XCTAssertTrue(source.contains("batchCreateClaimRules"))
@@ -625,7 +625,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testPruneTrivialClaimsRequestUsesDocumentScope() {
-        let request = KGCurationServiceGenerated.makePruneTrivialClaimsRequest(
+        let request = KGCurationService.makePruneTrivialClaimsRequest(
             scope: .document(documentId: "page-1")
         )
 
@@ -637,7 +637,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testPruneTrivialClaimsRequestUsesFolderScope() {
-        let request = KGCurationServiceGenerated.makePruneTrivialClaimsRequest(
+        let request = KGCurationService.makePruneTrivialClaimsRequest(
             scope: .folder(folderId: "folder-1")
         )
 
@@ -647,7 +647,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testPruneTrivialClaimsRequestUsesLibraryWideScope() {
-        let request = KGCurationServiceGenerated.makePruneTrivialClaimsRequest(
+        let request = KGCurationService.makePruneTrivialClaimsRequest(
             scope: .libraryWide
         )
 

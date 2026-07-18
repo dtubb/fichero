@@ -26,7 +26,7 @@ class FolderAccessManager {
     /// Injected by LibraryManager when it builds the API client — this manager is a
     /// singleton created long before any client exists, so it cannot construct one.
     /// nil until then, and permanently nil in the DMG build, which needs no handoff.
-    @ObservationIgnored var engineAccessService: SandboxAccessServiceGenerated?
+    @ObservationIgnored var engineAccessService: SandboxAccessService?
 
     /// The engine's refusal to open a folder we handed it, or nil when all is well.
     /// Observed, so the UI can say the folder is unreadable at the moment we learn it,

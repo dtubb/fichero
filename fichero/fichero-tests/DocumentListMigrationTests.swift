@@ -3,11 +3,11 @@
 //  FicheroTests
 //
 //  #3030 — ChatInspector's scope search + scoped-doc load migrated off the
-//  hand-rolled APIClient.get onto DocumentServiceGenerated.listDocuments(limit:)
+//  hand-rolled APIClient.get onto DocumentService.listDocuments(limit:)
 //  and .getDocument(_:). These cover the new listDocuments wrapper: it sends the
 //  `limit` query param on the generated `list_documents` op and maps items into
 //  local Documents; a non-.ok response throws instead of yielding an empty list.
-//  Reuses `MockURLProtocol` from StorageServiceGeneratedTests (same target).
+//  Reuses `MockURLProtocol` from StorageServiceTests (same target).
 //
 
 @testable import Fichero
@@ -20,7 +20,7 @@ struct DocumentListMigrationTests {
 
     private func makeService(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
-    ) -> DocumentServiceGenerated {
+    ) -> DocumentService {
         MockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
@@ -30,7 +30,7 @@ struct DocumentListMigrationTests {
             libraryPath: "/tmp/test.fichero",
             session: session
         )
-        return DocumentServiceGenerated(ficheroClient: client)
+        return DocumentService(ficheroClient: client)
     }
 
     @Test("listDocuments sends limit query and maps items to local Documents")

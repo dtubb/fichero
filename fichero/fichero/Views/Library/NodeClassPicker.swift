@@ -13,7 +13,7 @@ import SwiftUI
 struct WorkspaceCuratedItemsSection: View {
     let folderId: String
 
-    @Environment(DocumentServiceGenerated.self) private var documentService
+    @Environment(DocumentService.self) private var documentService
     @State private var service = WorkspacePickerService()
     @State private var items: [WorkspaceCuratedItem] = []
     @State private var nodeClasses: [Components.Schemas.ClassificationValue] = []
@@ -110,7 +110,7 @@ struct NodeClassPicker: View {
 
     @State private var selectedKey: String?
     @State private var isAssigning = false
-    @Environment(DocumentServiceGenerated.self) private var documentService
+    @Environment(DocumentService.self) private var documentService
     @State private var service = WorkspacePickerService()
 
     var body: some View {

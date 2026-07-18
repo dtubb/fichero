@@ -184,9 +184,9 @@ struct DocumentKGSurface: View {
     @State private var hasAppeared = false
     @State private var everShownWebKit = false
     @Environment(KGFocusState.self) private var kgFocusState
-    @Environment(EntityServiceGenerated.self) private var entityService
-    @Environment(ArtifactServiceGenerated.self) private var artifactService
-    @Environment(KGCurationServiceGenerated.self) private var kgCurationService
+    @Environment(EntityService.self) private var entityService
+    @Environment(ArtifactService.self) private var artifactService
+    @Environment(KGCurationService.self) private var kgCurationService
     // For resolving the Document the native Entities sub-mode needs (#3503) when
     // the caller doesn't supply one via `document`.
     @Environment(DocumentStore.self) private var documentStore

@@ -618,8 +618,8 @@ extension LibraryView {
                 Task { @MainActor in
                     let chatService = libraryManager
                         .getLibrary(id: windowState.libraryId)?
-                        .chatServiceGenerated
-                        ?? libraryManager.globalLibrary?.chatServiceGenerated
+                        .chatService
+                        ?? libraryManager.globalLibrary?.chatService
                     await workflowRunProviderCache.ensureLoaded(chatService: chatService)
                 }
             }
@@ -710,7 +710,7 @@ extension LibraryView {
         let childIds = targets.map(\.id)
         Task {
             do {
-                _ = try await library.documentServiceGenerated.createGroup(
+                _ = try await library.documentService.createGroup(
                     name: "Stack of \(childIds.count)",
                     childIds: childIds
                 )
@@ -728,7 +728,7 @@ extension LibraryView {
         guard let library = activeLibraryReference else { return }
         Task {
             do {
-                try await library.documentServiceGenerated.ungroupDocument(groupId: group.id)
+                try await library.documentService.ungroupDocument(groupId: group.id)
                 await documentStore.refresh()
             } catch {
                 documentStore.error = error
@@ -744,7 +744,7 @@ extension LibraryView {
         guard let library = activeLibraryReference else { return }
 
         do {
-            let refreshed = try await library.documentServiceGenerated.batchExclude(
+            let refreshed = try await library.documentService.batchExclude(
                 documentIds: documentIds,
                 excluded: excluded
             )

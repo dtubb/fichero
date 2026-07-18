@@ -32,7 +32,7 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     func testClaimsAndEntitiesEndpointsAreWired() throws {
-        let source = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+        let source = try Self.appSource("Services/ArtifactService.swift")
         let requiredPaths = [
             "/api/claim-links/\\(linkId)",
             "/api/claims/assign-time-period",
@@ -65,7 +65,7 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     func testMultilingualAndRegistryEndpointsAreWired() throws {
-        let source = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+        let source = try Self.appSource("Services/ArtifactService.swift")
         let requiredPaths = [
             "/api/multilingual/claims",
             "/api/multilingual/detect",
@@ -109,7 +109,7 @@ final class EntityTypeMappingTests: XCTestCase {
     /// in the CI wiring contract) — there is no native Swift call site yet.
     /// This locks that documented deferral: the endpoints must stay in the
     /// not-yet-wired allowlist. When the surface is built, wire it in
-    /// ArtifactServiceGenerated AND drop these from the allowlist together.
+    /// ArtifactService AND drop these from the allowlist together.
     func testHermeneuticsEndpointsRemainDeferred() throws {
         let allowlist = try Self.repoSource(
             "fichero-engine/tests/contracts/ui_wiring_allowlist_swiftui.json"
@@ -120,7 +120,7 @@ final class EntityTypeMappingTests: XCTestCase {
             "/api/hermeneutics/circle-state/{state_id}/backtrack",
             "/api/hermeneutics/circle-state/{state_id}/navigate",
             // /api/hermeneutics/frameworks + /interpretations are WIRED in
-            // ArtifactServiceGenerated (native call sites), so they are correctly
+            // ArtifactService (native call sites), so they are correctly
             // absent from the allowlist — only the collection-level frameworks/{id}
             // and the rest below remain deferred.
             "/api/hermeneutics/frameworks/{framework_id}",
@@ -140,7 +140,7 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     func testKnowledgeGraphCoreEndpointsAreWired() throws {
-        let source = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+        let source = try Self.appSource("Services/ArtifactService.swift")
         let requiredPaths = [
             "/api/kg/entities/\\(entityId)/bio",
             "/api/kg/entity-curation/candidates",
@@ -207,7 +207,7 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     func testKnowledgeGraphPredictionAndReviewEndpointsAreWired() throws {
-        let source = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+        let source = try Self.appSource("Services/ArtifactService.swift")
         let requiredPaths = [
             "/api/kg/pykeen/models/\\(modelId)",
             "/api/kg/pykeen/predict/\\(entityId)",

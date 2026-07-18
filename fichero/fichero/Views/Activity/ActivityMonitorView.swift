@@ -245,7 +245,7 @@ struct ActivityMonitorView: View {
             )
         }
 
-        let service = ActivityServiceGenerated(apiClient: apiClient)
+        let service = ActivityService(apiClient: apiClient)
         let items = (try? await service.queryActivities(limit: 100)) ?? []
         var seen = Set<String>()
         for item in items {

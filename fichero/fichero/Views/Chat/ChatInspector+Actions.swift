@@ -3,8 +3,8 @@ import SwiftUI
 extension ChatInspector {
     /// Document access via the generated client (#3030). A throwaway wrapper is
     /// fine — it holds no state we observe, only the shared FicheroClient.
-    private var documentService: DocumentServiceGenerated {
-        DocumentServiceGenerated(ficheroClient: apiClient.client)
+    private var documentService: DocumentService {
+        DocumentService(ficheroClient: apiClient.client)
     }
 
     func addSuggestedDocumentsToScope() {

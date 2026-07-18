@@ -262,7 +262,7 @@ extension WorkflowEditor {
             await WorkflowExporter.exportToFile(
                 editingWorkflow.id,
                 name: editingWorkflow.name,
-                using: workflowServiceGenerated
+                using: workflowService
             )
         }
     }
@@ -271,7 +271,7 @@ extension WorkflowEditor {
         actionsLogger.info("Import workflow from editor")
         Task { @MainActor in
             do {
-                _ = try await WorkflowExporter.importFromFile(using: workflowServiceGenerated)
+                _ = try await WorkflowExporter.importFromFile(using: workflowService)
                 await workflowStore.loadWorkflows()
             } catch {
                 actionsLogger.error("Failed to import workflow: \(error.localizedDescription)")

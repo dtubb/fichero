@@ -305,12 +305,12 @@ extension LibraryManager {
 
         guard !Task.isCancelled else { return }
         if FeatureManager.shared.isVisible(.chat) {
-            try? await library.conversationServiceGenerated.loadConversations()
+            try? await library.conversationService.loadConversations()
             libraryManagerLogger.info("⏱ loadLibraryData conversations loaded")
         }
 
         guard !Task.isCancelled else { return }
-        try? await library.savedSearchServiceGenerated.loadSavedSearches()
+        try? await library.savedSearchService.loadSavedSearches()
         libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
     }
 
@@ -343,7 +343,7 @@ extension LibraryManager {
         if !hasInbox {
             // Create Inbox folder
             do {
-                let inbox = try await library.documentServiceGenerated.createCollection(
+                let inbox = try await library.documentService.createCollection(
                     name: "Inbox",
                     parentId: nil
                 )

@@ -215,7 +215,7 @@ extension OntologyBrowser {
 
     func runTool(
         label: String,
-        action: @escaping (EntityServiceGenerated) async throws -> String
+        action: @escaping (EntityService) async throws -> String
     ) async {
         guard let library = LibraryManager.shared.globalLibrary else { return }
         toolStatus = "\(label)…"

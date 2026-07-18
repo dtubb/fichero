@@ -21,7 +21,7 @@ struct QuickLookDownloadView: View {
     @State private var isLoading = true
     @State private var error: String?
 
-    @Environment(StorageServiceGenerated.self) var storageService
+    @Environment(StorageService.self) var storageService
 
     /// The download/temp-file flow lives in the service (#3207/#3726); the view
     /// keeps only fileURL/isLoading/error state. Built from the environment's

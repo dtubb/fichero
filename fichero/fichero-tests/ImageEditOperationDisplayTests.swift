@@ -20,7 +20,7 @@ final class ImageEditOperationDisplayTests: XCTestCase {
         ] as [String: Any])
 
         // AnyCodable -> generated upsert payloads (the PUT body direction).
-        let upsertOps = try ImageEditingServiceGenerated.generatedOps([op])
+        let upsertOps = try ImageEditingService.generatedOps([op])
         XCTAssertEqual(upsertOps.count, 1)
 
         // Generated response -> AnyCodable (the GET/response decode direction).
@@ -29,7 +29,7 @@ final class ImageEditOperationDisplayTests: XCTestCase {
             operations: upsertOps.map { .init(additionalProperties: $0.additionalProperties) },
             updatedAt: Date(timeIntervalSince1970: 0)
         )
-        let chain = try ImageEditingServiceGenerated.chain(from: response)
+        let chain = try ImageEditingService.chain(from: response)
 
         XCTAssertEqual(chain.documentId, "doc-1")
         XCTAssertEqual(chain.operations.count, 1)

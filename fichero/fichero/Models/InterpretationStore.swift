@@ -19,7 +19,7 @@ import OSLog
 /// scope-matching event arms the debounced re-fetch (the same shape
 /// `CitationStore`'s `inbound` collection relies on).
 ///
-/// Wraps the EXISTING `EntityServiceGenerated.listDocumentInterpretations`
+/// Wraps the EXISTING `EntityService.listDocumentInterpretations`
 /// transport unchanged (iterate-never-replace): the same call the panel made
 /// directly, now owned by the store so every window stays in sync.
 @MainActor
@@ -37,12 +37,12 @@ final class InterpretationStore: ObservableDomainStore {
     private(set) var currentDocumentId: String?
 
     // ─── Transport: the EXISTING generated wrapper, unchanged ───
-    private let entityService: EntityServiceGenerated
+    private let entityService: EntityService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "InterpretationStore")
 
     let reloadDebouncer = ReloadDebouncer()
 
-    init(entityService: EntityServiceGenerated) {
+    init(entityService: EntityService) {
         self.entityService = entityService
     }
 

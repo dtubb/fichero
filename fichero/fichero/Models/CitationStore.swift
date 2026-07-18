@@ -10,7 +10,7 @@ import OSLog
 /// citation→claim usage rows the inspector's `CitationGraphPanel` renders. A
 /// `citation.*` event from any window refreshes the affected scope in place.
 ///
-/// Wraps the EXISTING `EntityServiceGenerated` transport unchanged
+/// Wraps the EXISTING `EntityService` transport unchanged
 /// (iterate-never-replace): the same `inbound/outboundCitations` + `citationUsages`
 /// calls the panel used directly, now owned by the store so every window stays
 /// in sync.
@@ -28,12 +28,12 @@ final class CitationStore: ObservableDomainStore {
     private(set) var currentDocumentId: String?
 
     // ─── Transport: the EXISTING generated wrapper, unchanged ───
-    private let entityService: EntityServiceGenerated
+    private let entityService: EntityService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "CitationStore")
 
     let reloadDebouncer = ReloadDebouncer()
 
-    init(entityService: EntityServiceGenerated) {
+    init(entityService: EntityService) {
         self.entityService = entityService
     }
 

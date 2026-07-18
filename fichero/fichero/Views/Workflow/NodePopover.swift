@@ -22,10 +22,10 @@ struct NodePopover: View {
 
     // Vision mode is now managed by the provider selector (Apple Vision = a provider)
 
-    @Environment(ProviderServiceGenerated.self) var providerService
+    @Environment(ProviderAPIService.self) var providerService
     @Environment(DocumentStore.self) var documentStore: DocumentStore
-    @Environment(SavedSearchServiceGenerated.self) var savedSearchServiceGenerated
-    @Environment(WorkflowServiceGenerated.self) var workflowService
+    @Environment(SavedSearchService.self) var savedSearchService
+    @Environment(WorkflowService.self) var workflowService
     @EnvironmentObject private var featureManager: FeatureManager
 
     // Dynamic prompt from backend (fetched based on current config)
@@ -106,7 +106,7 @@ struct NodePopover: View {
                 .environment(documentStore)
         case "search":
             SearchNodeConfig(node: $node)
-                .environment(savedSearchServiceGenerated)
+                .environment(savedSearchService)
         case "files":
             FilesNodeConfig(node: $node)
                 .environment(documentStore)
@@ -346,7 +346,7 @@ struct NodePopover: View {
     )
     .environment(library.providerService)
     .environment(library.documentStore)
-    .environment(library.savedSearchServiceGenerated)
-    .environment(library.workflowServiceGenerated)
+    .environment(library.savedSearchService)
+    .environment(library.workflowService)
     .environmentObject(FeatureManager.shared)
 }

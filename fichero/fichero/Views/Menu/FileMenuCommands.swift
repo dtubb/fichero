@@ -170,7 +170,7 @@ struct FileMenuCommands: View {
     }
 
     /// Export the current library as a local markdown/11ty static site (#3055).
-    /// Routes through the DocumentServiceGenerated wrapper (tokened generated
+    /// Routes through the DocumentService wrapper (tokened generated
     /// client) after the user picks an output folder; GitHub publish/reimport is
     /// a later layer on top of this export.
     private func exportEleventySite() async {
@@ -181,7 +181,7 @@ struct FileMenuCommands: View {
         guard let outputURL = await presentDirectoryPanel() else { return }
 
         do {
-            let result = try await library.documentServiceGenerated.exportEleventySite(
+            let result = try await library.documentService.exportEleventySite(
                 outputPath: outputURL.path,
                 siteTitle: library.displayName
             )

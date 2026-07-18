@@ -16,8 +16,8 @@ import UIKit
 @MainActor
 struct StorageDisplayImageCacheTests {
 
-    private func makeService() -> StorageServiceGenerated {
-        StorageServiceGenerated(ficheroClient: FicheroClient(libraryPath: nil))
+    private func makeService() -> StorageService {
+        StorageService(ficheroClient: FicheroClient(libraryPath: nil))
     }
 
     private func dummyImage() -> PlatformImage {
@@ -35,7 +35,7 @@ struct StorageDisplayImageCacheTests {
     @Test("display cache count never exceeds the limit")
     func displayCacheStaysBounded() {
         let service = makeService()
-        let limit = StorageServiceGenerated.displayPlatformImageCacheLimit
+        let limit = StorageService.displayPlatformImageCacheLimit
         let img = dummyImage()
         for index in 0..<(limit + 10) {
             service.cacheDisplayPlatformImage(img, for: "doc-\(index)")
@@ -46,7 +46,7 @@ struct StorageDisplayImageCacheTests {
     @Test("oldest display cache entries are evicted first; newest survive")
     func displayCacheEvictsOldestFirst() {
         let service = makeService()
-        let limit = StorageServiceGenerated.displayPlatformImageCacheLimit
+        let limit = StorageService.displayPlatformImageCacheLimit
         let img = dummyImage()
         for index in 0..<(limit + 5) {
             service.cacheDisplayPlatformImage(img, for: "doc-\(index)")

@@ -3,16 +3,16 @@ import Foundation
 import OpenAPIRuntime
 import OSLog
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "LocationServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "LocationService")
 
 /// Resolves navigation anchors through the engine's single
 /// `POST /api/locations/resolve` route (#3576/#3577). Page-child → parent
 /// resolution (and page-range validation) now lives ONCE in the engine, so
 /// every UI/MCP caller shares it instead of re-implementing it client-side.
-/// Mirrors `DocumentServiceGenerated`: a thin service over the generated
+/// Mirrors `DocumentService`: a thin service over the generated
 /// OpenAPI client — no hand-rolled URLSession.
 @MainActor
-class LocationServiceGenerated {
+class LocationService {
     let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {

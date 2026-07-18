@@ -35,7 +35,7 @@ struct WorkflowEditor: View {
     @State var showModelComparison: Bool = false
 
     @Environment(WorkflowStore.self) var workflowStore
-    @Environment(WorkflowServiceGenerated.self) var workflowServiceGenerated
+    @Environment(WorkflowService.self) var workflowService
     @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(DocumentStore.self) var documentStore: DocumentStore
     @Environment(LibraryManager.self) var libraryManager

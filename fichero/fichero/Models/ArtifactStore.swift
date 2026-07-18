@@ -12,7 +12,7 @@ import OSLog
 /// owning `document_ids` (not artifact ids), so every verb routes through the
 /// debounced scope re-fetch rather than a per-row splice.
 ///
-/// Wraps the EXISTING `ArtifactServiceGenerated` transport unchanged (the
+/// Wraps the EXISTING `ArtifactService` transport unchanged (the
 /// iterate-never-replace rule): the store owns *when* to fetch; the service
 /// still owns *how*.
 @MainActor
@@ -35,14 +35,14 @@ final class ArtifactStore: ObservableDomainStore {
     private(set) var currentIncludeDescendants = false
 
     // ─── Transport: the EXISTING generated wrapper, unchanged ───
-    private let artifactService: ArtifactServiceGenerated
+    private let artifactService: ArtifactService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "ArtifactStore")
 
     /// One shared trailing-reload debouncer (the #1973 beachball fix), supplied
     /// to the `ObservableDomainStore` extension's `scheduleReload()`.
     let reloadDebouncer = ReloadDebouncer()
 
-    init(artifactService: ArtifactServiceGenerated) {
+    init(artifactService: ArtifactService) {
         self.artifactService = artifactService
     }
 

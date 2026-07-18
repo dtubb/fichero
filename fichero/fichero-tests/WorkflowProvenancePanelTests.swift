@@ -89,13 +89,13 @@ struct WorkflowProvenanceSortTests {
 struct WorkflowProvenanceErrorHandlingTests {
     @Test("404 missing history maps to empty state instead of raw error")
     func notFoundBecomesEmptyState() {
-        let error = EntityServiceGenerated.ServiceError.unexpectedResponse(404)
+        let error = EntityService.ServiceError.unexpectedResponse(404)
         #expect(WorkflowProvenancePanel.loadErrorMessage(for: error) == nil)
     }
 
     @Test("non-404 responses still surface an error")
     func otherResponsesStillSurfaceError() {
-        let error = EntityServiceGenerated.ServiceError.unexpectedResponse(500)
+        let error = EntityService.ServiceError.unexpectedResponse(500)
         #expect(WorkflowProvenancePanel.loadErrorMessage(for: error) == error.localizedDescription)
     }
 }

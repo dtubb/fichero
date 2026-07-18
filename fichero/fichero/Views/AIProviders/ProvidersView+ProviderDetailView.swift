@@ -20,7 +20,7 @@ struct ProviderDetailView: View {
     @State private var isLoadingModels = false
     @State private var modelsLoadError: String?
 
-    @Environment(ProviderServiceGenerated.self) var providerService
+    @Environment(ProviderAPIService.self) var providerService
     private let maskedKeyPlaceholder = "••••••••••••••••"
 
     private var isLocalProvider: Bool {

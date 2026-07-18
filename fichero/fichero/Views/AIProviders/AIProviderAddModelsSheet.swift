@@ -16,7 +16,7 @@ struct AIProviderAddModelsSheet: View {
     // For HuggingFace, show the full browser
     @State private var selectedHFModel: HFModelInfo?
 
-    @Environment(ProviderServiceGenerated.self) var providerService
+    @Environment(ProviderAPIService.self) var providerService
 
     var body: some View {
         NavigationStack {

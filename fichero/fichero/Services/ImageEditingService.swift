@@ -10,7 +10,7 @@ import ImageIO
 import OpenAPIRuntime
 import OSLog
 
-private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEditingServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEditingService")
 
 // MARK: - Edit-chain model
 
@@ -125,7 +125,7 @@ struct ImageEditChain {
 /// `check_no_raw_urlsession_app.py` for that reason).
 @MainActor
 @Observable
-final class ImageEditingServiceGenerated {
+final class ImageEditingService {
     var isLoading: Bool = false
     var lastError: Error?
 

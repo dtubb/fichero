@@ -12,7 +12,7 @@ struct ProvidersView: View {
     @State private var showAddProvider = false
     @State private var selectedProvider: Components.Schemas.ProviderResponse?
 
-    @Environment(ProviderServiceGenerated.self) var providerService
+    @Environment(ProviderAPIService.self) var providerService
 
     @AppStorage("window.listColumnWidth")
     private var listColumnWidth: Double = 280

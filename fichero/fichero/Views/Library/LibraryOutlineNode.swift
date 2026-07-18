@@ -199,10 +199,10 @@ final class LibraryOutlineModel {
     var claimsByDocumentId: [String: [Components.Schemas.KnowledgeClaim]] = [:]
     private var claimRequested: Set<String> = []
 
-    private let service: EntityServiceGenerated
-    private let artifactService: ArtifactServiceGenerated
+    private let service: EntityService
+    private let artifactService: ArtifactService
 
-    init(service: EntityServiceGenerated, artifactService: ArtifactServiceGenerated) {
+    init(service: EntityService, artifactService: ArtifactService) {
         self.service = service
         self.artifactService = artifactService
     }

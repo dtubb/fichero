@@ -9,7 +9,7 @@ import SwiftUI
 struct WorkflowProvenancePanel: View {
     let documentId: String
 
-    @Environment(EntityServiceGenerated.self) private var entityService
+    @Environment(EntityService.self) private var entityService
     @State private var runs: [Components.Schemas.WorkflowRunProvenanceResponse] = []
     @State private var isLoading = false
     @State private var loadError: String?
@@ -115,7 +115,7 @@ struct WorkflowProvenancePanel: View {
     }
 
     nonisolated static func loadErrorMessage(for error: Error) -> String? {
-        if case EntityServiceGenerated.ServiceError.unexpectedResponse(404) = error {
+        if case EntityService.ServiceError.unexpectedResponse(404) = error {
             return nil
         }
         return error.localizedDescription

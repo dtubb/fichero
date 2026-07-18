@@ -296,6 +296,6 @@ extension SearchView {
         displayMode: .constant(.icon),
         queryText: .constant("")
     )
-    .environment(SearchStore(searchService: SearchServiceGenerated(ficheroClient: FicheroClient(libraryPath: ""))))
+    .environment(SearchStore(searchService: SearchService(ficheroClient: FicheroClient(libraryPath: ""))))
     .frame(width: 800, height: 600)
 }

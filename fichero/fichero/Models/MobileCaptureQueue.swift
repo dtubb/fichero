@@ -209,7 +209,7 @@ struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
         }
 
         let metadata = catalog.documentMetadata()
-        _ = try await library.documentServiceGenerated.updateDocument(
+        _ = try await library.documentService.updateDocument(
             importedDocument.id,
             name: catalog.documentName(fallback: fileURL.deletingPathExtension().lastPathComponent),
             metadata: metadata.isEmpty ? nil : metadata,

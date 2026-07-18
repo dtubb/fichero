@@ -10,7 +10,7 @@ import Foundation
 // instance per library, shared across windows — see LibraryManager.
 extension FicheroIntentSupport {
     @MainActor
-    static func activeEntityService() throws -> EntityServiceGenerated {
+    static func activeEntityService() throws -> EntityService {
         let manager = LibraryManager.shared
         if let currentLibraryId = manager.currentLibraryId,
            let currentLibrary = manager.getLibrary(id: currentLibraryId) {
@@ -23,14 +23,14 @@ extension FicheroIntentSupport {
     }
 
     @MainActor
-    static func activeDocumentService() throws -> DocumentServiceGenerated {
+    static func activeDocumentService() throws -> DocumentService {
         let manager = LibraryManager.shared
         if let currentLibraryId = manager.currentLibraryId,
            let currentLibrary = manager.getLibrary(id: currentLibraryId) {
-            return currentLibrary.documentServiceGenerated
+            return currentLibrary.documentService
         }
         if let globalLibrary = manager.globalLibrary {
-            return globalLibrary.documentServiceGenerated
+            return globalLibrary.documentService
         }
         throw FicheroIntentError.noOpenLibrary
     }

@@ -839,7 +839,7 @@ private extension SpaceSceneView {
 #if canImport(RealityKit)
 /// Caches RealityKit textures for Spatial source-page nodes, keyed by the
 /// node's backend `sourceId`. Page bytes are fetched through the shared
-/// `StorageServiceGenerated` (the canonical, authenticated thumbnail path) so
+/// `StorageService` (the canonical, authenticated thumbnail path) so
 /// the 3D scene no longer hand-builds a storage URL or calls `URLSession`
 /// directly (#1902).
 actor SpaceTextureCache {

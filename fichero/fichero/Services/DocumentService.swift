@@ -10,7 +10,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Documen
 /// Handles document CRUD operations via the Python backend documents API.
 @MainActor
 @Observable
-class DocumentServiceGenerated {
+class DocumentService {
     // MARK: - Published State
 
     var isProcessing: Bool = false
@@ -713,7 +713,7 @@ class DocumentServiceGenerated {
 // Split into a same-file extension so the primary class body stays within
 // SwiftLint's type_body_length budget (#3030 added several ops). `private`
 // members remain file-scoped and accessible here.
-private extension DocumentServiceGenerated {
+private extension DocumentService {
     /// Convert generated Document to local Document
     func convertToDocument(_ doc: Components.Schemas.Document) throws -> Document {
         // Every field that's TYPED on the OpenAPI Document schema decodes
@@ -870,7 +870,7 @@ enum DocumentServiceError: Error, LocalizedError {
 
 // MARK: - Batch library-item column metadata (#3758)
 
-extension DocumentServiceGenerated {
+extension DocumentService {
     /// Batch per-item column metadata (#3758) — for each of `itemIds`, the
     /// entity / annotation / note / bbox counts aggregated across that item's
     /// document scope. Read-only, set-based: it powers the library list and

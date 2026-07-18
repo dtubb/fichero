@@ -73,8 +73,8 @@ struct ArtifactsInspectorPane: View {
     let document: Document
 
     @Environment(ArtifactStore.self) private var store
-    @Environment(ArtifactServiceGenerated.self) private var artifactService
-    @Environment(DocumentServiceGenerated.self) private var documentService
+    @Environment(ArtifactService.self) private var artifactService
+    @Environment(DocumentService.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(WorkflowExecutionObserver.self) private var executionObserver

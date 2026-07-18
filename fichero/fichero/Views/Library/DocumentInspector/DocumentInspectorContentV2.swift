@@ -27,7 +27,7 @@ struct DocumentInspectorContentV2: View {
     var mode: Mode = .all
 
     @Environment(ArtifactStore.self) private var artifactStore
-    @Environment(DocumentServiceGenerated.self) private var documentService
+    @Environment(DocumentService.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
@@ -339,7 +339,7 @@ struct DocumentInspectorContentV2: View {
 func persistPageContent(
     document: Document,
     content: String,
-    documentService: DocumentServiceGenerated,
+    documentService: DocumentService,
     documentStore: DocumentStore
 ) async -> String? {
     // Run the PUT inside a STORE-OWNED task so a view re-render / blur that
@@ -357,7 +357,7 @@ func persistPageContent(
 /// Document-scoped observable store for the generated source outline (#3440).
 ///
 /// Wraps `GET /api/documents/{id}/outline` through the injected
-/// `DocumentServiceGenerated` — no hand-rolled URL, no view-owned fetch. Holds
+/// `DocumentService` — no hand-rolled URL, no view-owned fetch. Holds
 /// the flat, depth-ordered rows; the view folds them into a hierarchy.
 ///
 /// Source **anchors** for reveal-in-Preview are engine work (#3441): today the
@@ -373,7 +373,7 @@ final class DocumentOutlineStore {
 
     func load(
         documentId: String,
-        using service: DocumentServiceGenerated,
+        using service: DocumentService,
         force: Bool = false
     ) async {
         if !force, loadedDocumentId == documentId, loadError == nil { return }
@@ -458,7 +458,7 @@ struct SourceOutlineNode: Identifiable, Hashable {
 struct SourceOutlineView: View {
     let documentId: String
 
-    @Environment(DocumentServiceGenerated.self) private var documentService
+    @Environment(DocumentService.self) private var documentService
     /// Per-window typed source-navigation bus (#3437) — reveal-capable outline
     /// rows route their source anchor through it, same contract as claims (#3440).
     @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?

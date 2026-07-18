@@ -23,7 +23,7 @@ import OSLog
 /// caller wraps it in an `NSImage` on the main actor. A 40MP scan decodes on a
 /// background executor so opening a preview / flipping pages no longer blocks the
 /// main thread inside `makeNSView` / `updateNSView`. Mirrors the `Task.detached`
-/// pattern in `StorageServiceGenerated.decodeImage`.
+/// pattern in `StorageService.decodeImage`.
 // Internal so the sibling `ImageViewerComponents` overview image reuses this exact
 // SDR + orientation decode (same off-main path, matching orientation).
 func decodeSDRCGImage(from url: URL) async -> CGImage? {

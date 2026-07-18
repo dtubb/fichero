@@ -5,7 +5,7 @@ import OSLog
 
 /// Observable domain store for workflow batch runs (#3536). The single endpoint
 /// accessor for batches — views observe `batches` and dispatch the actions
-/// below; the store owns the fetch/create via `BatchServiceGenerated`.
+/// below; the store owns the fetch/create via `BatchService`.
 ///
 /// The headline capability: run one workflow across many folders SEPARATELY —
 /// one batch item per folder (each scoped to that folder's documents via
@@ -17,10 +17,10 @@ final class BatchStore {
     private(set) var isLoading = false
     private(set) var lastError: String?
 
-    private let batchService: BatchServiceGenerated
+    private let batchService: BatchService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "BatchStore")
 
-    init(batchService: BatchServiceGenerated) {
+    init(batchService: BatchService) {
         self.batchService = batchService
     }
 

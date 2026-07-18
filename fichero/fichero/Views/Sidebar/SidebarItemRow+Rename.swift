@@ -79,10 +79,10 @@ extension SidebarItemRow {
         do {
             switch itemToRename.itemType {
             case .savedSearch(let search):
-                _ = try await itemLibrary.savedSearchServiceGenerated.renameSavedSearch(search.id, newName: newName)
+                _ = try await itemLibrary.savedSearchService.renameSavedSearch(search.id, newName: newName)
                 sidebarRowLogger.debug(" Renamed saved search \(search.id) to '\(newName)'")
             case .conversation(let conversation):
-                _ = try await itemLibrary.conversationServiceGenerated.renameConversation(
+                _ = try await itemLibrary.conversationService.renameConversation(
                     conversation.id,
                     newTitle: newName
                 )

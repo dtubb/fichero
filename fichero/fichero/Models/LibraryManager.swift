@@ -79,25 +79,25 @@ class LibraryManager {
         let apiClient: APIClient
         let ficheroClient: FicheroClient  // Generated API client
         let documentStore: DocumentStore
-        let savedSearchServiceGenerated: SavedSearchServiceGenerated  // Generated saved search service
-        let bookmarkServiceGenerated: BookmarkServiceGenerated  // Generated bookmark service (#2755)
-        let searchService: SearchServiceGenerated
-        let conversationServiceGenerated: ConversationServiceGenerated  // Generated conversation service
-        let chatServiceGenerated: ChatServiceGenerated  // Generated chat service
+        let savedSearchService: SavedSearchService  // Generated saved search service
+        let bookmarkService: BookmarkService  // Generated bookmark service (#2755)
+        let searchService: SearchService
+        let conversationService: ConversationService  // Generated conversation service
+        let chatService: ChatService  // Generated chat service
         let workflowStore: WorkflowStore
-        let workflowServiceGenerated: WorkflowServiceGenerated  // Generated workflow service
+        let workflowService: WorkflowService  // Generated workflow service
         let workflowStreamService: WorkflowStreamService  // SSE streaming for workflow execution
-        let importService: ImportServiceGenerated
-        let documentServiceGenerated: DocumentServiceGenerated
-        let storageService: StorageServiceGenerated
-        let providerService: ProviderServiceGenerated
-        let modelService: ModelServiceGenerated
-        let artifactService: ArtifactServiceGenerated
-        let entityService: EntityServiceGenerated  // /api/entities + /api/claims (#728)
-        let kgCurationService: KGCurationServiceGenerated
-        let activityService: ActivityServiceGenerated
-        let batchService: BatchServiceGenerated
-        let automationService: AutomationServiceGenerated
+        let importService: ImportService
+        let documentService: DocumentService
+        let storageService: StorageService
+        let providerService: ProviderAPIService
+        let modelService: ModelService
+        let artifactService: ArtifactService
+        let entityService: EntityService  // /api/entities + /api/claims (#728)
+        let kgCurationService: KGCurationService
+        let activityService: ActivityService
+        let batchService: BatchService
+        let automationService: AutomationAPIService
         let chainService: ChainService
         let researchService: ResearchService
         let noteService: NoteService
@@ -175,8 +175,8 @@ class LibraryManager {
         @ObservationIgnored lazy var researchStore: ResearchStore = ResearchStore(researchService: researchService)
 
         /// Per-library saved agent workspaces (#3533 / #3547). Owns the workspace
-        /// list; save/list/delete route through `chatServiceGenerated`.
-        @ObservationIgnored lazy var workspaceStore: WorkspaceStore = WorkspaceStore(chatService: chatServiceGenerated)
+        /// list; save/list/delete route through `chatService`.
+        @ObservationIgnored lazy var workspaceStore: WorkspaceStore = WorkspaceStore(chatService: chatService)
 
         /// Per-library workflow batch runs (#3536). Owns the batch list + the
         /// folder-fan-out create; routes through `batchService`.
@@ -277,12 +277,12 @@ class LibraryManager {
             host: BackendHost = .appDefault,
             apiClient: APIClient? = nil,
             documentStore: DocumentStore? = nil,
-            searchService: SearchServiceGenerated? = nil,
+            searchService: SearchService? = nil,
             workflowStore: WorkflowStore? = nil,
-            importService: ImportServiceGenerated? = nil,
-            storageService: StorageServiceGenerated? = nil,
-            providerService: ProviderServiceGenerated? = nil,
-            modelService: ModelServiceGenerated? = nil,
+            importService: ImportService? = nil,
+            storageService: StorageService? = nil,
+            providerService: ProviderAPIService? = nil,
+            modelService: ModelService? = nil,
             startAccessing: Bool = false
         ) {
             self.id = id ?? UUID()
@@ -314,32 +314,32 @@ class LibraryManager {
 
             // Initialize all services with the library's APIClient
             self.documentStore = documentStore ?? DocumentStore(apiClient: self.apiClient)
-            self.savedSearchServiceGenerated = SavedSearchServiceGenerated(ficheroClient: self.ficheroClient)
-            self.bookmarkServiceGenerated = BookmarkServiceGenerated(ficheroClient: self.ficheroClient)
-            self.searchService = searchService ?? SearchServiceGenerated(ficheroClient: self.ficheroClient)
-            self.conversationServiceGenerated = ConversationServiceGenerated(ficheroClient: self.ficheroClient)
-            self.chatServiceGenerated = ChatServiceGenerated(ficheroClient: self.ficheroClient)
+            self.savedSearchService = SavedSearchService(ficheroClient: self.ficheroClient)
+            self.bookmarkService = BookmarkService(ficheroClient: self.ficheroClient)
+            self.searchService = searchService ?? SearchService(ficheroClient: self.ficheroClient)
+            self.conversationService = ConversationService(ficheroClient: self.ficheroClient)
+            self.chatService = ChatService(ficheroClient: self.ficheroClient)
             self.workflowStore = workflowStore ?? WorkflowStore(ficheroClient: self.ficheroClient)
-            self.workflowServiceGenerated = WorkflowServiceGenerated(ficheroClient: self.ficheroClient)
+            self.workflowService = WorkflowService(ficheroClient: self.ficheroClient)
             self.workflowStreamService = WorkflowStreamService(ficheroClient: self.ficheroClient)
-            self.importService = importService ?? ImportServiceGenerated(ficheroClient: self.ficheroClient)
+            self.importService = importService ?? ImportService(ficheroClient: self.ficheroClient)
 
             #if os(macOS)
             // iOS uses document-picker grants; only the macOS sandbox needs to
             // hand a newly minted bookmark to an already-running embedded engine.
             FolderAccessManager.shared.engineAccessService =
-                SandboxAccessServiceGenerated(ficheroClient: self.ficheroClient)
+                SandboxAccessService(ficheroClient: self.ficheroClient)
             #endif
-            self.documentServiceGenerated = DocumentServiceGenerated(ficheroClient: self.ficheroClient)
-            self.storageService = storageService ?? StorageServiceGenerated(ficheroClient: self.ficheroClient)
-            self.providerService = providerService ?? ProviderServiceGenerated(ficheroClient: self.ficheroClient)
-            self.modelService = modelService ?? ModelServiceGenerated(ficheroClient: self.ficheroClient)
-            self.artifactService = ArtifactServiceGenerated(ficheroClient: self.ficheroClient)
-            self.entityService = EntityServiceGenerated(ficheroClient: self.ficheroClient)
-            self.kgCurationService = KGCurationServiceGenerated(ficheroClient: self.ficheroClient)
-            self.activityService = ActivityServiceGenerated(ficheroClient: self.ficheroClient)
-            self.batchService = BatchServiceGenerated(ficheroClient: self.ficheroClient)
-            self.automationService = AutomationServiceGenerated(ficheroClient: self.ficheroClient)
+            self.documentService = DocumentService(ficheroClient: self.ficheroClient)
+            self.storageService = storageService ?? StorageService(ficheroClient: self.ficheroClient)
+            self.providerService = providerService ?? ProviderAPIService(ficheroClient: self.ficheroClient)
+            self.modelService = modelService ?? ModelService(ficheroClient: self.ficheroClient)
+            self.artifactService = ArtifactService(ficheroClient: self.ficheroClient)
+            self.entityService = EntityService(ficheroClient: self.ficheroClient)
+            self.kgCurationService = KGCurationService(ficheroClient: self.ficheroClient)
+            self.activityService = ActivityService(ficheroClient: self.ficheroClient)
+            self.batchService = BatchService(ficheroClient: self.ficheroClient)
+            self.automationService = AutomationAPIService(ficheroClient: self.ficheroClient)
             self.chainService = ChainService(apiClient: self.apiClient)
             self.researchService = ResearchService(ficheroClient: self.ficheroClient)
             self.noteService = NoteService(ficheroClient: self.ficheroClient)

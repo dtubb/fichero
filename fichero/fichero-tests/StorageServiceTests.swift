@@ -1,8 +1,8 @@
 //
-//  StorageServiceGeneratedTests.swift
+//  StorageServiceTests.swift
 //  FicheroTests
 //
-//  Request/response mapping tests for StorageServiceGenerated using the
+//  Request/response mapping tests for StorageService using the
 //  generated FicheroAPIClient and a stubbed URLProtocol.
 //
 
@@ -37,18 +37,18 @@ final class MockURLProtocol: URLProtocol {
 }
 
 @MainActor
-struct StorageServiceGeneratedTests {
+struct StorageServiceTests {
 
     private func makeService(
         baseURL: URL,
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
-    ) -> StorageServiceGenerated {
+    ) -> StorageService {
         MockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
         let session = URLSession(configuration: configuration)
         let client = FicheroClient(baseURL: baseURL, libraryPath: "/tmp/test.fichero", session: session)
-        return StorageServiceGenerated(ficheroClient: client)
+        return StorageService(ficheroClient: client)
     }
 
     @Test("thumbnail request maps to storage thumbnail path and returns image bytes")
@@ -114,7 +114,7 @@ struct StorageServiceGeneratedTests {
 
     @Test("URL providers produce the expected storage paths")
     func urlProviders() {
-        let service = StorageServiceGenerated(ficheroClient: FicheroClient(libraryPath: nil))
+        let service = StorageService(ficheroClient: FicheroClient(libraryPath: nil))
         let thumbnail = service.thumbnailURL(for: "doc-abc")
         let display = service.displayURL(for: "doc-abc")
         let source = service.sourceURL(for: "doc-abc")

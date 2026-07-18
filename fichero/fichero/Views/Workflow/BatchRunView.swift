@@ -35,7 +35,7 @@ enum BatchSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
 /// MiniToolbar chrome for consistency with the Workflow surface.
 struct BatchRunView: View {
     @Environment(BatchStore.self) private var batchStore
-    @Environment(WorkflowServiceGenerated.self) private var workflowService
+    @Environment(WorkflowService.self) private var workflowService
     @Environment(DocumentStore.self) private var documentStore
 
     @State private var workflows: [WorkflowResponse] = []

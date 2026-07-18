@@ -7,7 +7,7 @@ import SwiftUI
 // MARK: - Service
 
 /// Lightweight state holder backing the Add-to-Workspace picker.
-/// Transport flows through `DocumentServiceGenerated` so every request uses the
+/// Transport flows through `DocumentService` so every request uses the
 /// generated OpenAPI client and the active library path from the window's
 /// `LibraryReference`.
 @MainActor
@@ -19,7 +19,7 @@ final class WorkspacePickerService {
     var isLoading = false
     var error: String?
 
-    func loadWorkspaceFolders(documentService: DocumentServiceGenerated) async {
+    func loadWorkspaceFolders(documentService: DocumentService) async {
         isLoading = true
         error = nil
         defer { isLoading = false }
@@ -41,7 +41,7 @@ final class WorkspacePickerService {
     func addToWorkspace(
         folderId: String,
         targetId: String,
-        documentService: DocumentServiceGenerated
+        documentService: DocumentService
     ) async throws -> Int {
         let item = Components.Schemas.WorkspaceCuratedItem(
             id: UUID().uuidString,
@@ -57,7 +57,7 @@ final class WorkspacePickerService {
     /// First caller of `GET /api/documents/{id}/workspace/items` (#1570).
     func loadCuratedItems(
         folderId: String,
-        documentService: DocumentServiceGenerated
+        documentService: DocumentService
     ) async throws -> [WorkspaceCuratedItem] {
         let resp = try await documentService.getWorkspaceItems(folderId: folderId)
         return resp.items.map(WorkspaceCuratedItem.init(payload:))
@@ -72,7 +72,7 @@ final class WorkspacePickerService {
         folderId: String,
         item: WorkspaceCuratedItem,
         nodeClass: String?,
-        documentService: DocumentServiceGenerated
+        documentService: DocumentService
     ) async throws -> Int {
         let add = Components.Schemas.WorkspaceCuratedItem(
             id: item.id,
@@ -177,7 +177,7 @@ struct WorkspaceItemPicker: View {
     let document: Document
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(DocumentServiceGenerated.self) private var documentService
+    @Environment(DocumentService.self) private var documentService
     @State private var service = WorkspacePickerService()
     @State private var addingFolderId: String?
 

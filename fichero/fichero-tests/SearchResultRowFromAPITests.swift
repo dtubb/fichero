@@ -159,7 +159,7 @@ final class SearchResultRowFromAPITests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
-            .appendingPathComponent("Services/SearchServiceGenerated.swift")
+            .appendingPathComponent("Services/SearchService.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
 
         XCTAssertTrue(source.contains("transcriptExcerpts: generated.transcriptExcerpts"))
@@ -187,8 +187,8 @@ final class SearchResultRowFromAPITests: XCTestCase {
     }
 
     func testSearchServiceRequestBuilderCarriesIncludeValues() throws {
-        let request = SearchServiceGenerated.makeSearchRequest(
-            SearchServiceGenerated.SearchRequestOptions(
+        let request = SearchService.makeSearchRequest(
+            SearchService.SearchRequestOptions(
                 query: "scope me",
                 limit: 25,
                 include: [

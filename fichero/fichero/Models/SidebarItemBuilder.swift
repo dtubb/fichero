@@ -22,12 +22,12 @@ enum SidebarItemBuilder {
         allItems.append(contentsOf: libraryItems)
 
         // Add searches
-        let searches = library.savedSearchServiceGenerated.savedSearches
+        let searches = library.savedSearchService.savedSearches
         let searchItems = buildSearchHierarchy(from: searches, libraryId: library.id)
         allItems.append(contentsOf: searchItems)
 
         // Add chats
-        let conversations = library.conversationServiceGenerated.conversations
+        let conversations = library.conversationService.conversations
         let chatItems = buildChatHierarchy(from: conversations, libraryId: library.id)
         allItems.append(contentsOf: chatItems)
 
