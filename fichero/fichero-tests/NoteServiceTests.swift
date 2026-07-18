@@ -87,7 +87,7 @@ final class NoteServiceTests: XCTestCase {
         // scopeLabel is a computed property on FocusedNote; NotesBrowserView consumes it.
         let viewSource = try Self.appSource("Views/Notes/NotesBrowserView.swift")
         XCTAssertTrue(viewSource.contains("item.scopeLabel"))
-        let noteSource = try Self.appSource("Views/Library/FocusedNote.swift")
+        let noteSource = try Self.appSource("Views/Library/Inspector/FocusedNote.swift")
         XCTAssertTrue(noteSource.contains("if note.folderId?.isEmpty == false { return \"Folder\" }"))
         XCTAssertTrue(noteSource.contains("if note.pageId?.isEmpty == false { return \"Page\" }"))
     }

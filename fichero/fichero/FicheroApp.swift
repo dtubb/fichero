@@ -26,6 +26,8 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
     let controller = EngineLifecycleController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The unit-test host must never start a real engine (#3902).
+        guard !isRunningXCTests() else { return }
         logger.info("App did finish launching — starting engine app-scoped (#3945)")
         // The engine's async startup lives here, not in a scene `.task`: `@main
         // App.init` is synchronous and `.task` is per-scene, so the delegate is the

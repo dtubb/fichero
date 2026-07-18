@@ -6,6 +6,50 @@
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
       buildArchitectures = "Automatic">
+      <BuildActionEntries>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "500"
+               BuildableName = "Fichero.app"
+               BlueprintName = "Fichero"
+               ReferencedContainer = "container:fichero.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A10521A82EFDC92400B28C3E"
+               BuildableName = "FicheroTests.xctest"
+               BlueprintName = "FicheroTests"
+               ReferencedContainer = "container:fichero.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A10521C02EFDC94100B28C3E"
+               BuildableName = "FicheroUITests.xctest"
+               BlueprintName = "FicheroUITests"
+               ReferencedContainer = "container:fichero.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+      </BuildActionEntries>
    </BuildAction>
    <TestAction
       buildConfiguration = "Debug"
@@ -27,6 +71,17 @@
                BlueprintIdentifier = "A10521A82EFDC92400B28C3E"
                BuildableName = "FicheroTests.xctest"
                BlueprintName = "FicheroTests"
+               ReferencedContainer = "container:fichero.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A10521C02EFDC94100B28C3E"
+               BuildableName = "FicheroUITests.xctest"
+               BlueprintName = "FicheroUITests"
                ReferencedContainer = "container:fichero.xcodeproj">
             </BuildableReference>
          </TestableReference>

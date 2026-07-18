@@ -3180,6 +3180,7 @@
 				"mkdir -p \"$(dirname \"$ENGINE_DST\")\"",
 				"",
 				"cp -R \"$ENGINE_SRC\" \"$ENGINE_DST\"",
+				"\"${SRCROOT}/../scripts/clean-embedded-engine.sh\" \"$ENGINE_DST\"",
 				"",
 			);
 		};
@@ -3306,6 +3307,7 @@
 				"rm -rf \"$ENGINE_DST\"",
 				"mkdir -p \"$(dirname \"$ENGINE_DST\")\"",
 				"cp -R \"$ENGINE_SRC\" \"$ENGINE_DST\"",
+				"\"${SRCROOT}/../scripts/clean-embedded-engine.sh\" \"$ENGINE_DST\"",
 				"",
 				"# Remove static archives (.a). REJECTED UPLOAD, code 90284: Python.framework ships",
 				"# Tcl/Tk link-time stubs (libtclstub8.6.a, libtkstub8.6.a, libitclstub4.3.2.a,",
@@ -4810,42 +4812,54 @@
 		20969FA93000614800D06A60 /* Alpha */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Alpha;
 		};
 		20969FAA3000614800D06A60 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Beta;
 		};
 		20969FAB3000614800D06A60 /* Dev Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
+				SWIFT_VERSION = 5.0;
 			};
 			name = "Dev Embedded";
 		};
 		20969FAC3000614800D06A60 /* Alpha Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
+				SWIFT_VERSION = 5.0;
 			};
 			name = "Alpha Embedded";
 		};
 		20969FAD3000614800D06A60 /* Beta Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
+				SWIFT_VERSION = 5.0;
 			};
 			name = "Beta Embedded";
 		};
 		20969FAE3000614800D06A60 /* Release Local */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
+				SWIFT_VERSION = 5.0;
 			};
 			name = "Release Local";
 		};
@@ -5468,7 +5482,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 6.0;
+				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
 			};
 			name = Debug;
@@ -5491,7 +5505,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 6.0;
+				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
 			};
 			name = Release;

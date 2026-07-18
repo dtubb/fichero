@@ -233,7 +233,7 @@ final class ArtifactTests: XCTestCase {
     /// #2495: the selected artifact's text must fill the full inspector height,
     /// not sit at intrinsic height inside a ScrollView (the old bottom strip).
     func testArtifactDetailFillsAvailableHeight() throws {
-        let source = try Self.appSource("Views/Library/ArtifactDetailView.swift")
+        let source = try Self.appSource("Views/Library/Inspector/ArtifactDetailView.swift")
         // The editor claims all remaining vertical space …
         XCTAssertTrue(
             source.contains("fillsHeight: true"),
@@ -257,7 +257,7 @@ final class ArtifactTests: XCTestCase {
     /// `CoalescingSaveRunnerTests`); this guard pins that the panel delegates to
     /// it and never reintroduces the old early-return drop.
     func testPerformSaveDelegatesToCoalescingRunner() throws {
-        let source = try Self.appSource("Views/Library/ArtifactPanel.swift")
+        let source = try Self.appSource("Views/Library/Inspector/ArtifactPanel.swift")
         // The old bug: `guard let onSave, !isSaving else { return }` dropped the
         // trailing edit. The fix routes through the coalescing runner.
         XCTAssertFalse(

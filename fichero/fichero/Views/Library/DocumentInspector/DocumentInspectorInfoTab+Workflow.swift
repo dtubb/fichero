@@ -99,7 +99,10 @@ struct WorkflowProvenancePanel: View {
 
     // MARK: - Testable sort
 
-    static func sortNewestFirst(
+    // nonisolated: pure date-sort with no main-actor state. Without this it inherits
+    // @MainActor from the View type, and `.sorted`'s comparator runs on a background
+    // cooperative queue → swift_task_isCurrentExecutor assertion crash (#3902 test host).
+    nonisolated static func sortNewestFirst(
         _ runs: [Components.Schemas.WorkflowRunProvenanceResponse]
     ) -> [Components.Schemas.WorkflowRunProvenanceResponse] {
         let fmt = ISO8601DateFormatter()
@@ -111,7 +114,7 @@ struct WorkflowProvenancePanel: View {
         }
     }
 
-    static func loadErrorMessage(for error: Error) -> String? {
+    nonisolated static func loadErrorMessage(for error: Error) -> String? {
         if case EntityServiceGenerated.ServiceError.unexpectedResponse(404) = error {
             return nil
         }

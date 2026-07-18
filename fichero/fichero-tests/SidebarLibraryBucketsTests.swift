@@ -10,7 +10,7 @@ import XCTest
 final class SidebarLibraryBucketsTests: XCTestCase {
     func testComputeSortsChildrenIntoTypeBuckets() {
         let lib = UUID()
-        let doc = SidebarItem.fromDocument(Document(name: "Report", docType: .folder), libraryId: lib)
+        let doc = SidebarItem.fromDocument(Document(docType: .folder, name: "Report"), libraryId: lib)
         let docFolder = SidebarItem.folder(name: "Docs", folderPath: "/docs", category: .folder, libraryId: lib)
         let searchFolder = SidebarItem.folder(name: "Saved", folderPath: "/s", category: .search, libraryId: lib)
         let workflowFolder = SidebarItem.folder(name: "Flows", folderPath: "/w", category: .workflow, libraryId: lib)

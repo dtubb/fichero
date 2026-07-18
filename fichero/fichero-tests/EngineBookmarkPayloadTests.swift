@@ -9,6 +9,7 @@ import XCTest
 /// the app must mint security-scoped bookmarks and hand them over at spawn. The
 /// format is parsed by `parse_bookmarks()` in `fichero/security_scoped_access.py`,
 /// and the two must not drift — hence these tests pin the exact shape.
+@MainActor
 final class EngineBookmarkPayloadTests: XCTestCase {
 
     private func decode(_ json: String) throws -> [String: String] {

@@ -82,7 +82,8 @@ final class WorkflowResponseTypesTests: XCTestCase {
             "nodes": [], "edges": [],
             "folder_path": "/Catalogue",
             "sort_order": 3,
-            "is_system": true
+            "is_system": true,
+            "untested": false
         }
         """.data(using: .utf8)!
         let resp = try JSONDecoder().decode(WorkflowResponse.self, from: json)

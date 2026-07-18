@@ -7,11 +7,11 @@ import XCTest
 final class PDFDocPageCountTests: XCTestCase {
     func testCountsOnlyPageChildren() {
         let docs = [
-            Document(name: "folder", docType: .folder),
-            Document(name: "p1", docType: .page),
-            Document(name: "file", docType: .file),
-            Document(name: "p2", docType: .page),
-            Document(name: "p3", docType: .page)
+            Document(docType: .folder, name: "folder"),
+            Document(docType: .page, name: "p1"),
+            Document(docType: .file, name: "file"),
+            Document(docType: .page, name: "p2"),
+            Document(docType: .page, name: "p3")
         ]
         XCTAssertEqual(ContentView.pdfDocPageCount(in: docs), 3)
     }
@@ -19,7 +19,7 @@ final class PDFDocPageCountTests: XCTestCase {
     func testEmptyAndNoPagesAreZero() {
         XCTAssertEqual(ContentView.pdfDocPageCount(in: []), 0)
         XCTAssertEqual(
-            ContentView.pdfDocPageCount(in: [Document(name: "x", docType: .file)]),
+            ContentView.pdfDocPageCount(in: [Document(docType: .file, name: "x")]),
             0
         )
     }

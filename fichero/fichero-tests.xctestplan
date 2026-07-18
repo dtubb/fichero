@@ -20,6 +20,7 @@
       }
     },
     {
+      "enabled" : false,
       "target" : {
         "containerPath" : "container:fichero.xcodeproj",
         "identifier" : "A10521C02EFDC94100B28C3E",

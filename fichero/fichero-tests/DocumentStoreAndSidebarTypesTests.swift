@@ -61,6 +61,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     /// Test seam: a DocumentStore whose generated client is bound to a stubbed
     /// URLProtocol session, so `libraryItemColumns` exercises the real
     /// request/response mapping without a live engine.
+    @MainActor
     private static func makeStubbedStore() -> DocumentStore {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ColumnsStubURLProtocol.self]
@@ -89,7 +90,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         }
         defer { ColumnsStubURLProtocol.handler = nil }
 
-        let store = Self.makeStubbedStore()
+        let store = await Self.makeStubbedStore()
         let rows = try await store.libraryItemColumns(itemIds: ["a", "b"])
 
         XCTAssertEqual(rows.map(\.itemId), ["a", "b"])
@@ -105,7 +106,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         }
         defer { ColumnsStubURLProtocol.handler = nil }
 
-        let store = Self.makeStubbedStore()
+        let store = await Self.makeStubbedStore()
         let rows = try await store.libraryItemColumns(itemIds: [])
 
         XCTAssertTrue(rows.isEmpty)
@@ -373,7 +374,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testBackendRetryRunsSameReadinessSideEffectsAsStartup() throws {
-        let tabSource = try Self.appSource("Views/DocumentTabView.swift")
+        let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
         let connectionSource = try Self.appSource("Views/Components/BackendConnectionView.swift")
 
         XCTAssertTrue(tabSource.contains("BackendConnectionView(appState: appState, onConnected: completeBackendRetryReadiness)"))
@@ -460,7 +461,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testRemotePreviewSurfacesDoNotInventLocalFileURLs() throws {
-        let imageViewerSource = try Self.appSource("Views/Library/ImageViewerComponents.swift")
+        let imageViewerSource = try Self.appSource("Views/Library/ImageViewer/ImageViewerComponents.swift")
         let activitySource = try Self.appSource("Views/Activity/ActivityProgressView+HistoricalProgress.swift")
         let trackingSource = try Self.appSource("Views/Library/ImageViewer/ImageWithCursorTracking.swift")
 
@@ -478,7 +479,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let menuSource = try Self.appSource("FicheroApp.swift")
         let appStateSource = try Self.appSource("App/AppState.swift")
         let windowSource = try Self.appSource("App/LibraryWindow.swift")
-        let inspectorSource = try Self.appSource("Views/Library/DocumentInspector.swift")
+        let inspectorSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
 
         // The Notes tab routes to the per-document notes view.
         XCTAssertTrue(inspectorSource.contains("DocumentNotesTab(document: doc)"))
