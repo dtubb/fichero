@@ -13,6 +13,7 @@ import Foundation
 import Testing
 
 @Suite("NFC normalization (#3076)")
+@MainActor
 struct NFCNormalizationTests {
 
     // Shared sample: "Chocó" in the two Unicode forms.
