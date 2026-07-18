@@ -19,7 +19,11 @@ def _write_minimal_repo(root: Path) -> None:
     (root / "fichero/fichero/Services").mkdir(parents=True)
 
     (root / "fichero/fichero.xcodeproj/project.pbxproj").write_text(
-        'FicheroApp_iOS.swift in Sources\n'
+        # Post-#3754 the app target compiles via a synchronized root group
+        # (folder = source of truth), so the checker verifies the sync-group
+        # invariant instead of a `FicheroApp_iOS.swift in Sources` build-file line.
+        'isa = PBXFileSystemSynchronizedRootGroup;\n'
+        'path = fichero;\n'
         'SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";\n'
         'TARGETED_DEVICE_FAMILY = "1,2,7";\n',
         encoding="utf-8",

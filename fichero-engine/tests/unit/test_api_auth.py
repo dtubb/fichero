@@ -38,6 +38,10 @@ def test_docs_subpath_is_unauthenticated():
 
 def test_private_endpoint_still_requires_bearer_token():
     client = TestClient(_app_with_auth())
+    # conftest autouse (_unit_test_auth_all_testclients) seeds a bootstrap
+    # Authorization header on every TestClient; clear it so this negative case
+    # is genuinely UNauthenticated.
+    client.headers["Authorization"] = ""
     no_auth = client.get("/api/private")
     assert no_auth.status_code == 401
 
@@ -64,6 +68,9 @@ def test_unpaired_remote_request_is_denied_with_empty_device_set(monkeypatch, ap
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     assert app_db.list_devices() == []
     client = TestClient(_app_with_auth(), client=("192.0.2.10", 5000))
+    # Clear the conftest-seeded bootstrap Authorization header so this remote
+    # request is genuinely unauthenticated (empty header, not the bootstrap token).
+    client.headers["Authorization"] = ""
 
     response = client.get("/api/private")
 
