@@ -181,6 +181,16 @@ def _mock_claim_hits(claim: KnowledgeClaim) -> KGGraphListResponse:
 
 
 class TestEnhancedSearch:
+    def test_entity_match_lookup_failure_degrades_to_no_hits(self, db, monkeypatch):
+        from fichero.api.routes.search import _entity_match_results
+
+        def _fail(**_kwargs):
+            raise RuntimeError("artifact table unavailable")
+
+        monkeypatch.setattr(db, "artifact_entity_document_matches", _fail)
+
+        assert _entity_match_results(db, "Asprilla", limit=5, exclude_doc_ids=set()) == []
+
     def test_empty_query_returns_recent(self, client):
         # The enhanced_search route deliberately treats an empty query as
         # "browse the index" — returns the most-recently-updated docs
