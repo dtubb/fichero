@@ -101,7 +101,7 @@ CATALOGUE_INPUT_PORTS = merge_ports(
             name="Text",
             port_type="input",
             data_type=DataType.TEXT,
-            required=True,
+            required=False,
             description=(
                 "Aggregated TRANSCRIPTION text — wire from aggregate.text "
                 "(per-file transcriptions joined), NOT from the merge of "
@@ -111,16 +111,14 @@ CATALOGUE_INPUT_PORTS = merge_ports(
             ),
         ),
         PortDef(
-            id="barrier",
-            name="Barrier (sync)",
+            id="data",
+            name="Data",
             port_type="input",
             data_type=DataType.ANY,
-            required=False,
+            required=True,
             description=(
-                "Optional dependency-only port. Wire merge_extracts here "
-                "(or any other late node) to make catalogue wait for the "
-                "cleanup chain to finish before it queries the DB for "
-                "canonical entities. Value is ignored."
+                "Dependency-only input from merge_extracts. Its value is ignored; "
+                "it makes catalogue wait for canonical entity cleanup."
             ),
         ),
     ],

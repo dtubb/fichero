@@ -50,7 +50,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
-RULE_DOC = "docs/contributor/architecture/swiftui/reform_masterplan_2026-06.md"
+RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 # The sanctioned transport layer — request-building lives here by design.
 SANCTIONED_DIR_PARTS = ("Services",)

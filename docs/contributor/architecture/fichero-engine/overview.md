@@ -189,4 +189,4 @@ ruff check fichero-engine/src/
 
 ## Related Contract Docs
 
-- `docs/contributor/architecture/api/capture_sessions_resumable_upload_contract.md` — mobile/offline capture session and resumable-upload contract slice (`#2352`)
+- `docs/contributor/architecture/fichero-engine/capture_sessions_resumable_upload_contract.md` — mobile/offline capture session and resumable-upload contract slice (`#2352`)

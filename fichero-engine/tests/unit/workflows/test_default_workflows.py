@@ -8,7 +8,10 @@ directory without hitting disk outside of the known presets location.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+import pytest
 
 from fichero.workflows.default_workflows import (
     _load_preset_files,
@@ -1724,3 +1727,50 @@ class TestTranscriptionPresetConvention:
             "transcribe_review nodes must set vision_mode='llm'. "
             f"Violations: {violations}"
         )
+
+
+_PRESET_NAMES = sorted(p["name"] for p in _load_preset_files())
+
+
+@pytest.mark.parametrize("preset_name", _PRESET_NAMES)
+def test_every_default_preset_passes_execution_gate(
+    preset_name: str, monkeypatch: pytest.MonkeyPatch
+):
+    """Every shipped preset must clear the real /execute validation gate."""
+    from fichero.models import Workflow
+    from fichero.workflows.runtime import to_workflow_def
+
+    monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
+    for tier in ("SMALL", "MEDIUM", "LARGE"):
+        monkeypatch.setenv(f"FICHERO_{tier}_PROVIDER", "apple")
+        monkeypatch.setenv(f"FICHERO_{tier}_MODEL", "apple-intelligence")
+        monkeypatch.setenv(f"FICHERO_VISION_{tier}_PROVIDER", "apple")
+        monkeypatch.setenv(f"FICHERO_VISION_{tier}_MODEL", "apple-vision")
+    monkeypatch.setattr(
+        "fichero.app_db.get_app_db",
+        lambda: SimpleNamespace(
+            get_default_model_for_category=lambda _category: None,
+            list_providers=lambda: [],
+        ),
+    )
+
+    preset = {p["name"]: p for p in _load_preset_files()}[preset_name]
+    workflow_def = to_workflow_def(
+        Workflow(
+            id=f"gate-{preset_name}",
+            name=preset["name"],
+            description=preset.get("description", ""),
+            nodes=preset["nodes"],
+            edges=preset["edges"],
+            config=preset.get("config", {}),
+            folder_path=preset.get("folder_path", "/"),
+        )
+    )
+
+    errors = [
+        *validate_workflow_connections(workflow_def),
+        *validate_workflow_preflight(workflow_def),
+    ]
+    assert errors == [], (
+        f"preset {preset_name!r} fails the /execute validation gate: {errors}"
+    )

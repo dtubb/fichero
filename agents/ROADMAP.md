@@ -45,7 +45,7 @@ A long design session reshaped the plan. Order is now:
 - **#2031 — persistent shell** (route every mode's detail through ONE shared inspector; modes→views). Design approved; brief staged. *(Search/KG/Mind-Palace collapse into VIEWS, not modes.)*
 - Reading surface: **#2090** multi-page (1/2-up native + 3/4-up custom grid + continuous; PDFs+images) · **#2093** first-class translation view · ✅ #2052 PDF thumbnail · #2053/#2080 page labels.
 - Library/legibility: **#2020** entity provenance Table · **#2091** references-as-nodes + 'who references this' · **#2088** BibTeX export UI · **#2092** language policy (global/per-doc) · **#2089** editor consolidation (no Word-clone).
-- Design doc: `docs/contributor/architecture/swiftui/mac_shell_design_proposal.md`.
+- Design doc: `docs/contributor/architecture/fichero/mac_shell_design_proposal.md`.
 
 **3. MAKE-VISIBLE + AI-INFRA BACKEND (after Mac UI):**
 - **#2082** surface the shipped security backend (Accounts/Users #2083, multi-user toggle #2084, audit 'who-changed-what' #2085, sharing/roles #2086, backups #2087) + Trash UI #2077.

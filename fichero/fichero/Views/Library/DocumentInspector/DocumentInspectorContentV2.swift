@@ -11,7 +11,7 @@ import SwiftUI
 ///
 /// Phase 1: read-only. No save logic, no caching, no signature dance —
 /// we re-fetch artifacts when the document selection or workflow events
-/// change, full stop. See docs/contributor/architecture/swiftui/inspector_redesign.md.
+/// change, full stop. See docs/contributor/architecture/fichero/inspector_redesign.md.
 struct DocumentInspectorContentV2: View {
     /// Which panels to render. The Content tab shows only the document's
     /// page content (the source text), Artifacts shows only the generated

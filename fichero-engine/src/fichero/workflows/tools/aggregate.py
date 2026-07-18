@@ -175,7 +175,7 @@ def _aggregate(
             name="Text",
             port_type="input",
             data_type=DataType.TEXT,
-            required=True,
+            required=False,
             description="Text records from upstream (string or list).",
         ),
         PortDef(

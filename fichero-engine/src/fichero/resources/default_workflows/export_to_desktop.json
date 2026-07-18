@@ -17,15 +17,6 @@
   },
   "nodes": [
     {
-      "id": "files-source",
-      "tool": "files",
-      "label": "Files",
-      "position_x": 80,
-      "position_y": 200,
-      "inputs": {},
-      "config": {}
-    },
-    {
       "id": "export-documents",
       "tool": "export_documents",
       "label": "Export Documents",
@@ -42,13 +33,5 @@
       }
     }
   ],
-  "edges": [
-    {
-      "id": "edge-files-export",
-      "source": "files-source",
-      "target": "export-documents",
-      "source_port": "source_id",
-      "target_port": "source_id"
-    }
-  ]
+  "edges": []
 }

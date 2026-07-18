@@ -42,7 +42,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "fichero-engine" / "src" / "fichero"
-RULE_DOC = "docs/contributor/architecture/swiftui/reform_masterplan_2026-06.md"
+RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 WRITE_MARKERS = (
     "save", "upsert", "create", "update", "delete",

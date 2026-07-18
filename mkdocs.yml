@@ -142,8 +142,8 @@ nav:
           - Extensibility Guarantee: contributor/extensibility-guarantee.md
       - Architecture Notes:
           - System Overview: contributor/architecture/overview.md
-          - Backend API Overview: contributor/architecture/api/overview.md
-          - SwiftUI Overview: contributor/architecture/swiftui/overview.md
+          - Backend API Overview: contributor/architecture/fichero-engine/overview.md
+          - SwiftUI Overview: contributor/architecture/fichero/overview.md
       - Release:
           - Release Lane Runbook: contributor/release/release-lane.md
           - Sparkle Release Setup: contributor/release/sparkle-release.md
