@@ -87,7 +87,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         // After the EntityStore migration, the view calls the store; the store calls the endpoint.
         let storeSource = try Self.appSource("Models/EntityStore.swift")
 
-        XCTAssertTrue(source.contains("entityStore.loadEntities(forDocument: documentId)"))
+        XCTAssertTrue(source.contains("entityStore.loadEntities(forDocument: documentId, force: force)"))
         XCTAssertFalse(source.contains("listEntitiesForDocument(documentId: documentId)"))
         XCTAssertFalse(source.contains("listInspectorEntitiesForDocument"))
         XCTAssertTrue(storeSource.contains("listInspectorEntitiesForDocument"))
@@ -99,8 +99,8 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
         )
 
-        XCTAssertTrue(source.contains("Loaded \\(entityStore.entities.count) entities, but the current filter hides every kind."))
-        XCTAssertTrue(source.contains("Loaded \\(entityStore.entities.count) entities, but none mapped into a visible section."))
+        XCTAssertTrue(source.contains("Loaded \\(scopedEntities.count) entities, but the current filter hides every kind."))
+        XCTAssertTrue(source.contains("Loaded \\(scopedEntities.count) entities, but none mapped into a visible section."))
     }
 
     func testInspectorListRowsUseFullRowHitTargets() throws {
@@ -317,7 +317,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         )
         let storeSource = try Self.appSource("Models/EntityStore.swift")
 
-        XCTAssertTrue(source.contains(".draggable(InspectorEntityDragID(id: entity.stableInspectorId))"))
+        XCTAssertTrue(source.contains(".draggable(InspectorEntityDragID(id: entity.stableInspectorId, text: entity.canonicalName))"))
         XCTAssertTrue(source.contains(".dropDestination("))
         XCTAssertTrue(source.contains("pendingMergePlan = plan"))
         XCTAssertTrue(source.contains("pendingReclassifyPlan = PendingEntityReclassifyPlan("))
@@ -349,7 +349,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         )
 
         XCTAssertTrue(source.contains("private var entitiesMiniToolbar: some View"))
-        XCTAssertTrue(source.contains("MiniToolbar {"))
+        XCTAssertTrue(source.contains("InspectorBottomMiniToolbar(statusText: entitiesToolbarStatusText)"))
         XCTAssertTrue(source.contains("if entitySelection.count > 1 {"))
         XCTAssertTrue(source.contains("mergeActionMenu(targetEntities: selectedEntities, menuTitle: \"Merge\")"))
         XCTAssertTrue(source.contains("deleteActionButton(targetEntities: selectedEntities)"))
@@ -948,13 +948,14 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let source = try Self.appSource(
             "Views/KnowledgeGraph/OntologyBrowser/OntologyBrowser+Sheets.swift"
         )
+        let storeSource = try Self.appSource("Models/KGQueryStore.swift")
 
         // The console routes the W3C query layer through KGQueryStore on the
         // typed generated ops — seeded from /examples, run via /query/sparql —
         // not a hand-rolled URL, and surfaces the truncation flag (#3298).
-        XCTAssertTrue(source.contains("final class KGQueryStore"))
-        XCTAssertTrue(source.contains("sparqlQueryApiKgQuerySparqlPost"))
-        XCTAssertTrue(source.contains("sparqlExamplesApiKgQueryExamplesGet"))
+        XCTAssertTrue(storeSource.contains("final class KGQueryStore"))
+        XCTAssertTrue(storeSource.contains("sparqlQueryApiKgQuerySparqlPost"))
+        XCTAssertTrue(storeSource.contains("sparqlExamplesApiKgQueryExamplesGet"))
         XCTAssertTrue(source.contains("response.truncated"))
         XCTAssertFalse(source.contains("URLSession"))
     }

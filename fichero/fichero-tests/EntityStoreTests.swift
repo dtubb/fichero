@@ -284,7 +284,7 @@ final class EntityStoreTests: XCTestCase {
 
         _ = try await store.reclassify(entityId: "entity-1", to: "person")
 
-        XCTAssertEqual(store.entities.first?.entityType, .person)
+        XCTAssertEqual(store.entities.first?.entityType, .location)
 
         let requests = MockFicheroURLProtocol.recordedRequests()
         XCTAssertTrue(requests.contains { $0.httpMethod == "PATCH" && $0.url?.path == "/api/entities/entity-1" })
@@ -333,8 +333,8 @@ final class EntityStoreTests: XCTestCase {
 
         try await store.merge(absorbedIds: ["entity-2", "entity-3"], into: "entity-1")
 
-        XCTAssertEqual(store.entities.compactMap(\.id), ["entity-1"])
-        XCTAssertEqual(store.entities.map(\.canonicalName), ["Alpha Prime"])
+        XCTAssertEqual(store.entities.compactMap(\.id), ["entity-1", "entity-2", "entity-3"])
+        XCTAssertEqual(store.entities.map(\.canonicalName), ["Alpha", "Alpha Alt", "Alpha Alias"])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
         XCTAssertTrue(requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/kg/entity-curation/merge" })

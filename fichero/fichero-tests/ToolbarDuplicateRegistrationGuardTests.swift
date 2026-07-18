@@ -136,7 +136,7 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
 
     // MARK: - 2. Fixed toolbar-item ids are unique per window
 
-    /// Every explicit `ToolbarItem(id: "…")` id must be registered by exactly
+    /// Every explicit `ToolbarItem(id: …)` id must be registered by exactly
     /// one view. Two views contributing the same fixed id to the merged window
     /// toolbar is the same NSToolbar duplicate-identifier crash. Within a
     /// single file a repeated id is allowed ONLY for ContentView's
@@ -146,7 +146,7 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
         // id → files that register it (with per-file counts)
         var registrations: [String: [String: Int]] = [:]
         let idPattern = try NSRegularExpression(
-            pattern: #"ToolbarItem\(id:\s*"([^"]+)""#
+            pattern: #"ToolbarItem\(id:\s*([A-Za-z_][A-Za-z0-9_.]*)"#
         )
 
         for (path, source) in try Self.appSwiftFiles() {
@@ -162,14 +162,10 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
             }
         }
 
-        XCTAssertFalse(
-            registrations.isEmpty,
-            "Expected ContentView's fixed toolbar-item ids (fichero.*) to be found — "
-                + "did the source layout move?"
-        )
+        XCTAssertFalse(registrations.isEmpty, "Expected ContentView's fixed toolbar-item ids to be found")
 
         // Compile-time-exclusive pairs (`#if` platform branches) in ONE file.
-        let sameFileAllowlist: Set<String> = ["fichero.inspectorToggle"]
+        let sameFileAllowlist: Set<String> = ["ContentToolbarID.inspectorToggle"]
 
         for (id, files) in registrations {
             XCTAssertEqual(

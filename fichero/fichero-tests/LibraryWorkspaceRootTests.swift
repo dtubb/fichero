@@ -74,7 +74,7 @@ final class LibraryWorkspaceRootTests: XCTestCase {
             libraryManager: libraryManager
         )
 
-        XCTAssertEqual(resolved?.id, LibraryManager.globalLibraryId)
+        XCTAssertNil(resolved)
     }
 
     func testDocumentURLIsNilForTemporaryLibrary() throws {
