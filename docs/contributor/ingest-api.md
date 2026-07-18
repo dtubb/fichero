@@ -1,8 +1,14 @@
-(AI generated. Not reviewed.)
+<!-- Verified against fichero/importers/ingest.py (2026-07-18). Describes only what is built. -->
 
 # Ingest API Documentation
 
-The ingest module provides a comprehensive API for file and folder ingestion with various configuration options.
+The ingest module provides an API for file and folder ingestion with various
+configuration options. The functions live in `fichero.importers.ingest`;
+`fichero.ingest` is a thin re-export shim, so either import path works.
+
+Both `ingest_file` and `ingest_folder` also accept internal `db` and
+`package_path` arguments (inject a `Database` / target the library package);
+omit them for normal use — they default to the active library.
 
 ## Core Functions
 
@@ -34,11 +40,11 @@ doc = ingest_file(
 
 **Parameters:**
 - `path` (Path): Path to file
-- `mode` (IngestMode): LINK (default) or COPY
+- `mode` (IngestMode): LINK (default), COPY, or MOVE
 - `parent_id` (str, optional): Parent collection ID
 - `extract_metadata` (bool): Extract file metadata (default: True)
-- `extract_text` (bool): Extract text content (default: False)
-- `auto_embed` (bool): Create embeddings (default: False)
+- `extract_text` (bool): Extract text content (default: True, #881 — so dropped .md/.txt/.docx/.pdf-with-text are searchable immediately; image-only files still skip the loader)
+- `auto_embed` (bool): Create embeddings (default: True, #881 — paired with `extract_text` so ingested text is immediately semantic-searchable)
 - `save` (bool): Save to database (default: True)
 
 **Returns:** `Document` object
@@ -77,12 +83,12 @@ docs = ingest_folder(
 
 **Parameters:**
 - `folder` (Path): Folder to ingest
-- `mode` (IngestMode): LINK (default) or COPY
+- `mode` (IngestMode): LINK (default), COPY, or MOVE
 - `parent_id` (str, optional): Parent collection ID
 - `recursive` (bool): Process subdirectories (default: True)
 - `create_collection` (bool): Create collection for folder (default: True)
-- `extract_text` (bool): Extract text content (default: False)
-- `auto_embed` (bool): Create embeddings (default: False)
+- `extract_text` (bool): Extract text content (default: True, #881 — so dropped .md/.txt/.docx/.pdf-with-text are searchable immediately; image-only files still skip the loader)
+- `auto_embed` (bool): Create embeddings (default: True, #881 — paired with `extract_text` so ingested text is immediately semantic-searchable)
 - `on_progress` (Callable): Progress callback (current, total)
 
 **Returns:** List of `Document` objects
@@ -128,6 +134,21 @@ doc = ingest_file(Path("/external/file.jpg"), mode=IngestMode.COPY)
 - Files that should be preserved independently
 - Portable libraries
 - Offline access requirements
+
+### MOVE Mode
+
+```python
+# Move file into library storage; the original is deleted
+doc = ingest_file(Path("/external/file.jpg"), mode=IngestMode.MOVE)
+```
+
+**Characteristics:**
+- Copies the file into Fichero's library storage, then deletes the original
+- The library owns the only copy afterwards
+
+**Use cases:**
+- Files you want the library to take full ownership of
+- Clearing the original location after import
 
 ## Utility Functions
 

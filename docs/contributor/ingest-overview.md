@@ -1,4 +1,4 @@
-(AI generated. Not reviewed.)
+<!-- Verified against fichero/importers/ingest.py (2026-07-18). Describes only what is built. -->
 
 # Ingest Module Overview
 
@@ -6,8 +6,8 @@ The ingest module is a core component of Fichero that handles file import, metad
 
 ## Key Features
 
-- **Dual Ingestion Modes**: Choose between LINK (bookmark-based) and COPY (file import) modes
-- **Comprehensive File Support**: Handles 37 different file types including documents, images, audio, and video
+- **Three Ingestion Modes**: LINK (bookmark-based), COPY (file import), and MOVE (import then delete the original)
+- **Comprehensive File Support**: Maps 50+ file extensions (`_FILE_TYPE_MAP`) to document, image, audio, and video types
 - **Metadata Extraction**: Automatically extracts file metadata including size, checksums, and type-specific information
 - **Text Extraction**: Extracts searchable text content from supported document formats
 - **Folder Processing**: Recursive folder ingestion with automatic hierarchy creation
@@ -31,10 +31,11 @@ External Files → Ingest Module → Database Storage
 
 - **LINK Mode**: Creates macOS bookmarks to reference external files without copying
 - **COPY Mode**: Imports files into Fichero's library storage using APFS cloning when possible
+- **MOVE Mode**: Imports the file into library storage, then deletes the original
 
 ### File Type Detection
 
-- Extension-based mapping to 37 supported file types
+- Extension-based mapping (`_FILE_TYPE_MAP`, 50+ extensions) to document/image/audio/video types
 - Automatic MIME type detection
 - Specialized handling for different content types
 
