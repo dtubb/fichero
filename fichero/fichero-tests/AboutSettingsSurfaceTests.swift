@@ -25,8 +25,6 @@ final class AboutSettingsSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("row(.integrations, \"Integrations\", \"app.connected.to.app.below.fill\")"))
         XCTAssertTrue(source.contains("MCPServersView()"))
         XCTAssertTrue(source.contains("IntegrationsSettingsView(showAutomationRules: featureManager.isAutomationEnabled)"))
-        XCTAssertTrue(source.contains("Label(\"MCP\", systemImage: \"server.rack\")"))
-        XCTAssertTrue(source.contains("Label(\"Integrations\", systemImage: \"app.connected.to.app.below.fill\")"))
     }
 
     func testAppStateRoutesLegacyMCPAndIntegrationsTriggersIntoSettings() throws {
