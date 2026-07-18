@@ -11,7 +11,7 @@ from pathlib import Path
 
 import fitz
 
-from fichero.models import DocType, Document
+from fichero.models import ActionAudit, DocType, Document
 from fichero.api.routes import ingest
 
 
@@ -39,6 +39,24 @@ def _write_pdf(path, pages: list[str]) -> None:
 
 
 class TestIngestFile:
+    def test_route_ingest_writes_audit_and_emits_document_created(self, client, db, tmp_path, monkeypatch):
+        source = tmp_path / "source.txt"
+        source.write_text("source")
+        emitted = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *args, **kwargs: emitted.append((args, kwargs)),
+        )
+
+        with patch("fichero.ingest.ingest_file", return_value=_make_document()):
+            response = client.post("/api/ingest/file", json={"path": str(source)})
+
+        assert response.status_code == 200
+        audit = db.query(ActionAudit, action_name="import.file")
+        assert len(audit) == 1
+        assert emitted[-1][1]["type"] == "document.created"
+        assert emitted[-1][1]["document_ids"] == ["doc-1"]
+
     def test_rejects_server_paths_outside_allowed_roots_but_allows_library_file(
         self, client, test_package
     ):
