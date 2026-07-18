@@ -58,6 +58,7 @@ struct EmbeddedBackendServiceStartGuardTests {
 /// A new window/tab's connect trigger must reuse the app-level connection rather
 /// than reprovision the backend (#3394/#3407).
 @Suite("Window-lifecycle connection reuse (#3394)")
+@MainActor
 struct ConnectionReuseDecisionTests {
 
     @Test("a new window on a running+ready backend attaches — no reconnect")
