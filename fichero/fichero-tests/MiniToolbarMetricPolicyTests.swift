@@ -63,7 +63,7 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
     }
 
     func testVisibilityConsumersUseSharedPreferenceConstant() throws {
-        let toolbarSource = try Self.appSource("Views/Toolbars/MiniToolbar.swift")
+        let toolbarSource = try Self.appSource("Views/Components/MiniToolbar.swift")
         XCTAssertTrue(toolbarSource.contains("MiniToolbarPreferences.toolbarVisibilityKey"))
 
         let menuSource = try Self.appSource("Views/Shell/Menu/ViewMenuCommands.swift")
@@ -96,7 +96,7 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
     }
 
     func testMiniToolbarCollapsesSplitButtonsToMenu() throws {
-        let source = try Self.appSource("Views/Toolbars/MiniToolbar.swift")
+        let source = try Self.appSource("Views/Components/MiniToolbar.swift")
 
         XCTAssertTrue(source.contains("ViewThatFits(in: .horizontal)"))
         XCTAssertTrue(source.contains("splitButtonsMenu(for: actions)"))
@@ -104,7 +104,7 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
     }
 
     func testReadingPaneZoomControlsCollapseToMenu() throws {
-        let source = try Self.appSource("Views/Toolbars/ReaderToolbar.swift")
+        let source = try Self.appSource("Views/Reader/ReaderToolbar.swift")
 
         XCTAssertTrue(source.contains("ReaderToolbarCluster("))
         XCTAssertTrue(source.contains("zoomCluster"))

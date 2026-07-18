@@ -58,7 +58,7 @@ final class MiniToolbarOverflowTests: XCTestCase {
     }
 
     func testRegularFallbackCandidateUsesOverflowMenu() throws {
-        let source = try Self.appSource("Views/Toolbars/MiniToolbarOverflow.swift")
+        let source = try Self.appSource("Views/Components/MiniToolbarOverflow.swift")
 
         // Regular width fits-or-overflows via ViewThatFits, with the overflow
         // Menu (ellipsis.circle) as the fallback candidate — never a bar that
@@ -71,7 +71,7 @@ final class MiniToolbarOverflowTests: XCTestCase {
     }
 
     func testReaderToolbarUsesSharedAdaptiveMiniToolbarRow() throws {
-        let source = try Self.appSource("Views/Toolbars/ReaderToolbar.swift")
+        let source = try Self.appSource("Views/Reader/ReaderToolbar.swift")
 
         XCTAssertTrue(source.contains("private var adaptiveToolsRow: some View"))
         XCTAssertTrue(source.contains("AdaptiveMiniToolbarRow {"))
@@ -80,7 +80,7 @@ final class MiniToolbarOverflowTests: XCTestCase {
     }
 
     func testWorkflowToolbarUsesSharedAdaptiveMiniToolbarRow() throws {
-        let source = try Self.appSource("Views/Toolbars/WorkflowToolbar.swift")
+        let source = try Self.appSource("Views/Workflow/WorkflowToolbar.swift")
 
         XCTAssertTrue(source.contains("private var adaptiveActionRow: some View"))
         XCTAssertTrue(source.contains("AdaptiveMiniToolbarRow {"))

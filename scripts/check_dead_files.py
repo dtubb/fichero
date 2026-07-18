@@ -72,7 +72,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Sidebar/SidebarItemRow+Drop.swift": "#2955 — file stays live via SidebarItemRow drop-handling extension; primary helper types are local-only",
     "Views/Sidebar/SidebarView+ActivityRows.swift": "#1945 — candidate dead file: ActivityRunGridCell",
     "Views/Sidebar/SidebarView+UnifiedLibrarySections.swift": "#1945 — candidate dead file: UnifiedLibraryBuckets",
-    "Views/Toolbars/MiniToolbarComponents.swift": "#2955 — live but scanner-blind: WorkflowMiniToolbarButton exercised by #2415 tests",
+    "Views/Components/MiniToolbarComponents.swift": "#2955 — live but scanner-blind: WorkflowMiniToolbarButton exercised by #2415 tests",
     "Views/Workflow/DynamicConfigView+FieldRendering.swift": "#1945 — candidate dead file: DynamicFolderPickerOption",
     "Views/Workflow/SimpleWorkflowView.swift": "#1945 — candidate dead file: SimpleWorkflowView, SimpleWorkflow",
     "Views/Workflow/WorkflowExecutionView.swift": "#1945 — candidate dead file: workflow execution helper types",

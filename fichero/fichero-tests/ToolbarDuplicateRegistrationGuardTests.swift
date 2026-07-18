@@ -87,7 +87,7 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
     func testOnlyContentViewRegistersToolbarSearchable() throws {
         let allowlist: [String: Int] = [
             "Views/Shell/ContentView/ContentView.swift": 1,          // ToolbarSearchableModifier (#3037)
-            "Views/Toolbars/MiniToolbar.swift": 1  // conditionalSearchable's definition
+            "Views/Components/MiniToolbar.swift": 1  // conditionalSearchable's definition
         ]
 
         for (path, source) in try Self.appSwiftFiles() {
@@ -123,7 +123,7 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
     /// crash, split pane or not.
     func testNoModeViewRevivesConditionalSearchable() throws {
         for (path, source) in try Self.appSwiftFiles()
-        where path != "Views/Toolbars/MiniToolbar.swift" {
+        where path != "Views/Components/MiniToolbar.swift" {
             XCTAssertEqual(
                 Self.liveOccurrences(of: ".conditionalSearchable(", in: source), 0,
                 "\(path) calls conditionalSearchable — even gated to the primary "
