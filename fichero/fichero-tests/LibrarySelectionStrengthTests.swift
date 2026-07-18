@@ -14,10 +14,10 @@ final class LibrarySelectionStrengthTests: XCTestCase {
             source.contains("isPaneFocused ? Color.accentColor.opacity(0.85) : Color.secondary.opacity(0.12)"),
             "selectionFill must give the focused pane a strong accent fill and the unfocused pane a gray wash (#3875)."
         )
-        // List rows must use the strong selectionFill, not the old 12% accent wash.
+        // List rows must receive the strong selectionFill, not the old 12% accent wash.
         XCTAssertTrue(
-            source.contains("? selectionFill : Color.clear"),
-            "List rows must background on selectionFill (#3875)."
+            source.contains("tint: selectionFill"),
+            "List rows must receive selectionFill (#3875)."
         )
         XCTAssertFalse(
             source.contains("selectionTint.opacity(0.12)"),

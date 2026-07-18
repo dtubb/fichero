@@ -209,7 +209,7 @@ final class EntityStoreTests: XCTestCase {
                         "items": [
                             makeEntityJSON(id: "entity-1", name: "Alpha")
                         ],
-                        "total": 1
+                        "count": 1
                     ])
                 ),
                 .init(
@@ -519,7 +519,7 @@ final class EntityStoreTests: XCTestCase {
             libraryPath: "/tmp/test.fichero",
             session: session
         )
-        let entityService = EntityServiceGenerated(ficheroClient: client)
+        let entityService = EntityServiceGenerated(ficheroClient: client, session: session)
         let kgCurationService = KGCurationServiceGenerated(ficheroClient: client)
         return EntityStore(
             entityService: entityService,

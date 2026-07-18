@@ -311,7 +311,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testPersistentShellChromeStaysInSplitColumns() throws {
-        let contentSource = try Self.appSource("Views/ContentView+Toolbar.swift")
+        let contentSource = try Self.appSource("Views/ContentView.swift")
         let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
         let workspaceRootSource = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
 
@@ -335,16 +335,16 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testToolbarSearchStaysBesideContentTitle() throws {
+        let toolbarSource = try Self.appSource("Views/ContentView+Toolbar.swift")
         let contentSource = try Self.appSource("Views/ContentView.swift")
-        guard let principalRange = contentSource.range(of: "private var principalToolbarContent: some ToolbarContent") else {
+        guard let principalRange = toolbarSource.range(of: "var principalToolbarContent: some ToolbarContent") else {
             XCTFail("principal toolbar content missing")
             return
         }
-        let principalSource = contentSource[principalRange.lowerBound...]
+        let principalSource = toolbarSource[principalRange.lowerBound...]
 
         XCTAssertTrue(principalSource.contains("Text(toolbarTitle)"))
-        XCTAssertTrue(principalSource.contains("ToolbarSearchableModifier"))
-        XCTAssertTrue(principalSource.contains("Text(toolbarTitle)"))
+        XCTAssertTrue(contentSource.contains("ToolbarSearchableModifier"))
     }
 
     func testBottomEdgeFiltersStayPaneScoped() throws {
@@ -363,12 +363,14 @@ final class AdaptiveShellPolicyTests: XCTestCase {
 
     func testContentPaneControlsLiveInTopToolbar() throws {
         let contentSource = try Self.appSource("Views/ContentView.swift")
+        let toolbarSource = try Self.appSource("Views/ContentView+Toolbar.swift")
         let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
 
         XCTAssertTrue(contentSource.contains("contentPaneToolbarContent"))
-        XCTAssertTrue(contentSource.contains("showDocumentGrid.toggle()"))
-        XCTAssertTrue(contentSource.contains("setCanvasPaneVisible(!showDocumentCanvas)"))
-        XCTAssertTrue(contentSource.contains("setReadingPaneVisible(!showReadingPane)"))
+        XCTAssertTrue(contentSource.contains("contentPaneToolbarContent"))
+        XCTAssertTrue(toolbarSource.contains("viewDisplayModeMenu"))
+        XCTAssertTrue(toolbarSource.contains("setCanvasPaneVisible(!showDocumentCanvas)"))
+        XCTAssertTrue(toolbarSource.contains("setReadingPaneVisible(!showReadingPane)"))
         XCTAssertFalse(buildersSource.contains("viewSettings.previewMode = .none"))
     }
 

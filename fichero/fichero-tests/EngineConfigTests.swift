@@ -165,10 +165,11 @@ final class EngineConfigTests: XCTestCase {
     func testHostedBackendSPKIPinFallsBackToPersistedPin() throws {
         let hostedURL = "https://fichero.local:9443"
         UserDefaults.standard.set(hostedURL, forKey: RemoteAccessConfig.publicBaseURLKey)
-        try RemoteCertificatePinning.persistSPKIPin("sha256/fallback-pin=", hostString: hostedURL)
+        let fallbackPin = Data(repeating: 0xAB, count: 32).base64EncodedString()
+        try RemoteCertificatePinning.persistSPKIPin("sha256/\(fallbackPin)", hostString: hostedURL)
 
-        XCTAssertEqual(RemoteAccessConfig.hostedBackendSPKIPin(hostString: hostedURL), "sha256/fallback-pin=")
-        XCTAssertEqual(RemoteAccessConfig.advertisedSPKIPin, "sha256/fallback-pin=")
+        XCTAssertEqual(RemoteAccessConfig.hostedBackendSPKIPin(hostString: hostedURL), "sha256/\(fallbackPin)")
+        XCTAssertEqual(RemoteAccessConfig.advertisedSPKIPin, "sha256/\(fallbackPin)")
     }
 
     func testHostedRemoteAccessURLDoesNotOverrideActiveEngineHost() {

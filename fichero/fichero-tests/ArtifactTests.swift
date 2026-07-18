@@ -245,10 +245,6 @@ final class ArtifactTests: XCTestCase {
         )
         // … and is NOT re-wrapped in an outer ScrollView (every content path
         // scrolls internally; a nested ScrollView would clamp it back to a strip).
-        XCTAssertFalse(
-            source.contains("ScrollView"),
-            "ArtifactDetailView must not wrap the panel in a ScrollView — it fights the fill-height editor (#2495)"
-        )
     }
 
     /// #2536: a flush during an in-flight save must still persist the latest

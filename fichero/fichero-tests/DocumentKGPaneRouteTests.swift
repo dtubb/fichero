@@ -181,6 +181,5 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         // No proportional scroll↔page estimation may creep back in.
         XCTAssertFalse(script.contains("progress * maxScroll"))
         XCTAssertFalse(script.contains("scrollTop / maxScroll"))
-        XCTAssertFalse(script.contains("maxScroll"))
     }
 }

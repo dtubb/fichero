@@ -28,7 +28,9 @@ final class ModelComparisonRequestEncodingTests: XCTestCase {
                                                from: Data("5".utf8))
         XCTAssertTrue(decoded.value is Double, "number should decode as Double")
         let out = try JSONEncoder().encode(decoded)
-        XCTAssertEqual(String(data: out, encoding: .utf8), "5.0")
+        // JSON has no distinct integral-double spelling; JSONEncoder may emit
+        // a whole-valued Double as `5` while the decoded Swift value is Double.
+        XCTAssertEqual(String(data: out, encoding: .utf8), "5")
     }
 
     func testAnyCodableValueUnsupportedTypeFallsBackToEmptyString() throws {
