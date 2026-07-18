@@ -197,7 +197,7 @@ final class DocumentInspectorTests: XCTestCase {
         let artifactList = try Self.appSource("Views/Inspector/Artifacts/ArtifactListView.swift")
         let annotationList = try Self.appSource("Views/Inspector/Annotations/AnnotationListView.swift")
         let citationList = try Self.appSource("Views/Inspector/Citations/CitationListView.swift")
-        let noteList = try Self.appSource("Views/Library/NoteListView.swift")
+        let noteList = try Self.appSource("Views/Library/Notes/NoteListView.swift")
         let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift")
 
         XCTAssertTrue(inspectorSource.contains("func inspectorListRowTarget()"))

@@ -64,7 +64,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+KGSection.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Reader/Knowledge/DocumentKGWebPane.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Library/FolderAccessManager.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Services/FolderAccessManager.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Reader/Page/AnnotatableTextView.swift": "#2458 — NSTextView bridge for selectable highlighted text spans; #2101",
     "Views/Preview/ImageEditor/ImageEditorModel.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Preview/ImageEditor/ImageEditorView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",

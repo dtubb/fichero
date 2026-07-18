@@ -81,7 +81,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Shell/ContentView/ContentView.swift": "#1884 — @StateObject PerformanceService() in view",
     "Chat/ModelComparison/ModelComparisonView.swift": "#1900 — @StateObject ModelComparisonService()",
     "Chat/ModelComparison/NodeComparisonSheet.swift": "#1900 — @StateObject ModelComparisonService()",
-    "Library/NodeClassPicker.swift": "#1886 — @StateObject WorkspacePickerService()",
+    "Components/NodeClassPicker.swift": "#1886 — @StateObject WorkspacePickerService()",
     "Library/WorkspaceItemPicker.swift": "#1886 — @StateObject WorkspacePickerService()",
     "Integrations/IntegrationsView.swift": "#1899 — @StateObject IntegrationsService()",
     # client.api.* called directly from the view (raw transport)

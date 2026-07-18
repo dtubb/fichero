@@ -64,7 +64,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Settings/MCPServers/MCPServersSheet.swift": "#3366 — settings routing keeps legacy sheet compiled for transition/back-compat",
     "Views/Shell/Menu/AddItemMenu.swift": "#2955 — live but scanner-blind: sole toolbar-evidence for Link/Copy/Add-Files in the action-surface matrix",
     "Views/Shell/Menu/ImagePreviewMenuCommands.swift": "#1945 — candidate dead file: MagnifierLimits",
-    "Views/Library/NotesBrowserView.swift": "#2955 — live but scanner-blind: source read by NoteServiceTests",
+    "Views/Library/Notes/NotesBrowserView.swift": "#2955 — live but scanner-blind: source read by NoteServiceTests",
     "Views/Library/Search/SearchArrowKeyNavigation.swift": "#2955 — file stays live via View.arrowKeyResultNavigation extension; primary helper types are local-only",
     "Views/Library/Search/SearchFiltersPanel.swift": "#1945 — candidate dead file: SearchFiltersPanel",
     "Views/Settings/AISettingsView+Helpers.swift": "#1945 — candidate dead file: TierCapability",
