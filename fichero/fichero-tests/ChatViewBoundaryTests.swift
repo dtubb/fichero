@@ -42,7 +42,14 @@ final class ChatViewBoundaryTests: XCTestCase {
         XCTAssertTrue(source.contains("conversationFolderPath: Self.conversationFolderPath(for: project)"))
         XCTAssertEqual(
             ResearchChatPane.conversationFolderPath(
-                for: ResearchProject(id: "proj-7", name: "Research")
+                for: ResearchProject(
+                    id: "proj-7",
+                    name: "Research",
+                    description: "",
+                    status: .active,
+                    createdAt: Date(timeIntervalSince1970: 0),
+                    updatedAt: Date(timeIntervalSince1970: 0)
+                )
             ),
             "/research/proj-7"
         )

@@ -1,4 +1,5 @@
 @testable import Fichero
+import Foundation
 import Testing
 
 struct SidebarDeleteAlertsTests {

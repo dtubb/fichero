@@ -61,6 +61,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     /// Test seam: a DocumentStore whose generated client is bound to a stubbed
     /// URLProtocol session, so `libraryItemColumns` exercises the real
     /// request/response mapping without a live engine.
+    @MainActor
     private static func makeStubbedStore() -> DocumentStore {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ColumnsStubURLProtocol.self]
@@ -89,7 +90,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         }
         defer { ColumnsStubURLProtocol.handler = nil }
 
-        let store = Self.makeStubbedStore()
+        let store = await Self.makeStubbedStore()
         let rows = try await store.libraryItemColumns(itemIds: ["a", "b"])
 
         XCTAssertEqual(rows.map(\.itemId), ["a", "b"])
@@ -105,7 +106,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         }
         defer { ColumnsStubURLProtocol.handler = nil }
 
-        let store = Self.makeStubbedStore()
+        let store = await Self.makeStubbedStore()
         let rows = try await store.libraryItemColumns(itemIds: [])
 
         XCTAssertTrue(rows.isEmpty)

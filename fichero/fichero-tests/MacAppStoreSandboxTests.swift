@@ -23,6 +23,7 @@ import Foundation
 import Testing
 
 @Suite("Mac App Store sandbox (#3749)")
+@MainActor
 struct MacAppStoreSandboxTests {
 
     // MARK: - Nested engine placement

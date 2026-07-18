@@ -9,14 +9,14 @@ struct SidebarSelectionTests {
     }
 
     @Test("sidebar destination parses and serializes document ids")
-    func destinationRoundTripDocument() {
+    func destinationRoundTripDocument() throws {
         let destination = try #require(SidebarDestination(serializedID: "doc:abc"))
         #expect(destination == .document("abc"))
         #expect(destination.serializedID == "doc:abc")
     }
 
     @Test("sidebar destination parses browser sentinels")
-    func destinationParsesBrowserSentinel() {
+    func destinationParsesBrowserSentinel() throws {
         let destination = try #require(SidebarDestination(serializedID: "activity-browser"))
         #expect(destination == .browser(.activity))
         #expect(destination.serializedID == "activity-browser")
