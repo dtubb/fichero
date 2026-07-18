@@ -13,7 +13,7 @@
 # flags. ponytail: the bug was a dead cron target + no daily stamp; this fixes
 # exactly that, nothing more.
 #
-#   crontab:  57 5 * * * /usr/bin/env bash /Users/danieltubb/code/fichero/scripts/nightly.sh >> ~/fichero-nightly.log 2>&1
+#   crontab:  57 5 * * * /usr/bin/env bash /path/to/fichero/scripts/nightly.sh >> ~/fichero-nightly.log 2>&1
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
