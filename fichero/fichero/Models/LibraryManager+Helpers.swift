@@ -67,9 +67,13 @@ extension LibraryManager {
         guard !EngineConfig.requiresExternalBackendConnection else { return }
 
         let registryPaths = KnownLibraryRegistryStore.shared.libraries.map(\.path)
-        // A failed / empty registry fetch must never clear the sidebar — only
-        // reconcile when the backend actually reported an open set.
-        guard !registryPaths.isEmpty else { return }
+        // Only reconcile against a snapshot that actually refreshed (#3988): a
+        // failed fetch leaves `libraries` at its STALE value, so reconciling then
+        // could drop a genuinely-open library against data we know is out of date.
+        guard Self.shouldReconcile(
+            fetchError: KnownLibraryRegistryStore.shared.fetchError,
+            registryPaths: registryPaths
+        ) else { return }
 
         let plan = Self.registryReconciliation(
             openLibraries: openLibraries.map { (id: $0.id, path: $0.url.path) },
@@ -89,6 +93,23 @@ extension LibraryManager {
             // the registry), so no backend DELETE, unlike closeAndUnregisterLibrary.
             closeLibrary(id)
         }
+    }
+
+    /// Pure decision for whether `reconcileOpenLibrariesFromRegistry` may act on
+    /// the current registry snapshot (#3988). Extracted so the guard is testable
+    /// without the store / network.
+    ///
+    /// Reconcile ONLY when the last fetch had no error AND returned a non-empty
+    /// set. A `fetchError` means `libraries` is stale (the failed fetch left the
+    /// previous value in place) — reconciling could false-drop an open library.
+    /// An empty list is still treated as "don't touch": it is ambiguous between a
+    /// genuinely-empty backend registry and a fetch that failed on a cold store,
+    /// and clearing the sidebar on that ambiguity is the worse failure. Turning a
+    /// SUCCESSFUL-empty response into a reconcile-to-empty is deferred to #3988
+    /// follow-up — it must first resolve the restore→registry-write ordering
+    /// (a restored library's `noteOpenedLibrary` can still be in flight here).
+    static func shouldReconcile(fetchError: String?, registryPaths: [String]) -> Bool {
+        fetchError == nil && !registryPaths.isEmpty
     }
 
     /// Pure set-diff between the app's open libraries and the backend registry
@@ -164,6 +185,17 @@ extension LibraryManager {
     /// per library. Re-entrant guards avoid duplicate startup tasks when the
     /// window, restore, and backend-ready paths all observe the same library.
     func loadLibraryDataIfNeeded(for library: LibraryReference) async {
+        // A security-scoped library must wait for its sandbox grant (#3986-A). The
+        // grant's own engineWork re-enters here once it lands; until then this
+        // path (restore / backendDidBecomeReady iterating open libraries) must not
+        // read the package first and lose the #3773 race.
+        guard !libraryIdsAwaitingGrant.contains(library.id) else {
+            libraryManagerLogger.info(
+                "Deferring library load until sandbox grant completes: \(library.displayName)"
+            )
+            return
+        }
+
         guard !loadedLibraryIds.contains(library.id),
               !loadingLibraryIds.contains(library.id) else {
             return
@@ -178,9 +210,33 @@ extension LibraryManager {
         createPackageStructure(at: library.url)
         await initializeBackendDatabase(for: library)
         await loadLibraryData(for: library)
+
+        // A load that FAILED must not be marked loaded (#3986-B). DocumentStore
+        // swallows a load error into `error`/`isConnected=false` (it never throws),
+        // so a load that exhausts the #3972 retry would otherwise be recorded as
+        // done forever — sidebar stuck empty until relaunch. Leave it unloaded so
+        // the next trigger (heartbeat / reconnect / window .task) retries, and skip
+        // Inbox creation which must never run against an unknown collections state.
+        let store = library.documentStore
+        guard Self.libraryLoadSucceeded(error: store.error, isConnected: store.isConnected) else {
+            libraryManagerLogger.error(
+                "Library load failed — leaving unloaded for retry: \(library.displayName)"
+            )
+            return
+        }
+
         await ensureInboxFolder(for: library)
         loadedLibraryIds.insert(library.id)
         librariesLoadVersion += 1
+    }
+
+    /// Pure success test for a library's data load (#3986-B). `DocumentStore`
+    /// signals a failed `loadCollections()` by leaving `error` non-nil and
+    /// `isConnected == false` rather than throwing, so a load only counts as
+    /// successful when the collections fetch connected AND recorded no error.
+    /// Extracted so the load-gating decision is testable without the store.
+    static func libraryLoadSucceeded(error: Error?, isConnected: Bool) -> Bool {
+        error == nil && isConnected
     }
 
     /// Create the .fichero package directory structure
@@ -260,6 +316,20 @@ extension LibraryManager {
 
     /// Ensure every library has a default "Inbox" folder
     func ensureInboxFolder(for library: LibraryReference) async {
+        // Never create against an unknown collections state (#3970). `hasInbox` is
+        // inferred from `documentStore.collections`, which is empty both when the
+        // library genuinely has no Inbox AND when the preceding load FAILED. In the
+        // latter window creating "Inbox" makes a SECOND one against a library that
+        // already has it. Bail if the load errored — the caller already leaves such
+        // a library unloaded (#3986-B), so a later retry re-checks once the load
+        // actually succeeds.
+        guard library.documentStore.error == nil else {
+            libraryManagerLogger.error(
+                "Skipping Inbox check — preceding load errored: \(library.displayName)"
+            )
+            return
+        }
+
         // Check if Inbox folder exists (collections should already be loaded)
         let hasInbox = library.documentStore.collections.contains { doc in
             doc.name == "Inbox" && doc.docType == .folder && doc.parentId == nil
@@ -286,9 +356,14 @@ extension LibraryManager {
                 let reloadedCount = library.documentStore.collections.count
                 libraryManagerLogger.info("Reloaded collections, now have \(reloadedCount) documents")
             } catch {
+                // Surface a persistent create failure instead of only logging
+                // (#3970): record it on the store's error channel — the same
+                // surface a failed collections load uses — so a library whose
+                // Inbox never got created isn't left silently half-initialized.
                 libraryManagerLogger.error(
                     "Failed to create Inbox folder in \(library.displayName): \(error.localizedDescription)"
                 )
+                library.documentStore.error = error
             }
         } else {
             libraryManagerLogger.info("Inbox folder already exists in \(library.displayName) library")
