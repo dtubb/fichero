@@ -104,10 +104,10 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
     }
 
     func testReadingPaneZoomControlsCollapseToMenu() throws {
-        let source = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+        let source = try Self.appSource("Views/Toolbars/ReaderToolbar.swift")
 
-        XCTAssertTrue(source.contains("ViewThatFits(in: .horizontal)"))
-        XCTAssertTrue(source.contains("zoomMenu"))
-        XCTAssertTrue(source.contains("Reset Zoom"))
+        XCTAssertTrue(source.contains("ReaderToolbarCluster("))
+        XCTAssertTrue(source.contains("zoomCluster"))
+        XCTAssertTrue(source.contains("Show zoom controls"))
     }
 }
