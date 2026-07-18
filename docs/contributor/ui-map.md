@@ -40,7 +40,7 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 
 | You see / say | View name | File | Label |
 |---|---|---|---|
-| **Whole window / panes** | ContentView | `Views/ContentView*.swift` | area:swiftui-app |
+| **Whole window / panes** | ContentView | `Views/Shell/ContentView/ContentView*.swift` | area:swiftui-app |
 | **Main toolbar** (top) | MainToolbar | `Views/Toolbars/MainToolbar.swift` | area:toolbar |
 | Context toolbars | Library/Search/Chat/Workflow/Mini Toolbar | `Views/Toolbars/*Toolbar.swift` | area:toolbar |
 | **Sidebar** (left) | SidebarItemRow / Sidebar Modes | `Views/Sidebar/` | area:sidebar |

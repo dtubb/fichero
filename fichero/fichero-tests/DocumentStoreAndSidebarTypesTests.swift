@@ -158,7 +158,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testEntityLibrarySelectionLocksDisplayModeToList() throws {
-        let stateSource = try Self.appSource("Views/ContentView+State.swift")
+        let stateSource = try Self.appSource("Views/Shell/ContentView/ContentView+State.swift")
 
         XCTAssertTrue(stateSource.contains("var isEntityLibrarySelection: Bool"))
         XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
@@ -168,8 +168,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testEntityLibrarySelectionRoutesBrowserSelectionIntoKGFocus() throws {
-        let stateSource = try Self.appSource("Views/ContentView+State.swift")
-        let navigationSource = try Self.appSource("Views/ContentView+Navigation.swift")
+        let stateSource = try Self.appSource("Views/Shell/ContentView/ContentView+State.swift")
+        let navigationSource = try Self.appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
 
         XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
         XCTAssertTrue(stateSource.contains("kgFocusState.focusEntity(entityId: firstId)"))
@@ -259,7 +259,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testLibraryViewClipsItsOwnPaneBounds() throws {
-        let source = try Self.appSource("Views/ContentView+Navigation.swift")
+        let source = try Self.appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
 
         XCTAssertTrue(source.contains("Keep the library surface inside the content column"))
         XCTAssertTrue(source.contains(".clipped()"))
@@ -267,7 +267,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testDetailShellColumnClipsAllPreviewLayoutsToItsBounds() throws {
-        let source = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+        let source = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
 
         XCTAssertTrue(source.contains("Keep every library/preview/reader combination inside the detail"))
         XCTAssertTrue(source.contains("column bounds. Without this outer clip"))
@@ -319,7 +319,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testLibraryBrowserToggleCopyUsesExplicitLibraryName() throws {
-        let toolbarSource = try Self.appSource("Views/ContentView+Toolbar.swift")
+        let toolbarSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         let menuSource = try Self.appSource("Views/Shell/Menu/ViewMenuCommands.swift")
 
         XCTAssertTrue(toolbarSource.contains("placement: .principal"))
@@ -331,7 +331,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testIpadViewMenuUsesSharedViewCommands() throws {
-        let contentSource = try Self.appSource("Views/ContentView+Toolbar.swift")
+        let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
 
         XCTAssertTrue(contentSource.contains("ViewMenuCommands()"))
         XCTAssertTrue(contentSource.contains("Label(\"View\", systemImage: \"rectangle.split.3x1\")"))
@@ -403,8 +403,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testDocumentTabViewForwardsArtifactServiceIntoContentView() throws {
         let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
-        let contentViewSource = try Self.appSource("Views/ContentView.swift")
-        let builderSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+        let contentViewSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
+        let builderSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
         let requiredSnippets = [
             "@Environment(ArtifactService.self) var artifactService",
             "@Environment(EntityService.self) var entityService",

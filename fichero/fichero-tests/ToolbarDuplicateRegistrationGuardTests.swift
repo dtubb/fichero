@@ -86,7 +86,7 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
     /// `com.apple.SwiftUI.search` on the same NSToolbar and crashes (#3163).
     func testOnlyContentViewRegistersToolbarSearchable() throws {
         let allowlist: [String: Int] = [
-            "Views/ContentView.swift": 1,          // ToolbarSearchableModifier (#3037)
+            "Views/Shell/ContentView/ContentView.swift": 1,          // ToolbarSearchableModifier (#3037)
             "Views/Toolbars/MiniToolbar.swift": 1  // conditionalSearchable's definition
         ]
 

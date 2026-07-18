@@ -16,7 +16,7 @@ final class ShellLayoutGuardTests: XCTestCase {
     }
 
     func testShellUsesBalancedSplitViewStyle() throws {
-        let source = try Self.appSource("Views/ContentView.swift")
+        let source = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         XCTAssertTrue(
             source.contains(".navigationSplitViewStyle(.balanced)"),
             "The main NavigationSplitView must be .balanced so the sidebar stays a "

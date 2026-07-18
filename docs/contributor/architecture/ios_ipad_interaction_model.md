@@ -20,35 +20,35 @@ around the entire content tree. On regular width, it leaves the content alone
 (`fichero/fichero/Views/AdaptiveAppleShellHost.swift:29-38`). Inside that host,
 `ContentView` still builds a `NavigationSplitView` with a sidebar column and a
 detail column, plus `preferredCompactColumn`
-(`fichero/fichero/Views/ContentView.swift:31-35`, `93`,
+(`fichero/fichero/Views/Shell/ContentView/ContentView.swift:31-35`, `93`,
 `461-489`). The compact path therefore does not replace the split shell; it
 wraps it.
 
 The detail column still carries desktop-style chrome. `detailShellColumn` always
 stacks `detailTabStrip`, `detailLocationPathBar`, `centerContent`, and
 `detailStatusPathBar`
-(`fichero/fichero/Views/ContentView+ViewBuilders.swift:414-485`). The split
+(`fichero/fichero/Views/Shell/ContentView/ContentView+ViewBuilders.swift:414-485`). The split
 view also still applies a title, subtitle, toolbar, and inspector plumbing at
-the shell level (`fichero/fichero/Views/ContentView.swift:340-366`,
-`470-489`; `fichero/fichero/Views/ContentView+State.swift:18-77`,
+the shell level (`fichero/fichero/Views/Shell/ContentView/ContentView.swift:340-366`,
+`470-489`; `fichero/fichero/Views/Shell/ContentView/ContentView+State.swift:18-77`,
 `79-110`). In other words, the current compact path still renders Mac-oriented
 shell chrome instead of a phone-specific one-surface flow.
 
 For library and search on compact width, `centerContent` adds a third
 navigation layer: `compactLibraryReaderStack`
-(`fichero/fichero/Views/ContentView+ViewBuilders.swift:294-305`). That stack is
+(`fichero/fichero/Views/Shell/ContentView/ContentView+ViewBuilders.swift:294-305`). That stack is
 its own `NavigationStack`, with the list as the root and `previewView` pushed
 via `.navigationDestination(item:)`
-(`fichero/fichero/Views/ContentView+ViewBuilders.swift:534-566`). The source
+(`fichero/fichero/Views/Shell/ContentView/ContentView+ViewBuilders.swift:534-566`). The source
 comment there explicitly says full edge-swipe stage-to-stage paging is deferred,
 so the current implementation is a pushed reader, not an in-view swipe pager
-(`fichero/fichero/Views/ContentView+ViewBuilders.swift:551-555`).
+(`fichero/fichero/Views/Shell/ContentView/ContentView+ViewBuilders.swift:551-555`).
 
 On iPad regular width, the sidebar and inspector remain pinned columns. Compact
 navigation is only enabled when `horizontalSizeClass == .compact`
-(`fichero/fichero/Views/ContentView+State.swift:315-320`), and the sidebar
+(`fichero/fichero/Views/Shell/ContentView/ContentView+State.swift:315-320`), and the sidebar
 column is only treated as collapsible in compact mode
-(`fichero/fichero/Views/ContentView+State.swift:345-351`). The inspector
+(`fichero/fichero/Views/Shell/ContentView/ContentView+State.swift:345-351`). The inspector
 defaults to `.docked` outside compact width, and the runtime presenter maps both
 `.docked` and `.floating` requests back to a docked inspector presentation
 (`fichero/fichero/Views/Library/InspectorPresenter.swift:48-69`,
@@ -89,7 +89,7 @@ navigation push rather than forcing a docked column
 `preferredCompactColumn` already points compact collapse at the detail side of
 the split. `ContentView.defaultPreferredCompactColumn` is `.detail`, and the
 stateful split binding uses that default
-(`fichero/fichero/Views/ContentView.swift:31-35`, `93`, `461-465`).
+(`fichero/fichero/Views/Shell/ContentView/ContentView.swift:31-35`, `93`, `461-465`).
 
 The iOS pairing and capture flows already use mobile-native presentation
 patterns instead of Mac window chrome. `FicheroSharedPlatformRoot` presents

@@ -62,8 +62,8 @@ struct SidebarSelectionTests {
 
     @Test("#2522 sidebar selection clears library selection and content uses pane focus tint")
     func sidebarAndLibrarySelectionStayInSync() throws {
-        let stateSource = try appSource("Views/ContentView+State.swift")
-        let navigationSource = try appSource("Views/ContentView+Navigation.swift")
+        let stateSource = try appSource("Views/Shell/ContentView/ContentView+State.swift")
+        let navigationSource = try appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
         let displayModeSource = try appSource("Views/Library/LibraryView+DisplayModes.swift")
         let componentSource = try appSource("Views/Library/LibraryViewComponents.swift")
 
@@ -76,8 +76,8 @@ struct SidebarSelectionTests {
 
     @Test("#3406 active split drives location chrome and inspector can claim focus")
     func splitFocusDrivesLocationChrome() throws {
-        let stateSource = try appSource("Views/ContentView+State.swift")
-        let buildersSource = try appSource("Views/ContentView+ViewBuilders.swift")
+        let stateSource = try appSource("Views/Shell/ContentView/ContentView+State.swift")
+        let buildersSource = try appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
 
         #expect(stateSource.contains("var activeLocationDocument: Document?"))
         #expect(stateSource.contains("switch focusedPane"))

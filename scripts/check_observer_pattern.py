@@ -55,8 +55,8 @@ PATTERN_LABELS: dict[str, str] = {
 KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
     [
         "fichero/fichero/Views/Chat/ComparisonDetailView+Actions.swift",
-        "fichero/fichero/Views/ContentView+Actions.swift",
-        "fichero/fichero/Views/ContentView.swift",
+        "fichero/fichero/Views/Shell/ContentView/ContentView+Actions.swift",
+        "fichero/fichero/Views/Shell/ContentView/ContentView.swift",
         "fichero/fichero/Views/KnowledgeGraph/EntityDigestView.swift",
         "fichero/fichero/Views/KnowledgeGraph/KGMapView.swift",
         "fichero/fichero/Views/KnowledgeGraph/KGTimelineView.swift",
@@ -113,7 +113,7 @@ KNOWN_VIOLATIONS["fichero/fichero/Views/Settings/SettingsView.swift"] = (
     "Tracked for conversion in #3743."
 )
 KNOWN_VIOLATIONS.update({
-    "fichero/fichero/Views/ContentViewModifiers.swift": (
+    "fichero/fichero/Views/Shell/ContentView/ContentViewModifiers.swift": (
         "FeatureManager remains @AppStorage-backed ObservableObject; the app root injects it "
         "and this modifier binds it with @EnvironmentObject rather than reading .shared. "
         "Tracked for conversion in #3743."

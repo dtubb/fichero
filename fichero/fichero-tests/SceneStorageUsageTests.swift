@@ -2,13 +2,13 @@ import XCTest
 
 final class SceneStorageUsageTests: XCTestCase {
     func testMainContentModifiersDoesNotOwnSceneStorage() throws {
-        let source = try Self.appSource("Views/ContentViewModifiers.swift")
+        let source = try Self.appSource("Views/Shell/ContentView/ContentViewModifiers.swift")
         XCTAssertFalse(source.contains("@SceneStorage(\"currentLayoutMode\")"))
         XCTAssertTrue(source.contains("@Binding var currentLayoutMode: LayoutMode"))
     }
 
     func testContentViewStillOwnsCurrentLayoutSceneStorage() throws {
-        let source = try Self.appSource("Views/ContentView.swift")
+        let source = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         XCTAssertTrue(source.contains("@SceneStorage(\"currentLayoutMode\")"))
         XCTAssertTrue(source.contains("currentLayoutMode: $currentLayoutMode"))
     }

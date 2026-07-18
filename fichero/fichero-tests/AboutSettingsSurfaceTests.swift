@@ -40,7 +40,7 @@ final class AboutSettingsSurfaceTests: XCTestCase {
 
     func testShellNoLongerPresentsSeparateMCPOrIntegrationsSheets() throws {
         let libraryWindowSource = try Self.appSource("App/LibraryWindow.swift")
-        let modifiersSource = try Self.appSource("Views/ContentViewModifiers.swift")
+        let modifiersSource = try Self.appSource("Views/Shell/ContentView/ContentViewModifiers.swift")
         XCTAssertFalse(libraryWindowSource.contains("MCPServersSheet()"))
         XCTAssertFalse(libraryWindowSource.contains("IntegrationsPlaceholderSheet("))
         XCTAssertFalse(modifiersSource.contains("MCPServersSheet()"))

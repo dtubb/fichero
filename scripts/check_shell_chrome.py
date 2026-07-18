@@ -53,8 +53,8 @@ RULES = (("notif", _NC_APP_RE), ("shared", _SHARED_RE))
 
 # Grandfathered offenders (hash -> human location). Seed with --generate (#3040).
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "9ea6545b396b": '[notif] fichero/fichero/Views/ContentView.swift:587: .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { n',
-    "745fa9e2e206": '[notif] fichero/fichero/Views/ContentView.swift:590: .onReceive(NotificationCenter.default.publisher(for: .ficheroShowPanelRequested)) { note i',
+    "c9065d74dcce": '[notif] fichero/fichero/Views/Shell/ContentView/ContentView.swift:587: .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { n',
+    "211b47ab4e9c": '[notif] fichero/fichero/Views/Shell/ContentView/ContentView.swift:590: .onReceive(NotificationCenter.default.publisher(for: .ficheroShowPanelRequested)) { note i',
     "0fbc3922252c": '[shared] fichero/fichero/Views/Library/LibraryView.swift:83: @ObservedObject var featureManager = FeatureManager.shared',
     "2cf26c6b1a60": '[shared] fichero/fichero/Views/Settings/AISettingsView.swift:16: @ObservedObject var featureManager = FeatureManager.shared',
     "85ec0df2648e": '[shared] fichero/fichero/Views/Shell/Menu/AddItemMenu.swift:10: @ObservedObject var featureManager = FeatureManager.shared',

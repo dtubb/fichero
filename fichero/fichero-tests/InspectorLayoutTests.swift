@@ -660,7 +660,7 @@ struct ClaimFocusStateInjectionContractTests {
 
     @Test("ContentView consumes ClaimFocusState from the environment")
     func contentViewConsumesClaimFocusState() throws {
-        let source = try Self.source("Views/ContentView.swift")
+        let source = try Self.source("Views/Shell/ContentView/ContentView.swift")
         #expect(
             source.contains("@EnvironmentObject var claimFocusState: ClaimFocusState"),
             "ContentView must keep its ClaimFocusState @EnvironmentObject — pairs with FicheroApp injection"

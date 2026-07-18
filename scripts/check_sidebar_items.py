@@ -6,7 +6,7 @@ that the main content router handles. This detector scans:
   - `Models/SidebarItem*.swift` and `Models/SidebarItemBuilder.swift` for
     `itemType: .foo` factories/builders.
   - `Models/SidebarViewTypes.swift` for `AppViewMode` cases.
-  - `Views/ContentView+Navigation.swift` for the routed destination switch.
+  - `Views/Shell/ContentView/ContentView+Navigation.swift` for the routed destination switch.
 
 Limits: this is not a full Swift compiler or runtime navigation proof. It checks
 that each sidebar leaf item type has a corresponding `AppViewMode` destination
@@ -35,7 +35,7 @@ SIDEBAR_SOURCES = [
     SWIFT_ROOT / "Models" / "SidebarItemBuilder.swift",
 ]
 VIEW_MODE_FILE = SWIFT_ROOT / "Models" / "SidebarViewTypes.swift"
-ROUTER_FILE = SWIFT_ROOT / "Views" / "ContentView+Navigation.swift"
+ROUTER_FILE = SWIFT_ROOT / "Views" / "Shell" / "ContentView" / "ContentView+Navigation.swift"
 
 STRUCTURAL_ITEM_TYPES = {"folder", "libraryHeader"}
 ITEM_TO_VIEW_MODE: dict[str, str] = {

@@ -37,7 +37,7 @@ and must be extended, not duplicated.
   plus a `WindowState` (`@State private var windowState`), restored on `initializeWindow()`
   in priority order: WindowSeed → pending-window queue → persisted id → `currentLibraryId` →
   first open library → welcome screen. This is the per-window persistence anchor (#2273).
-- `fichero/fichero/Views/ContentView.swift` / `ContentView+State.swift` / `ContentView+Persistence.swift`
+- `fichero/fichero/Views/Shell/ContentView/ContentView.swift` / `ContentView+State.swift` / `ContentView+Persistence.swift`
   own ~15 `@SceneStorage` keys per window: `selectedSidebarItem`, `columnVisibilityRaw`,
   `browserSelectionData`, `viewModeType`, `viewModeItemId`, plus reader-specific keys like
   `reader.topTab`, `reader.page.layout`, `reader.pageLayout`, `reader.notes.mode` (all in
@@ -58,7 +58,7 @@ pattern repeated independently in six places:
 
 | File | Pinned unit |
 |---|---|
-| `fichero/fichero/Views/ContentView+ViewBuilders.swift:38` (`ReadingPaneView`) | Reader pane: pins `Document` + page number + page count |
+| `fichero/fichero/Views/Shell/ContentView/ContentView+ViewBuilders.swift:38` (`ReadingPaneView`) | Reader pane: pins `Document` + page number + page count |
 | `fichero/fichero/Views/Reader/PDFPageWithToolbar.swift:56` | Preview/PDF pane: pins `documentId` + `localPageIndex` |
 | `fichero/fichero/Views/Inspector/FocusedDocument.swift:41` (`DocumentDetailWindow`) | Detached document-detail scene |
 | `fichero/fichero/Views/Inspector/CitationsInspectorPane.swift:123` | Citations inspector tab |
@@ -97,7 +97,7 @@ see §2.
   This is the **#2105/#3437 source-navigation contract**, locked by
   `fichero/fichero-tests/SourceNavigationContractTests.swift`.
 - It is explicitly **per-window** (NOT `.shared`): `ContentView` owns one instance
-  (`fichero/fichero/Views/ContentView.swift:105`, `@State var claimSourceNavigationState = ClaimSourceNavigationState()`)
+  (`fichero/fichero/Views/Shell/ContentView/ContentView.swift:105`, `@State var claimSourceNavigationState = ClaimSourceNavigationState()`)
   and injects it via `@Environment`. `fichero/fichero-tests/InspectorNavigationScopingTests.swift`
   locks this: "a reveal in window A must not navigate window B."
 - Consumption path: `ContentView+State.swift:handleOpenClaimSource()` reads
@@ -127,13 +127,13 @@ see §2.
   detailDocumentId }`, `maxDepth = 80`, `push`/`goBack`/`goForward`/`canGoBack`/
   `canGoForward`). Owned per-window: `ContentView` holds one instance
   (referenced as `navigationHistory` throughout `ContentView+NavigationHistory.swift`).
-- `fichero/fichero/Views/ContentView+NavigationHistory.swift` — `recordNavigationEntry()`
+- `fichero/fichero/Views/Shell/ContentView/ContentView+NavigationHistory.swift` — `recordNavigationEntry()`
   (called from `handleOnAppear`, `handleViewModeChange`, `handleDetailDocumentChange`),
   `navigateBack()`/`navigateForward()`, and `applyNavigationEntry(_:)` which sets a guard
   flag `isRestoringNavigationHistory` (checked everywhere a handler could otherwise
   re-record the very entry being restored — e.g. `handleSidebarSelectionChange`,
   `handleViewModeChange`).
-- `fichero/fichero/Views/ContentView.swift:726-747` — Back/Forward are ALREADY real
+- `fichero/fichero/Views/Shell/ContentView/ContentView.swift:726-747` — Back/Forward are ALREADY real
   toolbar buttons (`ToolbarItem(id: "fichero.nav.back"/"fichero.nav.forward", placement: .navigation)`),
   with keyboard shortcuts **⌘'** (back) and **⌘⇧'** (forward), `.disabled` bound to
   `canGoBack`/`canGoForward`.
@@ -154,7 +154,7 @@ see §2.
 
 ### 0.5 Selection → surfaces coupling
 
-- `fichero/fichero/Views/ContentView+State.swift:activeLocationDocument` — already the
+- `fichero/fichero/Views/Shell/ContentView/ContentView+State.swift:activeLocationDocument` — already the
   closest thing to an "active surface" resolver: switches on `focusedPane` (`.preview`/
   `.reading` → `pageFocusDocument ?? detailDocument ?? inspectorDocument`; else →
   `inspectorDocument`). `PaneFocus` (`ContentView.swift:22`) is `{ sidebar, content,

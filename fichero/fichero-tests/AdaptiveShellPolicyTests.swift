@@ -311,8 +311,8 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testPersistentShellChromeStaysInSplitColumns() throws {
-        let contentSource = try Self.appSource("Views/ContentView.swift")
-        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+        let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
+        let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
         let workspaceRootSource = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
 
         XCTAssertTrue(contentSource.contains("NavigationSplitView("))
@@ -326,7 +326,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testSelectionStatusTextKeepsCountAndPathVisible() throws {
-        let stateSource = try Self.appSource("Views/ContentView+State.swift")
+        let stateSource = try Self.appSource("Views/Shell/ContentView/ContentView+State.swift")
 
         XCTAssertTrue(stateSource.contains("var selectionStatusText: String"))
         XCTAssertTrue(stateSource.contains("\"\\(browserSelection.count) items selected\""))
@@ -335,8 +335,8 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testToolbarSearchStaysBesideContentTitle() throws {
-        let toolbarSource = try Self.appSource("Views/ContentView+Toolbar.swift")
-        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let toolbarSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
+        let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         guard let principalRange = toolbarSource.range(of: "var principalToolbarContent: some ToolbarContent") else {
             XCTFail("principal toolbar content missing")
             return
@@ -362,9 +362,9 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testContentPaneControlsLiveInTopToolbar() throws {
-        let contentSource = try Self.appSource("Views/ContentView.swift")
-        let toolbarSource = try Self.appSource("Views/ContentView+Toolbar.swift")
-        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+        let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
+        let toolbarSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
+        let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
 
         XCTAssertTrue(contentSource.contains("contentPaneToolbarContent"))
         XCTAssertTrue(contentSource.contains("contentPaneToolbarContent"))
@@ -375,7 +375,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testPdfReaderUsesTheExistingReadingLayout() throws {
-        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+        let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
 
         XCTAssertTrue(buildersSource.contains("PDFReadingView("))
         XCTAssertTrue(buildersSource.contains("contentWidth: $pageContentPaneWidth"))
@@ -383,7 +383,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testWidescreenLibraryPaneIsClippedToItsSplitColumn() throws {
-        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+        let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
 
         XCTAssertTrue(buildersSource.contains("adaptiveSplittablePane(storageKey: \"library\")"))
         XCTAssertTrue(buildersSource.contains(".clipped()"))
@@ -392,7 +392,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
 
     func testSidebarsUseSystemGlassMaterials() throws {
         let sidebarSource = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
-        let buildersSource = try Self.appSource("Views/ContentView+ViewBuilders.swift")
+        let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
 
         XCTAssertTrue(sidebarSource.contains(".background(.bar)"))
         XCTAssertFalse(sidebarSource.contains(".background(Color(platformColor: .windowBackgroundColor))"))

@@ -78,7 +78,7 @@ TRANSPORT_PATTERNS: dict[str, re.Pattern] = {
 # Keys are POSIX paths relative to fichero/fichero/Views/.
 KNOWN_VIOLATIONS: dict[str, str] = {
     # @StateObject = …Service() constructed inside the view (#1882–#1900)
-    "ContentView.swift": "#1884 — @StateObject PerformanceService() in view",
+    "Shell/ContentView/ContentView.swift": "#1884 — @StateObject PerformanceService() in view",
     "Chat/ModelComparison/ModelComparisonView.swift": "#1900 — @StateObject ModelComparisonService()",
     "Chat/ModelComparison/NodeComparisonSheet.swift": "#1900 — @StateObject ModelComparisonService()",
     "Library/NodeClassPicker.swift": "#1886 — @StateObject WorkspacePickerService()",

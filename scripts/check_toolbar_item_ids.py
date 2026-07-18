@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-WINDOW_TOOLBAR_FILES = (ROOT / "fichero" / "fichero" / "Views" / "ContentView.swift",)
+WINDOW_TOOLBAR_FILES = (ROOT / "fichero" / "fichero" / "Views" / "Shell" / "ContentView" / "ContentView.swift",)
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"(?<!:)//.*")

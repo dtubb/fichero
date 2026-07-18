@@ -93,7 +93,7 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testEntitySearchRoutingUsesTypedStateInsteadOfNotificationBus() throws {
-        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         let sharedSource = try Self.appSource("Views/Inspector/Document/DocumentInspectorArtifactsTab+Shared.swift")
         let entitiesSource = try Self.appSource("Views/Inspector/Document/DocumentInspectorArtifactsTab+EntitiesTab.swift")
 
@@ -104,7 +104,7 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testClaimSourceRoutingUsesTypedStateInsteadOfNotificationBus() throws {
-        let contentSource = try Self.appSource("Views/ContentView.swift")
+        let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         let sharedSource = try Self.appSource("Views/Inspector/Document/DocumentInspectorArtifactsTab+Shared.swift")
         let artifactsSource = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
         let searchSource = try Self.appSource("Views/Library/Search/SearchView+Helpers.swift")
