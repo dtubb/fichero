@@ -380,11 +380,11 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 - [ ] Changed workflow → Update this file
 
 ### Doc Locations
-- `docs/contributor/architecture/swiftui/overview.md` - High-level architecture
-- `docs/contributor/architecture/swiftui/key_files.md` - File organization
+- `docs/contributor/architecture/fichero/overview.md` - High-level architecture
+- `docs/contributor/architecture/fichero/key_files.md` - File organization
 - `docs/contributor/swiftui-principles.md` - Code patterns
 - `docs/contributor/swiftui-development-standards.md` - Standards and guidelines
-- `docs/contributor/architecture/swiftui/workflow_checklist.md` - This file
+- `docs/contributor/architecture/fichero/workflow_checklist.md` - This file
 
 ---
 
@@ -392,7 +392,7 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 
 ### Quick Links
 - Backend API: http://localhost:8765/docs
-- Frontend Docs: `docs/contributor/architecture/swiftui/`
+- Frontend Docs: `docs/contributor/architecture/fichero/`
 - TODO List: GitHub Issues + Milestones
 
 ### MCP Tools

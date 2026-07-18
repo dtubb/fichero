@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Observer-pattern guardrail for SwiftUI Views.
 
-Rule (see docs/contributor/architecture/swiftui/observable_data_layer.md §1):
+Rule (see docs/contributor/architecture/fichero/observable_data_layer.md §1):
 
     A view observes an @Observable store via @Environment(Type.self).
     It does not use legacy @EnvironmentObject / @StateObject service wiring,
@@ -30,7 +30,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
-RULE_DOC = "docs/contributor/architecture/swiftui/observable_data_layer.md"
+RULE_DOC = "docs/contributor/architecture/fichero/observable_data_layer.md"
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"(?<!:)//.*")

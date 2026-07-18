@@ -41,7 +41,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
-RULE_DOC = "docs/contributor/architecture/swiftui/reform_masterplan_2026-06.md"
+RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _VERBATIM_RE = re.compile(r'\bText\(\s*verbatim:\s*"([^"]*)"')

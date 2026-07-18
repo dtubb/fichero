@@ -33,7 +33,7 @@ import OSLog
 ///
 /// One instance per library (registered on `LibraryReference`, mirroring
 /// `ActionStore` / `ResearchStore` / `SearchStore`), shared across that library's
-/// windows. See `docs/contributor/architecture/swiftui/observable_data_layer.md`.
+/// windows. See `docs/contributor/architecture/fichero/observable_data_layer.md`.
 @MainActor
 @Observable
 final class WorkflowExecutionStore {

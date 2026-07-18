@@ -376,5 +376,5 @@ SwiftUI ← @Observable ← Service ← APIClient ← HTTP Response
 
 - **SwiftUI Principles**: `docs/contributor/swiftui-principles.md`
 - **Development Standards**: `docs/contributor/swiftui-development-standards.md`
-- **Key Files**: `docs/contributor/architecture/swiftui/key_files.md`
-- **Workflow Checklist**: `docs/contributor/architecture/swiftui/workflow_checklist.md`
+- **Key Files**: `docs/contributor/architecture/fichero/key_files.md`
+- **Workflow Checklist**: `docs/contributor/architecture/fichero/workflow_checklist.md`

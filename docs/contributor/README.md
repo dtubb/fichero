@@ -47,6 +47,6 @@ For audited cross-surface mutations, the starting point is the action registry. 
 
 - Operational manual for coding agents: [../../AGENTS.md](../../AGENTS.md)
 - Operational rules: [../../AGENTS.md](../../AGENTS.md)
-- Backend overview: [../architecture/api/overview.md](architecture/api/overview.md)
-- SwiftUI overview: [../architecture/swiftui/overview.md](architecture/swiftui/overview.md)
-- API client contract notes: [../architecture/swiftui/api_client.md](architecture/swiftui/api_client.md)
+- Backend overview: [../architecture/fichero-engine/overview.md](architecture/fichero-engine/overview.md)
+- SwiftUI overview: [../architecture/fichero/overview.md](architecture/fichero/overview.md)
+- API client contract notes: [../architecture/fichero/api_client.md](architecture/fichero/api_client.md)

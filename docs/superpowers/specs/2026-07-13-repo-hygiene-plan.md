@@ -251,8 +251,8 @@ Must change in the same PRs as the moves (`check_docs_paths.py` enforces this):
 
 - `AGENTS.md` — §Key Paths (:353), §Working in Xcode (:134 — retire add-swift-file.rb instructions post-conversion), §Docs Placement (:317), §Code Navigation (:273); add pointer to the new vocabulary doc.
 - `docs/contributor/design/swiftui-app-reorg.md` — **stale on two counts** (RealityKit/3D "removed" vs live `Views/Space/SpaceSceneView.swift`; Library file counts). Update to match code or mark superseded-by this plan. Docs describe what is BUILT.
-- `docs/contributor/architecture/swiftui/key_files.md`, `overview.md`, `observable_data_layer.md` — path references to Views/Models/Services.
-- `docs/contributor/architecture/api/key_files.md`, `overview.md`, `KG_ENDPOINTS.md` — route paths and module names.
+- `docs/contributor/architecture/fichero/key_files.md`, `overview.md`, `observable_data_layer.md` — path references to Views/Models/Services.
+- `docs/contributor/architecture/fichero-engine/key_files.md`, `overview.md`, `KG_ENDPOINTS.md` — route paths and module names.
 - `docs/contributor/architecture-overview.md`, `ui-map.md`, `swiftui-development-standards.md`, `backend-development-standards.md`, `setup-and-contributing.md`, `openapi-and-clients.md`.
 - **New:** `docs/contributor/architecture/vocabulary.md` (§6 table) and a short "where does a new file go" section in `CONTRIBUTING.md` — the literal acceptance test, written down.
 - `mkdocs.yml` nav + `scripts/check_docs_paths_allowlist.json` as paths move.

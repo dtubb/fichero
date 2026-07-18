@@ -44,13 +44,13 @@ than deleting databases.
 ## Canonical architecture docs
 
 - Audited mutation path / action registry: `docs/contributor/architecture/action_layer.md`
-- API/backend architecture: `docs/contributor/architecture/api/overview.md`
+- API/backend architecture: `docs/contributor/architecture/fichero-engine/overview.md`
 - AI infrastructure and model policy: `docs/contributor/architecture/ai_infrastructure.md`
 - Image editing backend strategy: `docs/contributor/architecture/image_editing_backend_strategy.md`
 - Pi in-app agent harness: `docs/contributor/architecture/pi_agent_harness.md`
 - MLX/on-device agent service boundary: `docs/contributor/architecture/mlx_on_device_agent.md`
 - Workflow multi-pass engine primitives: `docs/contributor/architecture/workflow_multi_pass_engine.md`
-- SwiftUI/frontend architecture: `docs/contributor/architecture/swiftui/overview.md`
+- SwiftUI/frontend architecture: `docs/contributor/architecture/fichero/overview.md`
 - SwiftUI principles: `docs/contributor/swiftui-principles.md`
 
 ## Local run

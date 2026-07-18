@@ -45,7 +45,7 @@ WRAPPERS_DIR = ROOT / "fichero" / "fichero" / "Services"
 OPENAPI_JSON = (
     ROOT / "fichero" / "fichero-api-client" / "Sources" / "FicheroAPIClient" / "openapi.json"
 )
-RULE_DOC = "docs/contributor/architecture/swiftui/reform_masterplan_2026-06.md"
+RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 _REF_RE = re.compile(r"Components\.Schemas\.([A-Za-z0-9_]+)")
 # Word splitter: acronym run, CamelCase word, lowercase/number run, digit run.
