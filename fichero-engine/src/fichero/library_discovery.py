@@ -30,7 +30,7 @@ _LIBRARY_LIST_ROOTS = (
 def _discover_libraries(roots: tuple[Path, ...] | None = None) -> list[str]:
     """Walk the allowlist roots up to depth 2 and collect ``*.fichero`` paths.
 
-    Depth cap is small on purpose — Daniel's libraries live one or two levels
+    Depth cap is small on purpose — typical libraries live one or two levels
     below ``~/Documents`` (or ``~/Dropbox``), and an unbounded walk over
     ``~/Library/Application Support`` is slow and pulls in noise we don't
     care about.

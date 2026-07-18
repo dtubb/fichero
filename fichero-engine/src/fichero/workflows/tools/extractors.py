@@ -1349,8 +1349,7 @@ async def _run_extractor(
     # genuinely has no entities" from "every LLM call hit a 403 / timeout
     # / parse failure". Without this, quota / auth / model-down errors
     # silently render as "_No entries found._" and the user has no clue
-    # the cloud provider is rejecting calls (Daniel: "we need to do
-    # better error checking — alert or something").
+    # the cloud provider is rejecting calls.
     chunk_errors: list[str] = []
 
     async def _extract_one(chunk_text: str) -> list[Any]:
@@ -1436,8 +1435,7 @@ async def _run_extractor(
     #
     # KG rows (KnowledgeEntity + KnowledgeClaim) are the queryable substrate
     # for cross-doc search and the 0.2.x KG layer (#728). Markdown artifacts
-    # stay alongside as the human-readable / debug view (Daniel: "keep
-    # markdown so we can debug as a user more easily"). Both writes are
+    # stay alongside as the human-readable / debug view. Both writes are
     # idempotent on canonical_name+entity_type for entities; claims always
     # append (provenance trail).
     if container and library_path and any(chunk_results):

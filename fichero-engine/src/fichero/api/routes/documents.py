@@ -1469,7 +1469,7 @@ async def backfill_pdf_pages(
 ) -> PdfBackfillResponse:
     """Find PDFs without page children and create the page Documents.
 
-    Daniel hit this on PDFs ingested before _create_pdf_page_children
+    This affects PDFs ingested before _create_pdf_page_children
     landed (or where Kreuzberg silently failed at ingest time): the
     sidebar shows the PDF as a leaf with no expandable child pages.
 

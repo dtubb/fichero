@@ -146,7 +146,7 @@ def _load_capped_folder_files(
     ``_get_files_in_folder`` ordering so ``files``/``documents`` stay index-
     aligned downstream. When the cap clips the folder, logs LOUDLY that only the
     first N were taken and how to raise the cap — it never silently truncates as
-    if it had processed everything (Daniel's no-silent-fallback rule).
+    if it had processed everything.
     """
     cap = _resolve_source_limit(requested_limit)
     if cap <= 0:

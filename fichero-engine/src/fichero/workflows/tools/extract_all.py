@@ -1652,7 +1652,7 @@ async def extract_all(
     # compete for grammar-decoder state and thrash the local sampler,
     # which produces the "terminated generation early — Failed to
     # deserialize a Generable type" symptom on a non-trivial fraction of
-    # chunks (Daniel reported 2/15 fails on tubb2020shift Preface).
+    # chunks (reproduced on a Preface fixture).
     #
     # Cap at 3 concurrent — enough to keep the GPU busy without
     # serializing-by-default, but well below the thrash threshold.

@@ -2,7 +2,7 @@
 Translate Text Tool (#926)
 
 Translate a document's extracted/transcribed text from its source language
-into the user's preferred language (Spanish → English for Daniel; configurable
+into the user's preferred language (for example, Spanish → English; configurable
 per workflow). Pure-text-in / pure-text-out, cacheable, idempotent — it saves
 a distinct ``translation`` artifact so the raw, cleaned, and translated
 representations of a document coexist and downstream tools pick whichever
@@ -58,7 +58,7 @@ TOOL_CONFIG = LLMToolConfig(
     metadata_field="translation",
 )
 
-# Default target is English (Daniel's preferred language) but it is a plain
+# Default target is English, but it is a plain
 # string default the user can change per workflow — never an enum or literal
 # baked into the call site.
 DEFAULT_TARGET_LANGUAGE = "English"

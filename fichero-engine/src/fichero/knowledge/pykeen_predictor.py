@@ -134,7 +134,7 @@ def train_model(
     out_dir = _model_path(db)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Tiny model, CPU-only — works on Daniel's MacBook without GPU.
+    # Tiny model, CPU-only — works on a laptop without GPU.
     result = pipeline(
         training=tf,
         testing=tf,  # no held-out set for this lightweight scaffold;

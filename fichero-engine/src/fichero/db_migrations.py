@@ -171,7 +171,7 @@ def migrate_document_table(conn) -> None:
     documents table without `sort_order`. The Pydantic Document model
     now includes `sort_order: int = 0`, so every `INSERT OR REPLACE INTO
     documents` fails with a DuckDB Binder Error ("does not have a column
-    with name sort_order"). Seen in Daniel's 2026-04-18 repro:
+    with name sort_order"). Seen in a 2026-04-18 reproduction:
 
         _duckdb.BinderException: Binder Error: Table "documents" does
         not have a column with name "sort_order". Did you mean: "id"

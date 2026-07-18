@@ -2,7 +2,7 @@
 
 Emits one (file_path, document, crop_content) tuple per Annotation
 on a selected document so downstream LLM/vision tools operate only
-on the highlighted region. Closes the use case Daniel asked for:
+on the highlighted region. Supports the use case:
 "highlight 10% of a 100MB image and the AI sees that."
 
 Wiring:

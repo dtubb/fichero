@@ -1402,7 +1402,7 @@ def upsert_entity(
     if matched is not None:
         # Fold the new surface form + aliases into the existing entity.
         # Case-fold for dedup so "Artisanal mining" and "artisanal mining"
-        # don't both end up in the aliases list (#986 — Daniel saw
+        # don't both end up in the aliases list (#986 reproduced
         # "Artisanal mining" + alias "artisanal mining" on the same
         # entity). We keep the FIRST-seen surface form per case-folded
         # key (typically the better-capitalised variant from the source

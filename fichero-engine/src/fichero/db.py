@@ -1151,7 +1151,7 @@ class Database(DatabaseEmbeddingMixin):
         Semantics:
         - All objects must be the same model type (one table, one column set).
         - All-or-nothing: a bad row aborts the whole batch (ROLLBACK) and the
-          error is raised — never a silent partial write (Daniel's rule).
+          error is raised — never a silent partial write.
         - Empty input is a no-op returning 0.
         - Does NOT auto-embed; callers that also need vectors should pair this
           with ``embed_many`` so the embedding append batches too.
@@ -3469,7 +3469,7 @@ class Database(DatabaseEmbeddingMixin):
         # '[ilegible]'). Embedding that literal string makes every
         # marker-only doc share an identical vector, and they cluster at
         # the top of every semantic query (the 95%-on-blank-doc bug
-        # Daniel hit on the social-license search). Treat marker-only
+        # seen in a social-license search). Treat marker-only
         # content as 'no content' and fall back to the doc's name —
         # which at least varies per-doc and reflects the legal-case
         # / archive structure the user is browsing.

@@ -96,7 +96,7 @@ class AppDatabase:
         # `InvalidInputException: Attempting to execute an unsuccessful or
         # closed pending query result`. A reentrant lock around every conn
         # operation serializes access on this single shared connection. (#704
-        # follow-up — Daniel logs 2026-04-25.)
+        # follow-up observed on 2026-04-25.)
         import threading
         self._lock = threading.RLock()
 
@@ -538,7 +538,7 @@ class AppDatabase:
         UI's '+ Add Model' button on Settings → Providers could add
         the same Apple Vision row N times because conflict resolution
         was only keyed on `id` (the row primary key, which is fresh
-        per add). Daniel hit this in #937.
+        per add). Reproduced in #937.
         """
         # Check (provider_id, model_id) for an existing row. If found
         # and it's NOT the same id we're trying to write, redirect the

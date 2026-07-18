@@ -495,8 +495,7 @@ def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 3
 
 # Maximum image dimension (longest side) handed to Apple Vision. Larger
 # images consume disproportionate memory + time without improving OCR
-# accuracy beyond this resolution. Daniel: "really we don't want to send
-# Apple Vision too large an image". (#796)
+# accuracy beyond this resolution. (#796)
 _VISION_MAX_DIMENSION = 4096
 
 
@@ -506,7 +505,7 @@ def _normalize_for_vision(
     """Pre-process an image for Apple Vision: convert to PNG via Pillow if
     it's a TIF (CoreGraphics' TIF support varies by codec — some multi-page
     or exotic-compression TIFs return nil from CGImageSourceCreateWithURL,
-    which is exactly what bit Daniel on EAP1740_*.tif). Also downscale if
+    which can fail on EAP1740_*.tif). Also downscale if
     longer side exceeds _VISION_MAX_DIMENSION. Pass ``force=True`` to
     always round-trip through PNG — used as a retry path when CoreGraphics
     fails on a JPEG that Pillow opens fine (CMYK, progressive, exotic
@@ -2265,7 +2264,7 @@ async def process_vision(
                     )
                     if page_artifact_ids is None and len(per_page_texts) > 1:
                         # Multi-page PDF with NO page children. Per #2430 /
-                        # Daniel's one-page-at-a-time rule we must NEVER write the
+                        # one-page-at-a-time rule: never write the
                         # concatenated whole-PDF transcript onto the parent. Try
                         # to split on the spot, then re-propagate per-page.
                         try:

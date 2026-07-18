@@ -554,15 +554,14 @@ async def catalogue(
     # Bubbleable LLM-error messages from any of the catalogue's nested
     # chat() calls. Surfaced in the result["error"] when nothing got
     # produced — quota / auth / rate-limit are user-actionable and
-    # should appear in Activity, not be swallowed (Daniel: "we need
-    # to do better error checking — alert or something").
+    # should appear in Activity, not be swallowed.
     catalogue_errors: list[str] = []
 
     # --- Path 1: claims already exist for this container -------------------
     # If extractors ran ahead of catalogue (composable workflow), use the
     # rows they wrote as additional context for the narrative paragraph.
     # Note: data dict is no longer used to render structured markdown
-    # (per Daniel's "we don't need anything in the text" — body is just
+    # (the body is just
     # the paragraph). It's used only to surface entities to the LLM.
     data: dict[str, Any] | None = None
     # Track whether KG data (entities/claims) already exists from extract_all.
@@ -638,8 +637,8 @@ async def catalogue(
     else:
         # Path 1 (claims-derived): use only the LLM-generated paragraph
         # stored under data["summary"] as the catalogue body. The full
-        # 9-section markdown render is no longer used — Daniel: "we don't
-        # need anything in the text, it's already in the catalogue section".
+        # 9-section markdown render is no longer used: its data is already in
+        # the catalogue section.
         # Per-entity data lives in the typed entity artifacts (which
         # KnowledgeGraph tab renders) so duplicating it here is noise.
         markdown = (data.get("summary", "") if data else "") or ""
@@ -649,7 +648,7 @@ async def catalogue(
     # Small models follow short prompts more reliably than one big prompt
     # asking for everything. Idempotent: prior catalogue.* artifacts on
     # this container are deleted before saving new ones, so reruns don't
-    # accumulate (Daniel: "I see multiple Catalogue entries").
+    # accumulate.
     saved_artifact_ids: list[str] = []
     if container and library_path and markdown:
         try:
@@ -1066,8 +1065,7 @@ def _format_claims_as_context(
     catalogue prompt. The Extract* nodes already wrote KnowledgeClaim
     rows; this surfaces them to the LLM so its narrative paragraph is
     informed by typed entities (not just the raw transcripts).
-    Daniel: 'catalogue should take the output of all the previous ones
-    and add it together'.
+    The catalogue combines outputs from the preceding workflow steps.
 
     Per-section caps (resolved from defaults + workflow-config
     overrides) prevent dense folders from producing oversized prompts.
