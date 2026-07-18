@@ -102,7 +102,9 @@ def validate_node_connections(
         has_edge = bool(edge_target_ports) and port.id in edge_target_ports
         has_default = port.default is not None
 
-        if not has_mapping and not has_edge and not has_default:
+        has_input_value = port.id in (node.inputs or {})
+
+        if not has_mapping and not has_edge and not has_default and not has_input_value:
             errors.append(
                 f"Required input port '{port.id}' on node '{node.id}' has no mapping or default value"
             )
@@ -150,14 +152,20 @@ def validate_workflow_connections(workflow: WorkflowDef) -> list[str]:
 
     # Validate each edge
     for edge in workflow.edges:
-        # Find source and target nodes (enriched with ports from registry)
         source_node = enriched_nodes.get(edge.source)
-        target_node = enriched_nodes.get(edge.target)
-
         if not source_node:
             errors.append(f"Edge references unknown source node: {edge.source}")
             continue
 
+        if edge.route_map:
+            for target_id in edge.route_map.values():
+                if target_id not in enriched_nodes:
+                    errors.append(
+                        f"Edge route_map references unknown node: {target_id}"
+                    )
+            continue
+
+        target_node = enriched_nodes.get(edge.target)
         if not target_node:
             errors.append(f"Edge references unknown target node: {edge.target}")
             continue
