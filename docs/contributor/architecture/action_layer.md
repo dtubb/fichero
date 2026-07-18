@@ -1,4 +1,4 @@
-(AI generated. Not reviewed.)
+<!-- Verified against fichero-engine/src/fichero/actions/registry.py, db.py, api/routes/* (2026-07-18). -->
 
 # Action Layer — Current Architecture
 
@@ -30,6 +30,7 @@ mutation routes such as:
 - entities in `api/routes/entities.py`
 - bookmarks in `api/routes/bookmarks.py`
 - saved searches in `api/routes/search.py`
+- ingest (import.file/import.folder) in `api/routes/ingest.py` (#3274)
 
 ## Actual invoke contract
 
