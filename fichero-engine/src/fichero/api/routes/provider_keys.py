@@ -10,7 +10,6 @@ import logging
 import time
 from typing import Optional
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -180,6 +179,8 @@ async def test_provider_connection(
     - API key validity (for cloud providers)
     - Server availability (for local providers)
     """
+    import httpx  # lazy (#3985): keep off the engine boot path
+
     info = get_provider_info(provider_type)
     if not info:
         raise HTTPException(

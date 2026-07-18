@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -421,6 +420,8 @@ async def list_models_for_provider(
     queries the running server or returns built-in models.
     For cloud providers, uses LiteLLM's static registry with cost info.
     """
+    import httpx  # lazy (#3985): keep off the engine boot path
+
     info = get_provider_info(provider_type)
     if not info:
         raise HTTPException(

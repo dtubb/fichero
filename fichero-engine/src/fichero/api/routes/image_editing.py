@@ -11,11 +11,15 @@ import io
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
+
+if TYPE_CHECKING:
+    # Type-only: PIL is imported lazily in the render helpers (#3985), but the
+    # `Image.Image` annotations still need the name to resolve for type checkers.
+    from PIL import Image
 
 from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
@@ -25,8 +29,8 @@ from fichero.db import Database
 from fichero.models import DocType, Document, FileType, ImageEditChain
 from fichero.workflows.batch import BatchItemStatus, BatchStatus
 from fichero.storage import resolve_source
-from fichero.image_ops import apply_operation
-# NOTE: apply_fuzzy_clean is imported inside the one handler that uses it
+# NOTE: apply_operation is imported inside the functions that render (#3985) and
+# apply_fuzzy_clean inside the one handler that uses it
 # (#3950). Importing any module in the tools package runs tools/__init__.py,
 # which imports every tool and with them Quartz, MCP and langgraph.
 
@@ -210,6 +214,8 @@ def _get_chain(db: Database, document_id: str) -> ImageEditChain | None:
 
 
 def _load_source_image(path: Path, page: int = 1) -> Image.Image:
+    from PIL import Image, ImageOps  # lazy (#3985): keep PIL off the engine boot path
+
     suffix = path.suffix.lower()
     if suffix == ".pdf":
         try:
@@ -240,6 +246,7 @@ def _load_source_image(path: Path, page: int = 1) -> Image.Image:
 
 def _remove_black_background_opencv(image: Image.Image) -> Image.Image:
     """Port the archive contour-mask and crop path for black scanner borders."""
+    from PIL import Image  # lazy (#3985): keep PIL off the engine boot path
     import cv2  # type: ignore[import-not-found]
     import numpy as np
 
@@ -269,6 +276,8 @@ def _remove_black_background_opencv(image: Image.Image) -> Image.Image:
 
 
 def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Image:
+    from PIL import Image, ImageChops  # lazy (#3985): keep PIL off the engine boot path
+
     method = str(params.get("method", "opencv")).strip().lower()
     if method == "rembg":
         try:
@@ -340,6 +349,8 @@ def _estimate_straighten_angle(image: Image.Image) -> float:
 def _foreground_segments(
     image: Image.Image, threshold: int, min_area: int, max_segments: int
 ) -> list[dict[str, Any]]:
+    from PIL import Image, ImageChops  # lazy (#3985): keep PIL off the engine boot path
+
     rgb = image.convert("RGB")
     background = Image.new("RGB", rgb.size, rgb.getpixel((0, 0)))
     diff = ImageChops.difference(rgb, background).convert("L")
@@ -436,6 +447,12 @@ def _apply_saved_operations(
 
 
 def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
+    # lazy (#3985): keep PIL and image_ops (which imports PIL) off the boot path.
+    # The PIL names are used by the source-compatibility branch kept below the
+    # early return.
+    from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+    from fichero.image_ops import apply_operation
+
     return apply_operation(image, op)
 
     # Kept below temporarily for source compatibility while operations move to
@@ -556,6 +573,8 @@ def _render_preview(
     db: Database, document_id: str, apply_edits: bool, page: int
 ) -> tuple[bytes, str]:
     """Render one preview in a worker thread; cached renders are disposable."""
+    from fichero.image_ops import apply_operation  # lazy (#3985): keep PIL off the boot path
+
     doc = _get_or_404_document(db, document_id)
     chain = _get_chain(db, document_id) if apply_edits else None
     version = chain.updated_at.isoformat() if chain else "raw"

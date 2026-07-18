@@ -8,7 +8,6 @@ from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -17,10 +16,26 @@ from fichero.models import DocType, Document
 
 router = APIRouter(prefix="/view", tags=["views"])
 
-_TEMPLATES = Jinja2Templates(
-    directory=str(Path(__file__).resolve().parents[1] / "templates")
-)
+_TEMPLATES = None
 _GLOBAL_KG_LIMIT = 250
+
+
+def _templates():
+    """Build the Jinja2 environment on first render (#3985).
+
+    Importing jinja2 (via Jinja2Templates) at module scope put it and
+    markupsafe on the engine boot path — api.main imports every route module to
+    register routers, but templates are only needed when an HTML view actually
+    renders.
+    """
+    global _TEMPLATES
+    if _TEMPLATES is None:
+        from fastapi.templating import Jinja2Templates
+
+        _TEMPLATES = Jinja2Templates(
+            directory=str(Path(__file__).resolve().parents[1] / "templates")
+        )
+    return _TEMPLATES
 
 
 def _json_for_script(payload: object) -> str:
@@ -203,7 +218,7 @@ async def document_view(
     ]
     claim_payload = _claim_payload(claims, entities_by_id)
 
-    return _TEMPLATES.TemplateResponse(
+    return _templates().TemplateResponse(
         request=request,
         name="document_view.html",
         context={
@@ -256,7 +271,7 @@ async def global_kg_view(
     ]
     claim_payload = _claim_payload(claims, entities_by_id)
 
-    return _TEMPLATES.TemplateResponse(
+    return _templates().TemplateResponse(
         request=request,
         name="document_view.html",
         context={
