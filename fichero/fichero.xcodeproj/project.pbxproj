@@ -1401,6 +1401,8 @@
 		22CF4FEC94C539A14626CD6B /* PairedHostEndpoints.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PairedHostEndpoints.swift; sourceTree = "<group>"; };
 		24BBD41061EB9112C9EB7D6F /* ShellLayoutPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShellLayoutPolicy.swift; sourceTree = "<group>"; };
 		24F68955CC563FF070D02897 /* Canvas2DProjection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Canvas2DProjection.swift; sourceTree = "<group>"; };
+		260102B79F8EB99B2561241D /* FicheroAppStore.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = FicheroAppStore.entitlements; sourceTree = "<group>"; };
+		26B77FD8CB675BFD1613A650 /* FicheroEngineAppStore.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = FicheroEngineAppStore.entitlements; sourceTree = "<group>"; };
 		28B629229088E72B485569FC /* LibraryChangeStream.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryChangeStream.swift; sourceTree = "<group>"; };
 		29941DE439073B7364322ECF /* FicheroApp_iOS.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroApp_iOS.swift; sourceTree = "<group>"; };
 		29C59C2205AA2F446083A9C9 /* PDFThumbnailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFThumbnailView.swift; sourceTree = "<group>"; };
@@ -1461,6 +1463,7 @@
 		4F5ED84DA059F760ECDB09B4 /* BackendWorkPill.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackendWorkPill.swift; sourceTree = "<group>"; };
 		4FCDF89C1460FA69DB0A0630 /* BoundingBoxOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoundingBoxOverlay.swift; sourceTree = "<group>"; };
 		506C34038F8A349C075DFBAC /* WorkflowRunProviderCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkflowRunProviderCache.swift; sourceTree = "<group>"; };
+		52440A8752BDED470C516D71 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5287875D44BA51CD93CA12F8 /* ResearchTasksPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchTasksPane.swift; sourceTree = "<group>"; };
 		53331A42DA98730B8F854E58 /* LiveUpdatesPausedPill.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveUpdatesPausedPill.swift; sourceTree = "<group>"; };
 		53458DC3387BC4C694EE3452 /* ContradictionTriageSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContradictionTriageSheet.swift; sourceTree = "<group>"; };
@@ -1511,6 +1514,7 @@
 		75371C597B1E4689B6E1803F /* TriggerEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorView.swift; sourceTree = "<group>"; };
 		753C4D174F9A42A6593BECC6 /* PageImageGrid.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PageImageGrid.swift; sourceTree = "<group>"; };
 		75558D1F0B1D0F65CEFF577C /* PDFReadingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFReadingView.swift; sourceTree = "<group>"; };
+		76C1AE92211558E4BE2A59CC /* FicheroEngine.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = FicheroEngine.entitlements; sourceTree = "<group>"; };
 		772A6A57C4986C2765A174EE /* PlatformPasteboard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlatformPasteboard.swift; sourceTree = "<group>"; };
 		79192DB989A34D1DBEEF3E34 /* CitationExportButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CitationExportButton.swift; sourceTree = "<group>"; };
 		7A5517E790C3AF9853989225 /* LibraryWorkspaceRoot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryWorkspaceRoot.swift; sourceTree = "<group>"; };
@@ -2087,6 +2091,7 @@
 				017DF74AC5DDEA4A8C3EC87E /* Intents */,
 				29941DE439073B7364322ECF /* FicheroApp_iOS.swift */,
 				ABE3FF6189E1B62002280DA6 /* CanvasScene */,
+				77C13DE1389DDE7AD8432B99 /* fichero */,
 			);
 			path = fichero;
 			sourceTree = "<group>";
@@ -2096,7 +2101,6 @@
 			children = (
 				0F170C35E012F960BCA4CDEA /* KnowledgeGraph */,
 				A1A3AA252F1115F90021909D /* Activity */,
-				A1A3A9FD2F110D260021909D /* Agents */,
 				A1FB1D7A2F0420310023093C /* AIProviders */,
 				A1A3AA2A2F113E850021909D /* Automation */,
 				A23530050000000000000005 /* Capture */,
@@ -2110,7 +2114,6 @@
 				200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */,
 				6B2E4D99C5F38A0297BC4402 /* ContentView+Toolbar.swift */,
 				A1A3A9F92F110D170021909D /* ContentViewModifiers.swift */,
-				A1A3AA352F11665B0021909D /* Integrations */,
 				A1FB1D802F0420A90023093C /* Library */,
 				A1A3A9BF2F1028480021909D /* MCPServers */,
 				A1BFB2D92F042CBB00EAA55A /* Menu */,
@@ -2502,6 +2505,17 @@
 			path = Workspace;
 			sourceTree = "<group>";
 		};
+		77C13DE1389DDE7AD8432B99 /* fichero */ = {
+			isa = PBXGroup;
+			children = (
+				260102B79F8EB99B2561241D /* FicheroAppStore.entitlements */,
+				26B77FD8CB675BFD1613A650 /* FicheroEngineAppStore.entitlements */,
+				52440A8752BDED470C516D71 /* Info.plist */,
+				76C1AE92211558E4BE2A59CC /* FicheroEngine.entitlements */,
+			);
+			name = fichero;
+			sourceTree = "<group>";
+		};
 		8D536EAF7F2C38E1DD16992F /* Canvas */ = {
 			isa = PBXGroup;
 			children = (
@@ -2556,13 +2570,6 @@
 			path = MCPServers;
 			sourceTree = "<group>";
 		};
-		A1A3A9FD2F110D260021909D /* Agents */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Agents;
-			sourceTree = "<group>";
-		};
 		A1A3AA252F1115F90021909D /* Activity */ = {
 			isa = PBXGroup;
 			children = (
@@ -2602,13 +2609,6 @@
 				20D8ED5E2F48E4DA006950A3 /* TriggerDetailView+Helpers.swift */,
 			);
 			path = Automation;
-			sourceTree = "<group>";
-		};
-		A1A3AA352F11665B0021909D /* Integrations */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Integrations;
 			sourceTree = "<group>";
 		};
 		A1BFB2C72F042C0500EAA55A /* App */ = {
