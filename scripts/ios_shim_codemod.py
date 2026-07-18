@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Bucket A: files where import AppKit is unused and should be removed.
 BUCKET_A: list[str] = [
-    "fichero/fichero/Views/Library/ArtifactRichTextCodec.swift",
+    "fichero/fichero/Views/Inspector/ArtifactRichTextCodec.swift",
 ]
 
 # Bucket B: files whose ONLY AppKit symbols are shimmable (NSImage/NSColor/NSFont/NSViewRepresentable).
