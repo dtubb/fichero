@@ -385,7 +385,11 @@ final class RemoteAccessConfigTests: XCTestCase {
         )
 
         XCTAssertEqual(environment["FICHERO_BIND_HOST"], "pairing.example.com")
-        XCTAssertEqual(environment["FICHERO_MULTIUSER"], "1")
+        // Multiuser is a separate toggle now (default off) — remote-access transport
+        // no longer auto-enables it (#3941/two-toggles). This test doesn't set the
+        // toggle, so it stays "0"; the on/off behaviour is covered by the sibling
+        // testRemoteAccessLaunchEnvironment{Disables,…}Multiuser tests.
+        XCTAssertEqual(environment["FICHERO_MULTIUSER"], "0")
         XCTAssertEqual(environment["FICHERO_PUBLIC_BASE_URL"], "https://pairing.example.com:9443")
         XCTAssertEqual(environment["FICHERO_TLS_CERTFILE"], "/tmp/server.crt")
         XCTAssertEqual(environment["FICHERO_TLS_KEYFILE"], "/tmp/server.key")
