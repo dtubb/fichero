@@ -6,7 +6,6 @@
     ".git/logs/refs/heads/main",
     "build/releases",
     "build/verify_all_needs_fixing.json",
-    "docs/contributor/architecture/vocabulary.md",
     "fichero-engine/build/fichero-backend/macos/app/FicheroBackend.app",
     "fichero-engine/tests/live/test_pairing_live_server.py",
     "fichero-engine/tests/unit/knowledge/test_svo_cleanup.py",
