@@ -31,13 +31,6 @@ final class WorkflowStore: ChangeEventConsumer {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowStore")
     private let workflowService: WorkflowServiceGenerated
     private let ficheroClient: FicheroClient
-    /// Per-process flag — true after the first reinstallDefaults() runs.
-    /// Subsequent loadWorkflows() calls skip the reinstall so user edits to
-    /// is_template preset workflows survive navigation. Without this, every
-    /// view-mode change wiped the preset and re-seeded from JSON, blowing
-    /// away the user's provider/model selection on the Transcribe (cloud)
-    /// node etc. (#780 — root cause)
-    private static var didReinstallDefaultsThisLaunch = false
     // Empty: backend ships the canonical default workflows (Transcribe,
     // Catalogue, Catalogue (composable)) via JSON in
     // fichero-engine/.../resources/default_workflows. The Swift-side

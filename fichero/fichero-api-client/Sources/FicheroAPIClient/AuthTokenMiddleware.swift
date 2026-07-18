@@ -45,10 +45,6 @@ public struct AuthTokenMiddleware: ClientMiddleware {
 
     public init() {}
 
-    // Backward-compat shim: older call sites pass a token but it's ignored
-    // (we always read fresh from disk).
-    public init(token: String?) {}
-
     public static func isUnauthenticatedPath(_ path: String) -> Bool {
         unauthenticatedPaths.contains { allowedPath in
             if path == allowedPath { return true }
@@ -443,21 +439,12 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         return nil
     }
 
-    public static func waitForTokenBlocking(timeout: TimeInterval = 3) -> String? {
-        waitForTokenBlocking(hostString: nil, timeout: timeout)
-    }
-
-    /// Host-aware blocking token wait (#2866) — for the raw-URLSession auth path
-    /// (`URLRequest.addEngineAuth`) which resolves the token for the request's host.
-    public static func waitForTokenBlocking(hostString: String?, timeout: TimeInterval = 3) -> String? {
-        if let token = readTokenFromDisk(hostString: hostString) { return token }
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.05)
-            if let token = readTokenFromDisk(hostString: hostString) { return token }
-        }
-        return nil
-    }
+    // `waitForTokenBlocking` was deleted in #3948: its only caller
+    // (`engineAuthHeaders`) is a synchronous helper reachable on the main actor,
+    // so its Thread.sleep loop froze the actor up to 3s per readiness probe /
+    // heartbeat when `.api-key` was absent. That path now reads the token once
+    // via `readTokenFromDisk`; the async `waitForToken` remains for genuinely
+    // awaitable call sites. Do not reintroduce a blocking token wait.
 
     public func intercept(
         _ request: HTTPRequest,

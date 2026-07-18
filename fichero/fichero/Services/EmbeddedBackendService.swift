@@ -459,7 +459,17 @@ final class EmbeddedBackendService {
         let launchNonce = Self.generateSecret()
         expectedLaunchNonce = launchNonce
 
-        var environment = ProcessInfo.processInfo.environment
+        // Build the child env from the app's environment with every inherited
+        // FICHERO_* stripped (#3933). The engine's security posture — auth on/off
+        // (FICHERO_DISABLE_AUTH), bind surface (FICHERO_LAN_HOST/FICHERO_BIND_HOST)
+        // — is decided ENTIRELY by the FICHERO_* keys the app sets below, never by
+        // a stray one in the launching shell. `FICHERO_DISABLE_AUTH=1 open
+        // Fichero.app` must not spawn an auth-less engine. Non-FICHERO vars (PATH,
+        // HOME, locale, dyld/xpc, …) are inherited unchanged — the bundled
+        // interpreter needs them and none influence engine auth or bind. This
+        // fails closed for any FICHERO_* added later: unknown ones are dropped
+        // until explicitly set here.
+        var environment = Self.childEnvironmentBase(inheriting: ProcessInfo.processInfo.environment)
         // Engine watches this PID and self-terminates if we die without a
         // chance to call .stop() (e.g., SIGKILL). Belt-and-braces with the
         // applicationWillTerminate path.
@@ -950,28 +960,22 @@ final class EmbeddedBackendService {
         await EngineReadinessProbe(hostURL: backendURL, expectedNonce: expectedLaunchNonce).probe()
     }
 
-    private func backendSupportsWorkflowRoutes() async -> Bool {
-        let workflowsURL = backendURL.appendingPathComponent("api/workflows")
-        var request = URLRequest(url: workflowsURL)
-        request.httpMethod = "GET"
-        request.addEngineAuth()
-        let session = RemoteCertificatePinning.configuredSession()
-
-        do {
-            let (_, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                return false
-            }
-            // Missing library header may return 422; route absence returns 404.
-            // 401 means engine present but token mismatch — treat as supported
-            // so we don't double-launch.
-            return httpResponse.statusCode != 404
-        } catch {
-            return false
-        }
-    }
-
     // MARK: - Token & identity helpers (#2862)
+
+    /// The base environment for the spawned engine: the app's environment with
+    /// every inherited `FICHERO_*` key removed (#3933).
+    ///
+    /// The engine reads `FICHERO_*` to decide auth (`FICHERO_DISABLE_AUTH`) and
+    /// its bind surface (`FICHERO_LAN_HOST`, `FICHERO_BIND_HOST`,
+    /// `FICHERO_ALLOW_NON_LOOPBACK_BIND`). Those must come only from what the app
+    /// sets on the child — not from a stray value in the shell that launched the
+    /// app (`FICHERO_DISABLE_AUTH=1 open Fichero.app` must NOT disable auth). All
+    /// non-FICHERO vars pass through unchanged so the bundled interpreter still
+    /// has PATH/HOME/locale/etc. Pure + static so it is unit-testable without a
+    /// running process.
+    static func childEnvironmentBase(inheriting inherited: [String: String]) -> [String: String] {
+        inherited.filter { !$0.key.hasPrefix("FICHERO_") }
+    }
 
     /// 32 cryptographically-random bytes, base64url without padding — same
     /// shape as the engine's `secrets.token_urlsafe(32)`. Used for both the
@@ -1270,7 +1274,6 @@ private final class DataBox: @unchecked Sendable {
 
 enum BackendError: LocalizedError {
     case notRunning
-    case bundleNotFound
     case backendAppNotFound
     case launchFailed(Error)
     case timeout
@@ -1292,8 +1295,6 @@ enum BackendError: LocalizedError {
         case .portConflict(let pid):
             let who = pid.map(String.init) ?? "unknown"
             return "Port 8765 is held by another process (PID \(who))."
-        case .bundleNotFound:
-            return "App bundle resources not found"
         case .backendAppNotFound:
             // Debug builds don't embed the engine (the embed phase is Release-only),
             // so the usual cause in a Debug ⌘R is simply no engine running on :8765.

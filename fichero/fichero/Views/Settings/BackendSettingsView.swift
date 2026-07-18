@@ -53,9 +53,6 @@ struct BackendSettingsView: View {
                 LabeledContent("Documents") {
                     Text("\(appState.documentCount)")
                 }
-                LabeledContent("Indexed") {
-                    Text("\(appState.indexedCount)")
-                }
 
                 if isLoadingStats {
                     LabeledContent("Storage") {

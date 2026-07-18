@@ -62,6 +62,23 @@ struct LibraryPathMiddlewareTests {
         #expect(LibraryPathMiddleware.isAppWidePath("/api/usersettings") == false)
     }
 
+    /// The plural/singular trap (#3942): `/api/authz/libraries` (plural) lists
+    /// which libraries this credential has a role on — the answer spans libraries
+    /// and the engine route takes NO `require_library_path` (`authz.py:37`), so it
+    /// is app-wide and must NOT carry the header. Its singular sibling
+    /// `/api/authz/library` IS library-scoped and must keep it. Because the picker
+    /// hits `/authz/libraries` on remote hosts where the local library path is not
+    /// valid, carrying the header there would 403 the very probe that discovers
+    /// what you can open — the #3932 PATH-as-AUTH cascade, one prefix over.
+    @Test("/api/authz/libraries (plural) is app-wide; /api/authz/library (singular) is scoped")
+    func accessibleLibrariesIsAppWideButLibraryIsNot() {
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/authz/libraries") == true)
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/authz/library") == false)
+        // The exemption is anchored: it must not leak onto the scoped siblings.
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/authz/members") == false)
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/authz/share") == false)
+    }
+
     // #2407: the exact endpoints that showed the 403→retry→200 burst on iPad are
     // all library-scoped, so the FIRST call to each carries X-Fichero-Library-Path
     // (never app-wide). Combined with warming token+session+identity before
@@ -95,6 +112,10 @@ struct LibraryPathMiddlewareTests {
             "/api/settings/ai",
             "/api/registry",
             "/api/registry/libraries",
+            // #3942 — lists which libraries this credential has a role on; the
+            // answer spans libraries, so it is app-wide (unlike singular
+            // /api/authz/library, which is scoped and tested above).
+            "/api/authz/libraries",
             // #3932 — "who am I" is not a library-scoped question, and accounts
             // are app-level. Every route on the engine's auth_router / users_router
             // (auth_accounts.py), none of which reads the library header.
