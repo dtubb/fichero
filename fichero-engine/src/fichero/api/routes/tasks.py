@@ -402,7 +402,10 @@ async def get_task_result(
             error=task.result.error,
         )
 
-    return None
+    if task.status in {TaskStatus.PENDING, TaskStatus.RUNNING}:
+        raise HTTPException(status_code=202, detail=f"Task {task_id} is still running")
+    logger.error("Terminal task %s has no result (status=%s)", task_id, task.status)
+    raise HTTPException(status_code=409, detail=f"Task {task_id} has no result")
 
 
 @router.get(
@@ -483,11 +486,16 @@ async def get_metrics_data(
         )
 
     details = task.result.details
+    required = ("document_count", "embedding_stats", "file_types", "status_distribution")
+    missing = [key for key in required if key not in details]
+    if missing:
+        logger.error("Metrics task %s has incomplete result: %s", task_id, missing)
+        raise HTTPException(status_code=409, detail=f"Task {task_id} has incomplete metrics result")
     return MetricsResponse(
-        document_count=details.get("document_count", 0),
-        embedding_stats=details.get("embedding_stats", {}),
-        file_types=details.get("file_types", {}),
-        status_distribution=details.get("status_distribution", {}),
+        document_count=details["document_count"],
+        embedding_stats=details["embedding_stats"],
+        file_types=details["file_types"],
+        status_distribution=details["status_distribution"],
     )
 
 
@@ -677,15 +685,23 @@ async def get_kg_metrics_data(
         )
 
     details = task.result.details
+    required = (
+        "entity_count", "entity_by_type", "claim_count", "claims_by_status",
+        "claims_by_type", "claims_with_sources", "link_count", "links_by_relation",
+    )
+    missing = [key for key in required if key not in details]
+    if missing:
+        logger.error("KG metrics task %s has incomplete result: %s", task_id, missing)
+        raise HTTPException(status_code=409, detail=f"Task {task_id} has incomplete KG metrics result")
     return KGMetricsResponse(
-        entity_count=details.get("entity_count", 0),
-        entity_by_type=details.get("entity_by_type", {}),
-        claim_count=details.get("claim_count", 0),
-        claims_by_status=details.get("claims_by_status", {}),
-        claims_by_type=details.get("claims_by_type", {}),
-        claims_with_sources=details.get("claims_with_sources", 0),
-        link_count=details.get("link_count", 0),
-        links_by_relation=details.get("links_by_relation", {}),
+        entity_count=details["entity_count"],
+        entity_by_type=details["entity_by_type"],
+        claim_count=details["claim_count"],
+        claims_by_status=details["claims_by_status"],
+        claims_by_type=details["claims_by_type"],
+        claims_with_sources=details["claims_with_sources"],
+        link_count=details["link_count"],
+        links_by_relation=details["links_by_relation"],
     )
 
 
