@@ -5,7 +5,7 @@ final class AboutSettingsSurfaceTests: XCTestCase {
         let source = try Self.appSource("Views/Settings/SettingsView.swift")
         XCTAssertTrue(source.contains("#if !canImport(AppKit)"))
         XCTAssertTrue(source.contains("AboutView()"))
-        XCTAssertTrue(source.contains("Label(\"About\", systemImage: \"info.circle\")"))
+        XCTAssertTrue(source.contains("row(.about, \"About\", \"info.circle\")"))
     }
 
     func testAppMenuDoesNotDuplicateAISettingsEntry() throws {
@@ -20,9 +20,9 @@ final class AboutSettingsSurfaceTests: XCTestCase {
 
     func testSettingsViewHostsMCPAndIntegrationsTabs() throws {
         let source = try Self.appSource("Views/Settings/SettingsView.swift")
-        XCTAssertTrue(source.contains("TabView(selection: settingsSelection)"))
-        XCTAssertTrue(source.contains(".tag(SettingsTab.mcp)"))
-        XCTAssertTrue(source.contains(".tag(SettingsTab.integrations)"))
+        XCTAssertTrue(source.contains("NavigationSplitView"))
+        XCTAssertTrue(source.contains("row(.mcp, \"MCP\", \"server.rack\")"))
+        XCTAssertTrue(source.contains("row(.integrations, \"Integrations\", \"app.connected.to.app.below.fill\")"))
         XCTAssertTrue(source.contains("MCPServersView()"))
         XCTAssertTrue(source.contains("IntegrationsSettingsView(showAutomationRules: featureManager.isAutomationEnabled)"))
         XCTAssertTrue(source.contains("Label(\"MCP\", systemImage: \"server.rack\")"))
