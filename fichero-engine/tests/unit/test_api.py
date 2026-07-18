@@ -42,6 +42,13 @@ def sample_collection():
     )
 
 
+@pytest.fixture
+def record_background_task():
+    """Prevent TestClient from running scheduled background ingestion."""
+    with patch("starlette.background.BackgroundTasks.add_task") as add_task:
+        yield add_task
+
+
 class TestHealthEndpoint:
     """Tests for /api/health endpoint."""
 
@@ -477,7 +484,7 @@ class TestIngestRoutes:
         })
         assert response.status_code == 403
 
-    def test_ingest_folder_starts_task(self, client):
+    def test_ingest_folder_starts_task(self, client, record_background_task):
         """Ingest folder returns task ID."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a test file
@@ -494,11 +501,12 @@ class TestIngestRoutes:
                 data = response.json()
                 assert "task_id" in data
                 assert data["status"] == "pending"
+                record_background_task.assert_called_once()
 
     def test_ingest_folder_not_found(self, client):
         """Ingest nonexistent folder returns 400."""
         response = client.post("/api/ingest/folder", json={
-            "path": "/nonexistent/folder",
+            "path": str(Path(tempfile.gettempdir()) / "does-not-exist-folder"),
         })
         assert response.status_code == 400
 
@@ -568,7 +576,7 @@ class TestIngestRoutes:
         })
         assert response.status_code == 422
 
-    def test_ingest_folder_with_parameters(self, client):
+    def test_ingest_folder_with_parameters(self, client, record_background_task):
         """Ingest folder with all parameters."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create test files
@@ -609,7 +617,7 @@ class TestIngestRoutes:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_ingest_folder_empty_directory(self, client):
+    def test_ingest_folder_empty_directory(self, client, record_background_task):
         """Ingest empty folder returns task ID."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Empty directory
@@ -631,7 +639,7 @@ class TestIngestRoutes:
         })
         assert response.status_code == 422
 
-    def test_get_ingest_status_valid_task(self, client):
+    def test_get_ingest_status_valid_task(self, client, record_background_task):
         """Get status of valid task returns task info."""
         # First, start a task
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -744,7 +752,7 @@ class TestIngestRoutes:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_ingest_folder_recursive_parameter(self, client):
+    def test_ingest_folder_recursive_parameter(self, client, record_background_task):
         """Test recursive parameter in folder ingest."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create nested structure
@@ -770,7 +778,7 @@ class TestIngestRoutes:
                 })
                 assert response.status_code == 200
 
-    def test_ingest_status_progress_tracking(self, client):
+    def test_ingest_status_progress_tracking(self, client, record_background_task):
         """Test progress tracking in task status."""
         # This would require more complex setup with actual background tasks
         # For now, just verify the structure
