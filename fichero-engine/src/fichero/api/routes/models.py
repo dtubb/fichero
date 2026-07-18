@@ -9,7 +9,6 @@ import logging
 from typing import Optional
 from datetime import datetime, timedelta
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
@@ -108,6 +107,8 @@ async def _fetch_hf_models(
     if cached is not None:
         return cached
 
+    import httpx  # lazy (#3985): keep off the engine boot path
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -132,6 +133,8 @@ async def _fetch_hf_tasks() -> list[dict]:
     cached = _get_cache(cache_key)
     if cached is not None:
         return cached
+
+    import httpx  # lazy (#3985): keep off the engine boot path
 
     async with httpx.AsyncClient() as client:
         try:
@@ -230,6 +233,8 @@ async def get_hf_model(model_id: str) -> HFModelInfo:
     cached = _get_cache(cache_key)
 
     if cached is None:
+        import httpx  # lazy (#3985): keep off the engine boot path
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(

@@ -319,6 +319,12 @@ class TestThumbnailGeneration:
         from fichero import storage
 
         original_image = storage.Image
+        original_load = storage._load_pil
+        # PIL is now bound lazily (#3985): _load_pil() re-imports it on first
+        # render. To simulate Pillow-absent, neutralise the loader so the None
+        # sentinel sticks — exactly what _load_pil() leaves it as when the real
+        # `from PIL import ...` raises ImportError.
+        storage._load_pil = lambda: None
         storage.Image = None
 
         try:
@@ -328,6 +334,7 @@ class TestThumbnailGeneration:
             assert result is None
         finally:
             storage.Image = original_image
+            storage._load_pil = original_load
 
     def test_ensure_thumbnail_no_source(self, tmp_path):
         """Should return None if no source found."""

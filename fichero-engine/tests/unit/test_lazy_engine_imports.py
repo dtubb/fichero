@@ -38,13 +38,32 @@ _SRC = str(Path(__file__).resolve().parents[2] / "src")
 # when it was deferred into the chat handler). Guard the `.messages` subtree,
 # NOT bare langchain_core: a deliberate #1083 warning-filter import keeps
 # langchain_core._api present at startup and that is intentional and light.
-HEAVY_MODULES = ["langgraph", "mcp", "Quartz", "langchain_core.messages", "requests"]
+#
+# httpx / PIL / jinja2 / markupsafe (#3985): the next-biggest boot-path slices.
+# httpx was module-top in five feature-only route/inference modules (outbound
+# HTTP only runs when a request does) — it left the boot path only once ALL
+# five deferred it. PIL rode in via loaders/__init__, which api.main imported
+# for the kreuzberg cache-migration side effect (now a lazy PEP 562 package).
+# jinja2+markupsafe came from Jinja2Templates in views.py, only needed when an
+# HTML view renders. All import lazily now; guard them so they can't creep back.
+HEAVY_MODULES = [
+    "langgraph",
+    "mcp",
+    "Quartz",
+    "langchain_core.messages",
+    "requests",
+    "httpx",
+    "PIL",
+    "jinja2",
+    "markupsafe",
+]
 
 # Ceiling on modules imported to build the app. Measured 1799 before #3950,
 # ~1200 after; 962 after #3976 dropped the langchain_core.messages/requests
-# chain. The budget sits just above the current value: it fails loudly if an
-# eager edge into the AI/HTTP stack is reintroduced — not to chase a number.
-MODULE_BUDGET = 1050
+# chain; 784 after #3985 dropped httpx/PIL/jinja2/markupsafe. The budget sits
+# just above the current value: it fails loudly if an eager edge into the
+# AI/HTTP/imaging stack is reintroduced — not to chase a number.
+MODULE_BUDGET = 850
 
 
 def _run(code: str) -> str:

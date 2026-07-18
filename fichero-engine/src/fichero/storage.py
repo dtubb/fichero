@@ -50,11 +50,25 @@ from fichero.path_security import (
 from fichero.perf import perf_span
 from fichero.paths import engine_state_dir
 
-try:
-    from PIL import Image, ImageOps
-except ImportError:
-    Image = None  # type: ignore
-    ImageOps = None  # type: ignore
+# PIL is bound lazily (#3985): storage is on the engine boot path, but only the
+# thumbnail/display render helpers need Pillow, and only when they run. Eagerly
+# importing it here put PIL (~80ms) on every engine boot. The `Image is None`
+# sentinel is preserved — _load_pil() leaves the globals None when Pillow is
+# missing, so callers degrade exactly as before.
+Image = None  # type: ignore[assignment]  # bound by _load_pil()
+ImageOps = None  # type: ignore[assignment]  # bound by _load_pil()
+
+
+def _load_pil() -> None:
+    """Bind the PIL globals on first render, keeping Pillow off engine boot."""
+    global Image, ImageOps
+    if Image is not None:
+        return
+    try:
+        from PIL import Image as _Image, ImageOps as _ImageOps
+    except ImportError:
+        return
+    Image, ImageOps = _Image, _ImageOps
 
 if TYPE_CHECKING:
     from fichero.db import Database
@@ -448,6 +462,7 @@ def resolve_edited_source(
     cache = db.path.parent / "storage" / "edited" / doc.id[:2] / f"{doc.id}__p{page}__{version}.png"
     if cache.exists():
         return cache
+    _load_pil()
     if Image is None:
         raise RuntimeError("Pillow is required to render saved image edits")
     with Image.open(source) as opened:
@@ -537,6 +552,7 @@ def ensure_thumbnail(
         doc_id=doc.id,
         force=force,
     ) as perf:
+        _load_pil()
         if Image is None:
             logger.error("Pillow not installed - cannot generate thumbnails")
             perf["cache_state"] = "pillow_missing"
@@ -596,6 +612,7 @@ def ensure_display(
     Returns:
         Path to display image, or None on failure
     """
+    _load_pil()
     if Image is None:
         return None
 
@@ -631,6 +648,7 @@ def _generate_pdf_image(
     size: tuple[int, int],
 ) -> Path | None:
     """Render a PDF page to a cached JPEG."""
+    _load_pil()
     if Image is None:
         return None
 
@@ -690,6 +708,7 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
     Returns:
         Path to generated image, or None on failure
     """
+    _load_pil()
     # Text-based formats get a rendered text thumbnail.
     _text_suffixes = {".json", ".txt", ".md", ".rst", ".csv", ".xml", ".yaml", ".yml", ".toml"}
     if source.suffix.lower() in _text_suffixes:
@@ -776,6 +795,7 @@ def _generate_text_thumbnail(source: Path, dest: Path, size: tuple[int, int]) ->
     Pretty-prints JSON; shows raw text for other formats. Renders up to the
     first 60 lines in monospaced text on a white background.
     """
+    _load_pil()
     if Image is None:
         return None
 

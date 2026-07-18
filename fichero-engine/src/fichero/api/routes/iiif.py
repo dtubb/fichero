@@ -14,7 +14,6 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
-from PIL import Image
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -91,6 +90,8 @@ def _get_image_path(
 
 def _get_image_dimensions(image_path: Path) -> tuple[int, int]:
     """Get image dimensions."""
+    from PIL import Image  # lazy (#3985): keep PIL off the engine boot path
+
     try:
         with Image.open(image_path) as img:
             return img.size
@@ -280,6 +281,8 @@ def _serve_iiif_image(
     fmt: str,
 ) -> Response:
     """Serve a IIIF image region."""
+    from PIL import Image  # lazy (#3985): keep PIL off the engine boot path
+
     try:
         with Image.open(image_path) as img:
             width, height = img.size
@@ -481,6 +484,8 @@ async def get_document_image(
         return FileResponse(image_path)
 
     # Resize requested
+    from PIL import Image  # lazy (#3985): keep PIL off the engine boot path
+
     try:
         with Image.open(image_path) as img:
             orig_width, orig_height = img.size

@@ -35,11 +35,15 @@ import re
 import socket
 import time
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin, urlparse
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException
+
+if TYPE_CHECKING:
+    # Type-only: httpx is imported lazily in the tool handlers (#3985); the
+    # helper's "httpx.AsyncClient"/"httpx.Response" annotations still need it.
+    import httpx
 
 from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
@@ -188,13 +192,13 @@ async def _is_sandbox_violation(url: str) -> bool:
 
 
 async def _safe_http_get(
-    client: httpx.AsyncClient,
+    client: "httpx.AsyncClient",
     url: str,
     *,
     headers: dict[str, str] | None = None,
     params: dict[str, Any] | None = None,
     max_redirects: int = 5,
-) -> httpx.Response:
+) -> "httpx.Response":
     """GET with explicit redirect validation to prevent SSRF redirect bypass."""
     current_url = url
     for _ in range(max_redirects + 1):
@@ -240,6 +244,8 @@ async def execute_web_search(
     request: WebSearchRequest,
 ) -> WebSearchResponse:
     """Execute a web search using httpx (sandboxed — no filesystem/CLI escape)."""
+    import httpx  # lazy (#3985): keep off the engine boot path
+
     if not request.query or len(request.query.strip()) < 2:
         raise HTTPException(
             status_code=400,
@@ -324,6 +330,8 @@ async def execute_browser_navigate(
     request: BrowserNavigateRequest,
 ) -> BrowserNavigateResponse:
     """Navigate to a URL and extract content (sandboxed — no filesystem/CLI escape)."""
+    import httpx  # lazy (#3985): keep off the engine boot path
+
     if await _is_sandbox_violation(request.url):
         raise HTTPException(
             status_code=400,
@@ -409,6 +417,8 @@ async def execute_document_fetch(
     db: Database = Depends(get_library_database_for_write),
 ) -> DocumentFetchResponse:
     """Fetch a document URL and optionally save as Layer 1 Source (sandboxed)."""
+    import httpx  # lazy (#3985): keep off the engine boot path
+
     if await _is_sandbox_violation(request.url):
         raise HTTPException(
             status_code=400,
@@ -548,6 +558,7 @@ async def browser_save(
     db: Database = Depends(get_library_database_for_write),
 ) -> BrowserSaveResponse:
     """Download a URL as raw bytes and import it into the library as a real Document."""
+    import httpx  # lazy (#3985): keep off the engine boot path
     import tempfile
     from pathlib import Path as _Path
     from fichero.ingest import ingest_file, IngestMode

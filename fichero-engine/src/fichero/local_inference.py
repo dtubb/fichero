@@ -20,7 +20,6 @@ from enum import Enum
 from typing import Any, Protocol
 from urllib.parse import urljoin, urlparse
 
-import httpx
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StrictBool, field_validator, model_validator
 
 from fichero.providers import ProviderType, get_provider_info
@@ -555,6 +554,8 @@ class HttpxLocalHealthClient:
     """HTTP health client for loopback-only local services."""
 
     async def get_json(self, url: str, timeout_seconds: float) -> dict[str, Any]:
+        import httpx  # lazy (#3985): keep off the engine boot path
+
         async with httpx.AsyncClient(timeout=timeout_seconds) as client:
             response = await client.get(url)
             response.raise_for_status()
@@ -694,6 +695,8 @@ class LocalInferenceServiceManager:
 
     async def _startup_health(self) -> LocalInferenceServiceStatus:
         """Poll startup health while keeping transient transport failures retryable."""
+        import httpx  # lazy (#3985): keep off the engine boot path
+
         if self.state == LocalServiceState.stopped:
             return self.status()
 

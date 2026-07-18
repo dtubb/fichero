@@ -74,7 +74,7 @@ class TestListHFTasks:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("fichero.api.routes.models.httpx.AsyncClient", return_value=mock_client):
+        with patch("httpx.AsyncClient", return_value=mock_client):
             r = client.get("/api/models/huggingface/tasks")
 
         assert r.status_code == 200
@@ -91,7 +91,7 @@ class TestListHFTasks:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("fichero.api.routes.models.httpx.AsyncClient", return_value=mock_client):
+        with patch("httpx.AsyncClient", return_value=mock_client):
             client.get("/api/models/huggingface/tasks")
             client.get("/api/models/huggingface/tasks")
 
@@ -112,7 +112,7 @@ class TestSearchHFModels:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("fichero.api.routes.models.httpx.AsyncClient", return_value=mock_client):
+        with patch("httpx.AsyncClient", return_value=mock_client):
             r = client.get("/api/models/huggingface")
 
         assert r.status_code == 200
@@ -138,7 +138,7 @@ class TestSearchHFModels:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("fichero.api.routes.models.httpx.AsyncClient", return_value=mock_client):
+        with patch("httpx.AsyncClient", return_value=mock_client):
             r = client.get("/api/models/huggingface?limit=20")
 
         assert r.status_code == 200
@@ -153,7 +153,7 @@ class TestSearchHFModels:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("fichero.api.routes.models.httpx.AsyncClient", return_value=mock_client):
+        with patch("httpx.AsyncClient", return_value=mock_client):
             r = client.get("/api/models/huggingface?task=text-generation")
 
         assert r.status_code == 200
@@ -180,7 +180,7 @@ class TestGetHFModel:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=mock_resp)
 
-        with patch("fichero.api.routes.models.httpx.AsyncClient", return_value=mock_client):
+        with patch("httpx.AsyncClient", return_value=mock_client):
             r = client.get("/api/models/huggingface/meta-llama/Llama-3.1-8B-Instruct")
 
         assert r.status_code == 200
