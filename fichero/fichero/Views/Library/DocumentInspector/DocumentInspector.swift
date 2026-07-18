@@ -76,7 +76,6 @@ struct DocumentInspector: View {
     @Environment(EntityServiceGenerated.self) private var entityService
     @Environment(ArtifactServiceGenerated.self) private var artifactService
     @Environment(KGCurationServiceGenerated.self) private var kgCurationService
-    @EnvironmentObject private var featureManager: FeatureManager
     @Environment(ClaimFocusState.self) private var claimFocusState
     @State private var focusedArtifact = FocusedArtifact.shared
     /// Cross-view KG focus. Entity selection now routes into the Entities tab's
