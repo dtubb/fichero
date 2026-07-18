@@ -507,7 +507,18 @@ final class EntityStoreTests: XCTestCase {
     }
 
     private func makeStore() -> EntityStore {
-        let client = FicheroClient(baseURL: URL(string: "https://127.0.0.1:8765")!, libraryPath: "/tmp/test.fichero")
+        // URLProtocol.registerClass alone does not intercept a custom
+        // URLSessionConfiguration-based session — it must be listed in
+        // protocolClasses explicitly, or these requests go out over the real
+        // network to a non-existent engine (#3902 -1004/-1003 failures).
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockFicheroURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let client = FicheroClient(
+            baseURL: URL(string: "https://127.0.0.1:8765")!,
+            libraryPath: "/tmp/test.fichero",
+            session: session
+        )
         let entityService = EntityServiceGenerated(ficheroClient: client)
         let kgCurationService = KGCurationServiceGenerated(ficheroClient: client)
         return EntityStore(
