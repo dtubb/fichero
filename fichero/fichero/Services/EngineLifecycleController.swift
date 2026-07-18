@@ -96,6 +96,7 @@ final class EngineLifecycleController {
         backendService.errorMessage = nil
 
         let backendStart = Date()
+        var provenReadiness: EngineReadiness?
         do {
             if !usesExternal {
                 // Respawn a stuck engine on an explicit retry; a fresh launch just
@@ -108,6 +109,7 @@ final class EngineLifecycleController {
                 let backendMs = Date().timeIntervalSince(backendStart) * 1000
                 LaunchProfile.milestone("engine spawn returned")
                 logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
+                provenReadiness = backendService.lastReadiness
             }
 
             // Health probe after the engine is up — re-probing with backoff before
@@ -117,9 +119,9 @@ final class EngineLifecycleController {
             // + authenticated /api/registry 200). When it's `.ready`, the connection
             // layer skips the redundant re-probe + second health GET and goes straight
             // to warm-up — removing ~3-4 serial round-trips between serving and ready.
-            // A nil/non-ready value (remote host, or a retry before start) falls
-            // through to the full probe, so the #3162 backoff is untouched there.
-            await appState.checkBackendHealthUntilReady(provenReadiness: backendService.lastReadiness)
+            // Remote hosts never receive a retained local proof; nil falls through
+            // to their full health/auth probe and preserves the #3162 backoff.
+            await appState.checkBackendHealthUntilReady(provenReadiness: provenReadiness)
             guard appState.isBackendRunning else {
                 backendService.status = .failed
                 backendService.errorMessage = appState.backendError
