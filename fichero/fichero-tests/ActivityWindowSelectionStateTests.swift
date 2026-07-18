@@ -76,8 +76,8 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
 
     func testActivityIsRemovedFromSidebarEntryPoints() throws {
         let viewMenuSource = try Self.appSource("Views/Shell/Menu/ViewMenuCommands.swift")
-        let modeBarSource = try Self.appSource("Views/Sidebar/SidebarModeBar.swift")
-        let pinnedRowsSource = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
+        let modeBarSource = try Self.appSource("Views/Sidebar/Modes/SidebarModeBar.swift")
+        let pinnedRowsSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+PinnedNavigationRows.swift")
 
         XCTAssertFalse(viewMenuSource.contains("mode: .activity"))
         XCTAssertFalse(modeBarSource.contains("modeIcon(.activity)"))

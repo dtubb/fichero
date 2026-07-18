@@ -141,7 +141,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     func testEntitiesSidebarEntryPointRoutesToLibraryList() throws {
         // Routing moved off SidebarView into the typed SidebarDestination switch
         // in SidebarView+SelectionHandling.swift (browser(.entities) case).
-        let source = try Self.appSource("Views/Sidebar/SidebarView+SelectionHandling.swift")
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
 
         XCTAssertTrue(source.contains("case .browser(.entities):"))
         XCTAssertTrue(source.contains("sidebarMode = .library"))
@@ -149,7 +149,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testEntitiesSidebarEntryPointIsPinnedAndFeatureGated() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+PinnedNavigationRows.swift")
 
         XCTAssertTrue(source.contains("tag: .browser(.entities)"))
         XCTAssertTrue(source.contains("systemImage: SidebarMode.knowledgeGraph.icon"))
@@ -178,7 +178,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testSidebarPinnedRowsExposeMindPalaceResearchAndComparison() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+PinnedNavigationRows.swift")
 
         // Model Comparison folded into the Chat surface's Compare facet (#3532/#3540)
         // — the standalone comparison sidebar row is retired.
@@ -191,7 +191,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testPinnedSidebarEntryPointsRouteToExpectedSurfaces() throws {
         // Typed SidebarDestination routing (SidebarView+SelectionHandling.swift).
-        let source = try Self.appSource("Views/Sidebar/SidebarView+SelectionHandling.swift")
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
 
         XCTAssertTrue(source.contains("case .browser(.comparison):"))
         XCTAssertTrue(source.contains("viewMode = .comparison(nil)"))
@@ -200,7 +200,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testSidebarDisclosureRowsDisableNestedInsertionAnimation() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarView+UnifiedLibrarySections.swift")
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
 
         XCTAssertTrue(source.contains(".transaction { transaction in"))
         XCTAssertTrue(source.contains("transaction.animation = nil"))

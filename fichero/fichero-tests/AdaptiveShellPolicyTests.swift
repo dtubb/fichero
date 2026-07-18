@@ -348,8 +348,8 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testBottomEdgeFiltersStayPaneScoped() throws {
-        let sidebarSource = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
-        let sidebarHelpersSource = try Self.appSource("Views/Sidebar/SidebarView+Helpers.swift")
+        let sidebarSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
+        let sidebarHelpersSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+Helpers.swift")
         let annotationsSource = try Self.appSource(
             "Views/Inspector/Document/DocumentInspectorAnnotationsTab.swift"
         )
@@ -391,7 +391,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testSidebarsUseSystemGlassMaterials() throws {
-        let sidebarSource = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
+        let sidebarSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
         let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
 
         XCTAssertTrue(sidebarSource.contains(".background(.bar)"))

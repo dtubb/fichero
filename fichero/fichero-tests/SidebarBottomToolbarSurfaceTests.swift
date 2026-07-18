@@ -16,7 +16,7 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
     }
 
     func testBottomBarRoutesThroughAdaptiveMiniToolbarRow() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarViewExtensions.swift")
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarViewExtensions.swift")
         XCTAssertTrue(source.contains("AdaptiveMiniToolbarRow {"))
         XCTAssertTrue(source.contains("overflowMenu: {"))
         XCTAssertTrue(source.contains("private var overflowMenu: some View"))
@@ -25,7 +25,7 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
     }
 
     func testOverflowMirrorsSecondaryActions() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarViewExtensions.swift")
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarViewExtensions.swift")
         // These `Label(...)` forms are unique to the overflow (the inline bar uses
         // icon-only `Image` labels), so they prove the overflow mirrors secondary.
         XCTAssertTrue(source.contains("Label(\"Export\", systemImage: \"square.and.arrow.up\")"))
@@ -34,7 +34,7 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
     }
 
     func testEssentialTierHoldsNewItemAndDelete() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarViewExtensions.swift")
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarViewExtensions.swift")
         let start = try XCTUnwrap(source.range(of: "private var essentialButtons: some View"))
         let end = try XCTUnwrap(source.range(of: "private var secondaryButtons: some View"))
         let block = String(source[start.upperBound..<end.lowerBound])

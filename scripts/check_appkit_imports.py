@@ -84,7 +84,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Onboarding/FirstRunWindow.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Library/Search/SearchArrowKeyNavigation.swift": "#2713 — search keyboard navigation listens to AppKit key events; #2101",
     "Views/Shell/OpenAffordances.swift": "#2713 — open/import affordance bridge uses AppKit open-panel helpers; #2101",
-    "Views/Sidebar/SidebarView+ActivityRows.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Views/Sidebar/Sections/SidebarView+ActivityRows.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
 }
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)

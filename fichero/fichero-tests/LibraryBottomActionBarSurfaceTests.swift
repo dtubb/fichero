@@ -80,11 +80,11 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
         // from the SAME `library` reference, so it can never send a workflow_id
         // the execution library can't resolve. Lock that so it can't regress
         // into the environment-shared-service divergence #3820 fixed elsewhere.
-        let rowSource = try Self.appSource("Views/Sidebar/SidebarItemRow.swift")
+        let rowSource = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow.swift")
         // List source: the row's own library workflowStore.
         XCTAssertTrue(rowSource.contains("var workflowStore: WorkflowStore? { library?.workflowStore }"))
 
-        let runSource = try Self.appSource("Views/Sidebar/SidebarItemRow+Workflow.swift")
+        let runSource = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Workflow.swift")
         // Execution: the SAME library's stream service (not the environment's).
         XCTAssertTrue(runSource.contains("let stream = library.workflowStreamService"))
         XCTAssertTrue(runSource.contains("try await stream.execute("))

@@ -30,7 +30,7 @@ final class ChatWithDocsRoutingTests: XCTestCase {
     }
 
     func testSidebarPinnedRowsExposeChatWithDocsAsCommand() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+PinnedNavigationRows.swift")
 
         XCTAssertTrue(source.contains("private func chatWithDocsNavigationRow() -> some View"))
         XCTAssertTrue(source.contains("onOpenChatWithCurrentScope?()"))
@@ -56,8 +56,8 @@ final class ChatWithDocsRoutingTests: XCTestCase {
     }
 
     func testCompactSidebarRowsExposeChatAndMoveToFolderActions() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarItemRow+Presentation.swift")
-        let helpers = try Self.appSource("Views/Sidebar/SidebarItemRow+Helpers.swift")
+        let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
+        let helpers = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Helpers.swift")
 
         XCTAssertTrue(source.contains("Label(\"Add to Chat\", systemImage: \"plus.circle\")"))
         XCTAssertTrue(source.contains("Menu(\"Move to Folder\")"))

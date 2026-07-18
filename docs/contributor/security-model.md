@@ -64,7 +64,7 @@ Important built behavior:
 On the SwiftUI side, this shipped surface is already consumed by:
 
 - `Views/Settings/UsersSettingsView.swift`
-- `Views/Sidebar/LibrarySharingBadge.swift`
+- `Views/Sidebar/Sharing/LibrarySharingBadge.swift`
 - `Services/ActionLibraryService.swift`
 
 Those client paths use the generated OpenAPI surface plus hand-written service
