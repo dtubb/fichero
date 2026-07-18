@@ -78,7 +78,7 @@ already started —
 Genuine shared leaf views (`FlowLayout`, `MarkdownText`, `StatusBadge`,
 `SplittablePane`) sit next to feature-specific rows (`ScheduleRow`, `TriggerRow`,
 `WorkflowExecutionRow*`, `WorkflowPreviewSheet`) that belong with their feature
-(`Automation/`, `Workflow/`). **Target:** move the feature rows out; keep
+(`Library/Automation/`, `Workflow/`). **Target:** move the feature rows out; keep
 `Components/` for truly cross-feature primitives only.
 
 ### `Views/` root (15 loose files)

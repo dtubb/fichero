@@ -107,7 +107,7 @@ final class DocumentInspectorTests: XCTestCase {
         let contentSource = try Self.appSource("Views/ContentView.swift")
         let sharedSource = try Self.appSource("Views/Inspector/Document/DocumentInspectorArtifactsTab+Shared.swift")
         let artifactsSource = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
-        let searchSource = try Self.appSource("Views/Search/SearchView+Helpers.swift")
+        let searchSource = try Self.appSource("Views/Library/Search/SearchView+Helpers.swift")
 
         XCTAssertTrue(sharedSource.contains("final class ClaimSourceNavigationState"))
         XCTAssertTrue(contentSource.contains(".onChange(of: claimSourceNavigationState.requestID)"))

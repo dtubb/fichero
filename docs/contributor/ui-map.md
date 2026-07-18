@@ -42,7 +42,7 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 |---|---|---|---|
 | **Whole window / panes** | ContentView | `Views/ContentView*.swift` | area:swiftui-app |
 | **Main toolbar** (top) | MainToolbar | `Views/Toolbars/MainToolbar.swift` | area:toolbar |
-| Context toolbars | Search/Chat/Workflow/Mini Toolbar | `Views/Toolbars/*Toolbar.swift` | area:toolbar |
+| Context toolbars | Library/Search/Chat/Workflow/Mini Toolbar | `Views/Toolbars/*Toolbar.swift` | area:toolbar |
 | **Sidebar** (left) | SidebarItemRow / Sidebar Modes | `Views/Sidebar/` | area:sidebar |
 | **Library display modes: grid / list / table / map / 3D** (the cube = 3D, beside Map — a LibraryView display mode, NOT the WebKit/reading pane) | LibraryView | `Views/Library/LibraryView*.swift` | area:swiftui-library |
 | Folder thumbnails grid | FolderContentsGrid | `Views/Library/FolderContentsGrid.swift` | area:swiftui-library |
@@ -68,9 +68,9 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 | **Mind Palace** (spatial 2D/3D) | `Views/MindPalace/` | Mind Palace |
 | **Research** (browser + chat + tasks) | `Views/Chat/Research/` | Researcher |
 | **Chat** | `Views/Chat/` | Chat |
-| **Search** | `Views/Search/` | Search |
+| **Search** | `Views/Library/Search/` | Search |
 | **Workflow editor** (node graph) | `Views/Workflow/` | Workflows |
-| **Activity** (runs/automation) | `Views/Activity/`, `Views/Automation/` | Activity & Automation |
+| **Activity** (runs/automation) | `Views/Activity/`, `Views/Library/Automation/` | Activity & Automation |
 | **Model Comparison** | `Views/Chat/ModelComparison/` | Chat / Workflows |
 
 ---

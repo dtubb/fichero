@@ -82,7 +82,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Menu/FileMenuCommands.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Menu/FocusedCommandButtons.swift": "#2713 — command buttons use macOS focus-key equivalents via AppKit; #2101",
     "Views/Onboarding/FirstRunWindow.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Search/SearchArrowKeyNavigation.swift": "#2713 — search keyboard navigation listens to AppKit key events; #2101",
+    "Views/Library/Search/SearchArrowKeyNavigation.swift": "#2713 — search keyboard navigation listens to AppKit key events; #2101",
     "Views/Shell/OpenAffordances.swift": "#2713 — open/import affordance bridge uses AppKit open-panel helpers; #2101",
     "Views/Sidebar/SidebarView+ActivityRows.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
 }

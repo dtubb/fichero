@@ -104,8 +104,8 @@ final class SearchResultsDisplayTests: XCTestCase {
     }
 
     func testSavedSearchReplayRestoresSortAndSearchType() throws {
-        let viewSource = try Self.appSource("Views/Search/SearchView.swift")
-        let helperSource = try Self.appSource("Views/Search/SearchView+Helpers.swift")
+        let viewSource = try Self.appSource("Views/Library/Search/SearchView.swift")
+        let helperSource = try Self.appSource("Views/Library/Search/SearchView+Helpers.swift")
 
         XCTAssertTrue(viewSource.contains("searchType = search.searchType"))
         XCTAssertTrue(viewSource.contains("sortBy = search.sortBy"))

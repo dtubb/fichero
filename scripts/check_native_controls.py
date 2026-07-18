@@ -34,7 +34,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
     "Chat/Research/ResearchTasksPane.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
     "Chat/Research/ResearchTasksPane.swift#f50acbd404": "#1912 baseline (shifted by store migration)",
-    "Search/SearchFiltersPanel.swift#3c0b0dafd9": "#1912 baseline",
+    "Library/Search/SearchFiltersPanel.swift#3c0b0dafd9": "#1912 baseline",
     "Workflow/WorkflowChainListView/ChainDetailContent.swift#c804133262": "#1912 baseline",
 }
 
@@ -49,10 +49,10 @@ ALLOWLIST_FILES = {
     "Settings/AIProviders/ProvidersView+ProviderDetailView.swift",
     "Settings/MCPServers/MCPServerDetailView.swift",
     # Free-form detail / log / grid surfaces - not selectable row collections.
-    "Actions/ActionDetailView.swift",  # mixed detail content; ForEach is for a tag-chip FlowLayout
+    "Library/Actions/ActionDetailView.swift",  # mixed detail content; ForEach is for a tag-chip FlowLayout
     "Activity/ActivityLogView.swift",  # streaming log viewer with auto-scroll
     "Chat/ModelComparison/ComparisonResultView.swift",  # LazyVGrid card grid for model results
-    "Search/SearchResultsDisplay.swift",  # icon mode uses LazyVGrid; list mode already uses native List
+    "Library/Search/SearchResultsDisplay.swift",  # icon mode uses LazyVGrid; list mode already uses native List
 }
 
 APPKIT_BRIDGE_MARKERS = (
