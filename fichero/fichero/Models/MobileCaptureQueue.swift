@@ -197,7 +197,7 @@ struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
         guard RemoteAccessConfig.hasPairedLibraryPath else {
             throw MobileCaptureQueueStoreError.noLibraryAvailable
         }
-        let resolved = targetLibraryId.flatMap { libraryManager.getLibrary(id: $0) }
+        let resolved = targetLibraryId.map { libraryManager.getLibrary(id: $0) }
             ?? libraryManager.globalLibrary
         guard let library = resolved else {
             throw MobileCaptureQueueStoreError.noLibraryAvailable

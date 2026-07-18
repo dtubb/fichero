@@ -4,7 +4,20 @@ import XCTest
 
 @MainActor
 final class MobileCaptureQueueTests: XCTestCase {
+    private var originalEngineHost: String?
+
+    override func setUp() {
+        super.setUp()
+        originalEngineHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+    }
+
     override func tearDown() {
+        if let originalEngineHost {
+            UserDefaults.standard.set(originalEngineHost, forKey: EngineConfig.userDefaultsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
+        }
+        originalEngineHost = nil
         super.tearDown()
         UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
     }
@@ -14,6 +27,10 @@ final class MobileCaptureQueueTests: XCTestCase {
             "/Users/daniel/Archive/Open.fichero",
             forKey: RemoteAccessConfig.pairedLibraryPathKey
         )
+    }
+
+    private func configureRemoteBackend() {
+        UserDefaults.standard.set("https://pairing.example.com", forKey: EngineConfig.userDefaultsKey)
     }
 
     func testCatalogFieldsMapToDocumentMetadataAndFallbackTitle() {
@@ -183,6 +200,7 @@ final class MobileCaptureQueueTests: XCTestCase {
         // Verifies that targetLibraryId is used instead of silently falling back to
         // globalLibrary: when the specified library isn't open, the upload fails.
         markDevicePairedWithLibrary()
+        configureRemoteBackend()
         let storageDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storageDirectory) }
@@ -213,6 +231,7 @@ final class MobileCaptureQueueTests: XCTestCase {
         // Verifies backward-compat: nil targetLibraryId still attempts globalLibrary
         // and produces the same noLibraryAvailable error when no library is open.
         markDevicePairedWithLibrary()
+        configureRemoteBackend()
         let storageDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: storageDirectory) }
