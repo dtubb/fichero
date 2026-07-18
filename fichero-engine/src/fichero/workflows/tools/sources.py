@@ -863,7 +863,20 @@ async def folder_tool(
     uses_llm=False,
     supports_batch=False,
     tested=True,  # part of the validated HTR transcription chain
-    input_ports=[],
+    input_ports=[
+        # The run function reads inputs.get("query"), and the shipped
+        # transcription presets feed a draft transcription into it as the
+        # search query. Declaring the port lets graph validation accept
+        # that edge instead of rejecting an "unknown target port 'query'".
+        PortDef(
+            id="query",
+            name="Query",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=False,
+            description="Search query",
+        ),
+    ],
     output_ports=[
         PortDef(
             id="files",

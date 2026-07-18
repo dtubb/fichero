@@ -377,6 +377,66 @@ def test_spanish_script_v2_child_resolves_distinct_vision_tiers(monkeypatch):
     ) == []
 
 
+def test_paleography_ensemble_translate_node_passes_preflight(monkeypatch):
+    """The ensemble's T5 translate node must resolve as a TEXT node.
+
+    Regression for the shipped bug where T5 (tool=translate, a text/llm node)
+    used the vision-tier alias $vision_medium, which the preflight rejects with
+    "$vision_medium is a vision-tier model alias and cannot be used for text
+    workflow nodes". With every alias tier configured, the whole ensemble
+    preset must clear preflight. Flipping T5 back to a $vision_* alias would
+    reintroduce exactly one vision-tier error here.
+    """
+    monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
+    monkeypatch.setattr(
+        "fichero.app_db.get_app_db",
+        lambda: _fake_db(
+            settings={
+                "default_vision_small_provider": "apple",
+                "default_vision_small_model": "apple-vision-small",
+                "default_vision_medium_provider": "apple",
+                "default_vision_medium_model": "apple-vision-medium",
+                "default_vision_large_provider": "apple",
+                "default_vision_large_model": "apple-vision-large",
+                "default_small_provider": "apple",
+                "default_small_model": "apple-text-small",
+                "default_medium_provider": "apple",
+                "default_medium_model": "apple-text-medium",
+                "default_large_provider": "apple",
+                "default_large_model": "apple-text-large",
+            },
+            models_by_provider={
+                "apple": [
+                    _model("apple-vision-small", ["vision"]),
+                    _model("apple-vision-medium", ["vision"]),
+                    _model("apple-vision-large", ["vision"]),
+                    _model("apple-text-small", ["text"]),
+                    _model("apple-text-medium", ["text"]),
+                    _model("apple-text-large", ["text"]),
+                ],
+            },
+        ),
+    )
+    path = (
+        Path(__file__).parents[3]
+        / "src/fichero/resources/default_workflows/transcribe_paleography_ensemble.json"
+    )
+    data = json.loads(path.read_text())
+    # WorkflowDef.version is a str; the shipped preset stores it as an int
+    # (coerced on the seeding path). Mirror that coercion for direct loads.
+    if "version" in data:
+        data["version"] = str(data["version"])
+    workflow = WorkflowDef(**data)
+
+    translate_node = next(n for n in workflow.nodes if n.tool == "translate")
+    assert translate_node.config.get("provider_name") in {"$small", "$medium", "$large"}
+
+    assert validate_workflow_preflight(
+        workflow,
+        LLMConfig(provider="", model=""),
+    ) == []
+
+
 def test_spanish_script_v2_child_rejects_cloud_vision_tier_under_local_only(monkeypatch):
     monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
     monkeypatch.setattr(
