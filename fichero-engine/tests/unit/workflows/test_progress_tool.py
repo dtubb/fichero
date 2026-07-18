@@ -8,7 +8,10 @@ from fichero.workflows.tools.progress import emit_progress_event
 
 
 def test_emit_progress_event_is_noop_without_callback():
-    asyncio.run(emit_progress_event(None, "progress", "node", "file.jpg", 1, 2))
+    # A None callback must be a safe no-op: it completes without raising and
+    # emits nothing (returns None).
+    result = asyncio.run(emit_progress_event(None, "progress", "node", "file.jpg", 1, 2))
+    assert result is None
 
 
 def test_emit_progress_event_builds_bounded_payload():
