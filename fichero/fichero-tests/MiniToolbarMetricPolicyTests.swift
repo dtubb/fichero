@@ -66,7 +66,7 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
         let toolbarSource = try Self.appSource("Views/Toolbars/MiniToolbar.swift")
         XCTAssertTrue(toolbarSource.contains("MiniToolbarPreferences.toolbarVisibilityKey"))
 
-        let menuSource = try Self.appSource("Views/Menu/ViewMenuCommands.swift")
+        let menuSource = try Self.appSource("Views/Shell/Menu/ViewMenuCommands.swift")
         XCTAssertTrue(menuSource.contains("MiniToolbarPreferences.toolbarVisibilityKey"))
     }
 

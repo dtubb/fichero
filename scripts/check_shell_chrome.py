@@ -53,17 +53,17 @@ RULES = (("notif", _NC_APP_RE), ("shared", _SHARED_RE))
 
 # Grandfathered offenders (hash -> human location). Seed with --generate (#3040).
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "9ea6545b396b": '[notif] fichero/fichero/Views/ContentView.swift:542: .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { n',
-    "745fa9e2e206": '[notif] fichero/fichero/Views/ContentView.swift:545: .onReceive(NotificationCenter.default.publisher(for: .ficheroShowPanelRequested)) { note i',
-    "0fbc3922252c": '[shared] fichero/fichero/Views/Library/LibraryView.swift:105: @ObservedObject var featureManager = FeatureManager.shared',
-    "881489cff539": '[shared] fichero/fichero/Views/Menu/AddItemMenu.swift:10: @ObservedObject var featureManager = FeatureManager.shared',
-    "178cfaef2a1f": '[shared] fichero/fichero/Views/Menu/FocusedCommandButtons.swift:520: @ObservedObject var featureManager = FeatureManager.shared',
-    "fa1a51aebf74": '[shared] fichero/fichero/Views/Menu/ViewMenuCommands.swift:386: @ObservedObject var featureManager = FeatureManager.shared',
-    "a89c78a261e7": '[shared] fichero/fichero/Views/Onboarding/FirstRunWindow.swift:10: @ObservedObject private var featureManager = FeatureManager.shared',
-    "2cf26c6b1a60": '[shared] fichero/fichero/Views/Settings/AISettingsView.swift:8: @ObservedObject var featureManager = FeatureManager.shared',
-    "de7619745978": '[shared] fichero/fichero/Views/Sidebar/SidebarViewExtensions.swift:14: @ObservedObject var featureManager = FeatureManager.shared',
-    "ce6eb77c9655": '[shared] fichero/fichero/Views/Workflow/WorkflowInspector.swift:25: @ObservedObject var featureManager = FeatureManager.shared',
-    "ee5a9796cfb1": '[shared] fichero/fichero/Views/Workflow/WorkflowLibraryView.swift:68: @ObservedObject var featureManager = FeatureManager.shared',
+    "9ea6545b396b": '[notif] fichero/fichero/Views/ContentView.swift:587: .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { n',
+    "745fa9e2e206": '[notif] fichero/fichero/Views/ContentView.swift:590: .onReceive(NotificationCenter.default.publisher(for: .ficheroShowPanelRequested)) { note i',
+    "0fbc3922252c": '[shared] fichero/fichero/Views/Library/LibraryView.swift:83: @ObservedObject var featureManager = FeatureManager.shared',
+    "2cf26c6b1a60": '[shared] fichero/fichero/Views/Settings/AISettingsView.swift:16: @ObservedObject var featureManager = FeatureManager.shared',
+    "85ec0df2648e": '[shared] fichero/fichero/Views/Shell/Menu/AddItemMenu.swift:10: @ObservedObject var featureManager = FeatureManager.shared',
+    "97525f1e35bf": '[shared] fichero/fichero/Views/Shell/Menu/FocusedCommandButtons.swift:517: @ObservedObject var featureManager = FeatureManager.shared',
+    "79b1c1bacc70": '[shared] fichero/fichero/Views/Shell/Menu/ViewMenuCommands.swift:428: @ObservedObject var featureManager = FeatureManager.shared',
+    "c5a5c09731c2": '[shared] fichero/fichero/Views/Shell/Onboarding/FirstRunWindow.swift:10: @ObservedObject private var featureManager = FeatureManager.shared',
+    "de7619745978": '[shared] fichero/fichero/Views/Sidebar/SidebarViewExtensions.swift:28: @ObservedObject var featureManager = FeatureManager.shared',
+    "ce6eb77c9655": '[shared] fichero/fichero/Views/Workflow/WorkflowInspector.swift:26: @ObservedObject var featureManager = FeatureManager.shared',
+    "ee5a9796cfb1": '[shared] fichero/fichero/Views/Workflow/WorkflowLibraryView.swift:67: @ObservedObject var featureManager = FeatureManager.shared',
     "02e8d70f454e": '[shared] fichero/fichero/Views/Workflow/WorkflowLibraryView/WorkflowDetailView.swift:13: @ObservedObject var featureManager = FeatureManager.shared',
 }
 

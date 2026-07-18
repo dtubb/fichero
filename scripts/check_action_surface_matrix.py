@@ -29,14 +29,14 @@ from pathlib import Path
 from matrix_guardrail_common import ROOT, load_known_gaps
 
 APP_SOURCE = ROOT / "fichero" / "fichero" / "FicheroApp.swift"
-WRAPPER_SOURCE = ROOT / "fichero" / "fichero" / "Views" / "Menu" / "FocusedCommandButtons.swift"
+WRAPPER_SOURCE = ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "FocusedCommandButtons.swift"
 KNOWN_GAPS = load_known_gaps(Path(__file__).with_name("check_action_surface_matrix_known_gaps.json"))
 
 MENU_FILES = {
-    ROOT / "fichero" / "fichero" / "Views" / "Menu" / "FileMenuCommands.swift",
-    ROOT / "fichero" / "fichero" / "Views" / "Menu" / "ViewMenuCommands.swift",
-    ROOT / "fichero" / "fichero" / "Views" / "Menu" / "ImagePreviewMenuCommands.swift",
-    ROOT / "fichero" / "fichero" / "Views" / "Menu" / "AddItemMenu.swift",
+    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "FileMenuCommands.swift",
+    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "ViewMenuCommands.swift",
+    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "ImagePreviewMenuCommands.swift",
+    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "AddItemMenu.swift",
 }
 
 CONTEXT_FILES = {
@@ -360,7 +360,7 @@ def scan() -> list[Row]:
         elif spec.menu_patterns:
             menu = _match(MENU_TEXT, spec.menu_patterns)
             if menu:
-                evidence.append("menu:Views/Menu")
+                evidence.append("menu:Views/Shell/Menu")
 
         context = _match(CONTEXT_TEXT, spec.context_patterns)
         if context:

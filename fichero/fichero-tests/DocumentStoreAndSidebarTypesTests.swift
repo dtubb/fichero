@@ -320,7 +320,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testLibraryBrowserToggleCopyUsesExplicitLibraryName() throws {
         let toolbarSource = try Self.appSource("Views/ContentView+Toolbar.swift")
-        let menuSource = try Self.appSource("Views/Menu/ViewMenuCommands.swift")
+        let menuSource = try Self.appSource("Views/Shell/Menu/ViewMenuCommands.swift")
 
         XCTAssertTrue(toolbarSource.contains("placement: .principal"))
         XCTAssertTrue(toolbarSource.contains("LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName"))

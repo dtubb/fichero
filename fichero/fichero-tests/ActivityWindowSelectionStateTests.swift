@@ -75,7 +75,7 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
     }
 
     func testActivityIsRemovedFromSidebarEntryPoints() throws {
-        let viewMenuSource = try Self.appSource("Views/Menu/ViewMenuCommands.swift")
+        let viewMenuSource = try Self.appSource("Views/Shell/Menu/ViewMenuCommands.swift")
         let modeBarSource = try Self.appSource("Views/Sidebar/SidebarModeBar.swift")
         let pinnedRowsSource = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
 

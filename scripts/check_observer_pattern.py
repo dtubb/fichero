@@ -85,7 +85,7 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/Inspector/Document/DocumentInspectorInfoTab+RelatedClaims.swift",
         "fichero/fichero/Views/Inspector/Document/DocumentInspectorInfoTab+Workflow.swift",
         "fichero/fichero/Views/Library/NodeClassPicker.swift",
-        "fichero/fichero/Views/Menu/FocusedCommandButtons.swift",
+        "fichero/fichero/Views/Shell/Menu/FocusedCommandButtons.swift",
         "fichero/fichero/Views/Settings/LocalModelsSettingsView.swift",
         "fichero/fichero/Views/Sidebar/SidebarModeBar.swift",
         "fichero/fichero/Views/Shell/DocumentTabView.swift",

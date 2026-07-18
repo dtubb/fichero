@@ -2,7 +2,7 @@ import XCTest
 
 final class MenuTerminologyBoundaryTests: XCTestCase {
     func testFileAndImportMenusUseLibraryAndMoveTerminology() throws {
-        let fileMenuSource = try Self.appSource("Views/Menu/FileMenuCommands.swift")
+        let fileMenuSource = try Self.appSource("Views/Shell/Menu/FileMenuCommands.swift")
         XCTAssertTrue(fileMenuSource.contains("Button(\"Close Library\")"))
         XCTAssertTrue(fileMenuSource.contains("Button(\"Save Library As...\")"))
         XCTAssertTrue(fileMenuSource.contains("Label(\"Markdown Static Site...\", systemImage: \"globe\")"))
@@ -13,11 +13,11 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertFalse(fileMenuSource.contains("Save Database As..."))
         XCTAssertFalse(fileMenuSource.contains("Label(\"Static Site (11ty)...\", systemImage: \"globe\")"))
 
-        let focusedCommandsSource = try Self.appSource("Views/Menu/FocusedCommandButtons.swift")
+        let focusedCommandsSource = try Self.appSource("Views/Shell/Menu/FocusedCommandButtons.swift")
         XCTAssertTrue(focusedCommandsSource.contains("Button(\"Move Files...\")"))
         XCTAssertFalse(focusedCommandsSource.contains("Button(\"Add Files...\")"))
 
-        let addItemMenuSource = try Self.appSource("Views/Menu/AddItemMenu.swift")
+        let addItemMenuSource = try Self.appSource("Views/Shell/Menu/AddItemMenu.swift")
         XCTAssertTrue(addItemMenuSource.contains("Button(\"Move Files...\")"))
         XCTAssertFalse(addItemMenuSource.contains("Button(\"Add Files...\")"))
     }
