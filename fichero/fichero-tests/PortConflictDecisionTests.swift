@@ -13,6 +13,7 @@ import Foundation
 import Testing
 
 @Suite("Port-conflict decision (#3111)")
+@MainActor
 struct PortConflictDecisionTests {
 
     // MARK: - Decision table

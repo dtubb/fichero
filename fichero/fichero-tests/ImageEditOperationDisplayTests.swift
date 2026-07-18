@@ -2,6 +2,7 @@
 import FicheroAPIClient
 import XCTest
 
+@MainActor
 final class ImageEditOperationDisplayTests: XCTestCase {
     /// #3028: the migration routes chain ops through the generated client, which
     /// models operations as free-form `OpenAPIObjectContainer`. The bridge must

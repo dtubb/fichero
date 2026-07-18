@@ -1030,6 +1030,7 @@ private func makeKnowledgeClaim(
 }
 // MARK: - Entity reconciliation grouping (#3318)
 
+@MainActor
 final class EntityReconciliationTests: XCTestCase {
     func testParsesCandidatePairsFromEngineEnvelope() throws {
         // The /api/kg/entity-curation/candidates envelope: { items: [pairs], count }.
