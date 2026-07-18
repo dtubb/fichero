@@ -229,6 +229,24 @@ enum RemoteClientPairing {
         UserDefaults.standard.set(previousHost, forKey: EngineConfig.userDefaultsKey)
     }
 
+    /// Forgets the current pairing so a broken connection is no longer a dead
+    /// end (#3971): undoes each value `persistPairedHost` wrote — the device
+    /// token, the pinned certificate, the token expiry, the failover endpoint
+    /// set, the configured host, and the paired library path. Clearing the
+    /// paired-library-path key is what lets `EngineConfig.iosLaunchPhase` return
+    /// `.setupNeeded` again, so the caller can drive the app back to the QR /
+    /// pairing screen without a delete-and-reinstall.
+    @MainActor
+    static func forgetPairing() {
+        let hostString = EngineConfig.hostString
+        AuthTokenMiddleware.clearRemoteToken(hostString: hostString)
+        RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostString)
+        DeviceTokenRenewal.clearExpiry(host: hostString)
+        PairedHostEndpointStore.clear()
+        UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
+        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
+    }
+
     private static func normalizedLibraryPath(_ path: String?) -> String? {
         let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else { return nil }
