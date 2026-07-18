@@ -7,6 +7,7 @@ the real filesystem or storage layer.
 """
 
 from unittest.mock import MagicMock, patch
+from pathlib import Path
 
 import fitz
 
@@ -38,6 +39,23 @@ def _write_pdf(path, pages: list[str]) -> None:
 
 
 class TestIngestFile:
+    def test_rejects_server_paths_outside_allowed_roots_but_allows_library_file(
+        self, client, test_package
+    ):
+        allowed = test_package / "imports" / "allowed.txt"
+        allowed.parent.mkdir()
+        allowed.write_text("safe")
+
+        with patch("fichero.ingest.ingest_file", return_value=_make_document()), \
+             patch("fichero.ingest.IngestMode"):
+            for sensitive_path in ("/etc/passwd", str(Path.home() / ".ssh" / "id_ed25519")):
+                response = client.post("/api/ingest/file", json={"path": sensitive_path})
+                assert response.status_code == 403
+
+            response = client.post("/api/ingest/file", json={"path": str(allowed)})
+
+        assert response.status_code == 200
+
     def test_ingest_existing_file(self, client, tmp_path):
         test_file = tmp_path / "sample.pdf"
         test_file.write_bytes(b"%PDF-1.4")
@@ -50,8 +68,8 @@ class TestIngestFile:
         # ingest_file is called and document returned
         assert r.status_code == 200
 
-    def test_ingest_missing_file_returns_400(self, client):
-        r = client.post("/api/ingest/file", json={"path": "/no/such/file.pdf"})
+    def test_ingest_missing_file_returns_400(self, client, tmp_path):
+        r = client.post("/api/ingest/file", json={"path": str(tmp_path / "missing.pdf")})
         assert r.status_code == 400
         assert "not found" in r.json()["detail"].lower()
 
@@ -124,8 +142,8 @@ class TestIngestFolder:
         assert data["status"] == "pending"
         assert data["path"] == str(tmp_path)
 
-    def test_ingest_missing_folder_returns_400(self, client):
-        r = client.post("/api/ingest/folder", json={"path": "/no/such/folder"})
+    def test_ingest_missing_folder_returns_400(self, client, tmp_path):
+        r = client.post("/api/ingest/folder", json={"path": str(tmp_path / "missing")})
         assert r.status_code == 400
 
     def test_ingest_file_as_folder_returns_400(self, client, tmp_path):
