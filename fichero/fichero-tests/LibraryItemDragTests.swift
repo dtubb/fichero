@@ -15,11 +15,11 @@ final class LibraryItemDragTests: XCTestCase {
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
         let surfaces = [
-            ("Views/Library/LibraryView+DisplayModes.swift", ".draggable(libraryItemDrag(for: doc))"),
+            ("Views/Library/ViewModes/LibraryView+DisplayModes.swift", ".draggable(libraryItemDrag(for: doc))"),
             ("Views/Inspector/ArtifactListView.swift", ".draggable(LibraryItemDrag("),
             ("Views/Inspector/AnnotationListView.swift", ".draggable(LibraryItemDrag("),
             ("Views/Notes/NoteListView.swift", ".draggable(LibraryItemDrag("),
-            ("Views/Library/LibraryView+TableMapViews.swift", ".draggable(libraryItemDrag(for: page))")
+            ("Views/Library/ViewModes/LibraryView+TableMapViews.swift", ".draggable(libraryItemDrag(for: page))")
         ]
 
         for (path, marker) in surfaces {

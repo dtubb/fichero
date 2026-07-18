@@ -64,7 +64,7 @@ struct SidebarSelectionTests {
     func sidebarAndLibrarySelectionStayInSync() throws {
         let stateSource = try appSource("Views/Shell/ContentView/ContentView+State.swift")
         let navigationSource = try appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
-        let displayModeSource = try appSource("Views/Library/LibraryView+DisplayModes.swift")
+        let displayModeSource = try appSource("Views/Library/ViewModes/LibraryView+DisplayModes.swift")
         let componentSource = try appSource("Views/Library/LibraryViewComponents.swift")
 
         #expect(stateSource.contains("browserSelection.removeAll()"))
@@ -130,8 +130,8 @@ struct SidebarSelectionTests {
 
     @Test("#3187 library browser surfaces keep a shared leading inset clear of the sidebar")
     func libraryBrowserUsesSharedLeadingInset() throws {
-        let displayModesSource = try appSource("Views/Library/LibraryView+DisplayModes.swift")
-        let tableSource = try appSource("Views/Library/LibraryView+TableMapViews.swift")
+        let displayModesSource = try appSource("Views/Library/ViewModes/LibraryView+DisplayModes.swift")
+        let tableSource = try appSource("Views/Library/ViewModes/LibraryView+TableMapViews.swift")
 
         #expect(displayModesSource.contains("var browserLeadingInset: CGFloat { 12 }"))
         #expect(displayModesSource.contains(".padding(.leading, browserLeadingInset)"))

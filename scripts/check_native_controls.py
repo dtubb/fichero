@@ -30,7 +30,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Library/ViewModes/Ontology/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
     "Library/ViewModes/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
     "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
-    "Library/LibraryView+DisplayModes.swift#19c3b271df": "#1912 baseline (rehashed: #3705 .draggable; #3875 selection-fill; #3868 extracted a value-typed selectable row wrapper; the collection itself is unchanged)",
+    "Library/ViewModes/LibraryView+DisplayModes.swift#19c3b271df": "#1912 baseline (rehashed: #3705 .draggable; #3875 selection-fill; #3868 extracted a value-typed selectable row wrapper; the collection itself is unchanged)",
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
     "Chat/Research/ResearchTasksPane.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
     "Chat/Research/ResearchTasksPane.swift#f50acbd404": "#1912 baseline (shifted by store migration)",
@@ -40,7 +40,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
 
 ALLOWLIST_FILES = {
     # Non-list drawing/canvas or display surfaces.
-    "Library/LibraryView+TableMapViews.swift",
+    "Library/ViewModes/LibraryView+TableMapViews.swift",
     "Library/PageContentPane.swift",
     "Library/ArtifactPanel.swift",
     "Chat/ChatMessagesList.swift",

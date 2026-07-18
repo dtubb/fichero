@@ -7,7 +7,7 @@ import XCTest
 /// selection to the old faint 0.12 accent wash.
 final class LibrarySelectionStrengthTests: XCTestCase {
     func testFocusedSelectionFillIsStrongUnfocusedStaysGray() throws {
-        let source = try Self.appSource("Views/Library/LibraryView+DisplayModes.swift")
+        let source = try Self.appSource("Views/Library/ViewModes/LibraryView+DisplayModes.swift")
         // Focused = strong accent; unfocused = faint gray. Kept on one line so
         // the pairing can't drift apart.
         XCTAssertTrue(
