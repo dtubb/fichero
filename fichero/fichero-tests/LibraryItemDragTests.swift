@@ -16,8 +16,8 @@ final class LibraryItemDragTests: XCTestCase {
             .appendingPathComponent("fichero")
         let surfaces = [
             ("Views/Library/LibraryView+DisplayModes.swift", ".draggable(libraryItemDrag(for: doc))"),
-            ("Views/Library/Inspector/ArtifactListView.swift", ".draggable(LibraryItemDrag("),
-            ("Views/Library/Inspector/AnnotationListView.swift", ".draggable(LibraryItemDrag("),
+            ("Views/Inspector/ArtifactListView.swift", ".draggable(LibraryItemDrag("),
+            ("Views/Inspector/AnnotationListView.swift", ".draggable(LibraryItemDrag("),
             ("Views/Notes/NoteListView.swift", ".draggable(LibraryItemDrag("),
             ("Views/Library/LibraryView+TableMapViews.swift", ".draggable(libraryItemDrag(for: page))")
         ]

@@ -30,7 +30,7 @@ final class ArtifactServiceInjectionTests: XCTestCase {
     }
 
     func testDocumentDetailWindowInjectsArtifactService() throws {
-        let source = try Self.appSource("Views/Library/Inspector/FocusedDocument.swift")
+        let source = try Self.appSource("Views/Inspector/FocusedDocument.swift")
         // The detached document-detail scene (macOS FicheroApp + iOS
         // FicheroApp_iOS) presents DocumentInspector, which reads the service.
         XCTAssertTrue(

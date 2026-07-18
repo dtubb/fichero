@@ -18,7 +18,7 @@ matter of *surfacing and connecting* existing primitives, not building new ones.
 | Workspace shell UI | `ResearchWorkspaceView` (CHAT\|BROWSER\|TASKS), flagged ON | `fichero/fichero/Views/Research/` |
 | Project model | `ResearchProject` (+ Plan/Task/Step), `Project`/`ProjectInclusion` | `research_models.py`, `knowledge_models.py:1128` |
 | Notes (Zettelkasten) | `Note` + `NoteKind` (zettel/reference/hub/inbox/fleeting/permanent), backlinks | `knowledge_models.py:1148`, `api/routes/notes.py` |
-| Source notes UI | `DocumentNotesTab` (notes linked to a document) | `Views/Library/DocumentInspector/DocumentNotesTab.swift` |
+| Source notes UI | `DocumentNotesTab` (notes linked to a document) | `Views/Inspector/Document/DocumentNotesTab.swift` |
 | Span/page annotations | `Annotation` (doc+page+char+bbox, kinds: highlight/note/rating/bookmark/comment) | `knowledge_models.py:1236` |
 | Chapter/section structure | `BookStructureNode`, `Document.structure` | `knowledge_models.py:591` |
 | Spatial maps / 3D | `SpatialScene3D`, `Spatial2DCanvas`, `MindPalaceLibraryProjector` | `Views/MindPalace/` |

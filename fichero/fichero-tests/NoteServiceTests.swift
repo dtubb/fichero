@@ -66,7 +66,7 @@ final class NoteServiceTests: XCTestCase {
     }
 
     func testDocumentNotesTabChoosesFolderAndPageScopeFromDocumentType() throws {
-        let source = try Self.appSource("Views/Library/DocumentInspector/DocumentNotesTab.swift")
+        let source = try Self.appSource("Views/Inspector/Document/DocumentNotesTab.swift")
 
         // Loading and creation now go through NoteStore after the store migration.
         XCTAssertTrue(source.contains("await noteStore.loadNotes(forFolder: document.id)"))
@@ -87,7 +87,7 @@ final class NoteServiceTests: XCTestCase {
         // scopeLabel is a computed property on FocusedNote; NotesBrowserView consumes it.
         let viewSource = try Self.appSource("Views/Notes/NotesBrowserView.swift")
         XCTAssertTrue(viewSource.contains("item.scopeLabel"))
-        let noteSource = try Self.appSource("Views/Library/Inspector/FocusedNote.swift")
+        let noteSource = try Self.appSource("Views/Inspector/FocusedNote.swift")
         XCTAssertTrue(noteSource.contains("if note.folderId?.isEmpty == false { return \"Folder\" }"))
         XCTAssertTrue(noteSource.contains("if note.pageId?.isEmpty == false { return \"Page\" }"))
     }

@@ -60,7 +60,7 @@ folder: the document browser (`LibraryView*` — 9 files), PDF reading
 `StackedRepresentationPanes`, `RepresentationPicker`), annotations/citations/
 artifacts inspector panes (`*InspectorPane`, `*ListView`, `*DetailView`,
 `Focused*` — ~15), and image viewing (already partly split into
-`Library/ImageViewer/`, `Library/ImageEditor/`, `Library/DocumentInspector/`).
+`Library/ImageViewer/`, `Library/ImageEditor/`, `Inspector/Document/`).
 
 **Target:** finish the split that `ImageViewer/`/`ImageEditor/`/`DocumentInspector/`
 already started —
@@ -69,7 +69,7 @@ already started —
 - `Views/Library/Representations/` — `Representation*`,
   `StackedRepresentationPanes`, `DisplayAttributesStrip` (ties **UI Reform —
   Representations** milestone).
-- `Views/Library/Inspector/` — `*InspectorPane`, `Annotation*`, `Citation*`,
+- `Views/Inspector/` — `*InspectorPane`, `Annotation*`, `Citation*`,
   `Artifact*`, `Focused*`, `InspectorTab`, `InspectorPresenter` (ties **UI Reform
   — Inspector & Annotation** milestone).
 - Keep `LibraryView*` + browser at `Views/Library/` root.

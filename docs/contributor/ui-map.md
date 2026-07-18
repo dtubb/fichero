@@ -49,7 +49,7 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 | **Doc viewer + editor — ONE canvas, ONE toolbar** (image AND pdf; the toolbar adapts to content type; the **edit toolbar is part of it**; always editable — a page, or pages of a folder/PDF) | DocumentCanvas (+ ImageEditor tools/chain + PDF pages) | `Views/Preview/DocumentCanvas.swift`, `ImageEditor/`, `PDF*.swift` | area:document-canvas / area:image-editing |
 | WebKit transcript / knowledge pane | DocumentKGWebPane / PageContentPane *(rename pending #1450)* | `Views/Library/` | area:reading-surface |
 | Loupe / magnifier / zoom | PDFLoupeOverlay, MagnifierPanel, ScrollWheelZoom | `Views/Library/` | area:reading-surface |
-| **Document Inspector** (right) | DocumentInspector | `Views/Library/DocumentInspector/` | area:inspector |
+| **Document Inspector** (right) | DocumentInspector | `Views/Inspector/Document/` | area:inspector |
 | — Info tab | DocumentInspectorInfoTab | `.../DocumentInspectorInfoTab.swift` | area:inspector |
 | — Content tab | DocumentInspectorContentTab | `.../DocumentInspectorContentTab.swift` | area:inspector |
 | — Metadata tab | DocumentInspectorMetadataTab | `.../DocumentInspectorMetadataTab.swift` | area:inspector |

@@ -44,8 +44,8 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services": "#1944 — 60 Swift files directly in Services",
     "Views/KnowledgeGraph/OntologyBrowser": "#1944 — 31 Swift files directly in OntologyBrowser",
     "Views/Library": "#1944 — 42 Swift files directly; mixed Library concerns",
-    "Views/Library/DocumentInspector": "#1944 — 24 Swift files directly in DocumentInspector",
-    "Views/Library/Inspector": "#1944 — 19 Swift files directly in Inspector",
+    "Views/Inspector/Document": "#3439 — 25 Swift files directly in Inspector/Document; split by responsibility (Phase 3 reorg)",
+    "Views/Inspector": "#3439 — 25 Swift files directly in Inspector; split by responsibility (Phase 3 reorg)",
     "Views/Sidebar": "#1944 — 27 Swift files directly; mixed Sidebar concerns",
     "Views/Workflow": "#1944 — 42 Swift files directly; mixed Workflow concerns",
 }

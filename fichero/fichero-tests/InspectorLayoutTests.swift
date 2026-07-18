@@ -72,7 +72,7 @@ struct InspectorTabTests {
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .appendingPathComponent("fichero")
-                .appendingPathComponent("Views/Library/DocumentInspector/DocumentInspector.swift"),
+                .appendingPathComponent("Views/Inspector/Document/DocumentInspector.swift"),
             encoding: .utf8
         )
 

@@ -60,10 +60,10 @@ pattern repeated independently in six places:
 |---|---|
 | `fichero/fichero/Views/ContentView+ViewBuilders.swift:38` (`ReadingPaneView`) | Reader pane: pins `Document` + page number + page count |
 | `fichero/fichero/Views/Reader/PDFPageWithToolbar.swift:56` | Preview/PDF pane: pins `documentId` + `localPageIndex` |
-| `fichero/fichero/Views/Library/Inspector/FocusedDocument.swift:41` (`DocumentDetailWindow`) | Detached document-detail scene |
-| `fichero/fichero/Views/Library/Inspector/CitationsInspectorPane.swift:123` | Citations inspector tab |
-| `fichero/fichero/Views/Library/Inspector/AnnotationsInspectorPane.swift:204` | Annotations inspector tab |
-| `fichero/fichero/Views/Library/Inspector/ArtifactsInspectorPane.swift:326` | Artifacts inspector tab |
+| `fichero/fichero/Views/Inspector/FocusedDocument.swift:41` (`DocumentDetailWindow`) | Detached document-detail scene |
+| `fichero/fichero/Views/Inspector/CitationsInspectorPane.swift:123` | Citations inspector tab |
+| `fichero/fichero/Views/Inspector/AnnotationsInspectorPane.swift:204` | Annotations inspector tab |
+| `fichero/fichero/Views/Inspector/ArtifactsInspectorPane.swift:326` | Artifacts inspector tab |
 | `fichero/fichero/Views/Notes/NotesInspectorPane.swift:146` | Notes inspector pane |
 
 Every instance follows the identical shape: `@State private var isPinned = false`
@@ -89,7 +89,7 @@ see §2.
 
 ### 0.3 Source-navigation / reveal-in-Preview — the closest thing to a Location model, and it is UI-only
 
-- `fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+Shared.swift:85-129` —
+- `fichero/fichero/Views/Inspector/Document/DocumentInspectorArtifactsTab+Shared.swift:85-129` —
   `SourceDestination` (`.preview` / `.reader` / `.both`), `ClaimSourceNavigationRequest`
   (`documentId`, `claimId?`, `claimText?`, `pageLabel?`, `pageIndex?`, `charStart?`,
   `charEnd?`, `bbox: [Double]?` normalized `[x, y, w, h]` top-left, `destination`), and

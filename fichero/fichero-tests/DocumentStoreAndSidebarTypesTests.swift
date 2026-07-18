@@ -492,7 +492,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let menuSource = try Self.appSource("FicheroApp.swift")
         let appStateSource = try Self.appSource("App/AppState.swift")
         let windowSource = try Self.appSource("App/LibraryWindow.swift")
-        let inspectorSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
+        let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
 
         // The Notes tab routes to the per-document notes view.
         XCTAssertTrue(inspectorSource.contains("DocumentNotesTab(document: doc)"))
