@@ -2,18 +2,18 @@ import XCTest
 
 final class WorkflowCanvasUndoBoundaryTests: XCTestCase {
     func testWorkflowCanvasWiresUndoManagerForCanvasMutations() throws {
-        let canvasSource = try Self.appSource("Views/Workflow/WorkflowCanvasView.swift")
+        let canvasSource = try Self.appSource("Views/Workflow/Canvas/WorkflowCanvasView.swift")
         XCTAssertTrue(canvasSource.contains("@Environment(\\.undoManager) private var undoManager"))
         XCTAssertTrue(canvasSource.contains("registerUndo(from: previousWorkflow"))
 
-        let gesturesSource = try Self.appSource("Views/Workflow/WorkflowCanvasView+Gestures.swift")
+        let gesturesSource = try Self.appSource("Views/Workflow/Canvas/WorkflowCanvasView+Gestures.swift")
         XCTAssertTrue(gesturesSource.contains("func finishNodeDrag()"))
         XCTAssertTrue(gesturesSource.contains("registerUndo(from: previousWorkflow, actionName: \"Move Node\")"))
 
-        let edgeSource = try Self.appSource("Views/Workflow/WorkflowCanvasView+EdgeConnection.swift")
+        let edgeSource = try Self.appSource("Views/Workflow/Canvas/WorkflowCanvasView+EdgeConnection.swift")
         XCTAssertTrue(edgeSource.contains("registerUndo(from: previousWorkflow, actionName: \"Add Connection\")"))
 
-        let dropSource = try Self.appSource("Views/Workflow/WorkflowCanvasView+DropHandling.swift")
+        let dropSource = try Self.appSource("Views/Workflow/Canvas/WorkflowCanvasView+DropHandling.swift")
         XCTAssertTrue(dropSource.contains("registerUndo(from: previousWorkflow, actionName: \"Add Node\")"))
     }
 

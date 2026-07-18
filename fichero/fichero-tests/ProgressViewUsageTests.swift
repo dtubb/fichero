@@ -5,7 +5,7 @@ final class ProgressViewUsageTests: XCTestCase {
         let sources = [
             try Self.appSource("Views/Inspector/Document/Info/DocumentInspectorInfoTab+Prototype.swift"),
             try Self.appSource("Views/Components/NodeClassPicker.swift"),
-            try Self.appSource("Views/Workflow/NodeConfigs/ExtractEntitiesNodeConfig.swift")
+            try Self.appSource("Views/Workflow/Nodes/NodeConfigs/ExtractEntitiesNodeConfig.swift")
         ]
 
         for source in sources {

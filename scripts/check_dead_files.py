@@ -59,7 +59,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library/Workspace/CollectionWorkspaceStub.swift": "#1945 — candidate dead file: workspace stub helper",
     "Views/Shell/PaneVisibility.swift": "#1945 — candidate dead file: pane visibility helpers",
     "Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift": "#1945 — candidate dead file: library header helper row",
-    "Views/Workflow/WorkflowEditor+Actions.swift": "#1945 — candidate dead file: workflow completion helper",
+    "Views/Workflow/Editor/WorkflowEditor+Actions.swift": "#1945 — candidate dead file: workflow completion helper",
     "Views/Settings/MCPServers/MCPToolsCatalogView.swift": "#1945 — candidate dead file: MCP tools catalog helper types",
     "Views/Settings/MCPServers/MCPServersSheet.swift": "#3366 — settings routing keeps legacy sheet compiled for transition/back-compat",
     "Views/Shell/Menu/AddItemMenu.swift": "#2955 — live but scanner-blind: sole toolbar-evidence for Link/Copy/Add-Files in the action-surface matrix",
@@ -73,10 +73,10 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Sidebar/Sections/SidebarView+ActivityRows.swift": "#1945 — candidate dead file: ActivityRunGridCell",
     "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift": "#1945 — candidate dead file: UnifiedLibraryBuckets",
     "Views/Components/MiniToolbarComponents.swift": "#2955 — live but scanner-blind: WorkflowMiniToolbarButton exercised by #2415 tests",
-    "Views/Workflow/DynamicConfigView+FieldRendering.swift": "#1945 — candidate dead file: DynamicFolderPickerOption",
-    "Views/Workflow/SimpleWorkflowView.swift": "#1945 — candidate dead file: SimpleWorkflowView, SimpleWorkflow",
-    "Views/Workflow/WorkflowExecutionView.swift": "#1945 — candidate dead file: workflow execution helper types",
-    "Views/Workflow/WorkflowInspector+DataLoading.swift": "#2955 — file stays live via WorkflowInspector data-loading extension; primary helper enum is local-only",
+    "Views/Workflow/Nodes/DynamicConfigView+FieldRendering.swift": "#1945 — candidate dead file: DynamicFolderPickerOption",
+    "Views/Workflow/Editor/SimpleWorkflowView.swift": "#1945 — candidate dead file: SimpleWorkflowView, SimpleWorkflow",
+    "Views/Workflow/Execution/WorkflowExecutionView.swift": "#1945 — candidate dead file: workflow execution helper types",
+    "Views/Workflow/Inspector/WorkflowInspector+DataLoading.swift": "#2955 — file stays live via WorkflowInspector data-loading extension; primary helper enum is local-only",
 }
 
 

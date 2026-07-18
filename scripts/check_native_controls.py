@@ -35,7 +35,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Chat/Research/ResearchTasksPane.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
     "Chat/Research/ResearchTasksPane.swift#f50acbd404": "#1912 baseline (shifted by store migration)",
     "Library/Search/SearchFiltersPanel.swift#3c0b0dafd9": "#1912 baseline",
-    "Workflow/WorkflowChainListView/ChainDetailContent.swift#c804133262": "#1912 baseline",
+    "Workflow/Library/WorkflowChainListViewParts/ChainDetailContent.swift#c804133262": "#1912 baseline",
 }
 
 ALLOWLIST_FILES = {

@@ -62,9 +62,9 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "97525f1e35bf": '[shared] fichero/fichero/Views/Shell/Menu/FocusedCommandButtons.swift:517: @ObservedObject var featureManager = FeatureManager.shared',
     "79b1c1bacc70": '[shared] fichero/fichero/Views/Shell/Menu/ViewMenuCommands.swift:428: @ObservedObject var featureManager = FeatureManager.shared',
     "15fbb889e15b": '[shared] fichero/fichero/Views/Sidebar/Sections/SidebarViewExtensions.swift:28: @ObservedObject var featureManager = FeatureManager.shared',
-    "ce6eb77c9655": '[shared] fichero/fichero/Views/Workflow/WorkflowInspector.swift:26: @ObservedObject var featureManager = FeatureManager.shared',
-    "ee5a9796cfb1": '[shared] fichero/fichero/Views/Workflow/WorkflowLibraryView.swift:67: @ObservedObject var featureManager = FeatureManager.shared',
-    "02e8d70f454e": '[shared] fichero/fichero/Views/Workflow/WorkflowLibraryView/WorkflowDetailView.swift:13: @ObservedObject var featureManager = FeatureManager.shared',
+    "9f021e827b3f": '[shared] fichero/fichero/Views/Workflow/Inspector/WorkflowInspector.swift:26: @ObservedObject var featureManager = FeatureManager.shared',
+    "ea42f65bbb03": '[shared] fichero/fichero/Views/Workflow/Library/WorkflowLibraryView.swift:67: @ObservedObject var featureManager = FeatureManager.shared',
+    "05092870d979": '[shared] fichero/fichero/Views/Workflow/Library/WorkflowLibraryViewParts/WorkflowDetailView.swift:13: @ObservedObject var featureManager = FeatureManager.shared',
 }
 
 

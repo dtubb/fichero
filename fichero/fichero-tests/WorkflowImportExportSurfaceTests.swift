@@ -11,7 +11,7 @@ final class WorkflowImportExportSurfaceTests: XCTestCase {
     }
 
     func testWorkflowEditorToolbarWiresImportAndExport() throws {
-        let editor = try Self.appSource("Views/Workflow/WorkflowEditor.swift")
+        let editor = try Self.appSource("Views/Workflow/Editor/WorkflowEditor.swift")
         let toolbar = try Self.appSource("Views/Workflow/WorkflowToolbar.swift")
 
         XCTAssertTrue(editor.contains("onImport: importWorkflow"))
@@ -22,7 +22,7 @@ final class WorkflowImportExportSurfaceTests: XCTestCase {
     }
 
     func testWorkflowEditorToolbarUsesBottomMiniToolbarWithOverflow() throws {
-        let editor = try Self.appSource("Views/Workflow/WorkflowEditor.swift")
+        let editor = try Self.appSource("Views/Workflow/Editor/WorkflowEditor.swift")
         let toolbar = try Self.appSource("Views/Workflow/WorkflowToolbar.swift")
         let canvasFrame = try XCTUnwrap(editor.range(of: ".frame(maxWidth: .infinity, maxHeight: .infinity)"))
         let toolbarPlacement = try XCTUnwrap(editor.range(of: "WorkflowToolbar(", range: canvasFrame.upperBound..<editor.endIndex))

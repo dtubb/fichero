@@ -30,7 +30,6 @@ MAX_DIRECT_SWIFT_FILES = 18
 
 MIXED_CONCERN_DIRS: dict[str, str] = {
     "Views/Library": "mixes browser, picker, inspector, viewer, and workspace surfaces",
-    "Views/Workflow": "mixes editor, execution, node, import/export, and library surfaces",
     "Views/Sidebar": "mixes sidebar state, rows, drag/drop, modes, and commands",
 }
 
@@ -46,7 +45,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library": "#1944 — 42 Swift files directly; mixed Library concerns",
     "Views/Settings": "settings panes absorbed AIProviders/MCPServers/About; subfolder by tab (follow-on reorg)",
     "Views/Sidebar": "#1944 — 27 Swift files directly; mixed Sidebar concerns",
-    "Views/Workflow": "#1944 — 42 Swift files directly; mixed Workflow concerns",
 }
 
 
