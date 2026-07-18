@@ -1,10 +1,24 @@
-(AI generated. Not reviewed.)
+<!-- Staging/planning doc. Current-state rows re-verified 2026-07-18 (F4/F5 drift flagged inline); the plan itself is unchanged. -->
 
 # Node-Model Subsystem Fold — Staging Doc (#2591 / EPIC #2081)
 
 > **Status: STAGED, not implemented.** Implementation deferred to after the TestFlight release per Daniel, 2026-06-26: the node-model fold is top-tier thinking but must not block TestFlight. This doc is the path — it ties each fold target to the EPIC #2081 foundation it blocks on, sequences the slices, and links issues/milestones so we know how to continue. Do not start the fold before TestFlight.
 >
 > Companion audit: #2592 (view modes are client-only) — closed 2026-06-26, confirmed no server coupling to a view mode. The legacy Mind Palace `/rooms/*` backend retirement identified there lives here, under #2591.
+>
+> **Update 2026-07-18 (current-state re-verify):** two fold rows below have
+> already moved since the 2026-06-26 grounding, via other work (not this fold):
+> - **F5** — `api/routes/mind_palace.py` and the `/rooms/*` endpoints are **gone**;
+>   `/api/mind-palace` was retired and replaced by `/api/canvas` (`api/routes/canvas.py`,
+>   with `/canvas-layout` + `/canvas-items`), per the #2565/#3750 rename. So the
+>   backend endpoint-retirement half of Fold-E is effectively done; the remaining
+>   Fold-E work is the node-model *reshape*, not the router removal.
+> - **F4** — a bookmarks route now exists (`api/routes/bookmarks.py`), so the
+>   "not built / 0 symbol matches" note is stale; whether it satisfies the
+>   bookmark-as-node vision is for the fold author to assess.
+>
+> The plan below (P1–P6 foundation, slice sequence) otherwise stands. Rows are
+> left as-authored except where flagged inline.
 
 ## Design north-star (EPIC #2081, Daniel + manager 2026-06-11; CONTENT-vs-INFRA split Daniel 2026-06-23)
 
@@ -27,7 +41,7 @@ This is the information-architecture foundation the Mac UI reform (#2030) sits o
 | F5 | Legacy Mind Palace spatial subsystem | `api/routes/mind_palace.py` — `/rooms`, `/nodes`, `/connections`, `/stacks`, `/notes`, `/viewport` (178-820); still mounted in `_CORE_ROUTE_SPECS` at `/api/mind-palace` (promoted dev→release for 0.0.2); called by CLI `cli/client.py` (`mp_list_rooms` + scene/viewport/focus/suggest-arrangement, 1523-1866) + MCP (`mcp_full.py`, `mcp_server.py`) | **Positions → item attributes** (#2293/#369 already persists positions via `/canvas-layout`); **connections → `LibraryItemLink`** (#2636 shipped the general links endpoint at `api/routes/library_links.py`); **stacks/notes → node types/attributes** | Alias node kind (P2) for reference links; Prototype (P1) for room-as-container; Entities-as-filable (P4) for the spatial node set | CONTENT | Fold-E (largest; needs CLI/MCP migration) |
 | — | Background tasks | `api/routes/tasks.py` — `BackgroundTask` (reindex/metrics/vector-repair/kg-metrics), `create_reindex_task`…`get_task_system_health` | **Stays separate** — these are INFRA (reindex/metrics/repair), not content nodes | — | INFRA | **No fold.** Do not collapse. |
 
-Verified-live: the SwiftUI spatial view no longer drives from the `/rooms/*` endpoints — it uses `MindPalaceLibraryProjector.project` (MindPalaceLibraryProjector.swift:81), a pure projection over library data. The `/rooms/*` callers remaining are CLI + MCP only — that is the migration surface Fold-E must move.
+Verified-live: the SwiftUI spatial view no longer drives from the `/rooms/*` endpoints — it uses a pure projection over library data (`Services/SpatialLibraryProjector.swift`; the file was named `MindPalaceLibraryProjector` when this row was authored). As of the 2026-07-18 update above, the `/rooms/*` endpoints are gone entirely, so there is no longer a live `/rooms/*` caller surface to migrate.
 
 ## Foundation dependencies (EPIC #2081 sub-issues — currently `[ ]` gaps, not yet filed)
 

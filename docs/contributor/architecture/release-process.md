@@ -1,9 +1,12 @@
-(AI generated. Not reviewed.)
+<!-- Verified against project.pbxproj (MARKETING_VERSION), scripts/{check_version_date,set-release-version}.sh, fichero/.swiftlint.yml (2026-07-18). -->
 
 # Fichero Release Process
 
-Every `0.x.y` release ships exactly one testable feature end-to-end.
-The process is the same regardless of whether the work is new code or enabling an existing feature gate.
+Each release ships one testable feature end-to-end. Releases are **dated**:
+`MARKETING_VERSION` is `YYYY.MM.DD[.N]` (e.g. `2026.07.17.2`), set via
+`scripts/set-release-version.sh` and enforced by `scripts/check_version_date.sh`
+(which also rejects a quoted value). The process is the same whether the work is
+new code or enabling an existing feature gate.
 
 ---
 
@@ -124,7 +127,7 @@ Claude fixes bugs, re-runs Steps 3–5 for affected areas.
 
 Once Daniel approves:
 ```bash
-/release 0.x.y
+/release          # tags the current dated MARKETING_VERSION (e.g. 2026.07.17)
 ```
 
 The `/release` skill:
@@ -192,10 +195,12 @@ Run `/milestone-check` at any time to see:
 
 ## File Size Limits
 
-| Language | Soft limit | Hard limit |
+| Language | Soft limit (warning) | Hard limit (error) |
 |---|---|---|
 | Python (.py) | 400 lines | 1000 lines |
-| Swift (.swift) | 300 lines | 600 lines |
+| Swift (.swift) | 400 lines | 1000 lines |
 
-Files over the soft limit should be split before merging to main.
-Files over the hard limit **must** be split before merging.
+Swift limits are the `file_length` rule in `fichero/.swiftlint.yml`
+(warning 400 / error 1000); `type_body_length` is warning 250 / error 500.
+Files over the soft limit should be split before merging to main; files over
+the hard limit **must** be split.

@@ -1,4 +1,4 @@
-(AI generated. Not reviewed.)
+<!-- Verified against fichero-engine/src (2026-07-18): api/main.py, workflows/, loaders/, engine/. -->
 
 # Backend Overview
 
@@ -14,7 +14,7 @@ Fichero's Python backend provides:
 ## Architecture
 
 ```
-Swift UI App → HTTP/REST (port 8765) → FastAPI
+Swift UI App → HTTPS/REST (127.0.0.1:8765, loopback, cert-pinned) → FastAPI
                                           ├── DuckDB  (structured metadata)
                                           ├── LanceDB (vector embeddings)
                                           ├── LangGraph (workflow engine)
@@ -25,11 +25,11 @@ Swift UI App → HTTP/REST (port 8765) → FastAPI
 
 ```
 fichero-engine/src/
-├── fichero/           # Main library — API, database, AI, workflows
-└── fichero_backend/   # Briefcase entry-point wrapper (app lifecycle only)
+├── fichero/   # Main library — API, database, AI, workflows
+└── engine/    # Briefcase entry-point wrapper (app lifecycle only)
 ```
 
-`fichero_backend` exists solely because Briefcase requires a named app-slug package as the bundle entry point. Its `__main__.py` handles environment detection, hot-reload, and port checks. Do not put business logic there.
+`engine` exists solely because Briefcase requires a named app-slug package as the bundle entry point. Its `__main__.py` handles environment detection, TLS/bind-host setup, hot-reload, and port checks. Do not put business logic there.
 
 ## API Route Tiers
 
@@ -48,7 +48,7 @@ Routes are registered at startup based on the `FICHERO_FEATURE_TIER` environment
 | `/api/documents` | `documents` | Document CRUD, hierarchy |
 | `/api` | `entities` | Semantic entity management |
 | `/api/folders` | `folders` | Folder hierarchy |
-| `/api/ingest` | `ingest` | File ingestion (LINK + COPY modes) |
+| `/api/ingest` | `ingest` | File ingestion (LINK/COPY/MOVE modes) |
 | `/api/migrations` | `migrations` | Database schema upgrades |
 | `/api/mcp/tools` | `mcp_tools` | MCP tool registration |
 | `/api` | `multilingual` | Language detection and normalisation |
@@ -120,7 +120,7 @@ These are also gated behind `FICHERO_FEATURE_TIER=dev`. They are complete but no
 | `db.py` | Database layer — DuckDB (relational) + LanceDB (vectors) |
 | `models.py` | Pydantic models shared across API and database |
 | `app_db.py` | App-level settings database (separate from per-library DB) |
-| `ingest.py` | File ingestion pipeline (LINK/COPY modes, 37+ file types) |
+| `ingest.py` | File ingestion pipeline (LINK/COPY/MOVE modes, 50+ file extensions); re-exported from `importers/ingest.py` |
 | `llm.py` | LangChain provider integrations. LiteLLM = cost/model metadata only, never routing |
 | `providers.py` | LLM provider definitions (Ollama, OpenAI, Anthropic, etc.) |
 | `storage.py` | Thumbnail, archive, and file path management |
@@ -143,11 +143,11 @@ These are also gated behind `FICHERO_FEATURE_TIER=dev`. They are complete but no
 
 | Module | Purpose |
 |---|---|
-| `workflows/registry.py` | 30+ tool definitions with port specs (single source of truth) |
+| `workflows/registry.py` | 118+ tools / 135+ tool defs with port specs (single source of truth) |
 | `workflows/builder.py` | Converts frontend graph JSON to executable LangGraph |
 | `workflows/executor.py` | Runs workflow graphs with SSE streaming |
 | `workflows/types.py` | NodeDef, EdgeDef, WorkflowDef, WorkflowState models |
-| `workflows/store.py` | Workflow persistence (DuckDB) |
+| `workflows/workflow_store.py` | Workflow persistence (DuckDB) |
 | `workflows/tasks.py` | Async background task runner |
 | `workflows/scheduler.py` | Cron-style workflow scheduling |
 | `workflows/activity.py` | Execution event tracking and streaming |
@@ -162,11 +162,15 @@ These are also gated behind `FICHERO_FEATURE_TIER=dev`. They are complete but no
 ## Loaders
 
 Text extraction engines in `loaders/`:
-- `document_loader.py` — PDFs, DOCX, TXT, Markdown
+- `document_loader.py` — DOCX/XLSX/PPTX/EPUB/RTF/ODT and similar office formats
+- `pdf_loader.py` — PDF text extraction
+- `docling_loader.py` — Docling-based structured document parsing
 - `image_loader.py` — JPEG, PNG, HEIC, JPEG-XL with OCR
-- `audio_loader.py`, `video_loader.py` — Media transcription
 - `iiif_loader.py` — IIIF manifest fetching
 - `unified.py` — Dispatcher across all loader types
+
+(Audio/video transcription is not in `loaders/`; it runs via the workflow
+tools, e.g. `workflows/tools/audio_base.py`.)
 
 ## Development
 
