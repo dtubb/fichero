@@ -84,6 +84,7 @@ def paired_device_client(test_package, app_db, monkeypatch):
     ("path", "expects_owner_backfill"),
     [
         ("/api/chains?limit=50", False),
+        ("/api/authz/libraries", False),
         ("/api/documents?offset=0", True),
         ("/api/workflows/tools", False),
         ("/api/workflows", True),
