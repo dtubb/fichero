@@ -202,9 +202,10 @@ ls -lh ~/Library/Developer/Xcode/DerivedData/Fichero-*/Build/Products/Debug/Fich
 
 ### ✅ Backend Responds
 ```bash
-# While Fichero.app is running
-curl http://127.0.0.1:8765/health
-# Should return: {"status":"healthy"}
+# While Fichero.app is running (engine serves HTTPS on loopback with a
+# self-signed, SPKI-pinned cert, so -k skips curl's cert check)
+curl -k https://127.0.0.1:8765/api/health
+# Returns a health JSON (status + launch_nonce + engine pid)
 ```
 
 ### ✅ UI Works
@@ -275,7 +276,7 @@ All files involved in bundling:
 ```
 ├── pyproject.toml                           # Briefcase config
 ├── src/
-│   └── fichero_backend/
+│   └── engine/
 │       ├── __init__.py                      # Backend module
 │       └── __main__.py                      # Backend entry point
 ├── scripts/
