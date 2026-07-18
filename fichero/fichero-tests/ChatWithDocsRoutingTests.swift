@@ -94,6 +94,6 @@ final class ChatWithDocsRoutingTests: XCTestCase {
     func testDocumentScopeIsPassedToRAGRequest() throws {
         let source = try Self.appSource("Views/Chat/ChatView+Extensions.swift")
         // documentIds is non-nil only when selectedDocuments is non-empty.
-        XCTAssertTrue(source.contains("documentIds: selectedDocuments.isEmpty ? nil : Array(selectedDocuments)"))
+        XCTAssertTrue(source.contains("documentIds: groundingIds.isEmpty ? nil : Array(groundingIds)"))
     }
 }
