@@ -82,7 +82,7 @@ final class DocumentInspectorTests: XCTestCase {
         let artifactsSource = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
         let citationsSource = try Self.appSource("Views/Inspector/CitationsInspectorPane.swift")
         let annotationsSource = try Self.appSource("Views/Inspector/AnnotationsInspectorPane.swift")
-        let notesSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
+        let notesSource = try Self.appSource("Views/Inspector/Notes/NotesInspectorPane.swift")
 
         XCTAssertTrue(inspectorSource.contains("struct InspectorBottomMiniToolbar"))
         XCTAssertTrue(entitiesSource.contains("InspectorBottomMiniToolbar(statusText: entitiesToolbarStatusText)"))
@@ -165,7 +165,7 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testEntityNotesAndAnnotationsUseLowerDetailPanes() throws {
         let entitiesSource = try Self.appSource("Views/Inspector/Document/DocumentInspectorArtifactsTab+EntitiesTab.swift")
-        let notesSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
+        let notesSource = try Self.appSource("Views/Inspector/Notes/NotesInspectorPane.swift")
         let annotationsSource = try Self.appSource("Views/Inspector/AnnotationsInspectorPane.swift")
 
         XCTAssertTrue(entitiesSource.contains("InspectorListDetailSplit"))
@@ -197,7 +197,7 @@ final class DocumentInspectorTests: XCTestCase {
         let artifactList = try Self.appSource("Views/Inspector/ArtifactListView.swift")
         let annotationList = try Self.appSource("Views/Inspector/AnnotationListView.swift")
         let citationList = try Self.appSource("Views/Inspector/CitationListView.swift")
-        let noteList = try Self.appSource("Views/Notes/NoteListView.swift")
+        let noteList = try Self.appSource("Views/Library/NoteListView.swift")
         let entitiesSource = try Self.appSource("Views/Inspector/Document/DocumentInspectorArtifactsTab+EntitiesTab.swift")
 
         XCTAssertTrue(inspectorSource.contains("func inspectorListRowTarget()"))

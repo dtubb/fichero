@@ -32,7 +32,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "fichero/fichero/Views/Preview/ImageViewer/ImageViewerComponents.swift#c7669329ed": "#1916 baseline",
     "fichero/fichero/Views/Library/LibraryView+KeyboardShortcuts.swift#d5e49f726d": "#1916 baseline",
     "fichero/fichero/Views/Reader/PDFPageView.swift#21f2204213": "#1916 baseline",
-    "fichero/fichero/Views/Sheets/DocumentPickerSheet.swift#727654079f": "#1916 baseline",
+    "fichero/fichero/Views/Library/DocumentPickerSheet.swift#727654079f": "#1916 baseline",
 }
 _TODO = re.compile(r"\b(?:TODO|FIXME)\b")
 _ISSUE = re.compile(r"#\d+")

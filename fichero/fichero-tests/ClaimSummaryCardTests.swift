@@ -90,7 +90,7 @@ final class ClaimSummaryCardTests: XCTestCase {
     }
 
     func testSvoChipActionsRevealInlineSourceClaim() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Ontology/ClaimSummaryCardView.swift")
+        let source = try Self.appSource("Views/Library/ViewModes/Graph/Ontology/ClaimSummaryCardView.swift")
         guard let sentenceStart = source.range(of: "private var claimSentence: some View"),
               let fallbackStart = source.range(of: "} else if let excerpt", range: sentenceStart.upperBound..<source.endIndex)
         else {
@@ -105,7 +105,7 @@ final class ClaimSummaryCardTests: XCTestCase {
     }
 
     func testVerbAndObjectChipsEnterInlineEditing() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Ontology/ClaimSummaryCardView.swift")
+        let source = try Self.appSource("Views/Library/ViewModes/Graph/Ontology/ClaimSummaryCardView.swift")
 
         XCTAssertTrue(source.contains("private func beginInlineEditing()"))
         XCTAssertTrue(source.contains("Text(svo.verb)"))
@@ -114,14 +114,14 @@ final class ClaimSummaryCardTests: XCTestCase {
     }
 
     func testExpandedDetailsShowSourceClaimText() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Ontology/ClaimSummaryCard+Details.swift")
+        let source = try Self.appSource("Views/Library/ViewModes/Graph/Ontology/ClaimSummaryCard+Details.swift")
 
         XCTAssertTrue(source.contains("Text(\"Source claim\")"))
         XCTAssertTrue(source.contains("cleanedDisplayText(claim.text)"))
     }
 
     func testCollapsedSourceExcerptOpensClaimSource() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Ontology/ClaimSummaryCardView.swift")
+        let source = try Self.appSource("Views/Library/ViewModes/Graph/Ontology/ClaimSummaryCardView.swift")
         guard let excerptStart = source.range(of: "} else if let excerpt = cleanedDisplayText(claim.sourceExcerpt)"),
               let noSvoStart = source.range(of: "No subject-verb-object", range: excerptStart.upperBound..<source.endIndex)
         else {
@@ -135,7 +135,7 @@ final class ClaimSummaryCardTests: XCTestCase {
     }
 
     func testExpandedSourceExcerptOpensClaimSource() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Ontology/ClaimSummaryCard+Details.swift")
+        let source = try Self.appSource("Views/Library/ViewModes/Graph/Ontology/ClaimSummaryCard+Details.swift")
         guard let excerptStart = source.range(of: "if let excerpt = cleanedDisplayText(claim.sourceExcerpt)"),
               let loadingStart = source.range(of: "if isLoadingDetails", range: excerptStart.upperBound..<source.endIndex)
         else {
@@ -260,7 +260,7 @@ final class ClaimSummaryCardTests: XCTestCase {
     }
 
     func testClaimFocusPreservesEntityInspectionContext() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Ontology/ClaimSummaryCardView.swift")
+        let source = try Self.appSource("Views/Library/ViewModes/Graph/Ontology/ClaimSummaryCardView.swift")
 
         XCTAssertTrue(source.contains("var focusedEntityId: String?"))
         XCTAssertTrue(source.contains("entityId: focusedEntityId"))

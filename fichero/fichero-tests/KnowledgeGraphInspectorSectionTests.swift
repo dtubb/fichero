@@ -370,13 +370,13 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testOntologyBrowserLibraryListUsesEntityStoreAndClaimStoreActions() throws {
         let browserSource = try Self.appSource(
-            "Views/Library/ViewModes/Ontology/OntologyBrowser.swift"
+            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser.swift"
         )
         let listSource = try Self.appSource(
-            "Views/Library/ViewModes/Ontology/OntologyBrowser+List.swift"
+            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+List.swift"
         )
         let triageSource = try Self.appSource(
-            "Views/Library/ViewModes/Ontology/ContradictionTriageSheet.swift"
+            "Views/Library/ViewModes/Graph/Ontology/ContradictionTriageSheet.swift"
         )
         let storeSource = try Self.appSource("Models/EntityStore.swift")
 
@@ -946,7 +946,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testSparqlConsoleUsesTypedQueryOpsThroughAStore() throws {
         let source = try Self.appSource(
-            "Views/Library/ViewModes/Ontology/OntologyBrowser+Sheets.swift"
+            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Sheets.swift"
         )
         let storeSource = try Self.appSource("Models/KGQueryStore.swift")
 
@@ -964,7 +964,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testOntologyBrowserEntityClaimsRouteThroughClaimStore() throws {
         let source = try Self.appSource(
-            "Views/Library/ViewModes/Ontology/OntologyBrowser+Detail.swift"
+            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Detail.swift"
         )
 
         // The entity-detail claims load goes through ClaimStore (observable data

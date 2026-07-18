@@ -18,7 +18,7 @@ are really three:
 - **Reader** (`Views/Reader/`) — the visual canvas: PDF/text pages,
   thumbnails, loupe, annotations shown *in place*. WebKit-based. Job:
   **explore / move around / visualize** (node editor, force graph).
-- **OntologyBrowser** (`Library/ViewModes/Ontology/`) — library-wide
+- **OntologyBrowser** (`Library/ViewModes/Graph/Ontology/`) — library-wide
   knowledge: entities, claims, `ForceDirectedGraphView`, duplicates,
   provenance, audit. Job: **explore + curate at library scope**.
 - **DocumentInspector** — per-selection detail workspace. Job: **see, edit,

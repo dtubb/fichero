@@ -42,7 +42,7 @@ SUGGESTED_SUBFOLDERS: dict[str, str] = {
 KNOWN_VIOLATIONS: dict[str, str] = {
     "Models": "#1944 — 53 Swift files directly in Models",
     "Services": "#1944 — 60 Swift files directly in Services",
-    "Views/Library/ViewModes/Ontology": "#1944 — 32 Swift files directly in the ontology browser; split by responsibility (follow-on)",
+    "Views/Library/ViewModes/Graph/Ontology": "#1944 — 32 Swift files directly in the ontology browser; split by responsibility (follow-on)",
     "Views/Library": "#1944 — 42 Swift files directly; mixed Library concerns",
     "Views/Inspector/Document": "#3439 — 25 Swift files directly in Inspector/Document; split by responsibility (Phase 3 reorg)",
     "Views/Inspector": "#3439 — 25 Swift files directly in Inspector; split by responsibility (Phase 3 reorg)",

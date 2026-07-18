@@ -18,7 +18,7 @@ final class LibraryItemDragTests: XCTestCase {
             ("Views/Library/ViewModes/LibraryView+DisplayModes.swift", ".draggable(libraryItemDrag(for: doc))"),
             ("Views/Inspector/ArtifactListView.swift", ".draggable(LibraryItemDrag("),
             ("Views/Inspector/AnnotationListView.swift", ".draggable(LibraryItemDrag("),
-            ("Views/Notes/NoteListView.swift", ".draggable(LibraryItemDrag("),
+            ("Views/Library/NoteListView.swift", ".draggable(LibraryItemDrag("),
             ("Views/Library/ViewModes/LibraryView+TableMapViews.swift", ".draggable(libraryItemDrag(for: page))")
         ]
 

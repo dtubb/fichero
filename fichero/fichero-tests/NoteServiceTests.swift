@@ -41,13 +41,13 @@ final class NoteServiceTests: XCTestCase {
         XCTAssertTrue(storeSource.contains("noteService.backlinks(noteId: noteId)"))
         XCTAssertTrue(storeSource.contains("noteService.forwardLinks(noteId: noteId)"))
 
-        let detailSource = try Self.appSource("Views/Notes/NoteDetailView.swift")
+        let detailSource = try Self.appSource("Views/Inspector/Notes/NoteDetailView.swift")
         XCTAssertTrue(detailSource.contains("linksSection(item)"))
         XCTAssertTrue(detailSource.contains("Backlinks"))
         XCTAssertTrue(detailSource.contains("Forward links"))
 
         // The inspector pane must feed the loader (otherwise the section is dead).
-        let paneSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
+        let paneSource = try Self.appSource("Views/Inspector/Notes/NotesInspectorPane.swift")
         XCTAssertTrue(paneSource.contains("@Environment(NoteStore.self) private var noteStore"))
         XCTAssertTrue(paneSource.contains("InspectorListDetailSplit {"))
         XCTAssertFalse(paneSource.contains("LibraryManager.shared"))
@@ -77,7 +77,7 @@ final class NoteServiceTests: XCTestCase {
     }
 
     func testNotesInspectorUsesLowerDetailSplit() throws {
-        let source = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
+        let source = try Self.appSource("Views/Inspector/Notes/NotesInspectorPane.swift")
 
         XCTAssertTrue(source.contains("InspectorListDetailSplit {"))
         XCTAssertFalse(source.contains("PlatformHSplitView {"))
@@ -85,7 +85,7 @@ final class NoteServiceTests: XCTestCase {
 
     func testNotesBrowserShowsScopeLabelsForScopedNotes() throws {
         // scopeLabel is a computed property on FocusedNote; NotesBrowserView consumes it.
-        let viewSource = try Self.appSource("Views/Notes/NotesBrowserView.swift")
+        let viewSource = try Self.appSource("Views/Library/NotesBrowserView.swift")
         XCTAssertTrue(viewSource.contains("item.scopeLabel"))
         let noteSource = try Self.appSource("Views/Inspector/FocusedNote.swift")
         XCTAssertTrue(noteSource.contains("if note.folderId?.isEmpty == false { return \"Folder\" }"))

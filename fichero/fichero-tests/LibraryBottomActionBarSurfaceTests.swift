@@ -38,7 +38,7 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
     }
 
     func testWorkflowPickerUsesActiveLibraryWorkflows() throws {
-        let pickerSource = try Self.appSource("Views/Sheets/WorkflowPickerSheet.swift")
+        let pickerSource = try Self.appSource("Views/Workflow/WorkflowPickerSheet.swift")
 
         XCTAssertTrue(pickerSource.contains("@Environment(LibraryManager.self) private var libraryManager"))
         XCTAssertTrue(pickerSource.contains("@Environment(WindowState.self) private var windowState"))

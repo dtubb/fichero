@@ -49,7 +49,7 @@ final class AnnotationServiceTests: XCTestCase {
         let artifactsSource = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
         let citationsSource = try Self.appSource("Views/Inspector/CitationsInspectorPane.swift")
         let annotationsSource = try Self.appSource("Views/Inspector/AnnotationsInspectorPane.swift")
-        let notesSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
+        let notesSource = try Self.appSource("Views/Inspector/Notes/NotesInspectorPane.swift")
 
         XCTAssertTrue(artifactsSource.contains("InspectorListDetailSplit {"))
         XCTAssertTrue(citationsSource.contains("InspectorListDetailSplit {"))
@@ -66,7 +66,7 @@ final class AnnotationServiceTests: XCTestCase {
             "Views/Inspector/ArtifactDetailView.swift",
             "Views/Inspector/CitationDetailView.swift",
             "Views/Inspector/AnnotationDetailView.swift",
-            "Views/Notes/NoteDetailView.swift"
+            "Views/Inspector/Notes/NoteDetailView.swift"
         ]
 
         for path in detailPaths {

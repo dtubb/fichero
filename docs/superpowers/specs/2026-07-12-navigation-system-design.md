@@ -64,7 +64,7 @@ pattern repeated independently in six places:
 | `fichero/fichero/Views/Inspector/CitationsInspectorPane.swift:123` | Citations inspector tab |
 | `fichero/fichero/Views/Inspector/AnnotationsInspectorPane.swift:204` | Annotations inspector tab |
 | `fichero/fichero/Views/Inspector/ArtifactsInspectorPane.swift:326` | Artifacts inspector tab |
-| `fichero/fichero/Views/Notes/NotesInspectorPane.swift:146` | Notes inspector pane |
+| `fichero/fichero/Views/Inspector/Notes/NotesInspectorPane.swift:146` | Notes inspector pane |
 
 Every instance follows the identical shape: `@State private var isPinned = false`
 plus a locally-cached "pinned snapshot" (`pinnedDocument`, `pinnedDocumentId`,
