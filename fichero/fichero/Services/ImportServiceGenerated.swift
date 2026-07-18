@@ -167,6 +167,13 @@ class ImportServiceGenerated {
                     path: url.path,
                     parentId: parentId,
                     copyMode: mode == .copy,
+                    // Send the explicit ingest mode so .move is honoured instead of
+                    // silently resolving to link (#3270 — data-loss: original never
+                    // moved, library links to a file the user then deletes). Mapped
+                    // by CASE to the generated lowercase enum, NOT `rawValue` (which
+                    // is uppercase "MOVE" and would 422 the backend's
+                    // Literal["link","copy","move"], the #3288 trap).
+                    mode: mode == .copy ? .copy : (mode == .move ? .move : .link),
                     extractText: extractText,
                     autoEmbed: autoEmbed
                 ))
@@ -214,6 +221,10 @@ class ImportServiceGenerated {
                         path: url.path,
                         parentId: parentId,
                         copyMode: mode == .copy,
+                        // Explicit ingest mode so .move isn't downgraded to link
+                        // (#3270); case-mapped to the generated enum, not rawValue
+                        // (#3288 casing trap).
+                        mode: mode == .copy ? .copy : (mode == .move ? .move : .link),
                         recursive: recursive,
                         extractText: extractText,
                         autoEmbed: autoEmbed
