@@ -15,7 +15,10 @@ from fichero.workflows.default_workflows import (
     seed_default_workflows,
 )
 from fichero.workflows.types import WorkflowDef
-from fichero.workflows.validation import validate_workflow_preflight
+from fichero.workflows.validation import (
+    validate_workflow_connections,
+    validate_workflow_preflight,
+)
 
 
 class TestLoadPresetFiles:
@@ -400,6 +403,90 @@ class TestLoadPresetFiles:
             )
             assert search_to_review["source_port"] == "documents"
             assert search_to_review["target_port"] == "metadata"
+
+    def test_search_tool_declares_query_input_port(self):
+        """The `search` tool must expose a `query` INPUT port, not just a
+        `query` config field.
+
+        The shipped transcription presets feed a draft transcription into the
+        reference-search node via a `text -> query` edge, and the tool's run
+        function reads `inputs.get("query")`. When the ToolDef declared
+        `input_ports=[]`, execution-time graph validation rejected that edge
+        with "unknown target port 'query' on node 'reference-search'" and the
+        workflow 400'd. Guard the port declaration so the edge stays valid.
+        """
+        from fichero.workflows.registry import TOOL_DEFS
+
+        search_def = TOOL_DEFS["search"]
+        query_ports = [p for p in search_def.input_ports if p.id == "query"]
+        assert query_ports, (
+            "search tool must declare a 'query' input port — the transcription "
+            "presets feed the draft transcription into it via a text->query edge"
+        )
+        assert query_ports[0].data_type.value == "text"
+
+    def test_paleography_ensemble_passes_execution_gate(self):
+        """The ensemble preset must pass the exact validation the /execute
+        endpoint runs, so it never ships broken again (#3905 follow-up).
+
+        Two regressions shipped past the smoke harness (which stubs every tool
+        and `resolve_model_alias`, bypassing both validators):
+          1. the reference-search `text -> query` edge hit an undeclared port;
+          2. the T5 translate node used the vision-tier `$vision_medium` alias.
+        This mirrors `_validate_workflow_for_execution`: load via
+        `to_workflow_def` and run both validators, asserting zero errors.
+        """
+        from fichero.models import Workflow
+        from fichero.workflows.runtime import to_workflow_def
+
+        preset = {
+            p["name"]: p for p in _load_preset_files()
+        }["Transcribe Paleography (Ensemble + Deep Review)"]
+        workflow_def = to_workflow_def(
+            Workflow(
+                id="ensemble-gate-regression",
+                name=preset["name"],
+                description=preset.get("description", ""),
+                nodes=preset["nodes"],
+                edges=preset["edges"],
+                config=preset.get("config", {}),
+                folder_path=preset.get("folder_path", "/"),
+            )
+        )
+
+        connection_errors = validate_workflow_connections(workflow_def)
+        preflight_errors = validate_workflow_preflight(workflow_def)
+
+        # Focused checks on the exact two failure modes that shipped. The
+        # capability-mismatch check fires before any app_db lookup, so the
+        # vision-tier assertion is independent of whether AI Defaults are
+        # configured in the test environment (full-resolution preflight with
+        # configured defaults is exercised in test_vision_alias_preflight.py).
+        assert not any(
+            "unknown target port 'query'" in err for err in connection_errors
+        ), f"reference-search query edge regressed: {connection_errors}"
+        assert not any(
+            "vision-tier model alias" in err for err in preflight_errors
+        ), f"a text node regressed onto a vision-tier alias: {preflight_errors}"
+
+        # The connection graph must be fully clean (environment-independent).
+        assert connection_errors == []
+
+    def test_paleography_ensemble_translate_uses_text_tier_alias(self):
+        """The ensemble's T5 translate node is a text (llm) tool, so it must use
+        a text-tier alias ($small/$medium/$large), never a $vision_* alias."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        ensemble = presets["Transcribe Paleography (Ensemble + Deep Review)"]
+        translate_node = next(
+            n for n in ensemble["nodes"] if n["tool"] == "translate"
+        )
+        alias = translate_node["config"].get("provider_name")
+        assert alias in {"$small", "$medium", "$large"}, (
+            f"translate node must use a text-tier alias, got {alias!r}"
+        )
+        assert not alias.startswith("$vision_"), (
+            "translate is a text node; a $vision_* alias fails preflight"
+        )
 
     def test_spanish_script_subworkflow_ships_in_transcribe_folder(self):
         """After rationalization (#2251), the sole user-facing Spanish Script preset
