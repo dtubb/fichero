@@ -1,5 +1,3 @@
-(AI generated. Not reviewed.)
-
 # Fichero Documentation
 
 Two guides, for two readers. This page is the landing for anyone browsing
@@ -13,6 +11,12 @@ Two guides, for two readers. This page is the landing for anyone browsing
 
 Operational rules for agents live in [`AGENTS.md`](../AGENTS.md); the product north
 star in [`CONSTITUTION.md`](../CONSTITUTION.md).
+
+The repository-level `README.md`, `fichero/README.md`, and
+`fichero-engine/README.md` describe the application, SwiftUI client, and Python
+engine. This directory contains the published user and contributor guides; the
+`scripts/` directory contains the development, verification, release, and
+worktree helpers described by those guides.
 
 > Every `.md` under this folder is published as a public page — `nav` in
 > `mkdocs.yml` controls navigation, not publication. Anything that must not be
