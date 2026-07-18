@@ -30,7 +30,7 @@ All paths engine-side are under `fichero-engine/src/fichero/` unless noted. Veri
 
 ### 1.3 Read path (what the Knowledge view actually calls)
 
-- The Swift Knowledge pane is a **WebView onto engine-rendered HTML**: `fichero/fichero/Views/Library/DocumentKGWebPane.swift:20-53` builds `\(baseURL)/view/document/{doc_id}` (or `/view/kg/global` for the global graph) and loads it in a `WKWebView` (`DocumentKGWebPane.swift:618-638`).
+- The Swift Knowledge pane is a **WebView onto engine-rendered HTML**: `fichero/fichero/Views/Reader/DocumentKGWebPane.swift:20-53` builds `\(baseURL)/view/document/{doc_id}` (or `/view/kg/global` for the global graph) and loads it in a `WKWebView` (`DocumentKGWebPane.swift:618-638`).
 - Engine route: `api/routes/views.py:136` (`document_view`) — loads the document, collects claims for the document subtree (`views.py:150-151`), scopes entities (`views.py:122-133`), and renders the Jinja template `api/templates/document_view.html` with `entities_json` + `claims_json` (`views.py:204-214`). `views.py:217` (`global_kg_view`) is the unscoped variant (250-row cap, `views.py:23`).
 - Template rendering — `api/templates/document_view.html`:
   - `claimSummary()` at `document_view.html:597-602` composes each row as `subject_canonical + predicate_verb + object_phrase` — **the subject is restated on every clause at render time even when stored cleanly split.** Stage 3 ("label once per node") is therefore mostly a one-line display change in this function when rendering inside an entity group.

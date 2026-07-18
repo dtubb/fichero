@@ -58,7 +58,7 @@ Not a green field. Each piece extends existing mechanisms.
   sizes are hardcoded px** (`14px` body, `line-height: 1.6`, plus `11–14px`
   chrome); `--font-system` is a hardcoded `-apple-system, …` stack.
 - **Swift theming**: `DocumentKGPaneRoute.systemThemeCSS()` /
-  `themeInjectionScript()` in `Views/Library/DocumentKGWebPane.swift` inject a
+  `themeInjectionScript()` in `Views/Reader/DocumentKGWebPane.swift` inject a
   `<style id="fichero-system-theme">` that overrides the color vars from
   **`NSColor` semantic colors** (`.textBackgroundColor`, `.textColor`,
   `.controlAccentColor`, `.selectedTextBackgroundColor`…), re-run on

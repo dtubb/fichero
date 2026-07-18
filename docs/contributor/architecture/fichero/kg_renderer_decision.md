@@ -24,6 +24,6 @@ Use `Cytoscape.js` hosted in the existing WebKit pane as the canonical KG graph 
 ## Implementation Source Of Truth
 
 - Swift enum: `KGGraphRendererFramework.selected == .cytoscapeWebKit`
-- File: `fichero/fichero/Views/Library/DocumentKGSurface.swift`
+- File: `fichero/fichero/Views/Reader/DocumentKGSurface.swift`
 
 All subsequent KG graph UI work should target this renderer unless superseded by a new architecture decision.

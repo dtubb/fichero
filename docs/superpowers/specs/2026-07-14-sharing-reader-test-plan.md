@@ -41,7 +41,7 @@ Tests that assert "the code says what the code says" (mocking both sides of the 
 | The Backend settings pane's existence hangs on a feature flag that **defaults to `false`** and is flipped only by `resetToV001()` | `fichero/fichero/Models/FeatureManager.swift:84-85,209,334` |
 | Reader fix (#3765) landed: the Page tab now renders the real multi-page WebKit transcript | `fichero/fichero/Views/Reader/ReadingPaneView.swift:372-387` (`surfaceView(tab: .transcript)`) |
 | Transcript HTML is built **client-side by JS in the engine's template** — `<div class="transcript">` wrapping `<article class="transcript-page" data-page=…>` | `fichero-engine/src/fichero/api/templates/document_view.html:649-663` (`renderTranscript`) |
-| Swift injects JS that queries the selector `.transcript [data-page]` for scroll↔page sync | `fichero/fichero/Views/Library/DocumentKGWebPane.swift:339,412-416` |
+| Swift injects JS that queries the selector `.transcript [data-page]` for scroll↔page sync | `fichero/fichero/Views/Reader/DocumentKGWebPane.swift:339,412-416` |
 | Multi-page concatenation lives in the engine | `fichero-engine/src/fichero/api/routes/views.py:37-49` (`_transcript_for_document`) |
 
 ### 1.2 Run infrastructure facts that constrain this plan
