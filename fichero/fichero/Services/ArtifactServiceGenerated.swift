@@ -334,9 +334,14 @@ private let kgCurationServiceLogger = Logger(
 // swiftlint:disable:next type_body_length
 final class EntityServiceGenerated {
     private let client: FicheroClient
+    private let session: URLSession
 
-    init(ficheroClient: FicheroClient) {
+    init(
+        ficheroClient: FicheroClient,
+        session: URLSession = RemoteCertificatePinning.configuredSession()
+    ) {
         self.client = ficheroClient
+        self.session = session
     }
 
     enum ServiceError: Error, LocalizedError {
@@ -1337,7 +1342,6 @@ final class EntityServiceGenerated {
         }
         var request = URLRequest(url: url)
         request.addEngineAuth(libraryPath: client.currentLibraryPath)
-        let session = RemoteCertificatePinning.configuredSession()
         let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             throw ServiceError.unexpectedResponse(http.statusCode)
@@ -1630,7 +1634,6 @@ final class EntityServiceGenerated {
             request.addValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: jsonBody)
         }
-        let session = RemoteCertificatePinning.configuredSession()
         let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse,
            !(200...299).contains(http.statusCode) {
