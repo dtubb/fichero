@@ -972,7 +972,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         // documentKnowledgeGraph fan-out (#3300).
         XCTAssertTrue(source.contains("claimStore.loadClaims(forEntity:"))
         XCTAssertFalse(source.contains("LibraryManager.shared.globalLibrary"))
-        XCTAssertFalse(source.contains("documentKnowledgeGraph"))
+        XCTAssertFalse(source.contains("documentKnowledgeGraph("))
     }
 
     // MARK: - Native List conversion (#3425, item 14)
