@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import networkx as nx
 import pytest
@@ -65,3 +66,21 @@ def test_shortest_path_reports_edge_length(monkeypatch):
         "path": ["a", "middle", "b"],
         "length": 2,
     }
+
+
+def test_metrics_counts_rows_and_claim_entity_links():
+    class DB:
+        def query(self, model):
+            name = model.__name__
+            if name == "KnowledgeEntity":
+                return [SimpleNamespace(id="entity-1")]
+            if name == "KnowledgeClaim":
+                return [SimpleNamespace(entity_ids=["entity-1", "entity-2"])]
+            return []
+
+    response = asyncio.run(routes.metrics(db=DB()))
+
+    assert response.entity_count == 1
+    assert response.claim_count == 1
+    assert response.avg_claims_per_entity == 2.0
+    assert response.avg_entities_per_claim == 2.0
