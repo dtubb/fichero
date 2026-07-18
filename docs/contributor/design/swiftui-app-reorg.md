@@ -1,4 +1,6 @@
-(AI generated. Not reviewed.)
+<!-- Problems 2 & 3 re-verified against current main (2026-07-18): mind-palace→canvas rename and the Space (3D) restoration (#3750). Earlier sections not re-audited. -->
+<!-- Original note: AI generated. -->
+
 
 # SwiftUI App Structure & Naming — Reorg Plan
 
@@ -92,25 +94,36 @@ mismatches:
 
 | Concept | Front-end name | Back-end / wire name | Verdict |
 |---|---|---|---|
-| Spatial/2D canvas | `SpatialView`, `Canvas*Store`, `Views/Spatial/` | `/api/mind-palace/...` (`...ApiMindPalaceFolders...` generated methods) | **Drift.** UI moved off "Mind Palace"; endpoints frozen on it. Backend-lane rename (#2565); FE can't fix the path. |
+| Spatial/2D canvas | `SpatialView`, `Canvas*Store`, `Views/Spatial/` | `/api/canvas/folders/{id}/canvas-layout`, `/canvas-items`, `/arrange` (`api/routes/canvas.py`, mounted at `/api/canvas` in `main.py`) | **Resolved.** The backend rename off "mind-palace" happened (#2565). Only internal `mind_palace_room_id` / legacy-room backfill names remain in `db.py`. |
 | Research workspace | `.research`, `ResearchStore`, `ResearchService` | `/api/research` via `research_agents.py` (**no agent logic**) | Misleading backend name; see #2571 audit. |
 | Agent | *(no surface yet)* | `/api/agent-memory` | Target surface (EPIC #2067), not built. |
 
-**Front-end action for the Mind Palace drift:** none structural until the backend
-renames the path — but the *client-facing* Swift names are already correct
-(`Spatial`, `Canvas`). The only FE cleanup is a comment in `CanvasLayoutStore`/
-`CanvasItemStore` noting the endpoint path is the legacy "mind-palace" mount so
-the next reader doesn't think Spatial is unwired. Filed as a follow-up, not done
-here (touches Models, out of this milestone's 1 open issue).
+**Mind Palace drift — resolved:** the backend endpoints were renamed to
+`/api/canvas/...` (`api/routes/canvas.py`), so the wire path now matches the
+front-end `Canvas` vocabulary. Only internal DB names (`mind_palace_room_id`,
+legacy-room backfill in `db.py`) still carry the old term; those are storage
+details, not the client contract.
 
-## Problem 3 — Mind Palace (retired 3D rooms) removal — DONE
+## Problem 3 — Mind Palace (retired 3D rooms) removal — SUPERSEDED by #3750
+
+> **Current state (verified 2026-07-18):** the 3D removal described in this
+> section was **reversed**. Per Daniel's #3750 decision ("canvas = 2D, space =
+> 3D, both LIVE"), a RealityKit 3D renderer was restored (#3088/#3104) and
+> **Space is a live view mode again**: enum case `.space`, "as Space" with ⌘5
+> (`ViewMenuCommands.swift`), routed to `Views/Space/SpaceSceneView.swift` from
+> `LibraryView` (`case .space:`). So, contrary to the text below:
+> - **RealityKit IS imported** — `Views/Space/{SpaceSceneView,CanvasScene3DRenderer,CanvasSpaceView}.swift`, `Views/Canvas/{CanvasSceneView,CanvasOrtho2DRenderer}.swift`, `Models/SpaceTheme.swift`.
+> - The persisted `"RealityKit"` value now decodes to the **live** `.space` case (not migrated to canvas) — `App/ViewDisplayMode.swift:39`.
+> - The 2D view mode enum is `.canvas` (renamed from `.map`); `.space` is the 3D peer.
+> - Naming still spans three folders (`Views/Canvas`, `Views/Space`, `Views/Spatial`); consolidating them is the open work in #3750.
+>
+> The historical account of what the removal pass did is kept below for context.
 
 **Mind Palace** — the 3D-RealityKit "rooms" feature (AI-arranged pages/notes in a
-RealityKit volume) — is **retired**. It is **superseded by the live spatial
-library view** (the 2D `Spatial2DCanvas`, view mode "Canvas" / `.map`), which
-**stays**. The two were easy to conflate because they share the `SpatialNode`
-data model and the `.spatial`/room vocabulary — the distinguishing line is the
-**renderer**:
+RealityKit volume) — was **retired in this pass**. At the time it was superseded
+by the 2D spatial library view (`Spatial2DCanvas`, then view mode "Canvas"). The
+two were easy to conflate because they share the `SpatialNode` data model and the
+`.spatial`/room vocabulary — the distinguishing line is the **renderer**:
 
 | Kept (live spatial view) | Removed (Mind Palace 3D) |
 |---|---|
@@ -129,12 +142,13 @@ What the removal did (this pass):
   "RealityKit" values still decode and **migrate to `.map`** via
   `normalizedViewDisplayMode()` — no orphaned windows, every exhaustive `switch`
   keeps compiling. The RealityKit renderer is gone; the alias is one line.
-- **No RealityKit import remains** in the app after this pass.
+- No RealityKit import remained **immediately after this pass** — but RealityKit
+  was later re-added when Space (3D) was restored (#3088/#3104/#3750); see the
+  Current-state note at the top of this section.
 
-Tension flagged: EPIC **#2667** (UI Reform — Representations, other milestone)
-was written to *keep* "Space (3D)" as a peer to "Canvas (2D)". This removal
-overrides that per direct instruction (3D rooms retired). #2667 should be
-re-scoped to Canvas-only.
+Tension flagged (now resolved): EPIC **#2667** wanted "Space (3D)" kept as a peer
+to "Canvas (2D)". This pass removed it, but #3750 reinstated that goal — Canvas
+(2D) and Space (3D) are **both live** view modes now, so #2667's intent stands.
 
 ### Issue / milestone cleanup
 
