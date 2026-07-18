@@ -892,6 +892,15 @@ class TestQuery:
         assert {doc.id for doc in docs} == {first.id, second.id}
         assert len(docs) == 2
 
+    def test_query_in_empty_values_returns_without_querying_rows(self, temp_db):
+        temp_db.save(Document(name="first.txt", path="/first.txt"))
+
+        assert temp_db.query_in(Document, "id", []) == []
+
+    def test_query_in_rejects_untrusted_column_name(self, temp_db):
+        with pytest.raises(ValueError, match="Invalid column name"):
+            temp_db.query_in(Document, "id; DROP TABLE documents", ["doc-1"])
+
 
 class TestJsonFieldParsing:
     """Test JSON/default coercion for DB rows loaded into Pydantic models."""
