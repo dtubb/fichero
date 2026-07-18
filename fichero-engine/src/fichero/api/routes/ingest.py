@@ -16,6 +16,8 @@ from pydantic import BaseModel
 
 from fichero.api.library_header import require_library_path
 from fichero.api.main import _is_allowed_local_path, db_manager, get_library_database_for_write
+from fichero.api.auth import actor_from_request
+from fichero.actions.registry import ActionContext, registry
 from fichero import authz
 from fichero.db import Database
 from fichero.models import Document
@@ -42,6 +44,14 @@ def _require_ingest_owner(request: Request, library_path: str) -> None:
         authz.require_owner(getattr(request.state, "user", None), library_path)
     except authz.AuthorizationError as exc:
         raise HTTPException(status_code=403, detail="Owner access required for server-path ingest") from exc
+
+
+def _ingest_action_context(request: Request, library_path: str) -> ActionContext:
+    return ActionContext(
+        actor=actor_from_request(request),
+        library_path=library_path,
+        is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),
+    )
 
 
 def _prune_tasks(now: float | None = None) -> None:
@@ -224,9 +234,14 @@ async def ingest_file(
     Returns the created Document immediately.
     """
     _require_ingest_owner(http_request, x_fichero_library_path)
-    return await asyncio.to_thread(
-        import_file_impl, db, request, Path(x_fichero_library_path)
+    result = await asyncio.to_thread(
+        registry.invoke,
+        db,
+        "import.file",
+        request.model_dump(mode="json"),
+        _ingest_action_context(http_request, x_fichero_library_path),
     )
+    return Document.model_validate(result.result)
 
 
 @router.post("/folder")
@@ -258,7 +273,6 @@ async def ingest_folder(
     # Create task
     task_id = uuid4().hex[:12]
     total = count_files(path, recursive=request.recursive)
-    package_path = Path(x_fichero_library_path)
 
     _tasks[task_id] = {
         "status": "pending",
@@ -287,14 +301,18 @@ async def ingest_folder(
             _tasks[task_id]["status"] = "running"
             # Route through the shared impl so the background task and the
             # audited ``import.folder`` action ingest via the SAME code path.
-            docs = import_folder_impl(
-                bg_db, request, package_path, on_progress=on_progress
+            result = registry.invoke(
+                bg_db,
+                "import.folder",
+                request.model_dump(mode="json"),
+                _ingest_action_context(http_request, x_fichero_library_path),
             )
+            doc_ids = result.result["document_ids"]
             _tasks[task_id]["status"] = "completed"
             _tasks[task_id]["finished_at"] = time.monotonic()
             _tasks[task_id]["progress"] = 1.0
-            _tasks[task_id]["document_ids"] = [d.id for d in docs]
-            logger.info(f"Folder ingest complete: {path} ({len(docs)} files)")
+            _tasks[task_id]["document_ids"] = doc_ids
+            logger.info(f"Folder ingest complete: {path} ({len(doc_ids)} files)")
         except Exception as e:
             _tasks[task_id]["status"] = "failed"
             _tasks[task_id]["finished_at"] = time.monotonic()
@@ -421,7 +439,13 @@ async def ingest_xlsx(
     field) is used as the document name.
     """
     _require_ingest_owner(http_request, x_fichero_library_path)
-    return import_xlsx_impl(db, request)
+    result = registry.invoke(
+        db,
+        "import.xlsx",
+        request.model_dump(mode="json"),
+        _ingest_action_context(http_request, x_fichero_library_path),
+    )
+    return XlsxIngestResponse.model_validate(result.result)
 
 
 @router.get("/status/{task_id}")
@@ -468,7 +492,7 @@ async def get_ingest_status(
 #     parent has no root to cascade-delete, so these are ``undoable=False`` —
 #     the audit still records the created ids for forensics / manual cleanup.
 
-from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+from fichero.actions.registry import ChangeSpec, action  # noqa: E402
 
 
 def _invert_import_to_delete(
