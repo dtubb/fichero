@@ -1,4 +1,4 @@
-(AI generated. Not reviewed.)
+<!-- API usage verified against importers/ingest.py (2026-07-18); much of this file is general guidance. -->
 
 # Ingest Best Practices
 
@@ -21,6 +21,10 @@ Guidelines and recommendations for effective use of the Fichero ingest module.
 - Working with removable media
 - Files may be deleted from original locations
 - You want consistent performance
+
+**Use MOVE mode when:**
+- You want the library to take ownership of the file and remove the original
+- Clearing the source location after import is intended (the original is deleted)
 
 ### Performance Optimization
 

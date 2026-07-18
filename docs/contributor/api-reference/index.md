@@ -19,7 +19,8 @@ The interactive reference below is rendered from the committed schema
 That committed schema is the real backend surface used to generate the Swift
 client and document the engine routes. In the current contract it includes route
 families for documents, search, workflows, workflow execution, annotations,
-providers, knowledge-graph endpoints, mind-palace endpoints, and more.
+providers, knowledge-graph endpoints, canvas endpoints (the former
+mind-palace routes, renamed to `/api/canvas`), and more.
 
 ## W3C annotation export
 

@@ -38,7 +38,7 @@ material and a set of tools for working with it.
 
     ---
 
-    Import files or folders — 37 file extensions across images, documents,
+    Import files or folders — 56 file extensions across images, documents,
     ebooks, audio, and video. Link them in place or copy them in. Read the
     source, the extracted text, and everything derived from it side by side.
 

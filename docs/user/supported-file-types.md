@@ -1,75 +1,66 @@
-(AI generated. Not reviewed.)
+<!-- Verified against importers/ingest.py (_FILE_TYPE_MAP, _TEXT_EXTRACTABLE) and models.py (FileType), 2026-07-18. -->
 
 # Supported File Types
 
-The Fichero ingest module supports 37 different file types across multiple categories. File type detection is based on file extensions.
+The Fichero ingest module maps **56 file extensions** to a `FileType`, based on
+the file extension. The authoritative list is `_FILE_TYPE_MAP` in
+`fichero-engine/src/fichero/importers/ingest.py`; the groups below reflect it.
 
 ## File Type Categories
 
-### Images (17 formats)
+### Images (20)
 
-- `.jpg`, `.jpeg` - JPEG images
-- `.png` - Portable Network Graphics
-- `.gif` - Graphics Interchange Format
-- `.webp` - WebP images
-- `.tiff`, `.tif` - Tagged Image File Format
-- `.bmp` - Bitmap images
-- `.heic`, `.heif` - High Efficiency Image Format
-- `.jxl` - JPEG XL images
-- `.avif` - AV1 Image File Format
-- `.raw` - RAW image format
-- `.cr2`, `.cr3` - Canon RAW formats
-- `.nef` - Nikon Electronic Format
-- `.arw` - Sony Alpha RAW
-- `.dng` - Digital Negative
-- `.orf` - Olympus RAW Format
-- `.rw2` - Panasonic RAW Format
+`.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.tiff`, `.tif`, `.bmp`, `.heic`,
+`.heif`, `.jxl`, `.avif`, `.raw`, `.cr2`, `.cr3`, `.nef`, `.arw`, `.dng`,
+`.orf`, `.rw2`
 
-### Documents (4 formats)
+### PDF (1)
 
-- `.pdf` - Portable Document Format
-- `.txt` - Plain text files
-- `.md` - Markdown files
-- `.rst` - reStructuredText files
-- `.rtf` - Rich Text Format
+`.pdf`
 
-### Word Processing (3 formats)
+### Text & markup (8)
 
-- `.doc` - Microsoft Word 97-2003
-- `.docx` - Microsoft Word (Office Open XML)
-- `.odt` - OpenDocument Text
+`.txt`, `.md`, `.markdown`, `.rst`, `.rtf`, `.htm`, `.html`, `.xml`
 
-### Ebooks (2 formats)
+### Word processing (3)
 
-- `.epub` - Electronic Publication
-- `.mobi` - Mobipocket eBook
+`.doc`, `.docx`, `.odt`
 
-### Audio (7 formats)
+### Spreadsheets (4)
 
-- `.mp3` - MPEG Audio Layer III
-- `.wav` - Waveform Audio File Format
-- `.m4a` - MPEG-4 Audio
-- `.aac` - Advanced Audio Coding
-- `.flac` - Free Lossless Audio Codec
-- `.ogg` - Ogg Vorbis
-- `.wma` - Windows Media Audio
+`.csv`, `.xls`, `.xlsx`, `.ods`
 
-### Video (4 formats)
+### Presentations (3)
 
-- `.mp4` - MPEG-4 Video
-- `.mov` - QuickTime Movie
-- `.avi` - Audio Video Interleave
-- `.mkv` - Matroska Video
-- `.webm` - WebM Video
+`.ppt`, `.pptx`, `.odp`
+
+### Ebooks (2)
+
+`.epub`, `.mobi`
+
+### Audio (7)
+
+`.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.ogg`, `.wma`
+
+### Video (5)
+
+`.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`
+
+### Subtitles / captions (3)
+
+`.srt`, `.vtt`, `.sbv`
 
 ## Text Extractable File Types
 
-The following file types support text extraction for search indexing:
+The following `FileType`s support text extraction for search indexing
+(`_TEXT_EXTRACTABLE`):
 
 - `FileType.pdf` - PDF documents
 - `FileType.word` - Word documents (.doc, .docx, .odt)
-- `FileType.text` - Text files (.txt, .md, .rst, .rtf)
+- `FileType.text` - Text files (.txt, .md, .rst, .rtf, and other text/markup)
 - `FileType.epub` - EPUB ebooks
+- `FileType.spreadsheet` - CSV / XLS / XLSX / ODS
+- `FileType.presentation` - PPT / PPTX / ODP
 
 ## File Type Detection Algorithm
 
@@ -98,7 +89,10 @@ class FileType(str, Enum):
     video = "video"
     text = "text"
     word = "word"
+    docx = "docx"
     epub = "epub"
+    spreadsheet = "spreadsheet"
+    presentation = "presentation"
     other = "other"
 ```
 
@@ -112,11 +106,11 @@ Files with extensions not in the `_FILE_TYPE_MAP` are classified as `FileType.ot
 
 ## File Type Statistics
 
-- **Total supported**: 37 file extensions
-- **Image formats**: 17 (46% of total)
-- **Document formats**: 4 (11% of total)
-- **Text extractable**: 4 file types
-- **Media files**: 11 audio/video formats (30% of total)
+- **Total supported**: 56 file extensions
+- **Image formats**: 20
+- **Text/markup + office (word/spreadsheet/presentation)**: 18
+- **Text-extractable `FileType`s**: 6 (pdf, word, text, epub, spreadsheet, presentation)
+- **Media files**: 12 audio/video + 3 subtitle formats
 
 ## Best Practices for File Types
 

@@ -1,4 +1,4 @@
-(AI generated. Not reviewed.)
+<!-- Verified against scripts/sync_openapi_schema.sh + repo layout (2026-07-18): all paths and the contract flow are accurate. -->
 
 # OpenAPI and Generated Clients
 
