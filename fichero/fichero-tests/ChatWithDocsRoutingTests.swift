@@ -57,10 +57,11 @@ final class ChatWithDocsRoutingTests: XCTestCase {
 
     func testCompactSidebarRowsExposeChatAndMoveToFolderActions() throws {
         let source = try Self.appSource("Views/Sidebar/SidebarItemRow+Presentation.swift")
+        let helpers = try Self.appSource("Views/Sidebar/SidebarItemRow+Helpers.swift")
 
         XCTAssertTrue(source.contains("Label(\"Add to Chat\", systemImage: \"plus.circle\")"))
         XCTAssertTrue(source.contains("Menu(\"Move to Folder\")"))
-        XCTAssertTrue(source.contains("sidebarState.dropErrorMessage = error.localizedDescription"))
+        XCTAssertTrue(helpers.contains("sidebarState.dropErrorMessage = error.localizedDescription"))
         XCTAssertTrue(source.contains("onOpenChatWithCurrentScope()"))
     }
 
