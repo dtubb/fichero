@@ -52,7 +52,7 @@ final class DocumentInspectorTests: XCTestCase {
         let source = try Self.appSource("Views/Library/Inspector/ArtifactsInspectorPane.swift")
         let detailSource = try Self.appSource("Views/Library/Inspector/ArtifactDetailView.swift")
 
-        XCTAssertTrue(source.contains("ClaimSourceNavigationState.shared.request("))
+        XCTAssertTrue(source.contains("claimSourceNavigationState?.request("))
         XCTAssertTrue(source.contains("ClaimSourceNavigationRequest("))
         XCTAssertTrue(detailSource.contains("LabeledContent(\"Source\")"))
     }
@@ -69,7 +69,7 @@ final class DocumentInspectorTests: XCTestCase {
         let listSource = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
 
         XCTAssertTrue(source.contains("InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText)"))
-        XCTAssertTrue(source.contains("translateMenu"))
+        XCTAssertTrue(source.contains("translateMenuItems"))
         XCTAssertFalse(source.contains("ToolbarItem(placement: .automatic) {\n                translateMenu"))
         XCTAssertTrue(listSource.contains("case \"translation\":"))
         XCTAssertTrue(listSource.contains("return \"Translated\""))
@@ -98,7 +98,7 @@ final class DocumentInspectorTests: XCTestCase {
 
         XCTAssertTrue(sharedSource.contains("final class EntitySearchState"))
         XCTAssertTrue(contentSource.contains(".onChange(of: entitySearchState.requestID)"))
-        XCTAssertTrue(entitiesSource.contains("EntitySearchState.shared.request("))
+        XCTAssertTrue(entitiesSource.contains("entitySearchState?.request("))
         XCTAssertFalse(sharedSource.contains("ficheroEntitySearchRequested"))
     }
 
@@ -110,8 +110,8 @@ final class DocumentInspectorTests: XCTestCase {
 
         XCTAssertTrue(sharedSource.contains("final class ClaimSourceNavigationState"))
         XCTAssertTrue(contentSource.contains(".onChange(of: claimSourceNavigationState.requestID)"))
-        XCTAssertTrue(artifactsSource.contains("ClaimSourceNavigationState.shared.request("))
-        XCTAssertTrue(searchSource.contains("ClaimSourceNavigationState.shared.request(request)"))
+        XCTAssertTrue(artifactsSource.contains("claimSourceNavigationState?.request("))
+        XCTAssertTrue(searchSource.contains("claimSourceNavigationState?.request(request)"))
         XCTAssertFalse(contentSource.contains(".ficheroOpenClaimSource"))
         XCTAssertFalse(sharedSource.contains("static let ficheroOpenClaimSource"))
     }
@@ -119,9 +119,9 @@ final class DocumentInspectorTests: XCTestCase {
     func testEntityListNameUsesSearchClickWithDoubleClickRename() throws {
         let entitiesSource = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift")
 
-        XCTAssertTrue(entitiesSource.contains("Button {"))
+        XCTAssertTrue(entitiesSource.contains("Button(\"Find in Library\")"))
         XCTAssertTrue(entitiesSource.contains("postSearch("))
-        XCTAssertTrue(entitiesSource.contains("Search the library for"))
+        XCTAssertTrue(entitiesSource.contains("Find in Library"))
         XCTAssertTrue(entitiesSource.contains(".simultaneousGesture("))
         XCTAssertTrue(entitiesSource.contains("TapGesture(count: 2).onEnded { beginRename(entity) }"))
     }
@@ -341,7 +341,7 @@ final class DocumentInspectorTests: XCTestCase {
     func testSwitcherAndProvenanceUIHooksArePresent() throws {
         let inspector = try Self.appSource("Views/Library/DocumentInspector/DocumentInspector.swift")
         // Top-icon-row switcher exposes per-section + bar XCUITest hooks (#3457).
-        XCTAssertTrue(inspector.contains("accessibilityIdentifier(section.accessibilityIdentifier)"))
+        XCTAssertTrue(inspector.contains("SurfaceTabBar("))
         XCTAssertTrue(inspector.contains("\"inspectorSectionBar\""))
 
         // Provenance quick-look popover is wired on KG claim rows (#3449/#3457).
