@@ -89,7 +89,7 @@ see §2.
 
 ### 0.3 Source-navigation / reveal-in-Preview — the closest thing to a Location model, and it is UI-only
 
-- `fichero/fichero/Views/Inspector/Document/DocumentInspectorArtifactsTab+Shared.swift:85-129` —
+- `fichero/fichero/Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+Shared.swift:85-129` —
   `SourceDestination` (`.preview` / `.reader` / `.both`), `ClaimSourceNavigationRequest`
   (`documentId`, `claimId?`, `claimText?`, `pageLabel?`, `pageIndex?`, `charStart?`,
   `charEnd?`, `bbox: [Double]?` normalized `[x, y, w, h]` top-left, `destination`), and
