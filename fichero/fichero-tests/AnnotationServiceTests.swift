@@ -28,7 +28,7 @@ final class AnnotationServiceTests: XCTestCase {
     func testDocumentInspectorAnnotationsTabWiresRowActions() throws {
         // Row actions migrated from DocumentInspectorAnnotationsTab to AnnotationsInspectorPane
         // as part of the Store-pattern refactor. The tab now delegates via AnnotationStore.
-        let source = try Self.appSource("Views/Inspector/AnnotationsInspectorPane.swift")
+        let source = try Self.appSource("Views/Inspector/Annotations/AnnotationsInspectorPane.swift")
 
         XCTAssertTrue(source.contains("annotationStore.cropAnnotation(id: annotation.id)"))
         XCTAssertTrue(source.contains("annotationStore.delete(id: annotation.id)"))
@@ -46,9 +46,9 @@ final class AnnotationServiceTests: XCTestCase {
     }
 
     func testInspectorListDetailPanesUseExpectedSplitLayout() throws {
-        let artifactsSource = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
-        let citationsSource = try Self.appSource("Views/Inspector/CitationsInspectorPane.swift")
-        let annotationsSource = try Self.appSource("Views/Inspector/AnnotationsInspectorPane.swift")
+        let artifactsSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
+        let citationsSource = try Self.appSource("Views/Inspector/Citations/CitationsInspectorPane.swift")
+        let annotationsSource = try Self.appSource("Views/Inspector/Annotations/AnnotationsInspectorPane.swift")
         let notesSource = try Self.appSource("Views/Inspector/Notes/NotesInspectorPane.swift")
 
         XCTAssertTrue(artifactsSource.contains("InspectorListDetailSplit {"))
@@ -63,9 +63,9 @@ final class AnnotationServiceTests: XCTestCase {
 
     func testInspectorEmptyStatesAreTopAligned() throws {
         let detailPaths = [
-            "Views/Inspector/ArtifactDetailView.swift",
-            "Views/Inspector/CitationDetailView.swift",
-            "Views/Inspector/AnnotationDetailView.swift",
+            "Views/Inspector/Artifacts/ArtifactDetailView.swift",
+            "Views/Inspector/Citations/CitationDetailView.swift",
+            "Views/Inspector/Annotations/AnnotationDetailView.swift",
             "Views/Inspector/Notes/NoteDetailView.swift"
         ]
 
@@ -121,7 +121,7 @@ final class AnnotationServiceTests: XCTestCase {
 
     func testFolderScopedAnnotationsHideRevealDependentActions() throws {
         // Reveal/hide logic lives in AnnotationListView after the store migration.
-        let source = try Self.appSource("Views/Inspector/AnnotationListView.swift")
+        let source = try Self.appSource("Views/Inspector/Annotations/AnnotationListView.swift")
         XCTAssertTrue(source.contains("annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan)"))
         XCTAssertFalse(source.contains("URLRequest("))
         XCTAssertFalse(source.contains("URLSession"))

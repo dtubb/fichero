@@ -57,7 +57,7 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/Chat/ComparisonDetailView+Actions.swift",
         "fichero/fichero/Views/Shell/ContentView/ContentView+Actions.swift",
         "fichero/fichero/Views/Shell/ContentView/ContentView.swift",
-        "fichero/fichero/Views/Inspector/EntityDigestView.swift",
+        "fichero/fichero/Views/Inspector/Artifacts/EntityDigestView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/KGMapView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/KGTimelineView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/ClaimReviewQueueSheet.swift",

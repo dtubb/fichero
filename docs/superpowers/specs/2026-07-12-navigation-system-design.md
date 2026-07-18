@@ -61,9 +61,9 @@ pattern repeated independently in six places:
 | `fichero/fichero/Views/Shell/ContentView/ContentView+ViewBuilders.swift:38` (`ReadingPaneView`) | Reader pane: pins `Document` + page number + page count |
 | `fichero/fichero/Views/Reader/PDFPageWithToolbar.swift:56` | Preview/PDF pane: pins `documentId` + `localPageIndex` |
 | `fichero/fichero/Views/Inspector/FocusedDocument.swift:41` (`DocumentDetailWindow`) | Detached document-detail scene |
-| `fichero/fichero/Views/Inspector/CitationsInspectorPane.swift:123` | Citations inspector tab |
-| `fichero/fichero/Views/Inspector/AnnotationsInspectorPane.swift:204` | Annotations inspector tab |
-| `fichero/fichero/Views/Inspector/ArtifactsInspectorPane.swift:326` | Artifacts inspector tab |
+| `fichero/fichero/Views/Inspector/Citations/CitationsInspectorPane.swift:123` | Citations inspector tab |
+| `fichero/fichero/Views/Inspector/Annotations/AnnotationsInspectorPane.swift:204` | Annotations inspector tab |
+| `fichero/fichero/Views/Inspector/Artifacts/ArtifactsInspectorPane.swift:326` | Artifacts inspector tab |
 | `fichero/fichero/Views/Inspector/Notes/NotesInspectorPane.swift:146` | Notes inspector pane |
 
 Every instance follows the identical shape: `@State private var isPinned = false`

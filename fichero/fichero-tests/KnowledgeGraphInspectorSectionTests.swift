@@ -108,9 +108,9 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "Views/Inspector/Document/DocumentInspectorArtifactsTab+EntitiesTab.swift"
         )
         let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
-        let artifactSource = try Self.appSource("Views/Inspector/ArtifactListView.swift")
-        let citationSource = try Self.appSource("Views/Inspector/CitationListView.swift")
-        let annotationSource = try Self.appSource("Views/Inspector/AnnotationListView.swift")
+        let artifactSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactListView.swift")
+        let citationSource = try Self.appSource("Views/Inspector/Citations/CitationListView.swift")
+        let annotationSource = try Self.appSource("Views/Inspector/Annotations/AnnotationListView.swift")
 
         XCTAssertTrue(inspectorSource.contains("func inspectorListRowTarget()"))
         XCTAssertTrue(entitiesSource.contains(".inspectorListRowTarget()"))

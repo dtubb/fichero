@@ -41,7 +41,7 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testArtifactsPaneReloadsOnWorkflowSignals() throws {
-        let source = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
+        let source = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
 
         XCTAssertTrue(source.contains(".onChange(of: executionObserver.fileCompletedCount)"))
         XCTAssertTrue(source.contains(".onChange(of: executionObserver.workflowCompletedCount)"))
@@ -49,8 +49,8 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testArtifactsPaneRoutesProvenanceClicksThroughSharedSourceNavigation() throws {
-        let source = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
-        let detailSource = try Self.appSource("Views/Inspector/ArtifactDetailView.swift")
+        let source = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
+        let detailSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactDetailView.swift")
 
         XCTAssertTrue(source.contains("claimSourceNavigationState?.request("))
         XCTAssertTrue(source.contains("ClaimSourceNavigationRequest("))
@@ -58,15 +58,15 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testArtifactsPaneUsesOwnOnlyArtifactScope() throws {
-        let source = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
+        let source = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
 
         XCTAssertTrue(source.contains("includeDescendants: false"))
         XCTAssertFalse(source.contains("private var includesDescendantArtifacts"))
     }
 
     func testArtifactsTranslateActionLivesInInspectorMiniToolbar() throws {
-        let source = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
-        let listSource = try Self.appSource("Views/Inspector/ArtifactListView.swift")
+        let source = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
+        let listSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactListView.swift")
 
         XCTAssertTrue(source.contains("InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText)"))
         XCTAssertTrue(source.contains("onTranslate: { translate(to: $0) }"))
@@ -79,9 +79,9 @@ final class DocumentInspectorTests: XCTestCase {
     func testInspectorListPanesUseSharedBottomMiniToolbar() throws {
         let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
         let entitiesSource = try Self.appSource("Views/Inspector/Document/DocumentInspectorArtifactsTab+EntitiesTab.swift")
-        let artifactsSource = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
-        let citationsSource = try Self.appSource("Views/Inspector/CitationsInspectorPane.swift")
-        let annotationsSource = try Self.appSource("Views/Inspector/AnnotationsInspectorPane.swift")
+        let artifactsSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
+        let citationsSource = try Self.appSource("Views/Inspector/Citations/CitationsInspectorPane.swift")
+        let annotationsSource = try Self.appSource("Views/Inspector/Annotations/AnnotationsInspectorPane.swift")
         let notesSource = try Self.appSource("Views/Inspector/Notes/NotesInspectorPane.swift")
 
         XCTAssertTrue(inspectorSource.contains("struct InspectorBottomMiniToolbar"))
@@ -106,7 +106,7 @@ final class DocumentInspectorTests: XCTestCase {
     func testClaimSourceRoutingUsesTypedStateInsteadOfNotificationBus() throws {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         let sharedSource = try Self.appSource("Views/Inspector/Document/DocumentInspectorArtifactsTab+Shared.swift")
-        let artifactsSource = try Self.appSource("Views/Inspector/ArtifactsInspectorPane.swift")
+        let artifactsSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
         let searchSource = try Self.appSource("Views/Library/Search/SearchView+Helpers.swift")
 
         XCTAssertTrue(sharedSource.contains("final class ClaimSourceNavigationState"))
@@ -166,7 +166,7 @@ final class DocumentInspectorTests: XCTestCase {
     func testEntityNotesAndAnnotationsUseLowerDetailPanes() throws {
         let entitiesSource = try Self.appSource("Views/Inspector/Document/DocumentInspectorArtifactsTab+EntitiesTab.swift")
         let notesSource = try Self.appSource("Views/Inspector/Notes/NotesInspectorPane.swift")
-        let annotationsSource = try Self.appSource("Views/Inspector/AnnotationsInspectorPane.swift")
+        let annotationsSource = try Self.appSource("Views/Inspector/Annotations/AnnotationsInspectorPane.swift")
 
         XCTAssertTrue(entitiesSource.contains("InspectorListDetailSplit"))
         XCTAssertTrue(notesSource.contains("InspectorListDetailSplit"))
@@ -177,7 +177,7 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testArtifactInspectorListSupportsDoubleClickOpenInWindow() throws {
-        let source = try Self.appSource("Views/Inspector/ArtifactListView.swift")
+        let source = try Self.appSource("Views/Inspector/Artifacts/ArtifactListView.swift")
 
         XCTAssertTrue(source.contains(".onTapGesture(count: 2)"))
         XCTAssertTrue(source.contains("focused.select(artifact.id, in: store.items)"))
@@ -194,9 +194,9 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testInspectorListsUseFullRowContentShapes() throws {
         let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
-        let artifactList = try Self.appSource("Views/Inspector/ArtifactListView.swift")
-        let annotationList = try Self.appSource("Views/Inspector/AnnotationListView.swift")
-        let citationList = try Self.appSource("Views/Inspector/CitationListView.swift")
+        let artifactList = try Self.appSource("Views/Inspector/Artifacts/ArtifactListView.swift")
+        let annotationList = try Self.appSource("Views/Inspector/Annotations/AnnotationListView.swift")
+        let citationList = try Self.appSource("Views/Inspector/Citations/CitationListView.swift")
         let noteList = try Self.appSource("Views/Library/NoteListView.swift")
         let entitiesSource = try Self.appSource("Views/Inspector/Document/DocumentInspectorArtifactsTab+EntitiesTab.swift")
 

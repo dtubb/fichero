@@ -25,7 +25,7 @@
   "Views/Integrations/IntegrationsView.swift#1dd291304d": "icon-only Button missing .accessibilityLabel(...) (lines 172-178)",
   "Views/Integrations/IntegrationsView.swift#5670d19e0c": "icon-only Button missing .accessibilityLabel(...) (lines 68-75)",
   "Views/Integrations/IntegrationsView.swift#cef2b1379e": "icon-only Button missing .accessibilityLabel(...) (lines 265-273)",
-  "Views/Inspector/EntityDigestView.swift#b7ec9dc9eb": "icon-only Button missing .accessibilityLabel(...) (lines 75-82)",
+  "Views/Inspector/Artifacts/EntityDigestView.swift#b7ec9dc9eb": "icon-only Button missing .accessibilityLabel(...) (lines 75-82)",
   "Views/Library/ViewModes/Graph/Ontology/ClaimSummaryCardView.swift#560e63eb14": "icon-only Button missing .accessibilityLabel(...) (lines 135-146)",
   "Views/Library/ViewModes/Graph/Ontology/EntityDetailView+Claims.swift#4b4862d2a7": "icon-only Button missing .accessibilityLabel(...) (lines 19-28)",
   "Views/Library/ViewModes/Graph/Ontology/EntityDetailView+Notes.swift#4ed85689b1": "icon-only Button missing .accessibilityLabel(...) (lines 121-129)",
