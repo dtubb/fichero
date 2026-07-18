@@ -126,7 +126,7 @@ These make it feel native; they cut across every lens (track per existing EPICs)
 
 1. **IA bands (§3):** right grouping + names (MATERIAL / KNOWLEDGE / WORK / THINK)?
 2. **Inspector default:** open or closed by default per lens? (Library: open; Mind Palace: ?)
-3. **Research/Chat → Agent:** §3 puts Research+Chat in one band; EPIC #2067 says they
+3. **Chat/Research/Chat → Agent:** §3 puts Research+Chat in one band; EPIC #2067 says they
    converge into the Agent. Should the rail show "Agent" as one lens now, or keep
    Research + Chat separate until #2067 lands?
 4. **Tabs:** do you want document tabs *within* the content column (Safari-style) or

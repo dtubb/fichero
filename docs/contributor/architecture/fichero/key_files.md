@@ -52,7 +52,7 @@ via `@SceneStorage`. The reading layout and page navigation live in
 
 ### Other domains
 `Chat/`, `Search/`, `Activity/`, `Settings/AIProviders/`, `Automation/`, `Agents/`, `Integrations/`,
-`Settings/MCPServers/`, `ModelComparison/`, `Settings/`, `Sheets/`, `Menu/`, `Toolbars/`, `Components/`, `Actions/`.
+`Settings/MCPServers/`, `Chat/ModelComparison/`, `Settings/`, `Sheets/`, `Menu/`, `Toolbars/`, `Components/`, `Actions/`.
 
 ## Services (`Services/`, ~49 files)
 

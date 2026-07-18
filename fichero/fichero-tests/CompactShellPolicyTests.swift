@@ -75,7 +75,7 @@ final class CompactShellPolicyTests: XCTestCase {
         #endif
     }
 
-    /// #3010 contract: the inner-sidebar modes (Research/Workflow/Activity) must
+    /// #3010 contract: the inner-sidebar modes (Chat/Research/Workflow/Activity) must
     /// route to `.modeContent` on compact — that route is what drives their
     /// list→detail NavigationStack push. A regression that sent one to
     /// `.libraryReader` (the document reader) would break the inner-mode push.

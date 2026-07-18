@@ -79,8 +79,8 @@ TRANSPORT_PATTERNS: dict[str, re.Pattern] = {
 KNOWN_VIOLATIONS: dict[str, str] = {
     # @StateObject = …Service() constructed inside the view (#1882–#1900)
     "ContentView.swift": "#1884 — @StateObject PerformanceService() in view",
-    "ModelComparison/ModelComparisonView.swift": "#1900 — @StateObject ModelComparisonService()",
-    "ModelComparison/NodeComparisonSheet.swift": "#1900 — @StateObject ModelComparisonService()",
+    "Chat/ModelComparison/ModelComparisonView.swift": "#1900 — @StateObject ModelComparisonService()",
+    "Chat/ModelComparison/NodeComparisonSheet.swift": "#1900 — @StateObject ModelComparisonService()",
     "Library/NodeClassPicker.swift": "#1886 — @StateObject WorkspacePickerService()",
     "Library/WorkspaceItemPicker.swift": "#1886 — @StateObject WorkspacePickerService()",
     "Integrations/IntegrationsView.swift": "#1899 — @StateObject IntegrationsService()",

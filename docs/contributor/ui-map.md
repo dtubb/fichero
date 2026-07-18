@@ -66,12 +66,12 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 |---|---|---|
 | **Knowledge Graph** (OntologyBrowser, graph viz) | `Views/KnowledgeGraph/` | KG & Hermeneutics |
 | **Mind Palace** (spatial 2D/3D) | `Views/MindPalace/` | Mind Palace |
-| **Research** (browser + chat + tasks) | `Views/Research/` | Researcher |
+| **Research** (browser + chat + tasks) | `Views/Chat/Research/` | Researcher |
 | **Chat** | `Views/Chat/` | Chat |
 | **Search** | `Views/Search/` | Search |
 | **Workflow editor** (node graph) | `Views/Workflow/` | Workflows |
 | **Activity** (runs/automation) | `Views/Activity/`, `Views/Automation/` | Activity & Automation |
-| **Model Comparison** | `Views/ModelComparison/` | Chat / Workflows |
+| **Model Comparison** | `Views/Chat/ModelComparison/` | Chat / Workflows |
 
 ---
 

@@ -37,7 +37,7 @@ final class ChatViewBoundaryTests: XCTestCase {
     }
 
     func testResearchChatPaneScopesConversationsToProjectFolder() throws {
-        let source = try Self.appSource("Views/Research/ResearchChatPane.swift")
+        let source = try Self.appSource("Views/Chat/Research/ResearchChatPane.swift")
 
         XCTAssertTrue(source.contains("conversationFolderPath: Self.conversationFolderPath(for: project)"))
         XCTAssertEqual(
