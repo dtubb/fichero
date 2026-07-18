@@ -56,7 +56,7 @@ own job statement ("Reader = READ + EXPLORE one document visually",
 ## 2. Audit: current state of ReadingPaneView
 
 All citations are against `main` at 51f940b1d (2026-07-13) in `~/code/fichero`.
-Primary file: `fichero/fichero/Views/Reader/ReadingPaneView.swift`.
+Primary file: `fichero/fichero/Views/Reader/Page/ReadingPaneView.swift`.
 
 ### 2.1 The mode tree as shipped
 
@@ -245,7 +245,7 @@ Reader**:
   `EditorView` (image editing / `ZoomableImagePreview`,
   `Views/Preview/ImageViewer/ImageViewerComponents.swift:14,495`) otherwise.
 - The standard-layout `previewView` (`ContentView+ViewBuilders.swift:521-549`)
-  does the same via `PDFReadingView` (`Views/Reader/PDFReadingView.swift:25,33`).
+  does the same via `PDFReadingView` (`Views/Preview/PDF/PDFReadingView.swift:25,33`).
 - Quick-look/media preview components: `QuickLookPreviewViews.swift:14-135`,
   `MediaStreamPreview.swift:22`.
 - There is a Preview settings pane (`SettingsView.swift:160`,

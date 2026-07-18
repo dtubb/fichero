@@ -108,9 +108,9 @@ final class AnnotationServiceTests: XCTestCase {
     }
 
     func testReaderSurfacesDoNotForceReloadAfterAddNote() throws {
-        let documentReader = try Self.appSource("Views/Reader/DocumentTextReader.swift")
-        let pageContent = try Self.appSource("Views/Reader/PageContentPane.swift")
-        let pdfToolbar = try Self.appSource("Views/Reader/PDFPageWithToolbar.swift")
+        let documentReader = try Self.appSource("Views/Reader/Page/DocumentTextReader.swift")
+        let pageContent = try Self.appSource("Views/Reader/Page/PageContentPane.swift")
+        let pdfToolbar = try Self.appSource("Views/Preview/PDF/PDFPageWithToolbar.swift")
         let imageViewer = try Self.appSource("Views/Preview/ImageViewer/ImageViewerComponents.swift")
 
         XCTAssertTrue(documentReader.contains("await annotationStore.loadAnnotations(for: .document(document.id), force: true)"))

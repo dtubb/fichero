@@ -56,7 +56,7 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 | — Artifacts tab | DocumentInspectorArtifactsTab | `.../DocumentInspectorArtifactsTab.swift` | area:inspector |
 | — Annotations tab | DocumentInspectorAnnotationsTab | `.../DocumentInspectorAnnotationsTab.swift` | area:inspector |
 | — Notes tab | DocumentNotesTab | `.../DocumentNotesTab.swift` | area:inspector |
-| — KG surface (Timeline/Map) | DocumentKGSurface | `Views/Reader/DocumentKGSurface.swift` | area:inspector |
+| — KG surface (Timeline/Map) | DocumentKGSurface | `Views/Reader/Knowledge/DocumentKGSurface.swift` | area:inspector |
 
 ---
 

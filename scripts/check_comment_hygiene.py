@@ -31,7 +31,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "fichero/fichero/Views/Library/ViewModes/LibraryView+DisplayModes.swift#6db3c7cd5e": "#1916 baseline",
     "fichero/fichero/Views/Preview/ImageViewer/ImageViewerComponents.swift#c7669329ed": "#1916 baseline",
     "fichero/fichero/Views/Library/LibraryView+KeyboardShortcuts.swift#d5e49f726d": "#1916 baseline",
-    "fichero/fichero/Views/Reader/PDFPageView.swift#21f2204213": "#1916 baseline",
+    "fichero/fichero/Views/Preview/PDF/PDFPageView.swift#21f2204213": "#1916 baseline",
     "fichero/fichero/Views/Library/DocumentPickerSheet.swift#727654079f": "#1916 baseline",
 }
 _TODO = re.compile(r"\b(?:TODO|FIXME)\b")

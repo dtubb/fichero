@@ -65,8 +65,8 @@ inside them:
 
 - `Views/Spatial/*` — SpatialView, Spatial2DCanvasItems/Gestures, SpatialNodeThumbnail (0)
 - `Views/Preview/DocumentCanvas.swift` (0)
-- `Views/Reader/PDFPageView.swift`, `PDFLoupeOverlay.swift` (0)
-- `Views/Reader/AnnotatableTextView.swift` (0) — the annotation surface
+- `Views/Preview/PDF/PDFPageView.swift`, `PDFLoupeOverlay.swift` (0)
+- `Views/Reader/Page/AnnotatableTextView.swift` (0) — the annotation surface
 - `Views/Preview/ImageViewer/*` — partial: `ImageViewerComponents` (14) and
   `MagnifierPanel` (8) are labelled; `NavigatorMiniMap`, `TrackingImageView`,
   `CheckerboardPattern`, `ScrollWheelZoom` are not.
@@ -135,7 +135,7 @@ is the load-bearing finding for these two issues.
 - Paragraph-by-paragraph navigation should come from the **HTML structure**: real
   `<p>` elements and heading levels in
   `fichero-engine/src/fichero/api/templates/document_view.html` (and the Swift-built
-  HTML in `Views/Reader/DocumentKGWebPane.swift:62`). VoiceOver's *existing* web
+  HTML in `Views/Reader/Knowledge/DocumentKGWebPane.swift:62`). VoiceOver's *existing* web
   rotor then navigates by paragraph/heading for free. A SwiftUI
   `.accessibilityRotor` cannot see into a WKWebView and is the wrong tool here.
 - The template today has `lang` and labelled SVGs but **no heading structure or

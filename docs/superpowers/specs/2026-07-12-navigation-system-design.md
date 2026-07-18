@@ -59,7 +59,7 @@ pattern repeated independently in six places:
 | File | Pinned unit |
 |---|---|
 | `fichero/fichero/Views/Shell/ContentView/ContentView+ViewBuilders.swift:38` (`ReadingPaneView`) | Reader pane: pins `Document` + page number + page count |
-| `fichero/fichero/Views/Reader/PDFPageWithToolbar.swift:56` | Preview/PDF pane: pins `documentId` + `localPageIndex` |
+| `fichero/fichero/Views/Preview/PDF/PDFPageWithToolbar.swift:56` | Preview/PDF pane: pins `documentId` + `localPageIndex` |
 | `fichero/fichero/Views/Inspector/FocusedDocument.swift:41` (`DocumentDetailWindow`) | Detached document-detail scene |
 | `fichero/fichero/Views/Inspector/Citations/CitationsInspectorPane.swift:123` | Citations inspector tab |
 | `fichero/fichero/Views/Inspector/Annotations/AnnotationsInspectorPane.swift:204` | Annotations inspector tab |

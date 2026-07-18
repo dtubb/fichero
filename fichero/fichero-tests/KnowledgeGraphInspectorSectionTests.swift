@@ -65,7 +65,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testWebPaneEntitySelectionDoesNotOpenSourceDocument() throws {
-        let source = try Self.appSource("Views/Reader/DocumentKGWebPane.swift")
+        let source = try Self.appSource("Views/Reader/Knowledge/DocumentKGWebPane.swift")
         guard let entityCase = source.range(of: "case \"entitySelected\":"),
               let claimCase = source.range(of: "case \"claimSelected\":", range: entityCase.upperBound..<source.endIndex)
         else {

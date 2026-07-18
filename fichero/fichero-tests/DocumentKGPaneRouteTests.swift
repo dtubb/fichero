@@ -155,7 +155,7 @@ final class DocumentKGPaneRouteTests: XCTestCase {
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .appendingPathComponent("fichero")
-                .appendingPathComponent("Views/Reader/DocumentKGWebPane.swift"),
+                .appendingPathComponent("Views/Reader/Knowledge/DocumentKGWebPane.swift"),
             encoding: .utf8
         )
 
