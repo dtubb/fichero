@@ -6,7 +6,7 @@
 
 ## What It Is
 
-The action registry is the **intended** single audited write path for mutations in Fichero: a route handler resolves an `ActionContext` and calls `registry.invoke(name, params, ctx)` instead of writing to DuckDB directly. Most domains route through it, but the migration is not complete — some routes still call their `*_impl` functions directly and therefore skip the audit/change-event path (e.g. the path-based ingest routes, #3274). Those are being migrated; new mutations should go through the registry.
+The action registry is the audited write path for mutations in Fichero: a route handler resolves an `ActionContext` and calls `registry.invoke(name, params, ctx)` instead of writing to DuckDB directly. Most domains route through it — including the ingest routes, which now wrap `import_file_impl`/`import_folder_impl` in the `import.file`/`import.folder` actions (`api/routes/ingest.py`, #3274). A few write paths are still being migrated (the status line above tracks this); new mutations should go through the registry.
 
 `registry.invoke(name, params, ctx)`:
 
