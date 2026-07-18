@@ -1,6 +1,18 @@
 from __future__ import annotations
 
+import pytest
+from fastapi import HTTPException
+
 from fichero.models import Document
+from fichero.api.routes.bibliography import _parse_bibliography
+
+
+def test_parse_bibliography_rejects_unknown_format_without_writing():
+    with pytest.raises(HTTPException) as exc:
+        _parse_bibliography("not a bibliography record", "unknown")
+
+    assert exc.value.status_code == 400
+    assert "Format not recognised" in exc.value.detail
 
 
 def test_attach_record_sets_source_metadata_and_bibtex(client, db):
