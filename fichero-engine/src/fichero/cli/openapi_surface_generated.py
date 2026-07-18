@@ -12957,9 +12957,9 @@ def register_generated_openapi_commands(
         status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
         task_type: Optional[str] = typer.Option(None, "--task-type", help="Query parameter: task_type."),
     ) -> None:
-        """List background tasks (GET /api/tasks/tasks)."""
+        """List background tasks (GET /api/tasks)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/tasks/tasks"
+            endpoint_path = "/api/tasks"
             params = {
                 "limit": limit,
                 "offset": offset,
@@ -12976,9 +12976,9 @@ def register_generated_openapi_commands(
         options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
         priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
     ) -> None:
-        """Create knowledge graph metrics job (POST /api/tasks/tasks/kg-metrics)."""
+        """Create knowledge graph metrics job (POST /api/tasks/kg-metrics)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/tasks/tasks/kg-metrics"
+            endpoint_path = "/api/tasks/kg-metrics"
             params = None
             payload = _build_json_payload({
                 "name": name,
@@ -12997,9 +12997,9 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
     ) -> None:
-        """Get KG metrics data (GET /api/tasks/tasks/kg-metrics/{task_id}/data)."""
+        """Get KG metrics data (GET /api/tasks/kg-metrics/{task_id}/data)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/tasks/tasks/kg-metrics/{task_id}/data"
+            endpoint_path = f"/api/tasks/kg-metrics/{task_id}/data"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13011,9 +13011,9 @@ def register_generated_openapi_commands(
         options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
         priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
     ) -> None:
-        """Trigger metrics recomputation (POST /api/tasks/tasks/metrics)."""
+        """Trigger metrics recomputation (POST /api/tasks/metrics)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/tasks/tasks/metrics"
+            endpoint_path = "/api/tasks/metrics"
             params = None
             payload = _build_json_payload({
                 "name": name,
@@ -13032,9 +13032,9 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
     ) -> None:
-        """Get metrics data (GET /api/tasks/tasks/metrics/{task_id}/data)."""
+        """Get metrics data (GET /api/tasks/metrics/{task_id}/data)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/tasks/tasks/metrics/{task_id}/data"
+            endpoint_path = f"/api/tasks/metrics/{task_id}/data"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13046,9 +13046,9 @@ def register_generated_openapi_commands(
         options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
         priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
     ) -> None:
-        """Create reindex job (POST /api/tasks/tasks/reindex)."""
+        """Create reindex job (POST /api/tasks/reindex)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/tasks/tasks/reindex"
+            endpoint_path = "/api/tasks/reindex"
             params = None
             payload = _build_json_payload({
                 "name": name,
@@ -13067,9 +13067,9 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
     ) -> None:
-        """Get reindex progress (GET /api/tasks/tasks/reindex/{task_id}/progress)."""
+        """Get reindex progress (GET /api/tasks/reindex/{task_id}/progress)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/tasks/tasks/reindex/{task_id}/progress"
+            endpoint_path = f"/api/tasks/reindex/{task_id}/progress"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13081,9 +13081,9 @@ def register_generated_openapi_commands(
         options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
         priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
     ) -> None:
-        """Create vector repair job (POST /api/tasks/tasks/vector-repair)."""
+        """Create vector repair job (POST /api/tasks/vector-repair)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/tasks/tasks/vector-repair"
+            endpoint_path = "/api/tasks/vector-repair"
             params = None
             payload = _build_json_payload({
                 "name": name,
@@ -13102,9 +13102,9 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
     ) -> None:
-        """Get vector repair progress (GET /api/tasks/tasks/vector-repair/{task_id}/progress)."""
+        """Get vector repair progress (GET /api/tasks/vector-repair/{task_id}/progress)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/tasks/tasks/vector-repair/{task_id}/progress"
+            endpoint_path = f"/api/tasks/vector-repair/{task_id}/progress"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13115,11 +13115,11 @@ def register_generated_openapi_commands(
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
-        """Delete completed task (DELETE /api/tasks/tasks/{task_id})."""
+        """Delete completed task (DELETE /api/tasks/{task_id})."""
         if not yes:
             typer.confirm("Delete tasks?", abort=True)
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/tasks/tasks/{task_id}"
+            endpoint_path = f"/api/tasks/{task_id}"
             params = None
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13129,9 +13129,9 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
     ) -> None:
-        """Get task status (GET /api/tasks/tasks/{task_id})."""
+        """Get task status (GET /api/tasks/{task_id})."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/tasks/tasks/{task_id}"
+            endpoint_path = f"/api/tasks/{task_id}"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13141,9 +13141,9 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
     ) -> None:
-        """Cancel pending task (POST /api/tasks/tasks/{task_id}/cancel)."""
+        """Cancel pending task (POST /api/tasks/{task_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/tasks/tasks/{task_id}/cancel"
+            endpoint_path = f"/api/tasks/{task_id}/cancel"
             params = None
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13153,9 +13153,9 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         task_id: str = typer.Argument(..., help="Path parameter: task_id."),
     ) -> None:
-        """Get task result (GET /api/tasks/tasks/{task_id}/result)."""
+        """Get task result (GET /api/tasks/{task_id}/result)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/tasks/tasks/{task_id}/result"
+            endpoint_path = f"/api/tasks/{task_id}/result"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

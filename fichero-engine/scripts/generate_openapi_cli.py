@@ -43,7 +43,7 @@ INTENTIONALLY_UNWIRED_PATHS = {
     "/api/activity/stream",
     "/api/health",
     "/api/storage/debug/{doc_id}",
-    "/api/tasks/tasks/health",
+    "/api/tasks/health",
     "/api/workflow-execution/stream/{thread_id}",
 }
 

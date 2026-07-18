@@ -66,7 +66,7 @@ _SKIP_PATHS = {
     "/api/kg/claim-search/{claim_id}/similar",
     "/api/kg/entity-curation/semantic",
     "/api/pair/devices",
-    "/api/tasks/tasks",
+    "/api/tasks",
     "/api/users",
     "/api/workflow-execution/workflows/{workflow_id}/visualization",
     "/api/workflow-execution/workflows/{workflow_id}/visualization.png",

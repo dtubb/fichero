@@ -32,7 +32,7 @@ struct LibraryPathMiddlewareTests {
             "/api/knowledge/claims",
             "/api/providers/refs",          // provider *references* are library-specific
             "/api/storage/images",
-            "/api/tasks/tasks/health",
+            "/api/tasks/health",
             "/api/local-inference/profiles/profile-123/health",
             // /authz asks "who may do what IN THIS LIBRARY" — the engine's
             // authz.py takes require_library_path on each of these, so they 400

@@ -3,7 +3,7 @@
   "paths": {
     "/api/activity/stream": "#2633 app-only SSE refresh stream; CLI uses request/response activity commands, not live event streams",
     "/api/storage/debug/{doc_id}": "debug-only endpoint; intentionally omitted from the default generated CLI surface",
-    "/api/tasks/tasks/health": "internal queue-health endpoint; intentionally omitted from the default generated CLI surface",
+    "/api/tasks/health": "internal queue-health endpoint; intentionally omitted from the default generated CLI surface",
     "/api/workflow-execution/stream/{thread_id}": "streaming endpoint; CLI harness uses pollable workflow commands, not live event streams"
   }
 }
