@@ -167,11 +167,16 @@ class TestImportFileAction:
     def test_file_is_undoable(self, db):
         assert registry.get("import.file").undoable is True
 
-    def test_file_missing_path_400(self, db, fake_ingest):
+    def test_file_missing_path_400(self, db, tmp_path, fake_ingest):
         # (d) a naive impl would hand a non-existent path to the loader
         with pytest.raises(HTTPException) as exc:
-            registry.invoke(db, "import.file", {"path": "/no/such/file.pdf"}, _ctx(db))
+            registry.invoke(db, "import.file", {"path": str(tmp_path / "missing.pdf")}, _ctx(db))
         assert exc.value.status_code == 400
+
+    def test_file_disallowed_path_403(self, db, fake_ingest):
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(db, "import.file", {"path": "/no/such/file.pdf"}, _ctx(db))
+        assert exc.value.status_code == 403
 
     def test_file_directory_as_file_400(self, db, tmp_path, fake_ingest):
         # (d) a directory is not a file
@@ -229,10 +234,15 @@ class TestImportFolderAction:
         # the audit still records the (empty) request for forensics
         assert _audit(db, result.audit_id).action_name == "import.folder"
 
-    def test_folder_missing_path_400(self, db, fake_ingest):
+    def test_folder_missing_path_400(self, db, tmp_path, fake_ingest):
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(db, "import.folder", {"path": str(tmp_path / "missing")}, _ctx(db))
+        assert exc.value.status_code == 400
+
+    def test_folder_disallowed_path_403(self, db, fake_ingest):
         with pytest.raises(HTTPException) as exc:
             registry.invoke(db, "import.folder", {"path": "/no/such/dir"}, _ctx(db))
-        assert exc.value.status_code == 400
+        assert exc.value.status_code == 403
 
     def test_folder_file_as_folder_400(self, db, tmp_path, fake_ingest):
         # (d) a file path is not a directory

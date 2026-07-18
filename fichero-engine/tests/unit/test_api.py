@@ -10,7 +10,9 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from starlette.requests import Request
 
+from fichero.actions.registry import ActionResult
 from fichero.models import ActionAudit
 from fichero.models import Document, DocType, FileType, Status, Artifact
 
@@ -38,6 +40,13 @@ def sample_collection():
         doc_type=DocType.folder,
         status=Status.completed,
     )
+
+
+@pytest.fixture
+def record_background_task():
+    """Prevent TestClient from running scheduled background ingestion."""
+    with patch("starlette.background.BackgroundTasks.add_task") as add_task:
+        yield add_task
 
 
 class TestHealthEndpoint:
@@ -416,23 +425,27 @@ class TestIngestRoutes:
         from fichero.api.routes import ingest as ingest_routes
 
         request = ingest_routes.IngestFileRequest(path="/tmp/input.jpg")
+        http_request = Request({"type": "http", "headers": []})
+        http_request.state.user = MagicMock()
         db = MagicMock()
         doc = Document(id="new123", name="ingested.jpg", doc_type=DocType.file)
-        to_thread = AsyncMock(return_value=doc)
+        to_thread = AsyncMock(return_value=ActionResult(True, doc, "", []))
 
         with patch.object(ingest_routes.asyncio, "to_thread", to_thread):
             result = await ingest_routes.ingest_file(
                 request,
+                http_request=http_request,
                 db=db,
                 x_fichero_library_path="/tmp/library.fichero",
             )
 
         to_thread.assert_awaited_once()
         assert to_thread.await_args.args == (
-            ingest_routes.import_file_impl,
+            ingest_routes.registry.invoke,
             db,
-            request,
-            Path("/tmp/library.fichero"),
+            "import.file",
+            request.model_dump(mode="json"),
+            ingest_routes._ingest_action_context(http_request, "/tmp/library.fichero"),
         )
         assert result is doc
 
@@ -460,11 +473,18 @@ class TestIngestRoutes:
     def test_ingest_file_not_found(self, client):
         """Ingest nonexistent file returns 400."""
         response = client.post("/api/ingest/file", json={
-            "path": "/nonexistent/file.jpg",
+            "path": str(Path(tempfile.gettempdir()) / "does-not-exist.jpg"),
         })
         assert response.status_code == 400
 
-    def test_ingest_folder_starts_task(self, client):
+    def test_ingest_file_disallowed_path_forbidden(self, client):
+        """Ingest paths outside the allowlist return 403."""
+        response = client.post("/api/ingest/file", json={
+            "path": "/nonexistent/file.jpg",
+        })
+        assert response.status_code == 403
+
+    def test_ingest_folder_starts_task(self, client, record_background_task):
         """Ingest folder returns task ID."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a test file
@@ -481,11 +501,12 @@ class TestIngestRoutes:
                 data = response.json()
                 assert "task_id" in data
                 assert data["status"] == "pending"
+                record_background_task.assert_called_once()
 
     def test_ingest_folder_not_found(self, client):
         """Ingest nonexistent folder returns 400."""
         response = client.post("/api/ingest/folder", json={
-            "path": "/nonexistent/folder",
+            "path": str(Path(tempfile.gettempdir()) / "does-not-exist-folder"),
         })
         assert response.status_code == 400
 
@@ -555,7 +576,7 @@ class TestIngestRoutes:
         })
         assert response.status_code == 422
 
-    def test_ingest_folder_with_parameters(self, client):
+    def test_ingest_folder_with_parameters(self, client, record_background_task):
         """Ingest folder with all parameters."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create test files
@@ -596,7 +617,7 @@ class TestIngestRoutes:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_ingest_folder_empty_directory(self, client):
+    def test_ingest_folder_empty_directory(self, client, record_background_task):
         """Ingest empty folder returns task ID."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Empty directory
@@ -618,7 +639,7 @@ class TestIngestRoutes:
         })
         assert response.status_code == 422
 
-    def test_get_ingest_status_valid_task(self, client):
+    def test_get_ingest_status_valid_task(self, client, record_background_task):
         """Get status of valid task returns task info."""
         # First, start a task
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -731,7 +752,7 @@ class TestIngestRoutes:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    def test_ingest_folder_recursive_parameter(self, client):
+    def test_ingest_folder_recursive_parameter(self, client, record_background_task):
         """Test recursive parameter in folder ingest."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create nested structure
@@ -757,7 +778,7 @@ class TestIngestRoutes:
                 })
                 assert response.status_code == 200
 
-    def test_ingest_status_progress_tracking(self, client):
+    def test_ingest_status_progress_tracking(self, client, record_background_task):
         """Test progress tracking in task status."""
         # This would require more complex setup with actual background tasks
         # For now, just verify the structure
