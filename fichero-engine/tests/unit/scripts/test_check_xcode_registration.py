@@ -60,5 +60,7 @@ def test_scan_flags_only_unregistered_swift_files(monkeypatch, tmp_path):
     )
 
     assert check_xcode_registration.scan() == {
-        "fichero/fichero/B.swift": ["not in Fichero PBXSourcesBuildPhase"]
+        "fichero/fichero/B.swift": [
+            "not in Fichero target (no Sources entry, not under a synchronized root)"
+        ]
     }
