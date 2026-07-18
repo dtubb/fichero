@@ -9,6 +9,8 @@ import pytest
 from unittest.mock import patch
 
 from fichero.models import Workflow
+from fichero.api.routes.workflows import create_workflow_impl
+from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef
 
 
 # ---------------------------------------------------------------------------
@@ -44,6 +46,24 @@ def _make_workflow(db, name: str = "Test Workflow", **kwargs) -> Workflow:
 
 
 class TestListWorkflows:
+    def test_route_map_edge_survives_database_round_trip(self, client, db):
+        definition = WorkflowDef(
+            name="Routed",
+            nodes=[NodeDef(id="classify", tool="classify"), NodeDef(id="transcribe", tool="transcribe")],
+            edges=[EdgeDef(
+                id="edge-route", source="classify", target="",
+                route_key="$.nodes.classify.script_type", route_map={"typescript": "transcribe"},
+            )],
+        )
+        workflow = create_workflow_impl(db, definition)
+
+        response = client.get("/api/workflows")
+
+        assert response.status_code == 200
+        routed = next(item for item in response.json()["items"] if item["id"] == workflow.id)
+        assert routed["edges"][0]["route_key"] == "$.nodes.classify.script_type"
+        assert routed["edges"][0]["route_map"] == {"typescript": "transcribe"}
+
     def test_empty_list(self, client):
         r = client.get("/api/workflows")
         assert r.status_code == 200
