@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import weakref
 from pathlib import Path
 from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
@@ -39,6 +40,28 @@ logger = logging.getLogger(__name__)
 _SUBSCRIBER_QUEUE_MAXSIZE = 1000
 _REPLAY_BUFFER_SIZE = 1000
 _REPLAY_LIBRARY_CAP = 1024
+_sse_shutdown_events: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+def sse_shutdown_event() -> asyncio.Event:
+    """Return this event loop's SSE shutdown signal."""
+    loop = asyncio.get_running_loop()
+    event = _sse_shutdown_events.get(loop)
+    if event is None:
+        event = asyncio.Event()
+        _sse_shutdown_events[loop] = event
+    return event
+
+
+def signal_sse_shutdown() -> None:
+    """Wake SSE generators so uvicorn can drain connections on shutdown."""
+    for event in _sse_shutdown_events.values():
+        event.set()
+
+
+def reset_sse_shutdown() -> None:
+    """Reopen SSE streams for a newly started lifespan."""
+    sse_shutdown_event().clear()
 
 
 # =============================================================================

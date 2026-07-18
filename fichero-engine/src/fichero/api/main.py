@@ -625,6 +625,9 @@ def _ensure_bootstrap_token_written() -> None:
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     import asyncio
+    from fichero.api.change_stream import reset_sse_shutdown, signal_sse_shutdown
+
+    reset_sse_shutdown()
 
     # Write/rotate the bootstrap auth token NOW that the server is actually
     # starting, so the Swift app can read ~/Library/Application Support/Fichero/
@@ -734,6 +737,7 @@ async def lifespan(app: FastAPI):
     )
 
     yield
+    signal_sse_shutdown()
     parent_watcher.cancel()
     await stop_periodic_snapshot_task(periodic_snapshot_task)
     # Await the start before stopping: a short-lived process (a test, a failed
