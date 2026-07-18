@@ -67,7 +67,7 @@ def _coerce_records(inputs: dict[str, Any]) -> list[dict[str, Any]]:
     carry `page_content`, fall back to reading page_content from each
     document. This lets `files-source → aggregate → extract_all` work
     on a folder of .md / .txt files (no transcribe step needed) — the
-    'NER per-page' workflow Daniel asked for.
+    'NER per-page' workflow.
     """
     texts_raw = inputs.get("text")
     documents_raw = inputs.get("documents") or []

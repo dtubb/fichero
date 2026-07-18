@@ -751,7 +751,7 @@ def import_slipbox_command(
         help="Skip embedding creation. Imported content will not be immediately searchable.",
     ),
 ) -> None:
-    """Import Daniel's slipbox into a fresh/searchable Fichero catalogue."""
+    """Import a local slipbox into a fresh, searchable Fichero catalogue."""
     from fichero.importers.slipbox_import import import_slipbox_via_http
 
     try:

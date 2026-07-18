@@ -221,7 +221,7 @@ def _resolve_apple_intelligence_id() -> str | None:
     Important: the chat/providers endpoint returns provider TYPES as IDs
     for built-in providers (id="apple"), NOT the actual app_db UUIDs.
     So the resolved sentinel must be the provider_type string, not
-    Provider.id from app_db. (Round-trip mismatch caught by Daniel —
+    Provider.id from app_db. (A round-trip mismatch exposed this —
     inspecting workflow DB showed UUID, but popover lookup never matched
     because providers list returns "apple".)
 

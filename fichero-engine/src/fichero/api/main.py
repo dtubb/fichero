@@ -1475,7 +1475,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # Workflow chains: multi-step sequenced pipelines with output mappings.
     # Promoted from dev-tier to core for 0.0.2 (#1151).
     (chains.router, "/api", ["chains"]),
-    # ── Promoted dev→release for 0.0.2 (Daniel 2026-05-28): ship ALL gated
+    # ── Promoted dev→release for 0.0.2 (2026-05-28): ship ALL gated
     #    features so they're reviewable in release builds; demote individually
     #    if one isn't ready. Safe re #1298 — openapi is exported at dev tier
     #    (core+dev union, invariant under this move) and the NodeDef→Input/

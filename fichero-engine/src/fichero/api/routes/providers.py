@@ -252,7 +252,7 @@ def create_provider_impl(
     # #704: upsert on (name, provider_type) instead of creating a fresh row
     # each time. The previous behaviour generated a new UUID per POST, and
     # since save_provider's ON CONFLICT clause is keyed on `id`, duplicates
-    # accumulated — Daniel hit eight identical 'My OpenAI' entries during
+    # accumulated — this created identical 'My OpenAI' entries during
     # 0.0.2 testing.
     existing = next(
         (

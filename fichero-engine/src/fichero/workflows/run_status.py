@@ -9,7 +9,7 @@ terminated run as still running (an EPIC #2624 symptom).
 
 This module is the single source of truth for that membership test. It does NOT
 yet rename/collapse the synonyms (``failed``≈``error``, ``stopped``≈``cancelled``)
-— that's a vocabulary decision for Daniel — it just guarantees every check
+— that's a product vocabulary decision — it just guarantees every check
 covers the same set.
 """
 

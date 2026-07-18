@@ -38,7 +38,7 @@ router = APIRouter(prefix="/kg/review")
 
 
 # Auto-retrain trigger — every N new labelled decisions kicks off a
-# background PyKEEN retrain so predictions stay current as Daniel
+# background PyKEEN retrain so predictions stay current as users
 # curates. Set to 10 by default; tunable per library if needed.
 RETRAIN_EVERY_N_LABELS = 10
 

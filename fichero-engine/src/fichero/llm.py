@@ -2263,7 +2263,7 @@ async def vision(
     #   * apple-intelligence  → FoundationModels LLM, text-only on macOS 26
     # This mirrors chat()'s apple branch — without it, every workflow node
     # that does vision-with-provider=apple bombed with "Unknown LLM
-    # provider: 'apple'" (Daniel's regression after consolidating to a
+    # provider: 'apple'" (a regression after consolidating to a
     # single Catalogue preset that uses provider=apple by default).
     if config.provider == "apple":
         return await _apple_vision_dispatch(images, prompt, config)

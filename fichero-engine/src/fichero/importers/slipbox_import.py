@@ -1,4 +1,4 @@
-"""Import Daniel's slipbox corpus into a Fichero library.
+"""Import a local slipbox corpus into a Fichero library.
 
 This is intentionally a local importer, not a live Tinderbox integration.  The
 release-data workflow has two static sources: a filesystem note tree and a
@@ -109,7 +109,7 @@ def import_slipbox_via_http(
 
     root = ensure_remote_document(
         client,
-        name="Daniel Slipbox",
+        name="Imported Slipbox",
         path=str(library_path),
         doc_type="folder",
         parent_id=None,

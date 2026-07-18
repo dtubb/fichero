@@ -142,7 +142,7 @@ def cooccurrence_graph(
 
     Edge weight = number of distinct source documents in which both
     endpoints appear. Use case: "show me people who were in the
-    same archive folder" — the surface that maps to Daniel's
+    same archive folder" — the surface that maps to an
     archival research workflow.
     """
     g = nx.Graph()
