@@ -69,8 +69,9 @@ final class DocumentInspectorTests: XCTestCase {
         let listSource = try Self.appSource("Views/Library/Inspector/ArtifactListView.swift")
 
         XCTAssertTrue(source.contains("InspectorBottomMiniToolbar(statusText: artifactsToolbarStatusText)"))
-        XCTAssertTrue(source.contains("translateMenuItems"))
-        XCTAssertFalse(source.contains("ToolbarItem(placement: .automatic) {\n                translateMenu"))
+        XCTAssertTrue(source.contains("onTranslate: { translate(to: $0) }"))
+        XCTAssertTrue(listSource.contains("translateMenuItems()"))
+        XCTAssertTrue(listSource.contains("Menu(\"Translate Document\")"))
         XCTAssertTrue(listSource.contains("case \"translation\":"))
         XCTAssertTrue(listSource.contains("return \"Translated\""))
     }
@@ -167,9 +168,9 @@ final class DocumentInspectorTests: XCTestCase {
         let notesSource = try Self.appSource("Views/Notes/NotesInspectorPane.swift")
         let annotationsSource = try Self.appSource("Views/Library/Inspector/AnnotationsInspectorPane.swift")
 
-        XCTAssertTrue(entitiesSource.contains("PlatformVSplitView"))
-        XCTAssertTrue(notesSource.contains("PlatformVSplitView"))
-        XCTAssertTrue(annotationsSource.contains("PlatformVSplitView"))
+        XCTAssertTrue(entitiesSource.contains("InspectorListDetailSplit"))
+        XCTAssertTrue(notesSource.contains("InspectorListDetailSplit"))
+        XCTAssertTrue(annotationsSource.contains("InspectorListDetailSplit"))
         XCTAssertFalse(entitiesSource.localizedCaseInsensitiveContains("back to document"))
         XCTAssertFalse(notesSource.localizedCaseInsensitiveContains("back to document"))
         XCTAssertFalse(annotationsSource.localizedCaseInsensitiveContains("back to document"))
