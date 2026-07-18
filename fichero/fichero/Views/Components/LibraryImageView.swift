@@ -97,7 +97,13 @@ struct LibraryImageView: View {
                 return
             }
             loadError = error
-            if case StorageServiceError.notFound = error {
+            if Task.isCancelled || error is CancellationError {
+                // SwiftUI cancels the in-flight load when the row scrolls off or
+                // the list refreshes; the transport surfaces that as a -999
+                // "cancelled". A cancellation is not a load failure, so trace it
+                // instead of logging an error (#3385) — the next load takes over.
+                Self.logger.debug("\(imageTypeLabel) load cancelled for \(key.documentId)")
+            } else if case StorageServiceError.notFound = error {
                 Self.logger.info("No \(imageTypeLabel) yet for \(key.documentId): \(error.localizedDescription)")
             } else {
                 Self.logger.error("Failed to load image for \(key.documentId): \(error.localizedDescription)")
