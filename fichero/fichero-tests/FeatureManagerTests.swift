@@ -7,7 +7,12 @@ final class FeatureManagerTests: XCTestCase {
         let key = "FICHERO_FEATURE_TIER"
         let previous = ProcessInfo.processInfo.environment[key]
         setenv(key, tier, 1)
+        // The bundle FicheroFeatureTier wins over the env var in a test build, so
+        // set the test-only override too — that is what actually forces the tier.
+        let previousOverride = FeatureManager.shared.testTierOverride
+        FeatureManager.shared.testTierOverride = FeatureManager.resolveFeatureTier(tier)
         defer {
+            FeatureManager.shared.testTierOverride = previousOverride
             if let previous {
                 setenv(key, previous, 1)
             } else {

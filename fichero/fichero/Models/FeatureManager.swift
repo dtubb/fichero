@@ -149,7 +149,17 @@ class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_len
     @AppStorage("fichero.features.release_profile_version")
     private var releaseProfileVersionApplied: Int = 0
 
+    /// Test-only tier override (production leaves this nil). The baked-in bundle
+    /// FicheroFeatureTier is authoritative in real builds and intentionally wins
+    /// over any FICHERO_FEATURE_TIER env var — release gating must not be
+    /// unlockable via the environment. Tests set this to exercise a specific tier
+    /// without weakening that production resolution.
+    var testTierOverride: FeatureTier?
+
     var activeBuildTier: FeatureTier {
+        if let testTierOverride {
+            return testTierOverride
+        }
         if let tier = Self.resolveFeatureTier(
             Bundle.main.infoDictionary?["FicheroFeatureTier"] as? String
         ) {
@@ -399,7 +409,7 @@ class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_len
         }
     }
 
-    private static func resolveFeatureTier(_ rawValue: String?) -> FeatureTier? {
+    static func resolveFeatureTier(_ rawValue: String?) -> FeatureTier? {
         guard let rawValue else {
             return nil
         }
