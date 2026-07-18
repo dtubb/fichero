@@ -54,10 +54,21 @@ public struct LibraryPathMiddleware: ClientMiddleware {
     ///   disambiguated being 403'd by the same cause. `/registry` stayed 200
     ///   throughout precisely because it is on this list.
     ///
-    ///   NOT `/authz` — that IS library-scoped (`authz.py` takes
-    ///   `require_library_path`), and it must keep the header. `matchesRootPath`
-    ///   is prefix-with-`/` exact, so `/api/authz/library` does not match
-    ///   `/api/auth`; the tests pin that one-character distinction.
+    ///   Mostly NOT `/authz` — `/authz/library`, `/authz/members`, `/authz/share`
+    ///   are library-scoped (`authz.py` takes `require_library_path`) and must
+    ///   keep the header. `matchesRootPath` is prefix-with-`/` exact, so
+    ///   `/api/authz/library` does not match `/api/auth`; the tests pin that
+    ///   one-character distinction.
+    /// - `/authz/libraries` (PLURAL) — the one `/authz` route that IS app-wide.
+    ///   It lists *which libraries this credential has a role on* (`authz.py:37`,
+    ///   `GET /authz/libraries`, no `require_library_path`); the answer spans
+    ///   libraries and cannot be scoped to any one of them — exactly like
+    ///   `/registry` (#1661, #3942). It is called against remote hosts where the
+    ///   app's local `currentLibraryPath` is not a valid path, so carrying the
+    ///   header would 403 the very probe that discovers what you can open — the
+    ///   same PATH-as-AUTH failure #3932 fixed for `/auth`. `matchesRootPath`
+    ///   keeps it distinct from its singular, library-scoped sibling
+    ///   `/authz/library`: "libraries" is not "library" nor "library/".
     public static func isAppWidePath(_ path: String) -> Bool {
         let isHealth = matchesRootPath(path, allowedPath: "/api/health")
         let isAppWideProvider = matchesRootPath(path, allowedPath: "/api/providers")
@@ -66,7 +77,9 @@ public struct LibraryPathMiddleware: ClientMiddleware {
         let isRegistry = matchesRootPath(path, allowedPath: "/api/registry")
         let isAuth = matchesRootPath(path, allowedPath: "/api/auth")
         let isUsers = matchesRootPath(path, allowedPath: "/api/users")
-        return isHealth || isAppWideProvider || isSettings || isRegistry || isAuth || isUsers
+        let isAccessibleLibraries = matchesRootPath(path, allowedPath: "/api/authz/libraries")
+        return isHealth || isAppWideProvider || isSettings || isRegistry
+            || isAuth || isUsers || isAccessibleLibraries
     }
 
     private static func matchesRootPath(_ path: String, allowedPath: String) -> Bool {
