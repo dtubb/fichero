@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import fitz
 
 from fichero.models import DocType, Document
+from fichero.api.routes import ingest
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +181,54 @@ class TestIngestStatus:
         assert data["status"] in ("pending", "running", "completed", "failed")
         assert "total" in data
         assert "processed" in data
+
+    def test_task_status_is_scoped_to_its_library(self, client, monkeypatch):
+        monkeypatch.setattr(ingest, "_tasks", {
+            "other-library": {
+                "status": "completed",
+                "path": "/tmp/import",
+                "progress": 1.0,
+                "total": 1,
+                "processed": 1,
+                "document_ids": ["doc-1"],
+                "library_path": "/other-library.fichero",
+                "finished_at": ingest.time.monotonic(),
+            }
+        })
+
+        response = client.get("/api/ingest/status/other-library")
+
+        assert response.status_code == 404
+
+    def test_expired_terminal_tasks_are_pruned(self, monkeypatch):
+        monkeypatch.setattr(ingest, "_tasks", {
+            **{
+                f"old-{index}": {
+                    "status": "completed",
+                    "finished_at": 0.0,
+                }
+                for index in range(101)
+            },
+            "running": {"status": "running"},
+        })
+
+        ingest._prune_tasks(now=ingest._TASK_TTL_SECONDS + 1)
+
+        assert ingest._tasks == {"running": {"status": "running"}}
+
+    def test_terminal_task_history_is_capped(self, monkeypatch):
+        monkeypatch.setattr(ingest, "_tasks", {
+            f"task-{index}": {
+                "status": "completed",
+                "finished_at": float(index),
+            }
+            for index in range(ingest._MAX_TERMINAL_TASKS + 1)
+        })
+
+        ingest._prune_tasks(now=ingest._MAX_TERMINAL_TASKS)
+
+        assert len(ingest._tasks) == ingest._MAX_TERMINAL_TASKS
+        assert "task-0" not in ingest._tasks
 
 
 # ---------------------------------------------------------------------------
