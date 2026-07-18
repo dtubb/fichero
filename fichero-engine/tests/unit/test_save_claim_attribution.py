@@ -164,6 +164,26 @@ def _setup_db(tmp: str):
     return db, doc
 
 
+def test_identical_svo_claims_merge_within_source_with_mentions():
+    with tempfile.TemporaryDirectory() as tmp:
+        db, first = _setup_db(tmp)
+
+        first_id = save_claim(
+            db, "Davis took the San Pablo coach.", first.id,
+            subject_canonical="Davis", predicate_verb="took", object_phrase="the San Pablo coach",
+        )
+        second_id = save_claim(
+            db, "Davis took the San Pablo coach.", first.id,
+            subject_canonical="Davis", predicate_verb="took", object_phrase="the San Pablo coach",
+        )
+
+        claims = db.query(KnowledgeClaim)
+        assert second_id == first_id
+        assert len(claims) == 1
+        assert claims[0].mention_count == 2
+        assert claims[0].corroboration_count == 1
+
+
 class TestSaveClaimAutoAttribution:
     """The full pipeline: a save_claim() call with no explicit
     attribution arguments should populate speaker_name / quotation_kind /

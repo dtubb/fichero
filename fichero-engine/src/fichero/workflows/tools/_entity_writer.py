@@ -1794,6 +1794,8 @@ def save_claim(
             source_page_label=source_page_label,
         )
         for prior in existing:
+            if prior.provider != provider or prior.model != model:
+                continue
             if _same_claim_identity(
                 prior,
                 entity_ids=entity_ids_set,
@@ -1802,6 +1804,8 @@ def save_claim(
                 svo_verb=incoming_svo_verb or sv,
                 svo_object=incoming_svo_object,
             ):
+                prior.mention_count += 1
+                db.save(prior)
                 return prior.id
 
     suppression_action = _claim_suppression_action(
@@ -1931,5 +1935,27 @@ def save_claim(
         evidential_confidence_source=evidential_confidence_source,
         claim_recorded_at=claim_recorded_at,
     )
+    if sc and sv and so:
+        existing = db.query(
+            KnowledgeClaim,
+            subject_canonical=sc,
+            predicate_verb=sv,
+            object_phrase=so,
+        )
+        canonical = next(
+            (
+                prior
+                for prior in existing
+                if prior.source_document_id == source_document_id
+                and prior.provider == provider
+                and prior.model == model
+            ),
+            None,
+        )
+        if canonical:
+            canonical.mention_count += 1
+            _merge_corroborating_claim(db, canonical, claim)
+            return canonical.id
+
     db.save(claim)
     return claim.id
