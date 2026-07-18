@@ -26,6 +26,11 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
     let controller = EngineLifecycleController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The unit-test host (FicheroTests, injected into this same process via
+        // BUNDLE_LOADER) must never start/connect a real engine — it would race
+        // every mocked-transport test and show Connection Failed (#3902).
+        // EngineHarness owns engine lifecycle for the tests that need one.
+        guard !isRunningXCTests() else { return }
         logger.info("App did finish launching — starting engine app-scoped (#3945)")
         // The engine's async startup lives here, not in a scene `.task`: `@main
         // App.init` is synchronous and `.task` is per-scene, so the delegate is the
