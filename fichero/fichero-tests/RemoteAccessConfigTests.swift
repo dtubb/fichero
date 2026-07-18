@@ -259,6 +259,37 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertNil(RemoteCertificatePinning.persistedSPKIPin(hostString: attemptedHost.absoluteString))
     }
 
+    /// The #3971 escape hatch: `forgetPairing()` undoes everything pairing wrote,
+    /// so `iosLaunchPhase` returns `.setupNeeded` again and the app can route back
+    /// to the QR / pairing screen instead of retrying a dead host forever.
+    func testForgetPairingClearsPairedStateSoLaunchReturnsToSetup() throws {
+        UserDefaults.standard.set(attemptedHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        UserDefaults.standard.set("/Users/daniel/Archive/Open.fichero", forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        let hostKey = EngineConfig.hostString
+        try AuthTokenMiddleware.persistRemoteToken("device-token", hostString: hostKey)
+        try RemoteCertificatePinning.persistSPKIPin(validSPKIPin, hostString: hostKey)
+
+        // Paired + reachable resolves to the workspace, never setup.
+        XCTAssertTrue(RemoteAccessConfig.hasPairedLibraryPath)
+        XCTAssertEqual(
+            EngineConfig.iosLaunchPhase(hasPairedLibrary: RemoteAccessConfig.hasPairedLibraryPath, isReachable: true),
+            .ready
+        )
+
+        RemoteClientPairing.forgetPairing()
+
+        // Every value pairing wrote is gone, so the launch decision falls back to
+        // first-run pairing regardless of reachability — the dead end is escapable.
+        XCTAssertFalse(RemoteAccessConfig.hasPairedLibraryPath)
+        XCTAssertNil(UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey))
+        XCTAssertNil(AuthTokenMiddleware.readRemoteTokenForHost(hostKey))
+        XCTAssertNil(RemoteCertificatePinning.persistedSPKIPin(hostString: hostKey))
+        XCTAssertEqual(
+            EngineConfig.iosLaunchPhase(hasPairedLibrary: RemoteAccessConfig.hasPairedLibraryPath, isReachable: false),
+            .setupNeeded
+        )
+    }
+
     func testPairingBackendURLRejectsBlankString() {
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: ""))
         XCTAssertNil(RemoteAccessConfig.pairingBackendURL(from: "   "))

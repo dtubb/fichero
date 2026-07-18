@@ -322,6 +322,43 @@ struct BackendConnectionView: View {
         .disabled(backendService.isStarting)
     }
 
+    /// True only for the two iOS pairing dead-ends (#3971): a paired host that
+    /// is `unreachable` or has `failed`. A permanently-broken pairing otherwise
+    /// has no way back to the QR screen — Retry just re-probes the same dead
+    /// host forever — so these phases (and only these) offer "Forget This Mac".
+    /// Gated to platforms that pair to an external engine; macOS starts its own
+    /// embedded engine and never pairs, so it must never show this.
+    private var showsForgetPairingButton: Bool {
+        #if os(iOS) || os(visionOS)
+        switch appState.engine.phase {
+        case .unreachable, .failed:
+            return true
+        case .setupNeeded, .starting, .portConflict, .authRejected, .ready:
+            return false
+        }
+        #else
+        return false
+        #endif
+    }
+
+    /// The pairing escape hatch (#3971): clears every trace of the current
+    /// pairing, then flips the session to `.setupNeeded` so `BackendRootGate`
+    /// re-renders `RemoteConnectionSetupView` (the QR / Bonjour / manual-invite
+    /// screen). Unlike the sign-in / certificate buttons this is NOT tied to a
+    /// specific `AccessError` — it is the last resort when the host itself is
+    /// gone and re-pairing is the only fix.
+    @ViewBuilder
+    private var forgetPairingButton: some View {
+        Button {
+            RemoteClientPairing.forgetPairing()
+            appState.engine.markSetupNeeded()
+        } label: {
+            Label("Forget This Mac", systemImage: "xmark.circle")
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier("backend.action.forgetPairing")
+    }
+
     /// Opens the full engine log so a failure has a next step beyond "try
     /// again" — the tail already appears inline (#2864). macOS only.
     @ViewBuilder
@@ -437,6 +474,9 @@ struct BackendConnectionView: View {
                         }
                         if failureAccessError?.recovery == .signIn {
                             resetSignInButton
+                        }
+                        if showsForgetPairingButton {
+                            forgetPairingButton
                         }
                     }
                     showLogButton
