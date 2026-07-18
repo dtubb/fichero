@@ -243,7 +243,7 @@ Reader**:
   `ContentView+ViewBuilders.swift:440-485`, focus id `.preview`
   (`:460-461`) — which renders `PDFPageWithToolbar` for PDFs (`:450`) or
   `EditorView` (image editing / `ZoomableImagePreview`,
-  `Views/Library/ImageViewer/ImageViewerComponents.swift:14,495`) otherwise.
+  `Views/Preview/ImageViewer/ImageViewerComponents.swift:14,495`) otherwise.
 - The standard-layout `previewView` (`ContentView+ViewBuilders.swift:521-549`)
   does the same via `PDFReadingView` (`Views/Library/Reading/PDFReadingView.swift:25,33`).
 - Quick-look/media preview components: `QuickLookPreviewViews.swift:14-135`,

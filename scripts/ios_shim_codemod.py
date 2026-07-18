@@ -21,8 +21,8 @@ BUCKET_A: list[str] = [
 BUCKET_B: list[str] = [
     "fichero/fichero/Views/Components/BackendConnectionView.swift",
     "fichero/fichero/Services/ImageEditingServiceGenerated.swift",
-    "fichero/fichero/Views/Library/ImageEditor/ImageEditorView.swift",
-    "fichero/fichero/Views/Library/ImageEditor/ImageEditorModel.swift",
+    "fichero/fichero/Views/Preview/ImageEditor/ImageEditorView.swift",
+    "fichero/fichero/Views/Preview/ImageEditor/ImageEditorModel.swift",
     "fichero/fichero/Views/Library/PDFThumbnailView.swift",
 ]
 

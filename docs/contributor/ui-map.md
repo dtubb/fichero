@@ -46,7 +46,7 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 | **Sidebar** (left) | SidebarItemRow / Sidebar Modes | `Views/Sidebar/` | area:sidebar |
 | **Library display modes: grid / list / table / map / 3D** (the cube = 3D, beside Map — a LibraryView display mode, NOT the WebKit/reading pane) | LibraryView | `Views/Library/LibraryView*.swift` | area:swiftui-library |
 | Folder thumbnails grid | FolderContentsGrid | `Views/Library/FolderContentsGrid.swift` | area:swiftui-library |
-| **Doc viewer + editor — ONE canvas, ONE toolbar** (image AND pdf; the toolbar adapts to content type; the **edit toolbar is part of it**; always editable — a page, or pages of a folder/PDF) | DocumentCanvas (+ ImageEditor tools/chain + PDF pages) | `Views/Library/DocumentCanvas.swift`, `ImageEditor/`, `PDF*.swift` | area:document-canvas / area:image-editing |
+| **Doc viewer + editor — ONE canvas, ONE toolbar** (image AND pdf; the toolbar adapts to content type; the **edit toolbar is part of it**; always editable — a page, or pages of a folder/PDF) | DocumentCanvas (+ ImageEditor tools/chain + PDF pages) | `Views/Preview/DocumentCanvas.swift`, `ImageEditor/`, `PDF*.swift` | area:document-canvas / area:image-editing |
 | WebKit transcript / knowledge pane | DocumentKGWebPane / PageContentPane *(rename pending #1450)* | `Views/Library/` | area:reading-surface |
 | Loupe / magnifier / zoom | PDFLoupeOverlay, MagnifierPanel, ScrollWheelZoom | `Views/Library/` | area:reading-surface |
 | **Document Inspector** (right) | DocumentInspector | `Views/Library/DocumentInspector/` | area:inspector |

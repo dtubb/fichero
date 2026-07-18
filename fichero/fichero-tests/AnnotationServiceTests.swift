@@ -111,7 +111,7 @@ final class AnnotationServiceTests: XCTestCase {
         let documentReader = try Self.appSource("Views/Library/Reading/DocumentTextReader.swift")
         let pageContent = try Self.appSource("Views/Library/Reading/PageContentPane.swift")
         let pdfToolbar = try Self.appSource("Views/Library/Reading/PDFPageWithToolbar.swift")
-        let imageViewer = try Self.appSource("Views/Library/ImageViewer/ImageViewerComponents.swift")
+        let imageViewer = try Self.appSource("Views/Preview/ImageViewer/ImageViewerComponents.swift")
 
         XCTAssertTrue(documentReader.contains("await annotationStore.loadAnnotations(for: .document(document.id), force: true)"))
         XCTAssertTrue(pageContent.contains("await annotationStore.loadAnnotations(for: .page(id), force: true)"))

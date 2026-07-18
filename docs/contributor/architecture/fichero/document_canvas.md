@@ -13,8 +13,8 @@ the viewer instead of building on it:
 | Wrapper | File | Used by |
 |---|---|---|
 | `ZoomableImagePreview` | `Views/Library/ImageViewerComponents.swift` | the real image viewer (has loupe + magnifier) |
-| `ZoomableImageView` | `Views/Library/EditorView.swift` | older editor |
-| `ZoomableNSImageView` | `Views/Library/ImageViewer/ZoomableNSImageView.swift` (branch) | new editor (#1383 attempt) |
+| `ZoomableImageView` | `Views/Preview/EditorView.swift` | older editor |
+| `ZoomableNSImageView` | `Views/Preview/ImageViewer/ZoomableNSImageView.swift` (branch) | new editor (#1383 attempt) |
 
 Result (the bug behind #1383/#1420): in the **editor**, the viewer's
 magnifier / loupe / scroll-zoom appear "gone" — because the editor doesn't use

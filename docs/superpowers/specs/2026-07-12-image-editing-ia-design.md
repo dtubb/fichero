@@ -50,7 +50,7 @@ The image-editing surface is **already built and working**, not greenfield:
      `_create_segment_documents`). Undo soft-deletes the children
      (`uncrop_image_child`, `unsplit_image`) — this is the general
      derived-child reversal contract, not a bespoke one.
-- **Client**: `ImageEditorModel` (`fichero/fichero/Views/Library/ImageEditor/`)
+- **Client**: `ImageEditorModel` (`fichero/fichero/Views/Preview/ImageEditor/`)
   is an `@Observable` store that owns exactly one `ImageEditingServiceGenerated`
   (OpenAPI-generated) and renders **server-rendered PNG/JPEG bytes** for both
   the original and edited preview — there is **no client-side Core Image

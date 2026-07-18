@@ -54,7 +54,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Intents/FicheroShortcuts.swift": "#2017 — App Intents/Shortcuts entry point helper",
     "Views/Library/LibraryView+ColumnConfig.swift": "#1945 — candidate dead file: ColumnDefinition",
     "Views/Library/LibraryView+DisplayModes.swift": "#1945 — candidate dead file: KgKindMapping",
-    "Views/Library/ImageViewer/ScrollWheelZoom.swift": "#1945 — candidate dead file: scroll-wheel zoom bridge types",
+    "Views/Preview/ImageViewer/ScrollWheelZoom.swift": "#1945 — candidate dead file: scroll-wheel zoom bridge types",
     "Views/Library/Reading/PageImageGrid.swift": "#1945 — candidate dead file: page image grid helper types",
     "Views/Library/Workspace/CollectionWorkspaceStub.swift": "#1945 — candidate dead file: workspace stub helper",
     "Views/Shell/PaneVisibility.swift": "#1945 — candidate dead file: pane visibility helpers",

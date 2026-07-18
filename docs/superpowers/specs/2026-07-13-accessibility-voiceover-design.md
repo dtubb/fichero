@@ -64,10 +64,10 @@ These render pixels with zero accessibility surface. VoiceOver reaches *nothing*
 inside them:
 
 - `Views/Spatial/*` — SpatialView, Spatial2DCanvasItems/Gestures, SpatialNodeThumbnail (0)
-- `Views/Library/DocumentCanvas.swift` (0)
+- `Views/Preview/DocumentCanvas.swift` (0)
 - `Views/Library/Reading/PDFPageView.swift`, `PDFLoupeOverlay.swift` (0)
 - `Views/Library/AnnotatableTextView.swift` (0) — the annotation surface
-- `Views/Library/ImageViewer/*` — partial: `ImageViewerComponents` (14) and
+- `Views/Preview/ImageViewer/*` — partial: `ImageViewerComponents` (14) and
   `MagnifierPanel` (8) are labelled; `NavigatorMiniMap`, `TrackingImageView`,
   `CheckerboardPattern`, `ScrollWheelZoom` are not.
 
