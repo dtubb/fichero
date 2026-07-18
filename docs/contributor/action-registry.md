@@ -1,4 +1,4 @@
-(AI generated. Not reviewed.)
+<!-- Verified against fichero/api/routes/actions.py, actions_registry.py, models.py:ActionAudit (2026-07-18). -->
 
 # Action Registry
 
@@ -6,7 +6,9 @@
 
 ## What It Is
 
-The action registry is the single audited write path for every mutation in Fichero. No route handler writes to DuckDB directly. Instead, it calls `registry.invoke(name, params, ctx)`, which:
+The action registry is the **intended** single audited write path for mutations in Fichero: a route handler resolves an `ActionContext` and calls `registry.invoke(name, params, ctx)` instead of writing to DuckDB directly. Most domains route through it, but the migration is not complete — some routes still call their `*_impl` functions directly and therefore skip the audit/change-event path (e.g. the path-based ingest routes, #3274). Those are being migrated; new mutations should go through the registry.
+
+`registry.invoke(name, params, ctx)`:
 
 1. resolves the named action
 2. snapshots the affected rows before the change
@@ -17,7 +19,7 @@ The action registry is the single audited write path for every mutation in Fiche
 
 This pattern was introduced to fix an entire class of bugs at once: the merge-bug class (mutations that silently succeeded but left the UI stale), missing UI verification (no before/after diff available), chat-tool and App Intents invocations that had no audit trail, and the absence of a reliable undo path.
 
-Actions are named `<domain>.<verb>`: `entity.merge`, `document.ingest`, `claim.delete`, and so on. Every domain (documents, entities, claims, folders, workflows, sources, artifacts, tasks) has its actions registered at startup.
+Actions are named `<domain>.<verb>`: `entity.merge`, `import.file`, `claim.delete`, `activity.cleanup`, and so on (the ingest action is `import.file`/`import.folder`, not `document.ingest`). Domains register their actions at startup.
 
 ## How to Add a New Action
 
@@ -80,18 +82,22 @@ Every `registry.invoke` call writes a row to `action_audit`:
 
 | Column | Type | Description |
 |---|---|---|
-| `id` | UUID | primary key |
-| `action_name` | TEXT | e.g. `entity.merge` |
-| `actor` | TEXT | user id from `request.state.user` |
-| `target_ids` | TEXT[] | IDs of the affected rows |
-| `params` | JSONB | the params dict passed to invoke |
-| `before` | JSONB | row snapshot(s) before execute |
-| `after` | JSONB | row snapshot(s) after execute |
-| `run_id` | UUID | groups actions from one request/session |
-| `ts` | TIMESTAMPTZ | wall-clock time of the action |
-| `undone` | BOOLEAN | true once an undo has been applied |
+| `id` | str | primary key |
+| `action_name` | str | e.g. `entity.merge` |
+| `actor` | str | `ui` / `chat` / `workflow` / `import` / `system` / a device id (default `system`) |
+| `target_ids` | list[str] | IDs of the affected rows |
+| `params` | dict | the params dict passed to invoke |
+| `before` | dict \| None | row snapshot(s) before execute |
+| `after` | dict \| None | row snapshot(s) after execute |
+| `run_id` | str \| None | groups actions from one request/session |
+| `created_at` | datetime | wall-clock time of the action |
+| `undone` | bool | true once an undo has been applied |
+| `inverse_of` | str \| None | audit id this row undoes (set on undo rows) |
+| `chain_seq` | int \| None | position in the per-database append-only chain |
+| `prev_hash` | str \| None | previous row's `row_hash` (chain link) |
+| `row_hash` | str | tamper-evident hash of this row |
 
-The `before`/`after` fields make it possible to answer "what changed and when" without a separate diff computation.
+The `before`/`after` fields make it possible to answer "what changed and when" without a separate diff computation. `prev_hash`/`row_hash`/`chain_seq` form a per-database append-only hash chain so the audit log is tamper-evident.
 
 ## Generic Invocation
 
