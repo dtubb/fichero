@@ -26,11 +26,11 @@ def test_reading_surface_has_stable_accessibility_hooks() -> None:
     # So `inspectorTabBar` / `inspectorTab-<tab>` no longer exist — do not "restore"
     # them. The hooks below are their shipped successors on the real controls.
     files = [
-        ROOT / "fichero" / "fichero" / "Views" / "Library" / "DocumentInspector" / "DocumentInspector.swift",
+        ROOT / "fichero" / "fichero" / "Views" / "Inspector" / "Document" / "DocumentInspector.swift",
         # Per-section hook is declared on the enum, not at the call site.
-        ROOT / "fichero" / "fichero" / "Views" / "Library" / "Inspector" / "InspectorSection.swift",
-        ROOT / "fichero" / "fichero" / "Views" / "Library" / "DocumentKGSurface.swift",
-        ROOT / "fichero" / "fichero" / "Views" / "Toolbars" / "ReaderToolbar.swift",
+        ROOT / "fichero" / "fichero" / "Views" / "Inspector" / "InspectorSection.swift",
+        ROOT / "fichero" / "fichero" / "Views" / "Reader" / "Knowledge" / "DocumentKGSurface.swift",
+        ROOT / "fichero" / "fichero" / "Views" / "Reader" / "ReaderToolbar.swift",
     ]
     text = "\n".join(path.read_text(encoding="utf-8") for path in files)
 
