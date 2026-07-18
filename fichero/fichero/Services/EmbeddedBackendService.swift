@@ -266,12 +266,14 @@ final class EmbeddedBackendService {
             status = .running
             logger.info("Adopted user-approved existing engine on port 8765")
         case .spawnOurs:
-            try launchEmbeddedBackend()
+            try await launchEmbeddedBackend()
             // Bounded by the child, not a clock (#3930) — we spawned this engine,
             // so its liveness is knowable and a fixed budget is just the app
             // racing its own subprocess.
             try await waitForSpawnedBackend()
-            _ = await AuthTokenMiddleware.waitForToken(timeout: 10)
+            // #3975: waitForSpawnedBackend already required an authenticated
+            // /api/registry 200 (= token accepted), so the token is provably on
+            // disk and working — the redundant waitForToken here was dead. Removed.
             status = .running
             logger.info("Embedded backend started successfully")
         }
@@ -373,7 +375,7 @@ final class EmbeddedBackendService {
     ]
 
     // swiftlint:disable:next function_body_length
-    private func launchEmbeddedBackend() throws {
+    private func launchEmbeddedBackend() async throws {
         let bundlePath = Bundle.main.bundlePath
 
         // Bundle is named "Fichero Engine.app" (briefcase formal_name =
@@ -415,13 +417,13 @@ final class EmbeddedBackendService {
                 )
             }
             publicBaseURL = url
-            accessMaterial = try prepareRemoteAccessTLSMaterial(
+            accessMaterial = try await prepareRemoteAccessTLSMaterial(
                 executablePath: executablePath,
                 publicBaseURL: url
             )
         } else {
             publicBaseURL = nil
-            accessMaterial = try prepareLocalAccessTLSMaterial(executablePath: executablePath)
+            accessMaterial = try await prepareLocalAccessTLSMaterial(executablePath: executablePath)
         }
 
         // Persist the SPKI pin for every host the engine binds to. The
@@ -642,8 +644,8 @@ final class EmbeddedBackendService {
         return Data(base64Encoded: body, options: .ignoreUnknownCharacters)
     }
 
-    private func prepareLocalAccessTLSMaterial(executablePath: String) throws -> RemoteAccessTLSMaterial {
-        try prepareTLSMaterial(
+    private func prepareLocalAccessTLSMaterial(executablePath: String) async throws -> RemoteAccessTLSMaterial {
+        try await prepareTLSMaterial(
             executablePath: executablePath,
             arguments: ["--prepare-local-access"],
             failureMessage: "Local engine TLS preparation failed."
@@ -653,8 +655,8 @@ final class EmbeddedBackendService {
     private func prepareRemoteAccessTLSMaterial(
         executablePath: String,
         publicBaseURL: URL
-    ) throws -> RemoteAccessTLSMaterial {
-        try prepareTLSMaterial(
+    ) async throws -> RemoteAccessTLSMaterial {
+        try await prepareTLSMaterial(
             executablePath: executablePath,
             arguments: [
                 "--prepare-remote-access",
@@ -688,7 +690,7 @@ final class EmbeddedBackendService {
         executablePath: String,
         arguments: [String],
         failureMessage: String
-    ) throws -> RemoteAccessTLSMaterial {
+    ) async throws -> RemoteAccessTLSMaterial {
         let cacheKey = Self.tlsCacheKey(executablePath: executablePath, arguments: arguments)
         if let cacheKey, let cached = Self.cachedTLSMaterial(forKey: cacheKey) {
             LaunchProfile.milestone("engine TLS material reused (no subprocess)")
@@ -696,11 +698,19 @@ final class EmbeddedBackendService {
             return cached
         }
 
-        let material = try runEngineTLSPrep(
-            executablePath: executablePath,
-            arguments: arguments,
-            failureMessage: failureMessage
-        )
+        // #3936: the subprocess spawns the ~1GB engine and blocks on
+        // `waitUntilExit()` for ~2.74s. On a cache HIT (above) we skip it, but on a
+        // MISS — every user's first launch, and EVERY dev launch (the mtime-keyed
+        // cache invalidates on each engine rebuild) — it used to freeze the main
+        // actor and stall first frame. Run it OFF the main actor; only the cheap
+        // cache lookup + pin re-derivation stay on main.
+        let material = try await Task.detached(priority: .userInitiated) {
+            try Self.runEngineTLSPrep(
+                executablePath: executablePath,
+                arguments: arguments,
+                failureMessage: failureMessage
+            )
+        }.value
         if let cacheKey {
             Self.storeTLSMaterial(material, forKey: cacheKey)
         }
@@ -709,7 +719,9 @@ final class EmbeddedBackendService {
 
     /// The subprocess path: only when the material genuinely has to be generated
     /// (first launch, rotated cert, engine update).
-    private func runEngineTLSPrep(
+    /// nonisolated + static (#3936): self-contained (local Process/pipes only), so
+    /// it can run off the @MainActor in a detached task without blocking first frame.
+    nonisolated private static func runEngineTLSPrep(
         executablePath: String,
         arguments: [String],
         failureMessage: String
