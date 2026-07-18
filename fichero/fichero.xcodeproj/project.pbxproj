@@ -1300,13 +1300,13 @@
 		19C6A533EA3E96E1F5AE19ED /* AppNavigationHistory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppNavigationHistory.swift; sourceTree = "<group>"; };
 		1AD58A9604A19DAAE6983A01 /* EngineLifecycleController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EngineLifecycleController.swift; sourceTree = "<group>"; };
 		1B98F1F8C255A9F7C3386A59 /* ResearchModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchModels.swift; sourceTree = "<group>"; };
-		1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIDefaults.swift; path = fichero/Views/Settings/AIDefaults.swift; sourceTree = SOURCE_ROOT; };
+		1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDefaults.swift; sourceTree = "<group>"; };
 		1C527476477074D83F628468 /* ClaimStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClaimStore.swift; sourceTree = "<group>"; };
 		1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Helpers.swift"; sourceTree = "<group>"; };
 		1D8837F3B333F0ACFB9929CF /* DocumentInspectorContentV2.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentInspectorContentV2.swift; sourceTree = "<group>"; };
 		1DE62C7312D0E473288483C9 /* ForceDirectedGraphView+Render.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ForceDirectedGraphView+Render.swift"; sourceTree = "<group>"; };
 		1DEAE79F9381616EC474F4ED /* HeuristicReviewSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeuristicReviewSheet.swift; sourceTree = "<group>"; };
-		1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalModelsSettingsView.swift; path = fichero/Views/Settings/LocalModelsSettingsView.swift; sourceTree = SOURCE_ROOT; };
+		1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModelsSettingsView.swift; sourceTree = "<group>"; };
 		200BCF2B2F3D501800D7851A /* ContentView+State.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+State.swift"; sourceTree = "<group>"; };
 		200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+ViewBuilders.swift"; sourceTree = "<group>"; };
 		200BCF372F3D548000D7851A /* ContentView+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+Persistence.swift"; sourceTree = "<group>"; };
@@ -1412,15 +1412,15 @@
 		2F46B999D0208EA4C734535C /* ClaimReviewQueueSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClaimReviewQueueSheet.swift; sourceTree = "<group>"; };
 		300A8405FFC476E5124372AE /* APIClient+Types.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "APIClient+Types.swift"; sourceTree = "<group>"; };
 		3080C713216B7BBD39725487 /* ScrollWheelZoom.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScrollWheelZoom.swift; sourceTree = "<group>"; };
-		312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorArtifactsTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorArtifactsTab.swift; sourceTree = SOURCE_ROOT; };
+		312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentInspectorArtifactsTab.swift; sourceTree = "<group>"; };
 		322ECCB87D28069C9539D009 /* FocusedAnnotation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FocusedAnnotation.swift; sourceTree = "<group>"; };
 		32F310DFF84C9557A77D4FDA /* NodePopover+Comparison.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "NodePopover+Comparison.swift"; sourceTree = "<group>"; };
 		35793BBA8A74DAA0982CCFA4 /* DocumentInspectorInfoTab+Header.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorInfoTab+Header.swift"; sourceTree = "<group>"; };
-		36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorContentTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorContentTab.swift; sourceTree = SOURCE_ROOT; };
+		36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentInspectorContentTab.swift; sourceTree = "<group>"; };
 		36839A1C65A10F63B92E4121 /* ActivityMonitorModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActivityMonitorModel.swift; sourceTree = "<group>"; };
 		36B2292335F30622AB8F0ABE /* BackendHost.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackendHost.swift; sourceTree = "<group>"; };
 		37003B253D97CBE012D3A811 /* DocumentInspectorInfoTab+Sharing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorInfoTab+Sharing.swift"; sourceTree = "<group>"; };
-		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackendSettingsView.swift; path = fichero/Views/Settings/BackendSettingsView.swift; sourceTree = SOURCE_ROOT; };
+		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendSettingsView.swift; sourceTree = "<group>"; };
 		375F58443D6F498C1FEDD3E3 /* ResearchStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchStore.swift; sourceTree = "<group>"; };
 		376E2EE5F22D7B7127D9CB2A /* OntologyBrowser+List.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "OntologyBrowser+List.swift"; sourceTree = "<group>"; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
@@ -1473,7 +1473,7 @@
 		599CF5FBD9D2B619B9353BC7 /* SpeakerComparisonView+Preview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SpeakerComparisonView+Preview.swift"; sourceTree = "<group>"; };
 		5A1F3C88D4E27B0196AB3302 /* ReadingPaneView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReadingPaneView.swift; sourceTree = "<group>"; };
 		5B0DFC89B8C073DBEE0A743F /* SidebarView+PinnedNavigationRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+PinnedNavigationRows.swift"; sourceTree = "<group>"; };
-		5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorPreviewPanel.swift; path = fichero/Views/Automation/TriggerEditorView/TriggerEditorPreviewPanel.swift; sourceTree = SOURCE_ROOT; };
+		5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorPreviewPanel.swift; sourceTree = "<group>"; };
 		5C36D41D71387394E6AEB453 /* ArtifactsInspectorPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactsInspectorPane.swift; sourceTree = "<group>"; };
 		5C8EFF7D9BC634BAE18E0F47 /* ImageEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditorView.swift; sourceTree = "<group>"; };
 		5D0B24DE95228CEA6B853324 /* SplittablePane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SplittablePane.swift; sourceTree = "<group>"; };
@@ -1555,7 +1555,7 @@
 		9E852347E800839A52286849 /* DocumentInspectorArtifactsTab+Interpretations.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+Interpretations.swift"; sourceTree = "<group>"; };
 		9F3A4A14186A5886AC932517 /* ChangeStreamTransport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChangeStreamTransport.swift; sourceTree = "<group>"; };
 		9F707FEBE62834FFB3024991 /* DocumentTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentTabView.swift; sourceTree = "<group>"; };
-		A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorFormPanel.swift; path = fichero/Views/Automation/TriggerEditorView/TriggerEditorFormPanel.swift; sourceTree = SOURCE_ROOT; };
+		A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorFormPanel.swift; sourceTree = "<group>"; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityRun.swift; sourceTree = "<group>"; };
@@ -1662,7 +1662,7 @@
 		A23530030000000000000003 /* MobileCaptureQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileCaptureQueue.swift; sourceTree = "<group>"; };
 		A23530040000000000000004 /* MobileCaptureQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileCaptureQueueView.swift; sourceTree = "<group>"; };
 		A2C9BD4E928F0D32E6EABBA7 /* CollectionWorkspaceStub.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CollectionWorkspaceStub.swift; sourceTree = "<group>"; };
-		A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FlowLayout.swift; path = fichero/Views/Components/FlowLayout.swift; sourceTree = SOURCE_ROOT; };
+		A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
 		A5B27E2BF4EC43E993C19837 /* FeatureTiers.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureTiers.generated.swift; sourceTree = "<group>"; };
 		A5C119BA4657FD54B0F01D6C /* DocumentKGSurface.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentKGSurface.swift; sourceTree = "<group>"; };
@@ -1746,8 +1746,8 @@
 		BDCFD7D8095D23EBDA3F42D9 /* DocumentInterpretationsTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentInterpretationsTab.swift; sourceTree = "<group>"; };
 		BE29C018865C9A1538200D8E /* ResearchProjectListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchProjectListView.swift; sourceTree = "<group>"; };
 		BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Persistence.swift"; sourceTree = "<group>"; };
-		C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GeneralSettingsView.swift; path = fichero/Views/Settings/GeneralSettingsView.swift; sourceTree = SOURCE_ROOT; };
-		C07B489C8F89204C43BD6E46 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AISettingsView.swift; path = fichero/Views/Settings/AISettingsView.swift; sourceTree = SOURCE_ROOT; };
+		C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		C07B489C8F89204C43BD6E46 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISettingsView.swift; sourceTree = "<group>"; };
 		C0FFEE0000000000000000A1 /* PairingRestoreDiagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PairingRestoreDiagnostics.swift; sourceTree = "<group>"; };
 		C10000110000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
 		C1424784E87E1971372F0109 /* CitationDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CitationDetailView.swift; sourceTree = "<group>"; };
@@ -1781,7 +1781,7 @@
 		DA1EB898A19FAA64EF466CD2 /* UsersStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsersStore.swift; sourceTree = "<group>"; };
 		DAE9F6E549990F086C442F3B /* BreadcrumbBuilder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BreadcrumbBuilder.swift; sourceTree = "<group>"; };
 		DC1CAB23253BF2D09F02A66D /* CanvasModifierTracker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasModifierTracker.swift; sourceTree = "<group>"; };
-		DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorInfoTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab.swift; sourceTree = SOURCE_ROOT; };
+		DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentInspectorInfoTab.swift; sourceTree = "<group>"; };
 		DD96D53320D07109835C90BF /* EntityDetailView+Notes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Notes.swift"; sourceTree = "<group>"; };
 		DF5FD0D414191E6FFC18E8BC /* SpatialNodeThumbnail.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialNodeThumbnail.swift; sourceTree = "<group>"; };
 		DF77122ADD78F941D7F1968D /* KGTimelineView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGTimelineView.swift; sourceTree = "<group>"; };
@@ -1790,7 +1790,7 @@
 		E25A2C92607779F4D928B8E3 /* ArtifactRichTextCodec.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactRichTextCodec.swift; sourceTree = "<group>"; };
 		E2FF71320EAE8FE11653EB06 /* SidebarItemRow+Workflow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Workflow.swift"; sourceTree = "<group>"; };
 		E5C0909F7C7B21871D35EB5C /* SpatialModels+Links.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SpatialModels+Links.swift"; sourceTree = "<group>"; };
-		E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorMetadataTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorMetadataTab.swift; sourceTree = SOURCE_ROOT; };
+		E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentInspectorMetadataTab.swift; sourceTree = "<group>"; };
 		E80DDED3870C2457BFD97D1E /* DocumentKGWebPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentKGWebPane.swift; sourceTree = "<group>"; };
 		E9506E8C3C8030EE3075E9A0 /* EntityDetailView+Metadata.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Metadata.swift"; sourceTree = "<group>"; };
 		EAC32EFF977CFA4E7D253F6A /* SourceProvenancePopover.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SourceProvenancePopover.swift; sourceTree = "<group>"; };
@@ -1827,10 +1827,10 @@
 		FEED00000000000000000260 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEEDDEAD0000000000000001 /* ReaderTabBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReaderTabBar.swift; sourceTree = "<group>"; };
 		FEEDDEAD0000000000000003 /* EntityReconciliationSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EntityReconciliationSheet.swift; sourceTree = "<group>"; };
-		FEEDDEAD0000000000000005 /* SurfaceTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SurfaceTabBar.swift; path = fichero/Views/SurfaceChrome/SurfaceTabBar.swift; sourceTree = SOURCE_ROOT; };
+		FEEDDEAD0000000000000005 /* SurfaceTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceTabBar.swift; sourceTree = "<group>"; };
 		FEEDDEAD0000000000000007 /* WorkspaceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
-		FEEDDEAD0000000000000009 /* BatchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BatchStore.swift; path = fichero/Models/BatchStore.swift; sourceTree = SOURCE_ROOT; };
-		FEEDDEAD000000000000000B /* BatchRunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BatchRunView.swift; path = fichero/Views/Workflow/BatchRunView.swift; sourceTree = SOURCE_ROOT; };
+		FEEDDEAD0000000000000009 /* BatchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchStore.swift; sourceTree = "<group>"; };
+		FEEDDEAD000000000000000B /* BatchRunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchRunView.swift; sourceTree = "<group>"; };
 		FF58B21F339179A8162AD6C5 /* NoteService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NoteService.swift; sourceTree = "<group>"; };
 		FFC6B695132C68202062560A /* InspectorPresenter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InspectorPresenter.swift; sourceTree = "<group>"; };
 		GTE1 /* GeneratedTypeExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedTypeExtensions.swift; sourceTree = "<group>"; };
@@ -1950,6 +1950,15 @@
 				F1CE0962968DEE7EAB60E454 /* ClaimSummaryCard+Provenance.swift */,
 			);
 			path = OntologyBrowser;
+			sourceTree = "<group>";
+		};
+		13DC9A14C75DE20B0759DA5B /* SurfaceChrome */ = {
+			isa = PBXGroup;
+			children = (
+				FEEDDEAD0000000000000005 /* SurfaceTabBar.swift */,
+			);
+			name = SurfaceChrome;
+			path = SurfaceChrome;
 			sourceTree = "<group>";
 		};
 		1F55072D805F4D51D44378D7 /* Space */ = {
@@ -2126,6 +2135,7 @@
 				1F55072D805F4D51D44378D7 /* Space */,
 				8D536EAF7F2C38E1DD16992F /* Canvas */,
 				2FA8466852BE81F13D249449 /* Shell */,
+				13DC9A14C75DE20B0759DA5B /* SurfaceChrome */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2231,6 +2241,7 @@
 				20D8ED522F48E2CA006950A3 /* WorkflowInspector+DataLoading.swift */,
 				506C34038F8A349C075DFBAC /* WorkflowRunProviderCache.swift */,
 				32F310DFF84C9557A77D4FDA /* NodePopover+Comparison.swift */,
+				FEEDDEAD000000000000000B /* BatchRunView.swift */,
 			);
 			path = Workflow;
 			sourceTree = "<group>";
@@ -2311,8 +2322,6 @@
 				D82A9BAC0F995F9199F94B69 /* KGFocusState.swift */,
 				E5C0909F7C7B21871D35EB5C /* SpatialModels+Links.swift */,
 				0B118FE1DE4F78C0EE238539 /* EntityStore.swift */,
-				FEEDDEAD0000000000000009 /* BatchStore.swift */,
-				FEEDDEAD000000000000000B /* BatchRunView.swift */,
 				FEEDDEAD0000000000000007 /* WorkspaceStore.swift */,
 				1C527476477074D83F628468 /* ClaimStore.swift */,
 				EFA65406167827DCB144E3E2 /* NoteStore.swift */,
@@ -2355,6 +2364,7 @@
 				E07BE5ECB91F929ADBD8595A /* BackendActivityEvent.swift */,
 				41994E6C746A0B0171534212 /* ChainStore.swift */,
 				CE70F7B7D331135FEFF34739 /* ArtifactEntityStore.swift */,
+				FEEDDEAD0000000000000009 /* BatchStore.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -2620,7 +2630,6 @@
 			isa = PBXGroup;
 			children = (
 				A1BFB2EF2F043FA100EAA55A /* BackendConnectionView.swift */,
-				A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */,
 				A1BFB2F22F045C8A00EAA55A /* LibraryImageView.swift */,
 				SKEL00022F045C8A00EAA55A /* SkeletonPlaceholder.swift */,
 				ANIM00022F045C8A00EAA55A /* FrameAnimation.swift */,
@@ -2633,6 +2642,7 @@
 				43576573521F73AE202B2E9B /* BackendRootGate.swift */,
 				87C5267955AE57DD7BCEA674 /* LibraryAccessDeniedView.swift */,
 				53331A42DA98730B8F854E58 /* LiveUpdatesPausedPill.swift */,
+				A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -2652,11 +2662,6 @@
 		A1BFB2DB2F042E5100EAA55A /* Settings */ = {
 			isa = PBXGroup;
 			children = (
-				1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */,
-				C07B489C8F89204C43BD6E46 /* AISettingsView.swift */,
-				371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */,
-				C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */,
-				1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */,
 				AA10000000000000000031A2 /* LocalInferenceSettingsView.swift */,
 				A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */,
 				A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */,
@@ -2670,6 +2675,11 @@
 				CD5D9E12155EC0A6E738B878 /* UsersSettingsView.swift */,
 				EAF964748FC3450263DCB1D1 /* CaptureSettingsView.swift */,
 				6337F0388FCB9CD46ACFEE95 /* InviteAccountSection.swift */,
+				1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */,
+				C07B489C8F89204C43BD6E46 /* AISettingsView.swift */,
+				371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */,
+				C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */,
+				1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -2842,11 +2852,6 @@
 		D11000012F99900100ABC001 /* DocumentInspector */ = {
 			isa = PBXGroup;
 			children = (
-				DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */,
-				E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */,
-				312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */,
-				FEEDDEAD0000000000000005 /* SurfaceTabBar.swift */,
-				36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */,
 				AB786740043A3DAB4CDBFD6F /* DocumentInspectorAnnotationsTab.swift */,
 				B00A8552DEACF83751D617C6 /* DocumentNotesTab.swift */,
 				7FDDBCA3101A6E468A3105D2 /* DocumentInspectorArtifactsTab+Shared.swift */,
@@ -2868,6 +2873,10 @@
 				BDCFD7D8095D23EBDA3F42D9 /* DocumentInterpretationsTab.swift */,
 				1424D757E2C82D4E5325413F /* DocumentInspector.swift */,
 				1D8837F3B333F0ACFB9929CF /* DocumentInspectorContentV2.swift */,
+				DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */,
+				E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */,
+				312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */,
+				36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */,
 			);
 			path = DocumentInspector;
 			sourceTree = "<group>";
@@ -3096,22 +3105,7 @@
 				"$(DERIVED_FILE_DIR)/swiftlint.done",
 			);
 			shellPath = /bin/sh;
-			shellScript = (
-				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
-				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
-				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
-				fi,
-				"",
-				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
-				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
-				else,
-				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
-				fi,
-				"",
-				"mkdir -p \"$DERIVED_FILE_DIR\"",
-				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
-				"",
-			);
+			shellScript = "SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"\nif [ ! -x \"$SWIFTLINT_BIN\" ]; then\n  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"\nfi\n\nif [ -x \"$SWIFTLINT_BIN\" ]; then\n  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n\nmkdir -p \"$DERIVED_FILE_DIR\"\ntouch \"$DERIVED_FILE_DIR/swiftlint.done\"\n\n";
 		};
 		CC0011223344556677889903 /* Embed Fichero Engine */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -3120,73 +3114,7 @@
 			);
 			name = "Embed Fichero Engine";
 			shellPath = /bin/sh;
-			shellScript = (
-				"# Embed the briefcase-built engine into Fichero.app/Contents/Resources/.",
-				"",
-				"# Behavior:",
-				"",
-				"#   - Release: engine is required; abort the build if missing.",
-				"",
-				"#   - Debug:   skip embedding entirely. Developers run the engine externally",
-				"",
-				"#             (uvicorn / briefcase dev / scripts/startup) — the in-process",
-				"",
-				"#             EmbeddedBackendService probes 127.0.0.1:8765 first and uses",
-				"",
-				"#             whatever's there. Embedding on every Debug build (a) was slow",
-				"",
-				"#             (~10s of cp on the briefcase bundle) and (b) raced with",
-				"",
-				"#             concurrent briefcase rebuilds, leaving partial bundles.",
-				"",
-				"",
-				"",
-				"if [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then",
-				"",
-				"  echo \"Skipping engine embed (non-macOS platform ${PLATFORM_NAME}); engine is embedded only in the macOS app bundle\"",
-				"",
-				"  exit 0",
-				"",
-				fi,
-				"",
-				"",
-				"",
-				"if [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then",
-				"",
-				"  echo \"Skipping engine embed (FICHERO_EMBED_ENGINE=${FICHERO_EMBED_ENGINE}); use external backend on :8765\"",
-				"",
-				"  exit 0",
-				"",
-				fi,
-				"",
-				"",
-				"",
-				"ENGINE_SRC=\"${SRCROOT}/../fichero-engine/build/engine/macos/app/Fichero Engine.app\"",
-				"",
-				"ENGINE_DST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/Fichero Engine.app\"",
-				"",
-				"",
-				"",
-				"if [ ! -d \"$ENGINE_SRC\" ]; then",
-				"",
-				"  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-engine/ first\" >&2",
-				"",
-				"  exit 1",
-				"",
-				fi,
-				"",
-				"",
-				"",
-				"echo \"Embedding engine: $ENGINE_SRC -> $ENGINE_DST\"",
-				"",
-				"rm -rf \"$ENGINE_DST\"",
-				"",
-				"mkdir -p \"$(dirname \"$ENGINE_DST\")\"",
-				"",
-				"cp -R \"$ENGINE_SRC\" \"$ENGINE_DST\"",
-				"\"${SRCROOT}/../scripts/clean-embedded-engine.sh\" \"$ENGINE_DST\"",
-				"",
-			);
+			shellScript = "# Embed the briefcase-built engine into Fichero.app/Contents/Resources/.\n\n# Behavior:\n\n#   - Release: engine is required; abort the build if missing.\n\n#   - Debug:   skip embedding entirely. Developers run the engine externally\n\n#             (uvicorn / briefcase dev / scripts/startup) — the in-process\n\n#             EmbeddedBackendService probes 127.0.0.1:8765 first and uses\n\n#             whatever's there. Embedding on every Debug build (a) was slow\n\n#             (~10s of cp on the briefcase bundle) and (b) raced with\n\n#             concurrent briefcase rebuilds, leaving partial bundles.\n\n\n\nif [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then\n\n  echo \"Skipping engine embed (non-macOS platform ${PLATFORM_NAME}); engine is embedded only in the macOS app bundle\"\n\n  exit 0\n\nfi\n\n\n\nif [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then\n\n  echo \"Skipping engine embed (FICHERO_EMBED_ENGINE=${FICHERO_EMBED_ENGINE}); use external backend on :8765\"\n\n  exit 0\n\nfi\n\n\n\nENGINE_SRC=\"${SRCROOT}/../fichero-engine/build/engine/macos/app/Fichero Engine.app\"\n\nENGINE_DST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/Fichero Engine.app\"\n\n\n\nif [ ! -d \"$ENGINE_SRC\" ]; then\n\n  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-engine/ first\" >&2\n\n  exit 1\n\nfi\n\n\n\necho \"Embedding engine: $ENGINE_SRC -> $ENGINE_DST\"\n\nrm -rf \"$ENGINE_DST\"\n\nmkdir -p \"$(dirname \"$ENGINE_DST\")\"\n\ncp -R \"$ENGINE_SRC\" \"$ENGINE_DST\"\n\"${SRCROOT}/../scripts/clean-embedded-engine.sh\" \"$ENGINE_DST\"\n\n";
 		};
 		FEED00000000000000000255 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -3201,22 +3129,7 @@
 				"$(DERIVED_FILE_DIR)/swiftlint.done",
 			);
 			shellPath = /bin/sh;
-			shellScript = (
-				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
-				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
-				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
-				fi,
-				"",
-				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
-				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
-				else,
-				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
-				fi,
-				"",
-				"mkdir -p \"$DERIVED_FILE_DIR\"",
-				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
-				"",
-			);
+			shellScript = "SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"\nif [ ! -x \"$SWIFTLINT_BIN\" ]; then\n  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"\nfi\n\nif [ -x \"$SWIFTLINT_BIN\" ]; then\n  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n\nmkdir -p \"$DERIVED_FILE_DIR\"\ntouch \"$DERIVED_FILE_DIR/swiftlint.done\"\n\n";
 		};
 		FEED00000000000000000256 /* Embed Fichero Engine */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -3225,265 +3138,7 @@
 			);
 			name = "Embed Fichero Engine";
 			shellPath = /bin/sh;
-			shellScript = (
-				"# Embed the briefcase-built engine into the App Store app bundle — SANDBOXED.",
-				"#",
-				"# The DMG target has its own copy of this phase; the two channels diverge and",
-				"# must stay diverged. Differences here, both mandatory for App Store ingestion:",
-				"#",
-				"#   1. The engine is SIGNED IN THIS PHASE with app-sandbox + inherit. A nested",
-				"#      executable that is not sandboxed is rejected at upload (ITMS-90296).",
-				"#      Xcode's own CodeSign phase runs AFTER this one and seals the outer app,",
-				"#      so by then the helper is already correctly signed.",
-				"#   2. NEVER `codesign --deep`. --deep re-signs nested code with the PARENT's",
-				"#      entitlements, which silently replaces the engine's two-key set and breaks",
-				"#      the inherit rule (#3746 spike).",
-				"#   3. NO hardened runtime and NO com.apple.security.cs.* keys. Those are",
-				"#      NOTARIZATION requirements for the DMG; MAS is not notarized, and the",
-				"#      spike proved the engine's 2,889 native libs load without them.",
-				"",
-				"if [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then",
-				"  echo \"Skipping engine embed (non-macOS platform ${PLATFORM_NAME})\"",
-				"  exit 0",
-				fi,
-				"",
-				"if [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then",
-				"  echo \"Skipping engine embed (FICHERO_EMBED_ENGINE=${FICHERO_EMBED_ENGINE}); use external backend on :8765\"",
-				"  exit 0",
-				fi,
-				"",
-				"# Contents/Helpers, NOT Contents/Resources (#3749). TN2206 lists the",
-				"# designated code locations for nested executables — MacOS, Frameworks,",
-				"# Helpers, PlugIns, XPCServices, Library. Resources is not one of them,",
-				"# and MAS ingestion validation is stricter than notarization: an",
-				"# executable .app under Resources is an invalid bundle structure. The",
-				"# spike (#3746) ran the engine from Contents/Helpers. The DMG target",
-				"# keeps Contents/Resources and is deliberately left alone.",
-				"",
-				"ENGINE_SRC=\"${SRCROOT}/../fichero-engine/build/engine/macos/app/Fichero Engine.app\"",
-				"ENGINE_ENTITLEMENTS=\"${SRCROOT}/fichero/FicheroEngineAppStore.entitlements\"",
-				"",
-				"# THE APP BUNDLE, AS A REAL PATH. Read this before changing it.",
-				"#",
-				"# ${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app is a SYMLINK in an archive/install build",
-				"# (ACTION=install): Xcode assembles the product under DSTROOT and leaves a symlink in",
-				"# the products dir. That is fine for `cp`, which resolves path components and writes",
-				"# THROUGH the link — which is why the engine embed always worked. It is NOT fine for",
-				"# `find`: with a symlink as its starting point and no -H/-L, find does not descend.",
-				"# It silently reports zero matches.",
-				"#",
-				"# That is what shipped the R2 archive full of .dSYMs. The strips found nothing, so",
-				"# they deleted nothing — and the \"no .dSYM remain\" assertions right below also found",
-				"# nothing, so they PASSED. A vacuous find looks exactly like a clean bundle.",
-				"#",
-				"# TARGET_BUILD_DIR/WRAPPER_NAME is the real product location in every ACTION, and",
-				"# `cd && pwd -P` resolves any remaining symlink to a physical path, so every find",
-				"# below starts at a real directory.",
-				"APP_DST=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"",
-				"if [ ! -d \"$APP_DST\" ]; then",
-				"  echo \"error: no app bundle at $APP_DST (TARGET_BUILD_DIR/WRAPPER_NAME)\" >&2",
-				"  exit 1",
-				fi,
-				"APP_DST=\"$(cd \"$APP_DST\" && pwd -P)\"",
-				"ENGINE_DST=\"$APP_DST/Contents/Helpers/Fichero Engine.app\"",
-				"",
-				"# Prove the traversal works before trusting anything it says. An app bundle always",
-				"# contains files; if find sees none, it is not traversing, and every check below",
-				"# would \"pass\" without inspecting a single byte. Fail loudly instead — this is the",
-				"# assertion whose absence let the last two rejections through.",
-				"if [ \"$(find \"$APP_DST\" -type f | head -1 | wc -l | tr -d \" \")\" -eq 0 ]; then",
-				"  echo \"error: find traverses nothing under $APP_DST — the strips and their checks would vacuously pass\" >&2",
-				"  exit 1",
-				fi,
-				"echo \"  app bundle (resolved): $APP_DST\"",
-				"",
-				"if [ ! -d \"$ENGINE_SRC\" ]; then",
-				"  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-engine/ first\" >&2",
-				"  exit 1",
-				fi,
-				"",
-				"if [ ! -f \"$ENGINE_ENTITLEMENTS\" ]; then",
-				"  echo \"error: App Store engine entitlements not found at $ENGINE_ENTITLEMENTS\" >&2",
-				"  exit 1",
-				fi,
-				"",
-				"echo \"Embedding engine (App Store, sandboxed): $ENGINE_SRC -> $ENGINE_DST\"",
-				"rm -rf \"$ENGINE_DST\"",
-				"mkdir -p \"$(dirname \"$ENGINE_DST\")\"",
-				"cp -R \"$ENGINE_SRC\" \"$ENGINE_DST\"",
-				"\"${SRCROOT}/../scripts/clean-embedded-engine.sh\" \"$ENGINE_DST\"",
-				"",
-				"# Remove static archives (.a). REJECTED UPLOAD, code 90284: Python.framework ships",
-				"# Tcl/Tk link-time stubs (libtclstub8.6.a, libtkstub8.6.a, libitclstub4.3.2.a,",
-				"# libtdbcstub1.1.10.a) and App Store Connect demands every nested archive be signed",
-				"# with the provisioning-profile certificate. A .a CANNOT be signed: it is an ar",
-				"# archive of object files, not a Mach-O image, and codesign has nothing to seal in",
-				"# it. So the only way to satisfy the rule is to not ship them.",
-				"#",
-				"# Safe to delete: these are LINK-time stubs. Nothing dlopens a .a; the runtime uses",
-				"# the Tcl/Tk dylibs beside them, and Fichero never touches Tk at all. Deleted rather",
-				"# than excluded at build time because the engine bundle comes from Briefcase, which",
-				"# we do not control.",
-				"archive_count=$(find \"$APP_DST\" -name \"*.a\" -type f | wc -l | tr -d \" \")",
-				"if [ \"$archive_count\" -gt 0 ]; then",
-				"  find \"$APP_DST\" -name \"*.a\" -type f -delete",
-				"  echo \"  removed $archive_count static archive(s) from the app bundle — not signable code (90284)\"",
-				fi,
-				"",
-				"# Remove debug-symbol bundles (.dSYM). REJECTED UPLOAD, codes 90277/90278: Briefcase",
-				"# ships PyObjCTest extensions with their *.cpython-312-darwin.so.dSYM beside them, and",
-				"# a .dSYM carries the bundle identifier com.apple.xcode.dsym.* — which is Apple's own,",
-				"# not ours, and does not match the provisioning profile. Ingestion refuses it.",
-				"#",
-				"# A .dSYM is not runtime code. It is the detached DWARF for a binary; nothing loads it,",
-				"# and it exists only so a crash log can be symbolicated. Re-identifying or re-signing it",
-				"# would be dressing up a file that has no business in a shipped bundle. Delete it.",
-				"#",
-				"# Deleted BEFORE the Mach-O sweep below, deliberately: a .dSYM contains a Mach-O",
-				"# (Contents/Resources/DWARF/<name>, a \"dSYM companion\" image), so leaving them here",
-				"# would mean signing files we are about to be rejected for shipping.",
-				"dsym_count=$(find \"$APP_DST\" -name \"*.dSYM\" -type d | wc -l | tr -d \" \")",
-				"if [ \"$dsym_count\" -gt 0 ]; then",
-				"  find \"$APP_DST\" -name \"*.dSYM\" -type d -exec rm -rf {} +",
-				"  echo \"  removed $dsym_count debug-symbol bundle(s) (.dSYM) from the app bundle — not runtime code (90277/90278)\"",
-				fi,
-				"",
-				"if [ \"${CODE_SIGNING_ALLOWED}\" != \"YES\" ] || [ -z \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then",
-				"  echo \"note: signing not configured for ${CONFIGURATION}; engine left as copied (ad-hoc)\"",
-				"  exit 0",
-				fi,
-				"",
-				"# Sign inside-out. Mirrors scripts/build-release-dmg.sh step 2b, minus the",
-				"# hardened runtime and secure timestamp (neither applies to MAS).",
-				"IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY}\"",
-				"",
-				"# is_macho_executable PATH — true for a Mach-O EXECUTABLE (MH_EXECUTE), false for a",
-				"# dylib, bundle or anything else. Handles universal binaries: `file` prints one line",
-				"# per architecture, and \"executable\" appears in each.",
-				"is_macho_executable() {",
-				"  file -b \"$1\" 2>/dev/null | grep -q \"Mach-O.*executable\"",
-				"}",
-				"",
-				"# sign_mas PATH — the two-key entitlements go on every nested EXECUTABLE. Not on",
-				"# paths: on executables.",
-				"#",
-				"# REJECTED UPLOAD, code 90296: this used to key off the PATH, entitling only",
-				"# ENGINE/Contents/MacOS/*. fm-bridge — the Swift CLI the engine spawns for Apple",
-				"# Intelligence, which Briefcase packages at",
-				"# Contents/Resources/app/fichero/resources/bin/fm-bridge — therefore signed PLAIN and",
-				"# shipped with no com.apple.security.app-sandbox. Every nested executable inside a",
-				"# sandboxed app must be sandboxed; a path rule cannot know which files those are, and",
-				"# the next one Briefcase adds would have been missed the same way. Mach-O type can.",
-				"#",
-				"# Libraries take no entitlements and sign plain: a .so/.dylib is not a process, and a",
-				"# .framework is a library container. Executable BUNDLES (.app, .xpc) are processes and",
-				"# do carry them — including Python.framework's own nested Python.app.",
-				"sign_mas() {",
-				"  target=\"$1\"",
-				"  case \"$target\" in",
-				"    *.framework)",
-				"      codesign --force --sign \"$IDENTITY\" \"$target\" >/dev/null 2>&1",
-				"      return $?",
-				"      ;;",
-				"  esac",
-				"  if [ -d \"$target\" ] || is_macho_executable \"$target\"; then",
-				"    codesign --force --sign \"$IDENTITY\" --entitlements \"$ENGINE_ENTITLEMENTS\" \"$target\" >/dev/null 2>&1",
-				"  else",
-				"    codesign --force --sign \"$IDENTITY\" \"$target\" >/dev/null 2>&1",
-				"  fi",
-				"}",
-				"",
-				"# Collect every Mach-O. `file {} +` batches; drop the per-architecture lines it",
-				"# emits for universal binaries so only real paths remain.",
-				"macho_list=\"$(mktemp)\"",
-				"find \"$ENGINE_DST\" -type f -exec file {} + 2>/dev/null | awk -F': ' '/Mach-O/ && !/for architecture/ {print $1}' | sort -u > \"$macho_list\"",
-				"echo \"  signing $(wc -l < \"$macho_list\" | tr -d ' ') Mach-O binaries in the engine\"",
-				"",
-				"# Plain loop, not xargs: under xcodebuild the inherited environment can be large",
-				"# enough that xargs cannot assemble even one command (see build-release-dmg.sh).",
-				"sign_fails=0",
-				"while IFS= read -r macho; do",
-				"  if ! sign_mas \"$macho\"; then",
-				"    echo \"  error: failed to sign Mach-O: $macho\" >&2",
-				"    sign_fails=$((sign_fails + 1))",
-				"  fi",
-				"done < \"$macho_list\"",
-				"rm -f \"$macho_list\"",
-				"if [ \"$sign_fails\" -gt 0 ]; then",
-				"  echo \"error: $sign_fails Mach-O binaries failed to sign\" >&2",
-				"  exit 1",
-				fi,
-				"",
-				"# Re-seal bundles innermost-first: longest path first guarantees a nested bundle",
-				"# is sealed before its parent, so the parent's seal hashes a correct child. The",
-				"# engine bundle itself sorts last and picks up the entitlements via sign_mas.",
-				"bundle_list=\"$(mktemp)\"",
-				"find \"$ENGINE_DST\" -type d -name '*.app' -o -type d -name '*.framework' -o -type d -name '*.xpc' > \"$bundle_list.raw\"",
-				"awk '{print length, $0}' \"$bundle_list.raw\" | sort -rn | cut -d' ' -f2- > \"$bundle_list\"",
-				"rm -f \"$bundle_list.raw\"",
-				"bundle_fails=0",
-				"while IFS= read -r bundle; do",
-				"  if ! sign_mas \"$bundle\"; then",
-				"    echo \"  error: failed to re-seal bundle: $bundle\" >&2",
-				"    bundle_fails=$((bundle_fails + 1))",
-				"  fi",
-				"done < \"$bundle_list\"",
-				"rm -f \"$bundle_list\"",
-				"if [ \"$bundle_fails\" -gt 0 ]; then",
-				"  echo \"error: $bundle_fails bundles failed to re-seal\" >&2",
-				"  exit 1",
-				fi,
-				"",
-				"# Fail the build here rather than at ingestion if the two-key rule was broken.",
-				"if ! codesign --verify --strict \"$ENGINE_DST\" >/dev/null 2>&1; then",
-				"  echo \"error: embedded engine signature is invalid after signing\" >&2",
-				"  exit 1",
-				fi,
-				"if ! codesign --display --entitlements - \"$ENGINE_DST\" 2>&1 | grep -q \"com.apple.security.inherit\"; then",
-				"  echo \"error: embedded engine is missing com.apple.security.inherit\" >&2",
-				"  exit 1",
-				fi,
-				"",
-				"# The two checks that App Store Connect ran for us, run here instead. Both of these",
-				"# rejections cost a full archive + upload + wait to discover; they cost seconds here.",
-				"",
-				"# 90284 — no static archives may remain.",
-				"remaining=$(find \"$APP_DST\" -name \"*.a\" -type f | wc -l | tr -d \" \")",
-				"if [ \"$remaining\" -gt 0 ]; then",
-				"  echo \"error: $remaining static archive(s) (.a) still in the engine — ingestion rejects these (90284)\" >&2",
-				"  find \"$APP_DST\" -name \"*.a\" -type f >&2",
-				"  exit 1",
-				fi,
-				"",
-				"# 90277/90278 — no debug-symbol bundles may remain.",
-				"remaining_dsym=$(find \"$APP_DST\" -name \"*.dSYM\" -type d | wc -l | tr -d \" \")",
-				"if [ \"$remaining_dsym\" -gt 0 ]; then",
-				"  echo \"error: $remaining_dsym .dSYM bundle(s) still in the engine — they carry com.apple.xcode.dsym identifiers and ingestion rejects them (90277/90278)\" >&2",
-				"  find \"$APP_DST\" -name \"*.dSYM\" -type d >&2",
-				"  exit 1",
-				fi,
-				"",
-				"# 90296 — EVERY nested executable must be sandboxed, not just the engine's own.",
-				"# This is the check that would have caught fm-bridge.",
-				"exec_list=\"$(mktemp)\"",
-				"find \"$ENGINE_DST\" -type f -exec file {} + 2>/dev/null | awk -F\": \" '/Mach-O/ && /executable/ && !/for architecture/ {print $1}' | sort -u > \"$exec_list\"",
-				"unsandboxed=0",
-				"while IFS= read -r exe; do",
-				"  [ -n \"$exe\" ] || continue",
-				"  if ! codesign --display --entitlements - \"$exe\" 2>&1 | grep -q \"com.apple.security.app-sandbox\"; then",
-				"    echo \"error: nested executable is NOT sandboxed (90296): $exe\" >&2",
-				"    unsandboxed=$((unsandboxed + 1))",
-				"  fi",
-				"done < \"$exec_list\"",
-				"exec_count=$(wc -l < \"$exec_list\" | tr -d \" \")",
-				"rm -f \"$exec_list\"",
-				"if [ \"$unsandboxed\" -gt 0 ]; then",
-				"  echo \"error: $unsandboxed nested executable(s) lack com.apple.security.app-sandbox\" >&2",
-				"  exit 1",
-				fi,
-				"",
-				"echo \"  engine signed sandboxed: $exec_count nested executable(s), all app-sandbox + inherit, no --deep, no .a\"",
-			);
+			shellScript = "# Embed the briefcase-built engine into the App Store app bundle — SANDBOXED.\n#\n# The DMG target has its own copy of this phase; the two channels diverge and\n# must stay diverged. Differences here, both mandatory for App Store ingestion:\n#\n#   1. The engine is SIGNED IN THIS PHASE with app-sandbox + inherit. A nested\n#      executable that is not sandboxed is rejected at upload (ITMS-90296).\n#      Xcode's own CodeSign phase runs AFTER this one and seals the outer app,\n#      so by then the helper is already correctly signed.\n#   2. NEVER `codesign --deep`. --deep re-signs nested code with the PARENT's\n#      entitlements, which silently replaces the engine's two-key set and breaks\n#      the inherit rule (#3746 spike).\n#   3. NO hardened runtime and NO com.apple.security.cs.* keys. Those are\n#      NOTARIZATION requirements for the DMG; MAS is not notarized, and the\n#      spike proved the engine's 2,889 native libs load without them.\n\nif [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then\n  echo \"Skipping engine embed (non-macOS platform ${PLATFORM_NAME})\"\n  exit 0\nfi\n\nif [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then\n  echo \"Skipping engine embed (FICHERO_EMBED_ENGINE=${FICHERO_EMBED_ENGINE}); use external backend on :8765\"\n  exit 0\nfi\n\n# Contents/Helpers, NOT Contents/Resources (#3749). TN2206 lists the\n# designated code locations for nested executables — MacOS, Frameworks,\n# Helpers, PlugIns, XPCServices, Library. Resources is not one of them,\n# and MAS ingestion validation is stricter than notarization: an\n# executable .app under Resources is an invalid bundle structure. The\n# spike (#3746) ran the engine from Contents/Helpers. The DMG target\n# keeps Contents/Resources and is deliberately left alone.\n\nENGINE_SRC=\"${SRCROOT}/../fichero-engine/build/engine/macos/app/Fichero Engine.app\"\nENGINE_ENTITLEMENTS=\"${SRCROOT}/fichero/FicheroEngineAppStore.entitlements\"\n\n# THE APP BUNDLE, AS A REAL PATH. Read this before changing it.\n#\n# ${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app is a SYMLINK in an archive/install build\n# (ACTION=install): Xcode assembles the product under DSTROOT and leaves a symlink in\n# the products dir. That is fine for `cp`, which resolves path components and writes\n# THROUGH the link — which is why the engine embed always worked. It is NOT fine for\n# `find`: with a symlink as its starting point and no -H/-L, find does not descend.\n# It silently reports zero matches.\n#\n# That is what shipped the R2 archive full of .dSYMs. The strips found nothing, so\n# they deleted nothing — and the \"no .dSYM remain\" assertions right below also found\n# nothing, so they PASSED. A vacuous find looks exactly like a clean bundle.\n#\n# TARGET_BUILD_DIR/WRAPPER_NAME is the real product location in every ACTION, and\n# `cd && pwd -P` resolves any remaining symlink to a physical path, so every find\n# below starts at a real directory.\nAPP_DST=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\nif [ ! -d \"$APP_DST\" ]; then\n  echo \"error: no app bundle at $APP_DST (TARGET_BUILD_DIR/WRAPPER_NAME)\" >&2\n  exit 1\nfi\nAPP_DST=\"$(cd \"$APP_DST\" && pwd -P)\"\nENGINE_DST=\"$APP_DST/Contents/Helpers/Fichero Engine.app\"\n\n# Prove the traversal works before trusting anything it says. An app bundle always\n# contains files; if find sees none, it is not traversing, and every check below\n# would \"pass\" without inspecting a single byte. Fail loudly instead — this is the\n# assertion whose absence let the last two rejections through.\nif [ \"$(find \"$APP_DST\" -type f | head -1 | wc -l | tr -d \" \")\" -eq 0 ]; then\n  echo \"error: find traverses nothing under $APP_DST — the strips and their checks would vacuously pass\" >&2\n  exit 1\nfi\necho \"  app bundle (resolved): $APP_DST\"\n\nif [ ! -d \"$ENGINE_SRC\" ]; then\n  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-engine/ first\" >&2\n  exit 1\nfi\n\nif [ ! -f \"$ENGINE_ENTITLEMENTS\" ]; then\n  echo \"error: App Store engine entitlements not found at $ENGINE_ENTITLEMENTS\" >&2\n  exit 1\nfi\n\necho \"Embedding engine (App Store, sandboxed): $ENGINE_SRC -> $ENGINE_DST\"\nrm -rf \"$ENGINE_DST\"\nmkdir -p \"$(dirname \"$ENGINE_DST\")\"\ncp -R \"$ENGINE_SRC\" \"$ENGINE_DST\"\n\"${SRCROOT}/../scripts/clean-embedded-engine.sh\" \"$ENGINE_DST\"\n\n# Remove static archives (.a). REJECTED UPLOAD, code 90284: Python.framework ships\n# Tcl/Tk link-time stubs (libtclstub8.6.a, libtkstub8.6.a, libitclstub4.3.2.a,\n# libtdbcstub1.1.10.a) and App Store Connect demands every nested archive be signed\n# with the provisioning-profile certificate. A .a CANNOT be signed: it is an ar\n# archive of object files, not a Mach-O image, and codesign has nothing to seal in\n# it. So the only way to satisfy the rule is to not ship them.\n#\n# Safe to delete: these are LINK-time stubs. Nothing dlopens a .a; the runtime uses\n# the Tcl/Tk dylibs beside them, and Fichero never touches Tk at all. Deleted rather\n# than excluded at build time because the engine bundle comes from Briefcase, which\n# we do not control.\narchive_count=$(find \"$APP_DST\" -name \"*.a\" -type f | wc -l | tr -d \" \")\nif [ \"$archive_count\" -gt 0 ]; then\n  find \"$APP_DST\" -name \"*.a\" -type f -delete\n  echo \"  removed $archive_count static archive(s) from the app bundle — not signable code (90284)\"\nfi\n\n# Remove debug-symbol bundles (.dSYM). REJECTED UPLOAD, codes 90277/90278: Briefcase\n# ships PyObjCTest extensions with their *.cpython-312-darwin.so.dSYM beside them, and\n# a .dSYM carries the bundle identifier com.apple.xcode.dsym.* — which is Apple's own,\n# not ours, and does not match the provisioning profile. Ingestion refuses it.\n#\n# A .dSYM is not runtime code. It is the detached DWARF for a binary; nothing loads it,\n# and it exists only so a crash log can be symbolicated. Re-identifying or re-signing it\n# would be dressing up a file that has no business in a shipped bundle. Delete it.\n#\n# Deleted BEFORE the Mach-O sweep below, deliberately: a .dSYM contains a Mach-O\n# (Contents/Resources/DWARF/<name>, a \"dSYM companion\" image), so leaving them here\n# would mean signing files we are about to be rejected for shipping.\ndsym_count=$(find \"$APP_DST\" -name \"*.dSYM\" -type d | wc -l | tr -d \" \")\nif [ \"$dsym_count\" -gt 0 ]; then\n  find \"$APP_DST\" -name \"*.dSYM\" -type d -exec rm -rf {} +\n  echo \"  removed $dsym_count debug-symbol bundle(s) (.dSYM) from the app bundle — not runtime code (90277/90278)\"\nfi\n\nif [ \"${CODE_SIGNING_ALLOWED}\" != \"YES\" ] || [ -z \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then\n  echo \"note: signing not configured for ${CONFIGURATION}; engine left as copied (ad-hoc)\"\n  exit 0\nfi\n\n# Sign inside-out. Mirrors scripts/build-release-dmg.sh step 2b, minus the\n# hardened runtime and secure timestamp (neither applies to MAS).\nIDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY}\"\n\n# is_macho_executable PATH — true for a Mach-O EXECUTABLE (MH_EXECUTE), false for a\n# dylib, bundle or anything else. Handles universal binaries: `file` prints one line\n# per architecture, and \"executable\" appears in each.\nis_macho_executable() {\n  file -b \"$1\" 2>/dev/null | grep -q \"Mach-O.*executable\"\n}\n\n# sign_mas PATH — the two-key entitlements go on every nested EXECUTABLE. Not on\n# paths: on executables.\n#\n# REJECTED UPLOAD, code 90296: this used to key off the PATH, entitling only\n# ENGINE/Contents/MacOS/*. fm-bridge — the Swift CLI the engine spawns for Apple\n# Intelligence, which Briefcase packages at\n# Contents/Resources/app/fichero/resources/bin/fm-bridge — therefore signed PLAIN and\n# shipped with no com.apple.security.app-sandbox. Every nested executable inside a\n# sandboxed app must be sandboxed; a path rule cannot know which files those are, and\n# the next one Briefcase adds would have been missed the same way. Mach-O type can.\n#\n# Libraries take no entitlements and sign plain: a .so/.dylib is not a process, and a\n# .framework is a library container. Executable BUNDLES (.app, .xpc) are processes and\n# do carry them — including Python.framework's own nested Python.app.\nsign_mas() {\n  target=\"$1\"\n  case \"$target\" in\n    *.framework)\n      codesign --force --sign \"$IDENTITY\" \"$target\" >/dev/null 2>&1\n      return $?\n      ;;\n  esac\n  if [ -d \"$target\" ] || is_macho_executable \"$target\"; then\n    codesign --force --sign \"$IDENTITY\" --entitlements \"$ENGINE_ENTITLEMENTS\" \"$target\" >/dev/null 2>&1\n  else\n    codesign --force --sign \"$IDENTITY\" \"$target\" >/dev/null 2>&1\n  fi\n}\n\n# Collect every Mach-O. `file {} +` batches; drop the per-architecture lines it\n# emits for universal binaries so only real paths remain.\nmacho_list=\"$(mktemp)\"\nfind \"$ENGINE_DST\" -type f -exec file {} + 2>/dev/null | awk -F': ' '/Mach-O/ && !/for architecture/ {print $1}' | sort -u > \"$macho_list\"\necho \"  signing $(wc -l < \"$macho_list\" | tr -d ' ') Mach-O binaries in the engine\"\n\n# Plain loop, not xargs: under xcodebuild the inherited environment can be large\n# enough that xargs cannot assemble even one command (see build-release-dmg.sh).\nsign_fails=0\nwhile IFS= read -r macho; do\n  if ! sign_mas \"$macho\"; then\n    echo \"  error: failed to sign Mach-O: $macho\" >&2\n    sign_fails=$((sign_fails + 1))\n  fi\ndone < \"$macho_list\"\nrm -f \"$macho_list\"\nif [ \"$sign_fails\" -gt 0 ]; then\n  echo \"error: $sign_fails Mach-O binaries failed to sign\" >&2\n  exit 1\nfi\n\n# Re-seal bundles innermost-first: longest path first guarantees a nested bundle\n# is sealed before its parent, so the parent's seal hashes a correct child. The\n# engine bundle itself sorts last and picks up the entitlements via sign_mas.\nbundle_list=\"$(mktemp)\"\nfind \"$ENGINE_DST\" -type d -name '*.app' -o -type d -name '*.framework' -o -type d -name '*.xpc' > \"$bundle_list.raw\"\nawk '{print length, $0}' \"$bundle_list.raw\" | sort -rn | cut -d' ' -f2- > \"$bundle_list\"\nrm -f \"$bundle_list.raw\"\nbundle_fails=0\nwhile IFS= read -r bundle; do\n  if ! sign_mas \"$bundle\"; then\n    echo \"  error: failed to re-seal bundle: $bundle\" >&2\n    bundle_fails=$((bundle_fails + 1))\n  fi\ndone < \"$bundle_list\"\nrm -f \"$bundle_list\"\nif [ \"$bundle_fails\" -gt 0 ]; then\n  echo \"error: $bundle_fails bundles failed to re-seal\" >&2\n  exit 1\nfi\n\n# Fail the build here rather than at ingestion if the two-key rule was broken.\nif ! codesign --verify --strict \"$ENGINE_DST\" >/dev/null 2>&1; then\n  echo \"error: embedded engine signature is invalid after signing\" >&2\n  exit 1\nfi\nif ! codesign --display --entitlements - \"$ENGINE_DST\" 2>&1 | grep -q \"com.apple.security.inherit\"; then\n  echo \"error: embedded engine is missing com.apple.security.inherit\" >&2\n  exit 1\nfi\n\n# The two checks that App Store Connect ran for us, run here instead. Both of these\n# rejections cost a full archive + upload + wait to discover; they cost seconds here.\n\n# 90284 — no static archives may remain.\nremaining=$(find \"$APP_DST\" -name \"*.a\" -type f | wc -l | tr -d \" \")\nif [ \"$remaining\" -gt 0 ]; then\n  echo \"error: $remaining static archive(s) (.a) still in the engine — ingestion rejects these (90284)\" >&2\n  find \"$APP_DST\" -name \"*.a\" -type f >&2\n  exit 1\nfi\n\n# 90277/90278 — no debug-symbol bundles may remain.\nremaining_dsym=$(find \"$APP_DST\" -name \"*.dSYM\" -type d | wc -l | tr -d \" \")\nif [ \"$remaining_dsym\" -gt 0 ]; then\n  echo \"error: $remaining_dsym .dSYM bundle(s) still in the engine — they carry com.apple.xcode.dsym identifiers and ingestion rejects them (90277/90278)\" >&2\n  find \"$APP_DST\" -name \"*.dSYM\" -type d >&2\n  exit 1\nfi\n\n# 90296 — EVERY nested executable must be sandboxed, not just the engine's own.\n# This is the check that would have caught fm-bridge.\nexec_list=\"$(mktemp)\"\nfind \"$ENGINE_DST\" -type f -exec file {} + 2>/dev/null | awk -F\": \" '/Mach-O/ && /executable/ && !/for architecture/ {print $1}' | sort -u > \"$exec_list\"\nunsandboxed=0\nwhile IFS= read -r exe; do\n  [ -n \"$exe\" ] || continue\n  if ! codesign --display --entitlements - \"$exe\" 2>&1 | grep -q \"com.apple.security.app-sandbox\"; then\n    echo \"error: nested executable is NOT sandboxed (90296): $exe\" >&2\n    unsandboxed=$((unsandboxed + 1))\n  fi\ndone < \"$exec_list\"\nexec_count=$(wc -l < \"$exec_list\" | tr -d \" \")\nrm -f \"$exec_list\"\nif [ \"$unsandboxed\" -gt 0 ]; then\n  echo \"error: $unsandboxed nested executable(s) lack com.apple.security.app-sandbox\" >&2\n  exit 1\nfi\n\necho \"  engine signed sandboxed: $exec_count nested executable(s), all app-sandbox + inherit, no --deep, no .a\"\n";
 		};
 		SBX00042F27F36000EC9EE1 /* Strip Sparkle Info.plist Keys */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -3492,49 +3147,7 @@
 			);
 			name = "Strip Sparkle Info.plist Keys";
 			shellPath = /bin/sh;
-			shellScript = (
-				"# App Store: strip Sparkle's Info.plist keys (#3748).",
-				"#",
-				"# Sparkle is excluded from this target at the LINK level — the framework, Autoupdate",
-				"# and its XPC services are all absent from the binary. But Info.plist is SHARED with",
-				"# the Developer ID target (both set INFOPLIST_FILE = fichero/Info.plist), and it",
-				"# still advertises an update feed: SUFeedURL, SUPublicEDKey, SUEnableAutomaticChecks.",
-				"#",
-				"# An App Store app whose Info.plist declares a third-party self-update mechanism is",
-				"# exactly what guideline 2.4.5(vii) prohibits, and it is trivially greppable by a",
-				"# reviewer even though nothing can act on it. Sparkle must be ABSENT, not merely",
-				"# inert.",
-				"#",
-				"# Stripped from the BUILT bundle rather than by forking Info.plist into a second",
-				"# file, which would drift from the DMG one silently. Same shape as",
-				"# scripts/build-release-dmg.sh, which SETS SUFeedURL on the staged bundle at package",
-				"# time. This phase runs before Xcode's CodeSign phase, so the seal covers the",
-				"# stripped plist.",
-				"",
-				"PLIST=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"",
-				"",
-				"if [ ! -f \"$PLIST\" ]; then",
-				"  echo \"note: no Info.plist at $PLIST — nothing to strip\"",
-				"  exit 0",
-				fi,
-				"",
-				"for KEY in SUFeedURL SUPublicEDKey SUEnableAutomaticChecks SUAllowsAutomaticUpdates SUScheduledCheckInterval; do",
-				"  if /usr/libexec/PlistBuddy -c \"Print :${KEY}\" \"$PLIST\" >/dev/null 2>&1; then",
-				"    /usr/libexec/PlistBuddy -c \"Delete :${KEY}\" \"$PLIST\"",
-				"    echo \"  removed ${KEY}\"",
-				"  fi",
-				done,
-				"",
-				"# Fail the build rather than ship a Sparkle key to App Review.",
-				"for KEY in SUFeedURL SUPublicEDKey; do",
-				"  if /usr/libexec/PlistBuddy -c \"Print :${KEY}\" \"$PLIST\" >/dev/null 2>&1; then",
-				"    echo \"error: ${KEY} is still present in the App Store Info.plist\" >&2",
-				"    exit 1",
-				"  fi",
-				done,
-				"",
-				"echo \"Sparkle Info.plist keys stripped from the App Store build\"",
-			);
+			shellScript = "# App Store: strip Sparkle's Info.plist keys (#3748).\n#\n# Sparkle is excluded from this target at the LINK level — the framework, Autoupdate\n# and its XPC services are all absent from the binary. But Info.plist is SHARED with\n# the Developer ID target (both set INFOPLIST_FILE = fichero/Info.plist), and it\n# still advertises an update feed: SUFeedURL, SUPublicEDKey, SUEnableAutomaticChecks.\n#\n# An App Store app whose Info.plist declares a third-party self-update mechanism is\n# exactly what guideline 2.4.5(vii) prohibits, and it is trivially greppable by a\n# reviewer even though nothing can act on it. Sparkle must be ABSENT, not merely\n# inert.\n#\n# Stripped from the BUILT bundle rather than by forking Info.plist into a second\n# file, which would drift from the DMG one silently. Same shape as\n# scripts/build-release-dmg.sh, which SETS SUFeedURL on the staged bundle at package\n# time. This phase runs before Xcode's CodeSign phase, so the seal covers the\n# stripped plist.\n\nPLIST=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"\n\nif [ ! -f \"$PLIST\" ]; then\n  echo \"note: no Info.plist at $PLIST — nothing to strip\"\n  exit 0\nfi\n\nfor KEY in SUFeedURL SUPublicEDKey SUEnableAutomaticChecks SUAllowsAutomaticUpdates SUScheduledCheckInterval; do\n  if /usr/libexec/PlistBuddy -c \"Print :${KEY}\" \"$PLIST\" >/dev/null 2>&1; then\n    /usr/libexec/PlistBuddy -c \"Delete :${KEY}\" \"$PLIST\"\n    echo \"  removed ${KEY}\"\n  fi\ndone\n\n# Fail the build rather than ship a Sparkle key to App Review.\nfor KEY in SUFeedURL SUPublicEDKey; do\n  if /usr/libexec/PlistBuddy -c \"Print :${KEY}\" \"$PLIST\" >/dev/null 2>&1; then\n    echo \"error: ${KEY} is still present in the App Store Info.plist\" >&2\n    exit 1\n  fi\ndone\n\necho \"Sparkle Info.plist keys stripped from the App Store build\"\n";
 		};
 		SBX00052F27F36000EC9EE1 /* Validate App Store Bundle */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -3543,52 +3156,7 @@
 			);
 			name = "Validate App Store Bundle";
 			shellPath = /bin/sh;
-			shellScript = (
-				"# App Store: run the bundle validator against what we ACTUALLY built (#3797 follow-up).",
-				"#",
-				"# The R2 archive shipped full of .dSYMs while the build reported success, because the",
-				"# strip and its own verification both ran `find` against a SYMLINK",
-				"# (${BUILT_PRODUCTS_DIR}/Fichero.app is a symlink to DSTROOT in an archive build) and",
-				"# find does not descend into a symlinked starting point. Zero matches. Nothing",
-				"# deleted, nothing flagged, build green.",
-				"#",
-				"# The lesson is not \"fix the path\" — that is done. It is that the build must be checked",
-				"# by the SAME tool that judges the archive, instead of by bespoke assertions that can",
-				"# pass vacuously. So this phase runs scripts/validate_mas_bundle.sh, the exact script",
-				"# used on the .xcarchive, against the product we just assembled.",
-				"#",
-				"# --structure-only because Xcode's CodeSign step for the outer app runs AFTER this",
-				"# phase. Everything not dependent on that signature is checked, which is every",
-				"# rejection actually taken: .a (90284), .dSYM (90277/90278), unsandboxed nested",
-				"# executables (90296), engine placement, Sparkle.",
-				"",
-				"if [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then",
-				"  exit 0",
-				fi,
-				"",
-				"if [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then",
-				"  echo \"Skipping App Store bundle validation (no engine embedded in this configuration)\"",
-				"  exit 0",
-				fi,
-				"",
-				"VALIDATOR=\"${SRCROOT}/../scripts/validate_mas_bundle.sh\"",
-				"if [ ! -f \"$VALIDATOR\" ]; then",
-				"  echo \"error: validator not found at $VALIDATOR\" >&2",
-				"  exit 1",
-				fi,
-				"",
-				"APP_DST=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"",
-				"if [ ! -d \"$APP_DST\" ]; then",
-				"  echo \"error: no app bundle at $APP_DST\" >&2",
-				"  exit 1",
-				fi,
-				"",
-				"echo \"Validating the App Store bundle we just built:\"",
-				"if ! /bin/bash \"$VALIDATOR\" --structure-only \"$APP_DST\"; then",
-				"  echo \"error: the App Store bundle would be REJECTED by App Store Connect — see the failures above\" >&2",
-				"  exit 1",
-				fi,
-			);
+			shellScript = "# App Store: run the bundle validator against what we ACTUALLY built (#3797 follow-up).\n#\n# The R2 archive shipped full of .dSYMs while the build reported success, because the\n# strip and its own verification both ran `find` against a SYMLINK\n# (${BUILT_PRODUCTS_DIR}/Fichero.app is a symlink to DSTROOT in an archive build) and\n# find does not descend into a symlinked starting point. Zero matches. Nothing\n# deleted, nothing flagged, build green.\n#\n# The lesson is not \"fix the path\" — that is done. It is that the build must be checked\n# by the SAME tool that judges the archive, instead of by bespoke assertions that can\n# pass vacuously. So this phase runs scripts/validate_mas_bundle.sh, the exact script\n# used on the .xcarchive, against the product we just assembled.\n#\n# --structure-only because Xcode's CodeSign step for the outer app runs AFTER this\n# phase. Everything not dependent on that signature is checked, which is every\n# rejection actually taken: .a (90284), .dSYM (90277/90278), unsandboxed nested\n# executables (90296), engine placement, Sparkle.\n\nif [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then\n  exit 0\nfi\n\nif [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then\n  echo \"Skipping App Store bundle validation (no engine embedded in this configuration)\"\n  exit 0\nfi\n\nVALIDATOR=\"${SRCROOT}/../scripts/validate_mas_bundle.sh\"\nif [ ! -f \"$VALIDATOR\" ]; then\n  echo \"error: validator not found at $VALIDATOR\" >&2\n  exit 1\nfi\n\nAPP_DST=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\nif [ ! -d \"$APP_DST\" ]; then\n  echo \"error: no app bundle at $APP_DST\" >&2\n  exit 1\nfi\n\necho \"Validating the App Store bundle we just built:\"\nif ! /bin/bash \"$VALIDATOR\" --structure-only \"$APP_DST\"; then\n  echo \"error: the App Store bundle would be REJECTED by App Store Connect — see the failures above\" >&2\n  exit 1\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
