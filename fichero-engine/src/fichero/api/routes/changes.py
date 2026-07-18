@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import StreamingResponse
 
 from fichero.api.library_header import require_library_path
-from fichero.api.change_stream import _change_hub, format_change_sse
+from fichero.api.change_stream import _change_hub, format_change_sse, sse_shutdown_event
 from fichero.api.main import assert_library_read_authorized
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,7 @@ async def stream_library_changes(
     queue = subscription.queue
 
     async def event_generator() -> AsyncGenerator[str, None]:
+        shutdown_event = sse_shutdown_event()
         # Open the stream immediately so the client knows it connected.
         yield ": connected\n\n"
         try:
@@ -59,6 +60,8 @@ async def stream_library_changes(
             for replay_event in subscription.replay_events:
                 yield format_change_sse(replay_event)
             while True:
+                if shutdown_event.is_set():
+                    break
                 if await request.is_disconnected():
                     logger.info(
                         "change-stream: client disconnected cleanly lib=%s",
@@ -66,9 +69,28 @@ async def stream_library_changes(
                     )
                     break
                 try:
-                    event = await asyncio.wait_for(
-                        queue.get(), timeout=_KEEPALIVE_TIMEOUT
-                    )
+                    queue_task = asyncio.create_task(queue.get())
+                    shutdown_task = asyncio.create_task(shutdown_event.wait())
+                    try:
+                        done, pending = await asyncio.wait_for(
+                            asyncio.wait(
+                                {queue_task, shutdown_task},
+                                return_when=asyncio.FIRST_COMPLETED,
+                            ),
+                            timeout=_KEEPALIVE_TIMEOUT,
+                        )
+                    except asyncio.TimeoutError:
+                        queue_task.cancel()
+                        shutdown_task.cancel()
+                        await asyncio.gather(queue_task, shutdown_task, return_exceptions=True)
+                        yield ": keepalive\n\n"
+                        continue
+                    for task in pending:
+                        task.cancel()
+                    await asyncio.gather(*pending, return_exceptions=True)
+                    if shutdown_task in done:
+                        break
+                    event = queue_task.result()
                     yield format_change_sse(event)
                 except asyncio.TimeoutError:
                     # Keepalive comment prevents idle-connection timeouts.

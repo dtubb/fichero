@@ -47,6 +47,21 @@ def _patch_subscribe_to_capture_queue(monkeypatch):
 
 
 class TestChangesStreamEndpoint:
+    async def test_stream_exits_when_shutdown_is_signalled(self, test_package, monkeypatch):
+        change_stream.reset_sse_shutdown()
+        response = await changes.stream_library_changes(
+            _FakeRequest(), x_fichero_library_path=str(test_package)
+        )
+        stream = response.body_iterator
+        try:
+            assert await anext(stream) == ": connected\n\n"
+            change_stream.signal_sse_shutdown()
+            with pytest.raises(StopAsyncIteration):
+                await asyncio.wait_for(anext(stream), timeout=0.2)
+        finally:
+            change_stream.reset_sse_shutdown()
+            await stream.aclose()
+
     async def test_stream_emits_open_frame(self, test_package, monkeypatch):
         captured = _patch_subscribe_to_capture_queue(monkeypatch)
         request = _FakeRequest()
