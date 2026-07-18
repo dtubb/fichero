@@ -85,7 +85,7 @@ extension CanvasSceneState {
     ///   3. a non-`link` item without a row → the deterministic 3-column cascade.
     ///
     /// Legacy note: pre-#3103 the 2D canvas persisted SCREEN-space pixels into
-    /// these rows. Per Daniel's #3070 call we accept a one-time re-layout of old
+    /// these rows. Per the #3070 call we accept a one-time re-layout of old
     /// positions rather than a rescue heuristic — rows are read as world space.
     static func resolve(
         nodes: [SpatialNode],

@@ -43,7 +43,7 @@ enum MiniToolbarPreferences {
 struct MiniToolbar<Content: View, Trailing: View>: View {
     /// Fixed height for all pane mini-toolbars so the list-view mode strip,
     /// preview pane toolbar, and inspector tab strip line up across the
-    /// window. Daniel: 'the height of the toolbar for the list view, the
+    /// window. The maintainer: 'the height of the toolbar for the list view, the
     /// preview pane, and the inspector' should match. 44pt matches
     /// NSToolbar's default regular-size height so pane headers visually
     /// rhyme with the window toolbar above them. (#883)
@@ -121,7 +121,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
     /// Split-axis glyph font. Uses a *semantic* style so the icon scales with
     /// the system text size (Dynamic Type) instead of a fixed point size, and
     /// is noticeably larger on touch platforms where the old hardcoded 11pt
-    /// glyph was too small to read/hit comfortably (Daniel, iOS/iPad). Mac keeps
+    /// glyph was too small to read/hit comfortably (the user, iOS/iPad). Mac keeps
     /// the compact NSToolbar-style chrome. (#883)
     private var splitIconFont: Font {
         #if os(macOS)

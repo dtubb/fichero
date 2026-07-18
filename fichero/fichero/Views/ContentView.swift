@@ -350,7 +350,7 @@ struct ContentView: View {
         // the unified window toolbar/title spans it correctly — trailing toolbar
         // items sit above the inspector instead of the toolbar overrunning it
         // (#2033). It replaced the former window-level HStack sibling, which
-        // macOS painted the toolbar across (the bug Daniel saw).
+        // macOS painted the toolbar across (the bug the user hit).
         //
         // The split-view column itself carries a very long chained-modifier
         // list (toolbar + ~16 .onChange/.onReceive handlers). To keep any single

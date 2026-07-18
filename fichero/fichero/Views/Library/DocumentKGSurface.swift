@@ -51,7 +51,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     /// Raw value stays "digest" — it is the WIRE CONTRACT with document_view.html
     /// (`data-tab="digest"`, and the literal tab list in its JS). The engine template
     /// is codex's lane, so the USER-FACING name changes here and the wire does not.
-    /// What it actually shows: the SVO statements about each entity (#3765/Daniel).
+    /// What it actually shows: the SVO statements about each entity (#3765).
     case digest
     case graph
     case claims

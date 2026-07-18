@@ -24,7 +24,7 @@ class StorageServiceGenerated {
     private let configuredBaseURL: URL?
 
     /// In-memory cache keyed by `docId`. Prevents the "Loading thumbnail
-    /// for document: X" storms Daniel was seeing — `.task` re-fires on
+    /// for document: X" storms the user was seeing — `.task` re-fires on
     /// every grid view identity reset (e.g., when filteredDocuments
     /// re-computes or LazyVGrid re-lays out), each firing a fresh
     /// network request + byte decode. With the cache, re-fires return

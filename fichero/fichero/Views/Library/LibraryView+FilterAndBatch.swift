@@ -279,7 +279,7 @@ extension LibraryView {
                     .foregroundColor(.secondary)
                 // Escape route — clicking a tag in a row could trap the
                 // user with a stuck filter and no visible filter bar
-                // (Daniel hit this with "Image"). Always offer Clear.
+                // (the user hit this with "Image"). Always offer Clear.
                 Button {
                     searchText = ""
                     showFilterBar = false

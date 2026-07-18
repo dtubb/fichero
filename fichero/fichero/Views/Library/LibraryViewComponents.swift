@@ -81,7 +81,7 @@ struct MailStyleRow: View {
                 // hijacked row selection and the user could end up with
                 // a stuck filter ('No results for "Image"') with no
                 // visible escape. ⌘F opens the filter bar for explicit
-                // filtering. (#519 follow-up — Daniel: 'right now its
+                // filtering. (#519 follow-up — the maintainer: 'right now its
                 // single clicking and changing'.)
                 HStack(spacing: 8) {
                     StatusBadge(status: document.status)

@@ -151,7 +151,7 @@ struct SidebarItemRow: View {
         // Folder: report processing if ANY descendant is currently processing.
         // Look in BOTH currentDocuments (the set actively shown in the grid;
         // covers the very common "user is browsing the folder being processed"
-        // case Daniel hit) and childrenCache (other folders' kids cached for
+        // case the user hit) and childrenCache (other folders' kids cached for
         // sidebar tree expansion). Without the currentDocuments check the
         // folder spinner only appeared if the user had expanded the folder
         // separately — silently broken in the most common workflow.

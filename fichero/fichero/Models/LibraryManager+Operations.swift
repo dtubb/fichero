@@ -136,7 +136,7 @@ extension LibraryManager {
 
         // Per-host recents (#3151): remember this library under the CURRENT
         // engine host so the remote-library picker can surface recents first,
-        // scoped to the host they belong to (a path on Daniel's Mac must never
+        // scoped to the host they belong to (a path on the maintainer's Mac must never
         // leak into Ann's-Mac recents). Recorded on every remote open — reuse
         // included — so re-opening bumps it to the top.
         RemoteLibraryRecents.note(path: trimmedPath, host: EngineConfig.host.absoluteString)

@@ -29,7 +29,7 @@ extension ViewSettings {
     /// Stored as `@AppStorage`-keyed UserDefaults doubles (not instance
     /// properties) so both the Settings scene — a SEPARATE scene — and the
     /// Reader/Editor consumers share one source without env-injection coupling.
-    /// Reader and Editor are independent (Daniel): separate keys, separate
+    /// Reader and Editor are independent (the maintainer): separate keys, separate
     /// steppers, both clamped `0.8…2.0`.
     enum FontScale {
         static let readerKey = "fichero.reader.fontScale"

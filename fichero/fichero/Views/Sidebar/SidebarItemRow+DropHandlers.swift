@@ -83,7 +83,7 @@ extension SidebarItemRow {
     ///     or `public.movie` do NOT respond to `loadObject(URL.self)`
     ///     — `canLoadObject(URL.self)` returns false — but DO respond
     ///     to `loadFileRepresentation(forTypeIdentifier:)` with their
-    ///     advertised UTI. This is the case Daniel hit 2026-04-17
+    ///     advertised UTI. This is the case the user hit 2026-04-17
     ///     with a Finder .JPG drag advertising only `public.jpeg`.
     ///
     /// This helper tries `loadObject(URL.self)` first (cheapest and

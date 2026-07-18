@@ -8,7 +8,7 @@ import OSLog
 /// The single endpoint accessor for the workspace list: a view observes
 /// `workspaces` and dispatches the named actions below; the store owns fetching
 /// (never a view calling `ChatServiceGenerated` directly). `chat = agent =
-/// workspace` (Daniel #3540) — a chat is ephemeral until saved on-demand.
+/// workspace` (#3540) — a chat is ephemeral until saved on-demand.
 ///
 /// One instance per library (registered on `LibraryReference`), shared across
 /// that library's windows.

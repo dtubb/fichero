@@ -382,7 +382,7 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
 
     /// A KG summary row. The count is the meaningful bit, so it's emphasised
     /// (primary, semibold) rather than rendered as flat secondary text — the
-    /// "intelligently highlighted" treatment Daniel asked for (#1246).
+    /// "intelligently highlighted" treatment the maintainer asked for (#1246).
     private func kgRow(_ item: KGItem) -> some View {
         let count: Int? = (item == .entities) ? entityCount : claimCount
         return row(item.label, value: count.map(String.init) ?? "—", emphasis: true)

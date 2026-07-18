@@ -180,7 +180,7 @@ struct WorkflowEditor: View {
         // in-memory only — never persisted to the engine — and are lost
         // on relaunch. 300ms debounce avoids saving on every keystroke
         // / drag tick while keeping the save responsive enough that the
-        // user feels safe. (Tightened from 600ms — Daniel reported
+        // user feels safe. (Tightened from 600ms — the user reported
         // model still resetting on restart, faster save = less window
         // for losing edits via popover-close races.)
         .task(id: editingWorkflow.id) {

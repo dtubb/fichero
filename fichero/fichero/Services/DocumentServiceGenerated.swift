@@ -509,7 +509,7 @@ class DocumentServiceGenerated {
         // declared pageContent property and the additionalProperties dict
         // were encoded, the typed nil could clobber the extras-supplied
         // value, so edits to page content round-tripped as 200 OK but never
-        // persisted. This is exactly the OpenAPI drift Daniel flagged:
+        // persisted. This is exactly the OpenAPI drift the maintainer flagged:
         // use the schema-typed properties, not hand-built dicts.
         var metadataPayloadValue: Components.Schemas.DocumentUpdate.MetadataPayload?
         if let metadataPayload = metadataPayload {

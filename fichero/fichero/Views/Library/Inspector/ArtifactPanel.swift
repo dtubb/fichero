@@ -131,7 +131,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     }
 
     var body: some View {
-        // Daniel feedback 2026-04-27: drop the rounded-rect box outline (no
+        // User feedback 2026-04-27: drop the rounded-rect box outline (no
         // horizontal lines), let the editor go full panel width (no inner
         // horizontal padding), let separation between panels be just the
         // VStack spacing. Header still gets a little horizontal padding so
@@ -177,7 +177,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         // Sizing: AttributedTextEditor now reports its layoutManager-used
         // height via sizeThatFits, so an expanded panel matches its actual
         // content. We keep a small min so empty editors don't collapse to
-        // a sliver (Daniel 2026-05-05: "the height was 0"); long artifacts
+        // a sliver (user feedback 2026-05-05: "the height was 0"); long artifacts
         // grow naturally and the outer ScrollView handles overflow (#960).
         // Collapsed panels have no frame and shrink to header height (~30 px).
         // Page Content is never collapsed, so it always gets the min.
@@ -241,7 +241,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             Spacer()
             // Save indicator (subtle): spinner while saving, green check when
             // idle and saved. No mode toggle — V2 panels are always editable
-            // (Daniel feedback 2026-04-27 after preferring V1's always-on
+            // (user feedback 2026-04-27 after preferring V1's always-on
             // behavior). Just type. Auto-saves on the debounce.
             if onSave != nil {
                 if saver.isSaving {
@@ -357,7 +357,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
 
     /// Debounced auto-save. The previous explicit Save button created a
     /// "did my edit save?" anxiety loop — auto-save with a small visible
-    /// indicator is calmer. (Daniel feedback 2026-04-26.)
+    /// indicator is calmer. (User feedback 2026-04-26.)
     private func scheduleAutoSave() {
         // Distinguish a real user edit from a programmatic reseed (load /
         // remote update): only the former changes the encoded form away from
@@ -474,7 +474,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         case .pageContent: return nil
         case .artifact(let artifact):
             // RelativeDateTimeFormatter renders <1 minute as "in 0 secs",
-            // which Daniel correctly called silly. For fresh artifacts show
+            // which the maintainer correctly called silly. For fresh artifacts show
             // "just now"; otherwise the abbreviated relative string.
             let interval = abs(Date().timeIntervalSince(artifact.createdAt))
             if interval < 60 { return "just now" }

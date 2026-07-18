@@ -530,7 +530,7 @@ struct PreviewModeButton: View {
 
 /// Document content-area representation switcher, surfaced as View-menu items
 /// instead of a floating icon bar over the WebKit content (#2032 / reform §G).
-/// Daniel: "the stuff shown in the WebKit/content view are really views that can
+/// The maintainer: "the stuff shown in the WebKit/content view are really views that can
 /// be ADDED — so the switcher should be MENU ITEMS, not icons." Reads/writes the
 /// focused `DocumentKGSurface`'s active representation via FocusedValues, so it's
 /// per-window and disables when no document surface is focused (same rationale as

@@ -169,7 +169,7 @@ extension SidebarView {
             )
         }
 
-        // Saved Searches at the bottom — Daniel: 'saved searches should
+        // Saved Searches at the bottom — the maintainer: 'saved searches should
         // be down beside Workflows and Activity'. Mental model: Library
         // is the source-of-truth tree; Workflows / Activity / Saved
         // Searches are *tools and history* over that tree, so they

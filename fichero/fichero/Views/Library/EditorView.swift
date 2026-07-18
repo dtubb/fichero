@@ -15,7 +15,7 @@ struct EditorView: View {
     var selectedDocumentIDs: Set<String> = []
 
     /// Edit mode is the Inspector's "Edits" facet — the Lightroom "Develop
-    /// module" model (#3593, Daniel 2026-07-12): selecting it makes the Preview
+    /// module" model (#3593, 2026-07-12): selecting it makes the Preview
     /// the live editing canvas AND shows the controls in the Inspector, driven by
     /// the one per-window `@SceneStorage` key the Inspector already owns. Reused
     /// here (not a second state) so the two panes can never disagree. Persists

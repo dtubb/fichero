@@ -23,7 +23,7 @@ extension SurfaceTab {
 
 /// The app's shared top tab bar (#3530): a row of labelled icon buttons with a
 /// per-segment tooltip + accessibility hook and the Tahoe glass strip, extracted
-/// verbatim from the Inspector `sectionBar` (Daniel's chosen icon-row switcher).
+/// verbatim from the Inspector `sectionBar` (the maintainer's chosen icon-row switcher).
 ///
 /// Icon-only (not a `.segmented` Picker) so each button keeps its own `.help`
 /// and `.accessibilityIdentifier`, and 3–5 facets stay legible across compact

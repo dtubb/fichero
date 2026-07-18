@@ -110,7 +110,7 @@ struct ArtifactEntitiesView: View {
 
     /// One row per entity-type with a leading label and a FlowLayout of
     /// blue lozenges that wraps to multiple lines vertically when there
-    /// are more names than fit on one row. Daniel: 'the artefacts should
+    /// are more names than fit on one row. The maintainer: 'the artefacts should
     /// in the list view stack vertically not just scroll horizontally
     /// when I do two fingers.' Long names truncate with middle ellipsis
     /// (Finder convention) so a single huge entity doesn't spill into
@@ -159,7 +159,7 @@ struct ArtifactEntitiesView: View {
 
 // MARK: - Artifact Entity Cell — per-type column (#519 table view)
 
-/// Renders just one entity-type's lozenges in a table cell — Daniel:
+/// Renders just one entity-type's lozenges in a table cell — the maintainer:
 /// 'artefacts in the table view should each have their own column, and
 /// be rendered as lozenges as well.' Hidden by default; user toggles
 /// via the column-header context menu (TableColumnCustomization).

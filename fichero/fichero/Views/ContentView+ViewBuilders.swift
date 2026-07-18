@@ -389,7 +389,7 @@ extension ContentView {
                         // is deferred. Back (NavigationStack) returns to the list,
                         // and EditorView already hosts SwipeSiblingNavigator for
                         // two/three-finger sibling paging. Add explicit
-                        // stage-to-stage swiping later if Daniel wants it. (#2551)
+                        // stage-to-stage swiping later if wanted. (#2551)
                 }
                 .onChange(of: browserSelection) { _, _ in syncPushedReaderDocument() }
                 .onChange(of: detailDocument) { _, _ in syncPushedReaderDocument() }

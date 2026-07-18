@@ -7,7 +7,7 @@ import SwiftUI
 // per-file tools: Transcribe runs N times in parallel, Catalogue collects
 // the N results before running once. That structure is invisible in a
 // linear `Files → Transcribe → Catalogue` canvas, which is exactly the
-// confusion Daniel reported. These role annotations let us render a
+// confusion the user reported. These role annotations let us render a
 // badge on the edge so the user can SEE when files fan out and when
 // they merge back.
 //

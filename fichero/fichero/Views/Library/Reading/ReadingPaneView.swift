@@ -54,7 +54,7 @@ struct ReadingPaneView: View {
     @State private var webZoom: Double = 1.0
     // The KG surface sub-mode. Defaults to Entities — the entities WITH the
     // statements made about them, i.e. the "what we know" reading, NOT the graph
-    // visualisation (Daniel 2026-07-14, #3765 Q6).
+    // visualisation (2026-07-14, #3765 Q6).
     @State private var activeTab: KGSurfaceTab = .entities
     /// The reader's top-level tab (Page/Knowledge/Notes) — the reader IA fold
     /// (2026-07-11 design). Per-window via @SceneStorage. Page hosts the REAL
@@ -326,7 +326,7 @@ struct ReadingPaneView: View {
                 // labels + source excerpts (document_view.html renderDigest). It is
                 // NOT an AI summary and involves no LLM call — the old comment and
                 // help text said otherwise, which is why nobody could say what it
-                // was (Daniel: "Digest — not sure what that is", #3765 Q2). Set
+                // was (the user: "Digest — not sure what that is", #3765 Q2). Set
                 // apart from the exploration sub-modes (design Q1 / #3512).
                 Divider().frame(height: 16)
                 Button {
@@ -385,7 +385,7 @@ struct ReadingPaneView: View {
     /// "Transcript" was a different, single-page NATIVE pane — the name lied.
     ///
     /// The source is NOT here and never will be: source is always Preview
-    /// (Daniel 2026-07-14, #3765 Q4). Reading the transcript beside the page is
+    /// (2026-07-14, #3765 Q4). Reading the transcript beside the page is
     /// TWO PANES — Reader + Preview — not an embedded source view.
     @ViewBuilder
     private var pageTabContent: some View {

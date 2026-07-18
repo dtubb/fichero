@@ -66,7 +66,7 @@ struct ClaimSummaryCard: View {
     /// present, the card renders the S-V-O sentence with the verb
     /// emphasised so the predicate structure is visible at a glance.
     /// When absent, render a "no claim text — regenerate KG" notice
-    /// (Daniel's directive: "if KG is absent, we generate it"; don't
+    /// (the maintainer's directive: "if KG is absent, we generate it"; don't
     /// fall back to `claim.text`).
     static func svoTriple(
         for claim: Components.Schemas.KnowledgeClaim
@@ -109,7 +109,7 @@ struct ClaimSummaryCard: View {
 
     /// A claim card has no useful content when it has NO SVO triple AND
     /// `claim.text` is just the bare canonical name (or a short noun
-    /// fragment that ends with no verb). #986 — Daniel saw concept
+    /// fragment that ends with no verb). #986 — the user saw concept
     /// claims that surfaced as just the entity name + a garbled
     /// source excerpt with no actual claim content. Render-suppress
     /// these rather than poison the inspector.
@@ -299,7 +299,7 @@ struct ClaimSummaryCard: View {
     /// The headline of the card. When SVO metadata is present, render
     /// it as three individually-tappable chips with distinct styling for
     /// subject, verb, and object. When absent, surface a "KG not generated" hint instead
-    /// of falling back to `claim.text` — per Daniel's directive, we
+    /// of falling back to `claim.text` — per the maintainer's directive, we
     /// want to show the KG, not the loose extractor text. (#978/#986)
     @ViewBuilder
     private var claimSentence: some View {

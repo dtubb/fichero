@@ -120,7 +120,7 @@ struct ProviderDetailView: View {
                             // #934 — SecureField in a macOS Form treats
                             // its label parameter as a leading-label,
                             // which rendered the masked dots floating to
-                            // the LEFT of the input box (Daniel: \"is not
+                            // the LEFT of the input box (the user: \"is not
                             // showing the key properly, it's to the left
                             // of the text box\"). Use an empty label +
                             // `prompt:` so the dots appear INSIDE the

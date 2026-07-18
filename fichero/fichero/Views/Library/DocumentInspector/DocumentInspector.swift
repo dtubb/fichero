@@ -268,7 +268,7 @@ struct DocumentInspector: View {
             .entities, .citations
         ]
         // Image/page edit CONTROLS live in the Inspector, Lightroom-style (#3593,
-        // Daniel 2026-07-12 — this reverses #3434's "edits left the inspector":
+        // 2026-07-12 — this reverses #3434's "edits left the inspector":
         // the controls belong here, the Preview is the live canvas). Only for the
         // surfaces the editor supports (images and PDF/scanned pages).
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {

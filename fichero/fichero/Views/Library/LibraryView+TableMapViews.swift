@@ -87,7 +87,7 @@ extension LibraryView {
         // surfaces SwiftUI's built-in show/hide + reorder menu. Each
         // column needs a stable .customizationID; default visibility
         // matches the prior @SceneStorage defaults so users see the
-        // same starting layout. Daniel: 'we want this in the mac way
+        // same starting layout. The maintainer: 'we want this in the mac way
         // which is a contextual menu in the table view header.' (#519)
         Table(
             of: LibraryOutlineNode.self,

@@ -201,7 +201,7 @@ struct WorkflowListView: View {
                 // defaults are present AND replaces any that the user
                 // has edited), so the separate Install button was
                 // redundant + confusing ("Not sure install defaults
-                // does anything" — Daniel). Confirmation dialog warns
+                // does anything" — the user). Confirmation dialog warns
                 // about overwriting user edits before firing.
                 Button(role: .destructive) {
                     showResetDefaultsConfirmation = true

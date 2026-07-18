@@ -5,7 +5,7 @@ import SwiftUI
 /// refine without touching layout.
 ///
 /// NOTE (#2557): the tagline below is CONSTITUTION-derived — the exact
-/// "literary-carpentry" wording Daniel referenced wasn't present in the legacy
+/// "literary-carpentry" wording the maintainer referenced wasn't present in the legacy
 /// archive when this shipped, so confirm/replace it. Version + build read live
 /// from the bundle (MARKETING_VERSION / CURRENT_PROJECT_VERSION).
 /// Pure formatting for the About window (#2557), factored out of the view so it

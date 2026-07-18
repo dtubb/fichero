@@ -5,7 +5,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "NodeCom
 
 /// Sheet opened from NodePopover → "Compare Models…"
 /// Runs a saved workflow's node across multiple models side-by-side and
-/// lets Daniel pick which model to write back to the node setting.
+/// lets the user pick which model to write back to the node setting.
 struct NodeComparisonSheet: View {
     let workflowId: String
     let node: WorkflowNode

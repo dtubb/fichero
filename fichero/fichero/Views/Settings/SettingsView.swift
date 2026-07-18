@@ -53,7 +53,7 @@ struct SettingsView: View {
                     // (People / Devices+QR / Capture) hold real, keepable capabilities.
                     // Their EXISTENCE must not hang off per-feature migration flags —
                     // those are `.alpha`-tier, so both vanished for beta testers, which
-                    // is why Daniel had "nowhere to turn on the qrcode" and no way to
+                    // is why the user had "nowhere to turn on the qrcode" and no way to
                     // enable multi-user to share with people (#3811/#3776). Reachable
                     // for internal + tester builds; still hidden in release until the
                     // fail-closed engine-refusal P0 lands (#3776).
@@ -99,7 +99,7 @@ struct SettingsView: View {
     /// keepable capabilities (the multi-user toggle, device pairing + QR, users),
     /// so their existence must NOT depend on a per-feature migration flag — those
     /// flags are `.alpha`-tier, so in a beta build the sharing/QR pane vanished and
-    /// Daniel had "nowhere to turn on the qrcode" (and no way to enable multi-user
+    /// the user had "nowhere to turn on the qrcode" (and no way to enable multi-user
     /// to share with people) — #3811/#3776. Reachable in internal + tester builds;
     /// still hidden in release until the fail-closed engine-refusal P0 is verified
     /// (#3776). When that lands, this gate goes too and the panes are simply always
@@ -203,7 +203,7 @@ private struct PreviewViewSettingsPane: View {
 
 /// How the Reader lays out a transcript (#3805). DIPLOMATIC is the default because
 /// the manuscript's line structure is real data and must never be lost silently
-/// (Daniel); READING reflow is opt-in. This is the persisted CHOICE only — the
+/// (the maintainer); READING reflow is opt-in. This is the persisted CHOICE only — the
 /// engine reflow rendering and the raw/cleaned text wiring land in separate slices,
 /// which read this same `storageKey`. Kept module-accessible (not private) so those
 /// slices can reference it; RawRepresentable String so `@AppStorage` stores it.
@@ -228,7 +228,7 @@ enum TranscriptLayout: String, CaseIterable, Identifiable {
 }
 
 /// Reader View settings — the Reader text font-size override (#3681). A stepper
-/// over the semantic base size, clamped `0.8…2.0` (Daniel). The consumer wiring
+/// over the semantic base size, clamped `0.8…2.0` (the maintainer). The consumer wiring
 /// (WebKit CSS injection + native reader text) lands with #3681; this is the
 /// control + storage. Reader theme follows the app's semantic light/dark only —
 /// Sepia/Paper is deferred.
@@ -286,7 +286,7 @@ private struct ReaderViewSettingsPane: View {
 }
 
 /// Inspector settings — the Editor text font-size override (#3682), SEPARATE
-/// from the Reader (Daniel). Stepper over the semantic base, clamped `0.8…2.0`.
+/// from the Reader (the maintainer). Stepper over the semantic base, clamped `0.8…2.0`.
 /// The consumer wiring (Inspector editable text surfaces) lands with #3682.
 private struct InspectorViewSettingsPane: View {
     @AppStorage(ViewSettings.FontScale.editorKey)

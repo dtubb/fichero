@@ -40,7 +40,7 @@ extension SidebarItemRow {
                 // click for ~0.5s waiting for a potential second click, which
                 // blocks List's native selection binding. Symptom: first click
                 // does nothing; second click does nothing; double-click either
-                // renames or nothing; later clicks finally select. Daniel #612.
+                // renames or nothing; later clicks finally select. #612.
                 // Rename is still reachable via right-click → Rename (see
                 // SidebarItemContextMenu).
             }
@@ -70,7 +70,7 @@ extension SidebarItemRow {
             .frame(width: 20, height: 20)
         } else if documentIsProcessing {
             // Per-doc / folder spinner — REPLACES the icon while in flight.
-            // Earlier version was a tiny corner overlay that Daniel
+            // Earlier version was a tiny corner overlay that the user
             // couldn't see at glance ("spinner is not on the right of the
             // folder, or replacing the icon"). Matches the workflow-row
             // spinner visual so users get one consistent "this is in

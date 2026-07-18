@@ -49,7 +49,7 @@ struct ImmersiveReaderView: View {
     @State private var markConfirmation: String?
 
     /// Optional page-curl-style turn animation when paging (#2485). On by
-    /// default (Daniel: "books has page curls I like"); a fast non-animated mode
+    /// default (the maintainer: "books has page curls I like"); a fast non-animated mode
     /// is the toggle off. Persists per the @AppStorage key across launches.
     @AppStorage("reader.pageTurnAnimated") private var pageTurnAnimated = true
     /// Direction of the last page turn, captured in `navigate` before the parent

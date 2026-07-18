@@ -3,7 +3,7 @@ import SwiftUI
 /// The chat surface's top-level tabs on the shared chrome (#3532 phase 1):
 /// Conversation (messages), Sources (scoped documents), Knowledge (entities /
 /// claims surfaced from the conversation). Compare + research/agent folds are
-/// later slices. `chat = agent = workspace` (Daniel #3540).
+/// later slices. `chat = agent = workspace` (#3540).
 enum ChatSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
     case conversation
     case sources

@@ -16,14 +16,14 @@ struct EntityLozenge: View {
     /// entity-scoped search like `keywords:"social license"` instead of
     /// a plain text search — so clicking the 'social license' tag finds
     /// docs whose KEYWORDS artifact contains that term, not docs whose
-    /// page_content happens to mention it. Daniel's "if I click on a
+    /// page_content happens to mention it. The maintainer's "if I click on a
     /// name, it should find other documents with that person's name"
     /// requirement.
     var entityType: String?
     /// Cap so a single super-long name (e.g. 'Canadian Association of
     /// Latin American and Caribbean Studies') doesn't push the lozenge
     /// past its column boundary. Truncated with middle-ellipsis like
-    /// Finder filename truncation. (Daniel: 'elipses in the middle')
+    /// Finder filename truncation. (The maintainer: 'elipses in the middle')
     var maxWidth: CGFloat = 180
 
     /// Per-window search bus (#3437). Optional so a lozenge shown in a host that

@@ -697,7 +697,7 @@ struct DocumentInspectorEntitiesTab: View {
         .disabled(isApplyingBulkAction || targetEntities.isEmpty)
     }
 
-    /// Single-click selects (native List); double-click opens the entity. (Daniel: Finder-style.)
+    /// Single-click selects (native List); double-click opens the entity. (Finder-style.)
     private func openEntity(_ entity: Components.Schemas.KnowledgeEntity) {
         if let id = entity.id {
             onEntitySelect?(id)

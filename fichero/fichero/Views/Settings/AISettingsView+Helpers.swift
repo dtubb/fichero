@@ -161,7 +161,7 @@ extension AISettingsView {
         // Show ONLY user-configured models — the ones they've actually added
         // for this provider under Settings → Models. The LiteLLM catalog
         // fallback let users pick model names the provider's API doesn't
-        // actually serve, producing runtime 404s. Daniel's UX call: "the user
+        // actually serve, producing runtime 404s. The maintainer's UX call: "the user
         // has to think about it" — they should explicitly curate which models work.
         guard let provider = appState.providers.first(
             where: { $0.providerType == providerType }

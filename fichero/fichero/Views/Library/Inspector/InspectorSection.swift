@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The four top-level inspector tabs (down from ten) — the approved
-/// information architecture (#3434, design doc 2026-07-11). Daniel picked the
+/// information architecture (#3434, design doc 2026-07-11). The maintainer picked the
 /// **top icon row** switcher, so these render as four labelled icons across the
 /// top of the inspector (the existing `DocumentInspector.tabBar` pattern).
 ///

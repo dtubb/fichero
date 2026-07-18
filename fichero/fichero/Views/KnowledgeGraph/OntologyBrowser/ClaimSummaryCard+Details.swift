@@ -47,7 +47,7 @@ extension ClaimSummaryCard {
             Button { navigateToSource() } label: {
                 // Render as a link, not a label: accent color + underline
                 // + pointing-hand cursor + trailing chevron all advertise
-                // tappability. Daniel: "we only have one source, can't
+                // tappability. The maintainer: "we only have one source, can't
                 // see it and can't click on it." (#1013)
                 HStack(spacing: 4) {
                     Image(systemName: "doc.text")

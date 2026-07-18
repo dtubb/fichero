@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Tab selection for document inspector. Order matters — left-to-right is
 /// content / artifacts / annotations / notes / entities / knowledge graph /
-/// citations / edits / info, per Daniel's mental model: "the document itself"
+/// citations / edits / info, per the maintainer's mental model: "the document itself"
 /// → "workflow outputs" → "what was marked" → "what was noted" →
 /// "extracted entities" → "structured claims" → "references" →
 /// "edit tools" → "metadata about the document".

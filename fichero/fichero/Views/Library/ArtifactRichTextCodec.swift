@@ -37,7 +37,7 @@ enum ArtifactRichTextCodec {
     /// Custom paragraph styles (ruler tab stops, indents, line spacing changes)
     /// MUST round-trip through RTF — an earlier version excluded
     /// `.paragraphStyle` from the formatting check, which made ruler edits
-    /// silently lose on save (Daniel feedback 2026-04-26).
+    /// silently lose on save (user feedback 2026-04-26).
     static func encode(_ attr: NSAttributedString) -> String {
         let fullRange = NSRange(location: 0, length: attr.length)
         let plain = attr.string
