@@ -10,7 +10,9 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from starlette.requests import Request
 
+from fichero.actions.registry import ActionResult
 from fichero.models import ActionAudit
 from fichero.models import Document, DocType, FileType, Status, Artifact
 
@@ -416,23 +418,27 @@ class TestIngestRoutes:
         from fichero.api.routes import ingest as ingest_routes
 
         request = ingest_routes.IngestFileRequest(path="/tmp/input.jpg")
+        http_request = Request({"type": "http", "headers": []})
+        http_request.state.user = MagicMock()
         db = MagicMock()
         doc = Document(id="new123", name="ingested.jpg", doc_type=DocType.file)
-        to_thread = AsyncMock(return_value=doc)
+        to_thread = AsyncMock(return_value=ActionResult(True, doc, "", []))
 
         with patch.object(ingest_routes.asyncio, "to_thread", to_thread):
             result = await ingest_routes.ingest_file(
                 request,
+                http_request=http_request,
                 db=db,
                 x_fichero_library_path="/tmp/library.fichero",
             )
 
         to_thread.assert_awaited_once()
         assert to_thread.await_args.args == (
-            ingest_routes.import_file_impl,
+            ingest_routes.registry.invoke,
             db,
-            request,
-            Path("/tmp/library.fichero"),
+            "import.file",
+            request.model_dump(mode="json"),
+            ingest_routes._ingest_action_context(http_request, "/tmp/library.fichero"),
         )
         assert result is doc
 
@@ -460,9 +466,16 @@ class TestIngestRoutes:
     def test_ingest_file_not_found(self, client):
         """Ingest nonexistent file returns 400."""
         response = client.post("/api/ingest/file", json={
-            "path": "/nonexistent/file.jpg",
+            "path": str(Path(tempfile.gettempdir()) / "does-not-exist.jpg"),
         })
         assert response.status_code == 400
+
+    def test_ingest_file_disallowed_path_forbidden(self, client):
+        """Ingest paths outside the allowlist return 403."""
+        response = client.post("/api/ingest/file", json={
+            "path": "/nonexistent/file.jpg",
+        })
+        assert response.status_code == 403
 
     def test_ingest_folder_starts_task(self, client):
         """Ingest folder returns task ID."""
