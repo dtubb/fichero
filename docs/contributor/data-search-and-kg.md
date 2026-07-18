@@ -1,4 +1,4 @@
-(AI generated. Not reviewed.)
+<!-- Verified against db.py, search/query_parser.py, api/routes/search.py, workflows/tools/_entity_writer.py (2026-07-18). -->
 
 # Data Layer, Search, and Knowledge Graph Storage
 
@@ -59,7 +59,8 @@ Knowledge-graph data is built around entities and claims.
 The central write path for catalogue-style extraction is `workflows/tools/_entity_writer.py`. That helper centralizes:
 
 - entity upsert logic
-- fuzzy matching and dedup heuristics
+- entity-level fuzzy matching and dedup heuristics (note: identical claims are
+  currently persisted once per mention — claim-level dedup is not yet applied, #1803)
 - claim creation
 - source-support and provenance details
 - coordination between extractor output and persistent KG models
