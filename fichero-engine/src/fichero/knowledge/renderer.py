@@ -11,26 +11,26 @@ etc.), they can install citeproc-py separately and pass a CSL
 file path via the ``render_csl(metadata, style_xml)`` future API.
 For now we ship the four prize formats.
 
-Examples — for ``SourceMetadata(authors=["Tubb, Daniel"],
-title="Shifting Livelihoods", date="2020", publisher="Duke
-University Press")``:
+Examples — for ``SourceMetadata(authors=["Roe, Avery"],
+title="Example Research", date="2020", publisher="Example
+Press")``:
 
   render_bibtex:
-    @book{tubb2020shifting,
-      author = {Tubb, Daniel},
-      title = {Shifting Livelihoods},
+    @book{roe2020example,
+      author = {Roe, Avery},
+      title = {Example Research},
       year = {2020},
-      publisher = {Duke University Press},
+      publisher = {Example Press},
     }
 
   render_chicago:
-    Tubb, Daniel. 2020. *Shifting Livelihoods*. Duke University Press.
+    Roe, Avery. 2020. *Example Research*. Example Press.
 
   render_apa:
-    Tubb, D. (2020). *Shifting Livelihoods*. Duke University Press.
+    Roe, A. (2020). *Example Research*. Example Press.
 
   render_mla:
-    Tubb, Daniel. *Shifting Livelihoods*. Duke University Press, 2020.
+    Roe, Avery. *Example Research*. Example Press, 2020.
 """
 
 from __future__ import annotations

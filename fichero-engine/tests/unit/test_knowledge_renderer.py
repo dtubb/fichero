@@ -132,13 +132,13 @@ def test_bibtex_escape_special_chars():
 
 
 def test_render_bibtex_book_matches_docstring():
-    m = _meta(authors=["Tubb, Daniel"], title="Shifting Livelihoods", date="2020", publisher="Duke University Press")
+    m = _meta(authors=["Roe, Avery"], title="Example Research", date="2020", publisher="Example Press")
     assert render_bibtex(m) == (
-        "@book{tubb2020shifting,\n"
-        "  author = {Tubb, Daniel},\n"
-        "  title = {Shifting Livelihoods},\n"
+        "@book{roe2020example,\n"
+        "  author = {Roe, Avery},\n"
+        "  title = {Example Research},\n"
         "  year = {2020},\n"
-        "  publisher = {Duke University Press}\n"
+        "  publisher = {Example Press}\n"
         "}"
     )
 
@@ -183,8 +183,8 @@ def test_render_bibtex_cite_key_override():
 
 
 def test_render_chicago_matches_docstring():
-    m = _meta(authors=["Tubb, Daniel"], title="Shifting Livelihoods", date="2020", publisher="Duke University Press")
-    assert render_chicago(m) == "Tubb, Daniel. 2020. *Shifting Livelihoods*. Duke University Press."
+    m = _meta(authors=["Roe, Avery"], title="Example Research", date="2020", publisher="Example Press")
+    assert render_chicago(m) == "Roe, Avery. 2020. *Example Research*. Example Press."
 
 
 def test_render_chicago_article_form():
@@ -197,8 +197,8 @@ def test_render_chicago_article_form():
 
 
 def test_render_apa_matches_docstring():
-    m = _meta(authors=["Tubb, Daniel"], title="Shifting Livelihoods", date="2020", publisher="Duke University Press")
-    assert render_apa(m) == "Tubb, D. (2020). *Shifting Livelihoods*. Duke University Press."
+    m = _meta(authors=["Roe, Avery"], title="Example Research", date="2020", publisher="Example Press")
+    assert render_apa(m) == "Roe, A. (2020). *Example Research*. Example Press."
 
 
 def test_render_apa_no_date_is_nd():
@@ -212,8 +212,8 @@ def test_render_apa_doi_appended():
 
 
 def test_render_mla_matches_docstring():
-    m = _meta(authors=["Tubb, Daniel"], title="Shifting Livelihoods", date="2020", publisher="Duke University Press")
-    assert render_mla(m) == "Tubb, Daniel. *Shifting Livelihoods*. Duke University Press, 2020."
+    m = _meta(authors=["Roe, Avery"], title="Example Research", date="2020", publisher="Example Press")
+    assert render_mla(m) == "Roe, Avery. *Example Research*. Example Press, 2020."
 
 
 def test_render_mla_article_form():
