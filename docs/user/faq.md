@@ -22,7 +22,7 @@ workflows, and knowledge-graph processing; the app is the client on top.
 
 ### What kinds of files can it ingest?
 
-The ingest system supports 37 file extensions across images, documents,
+The ingest system supports 56 file extensions across images, documents,
 word-processing files, ebooks, audio, and video. Text extraction is implemented
 for PDFs, word-processing files, text files, and EPUBs.
 
