@@ -46,8 +46,8 @@ ALLOWLIST_FILES = {
     "Chat/ChatMessagesList.swift",
     # Form-based settings detail views - Form+Section+ForEach is proper form usage,
     # not a hand-rolled row collection.
-    "AIProviders/ProvidersView+ProviderDetailView.swift",
-    "MCPServers/MCPServerDetailView.swift",
+    "Settings/AIProviders/ProvidersView+ProviderDetailView.swift",
+    "Settings/MCPServers/MCPServerDetailView.swift",
     # Free-form detail / log / grid surfaces - not selectable row collections.
     "Actions/ActionDetailView.swift",  # mixed detail content; ForEach is for a tag-chip FlowLayout
     "Activity/ActivityLogView.swift",  # streaming log viewer with auto-scroll

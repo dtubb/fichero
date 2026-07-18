@@ -47,7 +47,7 @@ final class AboutSettingsSurfaceTests: XCTestCase {
     }
 
     func testAboutViewUsesBundleCopyrightBeforeFallback() throws {
-        let source = try Self.appSource("Views/AboutView.swift")
+        let source = try Self.appSource("Views/Settings/AboutView.swift")
         XCTAssertTrue(source.contains("NSHumanReadableCopyright"))
         XCTAssertTrue(source.contains("AboutInfo.copyrightLine("))
         XCTAssertTrue(source.contains("fallbackCopyright"))

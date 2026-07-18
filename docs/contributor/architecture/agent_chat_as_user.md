@@ -147,7 +147,7 @@ This part is **TO BUILD**.
 What exists today:
 
 - There is already a settings surface for users/roles in `fichero/fichero/Views/Settings/UsersSettingsView.swift`.
-- There is already a settings surface for MCP server management in `fichero/fichero/Views/MCPServers/` and backend support in `api/routes/mcp_servers.py:163-257`.
+- There is already a settings surface for MCP server management in `fichero/fichero/Views/Settings/MCPServers/` and backend support in `api/routes/mcp_servers.py:163-257`.
 
 What does **not** exist today:
 

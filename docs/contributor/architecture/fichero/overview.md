@@ -117,7 +117,7 @@ Panes adapt to the active mode — not all are shown at once.
 - Port connections for data flow
 - Execution log panel
 
-**AI Providers** (`Views/AIProviders/`):
+**AI Providers** (`Views/Settings/AIProviders/`):
 - Provider configuration sheets
 - Model browser (standard + Hugging Face)
 - API key management

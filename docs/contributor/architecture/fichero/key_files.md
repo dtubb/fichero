@@ -51,8 +51,8 @@ via `@SceneStorage`. The reading layout and page navigation live in
 - `EntityDigestView.swift` — KG entity/claim digests; backing for inspector KG tab and graph views
 
 ### Other domains
-`Chat/`, `Search/`, `Activity/`, `AIProviders/`, `Automation/`, `Agents/`, `Integrations/`,
-`MCPServers/`, `ModelComparison/`, `Settings/`, `Sheets/`, `Menu/`, `Toolbars/`, `Components/`, `Actions/`.
+`Chat/`, `Search/`, `Activity/`, `Settings/AIProviders/`, `Automation/`, `Agents/`, `Integrations/`,
+`Settings/MCPServers/`, `ModelComparison/`, `Settings/`, `Sheets/`, `Menu/`, `Toolbars/`, `Components/`, `Actions/`.
 
 ## Services (`Services/`, ~49 files)
 
