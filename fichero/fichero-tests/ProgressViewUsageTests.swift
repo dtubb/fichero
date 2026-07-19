@@ -3,7 +3,7 @@ import XCTest
 final class ProgressViewUsageTests: XCTestCase {
     func testIndeterminateProgressViewsDoNotUseFixedFrames() throws {
         let sources = [
-            try Self.appSource("Views/Inspector/Document/Source/Info/DocumentInspectorInfoTab+Prototype.swift"),
+            try Self.appSource("Views/Inspector/Source/Info/DocumentInspectorInfoTab+Prototype.swift"),
             try Self.appSource("Views/Components/NodeClassPicker.swift"),
             try Self.appSource("Views/Workflow/Nodes/NodeConfigs/ExtractEntitiesNodeConfig.swift")
         ]

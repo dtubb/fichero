@@ -46,7 +46,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "fichero/fichero/Views/Library/ArtifactEntityViews.swift#843f4a532a": "#1913 baseline",
     "fichero/fichero/Views/Library/ArtifactEntityViews.swift#50d0228821": "#1913 baseline",
     "fichero/fichero/Views/Library/ArtifactEntityViews.swift#d1e408277f": "#1913 baseline",
-    "fichero/fichero/Views/Inspector/Document/Notes/DocumentInspectorAnnotationsTab.swift#074340dfc5": "#1913 baseline",
+    "fichero/fichero/Views/Inspector/Notes/DocumentInspectorAnnotationsTab.swift#074340dfc5": "#1913 baseline",
     "fichero/fichero/Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift#28d9eccb0f": "#1913 baseline",
     "fichero/fichero/Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift#1b97ffd731": "#1913 baseline",
     "fichero/fichero/Views/Sidebar/ItemRow/SidebarItemRow+DropHandlers.swift#48776b4383": "#1913 baseline",

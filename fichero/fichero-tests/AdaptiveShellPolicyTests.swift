@@ -351,7 +351,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         let sidebarSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
         let sidebarHelpersSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+Helpers.swift")
         let annotationsSource = try Self.appSource(
-            "Views/Inspector/Document/Notes/DocumentInspectorAnnotationsTab.swift"
+            "Views/Inspector/Notes/DocumentInspectorAnnotationsTab.swift"
         )
 
         XCTAssertTrue(sidebarSource.contains("sidebarFilterBar"))

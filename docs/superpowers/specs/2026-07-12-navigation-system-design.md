@@ -61,8 +61,8 @@ pattern repeated independently in six places:
 | `fichero/fichero/Views/Shell/ContentView/ContentView+ViewBuilders.swift:38` (`ReadingPaneView`) | Reader pane: pins `Document` + page number + page count |
 | `fichero/fichero/Views/Preview/PDFViewer/PDFPageWithToolbar.swift:56` | Preview/PDF pane: pins `documentId` + `localPageIndex` |
 | `fichero/fichero/Views/Inspector/FocusedDocument.swift:41` (`DocumentDetailWindow`) | Detached document-detail scene |
-| `fichero/fichero/Views/Inspector/Citations/CitationsInspectorPane.swift:123` | Citations inspector tab |
-| `fichero/fichero/Views/Inspector/Annotations/AnnotationsInspectorPane.swift:204` | Annotations inspector tab |
+| `fichero/fichero/Views/Inspector/Knowledge/Citations/CitationsInspectorPane.swift:123` | Citations inspector tab |
+| `fichero/fichero/Views/Inspector/Notes/Annotations/AnnotationsInspectorPane.swift:204` | Annotations inspector tab |
 | `fichero/fichero/Views/Inspector/Artifacts/ArtifactsInspectorPane.swift:326` | Artifacts inspector tab |
 | `fichero/fichero/Views/Inspector/Notes/NotesInspectorPane.swift:146` | Notes inspector pane |
 
@@ -89,7 +89,7 @@ see §2.
 
 ### 0.3 Source-navigation / reveal-in-Preview — the closest thing to a Location model, and it is UI-only
 
-- `fichero/fichero/Views/Inspector/Document/Knowledge/KnowledgeGraphSupport.swift:85-129` —
+- `fichero/fichero/Views/Inspector/Knowledge/KnowledgeGraphSupport.swift:85-129` —
   `SourceDestination` (`.preview` / `.reader` / `.both`), `ClaimSourceNavigationRequest`
   (`documentId`, `claimId?`, `claimText?`, `pageLabel?`, `pageIndex?`, `charStart?`,
   `charEnd?`, `bbox: [Double]?` normalized `[x, y, w, h]` top-left, `destination`), and

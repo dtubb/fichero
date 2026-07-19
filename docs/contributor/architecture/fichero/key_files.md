@@ -29,11 +29,12 @@ via `@SceneStorage`. The reading layout and page navigation live in
 ## Views (`Views/`, ~234 files across ~19 feature domains)
 
 ### Library (`Views/Library/`) — document browser, preview, inspector
-- `Views/Inspector/Document/DocumentInspector.swift` + section folders — **inspector V2**,
-  organized to mirror `InspectorSection` (Source / Knowledge / Notes):
+- `Views/Inspector/` — **inspector V2**. The top-level folders ARE the four
+  `InspectorSection`s; `Document/DocumentInspector.swift` is the host/dispatcher:
   - `Source/` — `DocumentInspectorInfoTab.swift` (+`Info/`), `DocumentInspectorMetadataTab.swift`, `DocumentInspectorContentV2.swift`
-  - `Knowledge/` — `Entities/`, `KnowledgeGraph/`, `EntityKindRow.swift`, `KGCurationHistorySection.swift`, `KnowledgeGraphModels.swift`, `KnowledgeGraphSupport.swift`
-  - `Notes/` — `DocumentNotesTab.swift`, `DocumentInspectorAnnotationsTab.swift`, `DocumentInterpretationsTab.swift`, `DocumentInterpretationsSection.swift`
+  - `Artifacts/` — `ArtifactPanel*`, `ArtifactsInspectorPane.swift`, list/detail views
+  - `Knowledge/` — `Entities/`, `KnowledgeGraph/`, `Citations/`, `EntityKindRow.swift`, `EntityDigestView.swift`, `KnowledgeGraph{Models,Support}.swift` (per `InspectorSection`: entities + KG + citations)
+  - `Notes/` — `Annotations/`, `NotesInspectorPane.swift`, `NoteDetailView.swift`, `DocumentNotesTab.swift`, `DocumentInspectorAnnotationsTab.swift`, `DocumentInterpretations{Tab,Section}.swift` (per `InspectorSection`: notes + annotations + interpretations)
   - `AttributedTextEditor.swift` — rich-text editor (`NSViewRepresentable`)
 - `PDFThumbnailView.swift` (~850 lines) — PDF rendering, page thumbnails, reading-view plumbing (PDFKit bridge)
 - `LibraryView.swift` + extensions (`+DisplayModes`, `+ColumnConfig`, `+Sorting`, `+FilterAndBatch`, `+InlineEditing`, `+KeyboardShortcuts`) and `LibraryViewComponents.swift` — grid/list/table browser

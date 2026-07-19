@@ -50,9 +50,10 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 | WebKit transcript / knowledge pane | DocumentKGWebPane / PageContentPane *(rename pending #1450)* | `Views/Library/` | area:reading-surface |
 | Loupe / magnifier / zoom | PDFLoupeOverlay, MagnifierPanel, ScrollWheelZoom | `Views/Library/` | area:reading-surface |
 | **Document Inspector** (right) | DocumentInspector | `Views/Inspector/Document/` | area:inspector |
-| — Source section | DocumentInspectorInfoTab / MetadataTab / ContentV2 | `.../Document/Source/` | area:inspector |
-| — Knowledge section | DocumentInspectorEntitiesTab, KnowledgeGraphInspectorSection | `.../Document/Knowledge/` | area:inspector |
-| — Notes section | DocumentNotesTab, DocumentInspectorAnnotationsTab, DocumentInterpretationsTab | `.../Document/Notes/` | area:inspector |
+| — Source section | DocumentInspectorInfoTab / MetadataTab / ContentV2 | `Views/Inspector/Source/` | area:inspector |
+| — Artifacts section | ArtifactsInspectorPane, ArtifactPanel | `Views/Inspector/Artifacts/` | area:inspector |
+| — Knowledge section | DocumentInspectorEntitiesTab, KnowledgeGraphInspectorSection, Citations | `Views/Inspector/Knowledge/` | area:inspector |
+| — Notes section | NotesInspectorPane, DocumentNotesTab, Annotations, DocumentInterpretations | `Views/Inspector/Notes/` | area:inspector |
 | — KG surface (Timeline/Map) | DocumentKGSurface | `Views/Reader/Knowledge/DocumentKGSurface.swift` | area:inspector |
 
 ---
