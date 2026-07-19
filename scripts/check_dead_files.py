@@ -78,6 +78,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Workflow/Editor/SimpleWorkflowView.swift": "#1945 — candidate dead file: SimpleWorkflowView, SimpleWorkflow",
     "Views/Workflow/Execution/WorkflowExecutionView.swift": "#1945 — candidate dead file: workflow execution helper types",
     "Views/Workflow/Inspector/WorkflowInspector+DataLoading.swift": "#2955 — file stays live via WorkflowInspector data-loading extension; primary helper enum is local-only",
+    "Views/Inspector/Document/DocumentInspector+Sections.swift": "#2955 — DocumentInspectorImageEditsTab is used only by the same-file editsTab() section builder (split from DocumentInspector); scanner misses same-file extension wiring",
 }
 
 

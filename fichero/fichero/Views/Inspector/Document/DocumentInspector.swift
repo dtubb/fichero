@@ -1,8 +1,6 @@
 import FicheroAPIClient
 import SwiftUI
 
-// swiftlint:disable file_length
-
 /// Shared Tahoe glass-strip background for the inspector chrome strips (#3061 /
 /// #2550): Liquid Glass on macOS/iOS, `.regularMaterial` on visionOS — mirrors
 /// `MiniToolbar.body`. Applied as a TRAILING modifier so each strip's row content
@@ -71,16 +69,16 @@ struct DocumentInspector: View {
     /// any non-ContentView host still compile. (#833)
     var onNavigateToSource: ((String) -> Void)?
 
-    @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
-    @Environment(DocumentStore.self) private var documentStore
-    @Environment(EntityService.self) private var entityService
-    @Environment(ArtifactService.self) private var artifactService
-    @Environment(KGCurationService.self) private var kgCurationService
-    @Environment(ClaimFocusState.self) private var claimFocusState
+    @SceneStorage("inspectorSelectedTab") var selectedTab: InspectorTab = .content
+    @Environment(DocumentStore.self) var documentStore
+    @Environment(EntityService.self) var entityService
+    @Environment(ArtifactService.self) var artifactService
+    @Environment(KGCurationService.self) var kgCurationService
+    @Environment(ClaimFocusState.self) var claimFocusState
     @State private var focusedArtifact = FocusedArtifact.shared
     /// Cross-view KG focus. Entity selection now routes into the Entities tab's
     /// lower detail pane instead of replacing the whole inspector. (#3400)
-    @Environment(KGFocusState.self) private var kgFocusState
+    @Environment(KGFocusState.self) var kgFocusState
 
     var body: some View {
         Group {
@@ -135,220 +133,6 @@ struct DocumentInspector: View {
         }
     }
 
-    /// The four-section top icon row — the approved IA switcher (#3434, top icon
-    /// row chosen 2026-07-11): Source / Artifacts / Knowledge / Notes. One
-    /// grouped capsule with a selected-segment fill, reading as ONE control.
-    /// Stays icon-only buttons (not a `.segmented` Picker) so per-section `.help`
-    /// tooltips and `.accessibilityIdentifier` XCUITest hooks attach per segment.
-    /// Multi-facet sections reveal a sub-picker below (see ``facetPicker``).
-    /// The shared `SurfaceTabBar` (#3530) — the same icon-button row the Reader
-    /// uses — over the document's available sections. Per-section help + XCUITest
-    /// hooks (`inspectorSection-Source`, …) and the container `inspectorSectionBar`
-    /// hook are preserved via `InspectorSection: SurfaceTab` + the container id.
-    private var sectionBar: some View {
-        SurfaceTabBar(
-            tabs: availableSections(for: document),
-            selection: sectionSelectionBinding,
-            accessibilityID: "inspectorSectionBar"
-        )
-    }
-
-    /// Active section ↔ selected facet: reads the section the current tab belongs
-    /// to; selecting a section switches to its first facet (unchanged behaviour).
-    private var sectionSelectionBinding: Binding<InspectorSection> {
-        Binding(
-            get: { Self.section(for: selectedTab, in: document) },
-            set: { selectSection($0) }
-        )
-    }
-
-    /// Sub-facet selector shown only when the active section absorbs more than
-    /// one legacy facet (Knowledge = entities/graph/citations; Notes =
-    /// notes/annotations/interpretation). A native segmented picker over the
-    /// section's facets — each facet body is reused unchanged (iterate, not
-    /// replace). Single-facet sections (Artifacts) show nothing here.
-    @ViewBuilder
-    private func facetPicker(for doc: Document, selectedTab tab: InspectorTab) -> some View {
-        let section = Self.section(for: tab, in: doc)
-        let facets = facets(in: section, for: doc)
-        if facets.count > 1 {
-            Picker("Facet", selection: facetSelection) {
-                ForEach(facets) { facet in
-                    Text(facet.rawValue).tag(facet)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 8)
-            .padding(.bottom, 6)
-            .accessibilityIdentifier("inspectorFacetPicker")
-        }
-    }
-
-    private var facetSelection: Binding<InspectorTab> {
-        Binding(
-            get: { Self.clampedSelectedTab(selectedTab, for: document) },
-            set: { selectTab($0) }
-        )
-    }
-
-    /// The section for a facet, clamped to something valid for this document.
-    static func section(for tab: InspectorTab, in doc: Document?) -> InspectorSection {
-        InspectorSection.section(for: clampedSelectedTab(tab, for: doc)) ?? .source
-    }
-
-    /// The legacy facets of `section` that are available for this document.
-    private func facets(in section: InspectorSection, for doc: Document?) -> [InspectorTab] {
-        let available = Set(Self.availableTabs(for: doc))
-        return section.facets.filter { available.contains($0) }
-    }
-
-    private func availableSections(for doc: Document?) -> [InspectorSection] {
-        InspectorSection.allCases.filter { !facets(in: $0, for: doc).isEmpty }
-    }
-
-    /// Switch top section: jump to its first facet unless already inside it.
-    private func selectSection(_ section: InspectorSection) {
-        guard Self.section(for: selectedTab, in: document) != section else { return }
-        if let first = facets(in: section, for: document).first {
-            selectTab(first)
-        }
-    }
-
-    /// Switch the inspector tab, first persisting any in-flight Page Content
-    /// edit so it isn't lost when the Content tab's editor disappears (#2476).
-    /// Only defers when an editor is registered, so tab switching stays snappy.
-    private func selectTab(_ tab: InspectorTab) {
-        if documentStore.activePageEditFlush != nil {
-            Task { @MainActor in
-                await documentStore.flushActivePageEdit()
-                selectedTab = tab
-            }
-        } else {
-            selectedTab = tab
-        }
-    }
-
-    // Tab content for the selected tab. One arm per inspector tab; complexity
-    // scales with the (intentionally flat) tab list, not nested branching.
-    @ViewBuilder private func tabContent(for doc: Document, selectedTab: InspectorTab) -> some View {
-        switch selectedTab {
-        case .content:
-            contentTab(for: doc)
-        case .artifacts:
-            ArtifactsInspectorPane(document: doc)
-        case .annotations:
-            DocumentInspectorAnnotationsTab(document: doc)
-        case .notes:
-            DocumentNotesTab(document: doc)
-        case .interpretations:
-            DocumentInterpretationsTab(document: doc)
-        case .entities:
-            entitiesTab(for: doc)
-        case .knowledgeGraph:
-            knowledgeGraphTab(for: doc)
-        case .citations:
-            CitationsInspectorPane(document: doc)
-        case .edits:
-            editsTab(for: doc)
-        case .info:
-            infoTab(for: doc)
-        }
-    }
-
-    static func clampedSelectedTab(_ selectedTab: InspectorTab, for doc: Document?) -> InspectorTab {
-        let tabs = availableTabs(for: doc)
-        return tabs.contains(selectedTab) ? selectedTab : .content
-    }
-
-    private static func availableTabs(for doc: Document?) -> [InspectorTab] {
-        guard let doc else { return InspectorTab.allCases }
-        var tabs: [InspectorTab] = [
-            .content, .artifacts, .annotations, .notes, .interpretations, .knowledgeGraph,
-            .entities, .citations
-        ]
-        // Image/page edit CONTROLS live in the Inspector, Lightroom-style (#3593,
-        // 2026-07-12 — this reverses #3434's "edits left the inspector":
-        // the controls belong here, the Preview is the live canvas). Only for the
-        // surfaces the editor supports (images and PDF/scanned pages).
-        if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
-            tabs.append(.edits)
-        }
-        // Info is no longer a standalone tab — it is folded into the Source body's
-        // Content/Info/Outline picker (SourceSectionMode, #3876). Not appending it
-        // here means a persisted `.info` selection clamps to `.content` (Source)
-        // instead of stranding on the old full-screen Info view with no picker.
-        return tabs
-    }
-
-    @ViewBuilder
-    private func contentTab(for doc: Document) -> some View {
-        // Source section = a Content / Outline mode toggle (#3440). The native
-        // document Outline is a hierarchy mode within Source, not a new tab.
-        SourceSectionView(document: doc)
-    }
-
-    @ViewBuilder
-    private func entitiesTab(for doc: Document) -> some View {
-        DocumentInspectorEntitiesTab(
-            document: doc,
-            documentId: doc.id,
-            selectedEntityId: kgFocusState.focusedEntityId,
-            onEntitySelect: { entityId in
-                kgFocusState.focusEntity(entityId: entityId)
-            }
-        )
-    }
-
-    @ViewBuilder
-    private func knowledgeGraphTab(for doc: Document) -> some View {
-        // No outer ScrollView — KnowledgeGraphInspectorSection owns its own
-        // scroll + pinned bottom mini-toolbar (#3461).
-        KnowledgeGraphInspectorSection(
-            documentId: doc.id,
-            documentScope: doc.docType == .page ? .page : .folder,
-            entityService: entityService,
-            artifactService: artifactService,
-            kgCurationService: kgCurationService,
-            onNavigateToSource: onNavigateToSource,
-            onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
-                // Direct observable call — no NotificationCenter round-trip
-                // (#3034). Passes the full payload the old .claimSelectedInInspector
-                // bus carried but the ContentView handler dropped (it forwarded
-                // only claimId), so the other panes now get text/source/range too.
-                claimFocusState.selectClaim(
-                    claimId: claimId,
-                    claimText: claimText,
-                    sourceDocumentId: sourceDocId,
-                    pageLabel: pageLabel,
-                    charStart: charStart,
-                    charEnd: charEnd
-                )
-            }
-        )
-    }
-
-    @ViewBuilder
-    private func editsTab(for doc: Document) -> some View {
-        if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
-            DocumentInspectorImageEditsTab(document: doc)
-        } else {
-            Text("Edits are available for images and PDF pages.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .padding()
-        }
-    }
-
-    @ViewBuilder
-    // Kept for switch exhaustiveness — `.info` is no longer a selectable tab (#3876,
-    // folded into SourceSectionMode). Delegates to the one shared Info body so there
-    // is no divergent copy.
-    private func infoTab(for doc: Document) -> some View {
-        SourceInfoView(document: doc)
-    }
-
     // MARK: - Empty State
 
     private var emptyState: some View {
@@ -369,56 +153,6 @@ struct DocumentInspector: View {
               focusedArtifact.id != nil,
               focusedArtifact.documentId == doc.id else { return }
         selectedTab = .artifacts
-    }
-}
-
-private struct DocumentInspectorImageEditsTab: View {
-    let document: Document
-
-    @Environment(APIClient.self) private var apiClient
-    @Environment(StorageService.self) private var storageService
-    @State private var model = ImageEditorModel()
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if model.isBusy {
-                ProgressView()
-                    .controlSize(.small)
-                    .padding(.top, 10)
-            }
-
-            ImageEditChainPanel(
-                chain: model.chain,
-                isBusy: model.isBusy,
-                selectedStepIndex: Binding(
-                    get: { model.selectedStepIndex },
-                    set: { model.selectedStepIndex = $0 }
-                ),
-                onRemove: { index in Task { await model.removeOperation(at: index) } },
-                onReset: { Task { await model.resetAll() } },
-                onRotate: { angle in Task { await model.rotate(by: angle) } },
-                onStraighten: { Task { await model.straighten() } },
-                onEnhance: { brightness, contrast, sharpen, auto in
-                    Task { await model.enhance(brightness: brightness, contrast: contrast, sharpen: sharpen, autoLevels: auto) }
-                },
-                onCrop: { left, top, width, height in
-                    Task { await model.crop(left: left, top: top, width: width, height: height) }
-                },
-                onRemoveBackground: { Task { await model.removeBackground() } },
-                onFuzzyClean: { Task { await model.fuzzyClean() } },
-                onSegment: { Task { await model.segment() } }
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-        .task(id: document.id) {
-            await model.configure(apiClient: apiClient, documentId: document.id)
-            // Evict the storage-display cache after each edit so the Preview
-            // canvas re-fetches the edited bytes (#3593) — same hook the
-            // Preview-hosted editor uses (ImageEditorView).
-            model.onEditApplied = { [storageService] id in
-                storageService.invalidateImageCache(for: id)
-            }
-        }
     }
 }
 
@@ -469,5 +203,3 @@ private struct DocumentInspectorImageEditsTab: View {
         .environment(ClaimFocusState.shared)
         .frame(width: 280, height: 400)
 }
-
-// swiftlint:enable file_length

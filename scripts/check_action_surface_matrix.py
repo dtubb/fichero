@@ -35,6 +35,8 @@ KNOWN_GAPS = load_known_gaps(Path(__file__).with_name("check_action_surface_matr
 MENU_FILES = {
     ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "FileMenuCommands.swift",
     ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "ViewMenuCommands.swift",
+    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "ViewMenuLayoutSections.swift",
+    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "ViewMenuPaneSections.swift",
     ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "ImagePreviewMenuCommands.swift",
     ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "AddItemMenu.swift",
 }
