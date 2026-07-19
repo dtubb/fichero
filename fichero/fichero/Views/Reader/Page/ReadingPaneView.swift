@@ -1,9 +1,7 @@
 import SwiftUI
-// swiftlint:disable file_length
 
 // MARK: - ReadingPaneView
 
-// swiftlint:disable type_body_length
 /// Self-contained knowledge/WebKit reading surface with its own pin state.
 /// Extracting this to a separate View (rather than inline in widescreenReadingPane)
 /// gives each SplittablePane instance its own independent @State, so left and
@@ -18,10 +16,10 @@ struct ReadingPaneView: View {
     /// Called when the user taps the × button. Omit to hide the button.
     var onClose: (() -> Void)?
 
-    @Environment(APIClient.self) private var apiClient
-    @Environment(KGFocusState.self) private var kgFocusState
-    @Environment(ClaimFocusState.self) private var claimFocusState
-    @Environment(AnnotationStore.self) private var annotationStore
+    @Environment(APIClient.self) var apiClient
+    @Environment(KGFocusState.self) var kgFocusState
+    @Environment(ClaimFocusState.self) var claimFocusState
+    @Environment(AnnotationStore.self) var annotationStore
     @Environment(\.splitAxisActions) private var splitAxisActions
     /// Drives the compact (iPhone) collapse of the side-by-side page split — a
     /// fixed-width transcript beside the source doesn't fit at compact width
@@ -39,36 +37,36 @@ struct ReadingPaneView: View {
     /// (#3582, browser-tab metaphor). Reuses the shared WindowOpener path.
     @Environment(\.openWindow) private var openWindow
     /// Shared annotation focus for the Notes tab's list ↔ detail selection.
-    @State private var focusedAnnotation = FocusedAnnotation.shared
+    @State var focusedAnnotation = FocusedAnnotation.shared
     /// Notes-tab sub-mode: anchored marks vs free-text notes (#3513). Per-window.
     @SceneStorage("reader.notes.mode") private var notesModeRaw = ReaderNotesMode.annotations.rawValue
-    private var notesMode: ReaderNotesMode { ReaderNotesMode(rawValue: notesModeRaw) ?? .annotations }
-    private var notesModeBinding: Binding<ReaderNotesMode> {
+    var notesMode: ReaderNotesMode { ReaderNotesMode(rawValue: notesModeRaw) ?? .annotations }
+    var notesModeBinding: Binding<ReaderNotesMode> {
         Binding(get: { notesMode }, set: { notesModeRaw = $0.rawValue })
     }
 
-    @State private var isPinned = false
+    @State var isPinned = false
     @State private var pinnedDocument: Document?
     @State private var pinnedActivePageNumber: Int?
     @State private var pinnedPageCount: Int?
-    @State private var webZoom: Double = 1.0
+    @State var webZoom: Double = 1.0
     // The KG surface sub-mode. Defaults to Entities — the entities WITH the
     // statements made about them, i.e. the "what we know" reading, NOT the graph
     // visualisation (2026-07-14, #3765 Q6).
-    @State private var activeTab: KGSurfaceTab = .entities
+    @State var activeTab: KGSurfaceTab = .entities
     /// The reader's top-level tab (Page/Knowledge/Notes) — the reader IA fold
     /// (2026-07-11 design). Per-window via @SceneStorage. Page hosts the REAL
     /// multi-page WebKit transcript (#3765); the old "reader reads the source
     /// first" note is retired — the source lives in Preview, never here.
     @SceneStorage("reader.topTab") private var readerTabRaw = ReaderTab.page.rawValue
-    private var readerTab: ReaderTab { ReaderTab(rawValue: readerTabRaw) ?? .page }
+    var readerTab: ReaderTab { ReaderTab(rawValue: readerTabRaw) ?? .page }
     private var readerTabBinding: Binding<ReaderTab> {
         Binding(get: { readerTab }, set: { readerTabRaw = $0.rawValue })
     }
 
-    private var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
-    private var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
-    private var effectivePageCount: Int? { isPinned ? pinnedPageCount : livePageCount }
+    var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
+    var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
+    var effectivePageCount: Int? { isPinned ? pinnedPageCount : livePageCount }
 
     /// X button: collapses the active split when inside one,
     /// otherwise calls onClose to hide the whole reading pane.
@@ -223,266 +221,4 @@ struct ReadingPaneView: View {
     private func revealInTranscript() {
         if readerTab != .page { readerTabRaw = ReaderTab.page.rawValue }
     }
-
-    @ViewBuilder
-    private var zoomControls: some View {
-        Button { webZoom = max(0.5, webZoom - 0.1) } label: {
-            Image(systemName: "minus.magnifyingglass")
-        }
-        .buttonStyle(.plain)
-        .help("Zoom Out")
-        .accessibilityLabel("Zoom out")
-        .accessibilityValue("\(Int(webZoom * 100)) percent")
-
-        Text("\(Int(webZoom * 100))%")
-            .font(.caption)
-            .monospacedDigit()
-            .frame(width: 44)
-            // Spoken as the zoom buttons' accessibilityValue; as its own element it
-            // would just be a bare number with no context.
-            .accessibilityHidden(true)
-
-        Button { webZoom = min(3.0, webZoom + 0.1) } label: {
-            Image(systemName: "plus.magnifyingglass")
-        }
-        .buttonStyle(.plain)
-        .help("Zoom In")
-        .accessibilityLabel("Zoom in")
-        .accessibilityValue("\(Int(webZoom * 100)) percent")
-
-        Button { webZoom = 1.0 } label: {
-            Image(systemName: "1.square")
-        }
-        .buttonStyle(.plain)
-        .help("Reset Zoom")
-        .accessibilityLabel("Reset zoom to 100 percent")
-    }
-
-    @ViewBuilder
-    private var zoomMenu: some View {
-        Menu {
-            Button("Zoom Out") {
-                webZoom = max(0.5, webZoom - 0.1)
-            }
-            Button("Zoom In") {
-                webZoom = min(3.0, webZoom + 0.1)
-            }
-            Button("Reset Zoom") {
-                webZoom = 1.0
-            }
-        } label: {
-            Label("Zoom", systemImage: "magnifyingglass")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-    }
-
-    /// Routes the selected reader tab to its content, native chrome over the
-    /// WebKit/native surfaces (reader IA fold). Page = read the source (image /
-    /// PDF with loupe #2419 / transcript); Knowledge = the WebKit KG surface;
-    /// Notes = the reading layer (highlights/notes/bookmarks).
-    @ViewBuilder
-    private var readerTabContent: some View {
-        switch readerTab {
-        case .page:
-            pageTabContent
-        case .knowledge:
-            knowledgeTabContent
-        case .notes:
-            notesTabContent
-        }
-    }
-
-    /// Knowledge tab — explore what we know. A native sub-mode switcher for the
-    /// exploration views (Graph, Claims, Timeline, Map — Timeline/Map are
-    /// sub-modes, not top tabs, #3504) sits alongside a set-apart **Digest**
-    /// section, so the digest reads as a distinct section rather than a co-equal
-    /// sub-mode or its own tab (#3505/#3512, design Q1). Digest is NOT an AI
-    /// summary — it renders every claim grouped by entity (see below).
-    /// Transcript is excluded — it lives in the Page tab. The surface is the
-    /// shared `DocumentKGSurface` WebKit view, driven by `activeTab`.
-    @ViewBuilder
-    private var knowledgeTabContent: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Picker("Knowledge view", selection: knowledgeVizBinding) {
-                    ForEach(Self.knowledgeVizModes) { mode in
-                        Label(mode.title, systemImage: mode.icon)
-                            .help(mode.helpText)
-                            .tag(mode as KGSurfaceTab?)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelStyle(.iconOnly)
-                .fixedSize()
-                .accessibilityIdentifier("readerKnowledgeSubMode")
-
-                Spacer(minLength: 8)
-
-                // Digest: claims grouped by the entity they are about, with page
-                // labels + source excerpts (document_view.html renderDigest). It is
-                // NOT an AI summary and involves no LLM call — the old comment and
-                // help text said otherwise, which is why nobody could say what it
-                // was (the user: "Digest — not sure what that is", #3765 Q2). Set
-                // apart from the exploration sub-modes (design Q1 / #3512).
-                Divider().frame(height: 16)
-                Button {
-                    activeTab = .digest
-                } label: {
-                    Label(KGSurfaceTab.digest.title, systemImage: KGSurfaceTab.digest.icon)
-                }
-                .buttonStyle(.borderless)
-                .labelStyle(.titleAndIcon)
-                .font(.caption)
-                .foregroundStyle(activeTab == .digest ? Color.accentColor : .secondary)
-                .help(KGSurfaceTab.digest.helpText)
-                .accessibilityIdentifier("readerKnowledgeDigest")
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-
-            Divider()
-
-            surfaceView(tab: effectiveKnowledgeTab)
-        }
-    }
-
-    /// The KG exploration sub-modes in the Knowledge tab. Transcript is a Page
-    /// concern; Digest is a separate section (below). Entities/Claims are native
-    /// lists; Graph/Timeline/Map are the WebKit visualization views (#3503).
-    private static let knowledgeVizModes: [KGSurfaceTab] = [.entities, .claims, .graph, .timeline, .map]
-
-    /// Binds the exploration sub-mode picker to `activeTab`. When the Digest
-    /// section is active (`activeTab == .digest`) the selection is nil so no viz
-    /// segment is highlighted; any stale non-knowledge value clamps to Entities.
-    private var knowledgeVizBinding: Binding<KGSurfaceTab?> {
-        Binding(
-            get: {
-                if Self.knowledgeVizModes.contains(activeTab) { return activeTab }
-                return activeTab == .digest ? nil : .entities
-            },
-            set: { if let mode = $0 { activeTab = mode } }
-        )
-    }
-
-    /// The KG tab actually shown: a valid viz sub-mode or the digest section;
-    /// anything else (e.g. a stale `.transcript`) falls back to Entities.
-    private var effectiveKnowledgeTab: KGSurfaceTab {
-        (Self.knowledgeVizModes.contains(activeTab) || activeTab == .digest) ? activeTab : .entities
-    }
-
-    /// Page tab — the REAL multi-page WebKit transcript (#3765).
-    ///
-    /// This is the whole point of the Reader. The engine assembles the
-    /// `page_content` of EVERY child page, in sequence, into one transcript
-    /// (`views.py:37-49`), serves it into `document_view.html`, and
-    /// `DocumentKGSurface` renders it in the shared WKWebView with per-page
-    /// anchors driving scroll↔page sync (#3226). That capability was UNREACHABLE:
-    /// the Knowledge surface excluded `.transcript`, and what the Reader called
-    /// "Transcript" was a different, single-page NATIVE pane — the name lied.
-    ///
-    /// The source is NOT here and never will be: source is always Preview
-    /// (2026-07-14, #3765 Q4). Reading the transcript beside the page is
-    /// TWO PANES — Reader + Preview — not an embedded source view.
-    @ViewBuilder
-    private var pageTabContent: some View {
-        surfaceView(tab: .transcript)
-    }
-
-    /// Notes tab — the human reading layer. A sub-mode toggle (#3513) switches
-    /// between anchored **Marks** (highlights / notes / bookmarks via the shared
-    /// `AnnotationsInspectorPane`) and free-text document **Notes** (NoteStore
-    /// via `DocumentNotesTab`), so both loose notes and page-anchored marks live
-    /// under one tab.
-    @ViewBuilder
-    private var notesTabContent: some View {
-        if let doc = effectiveDocument {
-            VStack(spacing: 0) {
-                Picker("Notes mode", selection: notesModeBinding) {
-                    ForEach(ReaderNotesMode.allCases) { mode in
-                        Label(mode.title, systemImage: mode.icon)
-                            .help(mode.help)
-                            .tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelStyle(.titleAndIcon)
-                .fixedSize()
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .accessibilityIdentifier("readerNotesMode")
-
-                Divider()
-
-                switch notesMode {
-                case .annotations:
-                    AnnotationsInspectorPane(
-                        document: doc,
-                        annotations: annotationStore.annotations,
-                        focused: focusedAnnotation
-                    )
-                    .task(id: doc.id) {
-                        await annotationStore.loadAnnotations(for: annotationScope(for: doc), force: true)
-                    }
-                case .notes:
-                    DocumentNotesTab(document: doc)
-                }
-            }
-        } else {
-            readerEmptyState
-        }
-    }
-
-    private func annotationScope(for doc: Document) -> AnnotationScope {
-        switch doc.docType {
-        case .folder: return .folder(doc.id)
-        case .page: return .page(doc.id)
-        default: return .document(doc.id)
-        }
-    }
-
-    private var readerEmptyState: some View {
-        Text("No selection")
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.textBackgroundColor))
-    }
-
-    /// The shared WebKit surface, driven by an explicit tab. The Page tab passes
-    /// `.transcript` (the assembled multi-page transcript) and the Knowledge tab
-    /// passes its viz sub-mode — one WKWebView, two readings of the same document.
-    @ViewBuilder
-    private func surfaceView(tab: KGSurfaceTab) -> some View {
-        if let doc = effectiveDocument,
-           let libraryPath = apiClient.currentLibraryPath, !libraryPath.isEmpty {
-            let kgDocId = (doc.docType == .page && doc.parentId != nil) ? doc.parentId! : doc.id
-            DocumentKGSurface(
-                documentId: kgDocId,
-                documentScope: doc.docType == .page ? .page : .folder,
-                libraryPath: libraryPath,
-                selectedEntityId: kgFocusState.focusedEntityId,
-                selectedClaimId: kgFocusState.focusedClaimId ?? claimFocusState.selectedClaimId,
-                activePageNumber: effectivePageNumber,
-                pageCount: effectivePageCount,
-                onPageSelected: isPinned ? { _ in } : onPageSelected,
-                scrollSync: scrollSync,
-                zoom: webZoom,
-                externalActiveTab: tab,
-                // Only the Knowledge tab owns the sub-mode. A tab change published
-                // while the transcript is showing must not silently rewrite it.
-                onTabSelected: { newTab in
-                    if tab != .transcript { activeTab = newTab }
-                },
-                document: doc
-            )
-        } else {
-            readerEmptyState
-        }
-    }
 }
-// swiftlint:enable type_body_length
-// swiftlint:enable file_length
