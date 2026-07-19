@@ -10,4 +10,7 @@ def test_full_macos_gate_runs_fichero_ui_tests_scheme() -> None:
     verify_all = (ROOT / "scripts" / "verify_all.sh").read_text(encoding="utf-8")
 
     assert "xcodebuild macOS UI smoke tests" in verify_all
-    assert '-scheme "FicheroUITests"' in verify_all
+    # After the scheme rework there is no standalone "FicheroUITests" scheme; the
+    # macOS UI smoke leg runs the UI-only `fichero` test plan (testTargets:
+    # [FicheroUITests]) via the macOS app scheme. Guard that wiring.
+    assert '-testPlan "fichero"' in verify_all
