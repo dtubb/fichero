@@ -77,9 +77,10 @@ struct WorkflowProvenancePanel: View {
     }
 
     private func relativeDate(_ iso: String) -> String {
-        let fmt = ISO8601DateFormatter()
-        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = fmt.date(from: iso) else { return iso }
+        // Use the canonical lenient parser: a bare .withFractionalSeconds formatter
+        // REJECTS whole-second engine timestamps, which would render the raw ISO
+        // string instead of a relative date (sibling of the sortNewestFirst bug, #4016).
+        guard let date = parseEngineDate(iso) else { return iso }
         let rel = RelativeDateTimeFormatter()
         rel.unitsStyle = .abbreviated
         return rel.localizedString(for: date, relativeTo: Date())
