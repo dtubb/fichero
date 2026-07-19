@@ -66,7 +66,10 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
         // Locks the fix: both the menu list and the execution derive from the
         // SAME reference (`activeLibraryReference` / its workflowStreamService),
         // never the environment's shared service, so they can't diverge.
-        let source = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
+        // #4024: the menu-list wiring now lives in LibraryView+ContextMenu.swift,
+        // and the execution wiring in LibraryView+BatchWorkflow.swift — read both.
+        let source = try Self.appSource("Views/Library/LibraryView+ContextMenu.swift")
+            + Self.appSource("Views/Library/LibraryView+BatchWorkflow.swift")
         XCTAssertTrue(source.contains("activeLibraryReference?.workflowStore.workflows"))
         XCTAssertTrue(source.contains("guard let library = activeLibraryReference"))
         XCTAssertTrue(source.contains("let stream = library.workflowStreamService"))
@@ -91,7 +94,8 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
     }
 
     func testBatchWorkflowRefreshesDocumentsAsWorkflowStepsComplete() throws {
-        let source = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
+        // #4024: batch-workflow document refresh logic moved to LibraryView+BatchWorkflow.swift.
+        let source = try Self.appSource("Views/Library/LibraryView+BatchWorkflow.swift")
 
         XCTAssertTrue(source.contains("await store.refreshDocumentsByIds([documentId])"))
         XCTAssertTrue(source.contains("await documentStore.refreshDocumentsByIds(selectedDocumentIdsForBatch)"))

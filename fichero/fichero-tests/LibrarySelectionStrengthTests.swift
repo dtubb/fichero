@@ -26,7 +26,8 @@ final class LibrarySelectionStrengthTests: XCTestCase {
     }
 
     func testIconTileSelectedFillIsStrengthened() throws {
-        let source = try Self.appSource("Views/Library/LibraryViewComponents.swift")
+        // #4024: DocumentThumbnailView/EntityThumbnailView (icon tiles) moved to LibraryThumbnailViews.swift.
+        let source = try Self.appSource("Views/Library/LibraryThumbnailViews.swift")
         // Thumbnails keep their full-accent border but get a visible focused fill.
         XCTAssertTrue(
             source.contains("effectiveSelectedTint.opacity(0.2)"),

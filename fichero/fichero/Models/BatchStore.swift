@@ -37,6 +37,18 @@ final class BatchStore {
         }
     }
 
+    /// #4024: pure builder for the per-folder create-batch items, extracted so tests can
+    /// verify the folder→selected_doc_ids mapping directly — the generated client sends the
+    /// POST body as a URLSession upload task whose body a URLProtocol stub cannot read.
+    /// `runFolderBatch` calls this unchanged; behavior is identical.
+    static func makeFolderItems(
+        _ folders: [(id: String, documentIds: [String])]
+    ) -> [[String: any Sendable]] {
+        folders.map { folder in
+            ["selected_doc_ids": folder.documentIds]
+        }
+    }
+
     /// Run `workflowId` across `folders` — ONE batch, one item per folder (each
     /// item scoped to that folder's document ids), then execute it. Each folder
     /// becomes a separate run that surfaces in Activity. Returns the created
@@ -46,9 +58,7 @@ final class BatchStore {
         workflowId: String,
         folders: [(id: String, documentIds: [String])]
     ) async -> Components.Schemas.BatchResponse? {
-        let items: [[String: any Sendable]] = folders.map { folder in
-            ["selected_doc_ids": folder.documentIds]
-        }
+        let items = Self.makeFolderItems(folders)
         do {
             let batch = try await batchService.createBatch(workflowId: workflowId, items: items)
             try await batchService.executeBatch(batchId: batch.batchId)

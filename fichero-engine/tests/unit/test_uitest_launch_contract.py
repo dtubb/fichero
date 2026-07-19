@@ -27,10 +27,16 @@ def test_reading_surface_has_stable_accessibility_hooks() -> None:
     # them. The hooks below are their shipped successors on the real controls.
     files = [
         ROOT / "fichero" / "fichero" / "Views" / "Inspector" / "Document" / "DocumentInspector.swift",
+        # #4024: the section bar + facet picker (inspectorSectionBar/inspectorFacetPicker)
+        # moved to the split extension file when DocumentInspector was split by file_length.
+        ROOT / "fichero" / "fichero" / "Views" / "Inspector" / "Document" / "DocumentInspector+TabBar.swift",
         # Per-section hook is declared on the enum, not at the call site.
         ROOT / "fichero" / "fichero" / "Views" / "Inspector" / "InspectorSection.swift",
         ROOT / "fichero" / "fichero" / "Views" / "Reader" / "Knowledge" / "DocumentKGSurface.swift",
         ROOT / "fichero" / "fichero" / "Views" / "Reader" / "ReaderToolbar.swift",
+        # #4024: PDF page-nav hooks (pdfPreviousPage/pdfNextPage) moved to the split
+        # Controls extension file when ReaderToolbar was split by file_length.
+        ROOT / "fichero" / "fichero" / "Views" / "Reader" / "ReaderToolbar+Controls.swift",
     ]
     text = "\n".join(path.read_text(encoding="utf-8") for path in files)
 

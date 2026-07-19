@@ -39,8 +39,8 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "fichero/fichero/Models/FeatureManager.swift#c2da8d6ed5": "shipped on in release profile v31: settings_users_tab (declaration)",
     "fichero/fichero/Models/FeatureManager.swift#5dd332b721": "shipped on in release profile v31: settings_capture_tab (declaration)",
     "fichero/fichero/Models/FeatureManager.swift#7249b88210": "shipped on in release profile v31: research (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#851e52066d": "#3087 cutover: canvas_realitykit_2d default on, RealityKit-ortho renderer (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#f496f3abfc": "#3087 cutover: canvas_realitykit_3d default on, contract RealityKit renderer (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#851e52066d": "#3087 cutover, default-on RealityKit-ortho 2D renderer: canvas_realitykit_2d (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#f496f3abfc": "#3087 cutover, default-on contract RealityKit 3D renderer: canvas_realitykit_3d (declaration)",
     # --- set true in resetToV001() release defaults ---
     "fichero/fichero/Models/FeatureManager.swift#6549e3bd15": "#1922 baseline: library_advanced_views (resetToV001)",
     "fichero/fichero/Models/FeatureManager.swift#20213d49ea": "#1922 baseline: search (resetToV001)",
@@ -67,8 +67,8 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "fichero/fichero/Models/FeatureManager.swift#16fbdfae71": "shipped on in release profile v31: settings_users_tab (resetToV001)",
     "fichero/fichero/Models/FeatureManager.swift#276153fd1c": "shipped on in release profile v31: settings_capture_tab (resetToV001)",
     "fichero/fichero/Models/FeatureManager.swift#10d60de58d": "shipped on in release profile v31: research (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#06113c2e9b": "#3087 cutover: canvas_realitykit_2d default on (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#984039bf73": "#3087 cutover: canvas_realitykit_3d default on (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#06113c2e9b": "#3087 cutover, default-on: canvas_realitykit_2d (resetToV001)",
+    "fichero/fichero/Models/FeatureManager.swift#984039bf73": "#3087 cutover, default-on: canvas_realitykit_3d (resetToV001)",
 }
 _APP_STORAGE_BOOL = re.compile(
     r'@AppStorage\("(?P<key>fichero\.features\.[^"]+)"\)\s*'

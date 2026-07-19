@@ -65,7 +65,8 @@ struct SidebarSelectionTests {
         let stateSource = try appSource("Views/Shell/ContentView/ContentView+State.swift")
         let navigationSource = try appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
         let displayModeSource = try appSource("Views/Library/ViewModes/LibraryView+DisplayModes.swift")
-        let componentSource = try appSource("Views/Library/LibraryViewComponents.swift")
+        // #4024: selectedTint default now lives in LibraryThumbnailViews.swift (DocumentThumbnailView split out).
+        let componentSource = try appSource("Views/Library/LibraryThumbnailViews.swift")
 
         #expect(stateSource.contains("browserSelection.removeAll()"))
         #expect(navigationSource.contains("isPaneFocused: focusedPane == .content"))
@@ -116,7 +117,8 @@ struct SidebarSelectionTests {
 
     @Test("#3364 library double-click opens in the current window")
     func libraryDoubleClickOpensInCurrentWindow() throws {
-        let source = try appSource("Views/Library/LibraryView+FilterAndBatch.swift")
+        // #4024: handleDoubleClick/handleTap moved to LibraryView+Selection.swift.
+        let source = try appSource("Views/Library/LibraryView+Selection.swift")
         let functionStart = try #require(source.range(of: "func handleDoubleClick(_ doc: Document) {"))
         let nextFunction = try #require(
             source.range(of: "func handleTap(_ doc: Document) {", range: functionStart.lowerBound..<source.endIndex)

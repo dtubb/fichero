@@ -218,10 +218,12 @@ extension ActivityService {
                 let stringValue: String
                 if let str = value as? String {
                     stringValue = str
+                } else if let bool = value as? Bool {
+                    // #4024: Bool BEFORE NSNumber — a bridged Bool IS an NSNumber
+                    // (__NSCFBoolean), so testing NSNumber first rendered `true` as "1".
+                    stringValue = String(bool)
                 } else if let num = value as? NSNumber {
                     stringValue = num.stringValue
-                } else if let bool = value as? Bool {
-                    stringValue = String(bool)
                 } else {
                     stringValue = String(describing: value)
                 }

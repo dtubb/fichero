@@ -42,21 +42,35 @@ class BatchService {
     ///   - workflowId: The workflow to execute
     ///   - items: Array of input dictionaries, one per item
     ///   - maxConcurrent: Maximum concurrent executions (1-50)
+    /// #4024: pure builder for the CreateBatch request body, extracted so tests can
+    /// verify the encoded payload directly — the generated client sends POST bodies as
+    /// URLSession upload tasks whose body is invisible to a URLProtocol stub. Production
+    /// `createBatch` calls this unchanged; behavior is identical.
+    static func makeCreateBatchRequest(
+        workflowId: String,
+        items: [[String: any Sendable]],
+        maxConcurrent: Int
+    ) throws -> Components.Schemas.CreateBatchRequest {
+        // Each ItemsPayloadPayload wraps an OpenAPIObjectContainer in its additionalProperties.
+        let itemsPayload: Components.Schemas.CreateBatchRequest.ItemsPayload = try items.map { dict in
+            let container = try OpenAPIObjectContainer(unvalidatedValue: dict)
+            return Components.Schemas.CreateBatchRequest.ItemsPayloadPayload(additionalProperties: container)
+        }
+        return Components.Schemas.CreateBatchRequest(
+            workflowId: workflowId,
+            items: itemsPayload,
+            maxConcurrent: maxConcurrent
+        )
+    }
+
     func createBatch(
         workflowId: String,
         items: [[String: any Sendable]],
         maxConcurrent: Int = 5
     ) async throws -> Components.Schemas.BatchResponse {
-        // Convert items to array of ItemsPayloadPayload
-        // Each ItemsPayloadPayload wraps an OpenAPIObjectContainer in its additionalProperties
-        let itemsPayload: Components.Schemas.CreateBatchRequest.ItemsPayload = try items.map { dict in
-            let container = try OpenAPIObjectContainer(unvalidatedValue: dict)
-            return Components.Schemas.CreateBatchRequest.ItemsPayloadPayload(additionalProperties: container)
-        }
-
-        let request = Components.Schemas.CreateBatchRequest(
+        let request = try Self.makeCreateBatchRequest(
             workflowId: workflowId,
-            items: itemsPayload,
+            items: items,
             maxConcurrent: maxConcurrent
         )
 

@@ -31,8 +31,28 @@ final class EntityTypeMappingTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    // #4024: ArtifactService.swift's endpoint-calling methods were split out
+    // into EntityService.swift (core) + EntityService+*.swift extension
+    // files. Concatenate the whole family so endpoint-wiring assertions see
+    // all call sites regardless of which extension a method now lives in.
+    private static func entityServiceSource() throws -> String {
+        // #4024: literal appSource(...) calls (not interpolated) so the
+        // appSource-path guardrail can statically verify each split file exists.
+        return try [
+            Self.appSource("Services/EntityService.swift"),
+            Self.appSource("Services/EntityService+Bibliography.swift"),
+            Self.appSource("Services/EntityService+CitationGraph.swift"),
+            Self.appSource("Services/EntityService+ClaimEntityCRUD.swift"),
+            Self.appSource("Services/EntityService+Claims.swift"),
+            Self.appSource("Services/EntityService+DocumentMetadata.swift"),
+            Self.appSource("Services/EntityService+Entities.swift"),
+            Self.appSource("Services/EntityService+EntityCuration.swift"),
+            Self.appSource("Services/EntityService+KnowledgeGraph.swift")
+        ].joined(separator: "\n")
+    }
+
     func testClaimsAndEntitiesEndpointsAreWired() throws {
-        let source = try Self.appSource("Services/ArtifactService.swift")
+        let source = try Self.entityServiceSource()
         let requiredPaths = [
             "/api/claim-links/\\(linkId)",
             "/api/claims/assign-time-period",
@@ -65,7 +85,7 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     func testMultilingualAndRegistryEndpointsAreWired() throws {
-        let source = try Self.appSource("Services/ArtifactService.swift")
+        let source = try Self.entityServiceSource()
         let requiredPaths = [
             "/api/multilingual/claims",
             "/api/multilingual/detect",
@@ -140,7 +160,7 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     func testKnowledgeGraphCoreEndpointsAreWired() throws {
-        let source = try Self.appSource("Services/ArtifactService.swift")
+        let source = try Self.entityServiceSource()
         let requiredPaths = [
             "/api/kg/entities/\\(entityId)/bio",
             "/api/kg/entity-curation/candidates",
@@ -207,7 +227,7 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     func testKnowledgeGraphPredictionAndReviewEndpointsAreWired() throws {
-        let source = try Self.appSource("Services/ArtifactService.swift")
+        let source = try Self.entityServiceSource()
         let requiredPaths = [
             "/api/kg/pykeen/models/\\(modelId)",
             "/api/kg/pykeen/predict/\\(entityId)",

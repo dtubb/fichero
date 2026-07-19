@@ -49,7 +49,13 @@ func runAsyncWithoutBlocking<T: Sendable>(_ operation: @escaping @Sendable () as
     let runLoop = RunLoop.current
     let sendableRunLoop = SendableCFRunLoop(runLoop: runLoop.getCFRunLoop())
 
-    Task { @MainActor in
+    // #4024: run on a DETACHED task, not `Task { @MainActor }`. The caller (an AppleScript
+    // command, or the main-thread test) blocks the MainActor by spinning its RunLoop below,
+    // so a MainActor-isolated task could never start on that monopolized executor — it hung.
+    // A detached task runs off-MainActor immediately; any actor-isolated (e.g. @MainActor
+    // AppleScriptBridge) call it awaits hops onto the MainActor, which the RunLoop pump below
+    // services, then it stops the caller's run loop.
+    Task.detached {
         do {
             let value = try await operation()
             resultBox.set(.success(value))

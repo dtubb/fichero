@@ -81,18 +81,6 @@ final class EntityStoreTests: XCTestCase {
         return formatter
     }()
 
-    // swiftlint:disable:next static_over_final_class
-    override class func setUp() {
-        super.setUp()
-        URLProtocol.registerClass(MockFicheroURLProtocol.self)
-    }
-
-    // swiftlint:disable:next static_over_final_class
-    override class func tearDown() {
-        URLProtocol.unregisterClass(MockFicheroURLProtocol.self)
-        super.tearDown()
-    }
-
     override func setUp() async throws {
         try await super.setUp()
         ensureAPIKeyFileExists()

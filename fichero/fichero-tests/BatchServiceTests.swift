@@ -3,16 +3,45 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
+/// Stub URLProtocol dedicated to BatchService tests, scoped to the `/api/batches` route
+/// family so it never intercepts requests meant for other suites' dedicated protocols
+/// under Swift Testing's parallel execution.
+private final class BatchServiceMockURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.path.hasPrefix("/api/batches") == true
+    }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let handler = BatchServiceMockURLProtocol.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}
+
 @MainActor
-@Suite("BatchService")
+@Suite("BatchService", .serialized)
 struct BatchServiceTests {
 
     private func makeService(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> BatchService {
-        MockURLProtocol.requestHandler = handler
+        BatchServiceMockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        configuration.protocolClasses = [BatchServiceMockURLProtocol.self]
         let client = FicheroClient(
             baseURL: URL(string: "https://test.fichero")!,
             libraryPath: "/tmp/test.fichero",
@@ -43,15 +72,29 @@ struct BatchServiceTests {
 
     @Test("createBatch encodes workflow and per-folder selected document ids")
     func createBatchRequest() async throws {
+        defer { BatchServiceMockURLProtocol.requestHandler = nil }
+
+        // #4024: verify the encoded request BODY via the pure builder, not via
+        // URLRequest.httpBody — the generated client sends POST bodies as URLSession
+        // upload tasks whose body a URLProtocol stub cannot see (httpBody is nil there),
+        // which previously threw + retried + hung the run. Same payload assertions as
+        // before (workflow_id / max_concurrent / selected_doc_ids), sourced from the
+        // JSON-encoded builder output instead. The stub below still covers POST + path.
+        let builtRequest = try BatchService.makeCreateBatchRequest(
+            workflowId: "workflow-1",
+            items: [["selected_doc_ids": ["doc-1", "doc-2"]]],
+            maxConcurrent: 3
+        )
+        let encoded = try JSONEncoder().encode(builtRequest)
+        let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(json["workflow_id"] as? String == "workflow-1")
+        #expect(json["max_concurrent"] as? Int == 3)
+        let items = try #require(json["items"] as? [[String: [String]]])
+        #expect(items == [["selected_doc_ids": ["doc-1", "doc-2"]]])
+
         let service = makeService { request in
             #expect(request.url?.path == "/api/batches")
             #expect(request.httpMethod == "POST")
-            let body = try #require(request.httpBody)
-            let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-            #expect(json["workflow_id"] as? String == "workflow-1")
-            #expect(json["max_concurrent"] as? Int == 3)
-            let items = try #require(json["items"] as? [[String: [String]]])
-            #expect(items == [["selected_doc_ids": ["doc-1", "doc-2"]]])
             return response(for: request, body: batchJSON)
         }
 
@@ -67,6 +110,7 @@ struct BatchServiceTests {
 
     @Test("listBatches passes status and limit filters through the generated client")
     func listBatchesRequest() async throws {
+        defer { BatchServiceMockURLProtocol.requestHandler = nil }
         let service = makeService { request in
             #expect(request.url?.path == "/api/batches")
             let query = URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?.queryItems
@@ -78,7 +122,7 @@ struct BatchServiceTests {
                     """
                     {"items":[{"batch_id":"batch-1","workflow_id":"workflow-1","status":"pending",
                     "total_items":2,"completed_items":0,"failed_items":0,"max_concurrent":5,
-                    "created_at":"2026-01-01T00:00:00Z"}]}
+                    "created_at":"2026-01-01T00:00:00Z"}],"count":1}
                     """.utf8
                 )
             )
@@ -91,10 +135,15 @@ struct BatchServiceTests {
 
     @Test("executeBatch targets the batch-specific execute route")
     func executeBatchRequest() async throws {
+        defer { BatchServiceMockURLProtocol.requestHandler = nil }
         let service = makeService { request in
             #expect(request.url?.path == "/api/batches/batch-1/execute")
             #expect(request.httpMethod == "POST")
-            return response(for: request, body: Data())
+            // #4024: the generated execute-response body decodes as
+            // OpenAPIRuntime.OpenAPIValueContainer (schema `{}` in the OpenAPI doc), which
+            // accepts any valid JSON value but still requires *valid* JSON — an empty Data()
+            // body fails to decode. Return a minimal empty JSON object instead.
+            return response(for: request, body: Data("{}".utf8))
         }
 
         try await service.executeBatch(batchId: "batch-1")

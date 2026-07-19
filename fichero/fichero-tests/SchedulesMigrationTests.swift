@@ -7,7 +7,9 @@
 //  real ScheduleResponse envelope through the generated client and run it through
 //  the ScheduleInfo mapper, locking the tricky bits: the typed `inputs` /
 //  `batch_items` payloads map to [String:String] / [[String:String]], and the
-//  list endpoint's items decode. Reuses MockURLProtocol (same test target).
+//  list endpoint's items decode. Uses its own dedicated SchedulesMockURLProtocol,
+//  scoped to /api/schedules, so this suite never races or intercepts other
+//  suites' requests (#4024).
 //
 
 @testable import Fichero
@@ -15,15 +17,36 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
+/// Dedicated URLProtocol for this suite only — scoped to /api/schedules so it
+/// never intercepts (or races) other suites' unrelated requests when tests
+/// run in parallel. See #4024.
+private final class SchedulesMockURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.path.contains("/api/schedules") == true
+    }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        guard let handler = SchedulesMockURLProtocol.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet)); return }
+        do { let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+        } catch { client?.urlProtocol(self, didFailWithError: error) }
+    }
+    override func stopLoading() {}
+}
+
 @MainActor
+@Suite(.serialized)
 struct SchedulesMigrationTests {
 
     private func makeClient(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> FicheroClient {
-        MockURLProtocol.requestHandler = handler
+        SchedulesMockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        configuration.protocolClasses = [SchedulesMockURLProtocol.self]
         let session = URLSession(configuration: configuration)
         return FicheroClient(
             baseURL: URL(string: "https://test.fichero")!,
@@ -43,6 +66,7 @@ struct SchedulesMigrationTests {
 
     @Test("list_schedules decodes + maps items into ScheduleInfo (inputs/batch_items typed)")
     func listSchedulesMaps() async throws {
+        defer { SchedulesMockURLProtocol.requestHandler = nil }
         let client = makeClient { request in
             #expect(request.url?.path == "/api/schedules")
             #expect((request.url?.query ?? "").contains("limit=100"))
@@ -108,6 +132,7 @@ struct SchedulesMigrationTests {
 
     @Test("AutomationService surfaces a 422's detail as validationError")
     func getScheduleValidationErrorPreservesDetail() async throws {
+        defer { SchedulesMockURLProtocol.requestHandler = nil }
         let service = AutomationService(apiClient: APIClient(client: makeClient { request in
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 422, httpVersion: nil,
@@ -128,6 +153,7 @@ struct SchedulesMigrationTests {
 
     @Test("AutomationService.listSchedules throws on a 500 (never a silently empty list)")
     func listSchedulesThrowsOn500() async throws {
+        defer { SchedulesMockURLProtocol.requestHandler = nil }
         let service = AutomationService(apiClient: APIClient(client: makeClient { request in
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 500, httpVersion: nil,
@@ -142,6 +168,7 @@ struct SchedulesMigrationTests {
 
     @Test("get_schedule non-.ok surfaces as non-.ok (never a silent empty schedule)")
     func getScheduleNonOk() async throws {
+        defer { SchedulesMockURLProtocol.requestHandler = nil }
         let client = makeClient { request in
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 500, httpVersion: nil,

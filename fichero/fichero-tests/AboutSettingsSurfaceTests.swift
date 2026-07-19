@@ -5,7 +5,8 @@ final class AboutSettingsSurfaceTests: XCTestCase {
         let source = try Self.appSource("Views/Settings/SettingsView.swift")
         XCTAssertTrue(source.contains("#if !canImport(AppKit)"))
         XCTAssertTrue(source.contains("AboutView()"))
-        XCTAssertTrue(source.contains("row(.about, \"About\", \"info.circle\")"))
+        // #4024: the sidebar row helper now also takes a tint color argument.
+        XCTAssertTrue(source.contains("row(.about, \"About\", \"info.circle\", .gray)"))
     }
 
     func testAppMenuDoesNotDuplicateAISettingsEntry() throws {
@@ -21,8 +22,12 @@ final class AboutSettingsSurfaceTests: XCTestCase {
     func testSettingsViewHostsMCPAndIntegrationsTabs() throws {
         let source = try Self.appSource("Views/Settings/SettingsView.swift")
         XCTAssertTrue(source.contains("NavigationSplitView"))
-        XCTAssertTrue(source.contains("row(.mcp, \"MCP\", \"server.rack\")"))
-        XCTAssertTrue(source.contains("row(.integrations, \"Integrations\", \"app.connected.to.app.below.fill\")"))
+        // #4024: the sidebar row helper now also takes a tint color argument.
+        XCTAssertTrue(source.contains("row(.mcp, \"MCP\", \"server.rack\", .green)"))
+        // #4024: the Settings IA reorg dropped the standalone Integrations
+        // sidebar row (it returns under Workflows when real) but the tab and
+        // its detail pane are still routed here, so assert that instead.
+        XCTAssertTrue(source.contains("case .integrations:"))
         XCTAssertTrue(source.contains("MCPServersView()"))
         XCTAssertTrue(source.contains("IntegrationsSettingsView(showAutomationRules: featureManager.isAutomationEnabled)"))
     }

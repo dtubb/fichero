@@ -3,16 +3,45 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
+/// Stub URLProtocol dedicated to BatchStore tests, scoped to the `/api/batches` route
+/// family so it never intercepts requests meant for other suites' dedicated protocols
+/// under Swift Testing's parallel execution.
+private final class BatchStoreMockURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.path.hasPrefix("/api/batches") == true
+    }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let handler = BatchStoreMockURLProtocol.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}
+
 @MainActor
-@Suite("BatchStore")
+@Suite("BatchStore", .serialized)
 struct BatchStoreTests {
 
     private func makeStore(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> BatchStore {
-        MockURLProtocol.requestHandler = handler
+        BatchStoreMockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        configuration.protocolClasses = [BatchStoreMockURLProtocol.self]
         let client = FicheroClient(
             baseURL: URL(string: "https://test.fichero")!,
             libraryPath: "/tmp/test.fichero",
@@ -43,9 +72,13 @@ struct BatchStoreTests {
 
     @Test("load publishes fetched batches and clears prior errors")
     func loadPublishesBatches() async {
+        defer { BatchStoreMockURLProtocol.requestHandler = nil }
         let store = makeStore { request in
             #expect(request.url?.path == "/api/batches")
-            return response(for: request, body: Data("{\"items\":[".utf8) + batchJSON + Data("]}".utf8))
+            return response(
+                for: request,
+                body: Data("{\"items\":[".utf8) + batchJSON + Data("],\"count\":1}".utf8)
+            )
         }
 
         await store.load()
@@ -57,25 +90,37 @@ struct BatchStoreTests {
 
     @Test("runFolderBatch creates one selected-document item per folder, executes, then refreshes")
     func runFolderBatchSequencesCreateExecuteAndLoad() async {
+        defer { BatchStoreMockURLProtocol.requestHandler = nil }
         let store = makeStore { request in
             switch (request.httpMethod, request.url?.path) {
             case ("POST", "/api/batches"):
-                let body = try #require(request.httpBody)
-                let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-                let items = try #require(json["items"] as? [[String: [String]]])
-                #expect(items == [
-                    ["selected_doc_ids": ["a", "b"]],
-                    ["selected_doc_ids": ["c"]]
-                ])
+                // #4024: the folder→selected_doc_ids body mapping is verified via the pure
+                // builder below (upload-task bodies are invisible to a URLProtocol stub;
+                // request.httpBody is nil). The stub still verifies POST + path + sequence.
                 return response(for: request, body: batchJSON)
             case ("POST", "/api/batches/batch-1/execute"):
-                return response(for: request, body: Data())
+                // #4024: execute's generated response body decodes as
+                // OpenAPIRuntime.OpenAPIValueContainer (schema `{}`), which requires valid
+                // JSON even though it accepts any value — Data() fails to decode.
+                return response(for: request, body: Data("{}".utf8))
             case ("GET", "/api/batches"):
-                return response(for: request, body: Data("{\"items\":[".utf8) + batchJSON + Data("]}".utf8))
+                return response(
+                    for: request,
+                    body: Data("{\"items\":[".utf8) + batchJSON + Data("],\"count\":1}".utf8)
+                )
             default:
                 throw URLError(.badURL)
             }
         }
+
+        // #4024: verify the folder→selected_doc_ids mapping directly via the pure builder.
+        let builtItems = BatchStore.makeFolderItems([
+            (id: "folder-a", documentIds: ["a", "b"]),
+            (id: "folder-b", documentIds: ["c"])
+        ])
+        #expect(builtItems.count == 2)
+        #expect(builtItems[0]["selected_doc_ids"] as? [String] == ["a", "b"])
+        #expect(builtItems[1]["selected_doc_ids"] as? [String] == ["c"])
 
         let batch = await store.runFolderBatch(
             workflowId: "workflow-1",
@@ -89,6 +134,7 @@ struct BatchStoreTests {
 
     @Test("a failed load leaves the cache intact and exposes an error")
     func loadFailureExposesError() async {
+        defer { BatchStoreMockURLProtocol.requestHandler = nil }
         let store = makeStore { request in
             response(for: request, statusCode: 422, body: Data(#"{"detail":[]}"#.utf8))
         }

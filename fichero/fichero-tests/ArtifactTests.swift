@@ -253,7 +253,20 @@ final class ArtifactTests: XCTestCase {
     /// `CoalescingSaveRunnerTests`); this guard pins that the panel delegates to
     /// it and never reintroduces the old early-return drop.
     func testPerformSaveDelegatesToCoalescingRunner() throws {
-        let source = try Self.appSource("Views/Inspector/Artifacts/ArtifactPanel.swift")
+        // #4024: ArtifactPanel.swift was split into ArtifactPanel.swift (core)
+        // + ArtifactPanel+Header/+Content/+Save/+Computed/+Structured.swift.
+        // performSave / the coalescing-runner delegation now lives in
+        // ArtifactPanel+Save.swift, so read core + all split siblings.
+        let source = try [
+            "Views/Inspector/Artifacts/ArtifactPanel.swift",
+            "Views/Inspector/Artifacts/ArtifactPanel+Header.swift",
+            "Views/Inspector/Artifacts/ArtifactPanel+Content.swift",
+            "Views/Inspector/Artifacts/ArtifactPanel+Save.swift",
+            "Views/Inspector/Artifacts/ArtifactPanel+Computed.swift",
+            "Views/Inspector/Artifacts/ArtifactPanel+Structured.swift"
+        ]
+        .map { try Self.appSource($0) }
+        .joined(separator: "\n")
         // The old bug: `guard let onSave, !isSaving else { return }` dropped the
         // trailing edit. The fix routes through the coalescing runner.
         XCTAssertFalse(

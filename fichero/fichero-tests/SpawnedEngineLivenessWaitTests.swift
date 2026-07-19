@@ -140,7 +140,9 @@ struct SpawnedEngineLivenessWaitTests {
     /// lacks. Liveness must therefore appear exactly once.
     @Test("liveness waiting is used by exactly one path — the engine we spawn")
     func livenessIsSpawnedPathOnly() throws {
-        let source = try Self.appSource("Services/EmbeddedBackendService.swift")
+        // #4024: the liveness/wait code (waitForSpawnedBackend / waitForBackend) moved to the
+        // +Lifecycle split file; read it so the single-liveness-path assertions still match.
+        let source = try Self.appSource("Services/EmbeddedBackendService+Lifecycle.swift")
 
         let livenessCalls = source.components(separatedBy: "try await waitForSpawnedBackend()").count - 1
         #expect(livenessCalls == 1, "only .spawnOurs may wait on liveness — every other path has no child to watch")

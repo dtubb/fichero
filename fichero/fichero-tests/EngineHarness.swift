@@ -80,7 +80,15 @@ enum EngineHarness {
 
         // Fresh, disposable library under the OS temp dir (an allowed root in
         // the engine's path validation: /var/folders is permitted).
-        let tempDir = FileManager.default.temporaryDirectory
+        // #4024: a SIGNED/sandboxed run gets a container Data/tmp temporaryDirectory, which
+        // the engine's `_is_allowed_local_path` rejects (403 on every contract). In that case
+        // use applicationSupport/FicheroTests instead — sandbox-writable AND explicitly allowed
+        // by `_is_sandbox_container_app_support`. Keep /var/folders (or /tmp) for the fast
+        // unsigned path.
+        let disposableRoot = Self.isContainerSandboxTemp
+            ? Self.sandboxWritableRoot()
+            : FileManager.default.temporaryDirectory
+        let tempDir = disposableRoot
             .appendingPathComponent("fichero-itest-\(UUID().uuidString)", isDirectory: true)
         let libURL = tempDir.appendingPathComponent("library.fichero")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -152,6 +160,25 @@ enum EngineHarness {
 
     // MARK: - Spawn
 
+    /// #4024: true when temporaryDirectory is a signed/sandboxed container path (Data/tmp),
+    /// which the engine rejects for the library AND which cannot host the app.duckdb write
+    /// (the repo `.itest-base` is sandbox-denied there). Unsigned dev runs get /var/folders or /tmp.
+    private static var isContainerSandboxTemp: Bool {
+        let tmp = FileManager.default.temporaryDirectory.path
+        let allowed = ["/var/folders", "/private/var/folders", "/tmp", "/private/tmp"]
+        return !allowed.contains(where: { tmp.hasPrefix($0) })
+    }
+
+    /// #4024: applicationSupport/FicheroTests — sandbox-writable (container Application Support)
+    /// and explicitly allowed by the engine's `_is_sandbox_container_app_support`. Backs both the
+    /// disposable library root and the app-DB base path in signed/sandboxed runs.
+    private static func sandboxWritableRoot() -> URL {
+        let appSupport = (try? FileManager.default.url(
+            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+        )) ?? FileManager.default.temporaryDirectory
+        return appSupport.appendingPathComponent("FicheroTests", isDirectory: true)
+    }
+
     private static func spawnEngine(repo: URL, libraryPath: String) throws {
         let uvicorn = repo.appendingPathComponent(".venv/bin/uvicorn")
         let tlsMaterial = try prepareTLSMaterial(repo: repo)
@@ -168,12 +195,21 @@ enum EngineHarness {
         var env = ProcessInfo.processInfo.environment
         env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
         env["FICHERO_DISABLE_AUTH"] = "1"
+        // #4024: run the contract engine at the `dev` tier so beta-gated routes (e.g.
+        // /api/workflows) are exposed. The spawned process otherwise inherits the parent's
+        // default FICHERO_FEATURE_TIER=release, gating those routes to 404 in the contract run.
+        env["FICHERO_FEATURE_TIER"] = "dev"
         env["FICHERO_TLS_CERTFILE"] = tlsMaterial.certificatePath
         env["FICHERO_TLS_KEYFILE"] = tlsMaterial.keyPath
         env["FICHERO_TLS_SPKI_HASH"] = tlsMaterial.spkiPin
         // Isolate the app DB so we never lock-fight the real one.
-        env["FICHERO_BASE_PATH"] = repo
-            .appendingPathComponent("fichero-engine").path + "/.itest-base"
+        // #4024: in a signed/sandboxed run the repo `.itest-base` app.duckdb write is
+        // sandbox-denied (post-commit 500 → the leaked-collection contract red). Put the
+        // app-DB base under the same sandbox-writable Application Support/FicheroTests root;
+        // unsigned runs keep the repo path.
+        env["FICHERO_BASE_PATH"] = Self.isContainerSandboxTemp
+            ? Self.sandboxWritableRoot().appendingPathComponent(".itest-base", isDirectory: true).path
+            : repo.appendingPathComponent("fichero-engine").path + "/.itest-base"
         // The engine watches this PID and self-terminates if it dies. atexit
         // is unreliable when the test process is SIGKILL'd (or crashes before
         // the C handler runs), which orphans the engine on :8765 and then
