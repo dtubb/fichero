@@ -5,7 +5,8 @@
 //  #3030 (post-#3131) — AutomationService trigger ops migrated onto the generated
 //  typed operations. Decodes a real TriggerResponse through the generated client
 //  and runs it through the TriggerInfo mapper (flat fields + typed inputs_template).
-//  Reuses MockURLProtocol (same test target).
+//  Uses its own dedicated TriggersMockURLProtocol, scoped to /api/triggers,
+//  so this suite never races or intercepts other suites' requests (#4024).
 //
 
 @testable import Fichero
@@ -13,15 +14,36 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
+/// Dedicated URLProtocol for this suite only — scoped to /api/triggers so it
+/// never intercepts (or races) other suites' unrelated requests when tests
+/// run in parallel. See #4024.
+private final class TriggersMockURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.path.contains("/api/triggers") == true
+    }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        guard let handler = TriggersMockURLProtocol.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet)); return }
+        do { let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+        } catch { client?.urlProtocol(self, didFailWithError: error) }
+    }
+    override func stopLoading() {}
+}
+
 @MainActor
+@Suite(.serialized)
 struct TriggersMigrationTests {
 
     private func makeClient(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> FicheroClient {
-        MockURLProtocol.requestHandler = handler
+        TriggersMockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        configuration.protocolClasses = [TriggersMockURLProtocol.self]
         let session = URLSession(configuration: configuration)
         return FicheroClient(
             baseURL: URL(string: "https://test.fichero")!,
@@ -42,6 +64,7 @@ struct TriggersMigrationTests {
 
     @Test("list_triggers decodes + maps items into TriggerInfo (flat fields + inputs_template)")
     func listTriggersMaps() async throws {
+        defer { TriggersMockURLProtocol.requestHandler = nil }
         let client = makeClient { request in
             #expect(request.url?.path == "/api/triggers")
             let json = "{\"count\":1,\"items\":[\(Self.triggerJSON)]}"
@@ -71,6 +94,7 @@ struct TriggersMigrationTests {
 
     @Test("get_trigger non-.ok surfaces as non-.ok (never a silent empty trigger)")
     func getTriggerNonOk() async throws {
+        defer { TriggersMockURLProtocol.requestHandler = nil }
         let client = makeClient { request in
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 500, httpVersion: nil,

@@ -13,16 +13,47 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
+/// File-local URLProtocol stub for the action-invoke seam tests. A dedicated
+/// class — not the shared `MockURLProtocol` — so its static handler can never
+/// collide with another suite running in parallel (#4024). Scoped to the
+/// `/api/actions` routes this suite mocks (invoke + undo).
+private final class ActionInvokeMockURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.path.contains("/api/actions") == true
+    }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let handler = ActionInvokeMockURLProtocol.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}
+
 @MainActor
+@Suite(.serialized)
 struct ActionInvokeServiceTests {
 
     private func makeService(
         baseURL: URL = URL(string: "https://test.fichero")!,
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> ActionLibraryService {
-        MockURLProtocol.requestHandler = handler
+        ActionInvokeMockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        configuration.protocolClasses = [ActionInvokeMockURLProtocol.self]
         let session = URLSession(configuration: configuration)
         let client = FicheroClient(baseURL: baseURL, libraryPath: "/tmp/test.fichero", session: session)
         return ActionLibraryService(client: client)
@@ -38,6 +69,7 @@ struct ActionInvokeServiceTests {
 
     @Test("invokeAction POSTs /api/actions/invoke with origin-window + library headers, maps result")
     func invokeMapsRequestAndResponse() async throws {
+        defer { ActionInvokeMockURLProtocol.requestHandler = nil }
         let service = makeService { request in
             #expect(request.url?.path == "/api/actions/invoke")
             #expect(request.httpMethod == "POST")
@@ -65,6 +97,7 @@ struct ActionInvokeServiceTests {
 
     @Test("invokeAction 422 surfaces the FastAPI detail as APIError.httpError")
     func invoke422SurfacesDetail() async throws {
+        defer { ActionInvokeMockURLProtocol.requestHandler = nil }
         let service = makeService { request in
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 422, httpVersion: nil,
@@ -80,6 +113,7 @@ struct ActionInvokeServiceTests {
 
     @Test("undoAction POSTs /api/actions/audit/{id}/undo and maps the inverse result")
     func undoMapsRequestAndResponse() async throws {
+        defer { ActionInvokeMockURLProtocol.requestHandler = nil }
         let service = makeService { request in
             #expect(request.url?.path == "/api/actions/audit/audit-42/undo")
             #expect(request.httpMethod == "POST")

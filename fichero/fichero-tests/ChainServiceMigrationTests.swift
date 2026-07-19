@@ -13,7 +13,8 @@
 //    * execution-status step_results default the app-only inputs/outputs/files
 //      fields the backend never sends (fixes a latent legacy decode failure),
 //    * a non-.ok status surfaces as non-.ok (never a silent empty chain).
-//  Reuses MockURLProtocol (defined in the same test target).
+//  Uses its own dedicated ChainServiceMockURLProtocol, scoped to /api/chains,
+//  so this suite never races or intercepts other suites' requests (#4024).
 //
 
 @testable import Fichero
@@ -21,15 +22,36 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
+/// Dedicated URLProtocol for this suite only — scoped to /api/chains (covers
+/// both /api/chains and /api/chains/executions/…) so it never intercepts (or
+/// races) other suites' unrelated requests when tests run in parallel. See #4024.
+private final class ChainServiceMockURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.path.contains("/api/chains") == true
+    }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        guard let handler = ChainServiceMockURLProtocol.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet)); return }
+        do { let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data); client?.urlProtocolDidFinishLoading(self)
+        } catch { client?.urlProtocol(self, didFailWithError: error) }
+    }
+    override func stopLoading() {}
+}
+
 @MainActor
+@Suite(.serialized)
 struct ChainServiceMigrationTests {
 
     private func makeClient(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> FicheroClient {
-        MockURLProtocol.requestHandler = handler
+        ChainServiceMockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        configuration.protocolClasses = [ChainServiceMockURLProtocol.self]
         let session = URLSession(configuration: configuration)
         return FicheroClient(
             baseURL: URL(string: "https://test.fichero")!,
@@ -63,6 +85,7 @@ struct ChainServiceMigrationTests {
 
     @Test("get_chain maps folder_path/sort_order, dates, steps + free-form inputs")
     func getChainMaps() async throws {
+        defer { ChainServiceMockURLProtocol.requestHandler = nil }
         let client = makeClient { request in
             #expect(request.url?.path == "/api/chains/c1")
             return Self.ok(request, Self.chainJSON)
@@ -98,6 +121,7 @@ struct ChainServiceMigrationTests {
 
     @Test("list_chains maps every item, preserving folder_path/sort_order")
     func listChainsMaps() async throws {
+        defer { ChainServiceMockURLProtocol.requestHandler = nil }
         let client = makeClient { request in
             #expect(request.url?.path == "/api/chains")
             let json = "{\"chains\":[\(Self.chainJSON)],\"total\":1}"
@@ -129,6 +153,7 @@ struct ChainServiceMigrationTests {
 
     @Test("list_chains keeps each id paired with its folder_path/sort_order in server order")
     func listChainsPreservesOrderAndPairing() async throws {
+        defer { ChainServiceMockURLProtocol.requestHandler = nil }
         // Three chains, deliberately NOT sorted by sort_order. The mapper must keep
         // every id bound to its own folder_path/sort_order and preserve the server's
         // array order (it maps 1:1 — never resorts or drops a field per item).
@@ -156,6 +181,7 @@ struct ChainServiceMigrationTests {
 
     @Test("mapChainResponse raises on a malformed timestamp (never a silent nil date)")
     func mapChainRaisesOnBadDate() async throws {
+        defer { ChainServiceMockURLProtocol.requestHandler = nil }
         // created_at is a plain String on the wire, so it decodes into ChainResponse
         // fine — but the app WorkflowChain wants a Date, and makeChainDecoder's custom
         // strategy must throw (not coerce to nil/today) when parseEngineDate can't read it.
@@ -177,6 +203,7 @@ struct ChainServiceMigrationTests {
 
     @Test("get_chain non-.ok surfaces as non-.ok (never a silent empty chain)")
     func getChainNonOk() async throws {
+        defer { ChainServiceMockURLProtocol.requestHandler = nil }
         let client = makeClient { request in
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 500, httpVersion: nil,
@@ -204,6 +231,7 @@ struct ChainServiceMigrationTests {
 
     @Test("ChainService surfaces a 422's detail as validationError (never a generic swallow)")
     func getChainValidationErrorPreservesDetail() async throws {
+        defer { ChainServiceMockURLProtocol.requestHandler = nil }
         let service = ChainService(apiClient: APIClient(client: makeClient { Self.unprocessable($0) }))
         do {
             _ = try await service.getChain("c1")
@@ -217,6 +245,7 @@ struct ChainServiceMigrationTests {
 
     @Test("ChainService.listChains throws on a 500 (never a silently empty list)")
     func listChainsThrowsOn500() async throws {
+        defer { ChainServiceMockURLProtocol.requestHandler = nil }
         let service = ChainService(apiClient: APIClient(client: makeClient { request in
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 500, httpVersion: nil,
@@ -231,6 +260,7 @@ struct ChainServiceMigrationTests {
 
     @Test("execution status defaults the app-only step-result fields the backend omits")
     func executionStatusMaps() async throws {
+        defer { ChainServiceMockURLProtocol.requestHandler = nil }
         // Backend ChainStepResultInfo carries only id/workflow_id/status/error/
         // duration_ms — never inputs/outputs/output_files. The mapper defaults
         // those, fixing the legacy keyNotFound decode on non-empty step_results.

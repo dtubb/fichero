@@ -11,15 +11,19 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
-/// Stub URLProtocol that returns canned responses for generated client calls.
-final class MockURLProtocol: URLProtocol {
+/// Stub URLProtocol that returns canned responses for StorageService's generated client calls.
+/// Scoped to the `/storage` route family so it never intercepts requests meant for other
+/// test suites' dedicated protocols under Swift Testing's parallel execution.
+private final class StorageMockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
-    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.path.hasPrefix("/storage") == true
+    }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        guard let handler = MockURLProtocol.requestHandler else {
+        guard let handler = StorageMockURLProtocol.requestHandler else {
             client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
             return
         }
@@ -37,15 +41,16 @@ final class MockURLProtocol: URLProtocol {
 }
 
 @MainActor
+@Suite("StorageService", .serialized)
 struct StorageServiceTests {
 
     private func makeService(
         baseURL: URL,
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> StorageService {
-        MockURLProtocol.requestHandler = handler
+        StorageMockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        configuration.protocolClasses = [StorageMockURLProtocol.self]
         let session = URLSession(configuration: configuration)
         let client = FicheroClient(baseURL: baseURL, libraryPath: "/tmp/test.fichero", session: session)
         return StorageService(ficheroClient: client)
@@ -53,6 +58,7 @@ struct StorageServiceTests {
 
     @Test("thumbnail request maps to storage thumbnail path and returns image bytes")
     func thumbnailRequestResponseMapping() async throws {
+        defer { StorageMockURLProtocol.requestHandler = nil }
         let baseURL = URL(string: "https://test.fichero")!
         let expectedData = Data("jpeg-bytes".utf8)
         let service = makeService(baseURL: baseURL) { request in
@@ -72,6 +78,7 @@ struct StorageServiceTests {
 
     @Test("thumbnail 404 maps to StorageServiceError.notFound")
     func thumbnailNotFoundMapping() async throws {
+        defer { StorageMockURLProtocol.requestHandler = nil }
         let baseURL = URL(string: "https://test.fichero")!
         let service = makeService(baseURL: baseURL) { request in
             let response = HTTPURLResponse(
@@ -95,6 +102,7 @@ struct StorageServiceTests {
 
     @Test("source-file request maps to storage source path and returns file bytes")
     func sourceFileRequestResponseMapping() async throws {
+        defer { StorageMockURLProtocol.requestHandler = nil }
         let baseURL = URL(string: "https://test.fichero")!
         let expectedData = Data("pdf-bytes".utf8)
         let service = makeService(baseURL: baseURL) { request in

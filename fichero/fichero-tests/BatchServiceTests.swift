@@ -3,16 +3,45 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
+/// Stub URLProtocol dedicated to BatchService tests, scoped to the `/api/batches` route
+/// family so it never intercepts requests meant for other suites' dedicated protocols
+/// under Swift Testing's parallel execution.
+private final class BatchServiceMockURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.path.hasPrefix("/api/batches") == true
+    }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let handler = BatchServiceMockURLProtocol.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}
+
 @MainActor
-@Suite("BatchService")
+@Suite("BatchService", .serialized)
 struct BatchServiceTests {
 
     private func makeService(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> BatchService {
-        MockURLProtocol.requestHandler = handler
+        BatchServiceMockURLProtocol.requestHandler = handler
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        configuration.protocolClasses = [BatchServiceMockURLProtocol.self]
         let client = FicheroClient(
             baseURL: URL(string: "https://test.fichero")!,
             libraryPath: "/tmp/test.fichero",
@@ -43,6 +72,7 @@ struct BatchServiceTests {
 
     @Test("createBatch encodes workflow and per-folder selected document ids")
     func createBatchRequest() async throws {
+        defer { BatchServiceMockURLProtocol.requestHandler = nil }
         let service = makeService { request in
             #expect(request.url?.path == "/api/batches")
             #expect(request.httpMethod == "POST")
@@ -67,6 +97,7 @@ struct BatchServiceTests {
 
     @Test("listBatches passes status and limit filters through the generated client")
     func listBatchesRequest() async throws {
+        defer { BatchServiceMockURLProtocol.requestHandler = nil }
         let service = makeService { request in
             #expect(request.url?.path == "/api/batches")
             let query = URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?.queryItems
@@ -91,6 +122,7 @@ struct BatchServiceTests {
 
     @Test("executeBatch targets the batch-specific execute route")
     func executeBatchRequest() async throws {
+        defer { BatchServiceMockURLProtocol.requestHandler = nil }
         let service = makeService { request in
             #expect(request.url?.path == "/api/batches/batch-1/execute")
             #expect(request.httpMethod == "POST")
