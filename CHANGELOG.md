@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-07-19.2
+
+**Rendering**
+
+- Enable the RealityKit orthographic Canvas and 3D Space renderers by default,
+  retaining the legacy implementations as a rollback path
+  ([#3087](https://github.com/dtubb/fichero/issues/3087)).
+
+**Experience**
+
+- Reorganize Settings into a System Settings-style sidebar with clearer labels,
+  colored section icons, and pairing controls grouped under Sharing.
+- Preserve newest-first ordering when activity timestamps use whole-second ISO
+  8601 values instead of fractional seconds
+  ([#4016](https://github.com/dtubb/fichero/issues/4016)).
+- Preserve the configured pinned or test network session when switching the
+  active library, preventing requests from escaping to an unintended transport,
+  and render Boolean activity metadata as `true`/`false` rather than `1`/`0`
+  ([#4024](https://github.com/dtubb/fichero/issues/4024)).
+- Reject invalid free-form action payloads without crashing, normalize legacy
+  decomposed library paths correctly, and keep whitespace-only searches local
+  instead of sending an invalid request to the engine
+  ([#4024](https://github.com/dtubb/fichero/issues/4024)).
+
+**Release Reliability**
+
+- Rebuild the Briefcase engine for every release and require the app, helper
+  bundle, and installed Python package to report the same release version
+  ([#4019](https://github.com/dtubb/fichero/issues/4019)).
+- Resolve the repository's shared Python environment deterministically when the
+  release gate runs from a linked worktree
+  ([#4022](https://github.com/dtubb/fichero/issues/4022)).
+
+**Architecture**
+
+- Reorganize and split the Inspector, embedded-engine service, entity service,
+  chat views, and other oversized SwiftUI files without changing behavior
+  ([#1943](https://github.com/dtubb/fichero/issues/1943),
+  [#3439](https://github.com/dtubb/fichero/issues/3439)).
+
+---
+
 ## 2026-07-19
 
 **Performance**

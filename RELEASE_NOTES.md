@@ -2,6 +2,40 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.19.2
+
+### Improved
+
+**RealityKit canvas rendering.** The 2D Canvas and 3D Space views now use the
+RealityKit renderers by default. The previous renderers remain available as a
+revert path while the new interaction and visual behavior is validated.
+
+**Clearer Settings.** Settings now uses a System Settings-style sidebar with
+clearer section names, colored icons, and pairing controls grouped under
+Sharing.
+
+### Fixed
+
+- Release builds now reconstruct the embedded Briefcase engine from current
+  source every time instead of reusing a potentially stale staged bundle.
+- The app, embedded engine bundle, and installed Python package now carry the
+  same release version.
+- Newest-first activity ordering now handles ISO 8601 timestamps both with and
+  without fractional seconds.
+- Switching libraries now preserves the app's configured secure network
+  session, and Boolean activity metadata displays as `true`/`false` instead of
+  `1`/`0`.
+- Invalid action payloads now fail safely instead of crashing the app. Legacy
+  decomposed library paths normalize correctly, and whitespace-only searches
+  remain a local no-op instead of reaching the engine.
+
+### Under The Hood
+
+The Inspector, embedded-engine lifecycle service, chat views, and entity
+service were split into smaller concern-focused files without changing their
+behavior. The release gate also resolves the shared project Python correctly
+when run from a git worktree.
+
 ## 2026.07.19
 
 ### Improved
