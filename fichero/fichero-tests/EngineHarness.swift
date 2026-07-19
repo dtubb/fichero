@@ -85,17 +85,9 @@ enum EngineHarness {
         // use applicationSupport/FicheroTests instead — sandbox-writable AND explicitly allowed
         // by `_is_sandbox_container_app_support`. Keep /var/folders (or /tmp) for the fast
         // unsigned path.
-        let disposableRoot: URL = {
-            let tmp = FileManager.default.temporaryDirectory
-            let allowedTempPrefixes = ["/var/folders", "/private/var/folders", "/tmp", "/private/tmp"]
-            if allowedTempPrefixes.contains(where: { tmp.path.hasPrefix($0) }) {
-                return tmp
-            }
-            let appSupport = (try? FileManager.default.url(
-                for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
-            )) ?? tmp
-            return appSupport.appendingPathComponent("FicheroTests", isDirectory: true)
-        }()
+        let disposableRoot = Self.isContainerSandboxTemp
+            ? Self.sandboxWritableRoot()
+            : FileManager.default.temporaryDirectory
         let tempDir = disposableRoot
             .appendingPathComponent("fichero-itest-\(UUID().uuidString)", isDirectory: true)
         let libURL = tempDir.appendingPathComponent("library.fichero")
@@ -168,6 +160,25 @@ enum EngineHarness {
 
     // MARK: - Spawn
 
+    /// #4024: true when temporaryDirectory is a signed/sandboxed container path (Data/tmp),
+    /// which the engine rejects for the library AND which cannot host the app.duckdb write
+    /// (the repo `.itest-base` is sandbox-denied there). Unsigned dev runs get /var/folders or /tmp.
+    private static var isContainerSandboxTemp: Bool {
+        let tmp = FileManager.default.temporaryDirectory.path
+        let allowed = ["/var/folders", "/private/var/folders", "/tmp", "/private/tmp"]
+        return !allowed.contains(where: { tmp.hasPrefix($0) })
+    }
+
+    /// #4024: applicationSupport/FicheroTests — sandbox-writable (container Application Support)
+    /// and explicitly allowed by the engine's `_is_sandbox_container_app_support`. Backs both the
+    /// disposable library root and the app-DB base path in signed/sandboxed runs.
+    private static func sandboxWritableRoot() -> URL {
+        let appSupport = (try? FileManager.default.url(
+            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+        )) ?? FileManager.default.temporaryDirectory
+        return appSupport.appendingPathComponent("FicheroTests", isDirectory: true)
+    }
+
     private static func spawnEngine(repo: URL, libraryPath: String) throws {
         let uvicorn = repo.appendingPathComponent(".venv/bin/uvicorn")
         let tlsMaterial = try prepareTLSMaterial(repo: repo)
@@ -192,8 +203,13 @@ enum EngineHarness {
         env["FICHERO_TLS_KEYFILE"] = tlsMaterial.keyPath
         env["FICHERO_TLS_SPKI_HASH"] = tlsMaterial.spkiPin
         // Isolate the app DB so we never lock-fight the real one.
-        env["FICHERO_BASE_PATH"] = repo
-            .appendingPathComponent("fichero-engine").path + "/.itest-base"
+        // #4024: in a signed/sandboxed run the repo `.itest-base` app.duckdb write is
+        // sandbox-denied (post-commit 500 → the leaked-collection contract red). Put the
+        // app-DB base under the same sandbox-writable Application Support/FicheroTests root;
+        // unsigned runs keep the repo path.
+        env["FICHERO_BASE_PATH"] = Self.isContainerSandboxTemp
+            ? Self.sandboxWritableRoot().appendingPathComponent(".itest-base", isDirectory: true).path
+            : repo.appendingPathComponent("fichero-engine").path + "/.itest-base"
         // The engine watches this PID and self-terminates if it dies. atexit
         // is unreliable when the test process is SIGKILL'd (or crashes before
         // the C handler runs), which orphans the engine on :8765 and then
