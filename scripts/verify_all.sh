@@ -405,7 +405,8 @@ run_platform_checks() {
 
     run_xcode_test "xcodebuild macOS UI smoke tests" \
       -project "${XCODE_PROJECT}" \
-      -scheme "FicheroUITests" \
+      -scheme "${XCODE_SCHEME_MACOS}" \
+      -testPlan "fichero" \
       -destination 'platform=macOS' \
       -resultBundlePath "$(mktemp -d)/verify-ui.xcresult"
   fi
