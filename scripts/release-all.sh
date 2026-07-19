@@ -7,7 +7,7 @@ set -euo pipefail
 #   3. Optional universal iPhone/iPad TestFlight upload via App Store Connect.
 #
 # Usage:
-#   scripts/release-all.sh [--skip-backend] [--skip-dmg] [--skip-notarize]
+#   scripts/release-all.sh [--skip-dmg] [--skip-notarize]
 #                          [--skip-testflight | --skip-mac-testflight | --skip-ios-testflight]
 #                          [--mac-only | --ios-only] [--github] [--draft]
 #
@@ -99,7 +99,6 @@ install_ios_app_store_profile() {
   install_provisioning_profile "$IOS_APP_STORE_PROFILE_PATH" "$IOS_APP_STORE_PROFILE_NAME" IOS_APP_STORE_PROFILE_UUID
 }
 
-SKIP_BACKEND=false
 SKIP_DMG=false
 SKIP_NOTARIZE=false
 RUN_MAC_TESTFLIGHT=true
@@ -109,7 +108,6 @@ GITHUB_ARGS=()
 
 for arg in "$@"; do
   case "$arg" in
-    --skip-backend) SKIP_BACKEND=true ;;
     --skip-dmg) SKIP_DMG=true ;;
     --skip-notarize) SKIP_NOTARIZE=true ;;
     --skip-testflight)
@@ -159,12 +157,14 @@ else
   export FICHERO_RELEASE_VERSION="$(project_setting MARKETING_VERSION)"
 fi
 
+echo
+echo "── Engine: rebuild current Briefcase stage ──"
+"$ROOT_DIR/scripts/preflight-embedded-engine.sh" --rebuild
+
 if [ "$SKIP_DMG" = false ]; then
   echo
   echo "── DMG: build + Developer ID sign ──"
-  BUILD_ARGS=()
-  [ "$SKIP_BACKEND" = true ] && BUILD_ARGS+=("--skip-backend")
-  "$ROOT_DIR/scripts/build-release-dmg.sh" "${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}"
+  "$ROOT_DIR/scripts/build-release-dmg.sh" --skip-backend
 fi
 
 if [ "$SKIP_NOTARIZE" = false ]; then
@@ -178,11 +178,6 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
   echo "── TestFlight note ──"
   echo "  If codesign prompts hang in a headless session, run once in Terminal:"
   echo "  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k <login-pw> ~/Library/Keychains/login.keychain-db"
-fi
-
-if [ "$RUN_MAC_TESTFLIGHT" = true ] && [ "$SKIP_DMG" = true ] && [ "$SKIP_BACKEND" = false ]; then
-  echo "  Building current embedded engine for Mac TestFlight"
-  "$ROOT_DIR/scripts/preflight-embedded-engine.sh" --rebuild
 fi
 
 AUTH_ARGS=()
