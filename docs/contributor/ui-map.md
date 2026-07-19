@@ -82,10 +82,10 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 | **Settings window** | SettingsView | `Views/Settings/SettingsView.swift` | Settings & Providers |
 | General settings | GeneralSettingsView | `Views/Settings/General/GeneralSettingsView.swift` | Settings & Providers |
 | **AI settings / model defaults** | AISettingsView (+Tabs) | `Views/Settings/AISettingsView*.swift` | Settings & Providers |
-| Local models | LocalModelsSettingsView | `Views/Settings/LocalModelsSettingsView.swift` | Settings & Providers |
+| Local models | LocalModelsSettingsView | `Views/Settings/AI/LocalModelsSettingsView.swift` | Settings & Providers |
 | Backend settings | BackendSettingsView | `Views/Settings/Engine/BackendSettingsView.swift` | Settings & Providers |
-| **Providers list / add** | ProvidersView, AddProviderSheet | `Views/Settings/AIProviders/` | Settings & Providers |
-| **Model picker / catalog** | AIModelSelectionView, AIModelCatalog | `Views/Settings/AIProviders/` | Settings & Providers |
+| **Providers list / add** | ProvidersView, AddProviderSheet | `Views/Settings/AI/AIProviders/` | Settings & Providers |
+| **Model picker / catalog** | AIModelSelectionView, AIModelCatalog | `Views/Settings/AI/AIProviders/` | Settings & Providers |
 
 ---
 

@@ -124,7 +124,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/WorkflowRunResponse.swift::WorkflowRunResponse": "§6b baseline — struct shadows Components.Schemas.WorkflowRunResponse",
     "Services/WorkflowStreamTypes.swift::ExecuteAcceptedResponse": "§6b baseline — struct shadows Components.Schemas.ExecuteAcceptedResponse",
     "Views/Library/Workspace/WorkspaceItemPicker.swift::WorkspaceCuratedItem": "#2649 — local curated-item projection for picker state, distinct from the wire payload",
-    "Views/Settings/AIDefaults.swift::AIDefaults": "§6b baseline — struct shadows Components.Schemas.AIDefaults",
+    "Views/Settings/AI/AIDefaults.swift::AIDefaults": "§6b baseline — struct shadows Components.Schemas.AIDefaults",
     "Views/Workflow/Execution/WorkflowOutputLog+Models.swift::StepStatus": "§6b baseline — enum shadows Components.Schemas.StepStatus",
 }
 

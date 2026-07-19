@@ -2,7 +2,7 @@ import XCTest
 
 final class AISettingsDefaultsSurfaceTests: XCTestCase {
     func testDefaultsTabIncludesMediumAndVisionTierSections() throws {
-        let source = try Self.appSource("Views/Settings/AISettingsView+Tabs.swift")
+        let source = try Self.appSource("Views/Settings/AI/AISettingsView+Tabs.swift")
         XCTAssertTrue(source.contains("Default Medium Model ($medium)"))
         XCTAssertTrue(source.contains("Vision Small Model ($vision_small)"))
         XCTAssertTrue(source.contains("Vision Medium Model ($vision_medium)"))
@@ -10,7 +10,7 @@ final class AISettingsDefaultsSurfaceTests: XCTestCase {
     }
 
     func testSettingsViewOwnsTierSpecificModelLists() throws {
-        let source = try Self.appSource("Views/Settings/AISettingsView.swift")
+        let source = try Self.appSource("Views/Settings/AI/AISettingsView.swift")
         XCTAssertTrue(source.contains("@State var mediumModels: [ModelInfo] = []"))
         XCTAssertTrue(source.contains("@State var visionSmallModels: [ModelInfo] = []"))
         XCTAssertTrue(source.contains("@State var visionMediumModels: [ModelInfo] = []"))
@@ -18,7 +18,7 @@ final class AISettingsDefaultsSurfaceTests: XCTestCase {
     }
 
     func testModelManagementTabsStayInsideSettingsAndRespectTierGate() throws {
-        let source = try Self.appSource("Views/Settings/AISettingsView.swift")
+        let source = try Self.appSource("Views/Settings/AI/AISettingsView.swift")
         XCTAssertTrue(source.contains("featureManager.isSettingsModelsTabEnabled"))
         XCTAssertTrue(source.contains("Text(\"Models & Providers\").tag(AISettingsTab.providers)"))
         XCTAssertTrue(source.contains("Text(\"Downloads\").tag(AISettingsTab.downloads)"))

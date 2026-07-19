@@ -85,7 +85,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Library/WorkspaceItemPicker.swift": "#1886 — @StateObject WorkspacePickerService()",
     "Integrations/IntegrationsView.swift": "#1899 — @StateObject IntegrationsService()",
     # client.api.* called directly from the view (raw transport)
-    "Settings/LocalModelsSettingsView.swift": "#1894 — client.api.* local-models calls in view",
+    "Settings/AI/LocalModelsSettingsView.swift": "#1894 — client.api.* local-models calls in view",
     "Chat/ComparisonDetailView+Actions.swift": "#1900 — client.api.getComparison… in view",
     # Migrated to stores (de-baselined): WorkflowDiagramPreview + WorkflowExecutionView
     # → WorkflowStore (#1911); Notes/Annotation tabs + ImageEditor + EntityDetail+Notes
