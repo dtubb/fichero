@@ -15,13 +15,13 @@ I read issue #3769 with `gh issue view 3769` and verified every cited gate again
 
 | Gate | Verified location (main) |
 |---|---|
-| `canHostRemoteAccess` (= `EngineConfig.engineIsLocal`) | `BackendSettingsRemoteAccessSection.swift:85,101-103,106` |
+| `canHostRemoteAccess` (= `EngineConfig.engineIsLocal`) | `PairingCardView.swift:85,101-103,106` |
 | `hostingEnabled && appState.isBackendRunning` | `:87` |
 | `pairingCode` + `advertisedPairingService` | `:135,148` |
 | valid SPKI pin | `:136,149` |
 | valid `publicBaseURL` | `:111,119-121` |
 
-**Important correction to the issue's framing:** on today's `main`, the card is *not* fully blank. `PairingCardView` (`BackendSettingsRemoteAccessSection.swift:341-415`) has a `statusMessage` fallback branch (`:403-410`), and `pairingStatusMessage` (`:172-202`) covers each precondition with a sentence ("Fichero is not connected on this Mac right now", "Set up secure sharing, then Fichero can show a QR code here", …). The last commit to touch this file is `85e05f7a9` (2026-07-10, "fix: restore local pairing qr pin lookup (#3391)") — so the message scaffolding predates the issue. But the disease the issue describes is still fully present, in four forms:
+**Important correction to the issue's framing:** on today's `main`, the card is *not* fully blank. `PairingCardView` (`PairingCardView.swift:341-415`) has a `statusMessage` fallback branch (`:403-410`), and `pairingStatusMessage` (`:172-202`) covers each precondition with a sentence ("Fichero is not connected on this Mac right now", "Set up secure sharing, then Fichero can show a QR code here", …). The last commit to touch this file is `85e05f7a9` (2026-07-10, "fix: restore local pairing qr pin lookup (#3391)") — so the message scaffolding predates the issue. But the disease the issue describes is still fully present, in four forms:
 
 1. **The messages are diagnoses without cures.** "Set up secure sharing, then Fichero can show a QR code here" (`:180,188,190`) names no place and offers no button. The actual fix lives inside a disclosure literally titled **"Advanced / Debug"** (`:476`) where the user must flip "Enable pairing and remote clients" (`:477`), type a "Reachable URL" (`:481`), type a **"Certificate SPKI pin"** (`:486`) and press "Apply and Restart Engine" (`:506`). The primary path to pairing a phone runs through a debug drawer with a raw cryptographic pin field. That is the failed decision the toggle-critique is about.
 2. **One headline lies for all causes.** Every fallback shows the headline "Secure sharing needs HTTPS." (`:405`) — even when the real cause is "the engine isn't running." The user reads an HTTPS error while the actual problem is a dead backend.
@@ -34,7 +34,7 @@ The Mac has **two parallel host-side pairing UIs**, both alive, both reachable f
 
 | | A: Engine → Backend ("Share This Mac") | B: Library Access → Devices (ShareSettingsView) |
 |---|---|---|
-| File | `BackendSettingsRemoteAccessSection.swift` | `ShareSettingsView.swift` |
+| File | `PairingCardView.swift` | `ShareSettingsView.swift` |
 | Reachability | Settings → Engine & Access → Engine → *Backend segment* → scroll (`SettingsView.swift:115-116,321-322`; `BackendSettingsView.swift:45-51`) | Settings → Engine & Access → Library Access → *Devices segment* (`SettingsView.swift:117-118,362-364`) |
 | URL setup | user types "Sharing address" / "Reachable URL" by hand (`:47,481`) | **auto-derives** `https://<hostname>.local:<port>` (`ShareSettingsView.swift:37-44,95-97,339-341`) |
 | SPKI pin | raw editable text field in "Advanced / Debug" (`:486-489`) | loaded automatically, never shown as a field (`ShareSettingsView.swift:423-425`) |
@@ -43,7 +43,7 @@ The Mac has **two parallel host-side pairing UIs**, both alive, both reachable f
 | Devices list | its own copy (`:416-461`) | its own copy (`ShareSettingsView.swift:68-86`) |
 | Client-side pairing ("connect this Mac to another") | `MacRemoteClientPairingSection` in the same pane (`BackendSettingsView.swift:38`) | absent |
 
-They share the same `@AppStorage` keys (`RemoteAccessConfig.hostingEnabledKey` etc. — `BackendSettingsRemoteAccessSection.swift:19-21` vs `ShareSettingsView.swift:17-19`), so flipping the toggle in B changes what A shows and vice-versa. Surface B is the good one — it already embodies the "do the secure thing automatically" principle (auto URL, auto Bonjour, hidden pin, one toggle). Surface A is the older machinery that B was presumably built to replace, never removed. **Daniel looking for "the QR code in Settings" can land on either, and each has different reasons to be QR-less.** This duplication — not any single gate — is the root of "the QR vanished": there are two places it can vanish from, for two different sets of reasons.
+They share the same `@AppStorage` keys (`RemoteAccessConfig.hostingEnabledKey` etc. — `PairingCardView.swift:19-21` vs `ShareSettingsView.swift:17-19`), so flipping the toggle in B changes what A shows and vice-versa. Surface B is the good one — it already embodies the "do the secure thing automatically" principle (auto URL, auto Bonjour, hidden pin, one toggle). Surface A is the older machinery that B was presumably built to replace, never removed. **Daniel looking for "the QR code in Settings" can land on either, and each has different reasons to be QR-less.** This duplication — not any single gate — is the root of "the QR vanished": there are two places it can vanish from, for two different sets of reasons.
 
 Recommendation (design, not patch): **one pairing surface** (keep B's behavior), demote A's section to nothing — its Advanced fields move behind a single "Advanced" escape hatch *inside* B if kept at all, and `MacRemoteClientPairingSection` (join-another-Mac) stays where it is conceptually distinct (see §3). This is iterate-not-replace: B already exists and is shipped; the work is deleting A's duplicate section, not writing anything new.
 
@@ -75,7 +75,7 @@ Scope: all of `fichero/fichero/Views/Settings/` (18 files, read in full) plus `M
 
 | Control | What it does | Real user | Verdict |
 |---|---|---|---|
-| "Sharing address" TextField (`BackendSettingsRemoteAccessSection.swift:47`) | the public base URL, typed by hand | nobody can type a correct Tailscale HTTPS URL unaided | **DELETE from primary UI** — ShareSettingsView already auto-derives `https://<hostname>.local:8765` (`ShareSettingsView.swift:37-44`); a manual override belongs in one Advanced disclosure only |
+| "Sharing address" TextField (`PairingCardView.swift:47`) | the public base URL, typed by hand | nobody can type a correct Tailscale HTTPS URL unaided | **DELETE from primary UI** — ShareSettingsView already auto-derives `https://<hostname>.local:8765` (`ShareSettingsView.swift:37-44`); a manual override belongs in one Advanced disclosure only |
 | **Toggle "Enable pairing and remote clients"** (`:477`) | same `@AppStorage` key as the Devices tab's sharing toggle | flips a switch that also flips a switch in another pane | **DELETE** — duplicate of ShareSettingsView's toggle (§1.1) |
 | **Toggle "Advertise this Mac on the local network"** (Bonjour, `:478`) | sets `FICHERO_ENABLE_BONJOUR` at engine launch (`EngineConfig.swift:588-590`) | no user knows what Bonjour is; discovery is *how the phone finds the Mac* — off means the iOS "Connect to your Mac" list stays empty forever with no explanation | **AUTOMATE: on whenever sharing is on** (ShareSettingsView already does exactly this — `:338`). Delete the toggle |
 | "Reachable URL" TextField (`:481`) | manual public URL again | — | **HIDE** — one Advanced field, in one place |
@@ -148,7 +148,7 @@ The iOS side is already close to dead simple — auto-scanner, Bonjour list of M
 
 ### 3.2 What the QR actually carries (the security payload)
 
-`PairingQRCodePayload` = engine URL + one-time pair code + **SPKI pin** + library path (`BackendSettingsRemoteAccessSection.swift:139-144`, validated on receipt at `RemoteClientPairing.swift:88-104`: HTTPS-only, non-localhost, pin syntax, library path required). The camera is an out-of-band channel — the pin arrives immune to network MITM. **Any replacement for the QR must deliver the pin (or equivalent channel authentication) with the same property.** (Known hole, already filed: the client persists the QR's `library_path` without server confirmation — #3273, P3. Keep that fix on the list; it's orthogonal to this redesign.)
+`PairingQRCodePayload` = engine URL + one-time pair code + **SPKI pin** + library path (`PairingCardView.swift:139-144`, validated on receipt at `RemoteClientPairing.swift:88-104`: HTTPS-only, non-localhost, pin syntax, library path required). The camera is an out-of-band channel — the pin arrives immune to network MITM. **Any replacement for the QR must deliver the pin (or equivalent channel authentication) with the same property.** (Known hole, already filed: the client persists the QR's `library_path` without server confirmation — #3273, P3. Keep that fix on the list; it's orthogonal to this redesign.)
 
 ### 3.3 The five gates, re-decided
 
@@ -181,7 +181,7 @@ Security properties are *identical* to today: the pin still travels only via the
 
 ### 3.5 Mac-as-client and invite links — two verified gaps
 
-- **`fichero://pair` links do not open on macOS.** iOS handles them (`FicheroApp_iOS.swift:124-125` → `PairingIncomingLinkSheet`); the macOS `handleOpenURL` handles invite-account tokens and library URLs only (`FicheroApp.swift:116-139`) — a pairing link falls through to "open as library". Yet the host UI offers ShareLink/Copy Invite precisely so the link can be sent to another device (`BackendSettingsRemoteAccessSection.swift:380-386`). A second Mac must paste the link into a "Manual link" disclosure that *tells it to scan instead* (`MacRemoteClientPairingSection.swift:28-34`). Fix: route `fichero://pair` in `handleOpenURL` to the same pairing confirm sheet iOS uses.
+- **`fichero://pair` links do not open on macOS.** iOS handles them (`FicheroApp_iOS.swift:124-125` → `PairingIncomingLinkSheet`); the macOS `handleOpenURL` handles invite-account tokens and library URLs only (`FicheroApp.swift:116-139`) — a pairing link falls through to "open as library". Yet the host UI offers ShareLink/Copy Invite precisely so the link can be sent to another device (`PairingCardView.swift:380-386`). A second Mac must paste the link into a "Manual link" disclosure that *tells it to scan instead* (`MacRemoteClientPairingSection.swift:28-34`). Fix: route `fichero://pair` in `handleOpenURL` to the same pairing confirm sheet iOS uses.
 - **The URL-scheme claim should be verified at build time** — I confirmed handler code, not the `CFBundleURLTypes` registration for macOS; worth checking `fichero` scheme is registered for the Mac target when fixing the above.
 
 ### 3.6 What "dead simple" looks like end to end
@@ -198,7 +198,7 @@ Verified instances where a failed/false precondition renders *nothing* (or somet
 
 | # | Where | What vanishes / misleads | Cite |
 |---|---|---|---|
-| 1 | Pairing card, QR-encode failure | pairing section renders with "Scan this…" text but **no image** if `qrCodeImage` nils (encode/CIFilter failure) | `BackendSettingsRemoteAccessSection.swift:357-365,147-170` |
+| 1 | Pairing card, QR-encode failure | pairing section renders with "Scan this…" text but **no image** if `qrCodeImage` nils (encode/CIFilter failure) | `PairingCardView.swift:357-365,147-170` |
 | 2 | Pairing card, all-fallback headline | every failure shows "Secure sharing needs HTTPS." even when the cause is engine-down or sharing-off | `:403-410` vs `:172-202` |
 | 3 | Settings sidebar rows | **Engine**, **Library Access**, **General**, **MCP**, **Integrations** rows disappear entirely when their feature flags are off — a Settings pane that can silently not exist | `SettingsView.swift:43-48,53-61,65-67` |
 | 4 | Invite a Person | absent unless owner **and** multi-user on; single-user Daniel never learns invites exist or what enables them | `UsersSettingsView.swift:169` |
@@ -207,7 +207,7 @@ Verified instances where a failed/false precondition renders *nothing* (or somet
 | 7 | Mac client pairing copy | "Scan the QR code shown on the host Mac" — impossible instruction; no scanner exists on macOS; actual path hidden in "Manual link" disclosure | `MacRemoteClientPairingSection.swift:28-34` |
 | 8 | `fichero://pair` on macOS | opening a pairing invite link does nothing pairing-related (falls into open-as-library) | `FicheroApp.swift:116-139` |
 | 9 | Menu commands | New Comparison/Chain/Chat/Workflow/Schedule menu items silently absent per flag — consistent with staged features, but combined with zero UI for flags, a user can't discover *why* | `FicheroApp.swift:425-450` |
-| 10 | Pane A pairing error swallows status | `pairingError` replaces the status message slot (`statusMessage: pairingStatusMessage ?? pairingError`) — an error can mask the "what to do next" text | `BackendSettingsRemoteAccessSection.swift:57` |
+| 10 | Pane A pairing error swallows status | `pairingError` replaces the status message slot (`statusMessage: pairingStatusMessage ?? pairingError`) — an error can mask the "what to do next" text | `PairingCardView.swift:57` |
 
 Counter-examples already in the codebase worth copying (the pattern exists, it's just unevenly applied): `AISettingsView`'s "Backend not connected" label (`AISettingsView.swift:48-54`), `UsersSettingsView`/`BackupsView`'s `ContentUnavailableView`s with reasons (`UsersSettingsView.swift:24-29`, `BackupsView.swift:90-101`), and `SettingsGroupContainer`'s selection-clamping so a hidden segment "never shows blank" (`SettingsView.swift:262-269`).
 

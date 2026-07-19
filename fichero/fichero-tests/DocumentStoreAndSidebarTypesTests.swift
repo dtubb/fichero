@@ -444,9 +444,9 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {
         // The pairing surface moved into ShareSettingsView, which renders the
         // inline PairingCardView / PairedDevicesSectionView (defined in
-        // BackendSettingsRemoteAccessSection.swift). No sheet, no scanner.
+        // PairingCardView.swift). No sheet, no scanner.
         let shareSource = try Self.appSource("Views/Settings/LibraryAccess/ShareSettingsView.swift")
-        let remoteAccessSource = try Self.appSource("Views/Settings/LibraryAccess/BackendSettingsRemoteAccessSection.swift")
+        let remoteAccessSource = try Self.appSource("Views/Settings/LibraryAccess/PairingCardView.swift")
 
         XCTAssertTrue(shareSource.contains("PairingCardView("))
         XCTAssertTrue(shareSource.contains("PairedDevicesSectionView("))

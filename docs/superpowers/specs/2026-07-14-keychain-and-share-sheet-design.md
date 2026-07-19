@@ -81,7 +81,7 @@ So the phone can already *find* the Mac; what it cannot do is *authenticate* to 
   - `PAIRING_CODE_TTL = timedelta(minutes=10)` (`:28`); codes are held **in-memory** (`_PAIRING_CODES`), minted by an authenticated owner over secure transport (`create_pairing_code`, `:391-421`).
   - `pair_device` (`:424-470`): strictly **one-time** (`record.used` + popped, `:459-460`), rate-limited, mints a per-device token via `app_db.create_device` (`fichero-engine/src/fichero/app_db.py:1611-1627`, default **TTL 90 days**), stored **hashed** (`accounts.hash_token`).
   - Renewal endpoint `POST /api/pair/devices/renew` (`:484-499`, #3096), rate-limited; device list/revoke endpoints exist (`/devices`).
-- Mac UI: the pairing card in `BackendSettingsRemoteAccessSection.swift` now names its blocker honestly and offers the cure (`pairingBlocker` `:183-206`, `resolve(_:)` `:211-234` — the #3769/#3776 fix), shows the QR (`qrCodeImage` `:149-172`), the **selectable pairing link** (#3774, `:492-511`), **Copy Pairing Link**, and a **`ShareLink`** (`:513-522`) with the honest warning *"This link lets a device connect to your library — share only with people you trust"* (`:526`).
+- Mac UI: the pairing card in `PairingCardView.swift` now names its blocker honestly and offers the cure (`pairingBlocker` `:183-206`, `resolve(_:)` `:211-234` — the #3769/#3776 fix), shows the QR (`qrCodeImage` `:149-172`), the **selectable pairing link** (#3774, `:492-511`), **Copy Pairing Link**, and a **`ShareLink`** (`:513-522`) with the honest warning *"This link lets a device connect to your library — share only with people you trust"* (`:526`).
 
 ### 0.5 The invite system for people (accounts) — endpoints + UI
 
@@ -172,7 +172,7 @@ From the `kSecAttrSynchronizable` documentation, verbatim where it matters:
 - Service e.g. `app.fichero.fichero.zero-touch`, account = normalized engine identity (reusing `normalizedRemoteHostString`, `AuthTokenMiddleware.swift:189-209`) so multiple Macs each get their own item.
 - **The SPKI pin rides inside the synced payload** — this elegantly solves pin distribution for own-devices: the pin arrives through an Apple end-to-end-encrypted channel (a, §A.5), strictly better than the current UserDefaults-after-QR path, and no TOFU is involved.
 
-**Mac side (writes):** when hosting is enabled and the pairing card is healthy (exactly the existing `pairingBlocker == nil` state, `BackendSettingsRemoteAccessSection.swift:183-206`), the Mac mints/refreshes the enrollment secret and writes the synced item. Rotation rewrites it; disabling sharing deletes it (deletion propagates to all devices — (a), §1.1).
+**Mac side (writes):** when hosting is enabled and the pairing card is healthy (exactly the existing `pairingBlocker == nil` state, `PairingCardView.swift:183-206`), the Mac mints/refreshes the enrollment secret and writes the synced item. Rotation rewrites it; disabling sharing deletes it (deletion propagates to all devices — (a), §1.1).
 
 **iPhone/iPad side (reads):** in `RemoteConnectionSetupView` (`FicheroApp_iOS.swift:265+`), on appear and on Bonjour discovery:
 1. Query the synced item (`kSecAttrSynchronizableAny` not needed — query with `synchronizable=true`).
@@ -262,7 +262,7 @@ Recipient flow (app installed): tap/scan → confirm sheet ("Join Daniel's libra
 
 ### 2.5 Security analysis: invite-in-an-inbox vs co-present QR — explicit, per the brief
 
-**What is in the artifact (both QR and link, identical payload — the Mac card already says so, `BackendSettingsRemoteAccessSection.swift:484-491`):** engine URL (reveals a `.ts.net` hostname — modest info leak, the tailnet still gates reachability), the SPKI pin (public-key material, not secret), a **one-time pairing code** (secret until used/expired), and in v2 an **invite token** (secret, single-use, hashed at rest).
+**What is in the artifact (both QR and link, identical payload — the Mac card already says so, `PairingCardView.swift:484-491`):** engine URL (reveals a `.ts.net` hostname — modest info leak, the tailnet still gates reachability), the SPKI pin (public-key material, not secret), a **one-time pairing code** (secret until used/expired), and in v2 an **invite token** (secret, single-use, hashed at rest).
 
 | Property | QR (co-present) | Messages (iMessage) | Email |
 |---|---|---|---|
@@ -330,7 +330,7 @@ Custom schemes offer no fallback: a tapped `fichero://` link with no handler doe
 5. iCloud Keychain security overview (Apple Platform Security) — https://support.apple.com/guide/security/icloud-keychain-security-overview-sec1c89c6f3b/web — end-to-end encryption of keychain sync. *(Referenced for the E2E claim; not re-fetched — flagged (a) on the strength of the Platform Security guide.)*
 6. `kSecUseDataProtectionKeychain` — https://developer.apple.com/documentation/security/ksecusedataprotectionkeychain — *"highly recommended … for all keychain operations"*; macOS-only effect; synchronizable=true implies the same behavior + sync.
 
-**Key code references (repo `~/code/fichero` @ `3053dfa54`):** `AuthTokenMiddleware.swift:27,185-187,251-275,311-317,328-362`; `RemoteClientPairing.swift:14-24,66-104,135-187`; `RemoteCertificatePinning.swift:76-118`; `EngineConfig.swift:93-140,734-773,932-934`; `BackendSettingsRemoteAccessSection.swift:103-234,484-544`; `InviteAccountSection.swift`; `ShareLibrarySheet.swift:114-131`; `ShareSettingsView.swift:1-60`; `SessionStore.swift:45-50,175-213`; `AuthGateView.swift:21,252`; `FicheroApp.swift:123-146,314`; `FicheroApp_iOS.swift:117-133,265-299,397-399,551-554`; `Info.plist:27-29,56,61`; `project.pbxproj:4636-4646`; engine: `pairing.py:28,391-470,484-499`; `auth_accounts.py:28-31,374-385,475-572`; `authz.py:262-273,276-328`; `app_db.py:1611-1627`.
+**Key code references (repo `~/code/fichero` @ `3053dfa54`):** `AuthTokenMiddleware.swift:27,185-187,251-275,311-317,328-362`; `RemoteClientPairing.swift:14-24,66-104,135-187`; `RemoteCertificatePinning.swift:76-118`; `EngineConfig.swift:93-140,734-773,932-934`; `PairingCardView.swift:103-234,484-544`; `InviteAccountSection.swift`; `ShareLibrarySheet.swift:114-131`; `ShareSettingsView.swift:1-60`; `SessionStore.swift:45-50,175-213`; `AuthGateView.swift:21,252`; `FicheroApp.swift:123-146,314`; `FicheroApp_iOS.swift:117-133,265-299,397-399,551-554`; `Info.plist:27-29,56,61`; `project.pbxproj:4636-4646`; engine: `pairing.py:28,391-470,484-499`; `auth_accounts.py:28-31,374-385,475-572`; `authz.py:262-273,276-328`; `app_db.py:1611-1627`.
 
 **GitHub issues read:** #3772, #3769, #3776, #3342, #3290, #2399 (CLOSED), #3774, #3157 (CLOSED), #3153 (CLOSED), #3149 (CLOSED), #3102 (CLOSED), #2347 (CLOSED).
 
