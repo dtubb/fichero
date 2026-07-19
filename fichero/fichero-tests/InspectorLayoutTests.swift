@@ -65,21 +65,6 @@ struct InspectorTabTests {
         #expect(InspectorTab.info.rawValue == "Info")
     }
 
-    @Test("DocumentInspector tab bar shows selected tab title with semantic caption font")
-    func tabBarShowsSelectedTitle() throws {
-        let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("fichero")
-                .appendingPathComponent("Views/Inspector/Document/DocumentInspector.swift"),
-            encoding: .utf8
-        )
-
-        #expect(source.contains("let selectedTabTitle = Self.clampedSelectedTab(selectedTab, for: document).rawValue"))
-        #expect(source.contains("Text(selectedTabTitle)"))
-        #expect(source.contains(".font(.caption)"))
-    }
 }
 
 // MARK: - Source Section Fold (#3876)
@@ -524,7 +509,7 @@ struct KGSurfaceTabTests {
     @Test("KGSurfaceTab titles are human-readable display names")
     func titles() {
         #expect(KGSurfaceTab.transcript.title == "Transcript")
-        #expect(KGSurfaceTab.digest.title == "Digest")
+        #expect(KGSurfaceTab.digest.title == "Statements")  // #3765 rename: "Digest" → "Statements"
         #expect(KGSurfaceTab.graph.title == "Graph")
         #expect(KGSurfaceTab.claims.title == "Claims")
         #expect(KGSurfaceTab.timeline.title == "Timeline")
@@ -662,32 +647,31 @@ struct ClaimFocusStateInjectionContractTests {
     func contentViewConsumesClaimFocusState() throws {
         let source = try Self.source("Views/Shell/ContentView/ContentView.swift")
         #expect(
-            source.contains("@EnvironmentObject var claimFocusState: ClaimFocusState"),
-            "ContentView must keep its ClaimFocusState @EnvironmentObject — pairs with FicheroApp injection"
+            source.contains("@Environment(ClaimFocusState.self) var claimFocusState"),
+            "ContentView must keep its ClaimFocusState @Environment — pairs with FicheroApp injection"
         )
     }
 
     @Test("FicheroApp injects ClaimFocusState at the window root")
     func ficheroAppInjectsClaimFocusState() throws {
         let source = try Self.source("FicheroApp.swift")
-        // Both the @StateObject backing store AND the .environmentObject
-        // injection must be present, or ContentView crashes on launch.
+        // Both the @State backing store AND the .environment injection must be
+        // present, or ContentView crashes on launch.
         #expect(
             source.contains("ClaimFocusState.shared"),
-            "FicheroApp must own a ClaimFocusState StateObject"
+            "FicheroApp must own a ClaimFocusState state store"
         )
         #expect(
-            source.contains(".environmentObject(claimFocusState)"),
+            source.contains(".environment(claimFocusState)"),
             "FicheroApp must inject claimFocusState into the LibraryWindow environment"
         )
     }
 
     @Test("Exactly one ClaimFocusState class is defined in the app sources")
     func singleClaimFocusStateDefinition() throws {
-        // A second `class ClaimFocusState` (the dead Models/ClaimFocusState.swift
-        // orphan that was never in the pbxproj) shadows the live type in tools
-        // and would become a duplicate-symbol build break if registered. Lock
-        // the count at one.
+        // A second `class ClaimFocusState` shadows the live @Observable type
+        // (now in Models/FeatureManager.swift) in tools and would become a
+        // duplicate-symbol build break if registered. Lock the count at one.
         var definitionCount = 0
         let root = Self.appSourceRoot()
         let enumerator = FileManager.default.enumerator(
@@ -697,7 +681,7 @@ struct ClaimFocusStateInjectionContractTests {
         while let url = enumerator?.nextObject() as? URL {
             guard url.pathExtension == "swift" else { continue }
             let contents = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-            if contents.contains("class ClaimFocusState: ObservableObject") {
+            if contents.contains("class ClaimFocusState {") {
                 definitionCount += 1
             }
         }

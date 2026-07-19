@@ -23,7 +23,12 @@ struct MultiUserAuthEnvelopeTests {
           {"id":"u1","username":"ann","display_name":"Ann","is_owner":true,"active":true,"created_at":"2026-07-01T00:00:00Z"}
         ],"count":1}
         """
-        let envelope = try JSONDecoder().decode(
+        // created_at is a generated Foundation.Date (openapi string/date-time), so a
+        // bare JSONDecoder defaults to .deferredToDate and expects a Double. Decode
+        // ISO8601 the way the client's LenientISO8601DateTranscoder does (#4016).
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let envelope = try decoder.decode(
             Components.Schemas.UserListResponse.self,
             from: Data(json.utf8)
         )
@@ -51,7 +56,12 @@ struct MultiUserAuthEnvelopeTests {
            "created_at":"2026-07-01T00:00:00Z","expires_at":"2026-07-08T00:00:00Z"}
         ],"count":1}
         """
-        let envelope = try JSONDecoder().decode(
+        // created_at/expires_at are generated Foundation.Date fields — configure the
+        // decoder for ISO8601 so the bare-decoder default (numeric seconds) doesn't
+        // reject the real API date strings (#4016).
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let envelope = try decoder.decode(
             Components.Schemas.InviteListResponse.self,
             from: Data(json.utf8)
         )

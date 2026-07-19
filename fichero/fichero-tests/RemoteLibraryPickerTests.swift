@@ -5,7 +5,12 @@ import Testing
 /// Remote-library picker logic for #3151: the recents-first ordering the picker
 /// applies to `GET /api/authz/libraries` results, and the per-host recents MRU
 /// that backs it. Pure/isolated — no live engine.
-@Suite("Remote library picker")
+// .serialized: the recents tests mutate one shared UserDefaults.standard key
+// (fichero.remote.recentLibraries) via a non-atomic read-modify-write, so running
+// them in parallel loses updates and flakes the MRU order. Serialize the suite so
+// each test's recents mutations complete before the next runs (#4016). The
+// most-recent-first ordering itself (production RemoteLibraryRecents.note) is correct.
+@Suite("Remote library picker", .serialized)
 struct RemoteLibraryPickerTests {
     private func entry(_ path: String) -> KnownLibraryMenuEntry {
         KnownLibraryMenuEntry(id: path, path: path, name: nil, addedAt: nil, lastAccessed: nil)
