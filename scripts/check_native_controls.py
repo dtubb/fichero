@@ -32,8 +32,8 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
     "Library/ViewModes/LibraryView+DisplayModes.swift#19c3b271df": "#1912 baseline (rehashed: #3705 .draggable; #3875 selection-fill; #3868 extracted a value-typed selectable row wrapper; the collection itself is unchanged)",
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
-    "Chat/Research/ResearchTasksPane.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
-    "Chat/Research/ResearchTasksPane.swift#f50acbd404": "#1912 baseline (shifted by store migration)",
+    "Chat/Research/ResearchTasksPane+Views.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
+    "Chat/Research/ResearchTasksPane+Views.swift#f50acbd404": "#1912 baseline (shifted by store migration)",
     "Library/Search/SearchFiltersPanel.swift#3c0b0dafd9": "#1912 baseline",
     "Workflow/Library/WorkflowChainListViewParts/ChainDetailContent.swift#c804133262": "#1912 baseline",
 }
