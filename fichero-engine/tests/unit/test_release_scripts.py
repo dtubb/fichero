@@ -28,6 +28,7 @@ BUILD_AND_VALIDATE = SCRIPTS_DIR / "build-and-validate.sh"
 NOTARIZE = SCRIPTS_DIR / "notarize.sh"
 CREATE_RELEASE = SCRIPTS_DIR / "create-github-release.sh"
 NIGHTLY_RELEASE = SCRIPTS_DIR / "nightly-release.sh"
+RELEASE_ALL = SCRIPTS_DIR / "release-all.sh"
 START_BACKEND = REPO_ROOT / "fichero-engine" / "scripts" / "start_backend.sh"
 BUILD_BACKEND_BUNDLE = REPO_ROOT / "fichero-engine" / "scripts" / "build_backend_bundle.sh"
 BUNDLE_PYTHON_BACKEND = REPO_ROOT / "fichero-engine" / "scripts" / "bundle_python_backend.sh"
@@ -151,6 +152,15 @@ def test_embedded_engine_version_guard_rejects_stale_bundle(tmp_path: Path) -> N
     )
     assert stale.returncode == 1
     assert f"expected={expected} bundle=2026.7.17.2 package={expected}" in stale.stderr
+
+
+def test_release_all_always_rebuilds_engine_before_packaging() -> None:
+    text = _script_text(RELEASE_ALL)
+    rebuild = text.index('preflight-embedded-engine.sh" --rebuild')
+    packaging = text.index('if [ "$SKIP_DMG" = false ]')
+
+    assert rebuild < packaging
+    assert '--skip-backend) SKIP_BACKEND=true' not in text
 
 
 def test_build_and_validate_uses_current_paths() -> None:
