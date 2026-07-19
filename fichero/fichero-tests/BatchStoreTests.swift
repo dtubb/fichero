@@ -91,13 +91,9 @@ struct BatchStoreTests {
         let store = makeStore { request in
             switch (request.httpMethod, request.url?.path) {
             case ("POST", "/api/batches"):
-                let body = try #require(request.httpBody)
-                let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-                let items = try #require(json["items"] as? [[String: [String]]])
-                #expect(items == [
-                    ["selected_doc_ids": ["a", "b"]],
-                    ["selected_doc_ids": ["c"]]
-                ])
+                // #4024: the folder→selected_doc_ids body mapping is verified via the pure
+                // builder below (upload-task bodies are invisible to a URLProtocol stub;
+                // request.httpBody is nil). The stub still verifies POST + path + sequence.
                 return response(for: request, body: batchJSON)
             case ("POST", "/api/batches/batch-1/execute"):
                 return response(for: request, body: Data())
@@ -107,6 +103,15 @@ struct BatchStoreTests {
                 throw URLError(.badURL)
             }
         }
+
+        // #4024: verify the folder→selected_doc_ids mapping directly via the pure builder.
+        let builtItems = BatchStore.makeFolderItems([
+            (id: "folder-a", documentIds: ["a", "b"]),
+            (id: "folder-b", documentIds: ["c"])
+        ])
+        #expect(builtItems.count == 2)
+        #expect(builtItems[0]["selected_doc_ids"] as? [String] == ["a", "b"])
+        #expect(builtItems[1]["selected_doc_ids"] as? [String] == ["c"])
 
         let batch = await store.runFolderBatch(
             workflowId: "workflow-1",

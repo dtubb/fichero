@@ -73,15 +73,28 @@ struct BatchServiceTests {
     @Test("createBatch encodes workflow and per-folder selected document ids")
     func createBatchRequest() async throws {
         defer { BatchServiceMockURLProtocol.requestHandler = nil }
+
+        // #4024: verify the encoded request BODY via the pure builder, not via
+        // URLRequest.httpBody — the generated client sends POST bodies as URLSession
+        // upload tasks whose body a URLProtocol stub cannot see (httpBody is nil there),
+        // which previously threw + retried + hung the run. Same payload assertions as
+        // before (workflow_id / max_concurrent / selected_doc_ids), sourced from the
+        // JSON-encoded builder output instead. The stub below still covers POST + path.
+        let builtRequest = try BatchService.makeCreateBatchRequest(
+            workflowId: "workflow-1",
+            items: [["selected_doc_ids": ["doc-1", "doc-2"]]],
+            maxConcurrent: 3
+        )
+        let encoded = try JSONEncoder().encode(builtRequest)
+        let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(json["workflow_id"] as? String == "workflow-1")
+        #expect(json["max_concurrent"] as? Int == 3)
+        let items = try #require(json["items"] as? [[String: [String]]])
+        #expect(items == [["selected_doc_ids": ["doc-1", "doc-2"]]])
+
         let service = makeService { request in
             #expect(request.url?.path == "/api/batches")
             #expect(request.httpMethod == "POST")
-            let body = try #require(request.httpBody)
-            let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-            #expect(json["workflow_id"] as? String == "workflow-1")
-            #expect(json["max_concurrent"] as? Int == 3)
-            let items = try #require(json["items"] as? [[String: [String]]])
-            #expect(items == [["selected_doc_ids": ["doc-1", "doc-2"]]])
             return response(for: request, body: batchJSON)
         }
 
