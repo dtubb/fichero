@@ -446,7 +446,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // inline PairingCardView / PairedDevicesSectionView (defined in
         // BackendSettingsRemoteAccessSection.swift). No sheet, no scanner.
         let shareSource = try Self.appSource("Views/Settings/LibraryAccess/ShareSettingsView.swift")
-        let remoteAccessSource = try Self.appSource("Views/Settings/Engine/BackendSettingsRemoteAccessSection.swift")
+        let remoteAccessSource = try Self.appSource("Views/Settings/LibraryAccess/BackendSettingsRemoteAccessSection.swift")
 
         XCTAssertTrue(shareSource.contains("PairingCardView("))
         XCTAssertTrue(shareSource.contains("PairedDevicesSectionView("))
