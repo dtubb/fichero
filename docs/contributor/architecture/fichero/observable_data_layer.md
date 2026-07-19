@@ -401,7 +401,7 @@ Risk ordering rationale: steps 1–3 touch *additive* infra and one well-underst
 
 ### 4.3 Retiring the NotificationCenter stopgap (#1862)
 
-The `.ficheroClaimUpdated` / `.ficheroClaimDeleted` / `.ficheroEntitySearchRequested` posts (audit S2; in `ClaimSummaryCardView`, `OntologyBrowser`, `ClaimReviewQueueSheet`, `ContradictionTriageSheet`, `DocumentInspectorArtifactsTab+*`) are the **interim** cross-view mutation bus. They are retired **per store, as that store lands**, not in a big-bang:
+The `.ficheroClaimUpdated` / `.ficheroClaimDeleted` / `.ficheroEntitySearchRequested` posts (audit S2; in `ClaimSummaryCardView`, `OntologyBrowser`, `ClaimReviewQueueSheet`, `ContradictionTriageSheet`, `Inspector/Document/Knowledge/*`) are the **interim** cross-view mutation bus. They are retired **per store, as that store lands**, not in a big-bang:
 
 - A `.post(.ficheroClaimUpdated)` after a mutation → delete; the backend `emit_change("claim.updated", …)` now does the fan-out.
 - An `.onReceive(.ficheroClaimUpdated) { reload() }` → delete; the view now reads `claimStore.claims` and re-renders on `claimStore.apply`.

@@ -232,7 +232,7 @@ class TestSectionConfig:
                 assert key in section, f"{section.get('name')} missing {key}"
 
     def test_artifact_types_match_existing(self):
-        # Artifact types must match what DocumentInspectorArtifactsTab renders.
+        # Artifact types must match what the Knowledge inspector (EntityKindRow) renders.
         known = {"people", "places", "organizations", "dates", "rivers",
                  "events", "mines", "properties", "legal_references",
                  "citation_usages", "hermeneutics", "keywords", "quotes"}

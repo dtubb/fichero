@@ -94,7 +94,7 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testEntitySearchRoutingUsesTypedStateInsteadOfNotificationBus() throws {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
-        let sharedSource = try Self.appSource("Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+Shared.swift")
+        let sharedSource = try Self.appSource("Views/Inspector/Document/Knowledge/KnowledgeGraphSupport.swift")
         let entitiesSource = try Self.appSource("Views/Inspector/Document/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
 
         XCTAssertTrue(sharedSource.contains("final class EntitySearchState"))
@@ -105,7 +105,7 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testClaimSourceRoutingUsesTypedStateInsteadOfNotificationBus() throws {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
-        let sharedSource = try Self.appSource("Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+Shared.swift")
+        let sharedSource = try Self.appSource("Views/Inspector/Document/Knowledge/KnowledgeGraphSupport.swift")
         let artifactsSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
         let searchSource = try Self.appSource("Views/Library/Search/SearchView+Helpers.swift")
 
@@ -131,7 +131,7 @@ final class DocumentInspectorTests: XCTestCase {
         let citationsSource = try Self.appSource("Views/Inspector/Document/Source/Info/DocumentInspectorInfoTab+Citations.swift")
         let bibliographySource = try Self.appSource("Views/Inspector/Document/Source/Info/DocumentInspectorInfoTab+Bibliography.swift")
         let interpretationsSource = try Self.appSource(
-            "Views/Inspector/Document/Notes/DocumentInspectorArtifactsTab+Interpretations.swift"
+            "Views/Inspector/Document/Notes/DocumentInterpretationsSection.swift"
         )
         let interpretationsTabSource = try Self.appSource(
             "Views/Inspector/Document/Notes/DocumentInterpretationsTab.swift"
@@ -347,7 +347,7 @@ final class DocumentInspectorTests: XCTestCase {
 
         // Provenance quick-look popover is wired on KG claim rows (#3449/#3457).
         let claimRow = try Self.appSource(
-            "Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+            "Views/Inspector/Document/Knowledge/EntityKindRow.swift"
         )
         XCTAssertTrue(claimRow.contains("SourceProvenanceCard("))
         XCTAssertTrue(claimRow.contains(".onHover"))
@@ -357,7 +357,7 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testInterpretationSectionUsesInjectedStoreNotGlobalLibrary() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Notes/DocumentInspectorArtifactsTab+Interpretations.swift"
+            "Views/Inspector/Document/Notes/DocumentInterpretationsSection.swift"
         )
 
         // #3429: the interpretation inspector reads InterpretationStore from the

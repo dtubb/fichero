@@ -50,12 +50,9 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 | WebKit transcript / knowledge pane | DocumentKGWebPane / PageContentPane *(rename pending #1450)* | `Views/Library/` | area:reading-surface |
 | Loupe / magnifier / zoom | PDFLoupeOverlay, MagnifierPanel, ScrollWheelZoom | `Views/Library/` | area:reading-surface |
 | **Document Inspector** (right) | DocumentInspector | `Views/Inspector/Document/` | area:inspector |
-| — Info tab | DocumentInspectorInfoTab | `.../DocumentInspectorInfoTab.swift` | area:inspector |
-| — Content tab | DocumentInspectorContentTab | `.../DocumentInspectorContentTab.swift` | area:inspector |
-| — Metadata tab | DocumentInspectorMetadataTab | `.../DocumentInspectorMetadataTab.swift` | area:inspector |
-| — Artifacts tab | DocumentInspectorArtifactsTab | `.../DocumentInspectorArtifactsTab.swift` | area:inspector |
-| — Annotations tab | DocumentInspectorAnnotationsTab | `.../DocumentInspectorAnnotationsTab.swift` | area:inspector |
-| — Notes tab | DocumentNotesTab | `.../DocumentNotesTab.swift` | area:inspector |
+| — Source section | DocumentInspectorInfoTab / MetadataTab / ContentV2 | `.../Document/Source/` | area:inspector |
+| — Knowledge section | DocumentInspectorEntitiesTab, KnowledgeGraphInspectorSection | `.../Document/Knowledge/` | area:inspector |
+| — Notes section | DocumentNotesTab, DocumentInspectorAnnotationsTab, DocumentInterpretationsTab | `.../Document/Notes/` | area:inspector |
 | — KG surface (Timeline/Map) | DocumentKGSurface | `Views/Reader/Knowledge/DocumentKGSurface.swift` | area:inspector |
 
 ---

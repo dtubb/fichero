@@ -134,7 +134,7 @@ KNOWN_EXTENSIONS: list[tuple[str, str, str]] = [
     # This is the entity's CLAIM INSPECTOR, not an entity list row. EntityRow is
     # for browsing entities; EntityKindRow is for curating the claims OF an entity.
     (
-        "DocumentInspectorArtifactsTab+EntityKindRow.swift",
+        "EntityKindRow.swift",
         "EntityKindRow",
         "Entity claims inspector (curation affordances: merge, approve/reject/"
         "suppress, edit, bulk actions). Different scope from EntityRow (entity "

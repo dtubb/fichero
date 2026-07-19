@@ -313,7 +313,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "Views/Inspector/Document/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
         )
         let sharedSource = try Self.appSource(
-            "Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+Shared.swift"
+            "Views/Inspector/Document/Knowledge/KnowledgeGraphSupport.swift"
         )
         let storeSource = try Self.appSource("Models/EntityStore.swift")
 
@@ -412,7 +412,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "Views/Inspector/Document/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
         )
         let rowSource = try Self.appSource(
-            "Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+            "Views/Inspector/Document/Knowledge/EntityKindRow.swift"
         )
         let serviceSource = try Self.appSource("Services/ArtifactService.swift")
 
@@ -598,7 +598,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "Views/Inspector/Document/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
         )
         let rowSource = try Self.appSource(
-            "Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+            "Views/Inspector/Document/Knowledge/EntityKindRow.swift"
         )
         let serviceSource = try Self.appSource("Services/ArtifactService.swift")
 
@@ -920,7 +920,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testKGClaimRowEditsSVOInlineNotInASheet() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+            "Views/Inspector/Document/Knowledge/EntityKindRow.swift"
         )
 
         // "Edit S/V/O…" expands the row into the inline editor (reusing
@@ -1005,7 +1005,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testKGClaimRowDefersSingleClickSelectionToTheList() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+            "Views/Inspector/Document/Knowledge/EntityKindRow.swift"
         )
 
         // The row no longer owns single-click selection (the List does); it keeps

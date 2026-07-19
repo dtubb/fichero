@@ -29,9 +29,11 @@ via `@SceneStorage`. The reading layout and page navigation live in
 ## Views (`Views/`, ~234 files across ~19 feature domains)
 
 ### Library (`Views/Library/`) — document browser, preview, inspector
-- `DocumentInspector.swift` (~1,150 lines) + `DocumentInspector/` folder — **inspector V2**, tabbed:
-  - `DocumentInspectorInfoTab.swift`, `DocumentInspectorMetadataTab.swift`,
-    `DocumentInspectorContentTab.swift`, `DocumentInspectorArtifactsTab.swift`
+- `Views/Inspector/Document/DocumentInspector.swift` + section folders — **inspector V2**,
+  organized to mirror `InspectorSection` (Source / Knowledge / Notes):
+  - `Source/` — `DocumentInspectorInfoTab.swift` (+`Info/`), `DocumentInspectorMetadataTab.swift`, `DocumentInspectorContentV2.swift`
+  - `Knowledge/` — `Entities/`, `KnowledgeGraph/`, `EntityKindRow.swift`, `KGCurationHistorySection.swift`, `KnowledgeGraphModels.swift`, `KnowledgeGraphSupport.swift`
+  - `Notes/` — `DocumentNotesTab.swift`, `DocumentInspectorAnnotationsTab.swift`, `DocumentInterpretationsTab.swift`, `DocumentInterpretationsSection.swift`
   - `AttributedTextEditor.swift` — rich-text editor (`NSViewRepresentable`)
 - `PDFThumbnailView.swift` (~850 lines) — PDF rendering, page thumbnails, reading-view plumbing (PDFKit bridge)
 - `LibraryView.swift` + extensions (`+DisplayModes`, `+ColumnConfig`, `+Sorting`, `+FilterAndBatch`, `+InlineEditing`, `+KeyboardShortcuts`) and `LibraryViewComponents.swift` — grid/list/table browser
