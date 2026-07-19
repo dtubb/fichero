@@ -69,7 +69,7 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
         // #4024: the menu-list wiring now lives in LibraryView+ContextMenu.swift,
         // and the execution wiring in LibraryView+BatchWorkflow.swift — read both.
         let source = try Self.appSource("Views/Library/LibraryView+ContextMenu.swift")
-            + try Self.appSource("Views/Library/LibraryView+BatchWorkflow.swift")
+            + Self.appSource("Views/Library/LibraryView+BatchWorkflow.swift")
         XCTAssertTrue(source.contains("activeLibraryReference?.workflowStore.workflows"))
         XCTAssertTrue(source.contains("guard let library = activeLibraryReference"))
         XCTAssertTrue(source.contains("let stream = library.workflowStreamService"))
