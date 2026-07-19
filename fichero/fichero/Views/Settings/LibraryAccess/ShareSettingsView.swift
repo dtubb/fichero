@@ -108,6 +108,16 @@ struct ShareSettingsView: View {
             }
 
             advancedSection
+
+            #if canImport(AppKit)
+            // Client side of pairing — connect THIS Mac to another Fichero library
+            // (consolidated here so all connection/pairing lives in Library Access).
+            MacRemoteClientPairingSection(
+                appState: appState,
+                backendService: backendService,
+                libraryManager: libraryManager
+            )
+            #endif
         }
         .formStyle(.grouped)
         .task {
