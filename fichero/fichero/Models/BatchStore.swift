@@ -37,11 +37,6 @@ final class BatchStore {
         }
     }
 
-    /// Run `workflowId` across `folders` — ONE batch, one item per folder (each
-    /// item scoped to that folder's document ids), then execute it. Each folder
-    /// becomes a separate run that surfaces in Activity. Returns the created
-    /// batch, or nil on failure.
-    @discardableResult
     /// #4024: pure builder for the per-folder create-batch items, extracted so tests can
     /// verify the folder→selected_doc_ids mapping directly — the generated client sends the
     /// POST body as a URLSession upload task whose body a URLProtocol stub cannot read.
@@ -54,6 +49,11 @@ final class BatchStore {
         }
     }
 
+    /// Run `workflowId` across `folders` — ONE batch, one item per folder (each
+    /// item scoped to that folder's document ids), then execute it. Each folder
+    /// becomes a separate run that surfaces in Activity. Returns the created
+    /// batch, or nil on failure.
+    @discardableResult
     func runFolderBatch(
         workflowId: String,
         folders: [(id: String, documentIds: [String])]
