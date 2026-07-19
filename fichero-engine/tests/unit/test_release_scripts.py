@@ -14,6 +14,7 @@ These are pure filesystem + subprocess tests — no Python imports required.
 from __future__ import annotations
 
 import subprocess
+import plistlib
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,7 @@ NIGHTLY_RELEASE = SCRIPTS_DIR / "nightly-release.sh"
 START_BACKEND = REPO_ROOT / "fichero-engine" / "scripts" / "start_backend.sh"
 BUILD_BACKEND_BUNDLE = REPO_ROOT / "fichero-engine" / "scripts" / "build_backend_bundle.sh"
 BUNDLE_PYTHON_BACKEND = REPO_ROOT / "fichero-engine" / "scripts" / "bundle_python_backend.sh"
+CLEAN_EMBEDDED_ENGINE = SCRIPTS_DIR / "clean-embedded-engine.sh"
 
 ALL_SCRIPTS = [BUILD_RELEASE, BUILD_AND_VALIDATE, NOTARIZE, CREATE_RELEASE, NIGHTLY_RELEASE]
 
@@ -115,6 +117,40 @@ def test_build_release_has_dry_run_flag() -> None:
     text = _script_text(BUILD_RELEASE)
     assert "--dry-run" in text
     assert "run_or_dry" in text
+    assert "preflight-embedded-engine.sh" in text
+
+
+def test_embedded_engine_version_guard_rejects_stale_bundle(tmp_path: Path) -> None:
+    expected = next(
+        line.split('"')[1]
+        for line in (REPO_ROOT / "fichero-engine" / "pyproject.toml").read_text().splitlines()
+        if line.startswith('version = "')
+    )
+    app = tmp_path / "Fichero Engine.app"
+    contents = app / "Contents"
+    metadata = contents / "Resources" / "app" / f"engine-{expected}.dist-info" / "METADATA"
+    metadata.parent.mkdir(parents=True)
+    metadata.write_text(f"Name: engine\nVersion: {expected}\n")
+    plist = contents / "Info.plist"
+    with plist.open("wb") as handle:
+        plistlib.dump({"CFBundleShortVersionString": expected}, handle)
+
+    current = subprocess.run(
+        [str(CLEAN_EMBEDDED_ENGINE), "--check-version", str(app)],
+        capture_output=True,
+        text=True,
+    )
+    assert current.returncode == 0, current.stderr
+
+    with plist.open("wb") as handle:
+        plistlib.dump({"CFBundleShortVersionString": "2026.7.17.2"}, handle)
+    stale = subprocess.run(
+        [str(CLEAN_EMBEDDED_ENGINE), "--check-version", str(app)],
+        capture_output=True,
+        text=True,
+    )
+    assert stale.returncode == 1
+    assert f"expected={expected} bundle=2026.7.17.2 package={expected}" in stale.stderr
 
 
 def test_build_and_validate_uses_current_paths() -> None:

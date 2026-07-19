@@ -180,6 +180,11 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
   echo "  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k <login-pw> ~/Library/Keychains/login.keychain-db"
 fi
 
+if [ "$RUN_MAC_TESTFLIGHT" = true ] && [ "$SKIP_DMG" = true ] && [ "$SKIP_BACKEND" = false ]; then
+  echo "  Building current embedded engine for Mac TestFlight"
+  "$ROOT_DIR/scripts/preflight-embedded-engine.sh" --rebuild
+fi
+
 AUTH_ARGS=()
 if [ -f "$APP_STORE_CONNECT_KEY_PATH" ]; then
   echo "  Using App Store Connect API key: $APP_STORE_CONNECT_KEY_ID"

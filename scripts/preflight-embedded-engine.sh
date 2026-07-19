@@ -11,14 +11,7 @@ ENGINE_APP="$ENGINE_DIR/build/engine/macos/app/Fichero Engine.app"
 case "${1:-}" in
   "") ;;
   --rebuild) rebuild=true ;;
-  --check)
-    if [ -d "$ENGINE_APP" ]; then
-      echo "Embedded engine ready: $ENGINE_APP"
-      exit 0
-    fi
-    echo "error: embedded engine missing: $ENGINE_APP" >&2
-    exit 1
-    ;;
+  --check) check_only=true ;;
   *)
     echo "usage: $0 [--check|--rebuild]" >&2
     exit 2
@@ -39,6 +32,10 @@ engine_is_current() {
   [ -d "$ENGINE_APP" ] || return 1
   local staged="$ENGINE_APP/Contents/Resources/app/fichero/api/main.py"
   [ -f "$staged" ] || return 1
+  if ! "$ROOT_DIR/scripts/clean-embedded-engine.sh" --check-version "$ENGINE_APP"; then
+    echo "Embedded engine has STALE version metadata — rebuilding"
+    return 1
+  fi
   # Content, not mtime: git checkouts/merges bump mtimes without changing bytes,
   if ! diff -rq --exclude=__pycache__ "$ENGINE_DIR/src/fichero" "$ENGINE_APP/Contents/Resources/app/fichero" >/dev/null 2>&1; then
     echo "Embedded engine is STALE (engine sources are newer than the staged copy) — rebuilding"
@@ -51,6 +48,15 @@ engine_is_current() {
   fi
   return 0
 }
+
+if [ "${check_only:-false}" = true ]; then
+  if engine_is_current; then
+    echo "Embedded engine ready: $ENGINE_APP"
+    exit 0
+  fi
+  echo "error: embedded engine is missing or stale: $ENGINE_APP" >&2
+  exit 1
+fi
 
 if [ "${rebuild:-false}" = false ] && engine_is_current; then
   echo "Embedded engine ready: $ENGINE_APP"
@@ -69,6 +75,14 @@ else
 fi
 
 echo "Building embedded engine with Briefcase"
+
+# Briefcase update refreshes code and dependencies, but not the generated app
+# template (including Info.plist). Recreate only when the stamped version has
+# changed; otherwise keep the much faster update/build path.
+if [ -d "$ENGINE_APP" ] && ! "$ROOT_DIR/scripts/clean-embedded-engine.sh" --check-version "$ENGINE_APP" >/dev/null 2>&1; then
+  echo "Recreating Briefcase app template for the stamped engine version"
+  rm -rf "$ENGINE_DIR/build/engine/macos/app"
+fi
 (
   cd "$ENGINE_DIR"
   if [ ! -d "$ENGINE_DIR/build/engine/macos/app" ]; then
