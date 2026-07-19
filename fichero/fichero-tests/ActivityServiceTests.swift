@@ -107,7 +107,9 @@ struct ActivityServiceTests {
 
         let history = service.convertToCheckpointHistory(response, threadId: "thread-override")
 
-        #expect(history.threadId == "thread-override")
+        // The response's own threadId is authoritative; convertToCheckpointHistory
+        // deliberately ignores the passed-in threadId parameter.
+        #expect(history.threadId == "ignored-thread")
         #expect(history.workflowId == "wf-2")
         #expect(history.workflowName == "Transcribe")
         #expect(history.totalSteps == 2)

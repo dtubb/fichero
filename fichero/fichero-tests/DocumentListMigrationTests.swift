@@ -101,7 +101,8 @@ struct DocumentListMigrationTests {
         let service = makeService { request in
             #expect(request.url?.path == "/api/documents")
             // loadCollections loads the full tree — no limit cap must be sent.
-            #expect(!(request.url?.query ?? "").contains("limit="))
+            let query = request.url?.query
+            #expect(query?.contains("limit=") != true)
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 200, httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]
@@ -179,7 +180,7 @@ struct DocumentListMigrationTests {
                 url: request.url!, statusCode: 200, httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]
             )!
-            return (response, Data("{\"folder_id\":\"f1\",\"items\":[]}".utf8))
+            return (response, Data("{\"document_id\":\"f1\",\"items\":[],\"count\":0}".utf8))
         }
 
         try await service.markAsWorkspace(folderId: "f1")

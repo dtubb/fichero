@@ -75,7 +75,10 @@ struct BatchStoreTests {
         defer { BatchStoreMockURLProtocol.requestHandler = nil }
         let store = makeStore { request in
             #expect(request.url?.path == "/api/batches")
-            return response(for: request, body: Data("{\"items\":[".utf8) + batchJSON + Data("]}".utf8))
+            return response(
+                for: request,
+                body: Data("{\"items\":[".utf8) + batchJSON + Data("],\"count\":1}".utf8)
+            )
         }
 
         await store.load()
@@ -96,9 +99,15 @@ struct BatchStoreTests {
                 // request.httpBody is nil). The stub still verifies POST + path + sequence.
                 return response(for: request, body: batchJSON)
             case ("POST", "/api/batches/batch-1/execute"):
-                return response(for: request, body: Data())
+                // #4024: execute's generated response body decodes as
+                // OpenAPIRuntime.OpenAPIValueContainer (schema `{}`), which requires valid
+                // JSON even though it accepts any value — Data() fails to decode.
+                return response(for: request, body: Data("{}".utf8))
             case ("GET", "/api/batches"):
-                return response(for: request, body: Data("{\"items\":[".utf8) + batchJSON + Data("]}".utf8))
+                return response(
+                    for: request,
+                    body: Data("{\"items\":[".utf8) + batchJSON + Data("],\"count\":1}".utf8)
+                )
             default:
                 throw URLError(.badURL)
             }

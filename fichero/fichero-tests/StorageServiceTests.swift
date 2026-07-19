@@ -12,13 +12,14 @@ import Foundation
 import Testing
 
 /// Stub URLProtocol that returns canned responses for StorageService's generated client calls.
-/// Scoped to the `/storage` route family so it never intercepts requests meant for other
+/// Scoped to the `/api/storage` route family (StorageService's baseURL already includes `/api`,
+/// so requests land at `/api/storage/...`) so it never intercepts requests meant for other
 /// test suites' dedicated protocols under Swift Testing's parallel execution.
 private final class StorageMockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
     override static func canInit(with request: URLRequest) -> Bool {
-        request.url?.path.hasPrefix("/storage") == true
+        request.url?.path.hasPrefix("/api/storage") == true
     }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
@@ -62,7 +63,7 @@ struct StorageServiceTests {
         let baseURL = URL(string: "https://test.fichero")!
         let expectedData = Data("jpeg-bytes".utf8)
         let service = makeService(baseURL: baseURL) { request in
-            #expect(request.url?.path == "/storage/thumbnail/doc-123")
+            #expect(request.url?.path == "/api/storage/thumbnail/doc-123")
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -94,7 +95,7 @@ struct StorageServiceTests {
             try await service.thumbnailData(for: "doc-123")
             Issue.record("expected StorageServiceError.notFound")
         } catch StorageServiceError.notFound(let url, _) {
-            #expect(url.path == "/storage/thumbnail/doc-123")
+            #expect(url.path == "/api/storage/thumbnail/doc-123")
         } catch {
             Issue.record("unexpected error: \(error)")
         }
@@ -106,7 +107,7 @@ struct StorageServiceTests {
         let baseURL = URL(string: "https://test.fichero")!
         let expectedData = Data("pdf-bytes".utf8)
         let service = makeService(baseURL: baseURL) { request in
-            #expect(request.url?.path == "/storage/source/doc-456")
+            #expect(request.url?.path == "/api/storage/source/doc-456")
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -127,8 +128,8 @@ struct StorageServiceTests {
         let display = service.displayURL(for: "doc-abc")
         let source = service.sourceURL(for: "doc-abc")
 
-        #expect(thumbnail.path == "/storage/thumbnail/doc-abc")
-        #expect(display.path == "/storage/display/doc-abc")
-        #expect(source.path == "/storage/source/doc-abc")
+        #expect(thumbnail.path == "/api/storage/thumbnail/doc-abc")
+        #expect(display.path == "/api/storage/display/doc-abc")
+        #expect(source.path == "/api/storage/source/doc-abc")
     }
 }

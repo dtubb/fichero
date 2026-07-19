@@ -51,11 +51,13 @@ extension Components.Schemas.ActivityResponse {
             if let string = value as? String {
                 return string
             }
-            if let number = value as? NSNumber {
-                return number.stringValue
-            }
+            // #4024: Bool BEFORE NSNumber — a bridged Bool IS an NSNumber (__NSCFBoolean),
+            // so testing NSNumber first rendered `true` as "1".
             if let bool = value as? Bool {
                 return String(bool)
+            }
+            if let number = value as? NSNumber {
+                return number.stringValue
             }
             return String(describing: value)
         }

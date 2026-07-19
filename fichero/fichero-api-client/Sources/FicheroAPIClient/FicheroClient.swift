@@ -33,6 +33,14 @@ public final class FicheroClient: ObservableObject {
     /// The library path provider (for updating the path dynamically)
     private let libraryPathProvider: LibraryPathProvider
 
+    /// The session the client was configured with (a custom/mock/certificate-pinned
+    /// URLSession), retained so `rebuildClient()` — fired on every `currentLibraryPath`
+    /// or `baseURL` change — REUSES it instead of silently dropping back to the default
+    /// real-network transport. #4024: without this, an injected session was lost the
+    /// instant a wrapper (e.g. APIClient) touched the library path, escaping requests to
+    /// the real network (the MCP/Schedules/Chain DNS failures).
+    private let configuredSession: URLSession?
+
     /// Current library path - matches legacy APIClient interface
     @Published public var currentLibraryPath: String? {
         didSet {
@@ -54,6 +62,7 @@ public final class FicheroClient: ObservableObject {
     ) {
         self.baseURL = baseURL
         self.libraryPathProvider = LibraryPathProvider(libraryPath: libraryPath)
+        self.configuredSession = session
         self.currentLibraryPath = libraryPath
 
         // The API paths in OpenAPI already include /api prefix, so use base URL directly
@@ -88,6 +97,7 @@ public final class FicheroClient: ObservableObject {
         } else {
             nil
         }
+        self.configuredSession = session
 
         self.api = Client(
             serverURL: baseURL,
@@ -100,12 +110,15 @@ public final class FicheroClient: ObservableObject {
         )
     }
 
-    /// Rebuild the client with updated middleware (called when libraryPath changes)
+    /// Rebuild the client with updated middleware (called when libraryPath changes).
+    /// #4024: reuse the originally-configured session so an injected custom/mock/pinned
+    /// transport survives library-path / baseURL changes instead of reverting to the
+    /// default real-network transport.
     private func rebuildClient() {
         self.api = Client(
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: Self.makeTransport(),
+            transport: Self.makeTransport(session: configuredSession),
             middlewares: [
                 AuthTokenMiddleware(),
                 libraryPathProvider.createMiddleware()

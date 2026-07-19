@@ -122,7 +122,7 @@ struct BatchServiceTests {
                     """
                     {"items":[{"batch_id":"batch-1","workflow_id":"workflow-1","status":"pending",
                     "total_items":2,"completed_items":0,"failed_items":0,"max_concurrent":5,
-                    "created_at":"2026-01-01T00:00:00Z"}]}
+                    "created_at":"2026-01-01T00:00:00Z"}],"count":1}
                     """.utf8
                 )
             )
@@ -139,7 +139,11 @@ struct BatchServiceTests {
         let service = makeService { request in
             #expect(request.url?.path == "/api/batches/batch-1/execute")
             #expect(request.httpMethod == "POST")
-            return response(for: request, body: Data())
+            // #4024: the generated execute-response body decodes as
+            // OpenAPIRuntime.OpenAPIValueContainer (schema `{}` in the OpenAPI doc), which
+            // accepts any valid JSON value but still requires *valid* JSON — an empty Data()
+            // body fails to decode. Return a minimal empty JSON object instead.
+            return response(for: request, body: Data("{}".utf8))
         }
 
         try await service.executeBatch(batchId: "batch-1")
