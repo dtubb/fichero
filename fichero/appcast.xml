@@ -6,6 +6,54 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.07.19</title>
+            <pubDate>Sun, 19 Jul 2026 10:22:00 -0300</pubDate>
+            <sparkle:version>2026071901</sparkle:version>
+            <sparkle:shortVersionString>2026.07.19</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h3>Improved</h3>
+<p><strong>Faster, more reliable local startup.</strong> Fichero now owns the embedded engine at
+the app level instead of tying it to a window. Heavy AI, workflow, image, and
+network imports are deferred until they are needed; TLS preparation, token
+reads, and package creation no longer block the first frame; and a proven local
+readiness result is reused without leaking across a host switch.</p>
+<p><strong>Safer imports and library lifecycle.</strong> Path-based imports are confined to
+approved roots, Move and Link modes reach the engine intact, route-based ingest
+now emits audit and change events, and completed ingest tasks are bounded. When
+a library closes in the app it also closes in the engine.</p>
+<p><strong>More dependable workflows, exports, and knowledge data.</strong> Every bundled
+workflow preset now passes the execution validator, including the paleography
+ensemble workflow. Parent-document exports include page-child transcription,
+repeated knowledge claims are stored once with a mention count, and incomplete
+task results fail instead of being reported as successful.</p>
+<h3>Fixed</h3>
+<ul>
+<li>Embedded-engine shutdown now drains live-update streams instead of force
+  killing the process after a timeout.</li>
+<li>A broken iPhone or iPad pairing can return to the QR setup screen, and a
+  single transient connection blip no longer immediately opens the outage pane.</li>
+<li>Paired remote devices can again load their permitted libraries and live
+  update streams.</li>
+<li>Spawned engines no longer inherit environment flags that can disable
+  authentication, while app-wide authorization-library requests no longer
+  carry an unrelated library header.</li>
+<li>Cancelled thumbnail requests are no longer logged as image failures.</li>
+</ul>
+<h3>Under The Hood</h3>
+<p>The dormant Swift test target was restored and expanded, and the frontend
+source tree was reorganized by app surface without changing behavior. The
+release gate now covers the real macOS test plan and the current per-platform
+Xcode schemes.</p>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.07.19/Fichero.dmg"
+                length="495476238"
+                type="application/octet-stream"
+                sparkle:edSignature="G6j1PESfxA0Cj+DtM7OPyZCN6im9dS2Ug+RyEaNfYqNe/fvo6mXHFZV3R/ElxXyarg1CyWXrzKBD3qN8P67zDg=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.07.17</title>
             <pubDate>Fri, 17 Jul 2026 04:26:52 -0300</pubDate>
             <sparkle:version>2026071701</sparkle:version>
