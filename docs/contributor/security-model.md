@@ -63,7 +63,7 @@ Important built behavior:
 
 On the SwiftUI side, this shipped surface is already consumed by:
 
-- `Views/Settings/UsersSettingsView.swift`
+- `Views/Settings/LibraryAccess/UsersSettingsView.swift`
 - `Views/Sidebar/Sharing/LibrarySharingBadge.swift`
 - `Services/ActionLibraryService.swift`
 

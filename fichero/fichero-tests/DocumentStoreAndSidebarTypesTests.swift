@@ -445,8 +445,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // The pairing surface moved into ShareSettingsView, which renders the
         // inline PairingCardView / PairedDevicesSectionView (defined in
         // BackendSettingsRemoteAccessSection.swift). No sheet, no scanner.
-        let shareSource = try Self.appSource("Views/Settings/ShareSettingsView.swift")
-        let remoteAccessSource = try Self.appSource("Views/Settings/BackendSettingsRemoteAccessSection.swift")
+        let shareSource = try Self.appSource("Views/Settings/LibraryAccess/ShareSettingsView.swift")
+        let remoteAccessSource = try Self.appSource("Views/Settings/Engine/BackendSettingsRemoteAccessSection.swift")
 
         XCTAssertTrue(shareSource.contains("PairingCardView("))
         XCTAssertTrue(shareSource.contains("PairedDevicesSectionView("))
@@ -461,7 +461,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testBackendSettingsAppliesValidEngineHostAndShowsInvalidURL() throws {
-        let settingsSource = try Self.appSource("Views/Settings/BackendSettingsView.swift")
+        let settingsSource = try Self.appSource("Views/Settings/Engine/BackendSettingsView.swift")
         let libraryManagerSource = try Self.appSource("Models/LibraryManager.swift")
         let storageSource = try Self.appSource("Services/StorageService.swift")
 

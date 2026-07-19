@@ -42,7 +42,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Models": "#1944 — 53 Swift files directly in Models",
     "Services": "#1944 — 60 Swift files directly in Services",
     "Views/Library": "#1944 — 42 Swift files directly; mixed Library concerns",
-    "Views/Settings": "settings panes absorbed AIProviders/MCPServers/About; subfolder by tab (follow-on reorg)",
     "Views/Sidebar": "#1944 — 27 Swift files directly; mixed Sidebar concerns",
 }
 
