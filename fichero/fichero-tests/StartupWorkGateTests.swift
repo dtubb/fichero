@@ -22,6 +22,20 @@ struct StartupWorkGateTests {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    // #4024: EmbeddedBackendService.swift was split into
+    // EmbeddedBackendService.swift (core) + +Lifecycle/+Ports/+Readiness/
+    // +Spawn/+TLS/+Tokens.swift. The TLS-prep function (nonisolated,
+    // Task.detached, waitUntilExit()) now lives in
+    // EmbeddedBackendService+TLS.swift, so read core + that extension.
+    private static func embeddedBackendServiceSource() throws -> String {
+        try [
+            "Services/EmbeddedBackendService.swift",
+            "Services/EmbeddedBackendService+TLS.swift"
+        ]
+        .map { try Self.appSource($0) }
+        .joined(separator: "\n")
+    }
+
     /// Assert `needle` appears within `window` characters *before* the first
     /// occurrence of `anchor` — i.e. `anchor` is lexically enclosed by `needle`.
     /// A cheap "B is wrapped by A" check that survives whitespace/formatting churn.
@@ -104,7 +118,7 @@ struct StartupWorkGateTests {
     /// main actor — the cache lookup stays on main, the subprocess is `Task.detached`.
     @Test("the TLS-prep subprocess is dispatched off the main actor")
     func tlsPrepRunsOffMainActor() throws {
-        let source = try Self.appSource("Services/EmbeddedBackendService.swift")
+        let source = try Self.embeddedBackendServiceSource()
         try Self.expectEnclosedBy(
             source,
             anchor: "runEngineTLSPrep(",
@@ -119,7 +133,7 @@ struct StartupWorkGateTests {
     /// This pins the isolation, so demoting it back to main-actor fails loudly.
     @Test("the launch TLS-prep function is nonisolated, keeping its blocking wait off-main")
     func tlsPrepBlockingWaitIsOffMain() throws {
-        let source = try Self.appSource("Services/EmbeddedBackendService.swift")
+        let source = try Self.embeddedBackendServiceSource()
         #expect(
             source.contains("nonisolated private static func runEngineTLSPrep"),
             "runEngineTLSPrep must stay nonisolated so its waitUntilExit() cannot run on @MainActor (#3936)"

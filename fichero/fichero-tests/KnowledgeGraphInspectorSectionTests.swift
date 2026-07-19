@@ -81,8 +81,12 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testInspectorEntitiesTabUsesInspectorEndpointSourceOfTruth() throws {
+        // #4024: DocumentInspectorEntitiesTab was split; the store-loading call
+        // now lives in the +Scope.swift sibling, not the core file.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Scope.swift"
         )
         // After the EntityStore migration, the view calls the store; the store calls the endpoint.
         let storeSource = try Self.appSource("Models/EntityStore.swift")
@@ -95,8 +99,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testInspectorEntitiesTabDistinguishesLoadedButHiddenEntities() throws {
+        // #4024: the empty-state copy now lives in the +Rows.swift sibling.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Rows.swift"
         )
 
         XCTAssertTrue(source.contains("Loaded \\(scopedEntities.count) entities, but the current filter hides every kind."))
@@ -104,8 +111,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testInspectorListRowsUseFullRowHitTargets() throws {
+        // #4024: the row modifiers moved into the +Rows.swift sibling.
         let entitiesSource = try Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Rows.swift"
         )
         let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
         let artifactSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactListView.swift")
@@ -296,7 +306,9 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
         )
-        let serviceSource = try Self.appSource("Services/ArtifactService.swift")
+        // #4024: the batch-curation generated call moved out of ArtifactService
+        // into the dedicated KGCurationService.
+        let serviceSource = try Self.appSource("Services/KGCurationService.swift")
         // After the EntityStore migration, bulk curation calls live in EntityStore, not the view.
         let storeSource = try Self.appSource("Models/EntityStore.swift")
 
@@ -309,8 +321,14 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testInspectorEntitiesTabSupportsOwnProcessDragDropAndTypeChange() throws {
+        // #4024: drag/drop modifiers moved to +Rows.swift; merge/reclassify
+        // plan assignment moved to +Actions.swift.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Rows.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Actions.swift"
         )
         let sharedSource = try Self.appSource(
             "Views/Inspector/Knowledge/KnowledgeGraphSupport.swift"
@@ -326,8 +344,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testInspectorEntityMergeKeepsFocusOnSurvivorAfterReload() throws {
+        // #4024: the post-merge focus-restore logic moved to +Actions.swift.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Actions.swift"
         )
 
         XCTAssertTrue(source.contains("restoreSelectionAfterEntityRefresh(entityId: plan.survivorId)"))
@@ -336,19 +357,30 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testInspectorEntityReclassifyKeepsFocusAfterDropRefresh() throws {
+        // #4024: the post-reclassify focus-restore logic moved to +Actions.swift.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Actions.swift"
         )
 
         XCTAssertTrue(source.contains("restoreSelectionAfterEntityRefresh(entityId: plan.entityId)"))
     }
 
     func testInspectorEntitiesTabUsesSharedBottomMiniToolbarForSelectionActions() throws {
+        // #4024: entitiesMiniToolbar and its contents moved to +Rows.swift.
+        // NOTE: the moved declaration is `var entitiesMiniToolbar` (no `private`)
+        // because it must be visible from the core file's body across the file
+        // split (Swift `private` is file-scoped). The literal "private var
+        // entitiesMiniToolbar…" assertion below is updated below (incidental `private` dropped) —
+        // resolved in #4024 by dropping the incidental `private` (split forces internal); behavioral assertion unchanged.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Rows.swift"
         )
 
-        XCTAssertTrue(source.contains("private var entitiesMiniToolbar: some View"))
+        XCTAssertTrue(source.contains("var entitiesMiniToolbar: some View"))
         XCTAssertTrue(source.contains("InspectorBottomMiniToolbar(statusText: entitiesToolbarStatusText)"))
         XCTAssertTrue(source.contains("if entitySelection.count > 1 {"))
         XCTAssertTrue(source.contains("mergeActionMenu(targetEntities: selectedEntities, menuTitle: \"Merge\")"))
@@ -356,8 +388,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testInspectorEntitiesTabReadsPerDocumentEntityStoreBuckets() throws {
+        // #4024: the per-document bucket reads moved to +Scope.swift.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Scope.swift"
         )
         let storeSource = try Self.appSource("Models/EntityStore.swift")
 
@@ -394,27 +429,54 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testKnowledgeGraphTextDigestUsesStableEntryIds() throws {
+        // #4024: TextDigestEntry moved to +Grouping.swift, the ForEach that
+        // renders it moved to +Views.swift.
+        // NOTE: TextDigestEntry is declared `struct` (no `private`) in
+        // +Grouping.swift because it must be visible from +Views.swift and the
+        // core file's @State across the file split (Swift `private` is
+        // file-scoped) — see the "Promoted `private` → internal" comment there.
+        // The literal "private struct TextDigestEntry…" assertion below will
+        // still fail post-repoint — resolved (#4024): dropped incidental `private`; split forces internal; behavioral assertion unchanged.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Grouping.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Views.swift"
         )
 
-        XCTAssertTrue(source.contains("private struct TextDigestEntry: Identifiable"))
+        XCTAssertTrue(source.contains("struct TextDigestEntry: Identifiable"))
         XCTAssertTrue(source.contains("id: item.id"))
         XCTAssertTrue(source.contains("ForEach(entries) { entry in"))
         XCTAssertFalse(source.contains("ForEach(entries, id: \\.displayName)"))
     }
 
     func testInspectorDeleteActionsUseGeneratedEntityAndClaimClients() throws {
+        // #4024: delete-button UI and wiring split across siblings; the
+        // generated client calls moved out of ArtifactService into
+        // EntityService+ClaimEntityCRUD.
         let entitiesSource = try Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Rows.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Menus.swift"
         )
         let claimsSource = try Self.appSource(
             "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Toolbar.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Views.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Actions.swift"
         )
         let rowSource = try Self.appSource(
             "Views/Inspector/Knowledge/EntityKindRow.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/EntityKindRow+Actions.swift"
         )
-        let serviceSource = try Self.appSource("Services/ArtifactService.swift")
+        let serviceSource = try Self.appSource("Services/EntityService+ClaimEntityCRUD.swift")
 
         // deleteEntity now goes through EntityStore; the view still owns the delete button UI.
         let storeSource = try Self.appSource("Models/EntityStore.swift")
@@ -594,13 +656,23 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testKnowledgeGraphInspectorSectionUsesGeneratedClaimBulkCurationOnly() throws {
+        // #4024: bulk-curation/merge/prune wiring split into +Actions.swift and
+        // +Toolbar.swift; the row's context-menu wiring moved to
+        // EntityKindRow+Actions.swift; the generated client calls moved out of
+        // ArtifactService into the dedicated KGCurationService.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Actions.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Toolbar.swift"
         )
         let rowSource = try Self.appSource(
             "Views/Inspector/Knowledge/EntityKindRow.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/EntityKindRow+Actions.swift"
         )
-        let serviceSource = try Self.appSource("Services/ArtifactService.swift")
+        let serviceSource = try Self.appSource("Services/KGCurationService.swift")
 
         XCTAssertTrue(source.contains("batchSetClaimCurationState"))
         XCTAssertTrue(source.contains("batchCreateClaimRules"))
@@ -809,12 +881,19 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     /// lives in two views under one @AppStorage key — both must declare the same
     /// `false` default, or the key's registered default is ambiguous.
     func testInspectorScopeDefaultsToThisItemOnly() throws {
+        // #4024: both declarations still live in their respective core files
+        // post-split (no path change needed). NOTE: neither declares `private`
+        // any more — the split forced `includeChildren` to at least internal
+        // visibility so sibling extension files (e.g. DisplayAttributesStrip+*)
+        // can read it (Swift `private` is file-scoped). The `declaration`
+        // literal below still requires `private`, so this assertion will still
+        // fail post-repoint — resolved (#4024): dropped incidental `private`; split forces internal; behavioral assertion unchanged.
         let kgSection = try Self.appSource(
             "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
         )
         let attributesStrip = try Self.appSource("Views/Inspector/DisplayAttributesStrip.swift")
         let declaration =
-            #"@AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = false"#
+            #"@AppStorage("inspector.scope.includeChildren") var includeChildren: Bool = false"#
         XCTAssertTrue(
             kgSection.contains(declaration),
             "KG section must default the inspector scope to this-item-only (#2697)"
@@ -825,7 +904,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         )
         // Guard the invariant: no declaration of this key may default to true.
         let staleDefault =
-            #"@AppStorage("inspector.scope.includeChildren") private var includeChildren: Bool = true"#
+            #"@AppStorage("inspector.scope.includeChildren") var includeChildren: Bool = true"#
         XCTAssertFalse(kgSection.contains(staleDefault))
         XCTAssertFalse(attributesStrip.contains(staleDefault))
     }
@@ -835,9 +914,20 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     /// row is gated on a non-zero count so it appears only when the page has
     /// entities.
     func testAttributesStripSurfacesEntitiesByDefault() throws {
-        let strip = try Self.appSource("Views/Inspector/DisplayAttributesStrip.swift")
+        // #4024: the @AppStorage declaration stays in the core file; the
+        // gating filter moved to +Attributes.swift. NOTE: the declaration is
+        // `var shownKGRaw` (no `private`) because it must be readable from
+        // sibling extension files (e.g. +Attributes.swift) across the file
+        // split (Swift `private` is file-scoped). The literal
+        // "…private var shownKGRaw…" assertion below still requires `private`,
+        // so the incidental `private` was dropped (#4024); split forces internal; behavioral assertion unchanged.
+        let strip = try Self.appSource(
+            "Views/Inspector/DisplayAttributesStrip.swift"
+        ) + Self.appSource(
+            "Views/Inspector/DisplayAttributesStrip+Attributes.swift"
+        )
         XCTAssertTrue(
-            strip.contains(#"@AppStorage("inspector.attributeStrip.kg") private var shownKGRaw: String = "entities""#),
+            strip.contains(#"@AppStorage("inspector.attributeStrip.kg") var shownKGRaw: String = "entities""#),
             "KG summaries must default to surfacing entities (#2696)"
         )
         XCTAssertTrue(
@@ -919,8 +1009,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     // MARK: - Inline S/V/O editing (#3463)
 
     func testKGClaimRowEditsSVOInlineNotInASheet() throws {
+        // #4024: the inline SVO editor wiring moved to +ClaimBlock.swift.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/EntityKindRow.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/EntityKindRow+ClaimBlock.swift"
         )
 
         // "Edit S/V/O…" expands the row into the inline editor (reusing
@@ -978,8 +1071,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     // MARK: - Native List conversion (#3425, item 14)
 
     func testKGListModeUsesNativeListSelectionWithKindSections() throws {
+        // #4024: the native List body and its modifiers moved to +Views.swift.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Views.swift"
         )
 
         // List mode is a native List(selection:) so it gets arrow-key nav +
@@ -992,8 +1088,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testKGListWiresSpaceKeySourceQuickLook() throws {
+        // #4024: the space-key handling and quick-look popover moved to +Views.swift.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Views.swift"
         )
 
         // Space on a selected claim opens the source quick-look popover, reusing
@@ -1004,8 +1103,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testKGClaimRowDefersSingleClickSelectionToTheList() throws {
+        // #4024: the double-click gesture wiring moved to +ClaimBlock.swift.
         let source = try Self.appSource(
             "Views/Inspector/Knowledge/EntityKindRow.swift"
+        ) + Self.appSource(
+            "Views/Inspector/Knowledge/EntityKindRow+ClaimBlock.swift"
         )
 
         // The row no longer owns single-click selection (the List does); it keeps

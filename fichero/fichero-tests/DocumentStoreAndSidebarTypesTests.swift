@@ -320,7 +320,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testLibraryBrowserToggleCopyUsesExplicitLibraryName() throws {
         let toolbarSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        let menuSource = try Self.appSource("Views/Shell/Menu/ViewMenuCommands.swift")
+        // #4024: Show/Hide Library Browser pane-toggle copy moved to ViewMenuPaneSections.swift.
+        let menuSource = try Self.appSource("Views/Shell/Menu/ViewMenuPaneSections.swift")
 
         XCTAssertTrue(toolbarSource.contains("placement: .principal"))
         XCTAssertTrue(toolbarSource.contains("LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName"))
@@ -492,7 +493,9 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let menuSource = try Self.appSource("FicheroApp.swift")
         let appStateSource = try Self.appSource("App/AppState.swift")
         let windowSource = try Self.appSource("App/LibraryWindow.swift")
-        let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
+        // #4024: the Notes tab wiring (DocumentNotesTab(document: doc)) now lives in
+        // DocumentInspector+Sections.swift, split out of DocumentInspector.swift.
+        let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector+Sections.swift")
 
         // The Notes tab routes to the per-document notes view.
         XCTAssertTrue(inspectorSource.contains("DocumentNotesTab(document: doc)"))

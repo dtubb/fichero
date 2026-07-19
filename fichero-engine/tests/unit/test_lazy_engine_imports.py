@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import tempfile
 import textwrap
 from pathlib import Path
 
@@ -67,14 +68,33 @@ MODULE_BUDGET = 850
 
 
 def _run(code: str) -> str:
-    """Run *code* in a clean interpreter with src/ on the path."""
-    result = subprocess.run(
-        [sys.executable, "-c", textwrap.dedent(code)],
-        capture_output=True,
-        text=True,
-        env={"PYTHONPATH": _SRC, "PATH": "/usr/bin:/bin", "HOME": str(Path.home())},
-        timeout=300,
-    )
+    """Run *code* in a clean interpreter with src/ on the path.
+
+    #4024: the subprocess gets an ISOLATED throwaway HOME (and the canonical
+    test isolation env from conftest) so warm-up code that opens the app-wide
+    ``~/Library/Application Support/com.fichero.fichero/app.duckdb`` can never
+    read or lock the user's REAL data — which collided with the running backend.
+    """
+    with tempfile.TemporaryDirectory(prefix="fichero-lazy-home-") as home:
+        base = Path(home) / "base"
+        base.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            [sys.executable, "-c", textwrap.dedent(code)],
+            capture_output=True,
+            text=True,
+            env={
+                "PYTHONPATH": _SRC,
+                "PATH": "/usr/bin:/bin",
+                # HOME drives Path.home() → app.duckdb location; point it at the
+                # throwaway dir so nothing touches real user data.
+                "HOME": home,
+                "FICHERO_BASE_PATH": str(base),
+                "FICHERO_DISABLE_AUTH": "1",
+                "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1",
+                "FICHERO_FEATURE_TIER": "dev",
+            },
+            timeout=300,
+        )
     if result.returncode != 0:
         pytest.fail(f"subprocess failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
     return result.stdout.strip()

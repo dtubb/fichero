@@ -12,6 +12,20 @@ final class DocumentInspectorTests: XCTestCase {
         return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
     }
 
+    // #4024: DocumentInspectorEntitiesTab.swift was split into sibling
+    // extension files (+Actions/+Menus/+Rows/+Scope/+SupportTypes). Concatenate
+    // all of them so content-presence assertions still see the whole tab.
+    private static func entitiesTabSource() throws -> String {
+        try [
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift",
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Actions.swift",
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Menus.swift",
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Rows.swift",
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Scope.swift",
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+SupportTypes.swift"
+        ].map(appSource).joined(separator: "\n")
+    }
+
     func testClampedSelectedTabFallsBackWhenEditsUnavailable() {
         let folder = Document(
             id: "folder-1",
@@ -78,7 +92,8 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testInspectorListPanesUseSharedBottomMiniToolbar() throws {
         let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
-        let entitiesSource = try Self.appSource("Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
+        // #4024: entities tab content lives across split sibling files now.
+        let entitiesSource = try Self.entitiesTabSource()
         let artifactsSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
         let citationsSource = try Self.appSource("Views/Inspector/Knowledge/Citations/CitationsInspectorPane.swift")
         let annotationsSource = try Self.appSource("Views/Inspector/Notes/Annotations/AnnotationsInspectorPane.swift")
@@ -95,7 +110,8 @@ final class DocumentInspectorTests: XCTestCase {
     func testEntitySearchRoutingUsesTypedStateInsteadOfNotificationBus() throws {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         let sharedSource = try Self.appSource("Views/Inspector/Knowledge/KnowledgeGraphSupport.swift")
-        let entitiesSource = try Self.appSource("Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
+        // #4024: entities tab content lives across split sibling files now.
+        let entitiesSource = try Self.entitiesTabSource()
 
         XCTAssertTrue(sharedSource.contains("final class EntitySearchState"))
         XCTAssertTrue(contentSource.contains(".onChange(of: entitySearchState.requestID)"))
@@ -118,7 +134,8 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testEntityListNameUsesSearchClickWithDoubleClickRename() throws {
-        let entitiesSource = try Self.appSource("Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
+        // #4024: entities tab content lives across split sibling files now.
+        let entitiesSource = try Self.entitiesTabSource()
 
         XCTAssertTrue(entitiesSource.contains("Button(\"Find in Library\")"))
         XCTAssertTrue(entitiesSource.contains("postSearch("))
@@ -137,7 +154,9 @@ final class DocumentInspectorTests: XCTestCase {
             "Views/Inspector/Notes/DocumentInterpretationsTab.swift"
         )
         let interpretationStoreSource = try Self.appSource("Models/InterpretationStore.swift")
-        let serviceSource = try Self.appSource("Services/ArtifactService.swift")
+        // #4024: the interpretation endpoints moved out of ArtifactService into
+        // EntityService+DocumentMetadata.swift.
+        let serviceSource = try Self.appSource("Services/EntityService+DocumentMetadata.swift")
 
         XCTAssertTrue(citationsSource.contains("@Environment(CitationStore.self)"))
         XCTAssertFalse(citationsSource.contains("LibraryManager.shared.globalLibrary?.citationStore"))
@@ -156,7 +175,10 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testFocusedEntityRoutesToEntitiesTabInsteadOfReplacingInspector() throws {
+        // #4024: DocumentInspector.swift was split; the entities-focus routing
+        // (`selectedEntityId:`) now lives in the +Sections sibling.
         let source = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
+            + (try Self.appSource("Views/Inspector/Document/DocumentInspector+Sections.swift"))
 
         XCTAssertTrue(source.contains("selectedTab = .entities"))
         XCTAssertTrue(source.contains("selectedEntityId: kgFocusState.focusedEntityId"))
@@ -198,7 +220,8 @@ final class DocumentInspectorTests: XCTestCase {
         let annotationList = try Self.appSource("Views/Inspector/Notes/Annotations/AnnotationListView.swift")
         let citationList = try Self.appSource("Views/Inspector/Knowledge/Citations/CitationListView.swift")
         let noteList = try Self.appSource("Views/Library/Notes/NoteListView.swift")
-        let entitiesSource = try Self.appSource("Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
+        // #4024: entities tab content lives across split sibling files now.
+        let entitiesSource = try Self.entitiesTabSource()
 
         XCTAssertTrue(inspectorSource.contains("func inspectorListRowTarget()"))
         XCTAssertTrue(artifactList.contains(".inspectorListRowTarget()"))
@@ -346,9 +369,11 @@ final class DocumentInspectorTests: XCTestCase {
         XCTAssertTrue(inspector.contains("\"inspectorSectionBar\""))
 
         // Provenance quick-look popover is wired on KG claim rows (#3449/#3457).
+        // #4024: EntityKindRow.swift was split; the provenance popover + hover
+        // now live in the +ClaimBlock sibling.
         let claimRow = try Self.appSource(
             "Views/Inspector/Knowledge/EntityKindRow.swift"
-        )
+        ) + (try Self.appSource("Views/Inspector/Knowledge/EntityKindRow+ClaimBlock.swift"))
         XCTAssertTrue(claimRow.contains("SourceProvenanceCard("))
         XCTAssertTrue(claimRow.contains(".onHover"))
     }
@@ -374,7 +399,10 @@ final class DocumentInspectorTests: XCTestCase {
     // MARK: - Content-tab artifacts on the store (#3427)
 
     func testDisplayAttributesStripObservesArtifactStoreNotService() throws {
+        // #4024: DisplayAttributesStrip.swift was split; setScope() now lives
+        // in the +Values sibling.
         let source = try Self.appSource("Views/Inspector/DisplayAttributesStrip.swift")
+            + (try Self.appSource("Views/Inspector/DisplayAttributesStrip+Values.swift"))
 
         // The content-tab strip reads the shared ArtifactStore, not a view-local
         // ArtifactService fetch (#3427).
