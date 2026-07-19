@@ -72,8 +72,8 @@ SANCTIONED_RAW_TRANSPORT: dict[str, str] = {
         "#3106 — readiness bootstrap must probe health/registry before the "
         "generated client and signed-in library context are usable"
     ),
-    "ArtifactService.swift": (
-        "#1943 — same file also hosts EntityService; remaining raw helpers "
+    "EntityService.swift": (
+        "#1943 — remaining raw helpers (split out of ArtifactService.swift) "
         "decode flexible citation/classification/hermeneutics payloads that generated "
         "types expose as untyped containers"
     ),

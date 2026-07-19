@@ -61,7 +61,7 @@ GRANDFATHERED_FILES: set[str] = {
     "Services/WorkflowStreamService.swift",     # SSE
     # MIGRATE (delete when the sub-issue lands)
     "Services/ImageEditingService.swift",  # #3028 (binary preview KEEP)
-    "Services/ArtifactService.swift",  # #3029 (entity free-form-container KEEP)
+    "Services/EntityService.swift",  # #3029 (entity free-form-container KEEP; split out of ArtifactService.swift)
     "Services/WorkflowService.swift",  # #3029 (visualization.png binary KEEP; op mis-declares JSON)
 }
 
