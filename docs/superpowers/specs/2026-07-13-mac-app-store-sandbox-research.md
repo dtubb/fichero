@@ -181,7 +181,7 @@ The library folder (DuckDB + files) is user-chosen, so under the sandbox:
 
 ## Option B: two apps (client-only MAS app + full DMG app)
 
-**The repo is already most of the way to a client-only mode.** Verified in source: `EngineConfig.EngineProvisioningStrategy` has `configuredRemote` and `iosCompanion` cases that connect to an explicit/paired host and *never spawn*; the iOS build already IS the client-only app (`#else` branch: "iOS never runs a local engine"). Supporting UI exists: `Views/Components/BackendConnectionView.swift`, `Views/Settings/LibraryAccess/MacRemoteClientPairingSection.swift`, `Models/PairedHostEndpoints.swift`, `PairingCardView.swift` (QR pairing / Bonjour / tailscale-serve story). Option B's MAS app ≈ the macOS build with `releaseEmbedded` compiled out — engineering cost is genuinely low.
+**The repo is already most of the way to a client-only mode.** Verified in source: `EngineConfig.EngineProvisioningStrategy` has `configuredRemote` and `iosCompanion` cases that connect to an explicit/paired host and *never spawn*; the iOS build already IS the client-only app (`#else` branch: "iOS never runs a local engine"). Supporting UI exists: `Views/Components/BackendConnectionView.swift`, `Views/Settings/Sharing/MacRemoteClientPairingSection.swift`, `Models/PairedHostEndpoints.swift`, `PairingCardView.swift` (QR pairing / Bonjour / tailscale-serve story). Option B's MAS app ≈ the macOS build with `releaseEmbedded` compiled out — engineering cost is genuinely low.
 
 **1. Is a client-only MAS app acceptable to App Review?** Yes, as a category — with the 4.2 caveat below. This is category (b) precedent, not an Apple statement: **Sequel Ace** is a sandboxed MySQL/MariaDB client on the Mac App Store (https://apps.apple.com/us/app/sequel-ace/id1518036000) that is useless without a database server the user runs themselves (locally or remotely) — architecturally identical to Fichero-as-client. **Plex** ships its client on Apple's stores while the media server is downloaded from plex.tv (https://apps.apple.com/us/app/plex-watch-live-tv-and-movies/id383457673). And Guideline 4.2.7 (remote-desktop clients to a "user-owned host device") shows Apple explicitly contemplates client-to-user's-own-machine apps, albeit in an iOS streaming context.
 
@@ -246,4 +246,4 @@ Ranked by (probability × cost). "Rejection likelihood" = my judgment call, cate
 - `fichero/fichero/Services/EmbeddedBackendService.swift` (full)
 - `fichero/fichero/App/SparkleUpdater.swift`, `FicheroApp.swift` (Sparkle sites, via grep)
 - `fichero/fichero-api-client/Sources/FicheroAPIClient/AuthTokenMiddleware.swift` (token path)
-- Existence checks: `Views/Components/BackendConnectionView.swift`, `Views/Settings/LibraryAccess/MacRemoteClientPairingSection.swift`, `Models/PairedHostEndpoints.swift`
+- Existence checks: `Views/Components/BackendConnectionView.swift`, `Views/Settings/Sharing/MacRemoteClientPairingSection.swift`, `Models/PairedHostEndpoints.swift`

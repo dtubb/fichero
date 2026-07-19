@@ -163,7 +163,7 @@ struct SettingsView: View {
         case .engine, .backend:
             EngineGroupSettingsView()
         case .connect, .users, .capture:
-            LibraryAccessSettingsView()
+            SharingSettingsView()
         case .about:
             #if !canImport(AppKit)
             AboutView()
@@ -173,7 +173,7 @@ struct SettingsView: View {
         case .history:
             AuditHistorySettingsTab()
         case .backups:
-            BackupsSettingsTab()
+            SnapshotsSettingsTab()
         }
     }
     // swiftlint:enable cyclomatic_complexity
@@ -413,7 +413,7 @@ private struct EngineGroupSettingsView: View {
     }
 }
 
-private enum LibraryAccessSection: String, CaseIterable, SettingsGroupSection {
+private enum SharingSection: String, CaseIterable, SettingsGroupSection {
     case people = "People"
     case devices = "Devices"
     case capture = "Capture"
@@ -424,17 +424,17 @@ private enum LibraryAccessSection: String, CaseIterable, SettingsGroupSection {
 /// Library Access tab (#3396): who/what can reach a library — the former Connect
 /// (device pairing / QR), Users (people/roles), and Capture (capture permissions)
 /// tabs, consolidated. Reuses each pane unchanged.
-private struct LibraryAccessSettingsView: View {
-    @State private var selection: LibraryAccessSection = .people
+private struct SharingSettingsView: View {
+    @State private var selection: SharingSection = .people
 
-    private var availableSections: [LibraryAccessSection] {
+    private var availableSections: [SharingSection] {
         // People / Devices (pairing + QR) / Capture are all real, keepable
         // capabilities (#3776) — the user's control is the sharing toggle inside
         // Devices, not whether the pane is compiled in. Their existence no longer
         // hangs off per-feature migration flags, which is what made the QR vanish
         // for beta testers (#3811). The sidebar row gate
         // (`SettingsView.showsLibraryAccessSettings`) decides reachability per build.
-        var sections: [LibraryAccessSection] = [.people]
+        var sections: [SharingSection] = [.people]
         #if canImport(AppKit)
         sections.append(.devices)
         #endif

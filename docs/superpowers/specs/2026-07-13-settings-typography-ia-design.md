@@ -32,7 +32,7 @@ Not a green field. Each piece extends existing mechanisms.
 - #3396 already introduced the reusable **`SettingsGroupContainer<Section>`**:
   a segmented sub-picker over available sub-sections, then the selected
   section's *unchanged* settings view. `EngineGroupSettingsView` folds
-  Engine+Backend; `LibraryAccessSettingsView` folds People/Devices/Capture.
+  Engine+Backend; `SharingSettingsView` folds People/Devices/Capture.
   Availability is `FeatureManager`-gated and platform-gated (`#if canImport(AppKit)`).
 - Every pane (`AISettingsView`, `EngineSettingsView`, `UsersSettingsView`, …)
   is an independent `View` that reads its own `@Observable`/`@AppStorage` state.

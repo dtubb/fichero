@@ -15,7 +15,7 @@ import SwiftUI
 /// ponytail: there is no backend snapshot-*schedule* endpoint (the only periodic
 /// snapshotter is the engine's internal task, not user-configurable over HTTP),
 /// so this view deliberately omits any schedule control.
-struct BackupsView: View {
+struct SnapshotsView: View {
     let store: BackupStore
 
     @State private var reason = ""
@@ -182,13 +182,13 @@ struct BackupsView: View {
 /// Settings → Backups tab. Reads the backup store off the current library via
 /// the `libraryManager` env object (the only stores the Settings scene injects),
 /// so it never trips the #2051 missing-env-object trap.
-struct BackupsSettingsTab: View {
+struct SnapshotsSettingsTab: View {
     @Environment(LibraryManager.self) var libraryManager
 
     var body: some View {
         Group {
             if let library = libraryManager.globalLibrary {
-                BackupsView(store: library.backupStore)
+                SnapshotsView(store: library.backupStore)
             } else {
                 ContentUnavailableView(
                     "No library open",

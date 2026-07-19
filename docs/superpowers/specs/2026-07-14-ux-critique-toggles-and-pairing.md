@@ -209,7 +209,7 @@ Verified instances where a failed/false precondition renders *nothing* (or somet
 | 9 | Menu commands | New Comparison/Chain/Chat/Workflow/Schedule menu items silently absent per flag — consistent with staged features, but combined with zero UI for flags, a user can't discover *why* | `FicheroApp.swift:425-450` |
 | 10 | Pane A pairing error swallows status | `pairingError` replaces the status message slot (`statusMessage: pairingStatusMessage ?? pairingError`) — an error can mask the "what to do next" text | `PairingCardView.swift:57` |
 
-Counter-examples already in the codebase worth copying (the pattern exists, it's just unevenly applied): `AISettingsView`'s "Backend not connected" label (`AISettingsView.swift:48-54`), `UsersSettingsView`/`BackupsView`'s `ContentUnavailableView`s with reasons (`UsersSettingsView.swift:24-29`, `BackupsView.swift:90-101`), and `SettingsGroupContainer`'s selection-clamping so a hidden segment "never shows blank" (`SettingsView.swift:262-269`).
+Counter-examples already in the codebase worth copying (the pattern exists, it's just unevenly applied): `AISettingsView`'s "Backend not connected" label (`AISettingsView.swift:48-54`), `UsersSettingsView`/`SnapshotsView`'s `ContentUnavailableView`s with reasons (`UsersSettingsView.swift:24-29`, `SnapshotsView.swift:90-101`), and `SettingsGroupContainer`'s selection-clamping so a hidden segment "never shows blank" (`SettingsView.swift:262-269`).
 
 ## 5. What Settings should even contain
 

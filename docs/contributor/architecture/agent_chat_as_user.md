@@ -18,7 +18,7 @@ In the target design, chat can do anything the app can do, but only by going thr
 - App-wide sessions already exist as `AccountSession` rows in `fichero-engine/src/fichero/models.py:1015-1027`.
 - Per-library roles already exist as `LibraryRole` rows in `fichero-engine/src/fichero/models.py:1045-1055`.
 - Per-target ACL overrides already exist as `LibraryAclOverride` rows in `fichero-engine/src/fichero/models.py:1058-1069`.
-- The shipped role vocabulary is `owner`, `editor`, and `viewer` in `fichero-engine/src/fichero/authz.py:23-30`, and the macOS UI surfaces the same three roles in `fichero/fichero/Views/Settings/LibraryAccess/UsersSettingsView.swift:343-385`.
+- The shipped role vocabulary is `owner`, `editor`, and `viewer` in `fichero-engine/src/fichero/authz.py:23-30`, and the macOS UI surfaces the same three roles in `fichero/fichero/Views/Settings/Sharing/UsersSettingsView.swift:343-385`.
 - Account/session routes already exist behind multi-user mode: login/logout/me in `fichero-engine/src/fichero/api/routes/auth_accounts.py:243-300`, create/list/update users in `fichero-engine/src/fichero/api/routes/auth_accounts.py:303-380`.
 
 ### 2. The audited mutation choke point already exists
@@ -146,7 +146,7 @@ This part is **TO BUILD**.
 
 What exists today:
 
-- There is already a settings surface for users/roles in `fichero/fichero/Views/Settings/LibraryAccess/UsersSettingsView.swift`.
+- There is already a settings surface for users/roles in `fichero/fichero/Views/Settings/Sharing/UsersSettingsView.swift`.
 - There is already a settings surface for MCP server management in `fichero/fichero/Views/Settings/MCP/` and backend support in `api/routes/mcp_servers.py:163-257`.
 
 What does **not** exist today:
