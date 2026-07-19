@@ -28,8 +28,11 @@ from matrix_guardrail_common import (
 )
 
 SWIFT_SOURCES = [
-    *sorted((ROOT / "fichero" / "fichero" / "Services").rglob("*Service.swift")),
-    *sorted((ROOT / "fichero" / "fichero" / "Models").glob("*Store.swift")),
+    # `*Service*.swift` (not `*Service.swift`) so per-concern extension files like
+    # EntityService+Claims.swift are scanned too — endpoint wiring lives in them
+    # after the service splits (#1943).
+    *sorted((ROOT / "fichero" / "fichero" / "Services").rglob("*Service*.swift")),
+    *sorted((ROOT / "fichero" / "fichero" / "Models").glob("*Store*.swift")),
 ]
 CLI_SOURCES = sorted((ROOT / "fichero-engine" / "src" / "fichero" / "cli").rglob("*.py"))
 KNOWN_GAPS = load_known_gaps(
