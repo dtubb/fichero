@@ -2,6 +2,47 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.18
+
+### Improved
+
+**Faster, more reliable local startup.** Fichero now owns the embedded engine at
+the app level instead of tying it to a window. Heavy AI, workflow, image, and
+network imports are deferred until they are needed; TLS preparation, token
+reads, and package creation no longer block the first frame; and a proven local
+readiness result is reused without leaking across a host switch.
+
+**Safer imports and library lifecycle.** Path-based imports are confined to
+approved roots, Move and Link modes reach the engine intact, route-based ingest
+now emits audit and change events, and completed ingest tasks are bounded. When
+a library closes in the app it also closes in the engine.
+
+**More dependable workflows, exports, and knowledge data.** Every bundled
+workflow preset now passes the execution validator, including the paleography
+ensemble workflow. Parent-document exports include page-child transcription,
+repeated knowledge claims are stored once with a mention count, and incomplete
+task results fail instead of being reported as successful.
+
+### Fixed
+
+- Embedded-engine shutdown now drains live-update streams instead of force
+  killing the process after a timeout.
+- A broken iPhone or iPad pairing can return to the QR setup screen, and a
+  single transient connection blip no longer immediately opens the outage pane.
+- Paired remote devices can again load their permitted libraries and live
+  update streams.
+- Spawned engines no longer inherit environment flags that can disable
+  authentication, while app-wide authorization-library requests no longer
+  carry an unrelated library header.
+- Cancelled thumbnail requests are no longer logged as image failures.
+
+### Under The Hood
+
+The dormant Swift test target was restored and expanded, and the frontend
+source tree was reorganized by app surface without changing behavior. The
+release gate now covers the real macOS test plan and the current per-platform
+Xcode schemes.
+
 ## 2026.07.17.2
 
 ### Improved

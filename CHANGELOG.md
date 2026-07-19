@@ -1,5 +1,100 @@
 # Changelog
 
+## 2026-07-18
+
+**Performance**
+
+- Cut work from the embedded-engine boot path by lazily importing the AI,
+  workflow, MCP, HTTP, image, and template stacks
+  ([#3950](https://github.com/dtubb/fichero/issues/3950),
+  [#3976](https://github.com/dtubb/fichero/issues/3976),
+  [#3985](https://github.com/dtubb/fichero/issues/3985)).
+- Move TLS preparation, API-token reads, and package creation off the first-frame
+  path; avoid rebuilding empty search keys; and reuse readiness only for the
+  local engine generation that proved it
+  ([#3936](https://github.com/dtubb/fichero/issues/3936),
+  [#3948](https://github.com/dtubb/fichero/issues/3948),
+  [#3974](https://github.com/dtubb/fichero/issues/3974),
+  [#3195](https://github.com/dtubb/fichero/issues/3195),
+  [#3975](https://github.com/dtubb/fichero/issues/3975),
+  [#3987](https://github.com/dtubb/fichero/issues/3987)).
+
+**Security And Correctness**
+
+- Confine path-based ingest to approved roots, preserve explicit Move/Link
+  intent, route ingest through audit/change events, and bound completed task
+  tracking ([#3268](https://github.com/dtubb/fichero/issues/3268),
+  [#3270](https://github.com/dtubb/fichero/issues/3270),
+  [#3274](https://github.com/dtubb/fichero/issues/3274),
+  [#3283](https://github.com/dtubb/fichero/issues/3283)).
+- Strip inherited Fichero environment flags from the embedded engine and keep
+  app-wide authorization-library requests independent of the active library
+  header ([#3933](https://github.com/dtubb/fichero/issues/3933),
+  [#3942](https://github.com/dtubb/fichero/issues/3942)).
+- Reject malformed or missing task results instead of fabricating success, and
+  stop reporting cancelled thumbnail work as an image error
+  ([#3130](https://github.com/dtubb/fichero/issues/3130),
+  [#3385](https://github.com/dtubb/fichero/issues/3385)).
+
+**Startup And Libraries**
+
+- Move embedded-engine lifecycle ownership from a window task to the app,
+  close libraries engine-side when the app closes them, retry transient load
+  failures, and scope readiness proofs to the local engine that established
+  them ([#3945](https://github.com/dtubb/fichero/issues/3945),
+  [#3939](https://github.com/dtubb/fichero/issues/3939),
+  [#3972](https://github.com/dtubb/fichero/issues/3972),
+  [#3975](https://github.com/dtubb/fichero/issues/3975),
+  [#3987](https://github.com/dtubb/fichero/issues/3987)).
+- Drain live-update streams during shutdown so the embedded engine exits
+  cleanly ([#3877](https://github.com/dtubb/fichero/issues/3877)).
+- Give iOS and iPadOS a route back to pairing after a broken device
+  configuration ([#3971](https://github.com/dtubb/fichero/issues/3971)).
+- Restore permitted-library discovery and live streams for paired remote
+  devices ([#3717](https://github.com/dtubb/fichero/issues/3717)).
+
+**Workflows And Data**
+
+- Validate every bundled workflow before execution and repair the paleography
+  ensemble preset ([#3990](https://github.com/dtubb/fichero/issues/3990)).
+- Export page-child transcription with parent documents and deduplicate
+  repeated knowledge claims while retaining a mention count
+  ([#2318](https://github.com/dtubb/fichero/issues/2318),
+  [#1803](https://github.com/dtubb/fichero/issues/1803)).
+
+**Tests And Architecture**
+
+- Restore the FicheroTests target and its real test plan, repair dormant test
+  fixtures, and expand startup, model, store, transport, and UI-contract
+  coverage ([#3902](https://github.com/dtubb/fichero/issues/3902),
+  [#3917](https://github.com/dtubb/fichero/issues/3917)).
+- Convert the app target to synchronized Xcode groups, remove misleading
+  generated-service names, consolidate Canvas/Space naming, and reorganize the
+  Swift source tree by app surface without changing behavior
+  ([#3754](https://github.com/dtubb/fichero/issues/3754),
+  [#3751](https://github.com/dtubb/fichero/issues/3751),
+  [#3750](https://github.com/dtubb/fichero/issues/3750),
+  [#3996](https://github.com/dtubb/fichero/issues/3996),
+  [#3997](https://github.com/dtubb/fichero/issues/3997),
+  [#3998](https://github.com/dtubb/fichero/issues/3998),
+  [#4000](https://github.com/dtubb/fichero/issues/4000),
+  [#4001](https://github.com/dtubb/fichero/issues/4001),
+  [#4002](https://github.com/dtubb/fichero/issues/4002),
+  [#4003](https://github.com/dtubb/fichero/issues/4003),
+  [#4004](https://github.com/dtubb/fichero/issues/4004),
+  [#4006](https://github.com/dtubb/fichero/issues/4006),
+  [#4007](https://github.com/dtubb/fichero/issues/4007),
+  [#4008](https://github.com/dtubb/fichero/issues/4008),
+  [#4009](https://github.com/dtubb/fichero/issues/4009),
+  [#4010](https://github.com/dtubb/fichero/issues/4010),
+  [#4011](https://github.com/dtubb/fichero/issues/4011),
+  [#4012](https://github.com/dtubb/fichero/issues/4012),
+  [#4013](https://github.com/dtubb/fichero/issues/4013),
+  [#4014](https://github.com/dtubb/fichero/issues/4014),
+  [#4015](https://github.com/dtubb/fichero/issues/4015)).
+
+---
+
 ## 2026-07-11
 
 **Fixes**
