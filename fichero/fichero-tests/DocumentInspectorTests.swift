@@ -363,7 +363,10 @@ final class DocumentInspectorTests: XCTestCase {
     // MARK: - UX hooks for the switcher + provenance (#3457)
 
     func testSwitcherAndProvenanceUIHooksArePresent() throws {
+        // #4024: DocumentInspector.swift was split by file_length; the section-bar
+        // switcher (SurfaceTabBar + "inspectorSectionBar") now lives in the +TabBar sibling.
         let inspector = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
+            + (try Self.appSource("Views/Inspector/Document/DocumentInspector+TabBar.swift"))
         // Top-icon-row switcher exposes per-section + bar XCUITest hooks (#3457).
         XCTAssertTrue(inspector.contains("SurfaceTabBar("))
         XCTAssertTrue(inspector.contains("\"inspectorSectionBar\""))
