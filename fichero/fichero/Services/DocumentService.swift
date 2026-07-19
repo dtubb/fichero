@@ -483,6 +483,14 @@ class DocumentService {
 
     // MARK: - Update
 
+}
+
+// MARK: - Mutations & workspace ops
+
+// Split into a same-file extension so the primary class body stays within
+// SwiftLint's type_body_length budget (the class kept accreting ops). Internal
+// methods remain callable; private members stay file-scoped and accessible (#4016).
+extension DocumentService {
     /// Update document metadata
     /// - Parameters:
     ///   - id: Document ID

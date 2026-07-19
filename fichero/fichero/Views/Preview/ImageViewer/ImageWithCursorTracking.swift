@@ -375,6 +375,14 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.contentInsets = NSEdgeInsets()
     }
 
+}
+
+// MARK: - Coordinator
+
+// Coordinator lives in a same-file extension so the primary struct body stays
+// within SwiftLint's type_body_length budget; same file, so any private members
+// stay accessible and behaviour is unchanged (#4016).
+extension ImageWithCursorTracking {
     class Coordinator: NSObject, NSGestureRecognizerDelegate {
         var scrollView: NSScrollView?
         var imageView: NSView?
