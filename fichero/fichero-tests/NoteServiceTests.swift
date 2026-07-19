@@ -66,7 +66,7 @@ final class NoteServiceTests: XCTestCase {
     }
 
     func testDocumentNotesTabChoosesFolderAndPageScopeFromDocumentType() throws {
-        let source = try Self.appSource("Views/Inspector/Document/DocumentNotesTab.swift")
+        let source = try Self.appSource("Views/Inspector/Document/Notes/DocumentNotesTab.swift")
 
         // Loading and creation now go through NoteStore after the store migration.
         XCTAssertTrue(source.contains("await noteStore.loadNotes(forFolder: document.id)"))

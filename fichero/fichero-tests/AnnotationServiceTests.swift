@@ -89,7 +89,7 @@ final class AnnotationServiceTests: XCTestCase {
     }
 
     func testDocumentInspectorAnnotationsTabSelectsScopeFromDocumentType() throws {
-        let source = try Self.appSource("Views/Inspector/Document/DocumentInspectorAnnotationsTab.swift")
+        let source = try Self.appSource("Views/Inspector/Document/Notes/DocumentInspectorAnnotationsTab.swift")
 
         XCTAssertTrue(source.contains("case .folder:"))
         XCTAssertTrue(source.contains("return .folder(document.id)"))

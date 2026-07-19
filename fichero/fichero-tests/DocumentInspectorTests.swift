@@ -78,7 +78,7 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testInspectorListPanesUseSharedBottomMiniToolbar() throws {
         let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
-        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift")
+        let entitiesSource = try Self.appSource("Views/Inspector/Document/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
         let artifactsSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
         let citationsSource = try Self.appSource("Views/Inspector/Citations/CitationsInspectorPane.swift")
         let annotationsSource = try Self.appSource("Views/Inspector/Annotations/AnnotationsInspectorPane.swift")
@@ -94,8 +94,8 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testEntitySearchRoutingUsesTypedStateInsteadOfNotificationBus() throws {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
-        let sharedSource = try Self.appSource("Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+Shared.swift")
-        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift")
+        let sharedSource = try Self.appSource("Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+Shared.swift")
+        let entitiesSource = try Self.appSource("Views/Inspector/Document/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
 
         XCTAssertTrue(sharedSource.contains("final class EntitySearchState"))
         XCTAssertTrue(contentSource.contains(".onChange(of: entitySearchState.requestID)"))
@@ -105,7 +105,7 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testClaimSourceRoutingUsesTypedStateInsteadOfNotificationBus() throws {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
-        let sharedSource = try Self.appSource("Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+Shared.swift")
+        let sharedSource = try Self.appSource("Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+Shared.swift")
         let artifactsSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
         let searchSource = try Self.appSource("Views/Library/Search/SearchView+Helpers.swift")
 
@@ -118,7 +118,7 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testEntityListNameUsesSearchClickWithDoubleClickRename() throws {
-        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift")
+        let entitiesSource = try Self.appSource("Views/Inspector/Document/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
 
         XCTAssertTrue(entitiesSource.contains("Button(\"Find in Library\")"))
         XCTAssertTrue(entitiesSource.contains("postSearch("))
@@ -128,13 +128,13 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testLegacyCitationInfoPanelsUseEnvironmentStores() throws {
-        let citationsSource = try Self.appSource("Views/Inspector/Document/Info/DocumentInspectorInfoTab+Citations.swift")
-        let bibliographySource = try Self.appSource("Views/Inspector/Document/Info/DocumentInspectorInfoTab+Bibliography.swift")
+        let citationsSource = try Self.appSource("Views/Inspector/Document/Source/Info/DocumentInspectorInfoTab+Citations.swift")
+        let bibliographySource = try Self.appSource("Views/Inspector/Document/Source/Info/DocumentInspectorInfoTab+Bibliography.swift")
         let interpretationsSource = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+Interpretations.swift"
+            "Views/Inspector/Document/Notes/DocumentInspectorArtifactsTab+Interpretations.swift"
         )
         let interpretationsTabSource = try Self.appSource(
-            "Views/Inspector/Document/DocumentInterpretationsTab.swift"
+            "Views/Inspector/Document/Notes/DocumentInterpretationsTab.swift"
         )
         let interpretationStoreSource = try Self.appSource("Models/InterpretationStore.swift")
         let serviceSource = try Self.appSource("Services/ArtifactService.swift")
@@ -164,7 +164,7 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testEntityNotesAndAnnotationsUseLowerDetailPanes() throws {
-        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift")
+        let entitiesSource = try Self.appSource("Views/Inspector/Document/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
         let notesSource = try Self.appSource("Views/Inspector/Notes/NotesInspectorPane.swift")
         let annotationsSource = try Self.appSource("Views/Inspector/Annotations/AnnotationsInspectorPane.swift")
 
@@ -198,7 +198,7 @@ final class DocumentInspectorTests: XCTestCase {
         let annotationList = try Self.appSource("Views/Inspector/Annotations/AnnotationListView.swift")
         let citationList = try Self.appSource("Views/Inspector/Citations/CitationListView.swift")
         let noteList = try Self.appSource("Views/Library/Notes/NoteListView.swift")
-        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift")
+        let entitiesSource = try Self.appSource("Views/Inspector/Document/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
 
         XCTAssertTrue(inspectorSource.contains("func inspectorListRowTarget()"))
         XCTAssertTrue(artifactList.contains(".inspectorListRowTarget()"))
@@ -347,7 +347,7 @@ final class DocumentInspectorTests: XCTestCase {
 
         // Provenance quick-look popover is wired on KG claim rows (#3449/#3457).
         let claimRow = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+            "Views/Inspector/Document/Knowledge/DocumentInspectorArtifactsTab+EntityKindRow.swift"
         )
         XCTAssertTrue(claimRow.contains("SourceProvenanceCard("))
         XCTAssertTrue(claimRow.contains(".onHover"))
@@ -357,7 +357,7 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testInterpretationSectionUsesInjectedStoreNotGlobalLibrary() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+Interpretations.swift"
+            "Views/Inspector/Document/Notes/DocumentInspectorArtifactsTab+Interpretations.swift"
         )
 
         // #3429: the interpretation inspector reads InterpretationStore from the
