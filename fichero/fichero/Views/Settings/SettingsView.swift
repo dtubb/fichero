@@ -29,27 +29,35 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: sidebarSelection) {
-                // Per-view settings (#3680) — one section per major view surface,
-                // kept distinct (Library / Preview / Reader / Inspector).
+                // General + AI at the top (the maintainer's top-of-list). Apple
+                // System-Settings style: each row is a tinted rounded-rect glyph.
+                Section {
+                    if featureManager.isSettingsGeneralTabEnabled {
+                        row(.general, "General", "gear", .gray)
+                    }
+                    row(.aiModels, "AI", "brain", .purple)
+                }
+
+                // Per-view settings (#3680) — Library is ONE surface (its icon /
+                // column / list / canvas view modes are not separate tabs).
                 Section("Views") {
-                    row(.libraryView, "Library", "square.grid.2x2")
-                    row(.previewView, "Preview", "sidebar.right")
-                    row(.readerView, "Reader", "book")
-                    row(.inspectorView, "Inspector", "slider.horizontal.3")
+                    row(.libraryView, "Library", "square.grid.2x2", .blue)
+                    row(.previewView, "Preview", "sidebar.right", .teal)
+                    row(.readerView, "Reader", "book", .orange)
+                    row(.inspectorView, "Inspector", "slider.horizontal.3", .indigo)
                 }
 
-                Section("Services") {
-                    row(.aiModels, "AI", "brain")
-                    if featureManager.isMCPEnabled {
-                        row(.mcp, "MCP", "server.rack")
-                    }
-                    if featureManager.isIntegrationsEnabled {
-                        row(.integrations, "Integrations", "app.connected.to.app.below.fill")
+                // MCP servers = the tool config for the agentic surface (chat +
+                // research + agents). Integrations is dropped — its pane is
+                // placeholder-only; it returns under Workflows when real.
+                if featureManager.isMCPEnabled {
+                    Section("Agents") {
+                        row(.mcp, "MCP", "server.rack", .green)
                     }
                 }
 
-                Section("Engine & Access") {
-                    // Engine (multi-user toggle, restart, stats) + Library Access
+                Section("System") {
+                    // Engine (multi-user toggle, restart, stats) + Sharing
                     // (People / Devices+QR / Capture) hold real, keepable capabilities.
                     // Their EXISTENCE must not hang off per-feature migration flags —
                     // those are `.alpha`-tier, so both vanished for beta testers, which
@@ -58,19 +66,16 @@ struct SettingsView: View {
                     // for internal + tester builds; still hidden in release until the
                     // fail-closed engine-refusal P0 lands (#3776).
                     if Self.showsTesterSettingsPane(tier: featureManager.activeBuildTier) {
-                        row(.engine, "Engine", "square.grid.3x1.below.line.grid.1x2")
-                        row(.connect, "Library Access", "lock.shield")
+                        row(.engine, "Engine", "square.grid.3x1.below.line.grid.1x2", .gray)
+                        row(.connect, "Sharing", "person.2.badge.gearshape", .blue)
                     }
                 }
 
-                Section("App") {
-                    if featureManager.isSettingsGeneralTabEnabled {
-                        row(.general, "General", "gear")
-                    }
-                    row(.history, "History", "clock.arrow.circlepath")
-                    row(.backups, "Backups", "externaldrive.badge.timemachine")
+                Section {
+                    row(.history, "History", "clock.arrow.circlepath", .brown)
+                    row(.backups, "Snapshots", "externaldrive.badge.timemachine", .green)
                     #if !canImport(AppKit)
-                    row(.about, "About", "info.circle")
+                    row(.about, "About", "info.circle", .gray)
                     #endif
                 }
             }
@@ -89,9 +94,30 @@ struct SettingsView: View {
     }
 
     /// One sidebar source-list row, tagged by its destination tab so
-    /// `List(selection:)` drives `appState.selectedSettingsTab`.
-    private func row(_ tab: SettingsTab, _ title: LocalizedStringKey, _ symbol: String) -> some View {
-        Label(title, systemImage: symbol).tag(tab)
+    /// `List(selection:)` drives `appState.selectedSettingsTab`. Its icon is a
+    /// tinted rounded-rect glyph in the macOS System-Settings style.
+    private func row(_ tab: SettingsTab, _ title: LocalizedStringKey,
+                     _ symbol: String, _ tint: Color) -> some View {
+        Label(title, systemImage: symbol)
+            .tag(tab)
+            .labelStyle(SettingsRowIconStyle(tint: tint))
+    }
+
+    /// A white SF Symbol on a tinted rounded rectangle — the System-Settings
+    /// sidebar icon look (one tint per row).
+    private struct SettingsRowIconStyle: LabelStyle {
+        let tint: Color
+        func makeBody(configuration: Configuration) -> some View {
+            Label {
+                configuration.title
+            } icon: {
+                configuration.icon
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 20, height: 20)
+                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(tint))
+            }
+        }
     }
 
     /// Whether the Engine & Access panes (Engine/Backend and Library Access —
