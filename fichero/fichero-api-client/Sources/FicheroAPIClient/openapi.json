@@ -8962,7 +8962,7 @@
           "documents"
         ],
         "summary": "Backfill Pdf Pages",
-        "description": "Find PDFs without page children and create the page Documents.\n\nDaniel hit this on PDFs ingested before _create_pdf_page_children\nlanded (or where Kreuzberg silently failed at ingest time): the\nsidebar shows the PDF as a leaf with no expandable child pages.\n\nFor each PDF in the library, check whether it already has child\ndocuments with doc_type=page. If not, run the same _create_pdf_page_children\nhelper that ingest uses now. Idempotent \u2014 re-running on a fully\nbackfilled library is a no-op.",
+        "description": "Find PDFs without page children and create the page Documents.\n\nThis affects PDFs ingested before _create_pdf_page_children\nlanded (or where Kreuzberg silently failed at ingest time): the\nsidebar shows the PDF as a leaf with no expandable child pages.\n\nFor each PDF in the library, check whether it already has child\ndocuments with doc_type=page. If not, run the same _create_pdf_page_children\nhelper that ingest uses now. Idempotent \u2014 re-running on a fully\nbackfilled library is a no-op.",
         "operationId": "backfill_pdf_pages_api_documents_pdfs_backfill_pages_post",
         "parameters": [
           {
@@ -47613,6 +47613,12 @@
             "description": "Number of distinct source documents supporting this claim.",
             "default": 1
           },
+          "mention_count": {
+            "type": "integer",
+            "title": "Mention Count",
+            "description": "Number of extracted mentions collapsed into this claim.",
+            "default": 1
+          },
           "weighted_corroboration_count": {
             "type": "number",
             "title": "Weighted Corroboration Count",
@@ -57650,6 +57656,12 @@
             "type": "integer",
             "title": "Corroboration Count",
             "description": "Number of distinct source documents supporting this claim.",
+            "default": 1
+          },
+          "mention_count": {
+            "type": "integer",
+            "title": "Mention Count",
+            "description": "Number of extracted mentions collapsed into this claim.",
             "default": 1
           },
           "weighted_corroboration_count": {
