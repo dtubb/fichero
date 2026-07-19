@@ -51,10 +51,10 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
     }
 
     func testActivityUsesStandaloneMonitorAndDetailWindows() throws {
-        // ActivityDetailWindow now lives in its own file (Views/Activity/ActivityDetailWindow.swift),
+        // ActivityDetailWindow now lives in its own file (Views/Activity/Window/ActivityDetailWindow.swift),
         // so ActivityMonitorWindow.swift no longer contains the inlined detail view.
         let appSource = try Self.appSource("FicheroApp.swift")
-        let monitorSource = try Self.appSource("Views/Activity/ActivityMonitorWindow.swift")
+        let monitorSource = try Self.appSource("Views/Activity/Window/ActivityMonitorWindow.swift")
         let helpersSource = try Self.appSource("Views/Activity/ActivityViewHelpers.swift")
 
         XCTAssertTrue(appSource.contains("ActivityWindowMenuButton()"))

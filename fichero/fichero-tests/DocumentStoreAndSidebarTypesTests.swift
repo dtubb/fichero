@@ -475,7 +475,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testRemotePreviewSurfacesDoNotInventLocalFileURLs() throws {
         let imageViewerSource = try Self.appSource("Views/Preview/ImageViewer/ImageViewerComponents.swift")
-        let activitySource = try Self.appSource("Views/Activity/ActivityProgressView+HistoricalProgress.swift")
+        let activitySource = try Self.appSource("Views/Activity/Progress/ActivityProgressView+HistoricalProgress.swift")
         let trackingSource = try Self.appSource("Views/Preview/ImageViewer/ImageWithCursorTracking.swift")
 
         XCTAssertFalse(imageViewerSource.contains("URL(fileURLWithPath: \"/\")"))
