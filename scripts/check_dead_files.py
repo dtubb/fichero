@@ -79,6 +79,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Workflow/Execution/WorkflowExecutionView.swift": "#1945 — candidate dead file: workflow execution helper types",
     "Views/Workflow/Inspector/WorkflowInspector+DataLoading.swift": "#2955 — file stays live via WorkflowInspector data-loading extension; primary helper enum is local-only",
     "Views/Inspector/Document/DocumentInspector+Sections.swift": "#2955 — DocumentInspectorImageEditsTab is used only by the same-file editsTab() section builder (split from DocumentInspector); scanner misses same-file extension wiring",
+    "Views/Library/LibraryView+ArrowNavigation.swift": "#2955 — ArrowDirection + arrow-key nav helpers used only within this same-file LibraryView extension (split from LibraryView+KeyboardShortcuts by file_length); scanner misses same-file extension wiring",
 }
 
 
