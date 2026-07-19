@@ -168,6 +168,10 @@ enum EngineHarness {
         var env = ProcessInfo.processInfo.environment
         env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
         env["FICHERO_DISABLE_AUTH"] = "1"
+        // #4024: run the contract engine at the `dev` tier so beta-gated routes (e.g.
+        // /api/workflows) are exposed. The spawned process otherwise inherits the parent's
+        // default FICHERO_FEATURE_TIER=release, gating those routes to 404 in the contract run.
+        env["FICHERO_FEATURE_TIER"] = "dev"
         env["FICHERO_TLS_CERTFILE"] = tlsMaterial.certificatePath
         env["FICHERO_TLS_KEYFILE"] = tlsMaterial.keyPath
         env["FICHERO_TLS_SPKI_HASH"] = tlsMaterial.spkiPin
