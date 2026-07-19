@@ -39,6 +39,9 @@ IDENTIFIER = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Services/EmbeddedBackendService+Ports.swift": "#1943 — extension file; PortResolution/PortConflictAction helper enums used by EmbeddedBackendService methods in sibling extension files (service split); scanner treats the nested type as a dead primary type",
+    "Services/EmbeddedBackendService+Readiness.swift": "#1943 — extension file; SpawnWaitStep used by EmbeddedBackendService readiness methods (service split)",
+    "Services/EmbeddedBackendService+TLS.swift": "#1943 — extension file; DataBox/CachedTLSPaths used by EmbeddedBackendService TLS methods (service split)",
     "Models/CacheModel.swift": "#1945 — candidate dead file: CacheModel, CacheWrapper",
     "Models/DocumentStoreTypes.swift": "#3961 — candidate dead file: DocumentHierarchy. Never used in production (git log -S proves it); only its own 3 tests reference it. Surfaced when #3919 removed the file's other types. Delete or wire it — do not let this entry outlive the decision.",
     "Models/DragDropModel.swift": "#1945 — candidate dead file: DragDropModel",
@@ -47,7 +50,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library/Automation/ScheduleEditorView+Category.swift": "#2955 — helper enum used only by same-file ScheduleEditorView extension; scanner misses local view/helper wiring",
     "Views/Library/Automation/TriggerCreationSheet.swift": "#1945 — candidate dead file: TriggerCreationSheet",
     "Views/Chat/Inspector/ChatInspector+ScopedDocuments.swift": "#2955 — helper row used only by same-file ChatInspector scoped-documents view builder",
-    "Views/Shell/ContentView/ContentView+ViewBuilders.swift": "#2955 — ReadingPaneView is instantiated only inside same-file ContentView builders; scanner blind spot",
     "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCard+Provenance.swift": "#1945 — candidate dead file: ProvenanceBadge",
     "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Biography.swift": "#1945 — candidate dead file: MentionSummary",
     "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift": "#1945 — candidate dead file: EntityKindChip",
@@ -71,7 +73,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Sidebar/State/ActivityDataProcessing.swift": "#1945 — candidate dead file: ActivityWorkflowGroup",
     "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": "#2955 — file stays live via SidebarItemRow drop-handling extension; primary helper types are local-only",
     "Views/Sidebar/Sections/SidebarView+ActivityRows.swift": "#1945 — candidate dead file: ActivityRunGridCell",
-    "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift": "#1945 — candidate dead file: UnifiedLibraryBuckets",
     "Views/Components/MiniToolbarComponents.swift": "#2955 — live but scanner-blind: WorkflowMiniToolbarButton exercised by #2415 tests",
     "Views/Workflow/Nodes/DynamicConfigView+FieldRendering.swift": "#1945 — candidate dead file: DynamicFolderPickerOption",
     "Views/Workflow/Editor/SimpleWorkflowView.swift": "#1945 — candidate dead file: SimpleWorkflowView, SimpleWorkflow",

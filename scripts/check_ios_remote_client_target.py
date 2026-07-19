@@ -18,8 +18,16 @@ def collect_violations(root: Path = ROOT) -> list[str]:
     project = (root / PROJECT_FILE.relative_to(ROOT)).read_text(encoding="utf-8")
     package = (root / API_PACKAGE.relative_to(ROOT)).read_text(encoding="utf-8")
     ios_app = (root / IOS_APP.relative_to(ROOT)).read_text(encoding="utf-8")
-    engine_config = (root / ENGINE_CONFIG.relative_to(ROOT)).read_text(encoding="utf-8")
-    embedded_backend = (root / EMBEDDED_BACKEND.relative_to(ROOT)).read_text(encoding="utf-8")
+    # Read the core file AND its per-concern extension files (EngineConfig+*.swift,
+    # EmbeddedBackendService+*.swift) — the asserted iOS/launch code moved into them
+    # when the services were split (#1943).
+    services_dir = root / "fichero" / "fichero" / "Services"
+    engine_config = "\n".join(
+        p.read_text(encoding="utf-8") for p in sorted(services_dir.glob("EngineConfig*.swift"))
+    )
+    embedded_backend = "\n".join(
+        p.read_text(encoding="utf-8") for p in sorted(services_dir.glob("EmbeddedBackendService*.swift"))
+    )
 
     checks = {
         # Post-#3754 the app target uses a PBXFileSystemSynchronizedRootGroup

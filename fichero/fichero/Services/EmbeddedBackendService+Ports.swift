@@ -1,0 +1,280 @@
+import FicheroAPIClient
+import Foundation
+import Observation
+import OSLog
+import Security
+
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "EmbeddedBackend")
+
+extension EmbeddedBackendService {
+    /// How the port pre-flight resolved (#2863).
+    /// Promoted from `private` to internal: `resolvePortConflict` (this file)
+    /// returns it and `spawnAndAdoptEmbeddedEngine` (Lifecycle extension) switches
+    /// on it — a cross-file reference a private nested type can't satisfy.
+    enum PortResolution { case spawnOurs, adoptExisting }
+
+    /// The three port-conflict outcomes (#3111), separated from the lsof/kill
+    /// syscalls so every branch is unit-testable.
+    enum PortConflictAction: Equatable {
+        /// Port is free, or the user chose Stop it (the caller SIGTERMs first).
+        case spawn
+        /// The user chose Use it — adopt the existing engine (still auth-gated).
+        case adopt
+        /// A foreign process holds the port and the user hasn't decided yet —
+        /// surface the in-window `portConflict(pid)` phase.
+        case surfacePhase(pid: Int)
+    }
+
+    /// Pure port-conflict decision (#3111): given the current holder PID (nil =
+    /// free) and the pending user choice, decide spawn / adopt / surface-the-phase.
+    /// The impure `resolvePortConflict` wraps this with the orphan sweep + kill.
+    /// No silent adoption and no silent kill — a foreign holder always needs an
+    /// explicit choice (#2863).
+    static func portConflictAction(
+        holderPID: Int?,
+        pendingChoice: PortConflictResolution?
+    ) -> PortConflictAction {
+        guard let pid = holderPID else { return .spawn }
+        guard let choice = pendingChoice else { return .surfacePhase(pid: pid) }
+        switch choice {
+        case .stopIt: return .spawn
+        case .useIt: return .adopt
+        }
+    }
+
+    // MARK: - Orphan-engine cleanup
+
+    #if os(macOS)
+    // Compiled OUT of the App Store build (#3749). Everything from here to the
+    // matching #endif enumerates or signals processes that are not our children
+    // — pgrep, ps -E, kill() on a foreign PID. Under App Sandbox none of it
+    // works, and shipping it dead would still put /usr/bin/pgrep and /bin/ps in
+    // a binary the reviewer greps. The MAS build manages only the Process handle
+    // it owns; see resolvePortConflict().
+    #if !FICHERO_APP_STORE
+    /// SIGTERM a "Fichero Engine" subprocess left over from a previous run of
+    /// **this** app that didn't get a chance to call .stop() (e.g. SIGKILL,
+    /// crash, or force-quit). Called before spawning a new engine so the new
+    /// spawn can bind port 8765 cleanly.
+    ///
+    /// SAFETY (#2079): a host can BOTH serve a shared engine (for remote users)
+    /// AND run the app. Killing local engines by name pattern would SIGTERM that
+    /// shared engine out from under its users. We therefore never kill by name
+    /// alone — only engines that provably belong to this app's lineage. The rule,
+    /// in priority order, per candidate engine PID:
+    ///   • configured to use a custom/remote host  → we own NO local engine;
+    ///     skip the whole sweep (early return below).
+    ///   • engine has no recorded `FICHERO_PARENT_PID`  → started independently
+    ///     of any app (a shared/manually-run engine) — SPARE it.
+    ///   • recorded parent is still alive and isn't us  → a DIFFERENT live owner
+    ///     is using it — SPARE it.
+    ///   • recorded parent is us, or is dead  → a genuine orphan of a Fichero
+    ///     app run that no longer exists — KILL it.
+    ///
+    /// Correctness over aggressiveness: it is better to leave a real orphan
+    /// running (the user can kill it) than to SIGTERM a shared engine others
+    /// depend on. When in doubt we spare.
+    static func terminateOrphanEngines() {
+        if EngineConfig.usesCustomHost {
+            logger.info("Custom/remote engine host configured — skipping orphan sweep (no local engine is ours to kill)")
+            return
+        }
+
+        let thisAppPID = ProcessInfo.processInfo.processIdentifier
+
+        let pgrep = Process()
+        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        pgrep.arguments = ["-f", "Fichero Engine.app/Contents/MacOS"]
+        let pipe = Pipe()
+        pgrep.standardOutput = pipe
+        pgrep.standardError = FileHandle.nullDevice
+        guard (try? pgrep.run()) != nil else { return }
+        pgrep.waitUntilExit()
+        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+        guard let output = String(data: data, encoding: .utf8) else { return }
+        for line in output.split(separator: "\n") {
+            guard let pid = pid_t(line.trimmingCharacters(in: .whitespaces)) else { continue }
+
+            guard let parent = engineParentPID(pid) else {
+                logger.info("Engine PID \(pid) has no FICHERO_PARENT_PID — not app-spawned, sparing")
+                continue
+            }
+            if parent != thisAppPID, isProcessAlive(parent) {
+                logger.info("Engine PID \(pid) owned by live app PID \(parent) — sparing")
+                continue
+            }
+            logger.info("Terminating orphan engine PID \(pid) (parent \(parent) is this app or dead)")
+            kill(pid, SIGTERM)
+        }
+    }
+
+    /// Read the `FICHERO_PARENT_PID` recorded in a candidate engine's
+    /// environment (set by `launchEmbeddedBackend` on spawn). `ps -E` appends a
+    /// process's environment to its command-line output, so we can recover the
+    /// owner without a pidfile. Returns nil when the var is absent (engine
+    /// started independently of any app) or the environment can't be read.
+    private static func engineParentPID(_ pid: pid_t) -> pid_t? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/ps")
+        task.arguments = ["-E", "-ww", "-o", "command=", "-p", String(pid)]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        guard (try? task.run()) != nil else { return nil }
+        task.waitUntilExit()
+        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+        guard let output = String(data: data, encoding: .utf8),
+              let range = output.range(of: "FICHERO_PARENT_PID=") else { return nil }
+        let digits = output[range.upperBound...].prefix { $0.isNumber }
+        return pid_t(digits)
+    }
+
+    /// True if `pid` names a live process — exists, even if owned by another
+    /// user we lack permission to signal. `kill(_, 0)` returns 0 when the
+    /// process exists and is signalable, or fails with EPERM when it exists but
+    /// belongs to a different owner. Both mean "alive" for orphan-kill purposes.
+    private static func isProcessAlive(_ pid: pid_t) -> Bool {
+        if pid <= 0 { return false }
+        return kill(pid, 0) == 0 || errno == EPERM
+    }
+    #endif  // !FICHERO_APP_STORE — end of the non-child process machinery
+
+    static func waitForPortToClear(_ port: UInt16, timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !portInUse(port) { return }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+    }
+
+    private static func portInUse(_ port: UInt16) -> Bool {
+        #if FICHERO_APP_STORE
+        return portIsAcceptingConnections(port)
+        #else
+        return pidOnPort(port) != nil
+        #endif
+    }
+
+    /// Is something LISTENing on `port`? A plain loopback TCP connect — the only
+    /// port probe available under App Sandbox (#3749).
+    ///
+    /// `lsof` enumerates other processes' file descriptors, which the sandbox
+    /// does not permit; it would fail and report the port "free", the engine
+    /// would spawn, and the bind would fail with a confusing error. A connect to
+    /// 127.0.0.1 is covered by `com.apple.security.network.client`, tells us the
+    /// one thing we actually need ("is the port taken?"), and tells us nothing
+    /// about WHO holds it — which is correct, because a sandboxed app has no
+    /// business knowing, and cannot signal them anyway.
+    static func portIsAcceptingConnections(_ port: UInt16) -> Bool {
+        let sock = socket(AF_INET, SOCK_STREAM, 0)
+        guard sock >= 0 else { return false }
+        defer { close(sock) }
+
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+
+        return withUnsafePointer(to: &addr) { raw in
+            raw.withMemoryRebound(to: sockaddr.self, capacity: 1) { addrPtr in
+                connect(sock, addrPtr, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0
+            }
+        }
+    }
+
+    #if !FICHERO_APP_STORE
+    /// PID of the process LISTENing on `port`, or nil if the port is free.
+    ///
+    /// Shells out to lsof, so it is compiled out of the App Store build (#3749);
+    /// the sandbox permits no view of other processes' descriptors. MAS uses
+    /// portIsAcceptingConnections() above, which answers "is it taken?" without
+    /// asking "by whom?".
+    private static func pidOnPort(_ port: UInt16) -> pid_t? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        task.arguments = ["-i", ":\(port)", "-sTCP:LISTEN", "-t"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        guard (try? task.run()) != nil else { return nil }
+        task.waitUntilExit()
+        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+        let first = String(data: data, encoding: .utf8)?
+            .split(separator: "\n").first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespaces)
+        return first.flatMap { pid_t($0) }
+    }
+    #endif
+
+    /// Port pre-flight (#2863/#3111). Sweep our own orphans; if the port is
+    /// then STILL held by a process we can't claim, the user must choose —
+    /// but the decision now happens IN-WINDOW (`portConflict` phase), not in a
+    /// pre-window `NSAlert`. When no choice has been made yet, throw
+    /// `.portConflict(pid)` so the connection view can render Stop it / Use it /
+    /// Quit; the button sets `pendingPortConflictResolution` and retries, and
+    /// this consumes it exactly once. Never silently adopts or silently kills.
+    // Promoted from `private` to internal: called by spawnAndAdoptEmbeddedEngine
+    // in the Lifecycle extension file.
+    func resolvePortConflict() throws -> PortResolution {
+        #if FICHERO_APP_STORE
+        // App Sandbox (#3749): we manage ONLY our own child. There is no orphan
+        // sweep, no holder PID and no kill, for two independent reasons:
+        //   • Unavailable — pgrep / ps -E / lsof enumerate other processes, and
+        //     kill() signals them. The sandbox permits none of that; the calls
+        //     fail or return nothing, so a sweep would be theatre.
+        //   • Unacceptable — an app that pokes at processes it does not own reads
+        //     badly against guideline 2.4.5 even where it happens to work.
+        // So: probe the port the one way the sandbox allows, and if it is taken,
+        // let the USER decide (Use it / Quit) instead of silently adopting or
+        // silently killing. 2.4.5(iii) stays satisfied by the existing design —
+        // stop() SIGTERMs our own child on quit, and the engine self-terminates
+        // when FICHERO_PARENT_PID dies.
+        guard Self.portIsAcceptingConnections(8765) else { return .spawnOurs }
+
+        if pendingPortConflictResolution == .useIt {
+            // Adoption is still gated on the authenticated readiness probe
+            // downstream — an auth-rejecting squatter lands in authRejected,
+            // never ready (#2864/#3111).
+            pendingPortConflictResolution = nil
+            return .adoptExisting
+        }
+        // pid is genuinely unknowable here, so it is reported as nil rather than
+        // guessed. The in-window phase drops "Stop it" and offers Use it / Quit.
+        pendingPortConflictResolution = nil
+        throw BackendError.portConflict(pid: nil)
+        #else
+        Self.terminateOrphanEngines()
+        Self.waitForPortToClear(8765, timeout: 3.0)
+        let holder = Self.pidOnPort(8765).map(Int.init)
+
+        switch Self.portConflictAction(holderPID: holder, pendingChoice: pendingPortConflictResolution) {
+        case .surfacePhase(let pid):
+            // No decision yet → surface the in-window portConflict phase (#3111);
+            // pendingPortConflictResolution stays nil for the user to set.
+            throw BackendError.portConflict(pid: pid)
+        case .adopt:
+            // Adoption stays gated on the authenticated readiness probe
+            // downstream — an auth-rejecting squatter lands in authRejected,
+            // never ready (#2864/#3111).
+            pendingPortConflictResolution = nil
+            return .adoptExisting
+        case .spawn:
+            // Stop it: SIGTERM (then SIGKILL) the foreign holder before binding.
+            // Skipped when the port was already free (no pending choice).
+            if pendingPortConflictResolution == .stopIt, let pid = holder.map({ pid_t($0) }) {
+                kill(pid, SIGTERM)
+                Self.waitForPortToClear(8765, timeout: 5.0)
+                if Self.portInUse(8765) {
+                    kill(pid, SIGKILL)
+                    Self.waitForPortToClear(8765, timeout: 2.0)
+                }
+            }
+            pendingPortConflictResolution = nil
+            return .spawnOurs
+        }
+        #endif
+    }
+    #endif
+}
