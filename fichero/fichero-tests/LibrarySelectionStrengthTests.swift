@@ -7,20 +7,23 @@ import XCTest
 /// selection to the old faint 0.12 accent wash.
 final class LibrarySelectionStrengthTests: XCTestCase {
     func testFocusedSelectionFillIsStrongUnfocusedStaysGray() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/LibraryView+DisplayModes.swift")
+        // #3875 selection fill lives in LibraryView+DisplayHelpers; list rows consume it in
+        // LibraryView+ListView (file_length split of the old LibraryView+DisplayModes).
+        let helpers = try Self.appSource("Views/Library/ViewModes/LibraryView+DisplayHelpers.swift")
+        let listView = try Self.appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
         // Focused = strong accent; unfocused = faint gray. Kept on one line so
         // the pairing can't drift apart.
         XCTAssertTrue(
-            source.contains("isPaneFocused ? Color.accentColor.opacity(0.85) : Color.secondary.opacity(0.12)"),
+            helpers.contains("isPaneFocused ? Color.accentColor.opacity(0.85) : Color.secondary.opacity(0.12)"),
             "selectionFill must give the focused pane a strong accent fill and the unfocused pane a gray wash (#3875)."
         )
         // List rows must receive the strong selectionFill, not the old 12% accent wash.
         XCTAssertTrue(
-            source.contains("tint: selectionFill"),
+            listView.contains("tint: selectionFill"),
             "List rows must receive selectionFill (#3875)."
         )
         XCTAssertFalse(
-            source.contains("selectionTint.opacity(0.12)"),
+            helpers.contains("selectionTint.opacity(0.12)") || listView.contains("selectionTint.opacity(0.12)"),
             "The old faint selectionTint.opacity(0.12) list-row wash must be gone (#3875)."
         )
     }

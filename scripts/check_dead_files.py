@@ -55,7 +55,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift": "#1945 — candidate dead file: EntityKindChip",
     "Intents/FicheroShortcuts.swift": "#2017 — App Intents/Shortcuts entry point helper",
     "Views/Library/ViewModes/LibraryView+ColumnConfig.swift": "#1945 — candidate dead file: ColumnDefinition",
-    "Views/Library/ViewModes/LibraryView+DisplayModes.swift": "#1945 — candidate dead file: KgKindMapping",
+    "Views/Library/ViewModes/LibraryView+EntityFiltering.swift": "#1945 — candidate dead file: KgKindMapping (moved here from LibraryView+DisplayModes when that file was split by file_length; used only by the same-file entity-filter extension)",
     "Views/Preview/ImageViewer/ScrollWheelZoom.swift": "#1945 — candidate dead file: scroll-wheel zoom bridge types",
     "Views/Preview/PDFViewer/PageImageGrid.swift": "#1945 — candidate dead file: page image grid helper types",
     "Views/Library/Workspace/CollectionWorkspaceStub.swift": "#1945 — candidate dead file: workspace stub helper",

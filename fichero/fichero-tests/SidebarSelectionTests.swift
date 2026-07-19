@@ -64,14 +64,16 @@ struct SidebarSelectionTests {
     func sidebarAndLibrarySelectionStayInSync() throws {
         let stateSource = try appSource("Views/Shell/ContentView/ContentView+State.swift")
         let navigationSource = try appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
-        let displayModeSource = try appSource("Views/Library/ViewModes/LibraryView+DisplayModes.swift")
+        // selectionTint moved to LibraryView+DisplayHelpers and was promoted private→internal
+        // when LibraryView+DisplayModes was split by file_length.
+        let displayHelpersSource = try appSource("Views/Library/ViewModes/LibraryView+DisplayHelpers.swift")
         // #4024: selectedTint default now lives in LibraryThumbnailViews.swift (DocumentThumbnailView split out).
         let componentSource = try appSource("Views/Library/LibraryThumbnailViews.swift")
 
         #expect(stateSource.contains("browserSelection.removeAll()"))
         #expect(navigationSource.contains("isPaneFocused: focusedPane == .content"))
-        #expect(displayModeSource.contains("private var selectionTint: Color"))
-        #expect(displayModeSource.contains("isPaneFocused ? .accentColor : .secondary"))
+        #expect(displayHelpersSource.contains("var selectionTint: Color"))
+        #expect(displayHelpersSource.contains("isPaneFocused ? .accentColor : .secondary"))
         #expect(componentSource.contains("var selectedTint: Color = .accentColor"))
     }
 
@@ -132,11 +134,14 @@ struct SidebarSelectionTests {
 
     @Test("#3187 library browser surfaces keep a shared leading inset clear of the sidebar")
     func libraryBrowserUsesSharedLeadingInset() throws {
-        let displayModesSource = try appSource("Views/Library/ViewModes/LibraryView+DisplayModes.swift")
+        // browserLeadingInset is defined in LibraryView+DisplayHelpers and consumed by the
+        // icon grid in LibraryView+IconMode (file_length split of LibraryView+DisplayModes).
+        let displayHelpersSource = try appSource("Views/Library/ViewModes/LibraryView+DisplayHelpers.swift")
+        let iconModeSource = try appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
         let tableSource = try appSource("Views/Library/ViewModes/LibraryView+TableMapViews.swift")
 
-        #expect(displayModesSource.contains("var browserLeadingInset: CGFloat { 12 }"))
-        #expect(displayModesSource.contains(".padding(.leading, browserLeadingInset)"))
+        #expect(displayHelpersSource.contains("var browserLeadingInset: CGFloat { 12 }"))
+        #expect(iconModeSource.contains(".padding(.leading, browserLeadingInset)"))
         #expect(tableSource.contains(".padding(.leading, browserLeadingInset)"))
     }
 }
