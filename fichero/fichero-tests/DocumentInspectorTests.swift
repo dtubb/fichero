@@ -78,7 +78,7 @@ final class DocumentInspectorTests: XCTestCase {
 
     func testInspectorListPanesUseSharedBottomMiniToolbar() throws {
         let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
-        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift")
         let artifactsSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
         let citationsSource = try Self.appSource("Views/Inspector/Citations/CitationsInspectorPane.swift")
         let annotationsSource = try Self.appSource("Views/Inspector/Annotations/AnnotationsInspectorPane.swift")
@@ -95,7 +95,7 @@ final class DocumentInspectorTests: XCTestCase {
     func testEntitySearchRoutingUsesTypedStateInsteadOfNotificationBus() throws {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         let sharedSource = try Self.appSource("Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+Shared.swift")
-        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift")
 
         XCTAssertTrue(sharedSource.contains("final class EntitySearchState"))
         XCTAssertTrue(contentSource.contains(".onChange(of: entitySearchState.requestID)"))
@@ -118,7 +118,7 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testEntityListNameUsesSearchClickWithDoubleClickRename() throws {
-        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift")
 
         XCTAssertTrue(entitiesSource.contains("Button(\"Find in Library\")"))
         XCTAssertTrue(entitiesSource.contains("postSearch("))
@@ -164,7 +164,7 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testEntityNotesAndAnnotationsUseLowerDetailPanes() throws {
-        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift")
         let notesSource = try Self.appSource("Views/Inspector/Notes/NotesInspectorPane.swift")
         let annotationsSource = try Self.appSource("Views/Inspector/Annotations/AnnotationsInspectorPane.swift")
 
@@ -198,7 +198,7 @@ final class DocumentInspectorTests: XCTestCase {
         let annotationList = try Self.appSource("Views/Inspector/Annotations/AnnotationListView.swift")
         let citationList = try Self.appSource("Views/Inspector/Citations/CitationListView.swift")
         let noteList = try Self.appSource("Views/Library/Notes/NoteListView.swift")
-        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift")
+        let entitiesSource = try Self.appSource("Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift")
 
         XCTAssertTrue(inspectorSource.contains("func inspectorListRowTarget()"))
         XCTAssertTrue(artifactList.contains(".inspectorListRowTarget()"))

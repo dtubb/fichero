@@ -82,7 +82,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorEntitiesTabUsesInspectorEndpointSourceOfTruth() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+            "Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift"
         )
         // After the EntityStore migration, the view calls the store; the store calls the endpoint.
         let storeSource = try Self.appSource("Models/EntityStore.swift")
@@ -96,7 +96,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorEntitiesTabDistinguishesLoadedButHiddenEntities() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+            "Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift"
         )
 
         XCTAssertTrue(source.contains("Loaded \\(scopedEntities.count) entities, but the current filter hides every kind."))
@@ -105,7 +105,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorListRowsUseFullRowHitTargets() throws {
         let entitiesSource = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+            "Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift"
         )
         let inspectorSource = try Self.appSource("Views/Inspector/Document/DocumentInspector.swift")
         let artifactSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactListView.swift")
@@ -294,7 +294,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorEntitiesTabUsesGeneratedBulkCurationOnly() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+            "Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift"
         )
         let serviceSource = try Self.appSource("Services/ArtifactService.swift")
         // After the EntityStore migration, bulk curation calls live in EntityStore, not the view.
@@ -310,7 +310,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorEntitiesTabSupportsOwnProcessDragDropAndTypeChange() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+            "Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift"
         )
         let sharedSource = try Self.appSource(
             "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+Shared.swift"
@@ -327,7 +327,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorEntityMergeKeepsFocusOnSurvivorAfterReload() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+            "Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift"
         )
 
         XCTAssertTrue(source.contains("restoreSelectionAfterEntityRefresh(entityId: plan.survivorId)"))
@@ -337,7 +337,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorEntityReclassifyKeepsFocusAfterDropRefresh() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+            "Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift"
         )
 
         XCTAssertTrue(source.contains("restoreSelectionAfterEntityRefresh(entityId: plan.entityId)"))
@@ -345,7 +345,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorEntitiesTabUsesSharedBottomMiniToolbarForSelectionActions() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+            "Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift"
         )
 
         XCTAssertTrue(source.contains("private var entitiesMiniToolbar: some View"))
@@ -357,7 +357,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorEntitiesTabReadsPerDocumentEntityStoreBuckets() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+            "Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift"
         )
         let storeSource = try Self.appSource("Models/EntityStore.swift")
 
@@ -395,7 +395,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testKnowledgeGraphTextDigestUsesStableEntryIds() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+KGSection.swift"
+            "Views/Inspector/Document/Artifacts/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
         )
 
         XCTAssertTrue(source.contains("private struct TextDigestEntry: Identifiable"))
@@ -406,10 +406,10 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorDeleteActionsUseGeneratedEntityAndClaimClients() throws {
         let entitiesSource = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+            "Views/Inspector/Document/Artifacts/Entities/DocumentInspectorEntitiesTab.swift"
         )
         let claimsSource = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+KGSection.swift"
+            "Views/Inspector/Document/Artifacts/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
         )
         let rowSource = try Self.appSource(
             "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntityKindRow.swift"
@@ -595,7 +595,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testKnowledgeGraphInspectorSectionUsesGeneratedClaimBulkCurationOnly() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+KGSection.swift"
+            "Views/Inspector/Document/Artifacts/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
         )
         let rowSource = try Self.appSource(
             "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntityKindRow.swift"
@@ -810,7 +810,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     /// `false` default, or the key's registered default is ambiguous.
     func testInspectorScopeDefaultsToThisItemOnly() throws {
         let kgSection = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+KGSection.swift"
+            "Views/Inspector/Document/Artifacts/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
         )
         let attributesStrip = try Self.appSource("Views/Inspector/DisplayAttributesStrip.swift")
         let declaration =
@@ -979,7 +979,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testKGListModeUsesNativeListSelectionWithKindSections() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+KGSection.swift"
+            "Views/Inspector/Document/Artifacts/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
         )
 
         // List mode is a native List(selection:) so it gets arrow-key nav +
@@ -993,7 +993,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testKGListWiresSpaceKeySourceQuickLook() throws {
         let source = try Self.appSource(
-            "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+KGSection.swift"
+            "Views/Inspector/Document/Artifacts/KnowledgeGraph/KnowledgeGraphInspectorSection.swift"
         )
 
         // Space on a selected claim opens the source quick-look popover, reusing

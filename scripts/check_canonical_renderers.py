@@ -72,7 +72,7 @@ KNOWN_EXTENSIONS: list[tuple[str, str, str]] = [
     # instead of at every ForEach site). No local rendering — it trips the
     # `*Row` name heuristic, not the rule (#1935).
     (
-        "DocumentInspectorArtifactsTab+KGSection.swift",
+        "KnowledgeGraphInspectorSection+Views.swift",
         "kgClaimRow",
         "Thin wrapper that delegates to the canonical EntityKindRow — binds the "
         "section's arguments in one place; renders nothing itself (#1935).",
@@ -80,7 +80,7 @@ KNOWN_EXTENSIONS: list[tuple[str, str, str]] = [
     # Inspector entity row: extends EntityRow.browser with inline-rename,
     # curation badge, and entity description field (#1935 audit 2026-06-14).
     (
-        "DocumentInspectorArtifactsTab+EntitiesTab.swift",
+        "DocumentInspectorEntitiesTab+Rows.swift",
         "entityRow",
         "Inspector entity row adds rename + curation badge + description — "
         "affordance-extended wrapper, not a duplicate (#1935).",
