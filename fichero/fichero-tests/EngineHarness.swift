@@ -80,7 +80,23 @@ enum EngineHarness {
 
         // Fresh, disposable library under the OS temp dir (an allowed root in
         // the engine's path validation: /var/folders is permitted).
-        let tempDir = FileManager.default.temporaryDirectory
+        // #4024: a SIGNED/sandboxed run gets a container Data/tmp temporaryDirectory, which
+        // the engine's `_is_allowed_local_path` rejects (403 on every contract). In that case
+        // use applicationSupport/FicheroTests instead — sandbox-writable AND explicitly allowed
+        // by `_is_sandbox_container_app_support`. Keep /var/folders (or /tmp) for the fast
+        // unsigned path.
+        let disposableRoot: URL = {
+            let tmp = FileManager.default.temporaryDirectory
+            let allowedTempPrefixes = ["/var/folders", "/private/var/folders", "/tmp", "/private/tmp"]
+            if allowedTempPrefixes.contains(where: { tmp.path.hasPrefix($0) }) {
+                return tmp
+            }
+            let appSupport = (try? FileManager.default.url(
+                for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+            )) ?? tmp
+            return appSupport.appendingPathComponent("FicheroTests", isDirectory: true)
+        }()
+        let tempDir = disposableRoot
             .appendingPathComponent("fichero-itest-\(UUID().uuidString)", isDirectory: true)
         let libURL = tempDir.appendingPathComponent("library.fichero")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
