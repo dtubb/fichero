@@ -13,6 +13,8 @@ Build-tier visibility uses a maturity floor:
 
 | Feature | Tier | UI flag | Backend route prefixes | Group | Notes |
 |---|---|---|---|---|---|
+| Canvas RealityKit 2D | `release` | `fichero.features.canvas_realitykit_2d` | - | Clients | Route the 2D canvas to the RealityKit-ortho renderer (default; |
+| Canvas RealityKit 3D | `release` | `fichero.features.canvas_realitykit_3d` | - | Clients | Route the 3D space to the contract-based RealityKit renderer (default; |
 | Ingest | `release` | - | `/api/ingest` | Core | File and URL import into the library. |
 | Library | `release` | - | - | Core | Import, organize, and browse a hierarchy of documents. |
 | Reader | `release` | - | - | Core | PDFs, page images, extracted text, artifacts, and inspector. |
@@ -41,8 +43,6 @@ Build-tier visibility uses a maturity floor:
 | Settings models tab | `alpha` | `fichero.features.settings_models_tab` | - | Settings | Model configuration panel. |
 | Settings share tab | `alpha` | `fichero.features.settings_share_tab` | - | Settings | Sharing and collaboration settings panel. |
 | Settings users tab | `alpha` | `fichero.features.settings_users_tab` | - | Settings | Multi-user settings panel. |
-| Canvas RealityKit 2D | `dev` | `fichero.features.canvas_realitykit_2d` | - | Clients | Route the 2D canvas to the RealityKit renderer. |
-| Canvas RealityKit 3D | `dev` | `fichero.features.canvas_realitykit_3d` | - | Clients | Route the 3D space to the contract-based RealityKit renderer. |
 | Spatial mode | `dev` | `fichero.features.spatial_mode` | - | Clients | Spatial library presentation mode. |
 | Workspace mode | `dev` | `fichero.features.workspace_mode` | - | Clients | Alternate workspace-oriented shell mode. |
 | IIIF | `dev` | - | `/api/iiif` | Core | IIIF image and annotation server interoperability. |

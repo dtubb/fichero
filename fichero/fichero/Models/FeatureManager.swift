@@ -133,16 +133,17 @@ class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_len
     private var workspaceModeEnabledInternal: Bool = false
     @AppStorage("fichero.features.spatial_mode")
     private var spatialModeEnabledInternal: Bool = false
-    /// Route the 2D `.canvas` view mode to the new RealityKit-ortho renderer
-    /// (`CanvasSceneView`, #3083) instead of the SwiftUI `Spatial2DCanvas`. Off
-    /// by default; the SwiftUI canvas is retired only at cutover (#3087).
+    /// Route the 2D `.canvas` view mode to the RealityKit-ortho renderer
+    /// (`CanvasSceneView`, #3083). ON by default (#3087 cutover): it shares
+    /// `CanvasSceneState` with the 3D renderer. The SwiftUI `Spatial2DCanvas`
+    /// stays in `Canvas/2D/Legacy/` as the revert path (toggle this off).
     @AppStorage("fichero.features.canvas_realitykit_2d")
-    private var canvasRealityKit2DEnabledInternal: Bool = false
-    /// Route the 3D `.space` view mode to the new contract-based RealityKit
-    /// renderer (`CanvasSpaceView`, #3104) instead of the #3088 `SpaceSceneView`.
-    /// Off by default; #3088 stays the stepping-stone until cutover (#3087).
+    private var canvasRealityKit2DEnabledInternal: Bool = true
+    /// Route the 3D `.space` view mode to the contract-based RealityKit renderer
+    /// (`CanvasSpaceView`, #3104). ON by default (#3087 cutover). The `SpaceSceneView`
+    /// legacy renderer stays in `Canvas/3D/Legacy/` as the revert path (toggle off).
     @AppStorage("fichero.features.canvas_realitykit_3d")
-    private var canvasRealityKit3DEnabledInternal: Bool = false
+    private var canvasRealityKit3DEnabledInternal: Bool = true
     @AppStorage("fichero.features.research") private var researchEnabledInternal: Bool = true
     @AppStorage("fichero.features.knowledge_graph") private var knowledgeGraphEnabledInternal: Bool = true
     @AppStorage("fichero.first_run.completed") var firstRunCompleted: Bool = false
@@ -370,8 +371,8 @@ class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_len
         workflowRunOnSelectionEnabledInternal = true
         workspaceModeEnabledInternal = false
         spatialModeEnabledInternal = false
-        canvasRealityKit2DEnabledInternal = false
-        canvasRealityKit3DEnabledInternal = false
+        canvasRealityKit2DEnabledInternal = true
+        canvasRealityKit3DEnabledInternal = true
         researchEnabledInternal = true
         knowledgeGraphEnabledInternal = true
         releaseProfileVersionApplied = Self.releaseProfileVersion

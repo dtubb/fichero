@@ -345,18 +345,18 @@
   notes: Spatial library presentation mode.
 - key: canvasRealityKit2D
   name: Canvas RealityKit 2D
-  tier: dev
+  tier: release
   swift_flag: fichero.features.canvas_realitykit_2d
   routes: []
   ux_group: Clients
-  notes: Route the 2D canvas to the RealityKit renderer.
+  notes: Route the 2D canvas to the RealityKit-ortho renderer (default; #3087 cutover). Legacy Spatial2DCanvas kept in Canvas/2D/Legacy/ as the revert path.
 - key: canvasRealityKit3D
   name: Canvas RealityKit 3D
-  tier: dev
+  tier: release
   swift_flag: fichero.features.canvas_realitykit_3d
   routes: []
   ux_group: Clients
-  notes: Route the 3D space to the contract-based RealityKit renderer.
+  notes: Route the 3D space to the contract-based RealityKit renderer (default; #3087 cutover). Legacy SpaceSceneView kept in Canvas/3D/Legacy/ as the revert path.
 - key: automation
   name: Automation
   tier: dev

@@ -412,17 +412,17 @@ enum FeatureTiers {
         ),
         .canvasRealityKit2D: .init(
             name: "Canvas RealityKit 2D",
-            tier: .dev,
+            tier: .release,
             swiftFlag: "fichero.features.canvas_realitykit_2d",
             uxGroup: "Clients",
-            notes: "Route the 2D canvas to the RealityKit renderer."
+            notes: "Route the 2D canvas to the RealityKit-ortho renderer (default;"
         ),
         .canvasRealityKit3D: .init(
             name: "Canvas RealityKit 3D",
-            tier: .dev,
+            tier: .release,
             swiftFlag: "fichero.features.canvas_realitykit_3d",
             uxGroup: "Clients",
-            notes: "Route the 3D space to the contract-based RealityKit renderer."
+            notes: "Route the 3D space to the contract-based RealityKit renderer (default;"
         ),
         .automation: .init(
             name: "Automation",
