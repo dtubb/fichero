@@ -123,120 +123,64 @@ struct DocumentTabView: View {
     @ViewBuilder
     private var contentView: some View {
         if let apiClient = apiClient {
-            switch document.viewMode {
-            case .library:
-                // Use existing ContentView for now (will extract LibraryTabView later)
-                ContentView()
-                    .environment(appState)
-                    .environment(viewSettings)
-                    .environment(apiClient)
-                    .environment(documentStore)
-                    .environment(savedSearchService)
-                    .environment(searchService)
-                    .environment(conversationService)
-                    .environment(chatService)
-                    .environment(workflowStore)
-                    .environment(importService)
-                    .environment(documentService)
-                    .environment(storageService)
-                    .environment(workflowStreamService)
-                    .environment(researchService)
-                    .environment(windowState)
-                    // App-wide singletons injected at the ContentView host so
-                    // ContentView reads them via environment injection rather
-                    // than grabbing `.shared` — the DI seam for #3033. Shared
-                    // instances, no new objects created here.
-                    .environment(ErrorService.shared)
-                    .environmentObject(FeatureManager.shared)
-                    // Forward the @Observable artifact service so the library
-                    // subtree built after `selectCollection` (LibraryView →
-                    // inspector / artifact cells) can read it via
-                    // @Environment(ArtifactService.self). Without this,
-                    // opening a library or selecting a collection traps with
-                    // "No Observable object of type ArtifactService
-                    // found." (#3350)
-                    .environment(artifactService)
-                    // The inspector reads the entity / KG services + stores
-                    // from ContentView, not directly from DocumentTabView's
-                    // parent environment. Forward them here too so the
-                    // inspector still resolves its dependencies during the
-                    // first render before windowState.library is available.
-                    .environment(entityService)
-                    .environment(kgCurationService)
-                    .environment(artifactStore)
-                    .environment(entityStore)
-                    .environment(claimStore)
-                    // SPARQL console store (#3298/#1863): the console reads it
-                    // from the environment instead of scraping a client off
-                    // LibraryManager.shared.
-                    .environment(appState.kgQueryStore)
-                    // These app-/library-scoped @Observable focus + substrate
-                    // services are also read directly by ContentView. Forward
-                    // them here so switching into Research / KG / claim-focused
-                    // surfaces never depends on accidental inheritance past the
-                    // explicit ContentView() host.
-                    .environment(claimFocusState)
-                    .environment(kgFocusState)
-                    // Forward the @Observable observer so ContentView and its subtree
-                    // (DocumentInspector → ArtifactEntityViews) can read it via
-                    // @Environment(WorkflowExecutionObserver.self). Without this the
-                    // environment chain breaks at the ContentView() host and crashes
-                    // with "No Observable object of type WorkflowExecutionObserver found."
-                    // (#1561). Single shared instance — no new object created here.
-                    .environment(executionObserver)
-
-            case .workflow:
-                // Workflow tab view (will create later)
-                WorkflowPlaceholderView()
-
-            case .chat:
-                // Chat tab view (will create later)
-                ChatPlaceholderView()
-
-            case .search:
-                // Search tab view (will create later)
-                SearchPlaceholderView()
-
-            case .batches:
-                // Unified monitoring view
-                ContentUnavailableView(
-                    "Activity",
-                    systemImage: "clock",
-                    description: Text("Batch monitoring is unified under Activity")
-                )
-
-            case .automation:
-                // Automation view for schedules and triggers
-                ContentUnavailableView(
-                    "Automation",
-                    systemImage: "timer",
-                    description: Text("Select a schedule or trigger in the sidebar")
-                )
-
-            case .running:
-                // Running workflows view
-                ContentUnavailableView(
-                    "Running Workflows",
-                    systemImage: "play.circle",
-                    description: Text("Select a running workflow in the sidebar to view progress")
-                )
-
-            case .history:
-                // Activity history view
-                ContentUnavailableView(
-                    "Activity History",
-                    systemImage: "clock",
-                    description: Text("Select a history item in the sidebar to view details")
-                )
-
-            case .issues:
-                // Issues view
-                ContentUnavailableView(
-                    "Issues",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text("Select an issue in the sidebar to view details")
-                )
-            }
+            ContentView()
+                .environment(appState)
+                .environment(viewSettings)
+                .environment(apiClient)
+                .environment(documentStore)
+                .environment(savedSearchService)
+                .environment(searchService)
+                .environment(conversationService)
+                .environment(chatService)
+                .environment(workflowStore)
+                .environment(importService)
+                .environment(documentService)
+                .environment(storageService)
+                .environment(workflowStreamService)
+                .environment(researchService)
+                .environment(windowState)
+                // App-wide singletons injected at the ContentView host so
+                // ContentView reads them via environment injection rather
+                // than grabbing `.shared` — the DI seam for #3033. Shared
+                // instances, no new objects created here.
+                .environment(ErrorService.shared)
+                .environmentObject(FeatureManager.shared)
+                // Forward the @Observable artifact service so the library
+                // subtree built after `selectCollection` (LibraryView →
+                // inspector / artifact cells) can read it via
+                // @Environment(ArtifactService.self). Without this,
+                // opening a library or selecting a collection traps with
+                // "No Observable object of type ArtifactService
+                // found." (#3350)
+                .environment(artifactService)
+                // The inspector reads the entity / KG services + stores
+                // from ContentView, not directly from DocumentTabView's
+                // parent environment. Forward them here too so the
+                // inspector still resolves its dependencies during the
+                // first render before windowState.library is available.
+                .environment(entityService)
+                .environment(kgCurationService)
+                .environment(artifactStore)
+                .environment(entityStore)
+                .environment(claimStore)
+                // SPARQL console store (#3298/#1863): the console reads it
+                // from the environment instead of scraping a client off
+                // LibraryManager.shared.
+                .environment(appState.kgQueryStore)
+                // These app-/library-scoped @Observable focus + substrate
+                // services are also read directly by ContentView. Forward
+                // them here so switching into Research / KG / claim-focused
+                // surfaces never depends on accidental inheritance past the
+                // explicit ContentView() host.
+                .environment(claimFocusState)
+                .environment(kgFocusState)
+                // Forward the @Observable observer so ContentView and its subtree
+                // (DocumentInspector → ArtifactEntityViews) can read it via
+                // @Environment(WorkflowExecutionObserver.self). Without this the
+                // environment chain breaks at the ContentView() host and crashes
+                // with "No Observable object of type WorkflowExecutionObserver found."
+                // (#1561). Single shared instance — no new object created here.
+                .environment(executionObserver)
         } else {
             Text("Library not found")
                 .font(.headline)
@@ -259,64 +203,5 @@ struct DocumentTabView: View {
         // and before backendDidBecomeReady() loads each open library's data.
         libraryManager.reconcileOpenLibrariesFromRegistry()
         await libraryManager.backendDidBecomeReady()
-    }
-}
-
-// MARK: - Placeholder Views
-
-/// Placeholder for Workflow tab (to be implemented)
-struct WorkflowPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 64))
-                .foregroundColor(.secondary)
-
-            Text("Workflow Editor")
-                .font(.title)
-
-            Text("Coming soon: Workflow tab view")
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(platformColor: .windowBackgroundColor))
-    }
-}
-
-/// Placeholder for Chat tab (to be implemented)
-struct ChatPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 64))
-                .foregroundColor(.secondary)
-
-            Text("Chat")
-                .font(.title)
-
-            Text("Coming soon: Chat tab view")
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(platformColor: .windowBackgroundColor))
-    }
-}
-
-/// Placeholder for Search tab (to be implemented)
-struct SearchPlaceholderView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 64))
-                .foregroundColor(.secondary)
-
-            Text("Search")
-                .font(.title)
-
-            Text("Coming soon: Search tab view")
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(platformColor: .windowBackgroundColor))
     }
 }
