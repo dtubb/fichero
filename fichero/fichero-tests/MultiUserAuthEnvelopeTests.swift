@@ -53,7 +53,8 @@ struct MultiUserAuthEnvelopeTests {
         let json = """
         {"items":[
           {"id":"i1","username":"newcomer","display_name":"New Comer",
-           "created_at":"2026-07-01T00:00:00Z","expires_at":"2026-07-08T00:00:00Z"}
+           "created_at":"2026-07-01T00:00:00Z","expires_at":"2026-07-08T00:00:00Z",
+           "channel":"email"}
         ],"count":1}
         """
         // created_at/expires_at are generated Foundation.Date fields — configure the
@@ -68,6 +69,7 @@ struct MultiUserAuthEnvelopeTests {
         #expect(envelope.count == 1)
         #expect(envelope.items.first?.id == "i1")
         #expect(envelope.items.first?.username == "newcomer")
+        #expect(envelope.items.first?.channel == .email)  // required InviteResponse field
     }
 
     @Test("an empty invite-list envelope decodes to an empty items array")
