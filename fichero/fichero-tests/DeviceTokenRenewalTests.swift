@@ -7,6 +7,12 @@ import Testing
 /// fixed dates; the atomic-swap / keep-old-on-failure behaviour is tested against
 /// an unresolvable host (real code path, no mock) so a failed renew provably
 /// leaves the stored token untouched.
+// #4024: all cases share one host/keychain key + UserDefaults expiry. Under Swift Testing's
+// default concurrency, another async case's `defer cleanup()` deletes both while
+// failedRenewKeepsOldToken is still awaiting the (unresolvable) DNS renew, nil-ing its token
+// and expiry before it reads them. Serialize the suite so the shared state is deterministic.
+// (Production renew is correct — it writes nothing on failure.)
+@Suite(.serialized)
 @MainActor
 struct DeviceTokenRenewalTests {
     // A guaranteed-non-resolving host (RFC 6761 `.invalid`) so the renew call
