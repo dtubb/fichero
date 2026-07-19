@@ -70,30 +70,7 @@ if [ "$SKIP_BACKEND" = true ]; then
   fi
 else
   echo "[1/4] Building engine with Briefcase"
-
-  if [ "$DRY_RUN" = false ]; then
-    cd "$ENGINE_ROOT"
-
-    # Look for briefcase in dedicated venv, then PATH
-    if [ -x "$ENGINE_ROOT/.briefcase-venv/bin/briefcase" ]; then
-      export PATH="$ENGINE_ROOT/.briefcase-venv/bin:$PATH"
-    elif ! command -v briefcase >/dev/null 2>&1; then
-      echo "error: briefcase not found. Set up with:" >&2
-      echo "  python3.13 -m venv fichero-engine/.briefcase-venv" >&2
-      echo "  fichero-engine/.briefcase-venv/bin/pip install briefcase" >&2
-      exit 1
-    fi
-  fi
-
-  # briefcase build produces an adhoc-signed .app — we re-sign with
-  # Developer ID later in scripts/notarize.sh. Using `build` (not `package`)
-  # avoids briefcase's installer-cert path which can't be satisfied with
-  # only Apple Development.
-  #
-  # `briefcase update` first: `briefcase build` alone re-signs the bundle but
-  # does NOT re-copy source files, so .py edits ship stale otherwise.
-  run_or_dry briefcase update macOS --app engine
-  run_or_dry briefcase build macOS --app engine
+  run_or_dry "$ROOT_DIR/scripts/preflight-embedded-engine.sh" --rebuild
 
   if [ "$DRY_RUN" = false ]; then
     if [ ! -d "$ENGINE_APP" ]; then
@@ -105,7 +82,7 @@ else
   fi
 fi
 
-if [ -d "$ENGINE_APP" ]; then
+if [ "$SKIP_BACKEND" = true ] && [ -d "$ENGINE_APP" ]; then
   echo "  Cleaning embedded engine bundle for release distribution"
   run_or_dry "$ROOT_DIR/scripts/clean-embedded-engine.sh" "$ENGINE_APP"
 fi

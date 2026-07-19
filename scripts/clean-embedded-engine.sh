@@ -2,6 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CHECK_VERSION=false
+if [ "${1:-}" = "--check-version" ]; then
+  CHECK_VERSION=true
+  shift
+fi
 ENGINE_APP="${1:-$ROOT_DIR/fichero-engine/build/engine/macos/app/Fichero Engine.app}"
 SIGN_IDENTITY="${FICHERO_CODESIGN_IDENTITY:-}"
 REQUIRED_AUTHORITY="${FICHERO_REQUIRED_CODESIGN_AUTHORITY:-}"
@@ -13,6 +18,17 @@ if [ ! -d "$ENGINE_APP" ]; then
   echo "error: embedded engine bundle not found at $ENGINE_APP" >&2
   exit 1
 fi
+
+EXPECTED_VERSION="$(grep -m1 '^version = "' "$ROOT_DIR/fichero-engine/pyproject.toml" | sed -E 's/^version = "([^"]+)".*/\1/')"
+BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ENGINE_APP/Contents/Info.plist" 2>/dev/null || true)"
+METADATA_PATH="$(find "$ENGINE_APP/Contents/Resources/app" -maxdepth 2 -path '*/engine-*.dist-info/METADATA' -print -quit 2>/dev/null || true)"
+PACKAGE_VERSION="$(awk -F': ' '$1 == "Version" { print $2; exit }' "$METADATA_PATH" 2>/dev/null || true)"
+if [ -z "$EXPECTED_VERSION" ] || [ "$BUNDLE_VERSION" != "$EXPECTED_VERSION" ] || [ "$PACKAGE_VERSION" != "$EXPECTED_VERSION" ]; then
+  echo "error: embedded engine version mismatch (expected=$EXPECTED_VERSION bundle=$BUNDLE_VERSION package=$PACKAGE_VERSION)" >&2
+  exit 1
+fi
+echo "  Embedded engine version: $EXPECTED_VERSION"
+[ "$CHECK_VERSION" = false ] || exit 0
 
 remove_tree_if_present() {
   local path="$1"
