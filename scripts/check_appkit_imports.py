@@ -59,7 +59,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Shell/Capture/MobileCaptureQueueView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Components/BackendConnectionView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Components/MacPlainTextEditor.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Library/ViewModes/Graph/Ontology/ClaimSummaryCardView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Inspector/Artifacts/ArtifactRichTextCodec.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+EntitiesTab.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Inspector/Document/Artifacts/DocumentInspectorArtifactsTab+KGSection.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",

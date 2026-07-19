@@ -376,7 +376,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+List.swift"
         )
         let triageSource = try Self.appSource(
-            "Views/Library/ViewModes/Graph/Ontology/ContradictionTriageSheet.swift"
+            "Views/Library/ViewModes/Graph/Ontology/Claim/ContradictionTriageSheet.swift"
         )
         let storeSource = try Self.appSource("Models/EntityStore.swift")
 
