@@ -14,8 +14,12 @@ struct AuthTokenMiddlewareStorageTests {
             "https://[0:0:0:0:0:0:0:1]:8765",
             "https://[::ffff:127.0.0.1]:8765",
             "",
-            "   ",
-            nil
+            "   "
+            // nil intentionally excluded: a nil host is NOT an explicit localhost —
+            // it resolves through the saved fichero.engine.host default (UserDefaults),
+            // so asserting it here is stateful/racy against suites that set that key
+            // (e.g. WorkflowStreamConnectionTests). Production nil-resolution is
+            // covered by prefersLocalhostEngineToken's own default path (#4016).
         ] as [String?]
     )
     func localhostHostsUseBootstrapStorage(hostString: String?) {
