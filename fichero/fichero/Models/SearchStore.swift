@@ -51,7 +51,10 @@ final class SearchStore: ChangeEventConsumer {
         sortBy: String = "relevance",
         sortOrder: String = "desc"
     ) async {
-        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        // #4024: trim newlines/tabs too — `.whitespaces` excludes newlines, so a query of
+        // only whitespace (e.g. " \n\t") stayed non-empty and reached the backend as a blank
+        // search → HTTP 400. `.whitespacesAndNewlines` makes it the intended local no-op.
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             results = []
             searchStats = nil
