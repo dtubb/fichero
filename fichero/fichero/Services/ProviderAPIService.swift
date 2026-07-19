@@ -13,7 +13,6 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Provide
 // Type body is 369 lines, target <350
 @MainActor
 @Observable
-// swiftlint:disable:next type_body_length
 class ProviderAPIService {
     private let client: FicheroClient
 
@@ -228,6 +227,9 @@ class ProviderAPIService {
         }
     }
 
+}
+
+extension ProviderAPIService {
     // MARK: - Models - Global
 
     /// List available models for a provider type from LiteLLM registry (returns generated type)

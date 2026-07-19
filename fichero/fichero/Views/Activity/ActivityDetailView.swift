@@ -3,7 +3,6 @@ import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActivityDetailView")
 
-// swiftlint:disable type_body_length
 /// Detail view for a selected activity run
 /// Shows content based on sidebar selection (Console, Progress, Errors, or Overview)
 struct ActivityDetailView: View {
@@ -92,8 +91,47 @@ struct ActivityDetailView: View {
         }
     }
 
-    // MARK: - Stats Bar
+    @ViewBuilder
+    private var sectionBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                sectionButton("overview", label: "Overview", icon: "list.bullet.rectangle")
 
+                ForEach(ActivityChildType.allCases, id: \.self) { childType in
+                    sectionButton(
+                        childType.rawValue,
+                        label: childType.label,
+                        icon: childType.icon
+                    )
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+        }
+        .background(Color(platformColor: .windowBackgroundColor))
+    }
+
+    private func sectionButton(_ id: String, label: String, icon: String) -> some View {
+        let isSelected = selectedSectionId == id
+
+        return Button {
+            selectedSectionId = id
+        } label: {
+            Label(label, systemImage: icon)
+                .font(.caption)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Stats bar
+extension ActivityDetailView {
     @ViewBuilder
     private var statsBar: some View {
         HStack(spacing: 16) {
@@ -227,47 +265,10 @@ struct ActivityDetailView: View {
             }
         }
     }
+}
 
-    @ViewBuilder
-    private var sectionBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                sectionButton("overview", label: "Overview", icon: "list.bullet.rectangle")
-
-                ForEach(ActivityChildType.allCases, id: \.self) { childType in
-                    sectionButton(
-                        childType.rawValue,
-                        label: childType.label,
-                        icon: childType.icon
-                    )
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-        }
-        .background(Color(platformColor: .windowBackgroundColor))
-    }
-
-    private func sectionButton(_ id: String, label: String, icon: String) -> some View {
-        let isSelected = selectedSectionId == id
-
-        return Button {
-            selectedSectionId = id
-        } label: {
-            Label(label, systemImage: icon)
-                .font(.caption)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Content View
-
+// MARK: - Content & data loading
+extension ActivityDetailView {
     @ViewBuilder
     private var contentView: some View {
         switch selectedChildType {
@@ -318,8 +319,6 @@ struct ActivityDetailView: View {
             name: selectedRun.name
         )
     }
-
-    // MARK: - Data Loading
 
     private func loadActivityDetails() async {
         guard !selectedRun.isLive else {
@@ -375,4 +374,3 @@ struct ActivityDetailView: View {
         }
     }
 }
-// swiftlint:enable type_body_length

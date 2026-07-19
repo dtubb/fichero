@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Shows interpretations for this document + inline "New Interpretation" form.
 /// Always visible so the user can create the first interpretation even when none exist.
-struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_body_length
+struct DocumentInterpretationsSection: View {
     let documentId: String
     @Environment(InterpretationStore.self) private var store
 
@@ -107,8 +107,66 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
         }
     }
 
-    // MARK: - Create form
+    // MARK: - Load / Submit
 
+    private func loadFrameworks() async {
+        await store.loadFrameworks()
+        if let first = store.frameworks.first, let fwId = first.id {
+            selectedFrameworkId = fwId
+        }
+    }
+
+    private func submitInterpretation() async {
+        let text = newInterpretationText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !selectedFrameworkId.isEmpty else { return }
+        isSubmitting = true
+        submitError = nil
+        defer { isSubmitting = false }
+        do {
+            try await store.create(
+                frameworkId: selectedFrameworkId,
+                documentId: documentId,
+                act: selectedAct,
+                text: text,
+                confidence: newConfidence
+            )
+            isExpanded = true
+            withAnimation { showingCreateForm = false }
+            resetForm()
+        } catch {
+            submitError = error.localizedDescription
+        }
+    }
+
+    private func saveEdit(for interp: Components.Schemas.Interpretation) async {
+        let text = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, let interpId = interp.id else { return }
+        isSavingEdit = true
+        editError = nil
+        defer { isSavingEdit = false }
+        do {
+            try await store.update(
+                interpretationId: interpId,
+                text: text,
+                confidence: editConfidence
+            )
+            editingInterpId = nil
+        } catch {
+            editError = error.localizedDescription
+        }
+    }
+
+    private func resetForm() {
+        newInterpretationText = ""
+        selectedAct = .reading
+        newConfidence = 0.8
+        submitError = nil
+    }
+}
+
+// MARK: - Forms & rows
+
+extension DocumentInterpretationsSection {
     @ViewBuilder
     private var createForm: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -205,8 +263,6 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
         }
         .font(.caption)
     }
-
-    // MARK: - Rows
 
     @ViewBuilder
     // swiftlint:disable:next function_body_length
@@ -321,61 +377,5 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
         case .critiquing: return "Critiquing"
         case .applying: return "Applying"
         }
-    }
-
-    // MARK: - Load / Submit
-
-    private func loadFrameworks() async {
-        await store.loadFrameworks()
-        if let first = store.frameworks.first, let fwId = first.id {
-            selectedFrameworkId = fwId
-        }
-    }
-
-    private func submitInterpretation() async {
-        let text = newInterpretationText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !selectedFrameworkId.isEmpty else { return }
-        isSubmitting = true
-        submitError = nil
-        defer { isSubmitting = false }
-        do {
-            try await store.create(
-                frameworkId: selectedFrameworkId,
-                documentId: documentId,
-                act: selectedAct,
-                text: text,
-                confidence: newConfidence
-            )
-            isExpanded = true
-            withAnimation { showingCreateForm = false }
-            resetForm()
-        } catch {
-            submitError = error.localizedDescription
-        }
-    }
-
-    private func saveEdit(for interp: Components.Schemas.Interpretation) async {
-        let text = editText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, let interpId = interp.id else { return }
-        isSavingEdit = true
-        editError = nil
-        defer { isSavingEdit = false }
-        do {
-            try await store.update(
-                interpretationId: interpId,
-                text: text,
-                confidence: editConfidence
-            )
-            editingInterpId = nil
-        } catch {
-            editError = error.localizedDescription
-        }
-    }
-
-    private func resetForm() {
-        newInterpretationText = ""
-        selectedAct = .reading
-        newConfidence = 0.8
-        submitError = nil
     }
 }

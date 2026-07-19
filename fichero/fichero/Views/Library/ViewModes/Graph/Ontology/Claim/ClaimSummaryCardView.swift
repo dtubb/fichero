@@ -17,7 +17,6 @@ private func isOpaqueIdentifier(_ value: String) -> Bool {
     return trimmed.rangeOfCharacter(from: hexAndDashes.inverted) == nil
 }
 
-// swiftlint:disable:next type_body_length
 struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
     var focusedEntityId: String?
@@ -259,6 +258,11 @@ struct ClaimSummaryCard: View {
         }
     }  // end else (isEmptyContent path)
 
+}
+
+// MARK: - Navigation & Sentence
+
+extension ClaimSummaryCard {
     private func focusClaim() {
         kgFocusState.focusClaim(
             claimId: claim.id,

@@ -3,7 +3,7 @@ import AppKit
 #endif
 import SwiftUI
 
-// swiftlint:disable type_body_length file_length
+// swiftlint:disable file_length
 struct FirstRunWindow: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
@@ -63,7 +63,10 @@ struct FirstRunWindow: View {
         .frame(width: 220)
         .background(Color(platformColor: .controlBackgroundColor))
     }
+}
 
+// MARK: - Content & builders
+extension FirstRunWindow {
     @ViewBuilder
     private var content: some View {
         switch step {
@@ -388,8 +391,6 @@ struct LibrarySetupActionsRow: View {
         }
     }
 }
-
-// swiftlint:enable type_body_length
 
 private struct FirstRunCardConfig {
     let icon: String

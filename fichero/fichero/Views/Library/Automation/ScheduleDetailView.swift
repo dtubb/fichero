@@ -4,7 +4,6 @@ import SwiftUI
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ScheduleDetailView")
 
 // Detail view for a schedule showing configuration and run history
-// swiftlint:disable:next type_body_length
 struct ScheduleDetailView: View {
     let schedule: ScheduleInfo
     @Environment(APIClient.self) var apiClient
@@ -256,8 +255,11 @@ struct ScheduleDetailView: View {
         .cornerRadius(8)
     }
 
-    // MARK: - Helpers
+}
 
+// MARK: - Helpers & Actions
+
+extension ScheduleDetailView {
     private var statusColor: Color {
         switch schedule.status {
         case "active": return .green

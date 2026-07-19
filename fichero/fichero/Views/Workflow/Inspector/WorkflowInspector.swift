@@ -3,7 +3,6 @@ import SwiftUI
 
 let workflowInspectorLogger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowInspector")
 
-// swiftlint:disable type_body_length
 /// Inspector panel for workflow editor - shows available blocks to drag onto canvas
 struct WorkflowInspector: View {
     @Binding var workflow: Workflow
@@ -257,8 +256,11 @@ struct WorkflowInspector: View {
         }
     }
 
-    // MARK: - Built-in Tools Section
+}
 
+// MARK: - Built-in Tools
+
+extension WorkflowInspector {
     private var builtinToolsSection: some View {
         VStack(spacing: 12) {
             if isLoadingTools {
@@ -358,9 +360,7 @@ struct WorkflowInspector: View {
             }
         }
     }
-
 }
-// swiftlint:enable type_body_length
 
 // ToolBlockView and MCPToolBlockView are in WorkflowToolBlocks.swift
 

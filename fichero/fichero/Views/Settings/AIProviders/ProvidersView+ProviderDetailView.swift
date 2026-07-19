@@ -2,7 +2,6 @@ import FicheroAPIClient
 import OSLog
 import SwiftUI
 
-// swiftlint:disable:next type_body_length
 struct ProviderDetailView: View {
     let provider: Components.Schemas.ProviderResponse
     let catalogEntry: Components.Schemas.ProviderCatalogResponse?
@@ -273,7 +272,11 @@ struct ProviderDetailView: View {
             )
         }
     }
+}
 
+// MARK: - Badges & actions
+
+extension ProviderDetailView {
     @ViewBuilder
     private func capabilityBadge(_ capability: String) -> some View {
         let (icon, color): (String, Color) = {

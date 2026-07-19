@@ -11,7 +11,6 @@ private let kgCurationServiceLogger = Logger(
 
 // Typed wrappers for `/api/kg/curation-rules/*`.
 
-// swiftlint:disable type_body_length
 @MainActor
 @Observable
 final class KGCurationService {
@@ -200,6 +199,11 @@ final class KGCurationService {
         }
     }
 
+}
+
+// MARK: - Claim curation rules
+
+extension KGCurationService {
     func listClaimRules() async throws -> [Components.Schemas.ClaimRuleReadResponse] {
         let response = try await client.api.listClaimRulesApiKgCurationRulesClaimRulesGet()
 
@@ -358,4 +362,3 @@ final class KGCurationService {
         }
     }
 }
-// swiftlint:enable type_body_length

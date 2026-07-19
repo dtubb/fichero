@@ -1,6 +1,6 @@
 import SwiftUI
 
-// swiftlint:disable type_body_length file_length
+// swiftlint:disable file_length
 
 /// Photos-style edit chain panel (#1420).
 ///
@@ -161,7 +161,11 @@ struct ImageEditChainPanel: View {
             }
         }
     }
+}
 
+// MARK: - Step Editor & Add Step
+
+extension ImageEditChainPanel {
     @ViewBuilder
     // swiftlint:disable:next function_body_length
     private func stepEditor(for operation: ImageEditOperation, at index: Int) -> some View {
@@ -468,8 +472,6 @@ struct ImageEditChainPanel: View {
         enhanceBrightness = 1.0; enhanceContrast = 1.0; enhanceSharpen = 1.0; enhanceAutoLevels = false
     }
 }
-
-// swiftlint:enable type_body_length
 
 #Preview("With edits") {
     @Previewable @State var selectedIdx: Int?

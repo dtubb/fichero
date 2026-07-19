@@ -16,7 +16,6 @@ struct KnowledgeGraphViewModeFocus: Equatable {
     }
 }
 
-// swiftlint:disable type_body_length
 /// Browser panel for exploring entities and their associated claims.
 /// Wires #498 — per-library Knowledge Graph view, peer to Workflows
 /// and Activity. Uses `EntityService` (\`/api/entities\` +
@@ -282,6 +281,11 @@ struct OntologyBrowser: View {
         }
     }
 
+}
+
+// MARK: - Layout
+
+extension OntologyBrowser {
     /// Regular width keeps the two-column list|detail split; compact width
     /// (iPhone) collapses to a list→detail push flow (#3011).
     @ViewBuilder
@@ -379,9 +383,7 @@ struct OntologyBrowser: View {
             .frame(minWidth: 300)
         }
     }
-
 }
-// swiftlint:enable type_body_length
 
 extension OntologyBrowser {
     func setHidden(_ kind: String, hidden: Bool) {
