@@ -105,12 +105,22 @@ struct WorkflowProvenancePanel: View {
     nonisolated static func sortNewestFirst(
         _ runs: [Components.Schemas.WorkflowRunProvenanceResponse]
     ) -> [Components.Schemas.WorkflowRunProvenanceResponse] {
-        let fmt = ISO8601DateFormatter()
-        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        // ISO8601DateFormatter with .withFractionalSeconds REJECTS whole-second
+        // timestamps like "2024-06-01T00:00:00Z" — and the engine emits exactly
+        // those whenever microseconds are zero (Python datetime.isoformat()). Parse
+        // fractional first, then fall back to plain internet-date-time; otherwise
+        // every whole-second run collapsed to .distantPast and the sort became a
+        // silent no-op that preserved input order instead of newest-first (#4016).
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        func startedDate(_ value: String?) -> Date {
+            guard let value else { return .distantPast }
+            return fractional.date(from: value) ?? plain.date(from: value) ?? .distantPast
+        }
         return runs.sorted { lhs, rhs in
-            let lhsDate = lhs.startedAt.flatMap { fmt.date(from: $0) } ?? .distantPast
-            let rhsDate = rhs.startedAt.flatMap { fmt.date(from: $0) } ?? .distantPast
-            return lhsDate > rhsDate
+            startedDate(lhs.startedAt) > startedDate(rhs.startedAt)
         }
     }
 

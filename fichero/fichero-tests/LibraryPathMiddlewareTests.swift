@@ -155,7 +155,11 @@ struct LibraryPathMiddlewareTests {
     func nfdLibraryPathHeaderIsNFC() {
         let nfd = "/tmp/\("Chocó".decomposedStringWithCanonicalMapping).fichero"
         let nfc = "/tmp/\("Chocó".precomposedStringWithCanonicalMapping).fichero"
-        #expect(nfd != nfc, "test string must actually differ by normalization")
+        // NOTE: Swift String !=/== is Unicode canonical-equivalence, so NFD and NFC
+        // "Chocó" compare EQUAL as Strings. Compare unicode scalars to prove the two
+        // inputs really differ by normalization form (#4016).
+        #expect(Array(nfd.unicodeScalars) != Array(nfc.unicodeScalars),
+                "test string must actually differ by normalization")
 
         let value = LibraryPathMiddleware.headerValue(forLibraryPath: nfd)
         #expect(value.removingPercentEncoding == nfc)
