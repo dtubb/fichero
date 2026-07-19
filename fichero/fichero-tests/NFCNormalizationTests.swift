@@ -86,24 +86,54 @@ struct NFCNormalizationTests {
         #expect((suite.dictionary(forKey: LibraryManager.libraryDisplayNamesByPathKey) as? [String: String]) == namesAfterFirst)
     }
 
-    @Test("colliding NFD+NFC keys collapse to the NFC entry, preferring NFC's value")
-    func migrationMergePrefersNFC() {
+    @Test("UserDefaults collapses a persisted NFD+NFC display-name pair to one entry before migration")
+    func migrationCannotArbitrateAlreadyCollapsedCollision() {
         let name = "nfc-test-collision"
         let suite = makeSuite(name)
         defer { suite.removePersistentDomain(forName: name) }
 
         let nfdPath = "/Users/x/\(nfd).fichero"
         let nfcPath = "/Users/x/\(nfc).fichero"
-        // Both variants present (array de-dups; dict merges preferring NFC).
         suite.set([nfdPath, nfcPath], forKey: LibraryManager.openLibraryPathsKey)
-        suite.set([nfdPath: "old", nfcPath: "new"], forKey: LibraryManager.libraryDisplayNamesByPathKey)
+
+        // #4024: a Swift dict literal [nfdPath: ..., nfcPath: ...] would TRAP — nfdPath and
+        // nfcPath are canonically-equivalent Strings (Swift `==`), so it has "duplicate" keys.
+        // An NSMutableDictionary keeps them byte-distinct (NSString equality), but UserDefaults'
+        // NSDictionary→Swift bridge collapses them back to ONE Swift key on read. So a true
+        // NFD+NFC display-name collision is already resolved to a single entry BEFORE migration
+        // runs — the migration cannot deterministically pick which value wins. Pin that reality.
+        let both = NSMutableDictionary()
+        both.setObject("old", forKey: nfdPath as NSString)
+        both.setObject("new", forKey: nfcPath as NSString)
+        suite.set(both, forKey: LibraryManager.libraryDisplayNamesByPathKey)
 
         LibraryManager.migrateStoredPathsToNFC(defaults: suite)
 
+        // Open-paths array de-dups the visual collision to the single NFC path.
         #expect(suite.stringArray(forKey: LibraryManager.openLibraryPathsKey) == [nfcPath])
         let names = suite.dictionary(forKey: LibraryManager.libraryDisplayNamesByPathKey) as? [String: String]
-        #expect(names?.count == 1)
-        #expect(names?[nfcPath] == "new")   // NFC entry's value wins
+        #expect(names?.count == 1, "the NFD+NFC keys collapsed to one Swift key at the UserDefaults read")
+    }
+
+    @Test("a persisted NFD-only display-name key is re-keyed to its NFC form, value preserved")
+    func migrationRekeysNFDDisplayNameToNFC() {
+        let name = "nfc-test-rekey"
+        let suite = makeSuite(name)
+        defer { suite.removePersistentDomain(forName: name) }
+
+        let nfdPath = "/Users/x/\(nfd).fichero"
+        let nfcPath = "/Users/x/\(nfc).fichero"
+
+        // The realistic reachable case: a single NFD-byte key persisted before normalization.
+        let names = NSMutableDictionary()
+        names.setObject("old", forKey: nfdPath as NSString)
+        suite.set(names, forKey: LibraryManager.libraryDisplayNamesByPathKey)
+
+        LibraryManager.migrateStoredPathsToNFC(defaults: suite)
+
+        let migrated = suite.dictionary(forKey: LibraryManager.libraryDisplayNamesByPathKey) as? [String: String]
+        #expect(migrated?.count == 1)
+        #expect(migrated?[nfcPath] == "old", "the NFD key is re-keyed to its NFC form, value preserved")
     }
 
     @Test("distinct libraries are all retained through migration")

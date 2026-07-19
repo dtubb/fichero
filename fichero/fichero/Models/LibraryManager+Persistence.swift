@@ -40,10 +40,14 @@ extension LibraryManager {
     /// hold NFD path strings (from the macOS filesystem); re-key them to NFC so
     /// they match the paths the app now writes and the backend registry uses.
     ///
-    /// Merge-preferring-NFC on key collision (an NFD and an NFC entry for the
-    /// same visual path collapse to the NFC key, keeping the value already under
-    /// the NFC key) so a saved library is never dropped. Running twice is a
-    /// no-op — NFC of NFC is itself, so the second pass finds nothing to change.
+    /// #4024: compares at the unicode-scalar level — Swift `String ==` is canonical (an NFD
+    /// string equals its NFC form), so a byte-level check is the only way to tell an already-NFC
+    /// key from an NFD one. A surviving NFD-origin key is re-keyed to NFC, keeping any value
+    /// already stored under the NFC key. Note: a genuine NFD+NFC key collision is already
+    /// collapsed to a single entry by the UserDefaults NSDictionary→Swift bridge on read
+    /// (Swift-equal keys), so this never observes both to arbitrate — it re-keys whichever
+    /// single representation survived. Running twice is a no-op — NFC of NFC is itself, so the
+    /// second pass finds nothing to change.
     /// `static` + injectable `defaults` so it is testable without the singleton.
     static func migrateStoredPathsToNFC(defaults: UserDefaults = .standard) {
         // Open-paths array: normalize, then de-dup preserving order (NFD+NFC of
@@ -61,12 +65,18 @@ extension LibraryManager {
         // Display-names dict keyed by path: re-key to NFC, values preserved.
         if let names = defaults.dictionary(forKey: libraryDisplayNamesByPathKey) as? [String: String] {
             var migrated: [String: String] = [:]
-            // Pass 1: entries already NFC win the key outright.
-            for (path, name) in names where path == path.nfcNormalized {
+            // Pass 1: entries already NFC win the key outright. #4024: compare at the
+            // UNICODE-SCALAR level — Swift `String ==` is canonical (an NFD string equals
+            // its own NFC form), so `path == path.nfcNormalized` was true for EVERY path and
+            // could never distinguish an already-NFC entry from an NFD one — the NFC-wins
+            // preference was unreachable.
+            for (path, name) in names
+            where path.unicodeScalars.elementsEqual(path.nfcNormalized.unicodeScalars) {
                 migrated[path] = name
             }
             // Pass 2: NFD-origin entries only fill a key an NFC entry didn't claim.
-            for (path, name) in names where path != path.nfcNormalized {
+            for (path, name) in names
+            where !path.unicodeScalars.elementsEqual(path.nfcNormalized.unicodeScalars) {
                 let key = path.nfcNormalized
                 if migrated[key] == nil { migrated[key] = name }
             }
