@@ -24,7 +24,12 @@ struct NFCNormalizationTests {
 
     @Test("nfcNormalized turns NFD into NFC bytes and is idempotent")
     func stringHelperNormalizes() {
-        #expect(nfd != nfc, "sample must actually differ by normalization")
+        // #4024: Swift `String ==`/`!=` is canonical (nfd == nfc), so compare the actual
+        // unicode-scalar representations to prove the fixture really differs by normalization.
+        #expect(
+            !nfd.unicodeScalars.elementsEqual(nfc.unicodeScalars),
+            "sample must actually differ by normalization (scalar representation)"
+        )
         #expect(nfd.nfcNormalized == nfc)
         #expect(nfc.nfcNormalized == nfc)                 // idempotent
         #expect(nfd.nfcNormalized.nfcNormalized == nfc)   // twice == once
