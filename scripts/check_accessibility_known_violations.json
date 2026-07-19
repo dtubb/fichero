@@ -96,7 +96,7 @@
   "Views/Chat/Research/ResearchTasksPane.swift#41b046dd9d": "icon-only Button missing .accessibilityLabel(...) (lines 145-152)",
   "Views/Chat/Research/ResearchTasksPane.swift#a592b63269": "icon-only Button missing .accessibilityLabel(...) (lines 324-330)",
   "Views/Chat/Research/ResearchTasksPane.swift#ea4c3a50e2": "icon-only Button missing .accessibilityLabel(...) (lines 162-168)",
-  "Views/Settings/BackupsView.swift#a8546da95f": "icon-only Button missing .accessibilityLabel(...) (lines 145-151)",
+  "Views/Settings/Backups/BackupsView.swift#a8546da95f": "icon-only Button missing .accessibilityLabel(...) (lines 145-151)",
   "Views/Library/DocumentPickerSheet.swift#1dd291304d": "icon-only Button missing .accessibilityLabel(...) (lines 62-68)",
   "Views/Workflow/Library/WorkflowPickerSheet.swift#1dd291304d": "icon-only Button missing .accessibilityLabel(...) (lines 52-58)",
   "Views/Sidebar/Sections/SidebarView+ViewComponents.swift#331b48ad31": "icon-only Button missing .accessibilityLabel(...) (lines 55-62)",

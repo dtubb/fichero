@@ -80,7 +80,7 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 | You see / say | View | File | Milestone |
 |---|---|---|---|
 | **Settings window** | SettingsView | `Views/Settings/SettingsView.swift` | Settings & Providers |
-| General settings | GeneralSettingsView | `Views/Settings/GeneralSettingsView.swift` | Settings & Providers |
+| General settings | GeneralSettingsView | `Views/Settings/General/GeneralSettingsView.swift` | Settings & Providers |
 | **AI settings / model defaults** | AISettingsView (+Tabs) | `Views/Settings/AISettingsView*.swift` | Settings & Providers |
 | Local models | LocalModelsSettingsView | `Views/Settings/LocalModelsSettingsView.swift` | Settings & Providers |
 | Backend settings | BackendSettingsView | `Views/Settings/Engine/BackendSettingsView.swift` | Settings & Providers |

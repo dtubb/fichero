@@ -2830,7 +2830,7 @@
       "Views/Settings/AISettingsView+Helpers.swift::saveDefaults",
       "Views/Settings/AISettingsView.swift::AISettingsView",
       "Views/Settings/Engine/BackendSettingsView.swift::BackendSettingsView",
-      "Views/Settings/GeneralSettingsView.swift::GeneralSettingsView",
+      "Views/Settings/General/GeneralSettingsView.swift::GeneralSettingsView",
       "Views/Settings/LocalModelsSettingsView.swift::CodingKeys",
       "Views/Settings/LocalModelsSettingsView.swift::DiskUsageInfo",
       "Views/Settings/LocalModelsSettingsView.swift::LocalModelStatus",
