@@ -54,7 +54,7 @@ PATTERN_LABELS: dict[str, str] = {
 # by @AppStorage, which @Observable does not track).
 KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
     [
-        "fichero/fichero/Views/Chat/ComparisonDetailView+Actions.swift",
+        "fichero/fichero/Views/Chat/ModelComparison/ComparisonDetailView+Actions.swift",
         "fichero/fichero/Views/Shell/ContentView/ContentView+Actions.swift",
         "fichero/fichero/Views/Shell/ContentView/ContentView.swift",
         "fichero/fichero/Views/Inspector/Artifacts/EntityDigestView.swift",

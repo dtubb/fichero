@@ -46,7 +46,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library/Automation/ScheduleCreationSheet.swift": "#1945 — candidate dead file: ScheduleCreationSheet",
     "Views/Library/Automation/ScheduleEditorView+Category.swift": "#2955 — helper enum used only by same-file ScheduleEditorView extension; scanner misses local view/helper wiring",
     "Views/Library/Automation/TriggerCreationSheet.swift": "#1945 — candidate dead file: TriggerCreationSheet",
-    "Views/Chat/ChatInspector+ScopedDocuments.swift": "#2955 — helper row used only by same-file ChatInspector scoped-documents view builder",
+    "Views/Chat/Inspector/ChatInspector+ScopedDocuments.swift": "#2955 — helper row used only by same-file ChatInspector scoped-documents view builder",
     "Views/Shell/ContentView/ContentView+ViewBuilders.swift": "#2955 — ReadingPaneView is instantiated only inside same-file ContentView builders; scanner blind spot",
     "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCard+Provenance.swift": "#1945 — candidate dead file: ProvenanceBadge",
     "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Biography.swift": "#1945 — candidate dead file: MentionSummary",

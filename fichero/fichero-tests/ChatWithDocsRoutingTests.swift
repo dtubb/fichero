@@ -44,9 +44,9 @@ final class ChatWithDocsRoutingTests: XCTestCase {
     }
 
     func testChatInspectorOffersTouchFriendlyAddToChatAffordance() throws {
-        let source = try Self.appSource("Views/Chat/ChatInspector+ScopedDocuments.swift")
-        let headerSource = try Self.appSource("Views/Chat/ChatInspector+Header.swift")
-        let inspectorSource = try Self.appSource("Views/Chat/ChatInspector.swift")
+        let source = try Self.appSource("Views/Chat/Inspector/ChatInspector+ScopedDocuments.swift")
+        let headerSource = try Self.appSource("Views/Chat/Inspector/ChatInspector+Header.swift")
+        let inspectorSource = try Self.appSource("Views/Chat/Inspector/ChatInspector.swift")
 
         XCTAssertTrue(source.contains("Add Current Selection to Chat"))
         XCTAssertTrue(source.contains("Search above or tap Add Current Selection to focus your chat."))
