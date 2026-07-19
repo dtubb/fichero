@@ -126,10 +126,8 @@ fi
 
 if [[ -n "${PYTHON_BIN:-}" ]]; then
   PYTHON_BIN="$PYTHON_BIN"
-elif [[ -x ".venv/bin/python" ]]; then
-  PYTHON_BIN=".venv/bin/python"
 else
-  PYTHON_BIN="python3"
+  PYTHON_BIN="$(scripts/find_project_python.sh .)" || exit 2
 fi
 
 PYTEST_CMD=("${PYTHON_BIN}" -m pytest)
