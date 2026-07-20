@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -10,14 +9,14 @@ import SwiftUI
 
 // MARK: - LibraryWindow
 
-// swiftlint:disable type_body_length
 /// Main window view - simplified to just track one library per window
 struct LibraryWindow: View {
     @Environment(LibraryManager.self) var libraryManager
     @Environment(AppState.self) var appState
     @Environment(ViewSettings.self) var viewSettings
 
-    @State private var windowState: WindowState
+    // internal (not private) so the same-type extension in LibraryWindow+Actions.swift can reach it
+    @State var windowState: WindowState
 
     // App-wide workflow execution observer (uses @Observable, not ObservableObject)
     @State private var executionObserver = WorkflowExecutionObserver()
@@ -36,21 +35,21 @@ struct LibraryWindow: View {
     // This flag trails backend-ready by a settle beat (see the .task in `body`)
     // so the first-run sheet can only present AFTER that first toolbar layout.
     @State private var firstRunSheetArmed = false
-    @State private var hostWindow: NSWindow?
-    @SceneStorage("libraryWindow.libraryId") private var persistedLibraryId: String?
+    @State var hostWindow: NSWindow?
+    @SceneStorage("libraryWindow.libraryId") var persistedLibraryId: String?
 
     // #2273 per-window state keys for duplicate-window restore and capture.
     // ContentView owns the live state; LibraryWindow just mirrors it.
-    @SceneStorage("selectedSidebarItem") private var sceneSelectedItemId: String?
-    @SceneStorage("viewModeType") private var sceneViewModeType: String = "library"
-    @SceneStorage("viewModeItemId") private var sceneViewModeItemId: String?
+    @SceneStorage("selectedSidebarItem") var sceneSelectedItemId: String?
+    @SceneStorage("viewModeType") var sceneViewModeType: String = "library"
+    @SceneStorage("viewModeItemId") var sceneViewModeItemId: String?
 
-    @Environment(\.openWindow) private var openWindow
+    @Environment(\.openWindow) var openWindow
 
     /// Seed handed to a window opened via `openWindow(value: WindowSeed)`
     /// (Duplicate Window, #2262). `nil` for the primary / File ▸ New Window
     /// path, which keeps its existing pending-library + restore behavior.
-    private let seed: WindowSeed?
+    let seed: WindowSeed?
 
     let libraryWindowLogger = Logger(subsystem: "app.fichero.fichero", category: "LibraryWindow")
 
@@ -189,215 +188,7 @@ struct LibraryWindow: View {
         }
     }
 
-    // MARK: - Initialization
-
-    private func initializeWindow() {
-        libraryWindowLogger.info("""
-            initializeWindow - openLibraries=\(libraryManager.openLibraries.count), \
-            currentLibraryId=\(libraryManager.currentLibraryId?.uuidString ?? "nil")
-            """)
-
-        // Priority 0: a WindowSeed (Duplicate Window, #2262) clones an existing
-        // window's library + selection + active lens. Write the #2273
-        // scene-storage keys BEFORE the library mounts so ContentView restores
-        // into the cloned state, then assign the seeded library via the shared
-        // assignLibrary path (which also persists it for next launch).
-        if let seed, let resolvedId = resolveSeedLibrary(seed) {
-            sceneSelectedItemId = seed.selectedItemId
-            sceneViewModeType = seed.viewModeType ?? "library"
-            sceneViewModeItemId = seed.viewModeItemId
-            assignLibrary(id: resolvedId)
-            libraryWindowLogger.info("Seeded duplicated window from library: \(resolvedId)")
-            return
-        }
-
-        if let pendingId = libraryManager.pendingWindowLibraryIds.first,
-           libraryManager.getLibrary(id: pendingId) != nil {
-            libraryWindowLogger.info("Consuming pendingWindowLibraryId: \(pendingId)")
-            libraryManager.pendingWindowLibraryIds.removeFirst()
-            assignLibrary(id: pendingId)
-            return
-        }
-
-        // Priority 0: Restore the library this scene was showing last time.
-        if let persistedLibraryId,
-           let restoredId = UUID(uuidString: persistedLibraryId),
-           libraryManager.getLibrary(id: restoredId) != nil {
-            libraryWindowLogger.info("Restoring persisted libraryId: \(restoredId)")
-            assignLibrary(id: restoredId)
-            return
-        }
-
-        // Priority 1: Use currentLibraryId (set by handleOpenURL or restoreSavedLibraries)
-        if let currentId = libraryManager.currentLibraryId,
-           libraryManager.getLibrary(id: currentId) != nil {
-            libraryWindowLogger.info("Using currentLibraryId: \(currentId)")
-            assignLibrary(id: currentId)
-            return
-        }
-
-        // Priority 2: Use first open library if any exist (restored on app launch)
-        if let first = libraryManager.openLibraries.first {
-            libraryWindowLogger.info("Using first library: \(first.displayName)")
-            assignLibrary(id: first.id)
-            return
-        }
-
-        // Priority 3: No library - show welcome screen
-        libraryWindowLogger.info("No library available - showing welcome screen")
-    }
-
-    private func assignLibrary(id: UUID) {
-        windowState.libraryId = id
-        persistedLibraryId = id.uuidString
-        libraryWindowLogger.info("Assigned library: \(id)")
-    }
-
-    private func createNewLibrary() {
-        let library = libraryManager.createNewLibrary()
-        assignLibrary(id: library.id)
-        libraryWindowLogger.info("Created and assigned new library: \(library.displayName)")
-    }
-
-    // MARK: - Actions
-
-    private func handleFileImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            let library = libraryManager.openLibrary(at: url)
-            assignLibrary(id: library.id)
-            libraryWindowLogger.info("Opened library: \(library.displayName)")
-        case .failure(let error):
-            libraryWindowLogger.error("Failed to open library: \(error.localizedDescription)")
-        }
-    }
-
-    private func handleNewWindow() {
-        libraryManager.currentLibraryId = windowState.libraryId
-        openWindow(id: "main")
-    }
-
-    /// Resolve the library a WindowSeed refers to: prefer the already-open
-    /// library by id (the Duplicate Window case — same process, same library),
-    /// falling back to re-opening it from its on-disk path if a restored seed
-    /// outlived the source library being closed.
-    private func resolveSeedLibrary(_ seed: WindowSeed) -> UUID? {
-        if let id = UUID(uuidString: seed.libraryId),
-           libraryManager.getLibrary(id: id) != nil {
-            return id
-        }
-        if let path = seed.libraryPath {
-            return libraryManager.openLibrary(at: URL(fileURLWithPath: path), makeCurrent: false).id
-        }
-        return nil
-    }
-
-    /// Duplicate Window (#2262): clone THIS window's library + selection + lens
-    /// into a brand-new window. Reads the live #2273 scene-storage state and
-    /// hands it to the value-seeded `WindowGroup(for: WindowSeed.self)` via
-    /// `openWindow(value:)`. `nil` when no library is open (menu item disabled).
-    private var duplicateWindowAction: FocusedLibraryAction? {
-        guard windowState.library != nil else { return nil }
-        return FocusedLibraryAction(isEnabled: true, run: { handleDuplicateWindow() })
-    }
-
-    private func handleDuplicateWindow() {
-        guard let library = windowState.library else { return }
-        let seed = WindowSeed(
-            libraryId: library.id.uuidString,
-            libraryPath: libraryManager.isTemporaryLibrary(library.url) ? nil : library.url.path,
-            selectedItemId: sceneSelectedItemId,
-            viewModeType: sceneViewModeType,
-            viewModeItemId: sceneViewModeItemId
-        )
-        openWindow(value: seed)
-        libraryWindowLogger.info("Duplicated window for library: \(library.id)")
-    }
-
-    private func handleNewLibrary() {
-        let savePanel = NSSavePanel()
-        savePanel.allowedContentTypes = [.package]
-        savePanel.canCreateDirectories = true
-        savePanel.nameFieldStringValue = "Untitled.fichero"
-        savePanel.title = "Create New Database"
-        savePanel.message = "Choose where to save your new database."
-        savePanel.prompt = "Create"
-
-        if savePanel.runModal() == .OK, let url = savePanel.url {
-            let withExtension = url.pathExtension.lowercased() == "fichero"
-                ? url
-                : url.appendingPathExtension("fichero")
-            // NFC-normalize the new package's name so we never create a
-            // mojibake-variant path on disk (#3076); the user-chosen parent dir
-            // (already on disk) is left untouched.
-            let finalURL = withExtension.nfcNormalizedLastComponent
-
-            // Create unsaved library, immediately save to chosen location, then
-            // open it in a NEW window (New Library… is distinct from New Window,
-            // which reuses the current library). Reuses the same pending-library
-            // → openWindow("main") affordance as every other open-in-new-window
-            // path (WindowOpener), so the fresh scene picks the library up on init.
-            let newLibrary = libraryManager.createNewLibrary()
-            do {
-                try libraryManager.saveLibrary(newLibrary.id, to: finalURL)
-                WindowOpener.open(libraryId: newLibrary.id, asTab: false, using: openWindow)
-                libraryWindowLogger.info("Created and saved new library: \(finalURL.lastPathComponent)")
-            } catch {
-                libraryWindowLogger.error("Failed to create new library: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func handleSaveLibrary() {
-        guard let library = windowState.library else { return }
-
-        let savePanel = NSSavePanel()
-        savePanel.allowedContentTypes = [.package]
-        savePanel.canCreateDirectories = true
-        savePanel.nameFieldStringValue = library.displayName + ".fichero"
-        savePanel.message = "Choose a location to save your library"
-
-        savePanel.begin { response in
-            guard response == .OK, let url = savePanel.url else { return }
-
-            // NFC-normalize the package name before saving (#3076) so a name
-            // like "Chocó" is never written as an NFD-variant path.
-            let finalURL = url.nfcNormalizedLastComponent
-            do {
-                try libraryManager.saveLibrary(windowState.libraryId, to: finalURL)
-                libraryWindowLogger.info("Saved library to: \(finalURL.path)")
-            } catch {
-                libraryWindowLogger.error("Failed to save: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private var closeLibraryAction: FocusedLibraryAction? {
-        guard let library = windowState.library,
-              library.id != LibraryManager.globalLibraryId else {
-            return nil
-        }
-
-        return FocusedLibraryAction(isEnabled: true, run: {
-            closeLibraryFromCurrentWindow(library)
-        })
-    }
-
-    private func closeLibraryFromCurrentWindow(_ library: LibraryManager.LibraryReference) {
-        let wasCurrent = windowState.libraryId == library.id
-        libraryManager.closeAndUnregisterLibrary(library.id)
-        if wasCurrent {
-            windowState.libraryId = LibraryManager.globalLibraryId
-            persistedLibraryId = LibraryManager.globalLibraryId.uuidString
-        }
-    }
-
-    private func syncHostWindowMetadata() {
-        hostWindow?.representedURL = windowState.library?.url
-    }
 }
-// swiftlint:enable type_body_length
 
 // MARK: - Empty state (no library open, first-run already completed)
 
