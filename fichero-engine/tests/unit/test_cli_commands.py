@@ -877,9 +877,14 @@ def test_root_exposes_shell_completion_options():
 
 
 def test_sergio_import_command_is_exposed():
-    result = runner.invoke(cli.app, ["import-sergio-corpus", "--help"])
-    assert result.exit_code == 0
-    assert "--spreadsheet-path" in result.output
+    # The command exists...
+    assert runner.invoke(cli.app, ["import-sergio-corpus", "--help"]).exit_code == 0
+    # ...and exposes --spreadsheet-path. Assert the option is WIRED by invoking
+    # it (a present option errs "requires an argument"; a missing one errs
+    # "No such option") rather than grepping the rich --help table, which wraps
+    # the flag across lines at CliRunner's default 80-col width and flakes.
+    result = runner.invoke(cli.app, ["import-sergio-corpus", "--spreadsheet-path"])
+    assert "No such option" not in result.output
 
 
 def test_generated_command_forwards_path_params_via_raw_request():
