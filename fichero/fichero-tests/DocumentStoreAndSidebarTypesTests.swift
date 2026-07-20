@@ -335,7 +335,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     func testLibraryBrowserToggleCopyUsesExplicitLibraryName() throws {
         let toolbarSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         // #4024: Show/Hide Library Browser pane-toggle copy moved to ViewMenuPaneSections.swift.
-        let menuSource = try Self.appSource("Views/Shell/Menu/ViewMenuPaneSections.swift")
+        let menuSource = try Self.appSource("App/Menus/ViewMenuPaneSections.swift")
 
         XCTAssertTrue(toolbarSource.contains("placement: .principal"))
         XCTAssertTrue(toolbarSource.contains("LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName"))

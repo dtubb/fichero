@@ -79,6 +79,7 @@ TRANSPORT_PATTERNS: dict[str, re.Pattern] = {
 KNOWN_VIOLATIONS: dict[str, str] = {
     # @StateObject = …Service() constructed inside the view (#1882–#1900)
     "Shell/ContentView/ContentView.swift": "#1884 — @StateObject PerformanceService() in view",
+    "Connect/ConnectPairingIOS.swift": "#3102 — @StateObject BonjourDiscoveryService() in the iOS pairing view (local LAN discovery for pairing; grandfathered from FicheroApp_iOS before the file_length split)",
     "Chat/ModelComparison/ModelComparisonView.swift": "#1900 — @StateObject ModelComparisonService()",
     "Chat/ModelComparison/NodeComparisonSheet.swift": "#1900 — @StateObject ModelComparisonService()",
     "Components/NodeClassPicker.swift": "#1886 — @StateObject WorkspacePickerService()",

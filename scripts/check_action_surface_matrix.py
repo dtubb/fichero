@@ -29,28 +29,38 @@ from pathlib import Path
 from matrix_guardrail_common import ROOT, load_known_gaps
 
 APP_SOURCE = ROOT / "fichero" / "fichero" / "FicheroApp.swift"
-WRAPPER_SOURCE = ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "FocusedCommandButtons.swift"
+WRAPPER_SOURCE = ROOT / "fichero" / "fichero" / "App" / "Menus" / "FocusedCommandButtons.swift"
 KNOWN_GAPS = load_known_gaps(Path(__file__).with_name("check_action_surface_matrix_known_gaps.json"))
 
+# Menu Commands live in App/Menus (moved out of the Views/Shell catch-all).
+MENUS_DIR = ROOT / "fichero" / "fichero" / "App" / "Menus"
 MENU_FILES = {
-    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "FileMenuCommands.swift",
-    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "ViewMenuCommands.swift",
-    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "ViewMenuLayoutSections.swift",
-    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "ViewMenuPaneSections.swift",
-    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "ImagePreviewMenuCommands.swift",
-    ROOT / "fichero" / "fichero" / "Views" / "Shell" / "Menu" / "AddItemMenu.swift",
+    MENUS_DIR / "FileMenuCommands.swift",
+    MENUS_DIR / "ViewMenuCommands.swift",
+    MENUS_DIR / "ViewMenuLayoutSections.swift",
+    MENUS_DIR / "ViewMenuPaneSections.swift",
+    MENUS_DIR / "ImagePreviewMenuCommands.swift",
+    MENUS_DIR / "AddItemMenu.swift",
 }
+
+# Toolbar/context evidence lives across Views/ AND App/Menus/ (AddItemMenu carries
+# the only toolbar evidence for some Link/Copy/Add-Files actions after the reorg).
+_EVIDENCE_ROOTS = [
+    (ROOT / "fichero" / "fichero" / "Views").rglob("*.swift"),
+    MENUS_DIR.rglob("*.swift"),
+]
+_EVIDENCE_FILES = {path for root in _EVIDENCE_ROOTS for path in root}
 
 CONTEXT_FILES = {
     path
-    for path in (ROOT / "fichero" / "fichero" / "Views").rglob("*.swift")
+    for path in _EVIDENCE_FILES
     if "ContextMenu" in path.name
     or ".contextMenu" in path.read_text(encoding="utf-8", errors="ignore")
 }
 
 TOOLBAR_FILES = {
     path
-    for path in (ROOT / "fichero" / "fichero" / "Views").rglob("*.swift")
+    for path in _EVIDENCE_FILES
     if "Toolbar" in path.name
     or "Toolbar" in path.read_text(encoding="utf-8", errors="ignore")
     or "ToolbarItem" in path.read_text(encoding="utf-8", errors="ignore")
@@ -362,7 +372,7 @@ def scan() -> list[Row]:
         elif spec.menu_patterns:
             menu = _match(MENU_TEXT, spec.menu_patterns)
             if menu:
-                evidence.append("menu:Views/Shell/Menu")
+                evidence.append("menu:App/Menus")
 
         context = _match(CONTEXT_TEXT, spec.context_patterns)
         if context:

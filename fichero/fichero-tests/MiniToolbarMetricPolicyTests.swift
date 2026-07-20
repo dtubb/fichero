@@ -67,7 +67,7 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
         XCTAssertTrue(toolbarSource.contains("MiniToolbarPreferences.toolbarVisibilityKey"))
 
         // #4024: mini-toolbar visibility toggle moved to ViewMenuPaneSections.swift.
-        let menuSource = try Self.appSource("Views/Shell/Menu/ViewMenuPaneSections.swift")
+        let menuSource = try Self.appSource("App/Menus/ViewMenuPaneSections.swift")
         XCTAssertTrue(menuSource.contains("MiniToolbarPreferences.toolbarVisibilityKey"))
     }
 

@@ -56,16 +56,11 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "c9065d74dcce": '[notif] fichero/fichero/Views/Shell/ContentView/ContentView.swift:587: .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { n',
     "211b47ab4e9c": '[notif] fichero/fichero/Views/Shell/ContentView/ContentView.swift:590: .onReceive(NotificationCenter.default.publisher(for: .ficheroShowPanelRequested)) { note i',
     "0fbc3922252c": '[shared] fichero/fichero/Views/Library/LibraryView.swift:83: @ObservedObject var featureManager = FeatureManager.shared',
-    "a89c78a261e7": '[shared] fichero/fichero/Views/Onboarding/FirstRunWindow.swift:10: @ObservedObject private var featureManager = FeatureManager.shared',
+    "a89c78a261e7": '[shared] fichero/fichero/Views/Onboarding/FirstRunWindow.swift:9: @ObservedObject private var featureManager = FeatureManager.shared',
     "ea4c23b7fbc5": '[shared] fichero/fichero/Views/Settings/AI/AISettingsView.swift:16: @ObservedObject var featureManager = FeatureManager.shared',
-    "85ec0df2648e": '[shared] fichero/fichero/Views/Shell/Menu/AddItemMenu.swift:10: @ObservedObject var featureManager = FeatureManager.shared',
-    "3ca06ae23808": '[shared] fichero/fichero/Views/Shell/Menu/FocusedCommandButtons+CreationActions.swift:75: @ObservedObject var featureManager = FeatureManager.shared',
-    "e6057730f508": '[shared] fichero/fichero/Views/Shell/Menu/FocusedCommandButtons+Workflow.swift:6: @ObservedObject var featureManager = FeatureManager.shared',
-    "79b1c1bacc70": '[shared] fichero/fichero/Views/Shell/Menu/ViewMenuCommands.swift:106: @ObservedObject var featureManager = FeatureManager.shared',
-    "92ffbf6e709e": '[shared] fichero/fichero/Views/Shell/Menu/ViewMenuLayoutSections.swift:189: @ObservedObject var featureManager = FeatureManager.shared',
     "15fbb889e15b": '[shared] fichero/fichero/Views/Sidebar/Sections/SidebarViewExtensions.swift:28: @ObservedObject var featureManager = FeatureManager.shared',
     "9f021e827b3f": '[shared] fichero/fichero/Views/Workflow/Inspector/WorkflowInspector.swift:25: @ObservedObject var featureManager = FeatureManager.shared',
-    "ea42f65bbb03": '[shared] fichero/fichero/Views/Workflow/Library/WorkflowLibraryView.swift:67: @ObservedObject var featureManager = FeatureManager.shared',
+    "ea42f65bbb03": '[shared] fichero/fichero/Views/Workflow/Library/WorkflowLibraryView.swift:62: @ObservedObject var featureManager = FeatureManager.shared',
     "05092870d979": '[shared] fichero/fichero/Views/Workflow/Library/WorkflowLibraryViewParts/WorkflowDetailView.swift:13: @ObservedObject var featureManager = FeatureManager.shared',
 }
 
