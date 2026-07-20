@@ -456,3 +456,42 @@ that pumps the ASGI `send` events incrementally into the Swift `HTTPBody` stream
 (medium work), or (b) keeping a real socket (UDS/TCP) for streaming endpoints.
 Because the change stream is the app's reactive spine, in-memory-only is
 insufficient without (a).
+
+## DECISION — UDS Mac-local (MAS+DMG) + HTTPS sharing/remote; in-memory = side experiment (Daniel, 2026-07-20)
+
+"UDS for Mac (TestFlight/MAS + DMG), HTTPS for sharing, access by CLI/MCP —
+user opens app, then the CLI works." Firm.
+
+- **Mac local (both MAS/TestFlight and DMG): UDS.** App spawns+owns the engine
+  (via Lane E `FICHERO_UDS_PATH`); app talks to it over UDS. **CLI/MCP connect to
+  the SAME UDS socket locally** — Python `httpx` supports `transport=HTTPTransport(uds=...)`
+  natively, so no HTTPS needed for local CLI. "Open app → CLI works."
+- **Sharing / remote / iOS: HTTPS.** When sharing is ON, engine ALSO binds TCP/TLS;
+  remote clients + iOS connect over HTTPS. Sharing is additive (does not switch the
+  local UDS off).
+- **iOS: HTTPS-to-remote** near-term. NOT a duckdb-move-off: DuckDB runs on iOS via
+  `duckdb-swift` (native, same file format) — only the Python *binding* lacks an iOS
+  wheel. Future iOS-local path = duckdb-swift native data layer ("duck→Swift shim"),
+  tracked not taken. LanceDB→sqlite-vec/Apple vector on iOS.
+- **In-memory / PythonKit: SIDE EXPERIMENT, kept alive.** Proven viable for unary on
+  Mac. Key insight (Daniel): in-process you DON'T need HTTP-SSE — subscribe to the
+  change stream directly via a PythonKit callback; the `httpx.ASGITransport` buffering
+  is a client limitation, not fundamental. So the streaming "blocker" has a clean
+  way around it in-process. Revisit as an optimization; not on the ship path.
+
+### Transport → platform matrix (decided)
+| Surface | Transport |
+|---|---|
+| Mac app ↔ its engine (MAS + DMG) | UDS |
+| Local CLI/MCP ↔ engine | UDS (same socket) |
+| Sharing / remote clients | HTTPS (TCP/TLS, additive) |
+| iOS ↔ engine | HTTPS to a Mac/remote engine |
+| (experiment) Mac in-process | in-memory ASGI via PythonKit + direct change-stream callback |
+
+### UDS Swift lane status
+Landed GREEN at the package level (branch `33b742366`: `TransportMode {.https/.uds}`
+per-instance seam, `AsyncHTTPClientTransport` over `http+unix://`, 7 tests pass,
+`swift build` clean). **HELD from main** pending an app-level Xcode build gate — it
+adds the SwiftNIO stack (async-http-client/nio/nio-http2/nio-ssl) transitively; the
+app build with those deps must be verified before merge. Nothing uses `.uds` yet
+(default stays `.https`), so no rush.
