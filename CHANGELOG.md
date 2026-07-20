@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-07-20-beta
+
+**Workflows**
+
+- Mirror saved workflows into the library tree as workflow nodes, group
+  built-in presets under a locked **Default Workflows** hierarchy, and require
+  users to duplicate a default before editing it
+  ([#11](https://github.com/dtubb/fichero/issues/11)).
+
+**Experience**
+
+- Add System Settings-style back/forward navigation and section orientation
+  headers to the Settings detail pane.
+- Ship this prerelease with the development feature tier so every implemented
+  app surface and workflow tool is available for testing.
+
+**Architecture And Tests**
+
+- Split oversized app-shell, library, sidebar, preview, Inspector, service,
+  and platform-bridge files into focused extensions without changing behavior.
+- Repair source-contract tests after the file reorganization while preserving
+  their behavioral assertions
+  ([#4030](https://github.com/dtubb/fichero/issues/4030)).
+
+---
+
 ## 2026-07-19.2
 
 **Rendering**
