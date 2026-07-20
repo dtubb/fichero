@@ -268,7 +268,6 @@ final class LibraryOutlineModel {
         }
     }
 
-    // swiftlint:disable cyclomatic_complexity
     /// Build the typed child nodes for one document from its cached rollup.
     /// - Pages → individual page item rows (from pagesByParentId, already loaded).
     /// - Artifacts → individual artifact item rows once loaded; count-group fallback until then.
@@ -280,44 +279,78 @@ final class LibraryOutlineModel {
         for type in LibraryOutlineNode.ChildType.allCases {
             switch type {
             case .pages:
-                let pages = (pagesByParentId[document.id] ?? [])
-                    .sorted { ($0.sequence ?? 0) < ($1.sequence ?? 0) }
-                nodes += pages.map { LibraryOutlineNode.pageItem($0, parent: document) }
+                nodes += pageChildNodes(for: document)
             case .artifacts:
-                if let arts = artifactsByDocumentId[document.id] {
-                    nodes += arts.map { LibraryOutlineNode.artifactItem($0, parent: document) }
-                } else if rollup.artifacts > 0 {
-                    // Show count summary until per-document fetch completes.
-                    nodes.append(
-                        LibraryOutlineNode.childGroup(type, document: document, count: rollup.artifacts)
-                    )
-                }
+                nodes += artifactChildNodes(for: document, rollup: rollup, type: type)
             case .entities:
-                let count = type.count(in: rollup)
-                if let entities = entitiesByDocumentId[document.id] {
-                    let children = entities.map { LibraryOutlineNode.entityItem($0, parent: document) }
-                    nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count, children: children))
-                } else if count > 0 {
-                    nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count))
-                }
+                nodes += entityChildNodes(for: document, rollup: rollup, type: type)
             case .claims:
-                let count = type.count(in: rollup)
-                if let claims = claimsByDocumentId[document.id] {
-                    let children = claims.map { LibraryOutlineNode.claimItem($0, parent: document) }
-                    nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count, children: children))
-                } else if count > 0 {
-                    nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count))
-                }
+                nodes += claimChildNodes(for: document, rollup: rollup, type: type)
             case .notes:
-                let count = type.count(in: rollup)
-                if count > 0 {
-                    nodes.append(LibraryOutlineNode.childGroup(type, document: document, count: count))
-                }
+                nodes += noteChildNodes(for: document, rollup: rollup, type: type)
             }
         }
         return nodes
     }
-    // swiftlint:enable cyclomatic_complexity
+
+    private func pageChildNodes(for document: Document) -> [LibraryOutlineNode] {
+        let pages = (pagesByParentId[document.id] ?? [])
+            .sorted { ($0.sequence ?? 0) < ($1.sequence ?? 0) }
+        return pages.map { LibraryOutlineNode.pageItem($0, parent: document) }
+    }
+
+    private func artifactChildNodes(
+        for document: Document,
+        rollup: Components.Schemas.DocumentRollupResponse,
+        type: LibraryOutlineNode.ChildType
+    ) -> [LibraryOutlineNode] {
+        if let arts = artifactsByDocumentId[document.id] {
+            return arts.map { LibraryOutlineNode.artifactItem($0, parent: document) }
+        } else if rollup.artifacts > 0 {
+            // Show count summary until per-document fetch completes.
+            return [LibraryOutlineNode.childGroup(type, document: document, count: rollup.artifacts)]
+        }
+        return []
+    }
+
+    private func entityChildNodes(
+        for document: Document,
+        rollup: Components.Schemas.DocumentRollupResponse,
+        type: LibraryOutlineNode.ChildType
+    ) -> [LibraryOutlineNode] {
+        let count = type.count(in: rollup)
+        if let entities = entitiesByDocumentId[document.id] {
+            let children = entities.map { LibraryOutlineNode.entityItem($0, parent: document) }
+            return [LibraryOutlineNode.childGroup(type, document: document, count: count, children: children)]
+        } else if count > 0 {
+            return [LibraryOutlineNode.childGroup(type, document: document, count: count)]
+        }
+        return []
+    }
+
+    private func claimChildNodes(
+        for document: Document,
+        rollup: Components.Schemas.DocumentRollupResponse,
+        type: LibraryOutlineNode.ChildType
+    ) -> [LibraryOutlineNode] {
+        let count = type.count(in: rollup)
+        if let claims = claimsByDocumentId[document.id] {
+            let children = claims.map { LibraryOutlineNode.claimItem($0, parent: document) }
+            return [LibraryOutlineNode.childGroup(type, document: document, count: count, children: children)]
+        } else if count > 0 {
+            return [LibraryOutlineNode.childGroup(type, document: document, count: count)]
+        }
+        return []
+    }
+
+    private func noteChildNodes(
+        for document: Document,
+        rollup: Components.Schemas.DocumentRollupResponse,
+        type: LibraryOutlineNode.ChildType
+    ) -> [LibraryOutlineNode] {
+        let count = type.count(in: rollup)
+        return count > 0 ? [LibraryOutlineNode.childGroup(type, document: document, count: count)] : []
+    }
 
     /// Assemble the top-level outline nodes for the visible documents.
     /// Each document node carries whatever child nodes are already known;

@@ -11,7 +11,6 @@ extension WorkflowCanvasView {
     }
 
     @ViewBuilder
-    // swiftlint:disable:next function_body_length
     private func nodeView(for node: WorkflowNode, at index: Int) -> some View {
         // Container with explicit frame for proper popover anchoring
         WorkflowNodeView(
@@ -46,21 +45,7 @@ extension WorkflowCanvasView {
             attachmentAnchor: .rect(.bounds),
             arrowEdge: .top
         ) {
-            NodePopover(
-                node: Binding(
-                    get: { workflow.nodes[index] },
-                    set: { workflow.nodes[index] = $0 }
-                ),
-                allNodes: workflow.nodes,
-                workflowId: workflow.id,
-                onDelete: {
-                    deleteNode(at: index)
-                },
-                onDuplicate: {
-                    duplicateNode(at: index)
-                }
-            )
-            .environment(executionObserver)
+            nodePopoverContent(node: node, index: index)
         }
         .position(x: node.positionX, y: node.positionY)
         // Double tap to open popover for editing (must come before single tap)
@@ -77,36 +62,63 @@ extension WorkflowCanvasView {
             isCanvasFocused = true  // Keep focus on canvas for keyboard commands
         }
         // Drag to move node - use regular gesture so port's highPriorityGesture takes precedence
-        .gesture(
-            DragGesture(minimumDistance: 3)
-                .onChanged { value in
-                    handleNodeDrag(value: value, index: index)
-                }
-                .onEnded { _ in
-                    finishNodeDrag()
-                }
-        )
+        .gesture(nodeDragGesture(index: index))
         // Context menu for node
         .contextMenu {
-            Button {
-                editingNodeId = node.id
-            } label: {
-                Label("Edit", systemImage: "pencil")
-            }
+            nodeContextMenu(node: node, index: index)
+        }
+    }
 
-            Button {
-                duplicateNode(at: index)
-            } label: {
-                Label("Duplicate", systemImage: "doc.on.doc")
-            }
-
-            Divider()
-
-            Button(role: .destructive) {
+    @ViewBuilder
+    private func nodePopoverContent(node: WorkflowNode, index: Int) -> some View {
+        NodePopover(
+            node: Binding(
+                get: { workflow.nodes[index] },
+                set: { workflow.nodes[index] = $0 }
+            ),
+            allNodes: workflow.nodes,
+            workflowId: workflow.id,
+            onDelete: {
                 deleteNode(at: index)
-            } label: {
-                Label("Delete", systemImage: "trash")
+            },
+            onDuplicate: {
+                duplicateNode(at: index)
             }
+        )
+        .environment(executionObserver)
+    }
+
+    // Drag to move node - use regular gesture so port's highPriorityGesture takes precedence
+    private func nodeDragGesture(index: Int) -> some Gesture {
+        DragGesture(minimumDistance: 3)
+            .onChanged { value in
+                handleNodeDrag(value: value, index: index)
+            }
+            .onEnded { _ in
+                finishNodeDrag()
+            }
+    }
+
+    @ViewBuilder
+    private func nodeContextMenu(node: WorkflowNode, index: Int) -> some View {
+        Button {
+            editingNodeId = node.id
+        } label: {
+            Label("Edit", systemImage: "pencil")
+        }
+
+        Button {
+            duplicateNode(at: index)
+        } label: {
+            Label("Duplicate", systemImage: "doc.on.doc")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            deleteNode(at: index)
+        } label: {
+            Label("Delete", systemImage: "trash")
         }
     }
 

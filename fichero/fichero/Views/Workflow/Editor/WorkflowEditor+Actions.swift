@@ -31,12 +31,22 @@ extension WorkflowEditor {
         }
     }
 
-    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func runWorkflow() {
         isRunning = true
+        let executionThreadId = beginWorkflowExecutionTracking()
 
+        Task { @MainActor in
+            await performWorkflowRun(executionThreadId: executionThreadId)
+            isRunning = false
+        }
+    }
+
+    /// Registers the run with the execution observer and surfaces the Activity
+    /// monitor window, returning the temporary thread id used until the
+    /// backend hands back its own.
+    private func beginWorkflowExecutionTracking() -> String {
         // Register immediately so Activity tab shows "Starting…" before first SSE event
-        var executionThreadId = "starting:\(UUID().uuidString)"
+        let executionThreadId = "starting:\(UUID().uuidString)"
         executionObserver.startExecution(
             workflowId: editingWorkflow.id,
             name: editingWorkflow.name,
@@ -49,148 +59,162 @@ extension WorkflowEditor {
         }
 
         actionsLogger.info("Run workflow: \(editingWorkflow.name)")
+        return executionThreadId
+    }
 
-        Task { @MainActor in
-            do {
-                // IMPORTANT: Save workflow before running to ensure backend has latest version
-                actionsLogger.info("Auto-saving workflow before execution...")
-                let definition = editingWorkflow.toAPIFormat()
+    private func performWorkflowRun(executionThreadId initialThreadId: String) async {
+        var executionThreadId = initialThreadId
+        do {
+            try await autoSaveWorkflowBeforeRun()
 
-                // Debug: Log what we're sending to backend
-                actionsLogger.info("[DEBUG] Workflow: id=\(definition.id), nodes=\(definition.nodes.count)")
-                for node in definition.nodes {
-                    let configDesc = node.config?.keys.joined(separator: ", ") ?? "nil"
-                    actionsLogger.info("[DEBUG] Node \(node.tool): config keys=[\(configDesc)]")
-                }
+            // Execute workflow with NEW non-blocking API + SSE subscription
+            // Single source of truth: all events go through executionObserver
+            let workflowId = editingWorkflow.id  // Capture ID before closure
 
-                if selectedWorkflow != nil {
-                    _ = try await workflowStore.updateWorkflow(definition)
-                } else {
-                    _ = try await workflowStore.saveWorkflow(definition)
-                }
-                actionsLogger.info("Workflow saved, now executing with SSE streaming...")
+            let selectedIds = resolveSelectedDocumentIds()
+            warnIfNoInputResolved(selectedIds)
 
-                // Execute workflow with NEW non-blocking API + SSE subscription
-                // Single source of truth: all events go through executionObserver
-                let workflowId = editingWorkflow.id  // Capture ID before closure
+            let completion = WorkflowRunCompletion()
 
-                // Resolve source IDs based on workflow-level input source.
-                // - collection: run on selected collection/folder
-                // - current_selection: run on current multi-selection
-                // The Files node reads this from state["selected_doc_ids"].
-                let selectedIds: [String]
-                switch editingWorkflow.inputSource {
-                case .collection:
-                    if let collectionId = documentStore.selectedCollection?.id {
-                        selectedIds = [collectionId]
-                    } else if let docId = documentStore.selectedDocument?.id {
-                        selectedIds = [docId]
-                    } else {
-                        selectedIds = []
-                    }
-                case .currentSelection:
-                    if !selectedDocumentIds.isEmpty {
-                        selectedIds = selectedDocumentIds
-                    } else if let docId = documentStore.selectedDocument?.id {
-                        selectedIds = [docId]
-                    } else {
-                        selectedIds = []
-                    }
-                }
-                if selectedIds.isEmpty {
-                    actionsLogger.warning(
-                        "runWorkflow: no input resolved for source=\(editingWorkflow.inputSource.rawValue)"
-                    )
-                }
-
-                let completion = WorkflowRunCompletion()
-
-                let response = try await workflowStreamService.execute(
-                    workflowId: workflowId,
-                    inputs: ["selected_doc_ids": selectedIds],
-                    onAccepted: { acceptedResponse in
-                        let threadId = acceptedResponse.threadId
-                        executionObserver.promoteExecution(
-                            from: executionThreadId,
-                            to: threadId,
-                            onCancel: { [weak workflowStreamService] in
-                                Task { @MainActor in
-                                    try? await workflowStreamService?.stopWorkflow(threadId: threadId)
-                                }
+            let response = try await workflowStreamService.execute(
+                workflowId: workflowId,
+                inputs: ["selected_doc_ids": selectedIds],
+                onAccepted: { acceptedResponse in
+                    let threadId = acceptedResponse.threadId
+                    executionObserver.promoteExecution(
+                        from: executionThreadId,
+                        to: threadId,
+                        onCancel: { [weak workflowStreamService] in
+                            Task { @MainActor in
+                                try? await workflowStreamService?.stopWorkflow(threadId: threadId)
                             }
-                        )
-                        executionThreadId = threadId
-                    },
-                    onEvent: { [weak documentStore] event in
-                        // (#3191) Dropped the per-event info logs ("[SSE] Event",
-                        // "[SSE] Document count") — they fired for every token /
-                        // progress frame, flooding the log for the whole run.
-
-                        // Update global observer (single source of truth for all UI)
-                        executionObserver.handleEvent(event, forThreadId: executionThreadId)
-
-                        // Update document processing status in library view
-                        updateDocumentStatus(for: event, documentStore: documentStore)
-
-                        // Track terminal events
-                        switch event {
-                        case .complete, .error, .systemicError:
-                            completion.finish()
-                        default:
-                            break
                         }
-                    }
-                )
-
-                actionsLogger.info("[SSE] Workflow started with thread: \(response.threadId)")
-
-                await completion.wait()
-
-                // Determine final status from observer
-                actionsLogger.info("[SSE] Stream ended, checking final state for workflowId: \(workflowId)")
-                if let exec = executionObserver.activeExecutions[executionThreadId] {
-                    let docCount = exec.documentProgress.count
-                    let workflowError = exec.workflowError ?? "none"
-                    actionsLogger.info(
-                        "[SSE] Final documentProgress: \(docCount), error: \(workflowError)"
                     )
-                    for (_, progress) in exec.documentProgress {
-                        let stepCount = progress.stepStatuses.count
-                        actionsLogger.info(
-                            "[SSE] Document: \(progress.documentName), statuses: \(stepCount)"
-                        )
+                    executionThreadId = threadId
+                },
+                onEvent: { [weak documentStore] event in
+                    // (#3191) Dropped the per-event info logs ("[SSE] Event",
+                    // "[SSE] Document count") — they fired for every token /
+                    // progress frame, flooding the log for the whole run.
+
+                    // Update global observer (single source of truth for all UI)
+                    executionObserver.handleEvent(event, forThreadId: executionThreadId)
+
+                    // Update document processing status in library view
+                    updateDocumentStatus(for: event, documentStore: documentStore)
+
+                    // Track terminal events
+                    switch event {
+                    case .complete, .error, .systemicError:
+                        completion.finish()
+                    default:
+                        break
                     }
-                } else {
-                    actionsLogger.warning("[SSE] No execution found for workflowId: \(workflowId)")
                 }
+            )
 
-                let finalStatus: WorkflowStatus
-                if let execution = executionObserver.activeExecutions[executionThreadId] {
-                    if execution.workflowError != nil {
-                        finalStatus = .failed
-                        actionsLogger.error("Workflow failed: \(execution.workflowError ?? "Unknown error")")
-                    } else {
-                        finalStatus = execution.status == .failed ? .failed : .completed
-                        if finalStatus == .completed {
-                            actionsLogger.info("Workflow completed successfully")
-                        }
-                    }
-                } else {
-                    finalStatus = .completed
-                }
+            actionsLogger.info("[SSE] Workflow started with thread: \(response.threadId)")
 
-                // End tracking in global observer
-                executionObserver.endExecution(threadId: executionThreadId, status: finalStatus)
+            await completion.wait()
 
-            } catch {
-                actionsLogger.error("Failed to execute workflow: \(error.localizedDescription)")
+            logFinalExecutionState(executionThreadId: executionThreadId, workflowId: workflowId)
+            let finalStatus = computeFinalStatus(executionThreadId: executionThreadId)
 
-                // End tracking with failed status
-                executionObserver.endExecution(threadId: executionThreadId, status: .failed)
-            }
+            // End tracking in global observer
+            executionObserver.endExecution(threadId: executionThreadId, status: finalStatus)
 
-            isRunning = false
+        } catch {
+            actionsLogger.error("Failed to execute workflow: \(error.localizedDescription)")
+
+            // End tracking with failed status
+            executionObserver.endExecution(threadId: executionThreadId, status: .failed)
         }
+    }
+
+    /// Saves the in-progress workflow before running it, so the backend has
+    /// the latest version.
+    private func autoSaveWorkflowBeforeRun() async throws {
+        actionsLogger.info("Auto-saving workflow before execution...")
+        let definition = editingWorkflow.toAPIFormat()
+
+        // Debug: Log what we're sending to backend
+        actionsLogger.info("[DEBUG] Workflow: id=\(definition.id), nodes=\(definition.nodes.count)")
+        for node in definition.nodes {
+            let configDesc = node.config?.keys.joined(separator: ", ") ?? "nil"
+            actionsLogger.info("[DEBUG] Node \(node.tool): config keys=[\(configDesc)]")
+        }
+
+        if selectedWorkflow != nil {
+            _ = try await workflowStore.updateWorkflow(definition)
+        } else {
+            _ = try await workflowStore.saveWorkflow(definition)
+        }
+        actionsLogger.info("Workflow saved, now executing with SSE streaming...")
+    }
+
+    /// Resolves source IDs based on workflow-level input source.
+    /// - collection: run on selected collection/folder
+    /// - current_selection: run on current multi-selection
+    /// The Files node reads this from state["selected_doc_ids"].
+    private func resolveSelectedDocumentIds() -> [String] {
+        switch editingWorkflow.inputSource {
+        case .collection:
+            if let collectionId = documentStore.selectedCollection?.id {
+                return [collectionId]
+            } else if let docId = documentStore.selectedDocument?.id {
+                return [docId]
+            }
+            return []
+        case .currentSelection:
+            if !selectedDocumentIds.isEmpty {
+                return selectedDocumentIds
+            } else if let docId = documentStore.selectedDocument?.id {
+                return [docId]
+            }
+            return []
+        }
+    }
+
+    private func warnIfNoInputResolved(_ selectedIds: [String]) {
+        guard selectedIds.isEmpty else { return }
+        actionsLogger.warning(
+            "runWorkflow: no input resolved for source=\(editingWorkflow.inputSource.rawValue)"
+        )
+    }
+
+    /// Determine final status from observer
+    private func logFinalExecutionState(executionThreadId: String, workflowId: String) {
+        actionsLogger.info("[SSE] Stream ended, checking final state for workflowId: \(workflowId)")
+        if let exec = executionObserver.activeExecutions[executionThreadId] {
+            let docCount = exec.documentProgress.count
+            let workflowError = exec.workflowError ?? "none"
+            actionsLogger.info(
+                "[SSE] Final documentProgress: \(docCount), error: \(workflowError)"
+            )
+            for (_, progress) in exec.documentProgress {
+                let stepCount = progress.stepStatuses.count
+                actionsLogger.info(
+                    "[SSE] Document: \(progress.documentName), statuses: \(stepCount)"
+                )
+            }
+        } else {
+            actionsLogger.warning("[SSE] No execution found for workflowId: \(workflowId)")
+        }
+    }
+
+    private func computeFinalStatus(executionThreadId: String) -> WorkflowStatus {
+        guard let execution = executionObserver.activeExecutions[executionThreadId] else {
+            return .completed
+        }
+        if execution.workflowError != nil {
+            actionsLogger.error("Workflow failed: \(execution.workflowError ?? "Unknown error")")
+            return .failed
+        }
+        let finalStatus: WorkflowStatus = execution.status == .failed ? .failed : .completed
+        if finalStatus == .completed {
+            actionsLogger.info("Workflow completed successfully")
+        }
+        return finalStatus
     }
 
     /// Update document processing status in library based on stream events

@@ -16,7 +16,6 @@ extension DynamicConfigView {
     // MARK: - Field Rendering
 
     @ViewBuilder
-    // swiftlint:disable:next cyclomatic_complexity
     func configField(key: String, schema: [String: AnyCodableValue]) -> some View {
         if let type = getType(from: schema) {
             let description = getDescription(from: schema)
@@ -29,35 +28,7 @@ extension DynamicConfigView {
                         .foregroundColor(.secondary)
                 }
 
-                switch type {
-                case "string":
-                    if isFolderTool, key == "folder_id" {
-                        folderPickerField()
-                    } else if let enumValues = getEnum(from: schema) {
-                        enumPicker(key: key, label: label, options: enumValues, description: description)
-                    } else if key == "prompt" {
-                        promptEditor(key: key, description: description)
-                    } else {
-                        stringField(key: key, description: description)
-                    }
-
-                case "integer":
-                    integerField(key: key, schema: schema, description: description)
-
-                case "number":
-                    numberSlider(key: key, schema: schema, description: description)
-
-                case "array":
-                    arrayField(key: key, schema: schema, description: description)
-
-                case "boolean":
-                    booleanToggle(key: key, description: description, label: label)
-
-                default:
-                    Text("Unsupported type: \(type)")
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
+                configFieldControl(type: type, key: key, schema: schema, label: label, description: description)
 
                 if type != "boolean", let desc = description {
                     Text(desc)
@@ -65,6 +36,55 @@ extension DynamicConfigView {
                         .foregroundColor(.secondary)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func configFieldControl(
+        type: String,
+        key: String,
+        schema: [String: AnyCodableValue],
+        label: String,
+        description: String?
+    ) -> some View {
+        switch type {
+        case "string":
+            stringTypeField(key: key, schema: schema, label: label, description: description)
+
+        case "integer":
+            integerField(key: key, schema: schema, description: description)
+
+        case "number":
+            numberSlider(key: key, schema: schema, description: description)
+
+        case "array":
+            arrayField(key: key, schema: schema, description: description)
+
+        case "boolean":
+            booleanToggle(key: key, description: description, label: label)
+
+        default:
+            Text("Unsupported type: \(type)")
+                .font(.caption)
+                .foregroundColor(.red)
+        }
+    }
+
+    @ViewBuilder
+    private func stringTypeField(
+        key: String,
+        schema: [String: AnyCodableValue],
+        label: String,
+        description: String?
+    ) -> some View {
+        if isFolderTool, key == "folder_id" {
+            folderPickerField()
+        } else if let enumValues = getEnum(from: schema) {
+            enumPicker(key: key, label: label, options: enumValues, description: description)
+        } else if key == "prompt" {
+            promptEditor(key: key, description: description)
+        } else {
+            stringField(key: key, description: description)
         }
     }
 

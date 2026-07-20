@@ -60,54 +60,30 @@ extension LibraryView {
     // MARK: - Table Cell View
 
     @ViewBuilder
-    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func tableCellView(for columnId: String, document doc: Document) -> some View {
         switch columnId {
         case "name":
-            HStack(spacing: 8) {
-                if doc.docType == .folder {
-                    Image(systemName: "folder.fill")
-                        .foregroundColor(.accentColor)
-                        .frame(width: 16)
-                } else {
-                    Image(systemName: doc.fileType?.icon ?? "doc")
-                        .foregroundColor(.secondary)
-                        .frame(width: 16)
-                }
-                EditableDocumentName(
-                    document: doc,
-                    isRenaming: renamingDocumentId == doc.id,
-                    editingName: $editingName,
-                    onCommit: commitRename,
-                    onCancel: cancelRename
-                )
-            }
+            nameCell(for: doc)
         case "status":
             StatusBadge(status: doc.status)
         case "progress":
             ProgressCell(document: doc)
         case "output":
-            VStack(alignment: .leading, spacing: 6) {
-                Text(doc.pageContent ?? "-")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-                    .help(doc.pageContent ?? "")
-
-                ArtifactEntitiesView(
-                    documentId: doc.id,
-                    style: .multiLine,
-                    visibleTypes: listVisibleEntityTypes
-                )
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            outputCell(for: doc)
         case "fileType":
-            if doc.docType == .folder {
-                Text("Folder").font(.caption).foregroundColor(.secondary)
-            } else {
-                Text(doc.fileType?.rawValue.capitalized ?? "-")
-                    .font(.caption).foregroundColor(.secondary)
-            }
+            fileTypeCell(for: doc)
+        case "size":
+            sizeCell(for: doc)
+        default:
+            metadataCellView(for: columnId, document: doc)
+        }
+    }
+
+    /// The remaining, mostly single-line, metadata columns — split out from
+    /// `tableCellView` purely to keep that switch's branch count down.
+    @ViewBuilder
+    private func metadataCellView(for columnId: String, document doc: Document) -> some View {
+        switch columnId {
         case "path":
             Text(doc.path ?? "-")
                 .font(.caption).foregroundColor(.secondary)
@@ -118,20 +94,73 @@ extension LibraryView {
         case "modifiedDate":
             Text(doc.updatedAt, style: .date)
                 .font(.caption).foregroundColor(.secondary)
-        case "size":
-            if let fileSize = fileSizeInBytes(for: doc) {
-                Text(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
-                Text("-").font(.caption).foregroundColor(.secondary)
-            }
         case "artifacts":
             ArtifactEntitiesView(documentId: doc.id, style: .singleLine)
         case "people", "places", "organizations", "events", "dates", "keywords":
             ArtifactEntityCell(documentId: doc.id, entityType: columnId)
         default:
             Text("-").foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func nameCell(for doc: Document) -> some View {
+        HStack(spacing: 8) {
+            if doc.docType == .folder {
+                Image(systemName: "folder.fill")
+                    .foregroundColor(.accentColor)
+                    .frame(width: 16)
+            } else {
+                Image(systemName: doc.fileType?.icon ?? "doc")
+                    .foregroundColor(.secondary)
+                    .frame(width: 16)
+            }
+            EditableDocumentName(
+                document: doc,
+                isRenaming: renamingDocumentId == doc.id,
+                editingName: $editingName,
+                onCommit: commitRename,
+                onCancel: cancelRename
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func outputCell(for doc: Document) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(doc.pageContent ?? "-")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+                .help(doc.pageContent ?? "")
+
+            ArtifactEntitiesView(
+                documentId: doc.id,
+                style: .multiLine,
+                visibleTypes: listVisibleEntityTypes
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func fileTypeCell(for doc: Document) -> some View {
+        if doc.docType == .folder {
+            Text("Folder").font(.caption).foregroundColor(.secondary)
+        } else {
+            Text(doc.fileType?.rawValue.capitalized ?? "-")
+                .font(.caption).foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func sizeCell(for doc: Document) -> some View {
+        if let fileSize = fileSizeInBytes(for: doc) {
+            Text(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
+                .font(.caption)
+                .foregroundColor(.secondary)
+        } else {
+            Text("-").font(.caption).foregroundColor(.secondary)
         }
     }
 

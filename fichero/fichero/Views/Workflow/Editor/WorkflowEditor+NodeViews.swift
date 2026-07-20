@@ -63,29 +63,17 @@ extension WorkflowEditor {
     }
 
     // Returns nodes in execution order when the graph is acyclic; falls back to visual order.
-    // swiftlint:disable:next cyclomatic_complexity
     func orderedWorkflowNodes() -> [WorkflowNode] {
         let nodes = editingWorkflow.nodes
         guard !nodes.isEmpty else { return [] }
 
         let nodeById = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
-
-        var indegree = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, 0) })
-        var outgoing: [String: [String]] = [:]
-
-        for edge in editingWorkflow.edges {
-            guard nodeById[edge.sourceNodeId] != nil, nodeById[edge.targetNodeId] != nil else { continue }
-            outgoing[edge.sourceNodeId, default: []].append(edge.targetNodeId)
-            indegree[edge.targetNodeId, default: 0] += 1
-        }
+        let adjacency = buildWorkflowAdjacency(nodes: nodes, nodeById: nodeById)
+        var indegree = adjacency.indegree
+        let outgoing = adjacency.outgoing
 
         // Stable tie-breaker by canvas position for deterministic ordering.
-        let positionSorted = nodes.sorted {
-            if $0.positionX == $1.positionX {
-                return $0.positionY < $1.positionY
-            }
-            return $0.positionX < $1.positionX
-        }
+        let positionSorted = nodes.sorted(by: isWorkflowNodeOrderedBefore)
 
         var queue = positionSorted.filter { indegree[$0.id, default: 0] == 0 }.map(\.id)
         var ordered: [WorkflowNode] = []
@@ -102,10 +90,7 @@ extension WorkflowEditor {
                     queue.append(nextId)
                     queue.sort { lhs, rhs in
                         guard let lhsNode = nodeById[lhs], let rhsNode = nodeById[rhs] else { return lhs < rhs }
-                        if lhsNode.positionX == rhsNode.positionX {
-                            return lhsNode.positionY < rhsNode.positionY
-                        }
-                        return lhsNode.positionX < rhsNode.positionX
+                        return isWorkflowNodeOrderedBefore(lhsNode, rhsNode)
                     }
                 }
             }
@@ -116,6 +101,32 @@ extension WorkflowEditor {
             return positionSorted
         }
         return ordered
+    }
+
+    /// Builds the in-degree map and outgoing adjacency list for a topological sort,
+    /// ignoring edges that reference nodes outside `nodeById`.
+    private func buildWorkflowAdjacency(
+        nodes: [WorkflowNode],
+        nodeById: [String: WorkflowNode]
+    ) -> (indegree: [String: Int], outgoing: [String: [String]]) {
+        var indegree = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, 0) })
+        var outgoing: [String: [String]] = [:]
+
+        for edge in editingWorkflow.edges {
+            guard nodeById[edge.sourceNodeId] != nil, nodeById[edge.targetNodeId] != nil else { continue }
+            outgoing[edge.sourceNodeId, default: []].append(edge.targetNodeId)
+            indegree[edge.targetNodeId, default: 0] += 1
+        }
+
+        return (indegree, outgoing)
+    }
+
+    /// Deterministic canvas-position ordering used to break ties in the topological sort.
+    private func isWorkflowNodeOrderedBefore(_ lhs: WorkflowNode, _ rhs: WorkflowNode) -> Bool {
+        if lhs.positionX == rhs.positionX {
+            return lhs.positionY < rhs.positionY
+        }
+        return lhs.positionX < rhs.positionX
     }
 
     /// Table view - shows nodes in columns

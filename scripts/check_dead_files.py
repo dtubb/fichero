@@ -84,6 +84,9 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Workflow/Canvas/WorkflowEdgeView+Edges.swift": "#2955 — EdgesView/PortPositionCalculator split out of WorkflowEdgeView.swift by file_length; were ALREADY unreferenced pre-split (co-located, so unflagged). Appears to be superseded dead code (edges now render via WorkflowCanvasView+EdgesLayer) — FLAG FOR DANIEL to delete/wire; grandfathered so the split lands.",
     "Views/Reader/Page/Immersive/PageTurnModifier.swift": "#2955 — PageTurnModifier + its AnyTransition extension are applied only within the same-cluster ImmersiveReaderView+Navigation (split from ImmersiveReaderView by file_length); scanner misses the ViewModifier-via-extension wiring",
     "Views/Reader/Knowledge/DocumentKGWebPane+Theme.swift": "#2955 — ReaderTheme value type used only by the same-file theme-resolution funcs (split from DocumentKGWebPane by file_length); scanner misses same-file wiring",
+    "Services/WorkflowExecutionObserver+Events.swift": "hygiene — FileProgressCounters bundles fileIndex/fileTotal/progress for the same-file WorkflowExecution reducer helpers (extracted to clear function_body_length/parameter_count); file stays live via the WorkflowExecution.apply extension; helper type is local-only",
+    "Services/WorkflowStreamService+Parsing.swift": "hygiene — FileEventMeta bundles file-event fields for the same-file parseEvent helpers (extracted to clear function_body_length/cyclomatic_complexity); file stays live via the WorkflowStreamService parsing extension; helper type is local-only",
+    "Views/Library/LibraryView+BatchWorkflow.swift": "hygiene — BatchWorkflowThreadId (reference box for a mutable id shared across escaping closures) + BatchWorkflowRequest (param bundle) support the same-file runBatchWorkflow helpers (extracted to clear function_body_length/cyclomatic_complexity/parameter_count); file stays live via the LibraryView batch-workflow extension; helper types are local-only",
 }
 
 

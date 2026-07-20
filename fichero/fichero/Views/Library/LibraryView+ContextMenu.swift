@@ -36,14 +36,21 @@ extension LibraryView {
     // MARK: - Context Menu
 
     @ViewBuilder
-    // swiftlint:disable:next function_body_length
     func documentContextMenu(for document: Document) -> some View {
         let excludeTargets = excludeToggleTargets(for: document)
-        let shouldIncludeInProcessing = excludeTargets.allSatisfy(\.excludeFromProcessing)
 
-        // Finder-style open affordances (#1685). "Open" reuses the existing
-        // in-window open path; New Tab / New Window reuse the Safari
-        // new-window path and focus this document once the window loads.
+        openAndRenameMenuItems(for: document)
+        organizeMenuItems(for: document)
+        stackMenuItems(for: document)
+        excludeFromProcessingMenuItem(excludeTargets: excludeTargets)
+        runWorkflowMenuItem()
+    }
+
+    // Finder-style open affordances (#1685). "Open" reuses the existing
+    // in-window open path; New Tab / New Window reuse the Safari
+    // new-window path and focus this document once the window loads.
+    @ViewBuilder
+    private func openAndRenameMenuItems(for document: Document) -> some View {
         OpenInMenuItems(
             open: { openDocument(document) },
             openInNewTab: { openDocumentInNewWindow(document, asTab: true) },
@@ -70,7 +77,10 @@ extension LibraryView {
             }
         }
         #endif
+    }
 
+    @ViewBuilder
+    private func organizeMenuItems(for document: Document) -> some View {
         // Add-to-Workspace bridge (#1494): alias this document into a
         // workspace folder. Never moves the source (#1487).
         Button {
@@ -85,10 +95,13 @@ extension LibraryView {
         } label: {
             Label("Bookmark…", systemImage: "bookmark")
         }
+    }
 
-        // Image stack/group (#3535): combine 2+ selected images into ONE
-        // reversible group node (e.g. two pages of one letter); ungroup fully
-        // restores them. The inverse of the reversible split (#1595).
+    // Image stack/group (#3535): combine 2+ selected images into ONE
+    // reversible group node (e.g. two pages of one letter); ungroup fully
+    // restores them. The inverse of the reversible split (#1595).
+    @ViewBuilder
+    private func stackMenuItems(for document: Document) -> some View {
         let stackTargets = imageStackTargets(for: document)
         if stackTargets.count >= 2 {
             Divider()
@@ -106,7 +119,11 @@ extension LibraryView {
                 Label("Ungroup", systemImage: "square.stack.3d.up.slash")
             }
         }
+    }
 
+    @ViewBuilder
+    private func excludeFromProcessingMenuItem(excludeTargets: [Document]) -> some View {
+        let shouldIncludeInProcessing = excludeTargets.allSatisfy(\.excludeFromProcessing)
         Button {
             Task {
                 await toggleExcludeFromProcessing(
@@ -120,11 +137,14 @@ extension LibraryView {
                 systemImage: shouldIncludeInProcessing ? "eye" : "eye.slash"
             )
         }
+    }
 
-        // Run Workflow submenu — workflows grouped by `folderPath` so
-        // user-organized presets (e.g. /Catalogue, /Transcribe) appear
-        // as nested submenus matching the context menu in the sidebar
-        // (#722).
+    // Run Workflow submenu — workflows grouped by `folderPath` so
+    // user-organized presets (e.g. /Catalogue, /Transcribe) appear
+    // as nested submenus matching the context menu in the sidebar
+    // (#722).
+    @ViewBuilder
+    private func runWorkflowMenuItem() -> some View {
         let availableWorkflows = libraryWorkflows
         if !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled
             && !availableWorkflows.isEmpty {

@@ -4,6 +4,23 @@ import SwiftUI
 
 // MARK: - Batch Workflow Execution
 
+/// Mutable box carrying the in-flight execution's thread id, promoted from a
+/// pending placeholder to the server-assigned id once the SSE request is accepted.
+/// A reference type so escaping closures and the awaiting caller observe the same value.
+private final class BatchWorkflowThreadId {
+    var value: String
+    init(_ value: String) { self.value = value }
+}
+
+/// Parameters for one SSE batch-workflow run — bundled so
+/// `executeBatchWorkflowStream` stays under the parameter-count limit.
+private struct BatchWorkflowRequest {
+    let workflowId: String
+    let docIds: [String]
+    let providerOverride: String?
+    let modelOverride: String?
+}
+
 extension LibraryView {
 
     private var logger: Logger {
@@ -21,7 +38,6 @@ extension LibraryView {
     /// Passes ALL selected document IDs at once so aggregation workflows (Catalogue)
     /// receive the complete set, and SSE events drive UI refresh.
     @MainActor
-    // swiftlint:disable:next function_body_length
     func runBatchWorkflow(
         workflowId: String,
         providerOverride: String? = nil,
@@ -37,112 +53,150 @@ extension LibraryView {
         // workflow_id unresolvable in the execution's library → engine 400 on
         // single items. The sidebar path already binds list + execution to one
         // library (which is why folders worked); mirror that here.
-        guard let library = activeLibraryReference else {
-            logger.error("runBatchWorkflow: no library reference — cannot run \(workflowId)")
-            return
-        }
-        let workflows = library.workflowStore.workflows
-        // Defensive: only send an id the execution library can resolve. With the
-        // coherent context above this holds by construction; the guard stops a
-        // stale menu from ever firing a doomed 400 request.
-        guard Self.workflowIsRunnable(workflowId: workflowId, in: workflows) else {
-            logger.error("runBatchWorkflow: \(workflowId) not in execution library — refusing to send")
-            return
-        }
-        let stream = library.workflowStreamService
-        let workflowName = workflows.first(where: { $0.id == workflowId })?.name ?? workflowId
+        guard let context = resolveBatchWorkflowContext(workflowId: workflowId) else { return }
 
         logger.info("Starting SSE workflow \(workflowId) on \(docIds.count) documents via context menu")
 
-        var executionThreadId = "pending:\(UUID().uuidString)"
+        let threadId = BatchWorkflowThreadId("pending:\(UUID().uuidString)")
         executionObserver.startExecution(
             workflowId: workflowId,
-            name: workflowName,
-            threadId: executionThreadId
+            name: context.workflowName,
+            threadId: threadId.value
         )
-        var streamCompleted = false
+
         do {
-                let response = try await stream.execute(
-                    workflowId: workflowId,
-                    inputs: ["selected_doc_ids": docIds],
-                    providerOverride: providerOverride,
-                    modelOverride: modelOverride,
-                    onAccepted: { acceptedResponse in
-                        let threadId = acceptedResponse.threadId
-                        executionObserver.promoteExecution(
-                            from: executionThreadId,
-                            to: threadId,
-                            onCancel: { [weak stream] in
-                                Task { @MainActor in
-                                    try? await stream?.stopWorkflow(threadId: threadId)
-                                }
-                            }
-                        )
-                        executionThreadId = threadId
-                    },
-                    onEvent: { [weak documentStore = library.documentStore] event in
-                    if handleBatchWorkflowEvent(
-                        event,
-                        threadId: executionThreadId,
-                        documentStore: documentStore
-                    ) {
-                        streamCompleted = true
-                    }
-                }
+            let request = BatchWorkflowRequest(
+                workflowId: workflowId,
+                docIds: docIds,
+                providerOverride: providerOverride,
+                modelOverride: modelOverride
             )
-
-            let threadId = response.threadId
-            logger.info("Started SSE workflow \(workflowId) thread \(threadId) for \(docIds.count) docs")
-
-            while !streamCompleted {
-                try await Task.sleep(for: .milliseconds(200))
-                if Task.isCancelled { break }
-                if let exec = executionObserver.activeExecutions[executionThreadId], !exec.isRunning {
-                    streamCompleted = true
-                }
-            }
-
-            let finalStatus = batchWorkflowFinalStatus(forThreadId: executionThreadId)
-            executionObserver.endExecution(threadId: executionThreadId, status: finalStatus)
+            try await executeBatchWorkflowStream(request, library: context.library, threadId: threadId)
+            let finalStatus = batchWorkflowFinalStatus(forThreadId: threadId.value)
+            executionObserver.endExecution(threadId: threadId.value, status: finalStatus)
             logger.info("Workflow \(workflowId) finished with status: \(String(describing: finalStatus))")
-
         } catch {
             logger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
             ErrorService.shared.reportError(error)
-            executionObserver.endExecution(threadId: executionThreadId, status: .failed)
+            executionObserver.endExecution(threadId: threadId.value, status: .failed)
         }
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
+    /// Issue the SSE workflow request and drive it to completion, mutating `threadId`
+    /// in place as the observer promotes it from a pending placeholder to the real
+    /// server-assigned id. A reference type so the mutation is visible both inside
+    /// the escaping `onAccepted`/`onEvent` closures and after `await` resumes.
+    private func executeBatchWorkflowStream(
+        _ request: BatchWorkflowRequest,
+        library: LibraryManager.LibraryReference,
+        threadId: BatchWorkflowThreadId
+    ) async throws {
+        let stream = library.workflowStreamService
+        var streamCompleted = false
+        let response = try await stream.execute(
+            workflowId: request.workflowId,
+            inputs: ["selected_doc_ids": request.docIds],
+            providerOverride: request.providerOverride,
+            modelOverride: request.modelOverride,
+            onAccepted: { acceptedResponse in
+                let acceptedThreadId = acceptedResponse.threadId
+                executionObserver.promoteExecution(
+                    from: threadId.value,
+                    to: acceptedThreadId,
+                    onCancel: { [weak stream] in
+                        Task { @MainActor in
+                            try? await stream?.stopWorkflow(threadId: acceptedThreadId)
+                        }
+                    }
+                )
+                threadId.value = acceptedThreadId
+            },
+            onEvent: { [weak documentStore = library.documentStore] event in
+                if handleBatchWorkflowEvent(
+                    event,
+                    threadId: threadId.value,
+                    documentStore: documentStore
+                ) {
+                    streamCompleted = true
+                }
+            }
+        )
+
+        logger.info(
+            "Started SSE workflow \(request.workflowId) thread \(response.threadId) for \(request.docIds.count) docs"
+        )
+
+        try await awaitBatchWorkflowCompletion(threadId: threadId.value, streamCompleted: streamCompleted)
+    }
+
+    /// Resolve and validate the library + workflow name a batch run should execute
+    /// against. Defensive: only returns an id the execution library can resolve, so a
+    /// stale menu never fires a doomed 400 request.
+    private func resolveBatchWorkflowContext(
+        workflowId: String
+    ) -> (library: LibraryManager.LibraryReference, workflowName: String)? {
+        guard let library = activeLibraryReference else {
+            logger.error("runBatchWorkflow: no library reference — cannot run \(workflowId)")
+            return nil
+        }
+        let workflows = library.workflowStore.workflows
+        guard Self.workflowIsRunnable(workflowId: workflowId, in: workflows) else {
+            logger.error("runBatchWorkflow: \(workflowId) not in execution library — refusing to send")
+            return nil
+        }
+        let workflowName = workflows.first(where: { $0.id == workflowId })?.name ?? workflowId
+        return (library, workflowName)
+    }
+
+    /// Poll the execution observer until the SSE stream reports completion (or the
+    /// task is cancelled), mirroring the original inline wait loop.
+    private func awaitBatchWorkflowCompletion(threadId: String, streamCompleted: Bool) async throws {
+        var completed = streamCompleted
+        while !completed {
+            try await Task.sleep(for: .milliseconds(200))
+            if Task.isCancelled { break }
+            if let exec = executionObserver.activeExecutions[threadId], !exec.isRunning {
+                completed = true
+            }
+        }
+    }
+
     private func handleBatchWorkflowEvent(
         _ event: WorkflowStreamEvent,
         threadId: String,
         documentStore: DocumentStore?
     ) -> Bool {
         executionObserver.handleEvent(event, forThreadId: threadId)
-        if let store = documentStore {
-            switch event {
-            case .fileStart:
-                if let identity = event.fileProgressIdentity {
-                    store.updateProcessingStatus(for: identity, status: .processing)
-                }
-            case .fileComplete:
-                if let identity = event.fileProgressIdentity {
-                    store.recordFanoutComplete(for: identity)
-                    if let documentId = identity.leafDocumentId {
-                        Task { @MainActor in
-                            await store.refreshDocumentsByIds([documentId])
-                        }
+        updateFanoutProgress(for: event, store: documentStore)
+        return handleBatchWorkflowCompletion(event, documentStore: documentStore)
+    }
+
+    private func updateFanoutProgress(for event: WorkflowStreamEvent, store: DocumentStore?) {
+        guard let store else { return }
+        switch event {
+        case .fileStart:
+            if let identity = event.fileProgressIdentity {
+                store.updateProcessingStatus(for: identity, status: .processing)
+            }
+        case .fileComplete:
+            if let identity = event.fileProgressIdentity {
+                store.recordFanoutComplete(for: identity)
+                if let documentId = identity.leafDocumentId {
+                    Task { @MainActor in
+                        await store.refreshDocumentsByIds([documentId])
                     }
                 }
-            case .fileError:
-                if let identity = event.fileProgressIdentity {
-                    store.updateProcessingStatus(for: identity, status: .failed)
-                }
-            default:
-                break
             }
+        case .fileError:
+            if let identity = event.fileProgressIdentity {
+                store.updateProcessingStatus(for: identity, status: .failed)
+            }
+        default:
+            break
         }
+    }
+
+    private func handleBatchWorkflowCompletion(_ event: WorkflowStreamEvent, documentStore: DocumentStore?) -> Bool {
         switch event {
         case .complete:
             documentStore?.flushPendingFanoutCompletions(status: .completed)

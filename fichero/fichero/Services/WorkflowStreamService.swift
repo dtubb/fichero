@@ -147,7 +147,6 @@ class WorkflowStreamService {
     }
 
     // Subscribe to SSE events for a running workflow thread
-    // swiftlint:disable:next function_body_length cyclomatic_complexity
     private func subscribeToStream(
         threadId: String,
         onEvent: ((WorkflowStreamEvent) -> Void)?
@@ -179,59 +178,10 @@ class WorkflowStreamService {
 
             liveUpdatesUnavailable = false  // connected — run events flowing (F7)
 
-            // Process SSE stream - process data lines immediately
-            // (don't wait for empty line separator as bytes.lines may not yield them reliably)
-            for try await line in bytes.lines {
-                guard !Task.isCancelled else { break }
-
-                // Skip keepalive comments
-                if line.hasPrefix(":") {
-                    continue
-                }
-
-                // Skip event type lines - we get the type from the data JSON
-                if line.hasPrefix("event:") {
-                    continue
-                }
-
-                // Skip empty lines
-                if line.isEmpty {
-                    continue
-                }
-
-                // Process data lines immediately
-                if line.hasPrefix("data:") {
-                    let jsonString = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
-                    if let event = parseEvent(jsonString) {
-                        await MainActor.run {
-                            // Dispatch to callback
-                            onEvent?(event)
-
-                            // Track errors and check for terminal events
-                            switch event {
-                            case .error, .systemicError:
-                                self.hadError = true
-                                self.isStreaming = false
-                            case .complete, .pause:
-                                self.isStreaming = false
-                            default:
-                                break
-                            }
-                        }
-                    }
-                }
-            }
+            try await consumeStreamLines(bytes, onEvent: onEvent)
         } catch {
             if !Task.isCancelled {
-                let message = WorkflowStreamError.streamFailureDescription(error: error, streamURL: streamUrl)
-                logger.error("Stream error: \(message)")
-                await MainActor.run {
-                    self.error = message
-                    self.isStreaming = false
-                    // Events stopped mid-run — surface a "live updates paused"
-                    // pill rather than leaving the run looking stalled (F7).
-                    self.liveUpdatesUnavailable = true
-                }
+                await handleStreamFailure(error, streamUrl: streamUrl)
             }
         }
 
@@ -239,6 +189,76 @@ class WorkflowStreamService {
             self.isStreaming = false
         }
         logger.info("Stream completed for thread: \(threadId)")
+    }
+
+    /// Process SSE data lines immediately as they arrive (don't wait for the
+    /// empty line separator as `bytes.lines` may not yield them reliably).
+    private func consumeStreamLines(
+        _ bytes: URLSession.AsyncBytes,
+        onEvent: ((WorkflowStreamEvent) -> Void)?
+    ) async throws {
+        for try await line in bytes.lines {
+            guard !Task.isCancelled else { return }
+
+            // Skip keepalive comments
+            if line.hasPrefix(":") {
+                continue
+            }
+
+            // Skip event type lines - we get the type from the data JSON
+            if line.hasPrefix("event:") {
+                continue
+            }
+
+            // Skip empty lines
+            if line.isEmpty {
+                continue
+            }
+
+            // Process data lines immediately
+            if line.hasPrefix("data:") {
+                let jsonString = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+                if let event = parseEvent(jsonString) {
+                    await dispatchParsedEvent(event, onEvent: onEvent)
+                }
+            }
+        }
+    }
+
+    /// Dispatch a parsed event to the caller's callback and track errors /
+    /// terminal events for the service's own streaming state.
+    private func dispatchParsedEvent(
+        _ event: WorkflowStreamEvent,
+        onEvent: ((WorkflowStreamEvent) -> Void)?
+    ) async {
+        await MainActor.run {
+            // Dispatch to callback
+            onEvent?(event)
+
+            // Track errors and check for terminal events
+            switch event {
+            case .error, .systemicError:
+                self.hadError = true
+                self.isStreaming = false
+            case .complete, .pause:
+                self.isStreaming = false
+            default:
+                break
+            }
+        }
+    }
+
+    /// Handle a failure from the SSE byte stream (non-cancellation only).
+    private func handleStreamFailure(_ error: Error, streamUrl: URL) async {
+        let message = WorkflowStreamError.streamFailureDescription(error: error, streamURL: streamUrl)
+        logger.error("Stream error: \(message)")
+        await MainActor.run {
+            self.error = message
+            self.isStreaming = false
+            // Events stopped mid-run — surface a "live updates paused"
+            // pill rather than leaving the run looking stalled (F7).
+            self.liveUpdatesUnavailable = true
+        }
     }
 
     /// Cancel the current stream
