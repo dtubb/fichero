@@ -13,7 +13,7 @@ import SwiftUI
 /// `store.defaults`; moving those into the store is a follow-up.
 struct AISettingsView: View {
     @Environment(AppState.self) var appState
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
 
     @State var store = AISettingsStore()
     @State private var selectedTab = AISettingsTab.defaults

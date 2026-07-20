@@ -49,14 +49,12 @@ PATTERN_LABELS: dict[str, str] = {
 # every @EnvironmentObject/.environmentObject/@StateObject-service/ObservableObject
 # offender. These remaining entries are UNRELATED anti-patterns still on the
 # backlog: direct `LibraryManager.shared.globalLibrary` reads, `client.api.`
-# access, and the two views that read the kept-ObservableObject FeatureManager
-# via @EnvironmentObject (FeatureManager stays ObservableObject — it is backed
-# by @AppStorage, which @Observable does not track).
+# access, and `client.api.` direct reads. (#3743 converted FeatureManager to
+# @Observable, so its former @EnvironmentObject consumers are no longer offenders.)
 KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
     [
         "fichero/fichero/Views/Chat/ModelComparison/ComparisonDetailView+Actions.swift",
         "fichero/fichero/Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift",
-        "fichero/fichero/Views/Shell/ContentView/ContentView.swift",
         "fichero/fichero/Views/Inspector/Knowledge/EntityDigestView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/KGMapView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/KGTimelineView.swift",
@@ -72,61 +70,20 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/ForceDirectedGraphView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/NewEntitySheet.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Detail.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+List.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/OntologyBrowser.swift",
-        "fichero/fichero/Views/Inspector/Document/DocumentInspector.swift",
-        "fichero/fichero/Views/Inspector/Knowledge/EntityKindRow.swift",
-        "fichero/fichero/Views/Inspector/Notes/DocumentInterpretationsSection.swift",
-        "fichero/fichero/Views/Inspector/Source/Info/DocumentInspectorInfoTab+Bibliography.swift",
-        "fichero/fichero/Views/Inspector/Source/Info/DocumentInspectorInfoTab+Citations.swift",
         "fichero/fichero/Views/Inspector/Source/Info/DocumentInspectorInfoTab+Prototype.swift",
         "fichero/fichero/Views/Inspector/Source/Info/DocumentInspectorInfoTab+RelatedClaims.swift",
-        "fichero/fichero/Views/Inspector/Source/Info/DocumentInspectorInfoTab+Workflow.swift",
         "fichero/fichero/Views/Components/NodeClassPicker.swift",
-        "fichero/fichero/App/Menus/FocusedCommandButtons+CreationActions.swift",
-        "fichero/fichero/App/Menus/FocusedCommandButtons+Workflow.swift",
-        "fichero/fichero/App/Menus/FocusedCommandButtons+UndoNavigation.swift",
         "fichero/fichero/Views/Connect/ConnectPairingIOS.swift",
         "fichero/fichero/Views/Settings/AI/LocalModelsSettingsView.swift",
-        "fichero/fichero/Views/Sidebar/Modes/SidebarModeBar.swift",
-        "fichero/fichero/Views/Shell/DocumentTabView.swift",
         "fichero/fichero/Views/Library/ViewModes/Canvas/3D/SpaceSceneView.swift",
         "fichero/fichero/Views/Library/ViewModes/Canvas/2D/Legacy/SpatialNodeThumbnail.swift",
         "fichero/fichero/Views/Workflow/Nodes/NodeConfigs/ExtractEntitiesNodeConfig.swift",
-        "fichero/fichero/Views/Workflow/Nodes/NodePopover.swift",
-        "fichero/fichero/Views/Workflow/Canvas/WorkflowCanvasView.swift",
-        "fichero/fichero/Views/Workflow/Editor/WorkflowEditor.swift",
-        "fichero/fichero/Views/Workflow/Nodes/WorkflowNodeView.swift",
     ],
     "post-#2960 residual (globalLibrary / client.api. / FeatureManager)",
 )
 
-# Stated plainly, with an owner — an allowlist entry that only makes red go away is
-# not acceptable. The Settings panes read FeatureManager via @EnvironmentObject
-# (injected by the Settings scene) INSTEAD of grabbing FeatureManager.shared, which
-# is the improvement; they cannot use @Environment because:
-KNOWN_VIOLATIONS["fichero/fichero/Views/Settings/SettingsView.swift"] = (
-    "FeatureManager is @AppStorage-backed (~50 flags); @AppStorage requires "
-    "ObservableObject, so @Observable is not available here (the @Observable macro "
-    "rewrites stored properties into computed ones, and a property wrapper cannot be "
-    "applied to a computed property — it fails to build). The Settings scene injects "
-    "it and the panes bind @EnvironmentObject rather than reaching for .shared. "
-    "Tracked for conversion in #3743."
-)
-KNOWN_VIOLATIONS.update({
-    "fichero/fichero/Views/Shell/ContentView/ContentViewModifiers.swift": (
-        "FeatureManager remains @AppStorage-backed ObservableObject; the app root injects it "
-        "and this modifier binds it with @EnvironmentObject rather than reading .shared. "
-        "Tracked for conversion in #3743."
-    ),
-    "fichero/fichero/Views/Library/Workspace/LibraryWorkspaceRoot.swift": (
-        "FeatureManager remains @AppStorage-backed ObservableObject; the app root injects it "
-        "and this workspace root binds it with @EnvironmentObject rather than reading .shared. "
-        "Tracked for conversion in #3743."
-    ),
-})
 
 
 def _strip_preview_blocks(text: str) -> str:

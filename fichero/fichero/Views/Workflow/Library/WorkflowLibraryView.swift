@@ -59,7 +59,7 @@ struct WorkflowListView: View {
     @State var templateOperationMessage: String?
     @State var workflowToRename: WorkflowSidebarItem?
     @State var renameDraft: String = ""
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
     /// Canonical "a run changed things" staleness tick — drives auto-refresh
     /// in place of the removed manual Refresh button (#1022).
     @Environment(WorkflowExecutionObserver.self) private var executionObserver

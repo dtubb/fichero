@@ -6,7 +6,7 @@ import SwiftUI
 struct FirstRunWindow: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var featureManager = FeatureManager.shared
+    private let featureManager = FeatureManager.shared
     @State private var libraryManager = LibraryManager.shared
 
     @State private var step: FirstRunStep = .welcome

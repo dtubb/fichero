@@ -9,7 +9,7 @@ struct SidebarModeBar: View {
     @Binding var selectedMode: SidebarMode
 
     // Feature manager to hide disabled modes
-    @EnvironmentObject var featureManager: FeatureManager
+    @Environment(FeatureManager.self) var featureManager
 
     /// Fallback icon budget: how many mode icons render inline before the rest
     /// collapse into the '…' overflow (#3059). Selected + `.library` are always
@@ -201,5 +201,5 @@ struct SidebarModeBar: View {
     }
     .frame(width: 280, height: 400)
     .environment(WorkflowExecutionObserver())
-    .environmentObject(FeatureManager.shared)
+    .environment(FeatureManager.shared)
 }

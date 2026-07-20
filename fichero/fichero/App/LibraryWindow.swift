@@ -22,7 +22,7 @@ struct LibraryWindow: View {
     @State private var executionObserver = WorkflowExecutionObserver()
 
     // Observed so the first-run sheet binding is reactive to completion.
-    @ObservedObject private var featureManager = FeatureManager.shared
+    private let featureManager = FeatureManager.shared
 
     @State private var hasInitialized = false
     @State private var showingFileImporter = false

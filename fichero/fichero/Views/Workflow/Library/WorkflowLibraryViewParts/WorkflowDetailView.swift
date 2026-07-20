@@ -10,7 +10,7 @@ struct WorkflowDetailView: View {
     let onExport: () -> Void
 
     @Environment(WorkflowStore.self) var workflowStore
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
     @State private var isExecuting = false
     @State private var executionStatus: String?
     @State private var executionError: String?

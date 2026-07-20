@@ -7,7 +7,7 @@ struct AddItemMenu: View {
     let style: MenuStyle
 
     // Feature manager to filter menu items
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarActions) private var sidebarActions
 
     enum MenuStyle {

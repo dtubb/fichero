@@ -22,7 +22,7 @@ struct WorkflowInspector: View {
     @Environment(WorkflowService.self) var workflowService
     @Environment(MCPService.self) var mcpService
     @Environment(AppState.self) var appState
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
 
     /// Workflow tool-palette tabs. Renamed from the old private `InspectorTab`
     /// to avoid colliding with the Library inspector's `InspectorTab` and to

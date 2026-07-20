@@ -144,7 +144,7 @@ struct DocumentTabView: View {
                 // than grabbing `.shared` — the DI seam for #3033. Shared
                 // instances, no new objects created here.
                 .environment(ErrorService.shared)
-                .environmentObject(FeatureManager.shared)
+                .environment(FeatureManager.shared)
                 // Forward the @Observable artifact service so the library
                 // subtree built after `selectCollection` (LibraryView →
                 // inspector / artifact cells) can read it via

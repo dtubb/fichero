@@ -11,10 +11,8 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppState.self) var appState
     /// Injected by the Settings scene (#3033/#3034) — the panes must not reach
-    /// for the singleton themselves. @EnvironmentObject, not @Environment:
-    /// FeatureManager is @AppStorage-backed and so must stay an
-    /// ObservableObject until #3743 re-backs its flags on UserDefaults.
-    @EnvironmentObject var featureManager: FeatureManager
+    /// for the singleton themselves.
+    @Environment(FeatureManager.self) var featureManager
 
     /// Back/forward history for the detail pane's System-Settings-style
     /// navigation chevrons (`SettingsDetailHeader.swift`). Lives here — not on
@@ -233,6 +231,6 @@ private struct SettingsPreviewHarness: View {
             .environment(LibraryManager.shared)
             // The panes bind @EnvironmentObject now, so the preview must inject it
             // exactly as the real Settings scene does — otherwise the preview traps.
-            .environmentObject(FeatureManager.shared)
+            .environment(FeatureManager.shared)
     }
 }

@@ -21,61 +21,67 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FEATURE_MANAGER = ROOT / "fichero" / "fichero" / "Models" / "FeatureManager.swift"
+# #3743 split FeatureManager into FeatureManager.swift (the flag declarations) +
+# FeatureManager+Tiers.swift (resetToV001 / release-default assignments), so scan
+# the whole FeatureManager* unit, not just the one file.
+FEATURE_MANAGER_FILES = sorted(
+    (ROOT / "fichero" / "fichero" / "Models").glob("FeatureManager*.swift")
+)
 RULE_DOC = "agents/ROADMAP.md"
 
 # Signatures are opaque, so every entry names the flag it grandfathers. Without
 # that, a dead entry cannot be told from a live one by reading the file.
 KNOWN_VIOLATIONS: dict[str, str] = {
     # --- defaults true at declaration ---
-    "fichero/fichero/Models/FeatureManager.swift#01f2f36004": "#1922 baseline: search (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#a19c6d7750": "#1922 baseline: library_advanced_views (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#9fc452b62d": "#1922 baseline: search_advanced_views (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#9b7016be65": "#1922 baseline: library_search_split_layouts (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#30ec8f1a58": "#1922 baseline: knowledge_graph (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#cf51c23a39": "shipped on in release profile v31: settings_general_tab (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#64535b1af0": "shipped on in release profile v31: settings_engine_tab (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#6d899fe1a8": "shipped on in release profile v31: settings_share_tab (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#c2da8d6ed5": "shipped on in release profile v31: settings_users_tab (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#5dd332b721": "shipped on in release profile v31: settings_capture_tab (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#7249b88210": "shipped on in release profile v31: research (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#851e52066d": "#3087 cutover, default-on RealityKit-ortho 2D renderer: canvas_realitykit_2d (declaration)",
-    "fichero/fichero/Models/FeatureManager.swift#f496f3abfc": "#3087 cutover, default-on contract RealityKit 3D renderer: canvas_realitykit_3d (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#1a6957a210": "#1922 baseline: search (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#c31882dbfb": "#1922 baseline: library_advanced_views (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#33b51f405c": "#1922 baseline: search_advanced_views (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#db4b2c3292": "#1922 baseline: library_search_split_layouts (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#2bf2895804": "shipped on in release profile v31: settings_general_tab (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#5425a7c5e9": "shipped on in release profile v31: settings_engine_tab (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#ee5015342c": "shipped on in release profile v31: settings_share_tab (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#d6e549395d": "shipped on in release profile v31: settings_users_tab (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#134dc4a6ac": "shipped on in release profile v31: settings_capture_tab (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#291b07362d": "#3087 cutover, default-on RealityKit-ortho 2D renderer: canvas_realitykit_2d (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#b402ce445f": "#3087 cutover, default-on contract RealityKit 3D renderer: canvas_realitykit_3d (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#1377d97839": "shipped on in release profile v31: research (declaration)",
+    "fichero/fichero/Models/FeatureManager.swift#6416ed9d9d": "#1922 baseline: knowledge_graph (declaration)",
     # --- set true in resetToV001() release defaults ---
-    "fichero/fichero/Models/FeatureManager.swift#6549e3bd15": "#1922 baseline: library_advanced_views (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#20213d49ea": "#1922 baseline: search (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#75ebc78947": "#1922 baseline: search_advanced_views (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#61bb9b568c": "#1922 baseline: library_icon_zoom_controls (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#8d6717ab7d": "#1922 baseline: workflows (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#caee915430": "#1922 baseline: workflow_editor_advanced_views (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#caa37e8508": "#1922 baseline: workflow_chains (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#ef77c099ff": "#1922 baseline: batches (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#3ab4c9e236": "#1922 baseline: workflow_tools_files (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#a381bd0df3": "#1922 baseline: workflow_import_export (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#7ef8e97466": "#1922 baseline: workflow_langgraph_preview (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#ca1127921a": "#1922 baseline: workflow_files_toolbar_button (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#04dca90e13": "#1922 baseline: workflow_run_on_selection (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#3e90ccfee5": "#1922 baseline: knowledge_graph (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#173a3a2ca0": "#3365 review alpha/default surface: mcp (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#277be999a1": "#3365 review alpha/default surface: settings_engine_tab (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#5a48f8dbeb": "#3365 review alpha/default surface: settings_general_tab (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#6932b9e151": "#3365 review alpha/default surface: settings_models_tab (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#6d0c7c33c8": "#3365 review alpha/default surface: integrations (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#72aecbc44a": "#3365 review alpha/default surface: settings_backend_tab (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#d01726468f": "#3365 review alpha/default surface: activity (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#9ebf668b6b": "shipped on in release profile v31: settings_share_tab (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#16fbdfae71": "shipped on in release profile v31: settings_users_tab (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#276153fd1c": "shipped on in release profile v31: settings_capture_tab (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#10d60de58d": "shipped on in release profile v31: research (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#06113c2e9b": "#3087 cutover, default-on: canvas_realitykit_2d (resetToV001)",
-    "fichero/fichero/Models/FeatureManager.swift#984039bf73": "#3087 cutover, default-on: canvas_realitykit_3d (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#6549e3bd15": "#1922 baseline: library_advanced_views (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#20213d49ea": "#1922 baseline: search (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#75ebc78947": "#1922 baseline: search_advanced_views (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#61bb9b568c": "#1922 baseline: library_icon_zoom_controls (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#8d6717ab7d": "#1922 baseline: workflows (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#caee915430": "#1922 baseline: workflow_editor_advanced_views (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#caa37e8508": "#1922 baseline: workflow_chains (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#ef77c099ff": "#1922 baseline: batches (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#173a3a2ca0": "#3365 review alpha/default surface: mcp (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#6d0c7c33c8": "#3365 review alpha/default surface: integrations (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#d01726468f": "#3365 review alpha/default surface: activity (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#5a48f8dbeb": "#3365 review alpha/default surface: settings_general_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#72aecbc44a": "#3365 review alpha/default surface: settings_backend_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#6932b9e151": "#3365 review alpha/default surface: settings_models_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#277be999a1": "#3365 review alpha/default surface: settings_engine_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#9ebf668b6b": "shipped on in release profile v31: settings_share_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#16fbdfae71": "shipped on in release profile v31: settings_users_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#276153fd1c": "shipped on in release profile v31: settings_capture_tab (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#3ab4c9e236": "#1922 baseline: workflow_tools_files (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#a381bd0df3": "#1922 baseline: workflow_import_export (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#7ef8e97466": "#1922 baseline: workflow_langgraph_preview (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#ca1127921a": "#1922 baseline: workflow_files_toolbar_button (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#04dca90e13": "#1922 baseline: workflow_run_on_selection (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#06113c2e9b": "#3087 cutover, default-on: canvas_realitykit_2d (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#984039bf73": "#3087 cutover, default-on: canvas_realitykit_3d (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#10d60de58d": "shipped on in release profile v31: research (resetToV001)",
+    "fichero/fichero/Models/FeatureManager+Tiers.swift#3e90ccfee5": "#1922 baseline: knowledge_graph (resetToV001)",
 }
-_APP_STORAGE_BOOL = re.compile(
-    r'@AppStorage\("(?P<key>fichero\.features\.[^"]+)"\)\s*'
-    r'(?:(?:private|public|internal)\s+)?var\s+(?P<name>\w+)\s*:\s*Bool\s*=\s*(?P<value>true|false)'
+# #3743: flags are no longer @AppStorage; each is a stored `var … = <default> {`
+# whose `didSet` persists to UserDefaults `forKey: "fichero.features.*"`. Detect the
+# declaration (default value) and read the key off the didSet within the next lines.
+_FLAG_DECL = re.compile(
+    r'(?:(?:private|public|internal)\s+)?var\s+(?P<name>\w+)\s*:\s*Bool\s*=\s*(?P<value>true|false)\s*\{'
 )
-_APP_STORAGE_LINE = re.compile(r'@AppStorage\("(?P<key>fichero\.features\.[^"]+)"\)')
-_VAR_LINE = re.compile(r'(?:(?:private|public|internal)\s+)?var\s+(?P<name>\w+)\s*:\s*Bool\s*=\s*(?P<value>true|false)')
+_DIDSET_KEY = re.compile(r'forKey:\s*"(?P<key>fichero\.features\.[^"]+)"')
 _ASSIGN_TRUE = re.compile(r"^\s*(?P<name>\w+)\s*=\s*true\b")
 
 
@@ -95,64 +101,57 @@ def _window_snippet(lines: list[str], line_no: int, radius: int = 1) -> str:
 
 
 def _feature_vars(lines: list[str]) -> dict[str, tuple[str, int, bool]]:
+    """Map flag name -> (persistence key, declaration line, defaults-true?).
+
+    A flag is `var NAME: Bool = <default> {` whose `didSet` (on one of the next
+    few lines) persists to `forKey: "fichero.features.*"`.
+    """
     vars_by_name: dict[str, tuple[str, int, bool]] = {}
-    pending_key: tuple[str, int] | None = None
-    for line_no, line in enumerate(lines, 1):
-        inline = _APP_STORAGE_BOOL.search(line)
-        if inline:
-            vars_by_name[inline.group("name")] = (
-                inline.group("key"),
-                line_no,
-                inline.group("value") == "true",
-            )
-            pending_key = None
+    for idx, line in enumerate(lines):
+        decl = _FLAG_DECL.search(line)
+        if not decl:
             continue
-        key_match = _APP_STORAGE_LINE.search(line)
-        if key_match:
-            pending_key = (key_match.group("key"), line_no)
-            continue
-        if pending_key:
-            var_match = _VAR_LINE.search(line)
-            if var_match:
-                vars_by_name[var_match.group("name")] = (
-                    pending_key[0],
-                    pending_key[1],
-                    var_match.group("value") == "true",
-                )
-            elif re.search(r"\bvar\s+\w+\s*:", line) or line.lstrip().startswith("@"):
-                pending_key = None
-            elif line.strip() and not line.lstrip().startswith("//"):
-                pending_key = None
-            else:
-                continue
-            pending_key = None
+        key = None
+        for probe in lines[idx : min(len(lines), idx + 4)]:
+            key_match = _DIDSET_KEY.search(probe)
+            if key_match:
+                key = key_match.group("key")
+                break
+        if key:
+            vars_by_name[decl.group("name")] = (key, idx + 1, decl.group("value") == "true")
     return vars_by_name
 
 
 def scan() -> dict[str, str]:
-    try:
-        lines = FEATURE_MANAGER.read_text(errors="ignore").splitlines()
-    except OSError:
-        return {}
+    file_lines: dict[Path, list[str]] = {}
+    for path in FEATURE_MANAGER_FILES:
+        try:
+            file_lines[path] = path.read_text(errors="ignore").splitlines()
+        except OSError:
+            continue
 
-    vars_by_name = _feature_vars(lines)
+    # Declarations live in FeatureManager.swift; reset assignments (name = true)
+    # live in FeatureManager+Tiers.swift — so build the name->key map globally.
+    global_vars: dict[str, tuple[str, int, bool]] = {}
+    for lines in file_lines.values():
+        global_vars.update(_feature_vars(lines))
+
     found: dict[str, str] = {}
-    rel = FEATURE_MANAGER.relative_to(ROOT).as_posix()
-
-    for name, (key, line_no, default_on) in vars_by_name.items():
-        if default_on:
-            found[_signature_key(rel, _window_snippet(lines, line_no))] = f"{key} defaults true at declaration"
-
-    for line_no, line in enumerate(lines, 1):
-        match = _ASSIGN_TRUE.search(line)
-        if not match:
-            continue
-        name = match.group("name")
-        if name not in vars_by_name:
-            continue
-        key, _, _ = vars_by_name[name]
-        found[_signature_key(rel, _window_snippet(lines, line_no))] = f"{key} is set true in release defaults"
-
+    for path, lines in file_lines.items():
+        rel = path.relative_to(ROOT).as_posix()
+        for name, (key, line_no, default_on) in _feature_vars(lines).items():
+            if default_on:
+                found[_signature_key(rel, _window_snippet(lines, line_no))] = (
+                    f"{key} defaults true at declaration"
+                )
+        for line_no, line in enumerate(lines, 1):
+            match = _ASSIGN_TRUE.search(line)
+            if not match or match.group("name") not in global_vars:
+                continue
+            key = global_vars[match.group("name")][0]
+            found[_signature_key(rel, _window_snippet(lines, line_no))] = (
+                f"{key} is set true in release defaults"
+            )
     return found
 
 
@@ -174,7 +173,7 @@ def main() -> int:
     new = sorted(set(found) - known)
     stale = sorted(known - set(found))
 
-    print(f"Feature-flag guardrail: scanned {FEATURE_MANAGER.relative_to(ROOT)}")
+    print(f"Feature-flag guardrail: scanned {len(FEATURE_MANAGER_FILES)} FeatureManager* file(s)")
     print(f"  {len(found)} on-by-default flag location(s); {len(known)} known.")
 
     if stale:

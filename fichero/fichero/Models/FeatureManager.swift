@@ -1,154 +1,319 @@
 import Foundation
 import Observation
-import OSLog
 import SwiftUI
 
 // swiftlint:disable file_length
-
-private let featureManagerLogger = Logger(
-    subsystem: "app.fichero.fichero",
-    category: "FeatureManager"
-)
-
-extension FeatureTier {
-    var rank: Int { rawValue }
-
-    var environmentValue: String {
-        switch self {
-        case .dev: return "dev"
-        case .alpha: return "alpha"
-        case .beta: return "beta"
-        case .release: return "release"
-        }
-    }
-}
+// This file holds ~50 persisted feature flags as stored properties (each needing its own
+// declaration + didSet persistence hook, issue #3743). All computed accessors and tier/reset
+// logic have already been split into FeatureManager+Accessors.swift and FeatureManager+Tiers.swift
+// — extensions cannot hold stored properties, so this irreducible stored state stays here.
 
 /// Central manager for app features and modules.
 /// Allows enabling/disabling major functional blocks for different release stages (e.g., v0.0.1).
+///
+/// All persisted flags below were `@AppStorage`-backed under `ObservableObject`. `@Observable`
+/// cannot combine with `@AppStorage` (the macro rewrites stored properties into computed ones,
+/// and a property wrapper cannot apply to a computed property), so each flag is now a plain
+/// stored property that persists via `didSet` and hydrates from `UserDefaults` in `init`. Keys,
+/// defaults, and access levels are unchanged from the `@AppStorage` era.
 @MainActor
-class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_length
+@Observable
+class FeatureManager { // swiftlint:disable:this type_body_length
     static let shared = FeatureManager()
-    // Bumped to re-apply workflow execution release defaults on existing
-    // installs (langgraph preview, run-on-selection, files toolbar, import/export).
-    private static let releaseProfileVersion = 32
-    private static let workflowV001EnabledTools =
-        "files,collection,folder,aggregate,transcribe,catalogue,"
-        + "extract_all,kg_writer,extract_entities,key_people,timeline,keywords,summarize_file,"
-        + "describe,rewrite,"
-        + "citations_extract,"
-        + "people_extract,dates_extract,rivers_extract,events_extract,"
-        + "mines_extract,properties_extract,legal_references_extract,"
-        + "keywords_extract,quotes_extract,"
-        + "people_folder_cleanup,places_folder_cleanup,organizations_folder_cleanup,"
-        + "dates_folder_cleanup,events_folder_cleanup,keywords_folder_cleanup"
-    private static var didWarnUnknownFeatureTier = false
 
     /// Global toggle to override all flags for internal development.
     /// In a production release, this would be hardcoded to false.
-    @AppStorage("fichero.features.all_enabled")
-    var allFeaturesEnabled: Bool =
-        ProcessInfo.processInfo.environment["FICHERO_ALL_FEATURES"] == "1"
+    var allFeaturesEnabled: Bool = ProcessInfo.processInfo.environment["FICHERO_ALL_FEATURES"] == "1" {
+        didSet { UserDefaults.standard.set(allFeaturesEnabled, forKey: "fichero.features.all_enabled") }
+    }
 
     // MARK: - Core Features (v0.0.1)
 
-    @Published var isLibraryEnabled: Bool = true
-    @AppStorage("fichero.features.search")
-    private var searchEnabledInternal: Bool = true
-    @AppStorage("fichero.features.library_advanced_views")
-    private var libraryAdvancedViewsEnabledInternal: Bool = true
-    @AppStorage("fichero.features.search_advanced_views")
-    private var searchAdvancedViewsEnabledInternal: Bool = true
-    @AppStorage("fichero.features.library_search_split_layouts")
-    private var librarySearchSplitLayoutsEnabledInternal: Bool = true
-    @AppStorage("fichero.features.library_filter_toolbar")
-    private var libraryFilterToolbarEnabledInternal: Bool = false
-    @AppStorage("fichero.features.library_icon_zoom_controls")
-    private var libraryIconZoomControlsEnabledInternal: Bool = false
+    var isLibraryEnabled: Bool = true
+
+    var searchEnabledInternal: Bool = true {
+        didSet { UserDefaults.standard.set(searchEnabledInternal, forKey: "fichero.features.search") }
+    }
+    var libraryAdvancedViewsEnabledInternal: Bool = true {
+        didSet {
+            UserDefaults.standard.set(
+                libraryAdvancedViewsEnabledInternal, forKey: "fichero.features.library_advanced_views"
+            )
+        }
+    }
+    var searchAdvancedViewsEnabledInternal: Bool = true {
+        didSet {
+            UserDefaults.standard.set(
+                searchAdvancedViewsEnabledInternal, forKey: "fichero.features.search_advanced_views"
+            )
+        }
+    }
+    var librarySearchSplitLayoutsEnabledInternal: Bool = true {
+        didSet {
+            UserDefaults.standard.set(
+                librarySearchSplitLayoutsEnabledInternal, forKey: "fichero.features.library_search_split_layouts"
+            )
+        }
+    }
+    var libraryFilterToolbarEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                libraryFilterToolbarEnabledInternal, forKey: "fichero.features.library_filter_toolbar"
+            )
+        }
+    }
+    var libraryIconZoomControlsEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                libraryIconZoomControlsEnabledInternal, forKey: "fichero.features.library_icon_zoom_controls"
+            )
+        }
+    }
 
     // MARK: - Advanced Features (Target: v0.1.0+)
 
-    @AppStorage("fichero.features.workflows") private var workflowsEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_editor_advanced_views")
-    private var workflowEditorAdvancedViewsEnabled: Bool = false
-    @AppStorage("fichero.features.workflow_chains")
-    private var workflowChainsEnabledInternal: Bool = false
-    @AppStorage("fichero.features.batches") private var batchesEnabledInternal: Bool = false
-    @AppStorage("fichero.features.chat") private var chatEnabledInternal: Bool = false
-    @AppStorage("fichero.features.agents") private var agentsEnabledInternal: Bool = false
-    @AppStorage("fichero.features.automation") private var automationEnabledInternal: Bool = false
-    @AppStorage("fichero.features.mcp") private var mcpEnabledInternal: Bool = false
-    @AppStorage("fichero.features.integrations") private var integrationsEnabledInternal: Bool = false
-    @AppStorage("fichero.features.activity") private var activityEnabledInternal: Bool = false
-    @AppStorage("fichero.features.settings_general_tab")
-    private var settingsGeneralTabEnabledInternal: Bool = true
-    @AppStorage("fichero.features.settings_backend_tab")
-    private var settingsBackendTabEnabledInternal: Bool = false
-    @AppStorage("fichero.features.settings_models_tab")
-    private var settingsModelsTabEnabledInternal: Bool = false
-    @AppStorage("fichero.features.settings_engine_tab")
-    private var settingsEngineTabEnabledInternal: Bool = true
-    @AppStorage("fichero.features.settings_share_tab")
-    private var settingsShareTabEnabledInternal: Bool = true
-    @AppStorage("fichero.features.settings_users_tab")
-    private var settingsUsersTabEnabledInternal: Bool = true
-    @AppStorage("fichero.features.settings_capture_tab")
-    private var settingsCaptureTabEnabledInternal: Bool = true
-    @AppStorage("fichero.features.workflow_tools_mcp")
-    private var workflowToolsMCPEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_tools_agents")
-    private var workflowToolsAgentsEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_tools_audio")
-    private var workflowToolsAudioEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_tools_video")
-    private var workflowToolsVideoEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_tools_transform")
-    private var workflowToolsTransformEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_tools_convert")
-    private var workflowToolsConvertEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_tools_logic")
-    private var workflowToolsLogicEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_tools_outputs")
-    private var workflowToolsOutputsEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_tools_files")
-    private var workflowToolsFilesEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_tools_search")
-    private var workflowToolsSearchEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_enabled_tools")
-    private var workflowEnabledToolsInternal: String = ""
-    @AppStorage("fichero.features.providers_extended")
-    private var providersExtendedEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_import_export")
-    private var workflowImportExportEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_langgraph_preview")
-    private var workflowLangGraphPreviewEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_files_toolbar_button")
-    private var workflowFilesToolbarEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workflow_run_on_selection")
-    private var workflowRunOnSelectionEnabledInternal: Bool = false
-    @AppStorage("fichero.features.pdf_scroll_grid_sync")
-    private var pdfScrollGridSyncEnabledInternal: Bool = false
-    @AppStorage("fichero.features.claim_highlight_sync")
-    private var claimHighlightSyncEnabledInternal: Bool = false
-    @AppStorage("fichero.features.workspace_mode")
-    private var workspaceModeEnabledInternal: Bool = false
-    @AppStorage("fichero.features.spatial_mode")
-    private var spatialModeEnabledInternal: Bool = false
+    var workflowsEnabledInternal: Bool = false {
+        didSet { UserDefaults.standard.set(workflowsEnabledInternal, forKey: "fichero.features.workflows") }
+    }
+    var workflowEditorAdvancedViewsEnabled: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowEditorAdvancedViewsEnabled, forKey: "fichero.features.workflow_editor_advanced_views"
+            )
+        }
+    }
+    var workflowChainsEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(workflowChainsEnabledInternal, forKey: "fichero.features.workflow_chains")
+        }
+    }
+    var batchesEnabledInternal: Bool = false {
+        didSet { UserDefaults.standard.set(batchesEnabledInternal, forKey: "fichero.features.batches") }
+    }
+    var chatEnabledInternal: Bool = false {
+        didSet { UserDefaults.standard.set(chatEnabledInternal, forKey: "fichero.features.chat") }
+    }
+    var agentsEnabledInternal: Bool = false {
+        didSet { UserDefaults.standard.set(agentsEnabledInternal, forKey: "fichero.features.agents") }
+    }
+    var automationEnabledInternal: Bool = false {
+        didSet { UserDefaults.standard.set(automationEnabledInternal, forKey: "fichero.features.automation") }
+    }
+    var mcpEnabledInternal: Bool = false {
+        didSet { UserDefaults.standard.set(mcpEnabledInternal, forKey: "fichero.features.mcp") }
+    }
+    var integrationsEnabledInternal: Bool = false {
+        didSet { UserDefaults.standard.set(integrationsEnabledInternal, forKey: "fichero.features.integrations") }
+    }
+    var activityEnabledInternal: Bool = false {
+        didSet { UserDefaults.standard.set(activityEnabledInternal, forKey: "fichero.features.activity") }
+    }
+    var settingsGeneralTabEnabledInternal: Bool = true {
+        didSet {
+            UserDefaults.standard.set(
+                settingsGeneralTabEnabledInternal, forKey: "fichero.features.settings_general_tab"
+            )
+        }
+    }
+    var settingsBackendTabEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                settingsBackendTabEnabledInternal, forKey: "fichero.features.settings_backend_tab"
+            )
+        }
+    }
+    var settingsModelsTabEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                settingsModelsTabEnabledInternal, forKey: "fichero.features.settings_models_tab"
+            )
+        }
+    }
+    var settingsEngineTabEnabledInternal: Bool = true {
+        didSet {
+            UserDefaults.standard.set(
+                settingsEngineTabEnabledInternal, forKey: "fichero.features.settings_engine_tab"
+            )
+        }
+    }
+    var settingsShareTabEnabledInternal: Bool = true {
+        didSet {
+            UserDefaults.standard.set(settingsShareTabEnabledInternal, forKey: "fichero.features.settings_share_tab")
+        }
+    }
+    var settingsUsersTabEnabledInternal: Bool = true {
+        didSet {
+            UserDefaults.standard.set(settingsUsersTabEnabledInternal, forKey: "fichero.features.settings_users_tab")
+        }
+    }
+    var settingsCaptureTabEnabledInternal: Bool = true {
+        didSet {
+            UserDefaults.standard.set(
+                settingsCaptureTabEnabledInternal, forKey: "fichero.features.settings_capture_tab"
+            )
+        }
+    }
+    var workflowToolsMCPEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(workflowToolsMCPEnabledInternal, forKey: "fichero.features.workflow_tools_mcp")
+        }
+    }
+    var workflowToolsAgentsEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowToolsAgentsEnabledInternal, forKey: "fichero.features.workflow_tools_agents"
+            )
+        }
+    }
+    var workflowToolsAudioEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowToolsAudioEnabledInternal, forKey: "fichero.features.workflow_tools_audio"
+            )
+        }
+    }
+    var workflowToolsVideoEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowToolsVideoEnabledInternal, forKey: "fichero.features.workflow_tools_video"
+            )
+        }
+    }
+    var workflowToolsTransformEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowToolsTransformEnabledInternal, forKey: "fichero.features.workflow_tools_transform"
+            )
+        }
+    }
+    var workflowToolsConvertEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowToolsConvertEnabledInternal, forKey: "fichero.features.workflow_tools_convert"
+            )
+        }
+    }
+    var workflowToolsLogicEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowToolsLogicEnabledInternal, forKey: "fichero.features.workflow_tools_logic"
+            )
+        }
+    }
+    var workflowToolsOutputsEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowToolsOutputsEnabledInternal, forKey: "fichero.features.workflow_tools_outputs"
+            )
+        }
+    }
+    var workflowToolsFilesEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowToolsFilesEnabledInternal, forKey: "fichero.features.workflow_tools_files"
+            )
+        }
+    }
+    var workflowToolsSearchEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowToolsSearchEnabledInternal, forKey: "fichero.features.workflow_tools_search"
+            )
+        }
+    }
+    var workflowEnabledToolsInternal: String = "" {
+        didSet {
+            UserDefaults.standard.set(workflowEnabledToolsInternal, forKey: "fichero.features.workflow_enabled_tools")
+        }
+    }
+    var providersExtendedEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(providersExtendedEnabledInternal, forKey: "fichero.features.providers_extended")
+        }
+    }
+    var workflowImportExportEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowImportExportEnabledInternal, forKey: "fichero.features.workflow_import_export"
+            )
+        }
+    }
+    var workflowLangGraphPreviewEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowLangGraphPreviewEnabledInternal, forKey: "fichero.features.workflow_langgraph_preview"
+            )
+        }
+    }
+    var workflowFilesToolbarEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowFilesToolbarEnabledInternal, forKey: "fichero.features.workflow_files_toolbar_button"
+            )
+        }
+    }
+    var workflowRunOnSelectionEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                workflowRunOnSelectionEnabledInternal, forKey: "fichero.features.workflow_run_on_selection"
+            )
+        }
+    }
+    var pdfScrollGridSyncEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(pdfScrollGridSyncEnabledInternal, forKey: "fichero.features.pdf_scroll_grid_sync")
+        }
+    }
+    var claimHighlightSyncEnabledInternal: Bool = false {
+        didSet {
+            UserDefaults.standard.set(
+                claimHighlightSyncEnabledInternal, forKey: "fichero.features.claim_highlight_sync"
+            )
+        }
+    }
+    var workspaceModeEnabledInternal: Bool = false {
+        didSet { UserDefaults.standard.set(workspaceModeEnabledInternal, forKey: "fichero.features.workspace_mode") }
+    }
+    var spatialModeEnabledInternal: Bool = false {
+        didSet { UserDefaults.standard.set(spatialModeEnabledInternal, forKey: "fichero.features.spatial_mode") }
+    }
     /// Route the 2D `.canvas` view mode to the RealityKit-ortho renderer
     /// (`CanvasSceneView`, #3083). ON by default (#3087 cutover): it shares
     /// `CanvasSceneState` with the 3D renderer. The SwiftUI `Spatial2DCanvas`
     /// stays in `Canvas/2D/Legacy/` as the revert path (toggle this off).
-    @AppStorage("fichero.features.canvas_realitykit_2d")
-    private var canvasRealityKit2DEnabledInternal: Bool = true
+    var canvasRealityKit2DEnabledInternal: Bool = true {
+        didSet {
+            UserDefaults.standard.set(
+                canvasRealityKit2DEnabledInternal, forKey: "fichero.features.canvas_realitykit_2d"
+            )
+        }
+    }
     /// Route the 3D `.space` view mode to the contract-based RealityKit renderer
     /// (`CanvasSpaceView`, #3104). ON by default (#3087 cutover). The `SpaceSceneView`
     /// legacy renderer stays in `Canvas/3D/Legacy/` as the revert path (toggle off).
-    @AppStorage("fichero.features.canvas_realitykit_3d")
-    private var canvasRealityKit3DEnabledInternal: Bool = true
-    @AppStorage("fichero.features.research") private var researchEnabledInternal: Bool = true
-    @AppStorage("fichero.features.knowledge_graph") private var knowledgeGraphEnabledInternal: Bool = true
-    @AppStorage("fichero.first_run.completed") var firstRunCompleted: Bool = false
-    @AppStorage("fichero.features.release_profile_version")
-    private var releaseProfileVersionApplied: Int = 0
+    var canvasRealityKit3DEnabledInternal: Bool = true {
+        didSet {
+            UserDefaults.standard.set(
+                canvasRealityKit3DEnabledInternal, forKey: "fichero.features.canvas_realitykit_3d"
+            )
+        }
+    }
+    var researchEnabledInternal: Bool = true {
+        didSet { UserDefaults.standard.set(researchEnabledInternal, forKey: "fichero.features.research") }
+    }
+    var knowledgeGraphEnabledInternal: Bool = true {
+        didSet { UserDefaults.standard.set(knowledgeGraphEnabledInternal, forKey: "fichero.features.knowledge_graph") }
+    }
+    var firstRunCompleted: Bool = false {
+        didSet { UserDefaults.standard.set(firstRunCompleted, forKey: "fichero.first_run.completed") }
+    }
+    var releaseProfileVersionApplied: Int = 0 {
+        didSet {
+            UserDefaults.standard.set(
+                releaseProfileVersionApplied, forKey: "fichero.features.release_profile_version"
+            )
+        }
+    }
 
     /// Test-only tier override (production leaves this nil). The baked-in bundle
     /// FicheroFeatureTier is authoritative in real builds and intentionally wins
@@ -157,373 +322,103 @@ class FeatureManager: ObservableObject { // swiftlint:disable:this type_body_len
     /// without weakening that production resolution.
     var testTierOverride: FeatureTier?
 
-    var activeBuildTier: FeatureTier {
-        if let testTierOverride {
-            return testTierOverride
-        }
-        if let tier = Self.resolveFeatureTier(
-            Bundle.main.infoDictionary?["FicheroFeatureTier"] as? String
-        ) {
-            return tier
-        }
-        if let tier = Self.resolveFeatureTier(
-            ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"]
-        ) {
-            return tier
-        }
-        return .dev
-    }
-
-    /// Development builds deliberately expose every implemented feature.
-    var allFeaturesEffectivelyEnabled: Bool {
-        allFeaturesEnabled || activeBuildTier == .dev
-    }
-
-    @available(*, deprecated, message: "use activeBuildTier == .dev")
-    static var isDevFeatureTier: Bool { shared.activeBuildTier == .dev }
-
-    func isVisible(_ key: FeatureKey) -> Bool {
-        FeatureTiers.map[key]!.tier.rank >= activeBuildTier.rank
-    }
-
-    private func isEnabled(_ key: FeatureKey, _ enabled: Bool) -> Bool {
-        isVisible(key) && (allFeaturesEffectivelyEnabled || enabled)
-    }
-
-    var isWorkflowsEnabled: Bool { isEnabled(.workflows, workflowsEnabledInternal) }
-    var isSearchEnabled: Bool { isEnabled(.search, searchEnabledInternal) }
-    var isWorkflowEditorAdvancedViewsEnabled: Bool {
-        isEnabled(.workflowEditorAdvancedViews, workflowEditorAdvancedViewsEnabled)
-    }
-    var isWorkflowChainsEnabled: Bool { isEnabled(.workflowChains, workflowChainsEnabledInternal) }
-    var isBatchesEnabled: Bool { isEnabled(.batches, batchesEnabledInternal) }
-    var isChatEnabled: Bool { isEnabled(.chat, chatEnabledInternal) }
-    var isAgentsEnabled: Bool { isEnabled(.agents, agentsEnabledInternal) }
-    var isAutomationEnabled: Bool { isEnabled(.automation, automationEnabledInternal) }
-    var isMCPEnabled: Bool { isEnabled(.mcpUi, mcpEnabledInternal) }
-    var isIntegrationsEnabled: Bool { isEnabled(.integrations, integrationsEnabledInternal) }
-    var isActivityEnabled: Bool { isEnabled(.activity, activityEnabledInternal) }
-    var isLibraryAdvancedViewsEnabled: Bool {
-        isEnabled(.libraryAdvancedViews, libraryAdvancedViewsEnabledInternal)
-    }
-    var isSearchAdvancedViewsEnabled: Bool {
-        isEnabled(.searchAdvancedViews, searchAdvancedViewsEnabledInternal)
-    }
-    var isLibrarySearchSplitLayoutsEnabled: Bool {
-        isEnabled(.librarySearchSplitLayouts, librarySearchSplitLayoutsEnabledInternal)
-    }
-    var isLibraryFilterToolbarEnabled: Bool {
-        isEnabled(.libraryFilterToolbar, libraryFilterToolbarEnabledInternal)
-    }
-    var isLibraryIconZoomControlsEnabled: Bool {
-        isEnabled(.libraryIconZoomControls, libraryIconZoomControlsEnabledInternal)
-    }
-    var isSettingsGeneralTabEnabled: Bool {
-        isEnabled(.settingsGeneralTab, settingsGeneralTabEnabledInternal)
-    }
-    var isSettingsBackendTabEnabled: Bool {
-        isEnabled(.settingsBackendTab, settingsBackendTabEnabledInternal)
-    }
-    var isSettingsModelsTabEnabled: Bool {
-        isEnabled(.settingsModelsTab, settingsModelsTabEnabledInternal)
-    }
-    var isSettingsEngineTabEnabled: Bool {
-        isEnabled(.settingsEngineTab, settingsEngineTabEnabledInternal)
-    }
-    var isSettingsShareTabEnabled: Bool {
-        isEnabled(.settingsShareTab, settingsShareTabEnabledInternal)
-    }
-    var isSettingsUsersTabEnabled: Bool {
-        isEnabled(.settingsUsersTab, settingsUsersTabEnabledInternal)
-    }
-    var isSettingsCaptureTabEnabled: Bool {
-        isEnabled(.settingsCaptureTab, settingsCaptureTabEnabledInternal)
-    }
-    var isWorkflowToolsMCPEnabled: Bool {
-        isEnabled(.workflowToolsMcp, workflowToolsMCPEnabledInternal)
-    }
-    var isWorkflowToolsAgentsEnabled: Bool {
-        isEnabled(.workflowToolsAgents, workflowToolsAgentsEnabledInternal)
-    }
-    var isWorkflowToolsAudioEnabled: Bool {
-        isEnabled(.workflowToolsAudio, workflowToolsAudioEnabledInternal)
-    }
-    var isWorkflowToolsVideoEnabled: Bool {
-        isEnabled(.workflowToolsVideo, workflowToolsVideoEnabledInternal)
-    }
-    var isWorkflowToolsTransformEnabled: Bool {
-        isEnabled(.workflowToolsTransform, workflowToolsTransformEnabledInternal)
-    }
-    var isWorkflowToolsConvertEnabled: Bool {
-        isEnabled(.workflowToolsConvert, workflowToolsConvertEnabledInternal)
-    }
-    var isWorkflowToolsLogicEnabled: Bool {
-        isEnabled(.workflowToolsLogic, workflowToolsLogicEnabledInternal)
-    }
-    var isWorkflowToolsOutputsEnabled: Bool {
-        isEnabled(.workflowToolsOutputs, workflowToolsOutputsEnabledInternal)
-    }
-    var isWorkflowToolsFilesEnabled: Bool {
-        isEnabled(.workflowToolsFiles, workflowToolsFilesEnabledInternal)
-    }
-    var isWorkflowToolsSearchEnabled: Bool {
-        isEnabled(.workflowToolsSearch, workflowToolsSearchEnabledInternal)
-    }
-    var isProvidersExtendedEnabled: Bool {
-        isEnabled(.providersExtended, providersExtendedEnabledInternal)
-    }
-    var isProvidersEnabled: Bool {
-        isVisible(.providers)
-            && (allFeaturesEnabled || providersExtendedEnabledInternal || activeBuildTier == .dev)
-    }
-    var isWorkflowImportExportEnabled: Bool {
-        isEnabled(.workflowImportExport, workflowImportExportEnabledInternal)
-    }
-    var isWorkflowLangGraphPreviewEnabled: Bool {
-        isEnabled(.workflowLangGraphPreview, workflowLangGraphPreviewEnabledInternal)
-    }
-    var isWorkflowFilesToolbarButtonEnabled: Bool {
-        isEnabled(.workflowImportExport, workflowFilesToolbarEnabledInternal)
-    }
-    var isWorkflowRunOnSelectionEnabled: Bool {
-        isEnabled(.workflowRunOnSelection, workflowRunOnSelectionEnabledInternal)
-    }
-    var workflowEnabledTools: Set<String> {
-        Set(
-            workflowEnabledToolsInternal
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-                .filter { !$0.isEmpty }
-        )
-    }
-    /// PDF scroll → grid/inspector sync. Defaulted OFF; enable via Settings or `FICHERO_ALL_FEATURES=1`.
-    /// Guards the NSScrollView live-scroll observer added in PDFPageView (#591/#592).
-    var isPdfScrollGridSyncEnabled: Bool {
-        isEnabled(.pdfScrollGridSync, pdfScrollGridSyncEnabledInternal)
-    }
-    /// Bidirectional claim highlight sync across PDF, Content, and Inspector panes. Defaulted OFF.
-    var isClaimHighlightSyncEnabled: Bool {
-        isEnabled(.claimHighlightSync, claimHighlightSyncEnabledInternal)
-    }
-    var isWorkspaceModeEnabled: Bool { isEnabled(.workspaceMode, workspaceModeEnabledInternal) }
-    var isSpatialModeEnabled: Bool { isEnabled(.spatialMode, spatialModeEnabledInternal) }
-    var isCanvasRealityKit2DEnabled: Bool {
-        isEnabled(.canvasRealityKit2D, canvasRealityKit2DEnabledInternal)
-    }
-    var isCanvasRealityKit3DEnabled: Bool {
-        isEnabled(.canvasRealityKit3D, canvasRealityKit3DEnabledInternal)
-    }
-    var isResearchEnabled: Bool { isEnabled(.research, researchEnabledInternal) }
-    /// Knowledge Graph / Ontology browser (#498). Defaulted ON — the view is complete.
-    var isKnowledgeGraphEnabled: Bool {
-        isEnabled(.knowledgeGraph, knowledgeGraphEnabledInternal)
-    }
-
+    // swiftlint:disable:next function_body_length
     private init() {
+        let defaults = UserDefaults.standard
+        allFeaturesEnabled = (defaults.object(forKey: "fichero.features.all_enabled") as? Bool)
+            ?? (ProcessInfo.processInfo.environment["FICHERO_ALL_FEATURES"] == "1")
+        searchEnabledInternal = (defaults.object(forKey: "fichero.features.search") as? Bool) ?? true
+        libraryAdvancedViewsEnabledInternal =
+            (defaults.object(forKey: "fichero.features.library_advanced_views") as? Bool) ?? true
+        searchAdvancedViewsEnabledInternal =
+            (defaults.object(forKey: "fichero.features.search_advanced_views") as? Bool) ?? true
+        librarySearchSplitLayoutsEnabledInternal =
+            (defaults.object(forKey: "fichero.features.library_search_split_layouts") as? Bool) ?? true
+        libraryFilterToolbarEnabledInternal =
+            (defaults.object(forKey: "fichero.features.library_filter_toolbar") as? Bool) ?? false
+        libraryIconZoomControlsEnabledInternal =
+            (defaults.object(forKey: "fichero.features.library_icon_zoom_controls") as? Bool) ?? false
+
+        workflowsEnabledInternal = (defaults.object(forKey: "fichero.features.workflows") as? Bool) ?? false
+        workflowEditorAdvancedViewsEnabled =
+            (defaults.object(forKey: "fichero.features.workflow_editor_advanced_views") as? Bool) ?? false
+        workflowChainsEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_chains") as? Bool) ?? false
+        batchesEnabledInternal = (defaults.object(forKey: "fichero.features.batches") as? Bool) ?? false
+        chatEnabledInternal = (defaults.object(forKey: "fichero.features.chat") as? Bool) ?? false
+        agentsEnabledInternal = (defaults.object(forKey: "fichero.features.agents") as? Bool) ?? false
+        automationEnabledInternal = (defaults.object(forKey: "fichero.features.automation") as? Bool) ?? false
+        mcpEnabledInternal = (defaults.object(forKey: "fichero.features.mcp") as? Bool) ?? false
+        integrationsEnabledInternal = (defaults.object(forKey: "fichero.features.integrations") as? Bool) ?? false
+        activityEnabledInternal = (defaults.object(forKey: "fichero.features.activity") as? Bool) ?? false
+        settingsGeneralTabEnabledInternal =
+            (defaults.object(forKey: "fichero.features.settings_general_tab") as? Bool) ?? true
+        settingsBackendTabEnabledInternal =
+            (defaults.object(forKey: "fichero.features.settings_backend_tab") as? Bool) ?? false
+        settingsModelsTabEnabledInternal =
+            (defaults.object(forKey: "fichero.features.settings_models_tab") as? Bool) ?? false
+        settingsEngineTabEnabledInternal =
+            (defaults.object(forKey: "fichero.features.settings_engine_tab") as? Bool) ?? true
+        settingsShareTabEnabledInternal =
+            (defaults.object(forKey: "fichero.features.settings_share_tab") as? Bool) ?? true
+        settingsUsersTabEnabledInternal =
+            (defaults.object(forKey: "fichero.features.settings_users_tab") as? Bool) ?? true
+        settingsCaptureTabEnabledInternal =
+            (defaults.object(forKey: "fichero.features.settings_capture_tab") as? Bool) ?? true
+        workflowToolsMCPEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_tools_mcp") as? Bool) ?? false
+        workflowToolsAgentsEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_tools_agents") as? Bool) ?? false
+        workflowToolsAudioEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_tools_audio") as? Bool) ?? false
+        workflowToolsVideoEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_tools_video") as? Bool) ?? false
+        workflowToolsTransformEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_tools_transform") as? Bool) ?? false
+        workflowToolsConvertEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_tools_convert") as? Bool) ?? false
+        workflowToolsLogicEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_tools_logic") as? Bool) ?? false
+        workflowToolsOutputsEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_tools_outputs") as? Bool) ?? false
+        workflowToolsFilesEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_tools_files") as? Bool) ?? false
+        workflowToolsSearchEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_tools_search") as? Bool) ?? false
+        workflowEnabledToolsInternal =
+            (defaults.object(forKey: "fichero.features.workflow_enabled_tools") as? String) ?? ""
+        providersExtendedEnabledInternal =
+            (defaults.object(forKey: "fichero.features.providers_extended") as? Bool) ?? false
+        workflowImportExportEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_import_export") as? Bool) ?? false
+        workflowLangGraphPreviewEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_langgraph_preview") as? Bool) ?? false
+        workflowFilesToolbarEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_files_toolbar_button") as? Bool) ?? false
+        workflowRunOnSelectionEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workflow_run_on_selection") as? Bool) ?? false
+        pdfScrollGridSyncEnabledInternal =
+            (defaults.object(forKey: "fichero.features.pdf_scroll_grid_sync") as? Bool) ?? false
+        claimHighlightSyncEnabledInternal =
+            (defaults.object(forKey: "fichero.features.claim_highlight_sync") as? Bool) ?? false
+        workspaceModeEnabledInternal =
+            (defaults.object(forKey: "fichero.features.workspace_mode") as? Bool) ?? false
+        spatialModeEnabledInternal =
+            (defaults.object(forKey: "fichero.features.spatial_mode") as? Bool) ?? false
+        canvasRealityKit2DEnabledInternal =
+            (defaults.object(forKey: "fichero.features.canvas_realitykit_2d") as? Bool) ?? true
+        canvasRealityKit3DEnabledInternal =
+            (defaults.object(forKey: "fichero.features.canvas_realitykit_3d") as? Bool) ?? true
+        researchEnabledInternal = (defaults.object(forKey: "fichero.features.research") as? Bool) ?? true
+        knowledgeGraphEnabledInternal =
+            (defaults.object(forKey: "fichero.features.knowledge_graph") as? Bool) ?? true
+        firstRunCompleted = (defaults.object(forKey: "fichero.first_run.completed") as? Bool) ?? false
+        releaseProfileVersionApplied =
+            (defaults.object(forKey: "fichero.features.release_profile_version") as? Int) ?? 0
+
         if UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
             firstRunCompleted = true
         }
         applyReleaseProfileDefaultsIfNeeded()
     }
-
-    /// Reset to v0.0.1 defaults
-    func resetToV001() {
-        allFeaturesEnabled = false
-        libraryAdvancedViewsEnabledInternal = true   // 0.0.3 #517: list/table/map re-enabled
-        searchEnabledInternal = true
-        searchAdvancedViewsEnabledInternal = true    // 0.0.3 #517: search results in all views
-        librarySearchSplitLayoutsEnabledInternal = false
-        libraryFilterToolbarEnabledInternal = false
-        libraryIconZoomControlsEnabledInternal = true // 0.0.3 #517: zoom controls re-enabled
-        workflowsEnabledInternal = true
-        workflowEditorAdvancedViewsEnabled = true
-        workflowChainsEnabledInternal = true
-        batchesEnabledInternal = true
-        chatEnabledInternal = false
-        agentsEnabledInternal = false
-        automationEnabledInternal = false
-        mcpEnabledInternal = true
-        integrationsEnabledInternal = true
-        activityEnabledInternal = true
-
-        settingsGeneralTabEnabledInternal = true
-        settingsBackendTabEnabledInternal = true
-        settingsModelsTabEnabledInternal = true
-        settingsEngineTabEnabledInternal = true
-        settingsShareTabEnabledInternal = true
-        settingsUsersTabEnabledInternal = true
-        settingsCaptureTabEnabledInternal = true
-        workflowToolsMCPEnabledInternal = false
-        workflowToolsAgentsEnabledInternal = false
-        workflowToolsAudioEnabledInternal = false
-        workflowToolsVideoEnabledInternal = false
-        workflowToolsTransformEnabledInternal = false
-        workflowToolsConvertEnabledInternal = false
-        workflowToolsLogicEnabledInternal = false
-        workflowToolsOutputsEnabledInternal = false
-        workflowToolsFilesEnabledInternal = true
-        workflowToolsSearchEnabledInternal = false
-        workflowEnabledToolsInternal = Self.workflowV001EnabledTools
-        providersExtendedEnabledInternal = false
-        workflowImportExportEnabledInternal = true
-        workflowLangGraphPreviewEnabledInternal = true
-        workflowFilesToolbarEnabledInternal = true
-        workflowRunOnSelectionEnabledInternal = true
-        workspaceModeEnabledInternal = false
-        spatialModeEnabledInternal = false
-        canvasRealityKit2DEnabledInternal = true
-        canvasRealityKit3DEnabledInternal = true
-        researchEnabledInternal = true
-        knowledgeGraphEnabledInternal = true
-        releaseProfileVersionApplied = Self.releaseProfileVersion
-    }
-
-    func isWorkflowToolExplicitlyEnabled(_ toolName: String) -> Bool {
-        if allFeaturesEffectivelyEnabled {
-            return true
-        }
-        let normalized = normalizeWorkflowToolName(toolName)
-        return workflowEnabledTools.contains(normalized)
-    }
-
-    private func applyReleaseProfileDefaultsIfNeeded() {
-        if releaseProfileVersionApplied < 15 {
-            let currentTools = workflowEnabledToolsInternal
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if currentTools.isEmpty {
-                workflowEnabledToolsInternal = Self.workflowV001EnabledTools
-            }
-        }
-
-        guard releaseProfileVersionApplied < Self.releaseProfileVersion else {
-            return
-        }
-        resetToV001()
-    }
-
-    private func normalizeWorkflowToolName(_ toolName: String) -> String {
-        switch toolName.lowercased() {
-        case "folder", "container":
-            return "collection"
-        default:
-            return toolName.lowercased()
-        }
-    }
-
-    static func resolveFeatureTier(_ rawValue: String?) -> FeatureTier? {
-        guard let rawValue else {
-            return nil
-        }
-        let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalized.isEmpty else {
-            return nil
-        }
-
-        switch normalized {
-        case "dev":
-            return .dev
-        case "alpha":
-            return .alpha
-        case "beta":
-            return .beta
-        case "release":
-            return .release
-        default:
-            warnUnknownFeatureTierOnce(rawValue)
-            return .dev
-        }
-    }
-
-    private static func warnUnknownFeatureTierOnce(_ rawValue: String) {
-        guard !didWarnUnknownFeatureTier else {
-            return
-        }
-        didWarnUnknownFeatureTier = true
-        featureManagerLogger.warning(
-            "Unknown FICHERO_FEATURE_TIER value '\(rawValue, privacy: .public)'; defaulting to dev"
-        )
-    }
-}
-
-// MARK: - View Helpers
-
-extension View {
-    /// Conditionally shows a view based on a feature flag
-    @ViewBuilder
-    func featureEnabled(_ isEnabled: Bool) -> some View {
-        if isEnabled {
-            self
-        }
-    }
-}
-
-// MARK: - ClaimFocusState
-
-/// Observable state for bidirectional claim highlighting across PDF, Content, and Inspector panes.
-@MainActor
-@Observable
-class ClaimFocusState {
-    static let shared = ClaimFocusState()
-
-    var selectedClaimId: String?
-    var selectedClaimText: String?
-    var selectedClaimSourceDocumentId: String?
-    var selectedClaimPageLabel: String?
-    var selectedClaimCharStart: Int?
-    var selectedClaimCharEnd: Int?
-
-    func selectClaim(
-        claimId: String,
-        claimText: String? = nil,
-        sourceDocumentId: String? = nil,
-        pageLabel: String? = nil,
-        charStart: Int? = nil,
-        charEnd: Int? = nil
-    ) {
-        selectedClaimId = claimId
-        selectedClaimText = claimText
-        selectedClaimSourceDocumentId = sourceDocumentId
-        selectedClaimPageLabel = pageLabel
-        selectedClaimCharStart = charStart
-        selectedClaimCharEnd = charEnd
-        NotificationCenter.default.post(name: .claimFocusChanged, object: self)
-    }
-
-    func clearSelection() {
-        selectedClaimId = nil
-        selectedClaimText = nil
-        selectedClaimSourceDocumentId = nil
-        selectedClaimPageLabel = nil
-        selectedClaimCharStart = nil
-        selectedClaimCharEnd = nil
-        NotificationCenter.default.post(name: .claimFocusChanged, object: self)
-    }
-
-    func isClaimSelected(_ claimId: String) -> Bool { selectedClaimId == claimId }
-
-    /// Synchronize claim focus across all panes (PDF, Content, Inspector)
-    /// This method ensures that when a claim is selected in one pane,
-    /// it's properly synced to all other panes for a unified experience
-    func syncClaimFocus(
-        to documentId: String,
-        claimId: String,
-        claimText: String? = nil,
-        pageLabel: String? = nil,
-        charStart: Int? = nil,
-        charEnd: Int? = nil
-    ) {
-        // Select the claim across all panes
-        selectClaim(
-            claimId: claimId,
-            claimText: claimText,
-            sourceDocumentId: documentId,
-            pageLabel: pageLabel,
-            charStart: charStart,
-            charEnd: charEnd
-        )
-    }
-}
-
-extension Notification.Name {
-    static let claimFocusChanged = Notification.Name("claimFocusChanged")
 }

@@ -25,7 +25,7 @@ func sidebarDeleteConfirmationMessage(for item: SidebarItem?) -> String {
 /// Layout: [+new menu] [−delete] [export] [import menu] [workflow] (#2309)
 struct SidebarBottomToolbar: View {
     // Feature manager to hide buttons
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
 
     let createSearch: () -> Void
     let createChat: () -> Void

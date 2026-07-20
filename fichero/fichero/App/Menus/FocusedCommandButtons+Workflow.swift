@@ -3,7 +3,7 @@ import SwiftUI
 /// Button that runs a workflow on selected documents
 struct FocusedRunWorkflowOnSelectionButton: View {
     @FocusedValue(\.runWorkflowOnSelection) private var runWorkflowOnSelection
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
 
     var body: some View {
         if featureManager.isWorkflowRunOnSelectionEnabled {

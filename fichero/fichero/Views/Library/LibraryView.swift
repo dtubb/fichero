@@ -80,7 +80,7 @@ struct LibraryView: View {
     @Environment(ArtifactService.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
     @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
 
     // Column visibility for Table view (persisted per-window/scene)

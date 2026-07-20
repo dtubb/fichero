@@ -15,18 +15,18 @@ final class ToolbarFeatureFlagInjectionBoundaryTests: XCTestCase {
 
     func testWorkflowEditorReadsFeatureManagerFromEnvironment() throws {
         let source = try Self.appSource("Views/Workflow/Editor/WorkflowEditor.swift")
-        XCTAssertTrue(source.contains("@EnvironmentObject var featureManager: FeatureManager"))
+        XCTAssertTrue(source.contains("@Environment(FeatureManager.self) var featureManager"))
         XCTAssertFalse(source.contains("@ObservedObject var featureManager = FeatureManager.shared"))
         XCTAssertTrue(source.contains("showImportExport: featureManager.isWorkflowImportExportEnabled"))
     }
 
     func testWorkflowNodeSurfacesReadFeatureManagerFromEnvironment() throws {
         let nodeView = try Self.appSource("Views/Workflow/Nodes/WorkflowNodeView.swift")
-        XCTAssertTrue(nodeView.contains("@EnvironmentObject private var featureManager: FeatureManager"))
+        XCTAssertTrue(nodeView.contains("@Environment(FeatureManager.self) private var featureManager"))
         XCTAssertFalse(nodeView.contains("FeatureManager.shared"))
 
         let nodePopover = try Self.appSource("Views/Workflow/Nodes/NodePopover.swift")
-        XCTAssertTrue(nodePopover.contains("@EnvironmentObject private var featureManager: FeatureManager"))
+        XCTAssertTrue(nodePopover.contains("@Environment(FeatureManager.self) private var featureManager"))
         XCTAssertFalse(nodePopover.contains("@ObservedObject var featureManager = FeatureManager.shared"))
 
         let edgeConnections = try Self.appSource("Views/Workflow/Canvas/WorkflowCanvasView+EdgeConnection.swift")

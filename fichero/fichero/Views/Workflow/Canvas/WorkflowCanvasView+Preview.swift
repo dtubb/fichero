@@ -73,7 +73,7 @@ import SwiftUI
                 snapToGrid: $snapToGrid
             )
             .environment(executionObserver)
-            .environmentObject(FeatureManager.shared)
+            .environment(FeatureManager.shared)
             .frame(width: 800, height: 500)
         }
     }

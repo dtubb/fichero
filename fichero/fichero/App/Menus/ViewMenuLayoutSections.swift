@@ -6,7 +6,7 @@ import SwiftUI
 /// Only shown for Library and Search modes
 struct LibraryLayoutSection: View {
     @Bindable var viewSettings: ViewSettings
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarMode) var sidebarMode
 
     /// Only show view options for modes that need them (Library, Search)
@@ -186,7 +186,7 @@ struct SortSection: View {
 /// Only shown for modes with preview panes (Library, Search, Chat)
 struct PreviewModeSection: View {
     @Bindable var viewSettings: ViewSettings
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarMode) var sidebarMode
 
     /// Only show preview options for modes that have preview panes

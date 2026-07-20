@@ -61,7 +61,7 @@ struct FicheroApp: App {
     private var backendService: EmbeddedBackendService { appDelegate.controller.backendService }
     private var appState: AppState { appDelegate.controller.appState }
     @State private var viewSettings = ViewSettings()
-    @StateObject private var featureManager = FeatureManager.shared
+    private let featureManager = FeatureManager.shared
     @State private var claimFocusState = ClaimFocusState.shared
     @State private var kgFocusState = KGFocusState.shared
 
@@ -202,7 +202,7 @@ struct FicheroApp: App {
         .environment(appState)
         .environment(viewSettings)
         .environment(libraryManager)
-        .environmentObject(featureManager)
+        .environment(featureManager)
         .environment(claimFocusState)
         .environment(kgFocusState)
         .environment(appState.mcpService)
@@ -481,18 +481,16 @@ struct FicheroApp: App {
                 // edit the live view config, not a detached copy.
                 .environment(viewSettings)
                 // Same reasoning for the feature flags (#3033/#3034): the panes now
-                // read @EnvironmentObject var featureManager instead of grabbing
-                // FeatureManager.shared themselves, so the scene must inject it. A
-                // singleton is legitimate at the composition root — not in a pane.
-                // (@EnvironmentObject, not .environment: FeatureManager is
-                // @AppStorage-backed, so it stays an ObservableObject until #3743.)
-                .environmentObject(FeatureManager.shared)
+                // read @Environment(FeatureManager.self) var featureManager instead of
+                // grabbing FeatureManager.shared themselves, so the scene must inject it.
+                // A singleton is legitimate at the composition root — not in a pane.
+                .environment(FeatureManager.shared)
         }
     }
 }
 
 private struct FeatureTierLegendWindow: View {
-    @ObservedObject private var featureManager = FeatureManager.shared
+    private let featureManager = FeatureManager.shared
 
     private var orderedTiers: [FeatureTier] {
         FeatureTier.allCases.sorted { $0.rawValue < $1.rawValue }

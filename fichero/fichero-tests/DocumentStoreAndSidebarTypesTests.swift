@@ -447,7 +447,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             ".environment(artifactStore)",
             ".environment(entityStore)",
             ".environment(claimStore)",
-            ".environmentObject(FeatureManager.shared)",
+            ".environment(FeatureManager.shared)",
             "@Environment(WorkflowStreamService.self) var workflowStreamService",
             "@Environment(ResearchService.self) var researchService",
             "@Environment(ClaimFocusState.self) var claimFocusState",
@@ -463,7 +463,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         for snippet in requiredSnippets {
             XCTAssertTrue(tabSource.contains(snippet), "Missing snippet: \(snippet)")
         }
-        XCTAssertTrue(contentViewSource.contains("@EnvironmentObject var featureManager: FeatureManager"))
+        XCTAssertTrue(contentViewSource.contains("@Environment(FeatureManager.self) var featureManager"))
         XCTAssertTrue(contentViewSource.contains("@Environment(ArtifactService.self) var artifactService"))
         XCTAssertTrue(contentViewSource.contains("@Environment(EntityService.self) var entityService"))
         XCTAssertTrue(builderSource.contains(".environment(artifactService)"))

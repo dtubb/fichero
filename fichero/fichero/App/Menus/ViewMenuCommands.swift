@@ -103,7 +103,7 @@ struct SidebarModeSection: View {
     @FocusedValue(\.sidebarMode) var sidebarMode
 
     // Feature manager to hide modes
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
 
     /// Current mode, defaulting to .library if no window is focused
     private var currentMode: SidebarMode {

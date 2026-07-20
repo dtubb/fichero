@@ -5,7 +5,7 @@ import SwiftUI
 /// Button that creates a new search
 struct FocusedNewSearchButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
 
     var body: some View {
         if featureManager.isSearchEnabled {
@@ -21,7 +21,7 @@ struct FocusedNewSearchButton: View {
 /// Button that creates a new chat
 struct FocusedNewChatButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
 
     var body: some View {
         Button(featureManager.badgedLabel("New Chat", for: .chat)) {
@@ -72,7 +72,7 @@ struct FocusedNewComparisonButton: View {
 /// Button that creates a new schedule
 struct FocusedNewScheduleButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions
-    @ObservedObject var featureManager = FeatureManager.shared
+    let featureManager = FeatureManager.shared
 
     var body: some View {
         Button(featureManager.badgedLabel("New Schedule", for: .automation)) {
