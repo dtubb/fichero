@@ -273,3 +273,46 @@ don't carry it.
 **Lane C (Swift) scope (revised):** `ClientTransport` protocol + a SwiftNIO UDS
 adapter + the existing URLSession HTTPS adapter (streaming modeled explicitly).
 NOT PythonKit now.
+
+## DIRECTION LOCKED — build all three; default = in-memory shared Mac+iOS + HTTPS-on-sharing (Daniel, 2026-07-20)
+
+Daniel's call: **build all three transports behind `ClientTransport`, decide the
+Mac default later by measurement.** Preferred target model:
+- **macOS + iOS share the SAME local transport: in-memory ASGI, in-process**
+  (embedded CPython + `httpx.ASGITransport` against the FastAPI `app`). One local
+  code path for both platforms.
+- **Sharing toggle just ADDS a network transport (HTTPS/TCP+TLS)** — it switches
+  nothing; the local in-memory path stays. When sharing is on, CLI/MCP/other
+  local clients connect via that same HTTPS endpoint the app exposes.
+- **UDS (subprocess) is built as the measured crash-isolation alternative** — the
+  fallback if in-process crash-coupling proves unacceptable on the measurement.
+
+The final Mac default (in-memory vs subprocess+UDS) is decided by: (1) the
+iOS-wheel spike (is in-memory-on-iOS even possible), and (2) the 20-launch p95 +
+crash-rate measurement. Until then, all three are first-class behind the seam.
+
+### Honest trade recorded (what in-process costs)
+in-memory wins: max security (no socket until sharing), shared iOS/Mac code, no
+spawn/port/socket-path startup cost. It loses: crash-isolation (engine crash =
+app crash, no restart — worst for duckdb/torch/onnxruntime which ABORT not
+raise); independent CLI/MCP/headless (they need app running + sharing on);
+memory-pressure coupling (iOS jetsam). And it can't DELETE the standalone engine
+(sharing/remote/headless still need it) — so in-process is additive, not a
+simplification. Net: elegance + security vs isolation + independence; measured.
+
+### Implementation lanes (all additive behind the seam)
+- **Seam:** `ClientTransport` Swift protocol that models STREAMING explicitly
+  (SSE/WebSocket), not just request/response (codex landmine). One `send()` for
+  unary + one `stream()` returning `AsyncThrowingStream`.
+- **Adapter 1 — HTTPS** (cheapest): wrap the existing URLSession + SPKI-pinned
+  client. Proves the seam. Also the sharing/remote transport.
+- **Adapter 2 — UDS** (engine side landed, Lane E `89ae0fb85`): SwiftNIO UDS
+  client. The crash-isolation option + measurement baseline.
+- **Adapter 3 — in-memory ASGI via PythonKit** (the spike): embed CPython, load
+  the FastAPI app, drive it with `httpx.ASGITransport`; bridge Python async-gen →
+  Swift `AsyncThrowingStream` for SSE (verify ASGITransport doesn't BUFFER SSE —
+  codex flag; if it buffers, stream via a direct app-call generator, not the test
+  transport). Mac-buildable now (Briefcase wheels exist); iOS gated on the
+  wheel spike.
+- **iOS-wheel spike (running):** can duckdb/lance(Rust)/onnxruntime/torch build
+  for iOS arm64. Vetoes or unlocks iOS in-process.
