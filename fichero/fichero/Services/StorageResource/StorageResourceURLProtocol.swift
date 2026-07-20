@@ -4,6 +4,14 @@ import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "StorageResourceURLProtocol")
 
+/// Vouches for a non-`Sendable` value crossing into a `Task` where the caller
+/// guarantees single-threaded use (Foundation drives one `URLProtocol` instance
+/// serially through its lifecycle callbacks).
+private struct UncheckedSendableBox<Value>: @unchecked Sendable {
+    let value: Value
+    init(_ value: Value) { self.value = value }
+}
+
 /// `URLProtocol` that intercepts `fichero-res://` URLs on any `URLSession` it is
 /// registered with (including `URLSession.shared`, which backs `AsyncImage`),
 /// and serves them through the transport-agnostic `StorageResourceLoader`.
@@ -43,9 +51,13 @@ final class StorageResourceURLProtocol: URLProtocol, @unchecked Sendable {
     }
 
     override func startLoading() {
-        let task = Task { [weak self] in
-            await self?.performLoad()
-        }
+        // `self` is used both inside this Task and in the `loadTask` assignment
+        // below; the Swift-6 checker flags that as a `sending` race. Foundation
+        // drives one protocol instance serially, so vouch for the crossing by
+        // capturing `self` through a Sendable box (the closure captures the box,
+        // not `self` directly).
+        let box = UncheckedSendableBox(self)
+        let task = Task { await box.value.performLoad() }
         lock.lock()
         loadTask = task
         lock.unlock()

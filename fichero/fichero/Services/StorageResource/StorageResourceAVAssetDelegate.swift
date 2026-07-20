@@ -2,6 +2,7 @@ import AVFoundation
 import FicheroAPIClient
 import Foundation
 import OSLog
+import os
 import UniformTypeIdentifiers
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "StorageResourceAVAssetDelegate")
@@ -33,16 +34,24 @@ private struct UncheckedTransfer<Value>: @unchecked Sendable {
 
 /// `@unchecked Sendable`: AVFoundation invokes the delegate on the queue passed
 /// to `setDelegate(_:queue:)` and the async fetch runs off that queue. The only
-/// mutable state (`bufferedData`, `fetchTask`) is guarded by `lock`.
+/// mutable state (`bufferedData`, `fetchTask`) is guarded by the `state` lock.
 final class StorageResourceAVAssetDelegate: NSObject, AVAssetResourceLoaderDelegate, @unchecked Sendable {
     /// The UTI reported to AVFoundation for the media container, derived from the
     /// document's file extension by the caller.
     private let contentTypeUTI: String?
 
-    /// Serialises access to the shared buffer / fetch task off the loader queue.
-    private let lock = NSLock()
-    private var bufferedData: Data?
-    private var fetchTask: Task<Data, Error>?
+    /// Buffer + in-flight fetch, guarded by an async-safe unfair lock (NSLock's
+    /// `lock()`/`unlock()` are unavailable from async contexts under Swift 6).
+    private struct BufferState {
+        var bufferedData: Data?
+        var fetchTask: Task<Data, Error>?
+    }
+    private let state = OSAllocatedUnfairLock(initialState: BufferState())
+
+    private enum FetchOutcome {
+        case ready(Data)
+        case awaiting(Task<Data, Error>)
+    }
 
     /// - Parameter fileExtension: the source document's extension (e.g. "mp4"),
     ///   used to derive the container UTI AVFoundation needs to pick a demuxer.
@@ -71,27 +80,31 @@ final class StorageResourceAVAssetDelegate: NSObject, AVAssetResourceLoaderDeleg
 
     /// Fetch (once) and buffer the full source bytes for `url`.
     private func data(for url: URL) async throws -> Data {
-        lock.lock()
-        if let bufferedData {
-            lock.unlock()
-            return bufferedData
+        // Decide under the lock: serve the buffer, join the in-flight fetch, or
+        // start one (created + stored atomically so two callers can't both fetch).
+        let outcome: FetchOutcome = state.withLock { current in
+            if let bufferedData = current.bufferedData {
+                return .ready(bufferedData)
+            }
+            if let fetchTask = current.fetchTask {
+                return .awaiting(fetchTask)
+            }
+            let task = Task { () throws -> Data in
+                let resource = try await Self.load(url: url)
+                return resource.data
+            }
+            current.fetchTask = task
+            return .awaiting(task)
         }
-        if let fetchTask {
-            lock.unlock()
-            return try await fetchTask.value
-        }
-        let task = Task { () throws -> Data in
-            let resource = try await Self.load(url: url)
-            return resource.data
-        }
-        fetchTask = task
-        lock.unlock()
 
-        let data = try await task.value
-        lock.lock()
-        bufferedData = data
-        lock.unlock()
-        return data
+        switch outcome {
+        case .ready(let bufferedData):
+            return bufferedData
+        case .awaiting(let task):
+            let data = try await task.value
+            state.withLock { $0.bufferedData = data }
+            return data
+        }
     }
 
     @MainActor
