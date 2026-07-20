@@ -138,7 +138,7 @@ struct SidebarSelectionTests {
         // icon grid in LibraryView+IconMode (file_length split of LibraryView+DisplayModes).
         let displayHelpersSource = try appSource("Views/Library/ViewModes/LibraryView+DisplayHelpers.swift")
         let iconModeSource = try appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
-        let tableSource = try appSource("Views/Library/ViewModes/LibraryView+TableMapViews.swift")
+        let tableSource = try appSource("Views/Library/ViewModes/LibraryView+TableView.swift")
 
         #expect(displayHelpersSource.contains("var browserLeadingInset: CGFloat { 12 }"))
         #expect(iconModeSource.contains(".padding(.leading, browserLeadingInset)"))

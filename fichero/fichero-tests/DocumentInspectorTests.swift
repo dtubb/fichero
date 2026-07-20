@@ -207,7 +207,8 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testOutlineArtifactDoubleClickOpensArtifactWindowInsteadOfParentDocument() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/LibraryView+TableMapViews.swift")
+        // #file_length: LibraryView+TableMapViews split into +TableView / +TableColumns.
+        let source = try Self.appSource("Views/Library/ViewModes/LibraryView+TableView.swift")
 
         XCTAssertTrue(source.contains("handleOutlineDoubleClickSelection()"))
         XCTAssertTrue(source.contains("if let artifactSelection = artifactSelectionForNodeId(firstId)"))
