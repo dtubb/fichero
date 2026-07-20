@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import pathlib
 import socket
 import sys
 
@@ -119,6 +120,29 @@ def main(argv: list[str] | None = None) -> None:
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
     import uvicorn
+
+    # UDS transport (additive, env-driven): plaintext Unix-domain socket, no
+    # port, no TLS, no network listener. TLS stays mandatory on the TCP path.
+    uds_path = (os.environ.get("FICHERO_UDS_PATH") or "").strip()
+    if uds_path:
+        from fichero.api.uds_transport import app as uds_app
+
+        # CRITICAL: unlink a stale socket from a prior crash before bind.
+        pathlib.Path(uds_path).unlink(missing_ok=True)
+        uds_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        uds_sock.bind(uds_path)
+        uds_sock.listen(socket.SOMAXCONN)
+        uds_sock.setblocking(False)
+        logger.info("Starting Fichero backend on unix:%s (no TCP port, no TLS)", uds_path)
+        server = uvicorn.Server(
+            uvicorn.Config(app=uds_app, workers=1, log_level="info")
+        )
+        try:
+            server.run(sockets=[uds_sock])
+        finally:
+            uds_sock.close()
+            pathlib.Path(uds_path).unlink(missing_ok=True)
+        return
 
     bind_host = resolve_bind_host()
     config: dict[str, object] = {

@@ -178,6 +178,34 @@ def start(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
         if sys.platform != "win32":
             kwargs["start_new_session"] = True
 
+        # UDS transport (additive, env-driven): when FICHERO_UDS_PATH is set,
+        # launch on a plaintext Unix-domain socket — no port, and TLS is exempt
+        # (there is no network listener). TLS stays MANDATORY on the TCP path
+        # below. Auth trusts UDS via the marker stamped by the wrapped app.
+        uds_path = (os.environ.get("FICHERO_UDS_PATH") or "").strip()
+        if uds_path:
+            # CRITICAL: unlink a stale socket from a prior crash before bind
+            # (else respawn fails with EADDRINUSE).
+            Path(uds_path).unlink(missing_ok=True)
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "uvicorn",
+                    "fichero.api.uds_transport:app",
+                    "--uds",
+                    uds_path,
+                    "--workers",
+                    str(workers),
+                    "--ws",
+                    "websockets-sansio",
+                ],
+                **kwargs,  # type: ignore[arg-type]
+            )
+            _write_pid(proc.pid)
+            typer.echo(f"Engine started on UDS {uds_path} (PID {proc.pid})")
+            return
+
         ssl_kwargs = uvicorn_ssl_kwargs_from_env()
         if not ssl_kwargs:
             raise ValueError(

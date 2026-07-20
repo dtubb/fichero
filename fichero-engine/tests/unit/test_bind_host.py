@@ -236,3 +236,119 @@ def test_start_refuses_plain_http_without_tls(
         engine_manager.start()
 
     assert captured.get("cmd") is None
+
+
+# --- UDS transport (S2, additive behind FICHERO_UDS_PATH) --------------------
+
+
+def _install_start_stubs(
+    monkeypatch: pytest.MonkeyPatch, captured: dict[str, list[str]]
+) -> None:
+    monkeypatch.setattr(engine_manager, "_read_pid", lambda: None)
+    monkeypatch.setattr(engine_manager, "_write_pid", lambda _pid: None)
+    monkeypatch.setattr(engine_manager, "_remove_pid", lambda: None)
+    monkeypatch.setattr(engine_manager, "_wait_for_port", lambda *a, **k: True)
+    monkeypatch.setattr(
+        engine_manager,
+        "subprocess",
+        types.SimpleNamespace(Popen=_fake_popen_factory(captured), DEVNULL=-3),
+    )
+
+
+def test_engine_binds_uds_without_tls_when_path_set(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """With FICHERO_UDS_PATH the launch builds a --uds command, no TLS, no port."""
+    captured: dict[str, list[str]] = {}
+    uds = tmp_path / "f.sock"
+
+    monkeypatch.setenv("FICHERO_UDS_PATH", str(uds))
+    # No TLS env set on purpose: UDS is exempt from the TLS requirement.
+    monkeypatch.delenv("FICHERO_TLS_CERTFILE", raising=False)
+    monkeypatch.delenv("FICHERO_TLS_KEYFILE", raising=False)
+    _install_start_stubs(monkeypatch, captured)
+
+    engine_manager.start()
+
+    cmd = captured["cmd"]
+    assert "--uds" in cmd
+    assert cmd[cmd.index("--uds") + 1] == str(uds)
+    assert cmd[-1] != "fichero.api.main:app"
+    assert "fichero.api.uds_transport:app" in cmd
+    assert "--host" not in cmd
+    assert "--port" not in cmd
+    assert "--ssl-certfile" not in cmd
+    assert "--ssl-keyfile" not in cmd
+
+
+def test_engine_still_requires_tls_for_tcp_without_uds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without FICHERO_UDS_PATH the TCP path still refuses to launch sans TLS."""
+    captured: dict[str, list[str]] = {}
+
+    monkeypatch.delenv("FICHERO_UDS_PATH", raising=False)
+    monkeypatch.delenv("FICHERO_TLS_CERTFILE", raising=False)
+    monkeypatch.delenv("FICHERO_TLS_KEYFILE", raising=False)
+    _install_start_stubs(monkeypatch, captured)
+
+    with pytest.raises(typer.Exit):
+        engine_manager.start()
+
+    assert captured.get("cmd") is None
+
+
+def test_uds_socket_is_unlinked_before_bind() -> None:
+    """A pre-existing file at the UDS path is removed before bind (no EADDRINUSE)."""
+    import os as _os
+    import socket as _socket
+    import tempfile
+
+    from engine.__main__ import _bind_uds_socket
+
+    # A SHORT path: AF_UNIX sun_path is capped at ~104 bytes, so pytest's long
+    # tmp_path cannot host a socket. Build a short dir under the system tmp.
+    short_dir = tempfile.mkdtemp(prefix="fu", dir="/tmp")
+    path = Path(short_dir) / "s.sock"
+    path.write_text("stale")  # a regular file here would block bind() if not unlinked
+
+    sock = _bind_uds_socket(str(path))
+    try:
+        assert sock.family == _socket.AF_UNIX
+        assert path.exists()  # now a real, bound socket
+    finally:
+        sock.close()
+        path.unlink(missing_ok=True)
+        _os.rmdir(short_dir)
+
+
+def _make_request(scope_extra: dict | None = None, client=None):
+    from starlette.requests import Request
+
+    scope: dict = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/private",
+        "headers": [],
+    }
+    if client is not None:
+        scope["client"] = client
+    if scope_extra:
+        scope.update(scope_extra)
+    return Request(scope)
+
+
+def test_uds_request_is_treated_as_loopback_owner() -> None:
+    from fichero.api.auth import _is_loopback_request
+
+    # UDS marker -> trusted as loopback-owner.
+    marked = _make_request(scope_extra={"fichero.transport": "uds"}, client=None)
+    assert _is_loopback_request(marked) is True
+
+    # No marker + client is None -> NOT loopback (must not key off client None).
+    no_client = _make_request(client=None)
+    assert _is_loopback_request(no_client) is False
+
+    # No marker + non-loopback TCP client -> NOT loopback.
+    tcp = _make_request(client=("192.0.2.10", 5000))
+    assert _is_loopback_request(tcp) is False

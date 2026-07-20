@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import pathlib
 import socket
 import sys
 import faulthandler
@@ -45,6 +46,21 @@ def _bind_listener_socket(host: str, port: int) -> socket.socket:
     sock = socket.socket(family, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((host, port))
+    sock.listen(socket.SOMAXCONN)
+    sock.setblocking(False)
+    return sock
+
+
+def _bind_uds_socket(uds_path: str) -> socket.socket:
+    """Bind a Unix-domain stream socket, unlinking any stale path first.
+
+    A stale socket file left behind by a crashed engine makes ``bind()`` fail
+    with ``EADDRINUSE`` and blocks respawn, so unlink immediately before bind.
+    """
+    # CRITICAL: remove a stale socket left by a prior crash before binding.
+    pathlib.Path(uds_path).unlink(missing_ok=True)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(uds_path)
     sock.listen(socket.SOMAXCONN)
     sock.setblocking(False)
     return sock
@@ -162,6 +178,38 @@ def main(argv: list[str] | None = None):
     # file — a plain open() on ~/Documents would be denied. A no-op when the env
     # var is unset, i.e. every non-sandboxed (DMG) run.
     activate_library_bookmarks()
+
+    # UDS transport (additive, env-driven): when FICHERO_UDS_PATH is set, bind a
+    # plaintext Unix-domain socket instead of TCP — no port, no TLS, no network
+    # listener. TLS stays MANDATORY on the TCP path (below); the TCP-port
+    # preflight is skipped here because there is no port. Auth trusts UDS via the
+    # transport marker stamped by the wrapped app (fichero.api.uds_transport).
+    uds_path = (os.environ.get("FICHERO_UDS_PATH") or "").strip()
+    if uds_path:
+        from fichero.api.uds_transport import app as uds_app
+
+        uds_kwargs = dict(
+            app=uds_app,
+            workers=1,
+            log_level="info",
+            loop="asyncio",
+            ws="websockets-sansio",
+        )
+        logger.info("Starting Fichero Backend (UDS transport)")
+        logger.info("Server will listen on unix:%s (no TCP port, no TLS)", uds_path)
+        uds_sock = _bind_uds_socket(uds_path)
+        server = uvicorn.Server(uvicorn.Config(**uds_kwargs))
+        try:
+            server.run(sockets=[uds_sock])
+        except KeyboardInterrupt:
+            logger.info("Backend shutting down...")
+        except Exception as e:
+            logger.error(f"Backend failed to start: {e}")
+            raise
+        finally:
+            uds_sock.close()
+            pathlib.Path(uds_path).unlink(missing_ok=True)
+        return
 
     bind_host = resolve_bind_host()
     listener_hosts = _listener_hosts(bind_host)
