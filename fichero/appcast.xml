@@ -6,6 +6,36 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.07.20-beta</title>
+            <pubDate>Mon, 20 Jul 2026 15:13:56 -0300</pubDate>
+            <sparkle:version>2026072001</sparkle:version>
+            <sparkle:shortVersionString>2026.07.20-beta</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h3>New</h3>
+<p><strong>Workflow nodes in the sidebar.</strong> Saved workflows now appear in the library
+tree. Built-in presets are grouped under a locked <strong>Default Workflows</strong>
+hierarchy; duplicate a default to create an editable library copy.</p>
+<h3>Improved</h3>
+<p><strong>Settings navigation.</strong> The Settings detail pane now has System
+Settings-style back and forward controls plus a clearer section header.</p>
+<h3>Testing Build</h3>
+<p>This prerelease uses Fichero's development feature tier, exposing every
+implemented app surface and workflow tool for testing.</p>
+<h3>Under The Hood</h3>
+<p>Large SwiftUI files across the app shell, library, sidebar, previews,
+Inspector, services, and platform bridges were split into focused extensions
+without changing behavior. Source-contract tests were updated to follow the
+new file boundaries.</p>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.07.20-beta/Fichero.dmg"
+                length="511147476"
+                type="application/octet-stream"
+                sparkle:edSignature="kvkE8goo4h0+Nqt5H3GxHAdqnL/I3g/NPLOv2Z0BvAJezHOBL8obM9ZbvgjknTSH/WLBkDdjhMStJ4iGjcZGAg=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.07.19.2</title>
             <pubDate>Sun, 19 Jul 2026 21:51:59 -0300</pubDate>
             <sparkle:version>2026071902</sparkle:version>
