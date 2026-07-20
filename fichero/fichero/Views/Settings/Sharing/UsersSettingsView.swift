@@ -29,25 +29,25 @@ struct UsersSettingsView: View {
     }
 }
 
-private struct UsersContent: View {
+struct UsersContent: View {
     let store: UsersStore
     let identityStore: IdentityStore
     let library: LibraryManager.LibraryReference
 
-    @State private var authzSnapshot: Components.Schemas.LibraryAuthzSnapshot?
-    @State private var authzError: String?
-    @State private var pendingUserId: String?
-    @State private var pendingRole = "editor"
-    @State private var pendingRoleDrafts: [String: String] = [:]
-    @State private var isApplyingRoleChange = false
+    @State var authzSnapshot: Components.Schemas.LibraryAuthzSnapshot?
+    @State var authzError: String?
+    @State var pendingUserId: String?
+    @State var pendingRole = "editor"
+    @State var pendingRoleDrafts: [String: String] = [:]
+    @State var isApplyingRoleChange = false
 
     // Add Account form (owner-only)
-    @State private var newDisplayName = ""
-    @State private var newUsername = ""
-    @State private var newPassword = ""
-    @State private var newIsOwner = false
-    @State private var isCreatingUser = false
-    @State private var accountError: String?
+    @State var newDisplayName = ""
+    @State var newUsername = ""
+    @State var newPassword = ""
+    @State var newIsOwner = false
+    @State var isCreatingUser = false
+    @State var accountError: String?
 
     var body: some View {
         Group {
@@ -77,7 +77,7 @@ private struct UsersContent: View {
     }
 }
 
-private let authzRoles = ["owner", "editor", "viewer"]
+let authzRoles = ["owner", "editor", "viewer"]
 
 // MARK: - Preview
 

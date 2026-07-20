@@ -1,7 +1,7 @@
 import SwiftUI
 
 @MainActor
-private final class WorkflowUndoProxy {
+final class WorkflowUndoProxy {
     var apply: ((Workflow) -> Void)?
 
     func registerTransition(
@@ -37,7 +37,7 @@ struct WorkflowCanvasView: View {
 
     // App state for accessing AI defaults
     @Environment(AppState.self) var appState
-    @Environment(\.undoManager) private var undoManager
+    @Environment(\.undoManager) var undoManager
     @EnvironmentObject var featureManager: FeatureManager
 
     /// Node execution states for the editor canvas.
@@ -69,7 +69,7 @@ struct WorkflowCanvasView: View {
     }
 
     // Focus state for keyboard commands
-    @FocusState private var isCanvasFocused: Bool
+    @FocusState var isCanvasFocused: Bool
 
     // Selection state
     @State var selectedNodeIds: Set<String> = []
@@ -83,7 +83,7 @@ struct WorkflowCanvasView: View {
     @State var nodeDragStartPosition: CGPoint?
     @State var draggingNodeIndex: Int?
     @State var dragUndoWorkflow: Workflow?
-    @State private var undoProxy = WorkflowUndoProxy()
+    @State var undoProxy = WorkflowUndoProxy()
 
     // Node dimensions for port positioning
     let nodeWidth: CGFloat = 140
@@ -92,7 +92,7 @@ struct WorkflowCanvasView: View {
     // Canvas grows to fit the placed nodes (+ scroll margin), floored at a
     // comfortable minimum — large workflows no longer hit a fixed 2000×1500
     // wall (#3191). Recomputed as nodes move/add.
-    private var canvasSize: CGSize {
+    var canvasSize: CGSize {
         Self.fittedCanvasSize(
             for: workflow.nodes,
             nodeSize: CGSize(width: nodeWidth, height: nodeHeight)
@@ -195,7 +195,7 @@ struct WorkflowCanvasView: View {
     }
 
     /// Delete selected edge or nodes
-    private func deleteSelection() {
+    func deleteSelection() {
         let previousWorkflow = workflow
 
         // Delete selected edge first

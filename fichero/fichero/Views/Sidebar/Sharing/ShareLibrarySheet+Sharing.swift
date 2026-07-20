@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 extension ShareLibrarySheet {

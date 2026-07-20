@@ -6,26 +6,26 @@ import SwiftUI
 struct PageContentPane: View {
     let document: Document?
 
-    @Environment(ClaimFocusState.self) private var claimFocusState
-    @Environment(DocumentService.self) private var documentService
-    @Environment(DocumentStore.self) private var documentStore: DocumentStore
-    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
-    @State private var editState = PageContentPaneEditState()
-    @State private var sourceHighlight: PageContentClaimSourceHighlight?
-    @State private var sourceHighlightToken = UUID()
-    @State private var isSaving = false
-    @State private var saveError: String?
-    @FocusState private var isEditorFocused: Bool
+    @Environment(ClaimFocusState.self) var claimFocusState
+    @Environment(DocumentService.self) var documentService
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
+    @Environment(AnnotationStore.self) var annotationStore: AnnotationStore
+    @State var editState = PageContentPaneEditState()
+    @State var sourceHighlight: PageContentClaimSourceHighlight?
+    @State var sourceHighlightToken = UUID()
+    @State var isSaving = false
+    @State var saveError: String?
+    @FocusState var isEditorFocused: Bool
 
     // Annotation state (#2458). The user's current text selection (UTF-16
     // offsets) drives the toolbar; `isComposingNote` presents the note popover.
-    @State private var selectionRange: Range<Int>?
-    @State private var isComposingNote = false
-    @State private var noteDraft = ""
+    @State var selectionRange: Range<Int>?
+    @State var isComposingNote = false
+    @State var noteDraft = ""
 
     static let claimSourceHighlightId = "claim-source-highlight"
 
-    private var pageDoc: Document? {
+    var pageDoc: Document? {
         guard let doc = document, doc.docType == .page else { return nil }
         return doc
     }
@@ -34,7 +34,7 @@ struct PageContentPane: View {
     /// the reader never shows raw `\'e1`/control-word escapes (#2317); everything
     /// downstream (edit draft, highlight ranges, claim matching) works off this
     /// same decoded string so offsets stay consistent.
-    private var pageContent: String {
+    var pageContent: String {
         ArtifactRichTextCodec.plainText(pageDoc?.pageContent ?? "")
     }
 
