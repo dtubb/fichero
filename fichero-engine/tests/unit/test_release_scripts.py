@@ -163,6 +163,14 @@ def test_release_all_always_rebuilds_engine_before_packaging() -> None:
     assert '--skip-backend) SKIP_BACKEND=true' not in text
 
 
+def test_preflight_accepts_distribution_signed_fm_bridge() -> None:
+    text = _script_text(REPO_ROOT / "scripts" / "preflight-embedded-engine.sh")
+
+    assert "--exclude=.DS_Store" in text
+    assert "--exclude=fm-bridge" in text
+    assert text.count("dwarfdump --uuid") == 2
+
+
 def test_build_and_validate_uses_current_paths() -> None:
     text = _script_text(BUILD_AND_VALIDATE)
     assert "fichero/fichero.xcodeproj" in text
