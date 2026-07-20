@@ -181,3 +181,21 @@ Lane E ships the engine UDS bind + auth marker + unlink + no-lifespan-shim +
 OPTION — the app keeps using TCP+TLS until Lane C (SwiftNIO transport) lands, so
 nothing breaks mid-migration. Then flip the DMG default to UDS. MAS stays TCP
 until App-Group + #3340.
+
+## Correction — macOS App Store is NOT blocked (2026-07-20)
+
+The critic's "[CRITICAL] MAS blocked / needs App Group" is WRONG. The embedded
+engine is launched as a real subprocess (`Process().run()`, engine at
+`Contents/Helpers/Fichero Engine.app`) and `FicheroEngineAppStore.entitlements`
+uses `com.apple.security.inherit` — the child inherits the parent's sandbox and
+therefore runs in the **same sandbox container** as the main app. So the UDS
+socket in the shared container is reachable by both processes with **NO App
+Group entitlement**. UDS ships on DMG and MAS from the same design.
+
+Remaining real constraint: `sun_path` ~104 bytes on macOS. Put the socket at a
+SHORT container path — e.g. `<container>/Data/tmp/f.sock` (~62 chars) — not under
+`Data/Library/Application Support/…`. Caveat (from the entitlements note):
+sandbox inheritance passes only STATIC rights; the dynamic Powerbox / security-
+scoped-bookmark grants for opening library files outside the container are NOT
+inherited — but that's FILE access (already handled by bookmarks), not the
+socket, which lives inside the container. Supersedes the App-Group line above.
