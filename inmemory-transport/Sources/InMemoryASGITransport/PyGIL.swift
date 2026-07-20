@@ -1,4 +1,36 @@
 import Foundation
+import PythonKit
+
+/// A reference-type box around a `PythonObject` that keeps every Python refcount
+/// operation on the GIL. `PythonObject` is a value type: copying it (assignment,
+/// capture, returning it across a thread boundary) mutates CPython refcounts, and
+/// doing that off the GIL is a data race that can corrupt the interpreter.
+///
+/// `PyRef` lets Swift pass a Python object between threads as an ordinary class
+/// reference (ARC only — no Python touch). The wrapped object is only ever read
+/// via `value` **while the caller holds the GIL**, and it is released on the GIL
+/// in `deinit`, so no refcount ever changes without the GIL held.
+///
+/// Construct a `PyRef` only while holding the GIL (e.g. inside `PythonWorker.sync`
+/// or a `PyGIL.ensure()` scope).
+final class PyRef {
+    private var object: PythonObject?
+
+    /// Wrap `object`. MUST be called with the GIL held (this copies/retains it).
+    init(_ object: PythonObject) { self.object = object }
+
+    /// The wrapped object. Only touch the result while holding the GIL.
+    var value: PythonObject { object! }
+
+    deinit {
+        // Releasing the last reference to the PythonObject decrements a CPython
+        // refcount, which must happen on the GIL. Assigning nil performs that
+        // release inside the ensured scope.
+        let gil = PyGIL.ensure()
+        object = nil
+        PyGIL.release(gil)
+    }
+}
 
 /// Direct bindings to CPython's GIL C-API, resolved from the already-loaded
 /// libpython via `dlsym`. PythonKit does not manage the GIL for you, and a

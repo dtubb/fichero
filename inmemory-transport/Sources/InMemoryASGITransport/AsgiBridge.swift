@@ -43,8 +43,17 @@ def make_scope(method, raw_path, headers):
         "query_string": qs.encode("utf-8"),
         "headers": [(k.lower().encode("latin-1"), v.encode("latin-1")) for k, v in headers],
         "server": ("127.0.0.1", 8765),
-        "client": ("127.0.0.1", 0),
+        # No network peer exists for an in-process call. Leaving client=None
+        # (ASGI's value for "no client") means the engine's loopback check does
+        # NOT grant access via a fabricated 127.0.0.1 peer — access is granted
+        # only by the explicit transport marker below. That keeps the trust
+        # decision honest and identical in shape to the UDS transport.
+        "client": None,
         "root_path": "",
+        # Positive transport marker: tells the engine's loopback/owner check that
+        # this request was driven directly in-process (never over the network), so
+        # the bootstrap token is honoured as owner. Mirrors the "uds" marker.
+        "fichero.transport": "inmemory",
     }
 
 

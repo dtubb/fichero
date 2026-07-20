@@ -108,28 +108,28 @@ final class PythonWorker {
     private func setUpPython() {
         let env = ProcessInfo.processInfo.environment
 
-        // These must be set before PythonKit initialises CPython. We only touch
-        // Python below, so setting them here (first Python access) is in time.
-        let defaultLib =
-            "/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Python"
-        let defaultHome = "/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12"
-        if env["PYTHON_LIBRARY"] == nil {
-            setenv("PYTHON_LIBRARY", defaultLib, 1)
-        }
-        if env["PYTHONHOME"] == nil, FileManager.default.fileExists(atPath: defaultHome) {
-            setenv("PYTHONHOME", defaultHome, 1)
-        }
+        // No machine-specific paths are hardcoded. libpython/PYTHONHOME come from
+        // the environment: PythonKit reads `PYTHON_LIBRARY` (and falls back to its
+        // own PATH-based discovery). If neither is resolvable, PythonKit fails
+        // loudly on first access below — which is the correct behaviour rather
+        // than silently binding to one developer's Python. A real app embedding
+        // this should point `PYTHON_LIBRARY`/`PYTHONHOME` at its bundled runtime.
 
         let sys = Python.import("sys")
 
-        // Extra sys.path entries (dev venv site-packages + engine src) so the real
-        // Fichero FastAPI app can be imported. Configurable via env for portability.
-        let venvSite =
-            env["FICHERO_VENV_SITE_PACKAGES"]
-            ?? "/Users/danieltubb/code/fichero/.venv/lib/python3.12/site-packages"
-        let engineSrc =
-            env["FICHERO_ENGINE_SRC"] ?? "/Users/danieltubb/code/fichero/fichero-engine/src"
-        for path in [venvSite, engineSrc] where FileManager.default.fileExists(atPath: path) {
+        // Extra sys.path entries so an app (e.g. the Fichero engine) can be
+        // imported. These are environment-driven and optional: the synthetic
+        // ASGI tests need neither. If a caller asks to import a module that these
+        // would provide but they are unset, the import raises loudly. No
+        // hardcoded fallback paths.
+        for key in ["FICHERO_VENV_SITE_PACKAGES", "FICHERO_ENGINE_SRC"] {
+            guard let path = env[key], !path.isEmpty else { continue }
+            guard FileManager.default.fileExists(atPath: path) else {
+                FileHandle.standardError.write(
+                    Data("InMemoryASGITransport: \(key)=\(path) does not exist; skipping\n".utf8)
+                )
+                continue
+            }
             sys.path.insert(0, PythonObject(path))
         }
 

@@ -463,6 +463,13 @@ def _is_loopback_request(request: Request) -> bool:
     purposes; do not trust their values. TestClient uses synthetic host names,
     accepted only under pytest so auth middleware tests can exercise the path.
     """
+    # A request driven directly in-process by the embedded macOS transport is
+    # trusted as loopback-owner. Only the server-side in-memory ASGI transport
+    # stamps this positive marker on the scope; a network client cannot forge the
+    # ASGI ``scope`` (it is set by the server, not from request headers), so this
+    # can never grant a network client. Mirrors the "uds" transport marker.
+    if request.scope.get("fichero.transport") == "inmemory":
+        return True
     client_host = request.client.host if request.client else None
     if client_host in _LOOPBACK_HOSTS:
         return not _has_proxy_origin_headers(request)
