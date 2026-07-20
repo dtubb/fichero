@@ -82,10 +82,24 @@ from fichero.storage import (
 
 logger = logging.getLogger(__name__)
 
-try:
-    _ENGINE_VERSION = package_version("fichero")
-except PackageNotFoundError:
-    _ENGINE_VERSION = "dev"
+def _resolve_engine_version() -> str:
+    """Best-effort engine version for the health/About surface.
+
+    The Python project is named ``fichero``, but Briefcase bundles the engine as
+    the ``engine`` app and ships only ``engine-<ver>.dist-info`` — so looking up
+    ``fichero`` alone made the shipped app report ``dev``. Try both distribution
+    names (dev/editable installs carry ``fichero``; the Briefcase bundle carries
+    ``engine``) before falling back to ``dev``.
+    """
+    for dist_name in ("fichero", "engine"):
+        try:
+            return package_version(dist_name)
+        except PackageNotFoundError:
+            continue
+    return "dev"
+
+
+_ENGINE_VERSION = _resolve_engine_version()
 
 
 class LibraryAccessDeniedError(HTTPException):

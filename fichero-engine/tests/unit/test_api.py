@@ -980,3 +980,58 @@ class TestCORS:
         response = client.options("/api/documents")
         # OPTIONS requests should work for CORS preflight
         assert response.status_code in [200, 405]
+
+
+# --- Engine version resolution (health/About surface) ------------------------
+# Regression guard for the Briefcase packaging mismatch: the project is named
+# "fichero" but the Briefcase bundle ships only engine-<ver>.dist-info, which
+# made the shipped app's /health report backend_version="dev".
+
+def test_engine_version_falls_back_to_briefcase_dist_name(monkeypatch):
+    from importlib.metadata import PackageNotFoundError
+    from fichero.api import main as api_main
+
+    def fake_version(name: str) -> str:
+        if name == "engine":
+            return "2026.7.20b1"
+        raise PackageNotFoundError(name)  # simulate the bundle: no "fichero" dist-info
+
+    monkeypatch.setattr(api_main, "package_version", fake_version)
+    assert api_main._resolve_engine_version() == "2026.7.20b1"
+
+
+def test_engine_version_prefers_project_dist_name_in_dev(monkeypatch):
+    from fichero.api import main as api_main
+
+    monkeypatch.setattr(api_main, "package_version", lambda name: "9.9.9-dev" if name == "fichero" else "x")
+    assert api_main._resolve_engine_version() == "9.9.9-dev"
+
+
+def test_engine_version_is_dev_only_when_no_dist_info(monkeypatch):
+    from importlib.metadata import PackageNotFoundError
+    from fichero.api import main as api_main
+
+    def always_missing(name: str) -> str:
+        raise PackageNotFoundError(name)
+
+    monkeypatch.setattr(api_main, "package_version", always_missing)
+    assert api_main._resolve_engine_version() == "dev"
+
+
+def test_engine_version_resolver_covers_every_briefcase_app_name():
+    """Build invariant: the resolver MUST try each Briefcase app's distribution
+    name, else the shipped bundle reports 'dev' again. Ties the resolver's dist
+    names to [tool.briefcase.app.*] so renaming the app forces an update here.
+    """
+    import inspect
+    import tomllib
+
+    from fichero.api import main as api_main
+
+    pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    data = tomllib.loads(pyproject.read_text())
+    app_names = list(data["tool"]["briefcase"]["app"].keys())
+    assert app_names, "expected at least one [tool.briefcase.app.*]"
+    src = inspect.getsource(api_main._resolve_engine_version)
+    for app in app_names:
+        assert f'"{app}"' in src, f"version resolver must try Briefcase app dist name {app!r}"
