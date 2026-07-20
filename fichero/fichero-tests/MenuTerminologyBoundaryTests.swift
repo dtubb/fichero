@@ -13,7 +13,11 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertFalse(fileMenuSource.contains("Save Database As..."))
         XCTAssertFalse(fileMenuSource.contains("Label(\"Static Site (11ty)...\", systemImage: \"globe\")"))
 
-        let focusedCommandsSource = try Self.appSource("App/Menus/FocusedCommandButtons.swift")
+        // The "Move Files..." button moved into the +SidebarActions.swift sibling.
+        let focusedCommandsSource = try [
+            Self.appSource("App/Menus/FocusedCommandButtons.swift"),
+            Self.appSource("App/Menus/FocusedCommandButtons+SidebarActions.swift")
+        ].joined(separator: "\n")
         XCTAssertTrue(focusedCommandsSource.contains("Button(\"Move Files...\")"))
         XCTAssertFalse(focusedCommandsSource.contains("Button(\"Add Files...\")"))
 

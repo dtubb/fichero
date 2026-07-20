@@ -140,8 +140,12 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testEntitiesSidebarEntryPointRoutesToLibraryList() throws {
         // Routing moved off SidebarView into the typed SidebarDestination switch
-        // in SidebarView+SelectionHandling.swift (browser(.entities) case).
-        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
+        // in SidebarView+SelectionHandling.swift (browser(.entities) case); the
+        // `case .browser(.entities):` mapping itself lives in SidebarStateManagers.swift.
+        let source = try [
+            Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift"),
+            Self.appSource("Views/Sidebar/State/SidebarStateManagers.swift")
+        ].joined(separator: "\n")
 
         XCTAssertTrue(source.contains("case .browser(.entities):"))
         XCTAssertTrue(source.contains("sidebarMode = .library"))
@@ -204,8 +208,12 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testPinnedSidebarEntryPointsRouteToExpectedSurfaces() throws {
-        // Typed SidebarDestination routing (SidebarView+SelectionHandling.swift).
-        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
+        // Typed SidebarDestination routing (SidebarView+SelectionHandling.swift);
+        // the `case .browser(...)` mappings themselves live in SidebarStateManagers.swift.
+        let source = try [
+            Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift"),
+            Self.appSource("Views/Sidebar/State/SidebarStateManagers.swift")
+        ].joined(separator: "\n")
 
         XCTAssertTrue(source.contains("case .browser(.comparison):"))
         XCTAssertTrue(source.contains("viewMode = .comparison(nil)"))
@@ -410,7 +418,10 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testBackendRetryRunsSameReadinessSideEffectsAsStartup() throws {
         let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
-        let connectionSource = try Self.appSource("Views/Components/BackendConnection/BackendConnectionView.swift")
+        let connectionSource = try [
+            Self.appSource("Views/Components/BackendConnection/BackendConnectionView.swift"),
+            Self.appSource("Views/Components/BackendConnection/BackendConnectionView+Actions.swift")
+        ].joined(separator: "\n")
 
         XCTAssertTrue(tabSource.contains("BackendConnectionView(appState: appState, onRetry: retryBackendConnection)"))
         XCTAssertTrue(tabSource.contains("private func retryBackendConnection() async"))

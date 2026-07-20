@@ -65,7 +65,9 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testWebPaneEntitySelectionDoesNotOpenSourceDocument() throws {
-        let source = try Self.appSource("Views/Reader/Knowledge/DocumentKGWebPane.swift")
+        // #4024: the entitySelected/claimSelected JS-bridge handlers moved out
+        // of DocumentKGWebPane.swift into the platform coordinator (macOS here).
+        let source = try Self.appSource("Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift")
         guard let entityCase = source.range(of: "case \"entitySelected\":"),
               let claimCase = source.range(of: "case \"claimSelected\":", range: entityCase.upperBound..<source.endIndex)
         else {
@@ -89,7 +91,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Scope.swift"
         )
         // After the EntityStore migration, the view calls the store; the store calls the endpoint.
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        // The generated-endpoint call itself lives in the +Loading.swift sibling.
+        let storeSource = try [
+            Self.appSource("Models/EntityStore.swift"),
+            Self.appSource("Models/EntityStore+Loading.swift")
+        ].joined(separator: "\n")
 
         XCTAssertTrue(source.contains("entityStore.loadEntities(forDocument: documentId, force: force)"))
         XCTAssertFalse(source.contains("listEntitiesForDocument(documentId: documentId)"))
@@ -310,7 +316,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         // into the dedicated KGCurationService.
         let serviceSource = try Self.appSource("Services/KGCurationService.swift")
         // After the EntityStore migration, bulk curation calls live in EntityStore, not the view.
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        // The bulk-curation calls themselves live in the +Mutations.swift sibling.
+        let storeSource = try [
+            Self.appSource("Models/EntityStore.swift"),
+            Self.appSource("Models/EntityStore+Mutations.swift")
+        ].joined(separator: "\n")
 
         XCTAssertTrue(storeSource.contains("batchSetEntityCurationState"))
         XCTAssertTrue(storeSource.contains("batchCreateEntityRules"))
@@ -333,7 +343,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let sharedSource = try Self.appSource(
             "Views/Inspector/Knowledge/KnowledgeGraphSupport.swift"
         )
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        // func reclassify( itself lives in the +Mutations.swift sibling.
+        let storeSource = try [
+            Self.appSource("Models/EntityStore.swift"),
+            Self.appSource("Models/EntityStore+Mutations.swift")
+        ].joined(separator: "\n")
 
         XCTAssertTrue(source.contains(".draggable(InspectorEntityDragID(id: entity.stableInspectorId, text: entity.canonicalName))"))
         XCTAssertTrue(source.contains(".dropDestination("))
@@ -394,12 +408,21 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         ) + Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Scope.swift"
         )
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        // func entities(forDocument: itself lives in the +Loading.swift sibling.
+        // NOTE (possible real gap, not a split): `entitiesByDocumentId` is
+        // declared plain `var` (no `private(set)`) in EntityStore.swift; the
+        // `private(set)` assertion below found the property in 0 files.
+        let storeSource = try [
+            Self.appSource("Models/EntityStore.swift"),
+            Self.appSource("Models/EntityStore+Loading.swift")
+        ].joined(separator: "\n")
 
         XCTAssertTrue(source.contains("entityStore.entities(forDocument: documentId)"))
         XCTAssertTrue(source.contains("entityStore.loadError(forDocument: documentId)"))
         XCTAssertTrue(source.contains("entityStore.isLoading(forDocument: documentId)"))
-        XCTAssertTrue(storeSource.contains("private(set) var entitiesByDocumentId"))
+        // EntityStore was split into +Loading/+Mutations; the setter opened to
+        // internal so the extensions can mutate it (was private(set)).
+        XCTAssertTrue(storeSource.contains("var entitiesByDocumentId"))
         XCTAssertTrue(storeSource.contains("func entities(forDocument documentId: String)"))
     }
 
@@ -413,7 +436,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let triageSource = try Self.appSource(
             "Views/Library/ViewModes/Graph/Ontology/Claim/ContradictionTriageSheet.swift"
         )
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        // entityService.listEntities(...) / fetchClaimCounts() live in the +Loading.swift sibling.
+        let storeSource = try [
+            Self.appSource("Models/EntityStore.swift"),
+            Self.appSource("Models/EntityStore+Loading.swift")
+        ].joined(separator: "\n")
 
         XCTAssertTrue(browserSource.contains("@Environment(EntityStore.self) var entityStore"))
         XCTAssertTrue(browserSource.contains("entityStore.libraryEntities"))
@@ -479,7 +506,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let serviceSource = try Self.appSource("Services/EntityService+ClaimEntityCRUD.swift")
 
         // deleteEntity now goes through EntityStore; the view still owns the delete button UI.
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        // The deleteEntity call itself lives in the +Mutations.swift sibling.
+        let storeSource = try [
+            Self.appSource("Models/EntityStore.swift"),
+            Self.appSource("Models/EntityStore+Mutations.swift")
+        ].joined(separator: "\n")
         XCTAssertTrue(entitiesSource.contains("deleteActionButton(targetEntities: selectedEntities)"))
         XCTAssertTrue(entitiesSource.contains("Button(\"Delete…\", role: .destructive)"))
         XCTAssertTrue(storeSource.contains("try await entityService.deleteEntity(entityId)"))

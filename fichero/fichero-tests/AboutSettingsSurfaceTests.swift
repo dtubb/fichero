@@ -5,8 +5,11 @@ final class AboutSettingsSurfaceTests: XCTestCase {
         let source = try Self.appSource("Views/Settings/SettingsView.swift")
         XCTAssertTrue(source.contains("#if !canImport(AppKit)"))
         XCTAssertTrue(source.contains("AboutView()"))
-        // #4024: the sidebar row helper now also takes a tint color argument.
-        XCTAssertTrue(source.contains("row(.about, \"About\", \"info.circle\", .gray)"))
+        // The sidebar row helper takes only the tab now; title/icon/tint moved to
+        // SettingsSectionInfo (SettingsDetailHeader).
+        XCTAssertTrue(source.contains("row(.about)"))
+        let headerSource = try Self.appSource("Views/Settings/SettingsDetailHeader.swift")
+        XCTAssertTrue(headerSource.contains(#"SettingsSectionInfo(title: "About", symbol: "info.circle", tint: .gray)"#))
     }
 
     func testAppMenuDoesNotDuplicateAISettingsEntry() throws {
@@ -22,8 +25,10 @@ final class AboutSettingsSurfaceTests: XCTestCase {
     func testSettingsViewHostsMCPAndIntegrationsTabs() throws {
         let source = try Self.appSource("Views/Settings/SettingsView.swift")
         XCTAssertTrue(source.contains("NavigationSplitView"))
-        // #4024: the sidebar row helper now also takes a tint color argument.
-        XCTAssertTrue(source.contains("row(.mcp, \"MCP\", \"server.rack\", .green)"))
+        // Row helper takes only the tab now; title/icon/tint live in SettingsSectionInfo.
+        XCTAssertTrue(source.contains("row(.mcp)"))
+        let headerSource = try Self.appSource("Views/Settings/SettingsDetailHeader.swift")
+        XCTAssertTrue(headerSource.contains(#"SettingsSectionInfo(title: "MCP", symbol: "server.rack", tint: .green)"#))
         // #4024: the Settings IA reorg dropped the standalone Integrations
         // sidebar row (it returns under Workflows when real) but the tab and
         // its detail pane are still routed here, so assert that instead.
@@ -33,7 +38,10 @@ final class AboutSettingsSurfaceTests: XCTestCase {
     }
 
     func testAppStateRoutesLegacyMCPAndIntegrationsTriggersIntoSettings() throws {
-        let source = try Self.appSource("App/AppState.swift")
+        let source = try [
+            Self.appSource("App/AppState.swift"),
+            Self.appSource("App/AppState+Settings.swift")
+        ].joined(separator: "\n")
         XCTAssertTrue(source.contains("var selectedSettingsTab: SettingsTab = .aiModels"))
         XCTAssertTrue(source.contains("openSettings(tab: .mcp)"))
         XCTAssertEqual(source.components(separatedBy: "openSettings(tab: .integrations)").count - 1, 3)

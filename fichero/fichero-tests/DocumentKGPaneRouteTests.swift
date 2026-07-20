@@ -150,14 +150,18 @@ final class DocumentKGPaneRouteTests: XCTestCase {
     }
 
     func testReaderPaneCachesBootstrapScriptBetweenUpdates() throws {
-        let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("fichero")
-                .appendingPathComponent("Views/Reader/Knowledge/DocumentKGWebPane.swift"),
-            encoding: .utf8
-        )
+        let fixtureBase = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+        let relativePaths = [
+            "Views/Reader/Knowledge/DocumentKGWebPane.swift",
+            "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift",
+            "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift"
+        ]
+        let source = try relativePaths
+            .map { try String(contentsOf: fixtureBase.appendingPathComponent($0), encoding: .utf8) }
+            .joined(separator: "\n")
 
         XCTAssertTrue(source.contains("cachedBootstrapScript"))
         XCTAssertTrue(source.contains("cachedBootstrapLibraryPath"))
