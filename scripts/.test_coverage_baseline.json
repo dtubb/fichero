@@ -2286,7 +2286,7 @@
       "Views/Chat/MessageCard.swift::MessageCard",
       "Views/Chat/MessageCard.swift::MessageMapCard",
       "Views/Chat/ScopedDocumentRow.swift::ScopedDocumentRow",
-      "Views/Components/BackendConnectionView.swift::BackendConnectionView",
+      "Views/Components/BackendConnection/BackendConnectionView.swift::BackendConnectionView",
       "Views/Components/FicheroWebView.swift::Coordinator",
       "Views/Components/FicheroWebView.swift::FicheroWebView",
       "Views/Components/FicheroWebView.swift::makeCoordinator",

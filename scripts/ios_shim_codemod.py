@@ -19,7 +19,7 @@ BUCKET_A: list[str] = [
 # Bucket B: files whose ONLY AppKit symbols are shimmable (NSImage/NSColor/NSFont/NSViewRepresentable).
 # Conservatively limited to files confirmed to contain no NSWindow/NSApp/NSEvent/NSSavePanel/etc.
 BUCKET_B: list[str] = [
-    "fichero/fichero/Views/Components/BackendConnectionView.swift",
+    "fichero/fichero/Views/Components/BackendConnection/BackendConnectionView.swift",
     "fichero/fichero/Services/ImageEditingServiceGenerated.swift",
     "fichero/fichero/Views/Preview/ImageEditor/ImageEditorView.swift",
     "fichero/fichero/Views/Preview/ImageEditor/ImageEditorModel.swift",

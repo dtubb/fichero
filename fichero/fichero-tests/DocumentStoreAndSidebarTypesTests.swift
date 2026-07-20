@@ -389,7 +389,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testBackendRetryRunsSameReadinessSideEffectsAsStartup() throws {
         let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
-        let connectionSource = try Self.appSource("Views/Components/BackendConnectionView.swift")
+        let connectionSource = try Self.appSource("Views/Components/BackendConnection/BackendConnectionView.swift")
 
         XCTAssertTrue(tabSource.contains("BackendConnectionView(appState: appState, onRetry: retryBackendConnection)"))
         XCTAssertTrue(tabSource.contains("private func retryBackendConnection() async"))
