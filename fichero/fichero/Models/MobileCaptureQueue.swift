@@ -1,16 +1,7 @@
-// swiftlint:disable file_length
-import Observation
 import Foundation
+import Observation
 import OSLog
 import SwiftUI
-
-private let mobileCaptureQueueLogger = Logger(
-    subsystem: "app.fichero.fichero",
-    category: "MobileCaptureQueue"
-)
-
-private let mobileCaptureInterruptedUploadError =
-    "This upload was interrupted before it completed. Tap Retry to upload it again."
 
 struct MobileCaptureCatalogFields: Codable, Hashable {
     var title: String
@@ -236,12 +227,20 @@ enum MobileCaptureQueueStoreError: Error, LocalizedError {
 @MainActor
 @Observable
 final class MobileCaptureQueueStore {
-    private(set) var items: [MobileCaptureQueueItem] = []
+    static let logger = Logger(
+        subsystem: "app.fichero.fichero",
+        category: "MobileCaptureQueue"
+    )
 
-    private let storageDirectory: URL
-    private let fileManager: FileManager
-    private let manifestURL: URL
-    private let assetsDirectoryURL: URL
+    static let interruptedUploadError =
+        "This upload was interrupted before it completed. Tap Retry to upload it again."
+
+    var items: [MobileCaptureQueueItem] = []
+
+    let storageDirectory: URL
+    let fileManager: FileManager
+    let manifestURL: URL
+    let assetsDirectoryURL: URL
 
     init(
         storageDirectory: URL? = nil,
@@ -254,206 +253,6 @@ final class MobileCaptureQueueStore {
         loadPersistedQueue()
     }
 
-    var pendingCount: Int {
-        items.filter {
-            $0.uploadState == .queued || $0.uploadState == .failed || $0.uploadState == .waitingForBackend
-        }.count
-    }
-
-    var uploadedCount: Int {
-        items.filter { $0.uploadState == .uploaded }.count
-    }
-
-    func imageURL(for item: MobileCaptureQueueItem) -> URL {
-        assetsDirectoryURL.appendingPathComponent(item.imageFileName)
-    }
-
-    @discardableResult
-    func enqueueCapturedImage(
-        _ imageData: Data,
-        catalog: MobileCaptureCatalogFields = .init(),
-        fileName: String? = nil,
-        fileExtension: String = "jpg"
-    ) throws -> MobileCaptureQueueItem {
-        try prepareStorage()
-
-        let id = UUID().uuidString
-        let resolvedFileName = fileName ?? "\(id).\(fileExtension)"
-        let imageURL = assetsDirectoryURL.appendingPathComponent(resolvedFileName)
-        try imageData.write(to: imageURL, options: .atomic)
-
-        let now = Date()
-        let item = MobileCaptureQueueItem(
-            id: id,
-            imageFileName: resolvedFileName,
-            createdAt: now,
-            updatedAt: now,
-            catalog: catalog,
-            uploadState: .queued,
-            uploadedDocumentId: nil,
-            lastError: nil,
-            requiresExplicitRetry: false,
-            retryCount: 0,
-            lastAttemptAt: nil
-        )
-        items.insert(item, at: 0)
-        persistQueue()
-        return item
-    }
-
-    func updateCatalog(
-        id: String,
-        mutate: (inout MobileCaptureCatalogFields) -> Void
-    ) {
-        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
-        let wasInterruptedRetry =
-            items[index].requiresExplicitRetry
-            || items[index].lastError == mobileCaptureInterruptedUploadError
-        mutate(&items[index].catalog)
-        items[index].updatedAt = Date()
-        if items[index].uploadState == .uploaded {
-            items[index].uploadState = .queued
-            items[index].uploadedDocumentId = nil
-            items[index].requiresExplicitRetry = false
-        } else if wasInterruptedRetry {
-            items[index].uploadState = .failed
-            items[index].requiresExplicitRetry = true
-            items[index].lastError = mobileCaptureInterruptedUploadError
-        } else if items[index].uploadState != .uploading {
-            items[index].uploadState = .queued
-        }
-        if !wasInterruptedRetry {
-            items[index].lastError = nil
-        }
-        persistQueue()
-    }
-
-    func removeItem(id: String) {
-        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
-        let item = items.remove(at: index)
-        try? fileManager.removeItem(at: imageURL(for: item))
-        persistQueue()
-    }
-
-    func markAllWaitingForBackend() {
-        var changed = false
-        for index in items.indices where items[index].uploadState == .queued || items[index].uploadState == .failed {
-            items[index].uploadState = .waitingForBackend
-            if items[index].lastError != mobileCaptureInterruptedUploadError {
-                items[index].lastError = nil
-            }
-            changed = true
-        }
-        if changed { persistQueue() }
-    }
-
-    @discardableResult
-    func resumePendingUploads(
-        using uploader: some MobileCaptureQueueUploading,
-        retryInterruptedUploads: Bool = false
-    ) async -> MobileCaptureUploadSummary {
-        guard MobileCaptureQueueRouting.canResumeUploads(backendHost: uploader.backendHost) else {
-            markAllWaitingForBackend()
-            return MobileCaptureUploadSummary(waitingCount: pendingCount)
-        }
-
-        var summary = MobileCaptureUploadSummary()
-        let retryableIndices = items.indices.filter { index in
-            switch items[index].uploadState {
-            case .queued, .failed, .waitingForBackend:
-                if items[index].requiresExplicitRetry && !retryInterruptedUploads {
-                    return false
-                }
-                if !retryInterruptedUploads,
-                   items[index].lastError == mobileCaptureInterruptedUploadError {
-                    return false
-                }
-                return true
-            case .uploading, .uploaded:
-                return false
-            }
-        }
-
-        for index in retryableIndices {
-            items[index].uploadState = .uploading
-            items[index].lastAttemptAt = Date()
-            items[index].retryCount += 1
-            items[index].lastError = nil
-        }
-        persistQueue()
-
-        for index in retryableIndices {
-            let item = items[index]
-            do {
-                let documentId = try await uploader.upload(
-                    fileURL: imageURL(for: item),
-                    catalog: item.catalog
-                )
-                items[index].uploadState = .uploaded
-                items[index].uploadedDocumentId = documentId
-                items[index].lastError = nil
-                summary.uploadedCount += 1
-            } catch {
-                items[index].uploadState = .failed
-                items[index].lastError = error.localizedDescription
-                summary.failedCount += 1
-                mobileCaptureQueueLogger.error("Capture upload failed: \(error.localizedDescription)")
-            }
-            persistQueue()
-        }
-
-        return summary
-    }
-
-    private func loadPersistedQueue() {
-        guard fileManager.fileExists(atPath: manifestURL.path),
-              let data = try? Data(contentsOf: manifestURL),
-              let decoded = try? JSONDecoder().decode([MobileCaptureQueueItem].self, from: data)
-        else {
-            items = []
-            return
-        }
-
-        items = decoded.compactMap { item in
-            guard fileManager.fileExists(atPath: imageURL(for: item).path) else {
-                return nil
-            }
-
-            var normalized = item
-            if normalized.uploadState == .uploading {
-                normalized.uploadState = .failed
-                normalized.lastError = mobileCaptureInterruptedUploadError
-                normalized.requiresExplicitRetry = true
-                normalized.lastAttemptAt = nil
-            }
-            return normalized
-        }
-    }
-
-    private func persistQueue() {
-        do {
-            try prepareStorage()
-            let data = try JSONEncoder().encode(items)
-            try data.write(to: manifestURL, options: .atomic)
-        } catch {
-            mobileCaptureQueueLogger.error("Failed to persist capture queue: \(error.localizedDescription)")
-        }
-    }
-
-    private func prepareStorage() throws {
-        if !fileManager.fileExists(atPath: storageDirectory.path) {
-            try fileManager.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
-        }
-        if !fileManager.fileExists(atPath: assetsDirectoryURL.path) {
-            try fileManager.createDirectory(at: assetsDirectoryURL, withIntermediateDirectories: true)
-        }
-    }
-
-    private static func defaultStorageDirectory(fileManager: FileManager) -> URL {
-        let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fileManager.temporaryDirectory
-        return baseURL.appendingPathComponent("Fichero/MobileCaptureQueue", isDirectory: true)
-    }
 }
 
 private extension String {
