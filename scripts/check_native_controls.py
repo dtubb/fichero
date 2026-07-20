@@ -25,7 +25,7 @@ RULE_DOC = "agents/ROADMAP.md"
 
 # Rekeyed to stable content signatures so unrelated line shifts do not churn the backlog.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "Activity/Overview/ActivityOverviewView+Cards.swift#76a86e98cc": "#1912 baseline",
+    "Activity/Overview/ActivityOverviewView+Cards.swift#d6f20143ab": "#1912 baseline (re-hashed by function_body extraction; same docStep grid)",
     "Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",
     "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
     "Library/ViewModes/Graph/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",

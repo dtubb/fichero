@@ -107,7 +107,6 @@ struct QuickLookDownloadView: View {
     }
 
     // Get filename with proper extension
-    // swiftlint:disable:next cyclomatic_complexity
     private func fileNameWithExtension() -> String {
         let name = document.name
         if name.contains(".") {
@@ -122,27 +121,31 @@ struct QuickLookDownloadView: View {
         }
 
         if let fileType = document.fileType {
-            let ext: String
-            switch fileType {
-            case .image: ext = "jpg"
-            case .pdf: ext = "pdf"
-            case .audio: ext = "mp3"
-            case .video: ext = "mp4"
-            case .text: ext = "txt"
-            case .json: ext = "json"
-            case .word: ext = "docx"
-            case .epub: ext = "epub"
-            case .spreadsheet: ext = "xlsx"
-            case .presentation: ext = "pptx"
-            case .csv: ext = "csv"
-            case .rtf: ext = "rtf"
-            case .mobi: ext = "mobi"
-            case .other: ext = "bin"
-            }
-            return "\(name).\(ext)"
+            return "\(name).\(fallbackExtension(for: fileType))"
         }
 
         return name
+    }
+
+    // Default extension per file type, used only when the document has neither
+    // a dotted name nor a path to infer one from.
+    private func fallbackExtension(for fileType: FileType) -> String {
+        switch fileType {
+        case .image: return "jpg"
+        case .pdf: return "pdf"
+        case .audio: return "mp3"
+        case .video: return "mp4"
+        case .text: return "txt"
+        case .json: return "json"
+        case .word: return "docx"
+        case .epub: return "epub"
+        case .spreadsheet: return "xlsx"
+        case .presentation: return "pptx"
+        case .csv: return "csv"
+        case .rtf: return "rtf"
+        case .mobi: return "mobi"
+        case .other: return "bin"
+        }
     }
 }
 

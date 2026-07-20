@@ -33,29 +33,9 @@ extension EmbeddedBackendService {
 
     // Promoted from `private` to internal: called by spawnAndAdoptEmbeddedEngine
     // in the Lifecycle extension file.
-    // swiftlint:disable:next function_body_length
     func launchEmbeddedBackend() async throws {
         let bundlePath = Bundle.main.bundlePath
-
-        // Bundle is named "Fichero Engine.app" (briefcase formal_name =
-        // "Fichero Engine"), bundle ID app.fichero.fichero.engine.
-        let candidates = Self.engineBundleSubpaths.map { "\(bundlePath)/\($0)" }
-        let backendAppPath = candidates.first {
-            FileManager.default.fileExists(atPath: "\($0)/Contents/MacOS/Fichero Engine")
-        }
-
-        // Check if backend executable exists
-        guard let backendAppPath else {
-            let executablePath = candidates[0] + "/Contents/MacOS/Fichero Engine"
-            logger.error("Backend executable not found at: \(executablePath)")
-            // Debug builds skip the "Embed Fichero Engine" phase (it only runs in
-            // Release), so in a Debug ⌘R the engine is expected to be running
-            // externally on :8765. If it isn't, that's this path.
-            logger.error(
-                "Debug: start the engine first — fichero-engine/scripts/start_backend.sh. Release: briefcase build macOS --app engine (in fichero-engine/), then rebuild."
-            )
-            throw BackendError.backendAppNotFound
-        }
+        let backendAppPath = try resolveBackendAppPath(bundlePath: bundlePath)
         let executablePath = "\(backendAppPath)/Contents/MacOS/Fichero Engine"
         logger.info("Embedded engine: \(backendAppPath)")
 
@@ -63,40 +43,11 @@ extension EmbeddedBackendService {
         // the sandbox) already ran in resolvePortConflict() before we got here —
         // including in DEBUG (#2863). By this point the port is ours to bind.
 
-        let accessMaterial: RemoteAccessTLSMaterial
-        let publicBaseURL: URL?
-        if RemoteAccessConfig.hostingEnabled {
-            guard let url = RemoteAccessConfig.publicBaseURL else {
-                throw BackendError.launchFailed(
-                    NSError(
-                        domain: "EmbeddedBackendService",
-                        code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "Remote access needs a reachable HTTPS URL."]
-                    )
-                )
-            }
-            publicBaseURL = url
-            accessMaterial = try await prepareRemoteAccessTLSMaterial(
-                executablePath: executablePath,
-                publicBaseURL: url
-            )
-        } else {
-            publicBaseURL = nil
-            accessMaterial = try await prepareLocalAccessTLSMaterial(executablePath: executablePath)
-        }
+        let (accessMaterial, publicBaseURL) = try await prepareAccessMaterial(executablePath: executablePath)
 
         // Persist the SPKI pin for every host the engine binds to. The
         // remote-access cert is also served on loopback, so pins match (#2611).
-        try RemoteCertificatePinning.persistHostedBackendSPKIPin(
-            accessMaterial.spkiPin,
-            hostString: EngineConfig.defaultHostString
-        )
-        if let publicBaseURL {
-            try RemoteCertificatePinning.persistHostedBackendSPKIPin(
-                accessMaterial.spkiPin,
-                hostString: publicBaseURL.absoluteString
-            )
-        }
+        try persistSPKIPins(accessMaterial, publicBaseURL: publicBaseURL)
 
         logger.info("Launching backend process: \(executablePath)")
 
@@ -118,16 +69,131 @@ extension EmbeddedBackendService {
         let launchNonce = Self.generateSecret()
         expectedLaunchNonce = launchNonce
 
-        // Build the child env from the app's environment with every inherited
-        // FICHERO_* stripped (#3933). The engine's security posture — auth on/off
-        // (FICHERO_DISABLE_AUTH), bind surface (FICHERO_LAN_HOST/FICHERO_BIND_HOST)
-        // — is decided ENTIRELY by the FICHERO_* keys the app sets below, never by
-        // a stray one in the launching shell. `FICHERO_DISABLE_AUTH=1 open
-        // Fichero.app` must not spawn an auth-less engine. Non-FICHERO vars (PATH,
-        // HOME, locale, dyld/xpc, …) are inherited unchanged — the bundled
-        // interpreter needs them and none influence engine auth or bind. This
-        // fails closed for any FICHERO_* added later: unknown ones are dropped
-        // until explicitly set here.
+        process.environment = buildChildEnvironment(
+            bootstrapToken: bootstrapToken,
+            launchNonce: launchNonce,
+            accessMaterial: accessMaterial,
+            publicBaseURL: publicBaseURL
+        )
+
+        // Diagnostic (#757): capture engine stdout/stderr to a tail-able file
+        // in ~/Library/Logs/ so Release-build engine failures surface instead
+        // of getting silently swallowed.
+        let logHandle = try openEngineLogHandle()
+        process.standardOutput = logHandle
+        process.standardError = logHandle
+
+        // Write the token file the app minted (#2862/#2863). We NEVER pre-delete
+        // it: an empty/absent .api-key would make every request 401 until the
+        // engine got around to writing one — the blank-window-with-401s bug.
+        // Writing our own token (mode 0600) means the app and the engine agree
+        // from the first request, with no window where the two disagree.
+        if let tokenURL = AuthTokenMiddleware.bootstrapTokenFileURL() {
+            Self.writeBootstrapTokenFile(bootstrapToken, at: tokenURL)
+        }
+
+        // If the engine dies on its own (crash, import error, port lost), flip
+        // to .failed with the tail of engine.log instead of leaving the UI
+        // stuck on a spinner or a blank window (#2863). Skipped when WE asked
+        // it to stop. terminationHandler runs off the main actor, so hop back.
+        intentionalStop = false
+        process.terminationHandler = makeTerminationHandler()
+
+        // Launch the process
+        try process.run()
+
+        let pid = process.processIdentifier
+        // The gap between "engine spawn requested" and this marker is everything
+        // the app does BEFORE the engine gets to start: the port pre-flight and
+        // the TLS material prep (#3936/#3928). That cost was invisible.
+        LaunchProfile.milestone("engine process launched", detail: "pid \(pid)")
+        logger.info("Backend process launched successfully (PID: \(pid))")
+
+        // Store PID and process reference
+        backendPID = pid
+        isExternalBackend = false
+        logger.info("Tracking embedded backend PID: \(pid)")
+    }
+
+    /// Locate the embedded engine bundle (#3749: Contents/Helpers for MAS,
+    /// Contents/Resources for Developer ID/DMG). Throws `.backendAppNotFound`
+    /// with the same diagnostic logging the inline check used to do.
+    private func resolveBackendAppPath(bundlePath: String) throws -> String {
+        // Bundle is named "Fichero Engine.app" (briefcase formal_name =
+        // "Fichero Engine"), bundle ID app.fichero.fichero.engine.
+        let candidates = Self.engineBundleSubpaths.map { "\(bundlePath)/\($0)" }
+        guard let backendAppPath = candidates.first(where: {
+            FileManager.default.fileExists(atPath: "\($0)/Contents/MacOS/Fichero Engine")
+        }) else {
+            let executablePath = candidates[0] + "/Contents/MacOS/Fichero Engine"
+            logger.error("Backend executable not found at: \(executablePath)")
+            // Debug builds skip the "Embed Fichero Engine" phase (it only runs in
+            // Release), so in a Debug ⌘R the engine is expected to be running
+            // externally on :8765. If it isn't, that's this path.
+            logger.error(
+                "Debug: start the engine first — fichero-engine/scripts/start_backend.sh. Release: briefcase build macOS --app engine (in fichero-engine/), then rebuild."
+            )
+            throw BackendError.backendAppNotFound
+        }
+        return backendAppPath
+    }
+
+    /// Prepare the TLS material for either the loopback-only or hosted
+    /// (remote-access) case, returning the material plus the public URL when
+    /// hosting is enabled.
+    private func prepareAccessMaterial(
+        executablePath: String
+    ) async throws -> (accessMaterial: RemoteAccessTLSMaterial, publicBaseURL: URL?) {
+        if RemoteAccessConfig.hostingEnabled {
+            guard let url = RemoteAccessConfig.publicBaseURL else {
+                throw BackendError.launchFailed(
+                    NSError(
+                        domain: "EmbeddedBackendService",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Remote access needs a reachable HTTPS URL."]
+                    )
+                )
+            }
+            let accessMaterial = try await prepareRemoteAccessTLSMaterial(
+                executablePath: executablePath,
+                publicBaseURL: url
+            )
+            return (accessMaterial, url)
+        } else {
+            let accessMaterial = try await prepareLocalAccessTLSMaterial(executablePath: executablePath)
+            return (accessMaterial, nil)
+        }
+    }
+
+    private func persistSPKIPins(_ accessMaterial: RemoteAccessTLSMaterial, publicBaseURL: URL?) throws {
+        try RemoteCertificatePinning.persistHostedBackendSPKIPin(
+            accessMaterial.spkiPin,
+            hostString: EngineConfig.defaultHostString
+        )
+        if let publicBaseURL {
+            try RemoteCertificatePinning.persistHostedBackendSPKIPin(
+                accessMaterial.spkiPin,
+                hostString: publicBaseURL.absoluteString
+            )
+        }
+    }
+
+    /// Build the child env from the app's environment with every inherited
+    /// FICHERO_* stripped (#3933). The engine's security posture — auth on/off
+    /// (FICHERO_DISABLE_AUTH), bind surface (FICHERO_LAN_HOST/FICHERO_BIND_HOST)
+    /// — is decided ENTIRELY by the FICHERO_* keys set below, never by a stray
+    /// one in the launching shell. `FICHERO_DISABLE_AUTH=1 open Fichero.app`
+    /// must not spawn an auth-less engine. Non-FICHERO vars (PATH, HOME,
+    /// locale, dyld/xpc, …) are inherited unchanged — the bundled interpreter
+    /// needs them and none influence engine auth or bind. This fails closed
+    /// for any FICHERO_* added later: unknown ones are dropped until
+    /// explicitly set here.
+    private func buildChildEnvironment(
+        bootstrapToken: String,
+        launchNonce: String,
+        accessMaterial: RemoteAccessTLSMaterial,
+        publicBaseURL: URL?
+    ) -> [String: String] {
         var environment = Self.childEnvironmentBase(inheriting: ProcessInfo.processInfo.environment)
         // Engine watches this PID and self-terminates if we die without a
         // chance to call .stop() (e.g., SIGKILL). Belt-and-braces with the
@@ -165,11 +231,10 @@ extension EmbeddedBackendService {
             environment["FICHERO_LIBRARY_BOOKMARKS"] = bookmarks
         }
         #endif
-        process.environment = environment
+        return environment
+    }
 
-        // Diagnostic (#757): capture engine stdout/stderr to a tail-able file
-        // in ~/Library/Logs/ so Release-build engine failures surface instead
-        // of getting silently swallowed.
+    private func openEngineLogHandle() throws -> FileHandle {
         let logURL = FileManager.default
             .urls(for: .libraryDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Logs/Fichero/engine.log")
@@ -178,25 +243,11 @@ extension EmbeddedBackendService {
             withIntermediateDirectories: true
         )
         FileManager.default.createFile(atPath: logURL.path, contents: nil)
-        let logHandle = try FileHandle(forWritingTo: logURL)
-        process.standardOutput = logHandle
-        process.standardError = logHandle
+        return try FileHandle(forWritingTo: logURL)
+    }
 
-        // Write the token file the app minted (#2862/#2863). We NEVER pre-delete
-        // it: an empty/absent .api-key would make every request 401 until the
-        // engine got around to writing one — the blank-window-with-401s bug.
-        // Writing our own token (mode 0600) means the app and the engine agree
-        // from the first request, with no window where the two disagree.
-        if let tokenURL = AuthTokenMiddleware.bootstrapTokenFileURL() {
-            Self.writeBootstrapTokenFile(bootstrapToken, at: tokenURL)
-        }
-
-        // If the engine dies on its own (crash, import error, port lost), flip
-        // to .failed with the tail of engine.log instead of leaving the UI
-        // stuck on a spinner or a blank window (#2863). Skipped when WE asked
-        // it to stop. terminationHandler runs off the main actor, so hop back.
-        intentionalStop = false
-        process.terminationHandler = { [weak self] proc in
+    private func makeTerminationHandler() -> @Sendable (Process) -> Void {
+        { [weak self] proc in
             let code = proc.terminationStatus
             Task { @MainActor [weak self] in
                 guard let self, !self.intentionalStop else { return }
@@ -207,21 +258,6 @@ extension EmbeddedBackendService {
                 logger.error("Engine terminated unexpectedly (code \(code))")
             }
         }
-
-        // Launch the process
-        try process.run()
-
-        let pid = process.processIdentifier
-        // The gap between "engine spawn requested" and this marker is everything
-        // the app does BEFORE the engine gets to start: the port pre-flight and
-        // the TLS material prep (#3936/#3928). That cost was invisible.
-        LaunchProfile.milestone("engine process launched", detail: "pid \(pid)")
-        logger.info("Backend process launched successfully (PID: \(pid))")
-
-        // Store PID and process reference
-        backendPID = pid
-        isExternalBackend = false
-        logger.info("Tracking embedded backend PID: \(pid)")
     }
 }
 #endif

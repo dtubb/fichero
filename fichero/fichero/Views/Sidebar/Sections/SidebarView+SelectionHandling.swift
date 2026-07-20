@@ -28,7 +28,6 @@ extension SidebarView {
         handleSelectionDestination(destination)
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     private func handleSelectionDestination(_ destination: SidebarDestination) {
         switch destination {
         case .library(let libraryId):
@@ -38,27 +37,8 @@ extension SidebarView {
             sidebarMode = .library
             viewMode = .library(nil)
             return
-        case .browser(.activity):
-            sidebarMode = .activity
-            viewMode = .activity(nil)
-            return
-        case .browser(.workflows):
-            sidebarMode = .workflows
-            viewMode = .workflow(nil)
-            return
-        case .browser(.batches):
-            viewMode = .batches
-            return
-        case .browser(.entities):
-            sidebarMode = .library
-            viewMode = .library(nil)
-            return
-        case .browser(.comparison):
-            sidebarMode = .chat
-            viewMode = .comparison(nil)
-            return
-        case .browser(.research):
-            sidebarMode = .research
+        case .browser(let section):
+            handleBrowserSelectionDestination(section)
             return
         case .run:
             guard let selectedRun = unifiedSelectedRun(forSidebarId: destination.serializedID) else { return }
@@ -67,6 +47,31 @@ extension SidebarView {
         default:
             let item = findItemById(destination.serializedID, in: allCachedItems)
             handleSelection(item)
+        }
+    }
+
+    // `SidebarBrowserDestination` has exactly these 6 cases (see
+    // `SidebarStateManagers.swift`), each routing to a distinct sidebar
+    // mode/view mode — split out of `handleSelectionDestination` to keep
+    // that switch's complexity low.
+    private func handleBrowserSelectionDestination(_ section: SidebarBrowserDestination) {
+        switch section {
+        case .activity:
+            sidebarMode = .activity
+            viewMode = .activity(nil)
+        case .workflows:
+            sidebarMode = .workflows
+            viewMode = .workflow(nil)
+        case .batches:
+            viewMode = .batches
+        case .entities:
+            sidebarMode = .library
+            viewMode = .library(nil)
+        case .comparison:
+            sidebarMode = .chat
+            viewMode = .comparison(nil)
+        case .research:
+            sidebarMode = .research
         }
     }
 

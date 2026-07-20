@@ -31,7 +31,6 @@ extension SidebarView {
         }
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     private func handleUnifiedRowsMove(
         source: IndexSet,
         destination: Int,
@@ -61,31 +60,48 @@ extension SidebarView {
 
         switch kind {
         case .document, .folder:
-            if let orderedIds = sidebarReorderedDocIds(children: items, moving: source, to: destination) {
-                library.documentStore.reorderChildrenOptimistically(orderedIds: orderedIds)
-            }
+            reorderDocumentRows(items: items, source: source, destination: destination, library: library)
         case .savedSearch:
-            let ordered = reordered.compactMap { item -> String? in
-                guard case .savedSearch(let search) = item.itemType else { return nil }
-                return search.id
-            }
-            guard !ordered.isEmpty else { return }
-            Task {
-                try? await library.savedSearchService.reorderSavedSearches(ordered)
-                try? await library.savedSearchService.loadSavedSearches()
-            }
+            reorderSavedSearchRows(reordered, library: library)
         case .workflow, .chain:
-            let ordered = reordered.compactMap { item -> String? in
-                if case .workflow(let workflow) = item.itemType { return workflow.id }
-                return nil
-            }
-            guard !ordered.isEmpty else { return }
-            Task {
-                try? await library.workflowService.reorderWorkflows(ordered)
-                await library.workflowStore.loadWorkflows()
-            }
+            reorderWorkflowRows(reordered, library: library)
         default:
             return
+        }
+    }
+
+    private func reorderDocumentRows(
+        items: [SidebarItem],
+        source: IndexSet,
+        destination: Int,
+        library: LibraryManager.LibraryReference
+    ) {
+        if let orderedIds = sidebarReorderedDocIds(children: items, moving: source, to: destination) {
+            library.documentStore.reorderChildrenOptimistically(orderedIds: orderedIds)
+        }
+    }
+
+    private func reorderSavedSearchRows(_ reordered: [SidebarItem], library: LibraryManager.LibraryReference) {
+        let ordered = reordered.compactMap { item -> String? in
+            guard case .savedSearch(let search) = item.itemType else { return nil }
+            return search.id
+        }
+        guard !ordered.isEmpty else { return }
+        Task {
+            try? await library.savedSearchService.reorderSavedSearches(ordered)
+            try? await library.savedSearchService.loadSavedSearches()
+        }
+    }
+
+    private func reorderWorkflowRows(_ reordered: [SidebarItem], library: LibraryManager.LibraryReference) {
+        let ordered = reordered.compactMap { item -> String? in
+            if case .workflow(let workflow) = item.itemType { return workflow.id }
+            return nil
+        }
+        guard !ordered.isEmpty else { return }
+        Task {
+            try? await library.workflowService.reorderWorkflows(ordered)
+            await library.workflowStore.loadWorkflows()
         }
     }
 

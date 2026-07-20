@@ -65,13 +65,13 @@ final class EngineLifecycleController {
         backendService.stop()
     }
 
-    // swiftlint:disable function_body_length
-    // connect() is a faithful relocation of FicheroApp.connectBackend: one linear
-    // happy path plus its catch arms; splitting it would obscure the sequence.
     /// The single connect sequence shared by launch and Retry (#3108). Moved
     /// verbatim from `FicheroApp.connectBackend` when engine ownership left the
     /// window (#3945) — the only change is that `backendService`/`appState`/
-    /// `libraryManager` are now this controller's own properties.
+    /// `libraryManager` are now this controller's own properties. Split into
+    /// per-phase helpers below (spawn / probe / finish / failure) so the
+    /// sequence stays readable; each helper preserves the original ordering
+    /// and side effects exactly.
     private func connect(restart: Bool) async {
         // A single app-scoped controller means the old per-window reuse guard is
         // gone (#3394/#3407 can't occur — no window triggers connect). Keep only a
@@ -98,34 +98,10 @@ final class EngineLifecycleController {
         let backendStart = Date()
         do {
             if !usesExternal {
-                // Respawn a stuck engine on an explicit retry; a fresh launch just
-                // starts. The port pre-flight / orphan sweep lives in start().
-                if restart {
-                    backendService.stop()
-                }
-                LaunchProfile.milestone("engine spawn requested")
-                try await backendService.start()
-                let backendMs = Date().timeIntervalSince(backendStart) * 1000
-                LaunchProfile.milestone("engine spawn returned")
-                logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
+                try await spawnEmbeddedEngine(restart: restart, backendStart: backendStart)
             }
 
-            // Health probe after the engine is up — re-probing with backoff before
-            // parking, so a transient miss while the engine finishes startup (it's
-            // often serving 200s a beat later) doesn't wall a healthy engine (#3162).
-            // #3975: hand over the readiness the spawn ALREADY proved (health + nonce
-            // + authenticated /api/registry 200). When it's `.ready`, the connection
-            // layer skips the redundant re-probe + second health GET and goes straight
-            // to warm-up — removing ~3-4 serial round-trips between serving and ready.
-            // A nil/non-ready value (remote host, or a retry before start) falls
-            // through to the full probe, so the #3162 backoff is untouched there.
-            await appState.checkBackendHealthUntilReady(provenReadiness: backendService.lastReadiness)
-            guard appState.isBackendRunning else {
-                backendService.status = .failed
-                backendService.errorMessage = appState.backendError
-                logger.error(
-                    "Backend not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
-                )
+            guard await probeBackendReadiness() else {
                 // Keep re-probing in the background so we recover to the workspace
                 // the moment the engine answers — never park forever on a healthy
                 // engine (#3162). The heartbeat's own guard makes this idempotent.
@@ -133,50 +109,102 @@ final class EngineLifecycleController {
                 return
             }
 
-            let readyMs = Date().timeIntervalSince(backendStart) * 1000
-            LaunchProfile.milestone("first authenticated ready")
-            logger.info("⏱ engine authenticated and ready: \(readyMs, format: .fixed(precision: 1))ms")
-
-            backendService.status = .running
-            backendService.errorMessage = nil
-            // The heartbeat is the single ongoing poller once ready (#3108); its own
-            // guard makes repeated calls idempotent.
-            appState.startBackendHeartbeat()
-            // Proactively renew the device token if near expiry (#3096), before it
-            // can lapse into a 401. A Mac can pair as a remote client too, so this
-            // belongs on the macOS connect path as well as iOS — no-op for the
-            // embedded/local host (loopback has no stored expiry); a failed renew
-            // keeps the old token (the expired → re-pair path is the safety net).
-            await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host)
-            // The one shared post-ready side-effect block (#3113); adopt is a no-op
-            // on an embedded/local host, so no `usesExternal` branch here.
-            let restorationStart = Date()
-            await libraryManager.refreshAfterBackendBecameReady()
-            let restorationMs = Date().timeIntervalSince(restorationStart) * 1000
-            logger.info("⏱ post-ready library restoration: \(restorationMs, format: .fixed(precision: 1))ms")
+            await finishSuccessfulConnect(backendStart: backendStart)
         } catch BackendError.portConflict(let pid) {
-            // A process we didn't spawn holds :8765 → surface the in-window decision
-            // (#3111): Stop it / Use it / Quit. Never a pre-window NSAlert, never
-            // self-terminate (#3042).
-            logger.info("Port 8765 held by PID \(pid.map(String.init) ?? "unknown") — portConflict phase")
-            appState.engine.markPortConflict(pid: pid)
-            backendService.status = .failed
+            handlePortConflict(pid: pid)
         } catch {
-            // An adopted squatter that answers health but rejects our token is
-            // authRejected, not a generic failure — the authenticated probe is the
-            // gate (#2864/#3111).
-            if backendService.lastReadiness == .authRejected {
-                appState.engine.markAuthRejected(
-                    "The engine already on port 8765 rejected this app's credentials."
-                )
-                backendService.status = .failed
-            } else {
-                logger.error("Failed to start backend: \(error.localizedDescription)")
-                showBackendError(error)
-            }
+            handleConnectFailure(error)
         }
     }
-    // swiftlint:enable function_body_length
+
+    /// Respawn (on retry) and start the embedded engine process. The port
+    /// pre-flight / orphan sweep lives in `start()`.
+    private func spawnEmbeddedEngine(restart: Bool, backendStart: Date) async throws {
+        // Respawn a stuck engine on an explicit retry; a fresh launch just
+        // starts.
+        if restart {
+            backendService.stop()
+        }
+        LaunchProfile.milestone("engine spawn requested")
+        try await backendService.start()
+        let backendMs = Date().timeIntervalSince(backendStart) * 1000
+        LaunchProfile.milestone("engine spawn returned")
+        logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
+    }
+
+    /// Health probe after the engine is up — re-probing with backoff before
+    /// parking, so a transient miss while the engine finishes startup (it's
+    /// often serving 200s a beat later) doesn't wall a healthy engine (#3162).
+    /// #3975: hand over the readiness the spawn ALREADY proved (health + nonce
+    /// + authenticated /api/registry 200). When it's `.ready`, the connection
+    /// layer skips the redundant re-probe + second health GET and goes straight
+    /// to warm-up — removing ~3-4 serial round-trips between serving and ready.
+    /// A nil/non-ready value (remote host, or a retry before start) falls
+    /// through to the full probe, so the #3162 backoff is untouched there.
+    /// Returns whether the backend is reachable; on failure it records the
+    /// failed status/error itself so callers only need to react to `false`.
+    private func probeBackendReadiness() async -> Bool {
+        await appState.checkBackendHealthUntilReady(provenReadiness: backendService.lastReadiness)
+        guard appState.isBackendRunning else {
+            backendService.status = .failed
+            backendService.errorMessage = appState.backendError
+            logger.error(
+                "Backend not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
+            )
+            return false
+        }
+        return true
+    }
+
+    /// The shared post-ready side effects: mark running, start the heartbeat,
+    /// renew the device token, and restore libraries.
+    private func finishSuccessfulConnect(backendStart: Date) async {
+        let readyMs = Date().timeIntervalSince(backendStart) * 1000
+        LaunchProfile.milestone("first authenticated ready")
+        logger.info("⏱ engine authenticated and ready: \(readyMs, format: .fixed(precision: 1))ms")
+
+        backendService.status = .running
+        backendService.errorMessage = nil
+        // The heartbeat is the single ongoing poller once ready (#3108); its own
+        // guard makes repeated calls idempotent.
+        appState.startBackendHeartbeat()
+        // Proactively renew the device token if near expiry (#3096), before it
+        // can lapse into a 401. A Mac can pair as a remote client too, so this
+        // belongs on the macOS connect path as well as iOS — no-op for the
+        // embedded/local host (loopback has no stored expiry); a failed renew
+        // keeps the old token (the expired → re-pair path is the safety net).
+        await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host)
+        // The one shared post-ready side-effect block (#3113); adopt is a no-op
+        // on an embedded/local host, so no `usesExternal` branch here.
+        let restorationStart = Date()
+        await libraryManager.refreshAfterBackendBecameReady()
+        let restorationMs = Date().timeIntervalSince(restorationStart) * 1000
+        logger.info("⏱ post-ready library restoration: \(restorationMs, format: .fixed(precision: 1))ms")
+    }
+
+    /// A process we didn't spawn holds :8765 → surface the in-window decision
+    /// (#3111): Stop it / Use it / Quit. Never a pre-window NSAlert, never
+    /// self-terminate (#3042).
+    private func handlePortConflict(pid: Int?) {
+        logger.info("Port 8765 held by PID \(pid.map(String.init) ?? "unknown") — portConflict phase")
+        appState.engine.markPortConflict(pid: pid)
+        backendService.status = .failed
+    }
+
+    /// An adopted squatter that answers health but rejects our token is
+    /// authRejected, not a generic failure — the authenticated probe is the
+    /// gate (#2864/#3111).
+    private func handleConnectFailure(_ error: Error) {
+        if backendService.lastReadiness == .authRejected {
+            appState.engine.markAuthRejected(
+                "The engine already on port 8765 rejected this app's credentials."
+            )
+            backendService.status = .failed
+        } else {
+            logger.error("Failed to start backend: \(error.localizedDescription)")
+            showBackendError(error)
+        }
+    }
 
     /// Surface a start failure through the window gate — never terminate the app
     /// (#3042). `BackendRootGate` renders `BackendConnectionView` (diagnosis +

@@ -7,7 +7,6 @@ extension ActivityOverviewView {
     // MARK: Doc×Step Grid
 
     @ViewBuilder
-    // swiftlint:disable:next function_body_length
     func docStepGrid(_ execution: WorkflowExecution) -> some View {
         let docs = execution.orderedDocumentProgress
         let stepNames = Array(Set(docs.flatMap { Array($0.stepStatuses.keys) })).sorted()
@@ -24,38 +23,13 @@ extension ActivityOverviewView {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        // Header row
-                        HStack(spacing: 0) {
-                            Text("Document")
-                                .font(.caption2.bold())
-                                .foregroundStyle(.secondary)
-                                .frame(width: 140, alignment: .leading)
-                            ForEach(stepNames, id: \.self) { step in
-                                Text(step)
-                                    .font(.caption2.bold())
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .frame(width: 44)
-                            }
-                        }
-                        .padding(.bottom, 4)
+                        docStepGridHeader(stepNames)
 
                         Divider()
 
                         // Document rows
                         ForEach(docs) { doc in
-                            HStack(spacing: 0) {
-                                Text(doc.documentName)
-                                    .font(.caption)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .frame(width: 140, alignment: .leading)
-                                ForEach(stepNames, id: \.self) { step in
-                                    stepCell(doc.stepStatuses[step])
-                                        .frame(width: 44)
-                                }
-                            }
-                            .padding(.vertical, 2)
+                            docStepGridRow(doc, stepNames: stepNames)
                         }
 
                         if docs.count > 20 {
@@ -68,6 +42,40 @@ extension ActivityOverviewView {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func docStepGridHeader(_ stepNames: [String]) -> some View {
+        HStack(spacing: 0) {
+            Text("Document")
+                .font(.caption2.bold())
+                .foregroundStyle(.secondary)
+                .frame(width: 140, alignment: .leading)
+            ForEach(stepNames, id: \.self) { step in
+                Text(step)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(width: 44)
+            }
+        }
+        .padding(.bottom, 4)
+    }
+
+    @ViewBuilder
+    private func docStepGridRow(_ doc: DocumentProgress, stepNames: [String]) -> some View {
+        HStack(spacing: 0) {
+            Text(doc.documentName)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(width: 140, alignment: .leading)
+            ForEach(stepNames, id: \.self) { step in
+                stepCell(doc.stepStatuses[step])
+                    .frame(width: 44)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder

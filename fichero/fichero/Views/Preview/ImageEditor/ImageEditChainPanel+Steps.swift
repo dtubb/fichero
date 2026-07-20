@@ -5,185 +5,219 @@ import SwiftUI
 // thresholds.
 extension ImageEditChainPanel {
     @ViewBuilder
-    // swiftlint:disable:next function_body_length
     func stepEditor(for operation: ImageEditOperation, at index: Int) -> some View {
         switch operation.opKind {
         case "enhance":
-            VStack(alignment: .leading, spacing: 8) {
-                enhanceSlider("Brightness", value: $enhanceBrightness)
-                enhanceSlider("Contrast", value: $enhanceContrast)
-                enhanceSlider("Sharpen", value: $enhanceSharpen)
-                Toggle("Auto Levels", isOn: $enhanceAutoLevels).font(.caption)
-                HStack {
-                    Spacer()
-                    Button("Re-apply") {
-                        onRemove(index)
-                        onEnhance(enhanceBrightness, enhanceContrast, enhanceSharpen, enhanceAutoLevels)
-                        selectedStepIndex = nil
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(isBusy)
-                }
-            }
-            .font(.caption)
+            enhanceStepEditor(at: index)
         case "rotate":
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text("Angle")
-                        Spacer()
-                        Text("\(Int(rotateAngle))°").monospacedDigit().foregroundStyle(.secondary)
-                    }
-                    Slider(value: $rotateAngle, in: -180...180, step: 1)
-                }
-                HStack(spacing: 8) {
-                    Button("0°") { rotateAngle = 0 }.buttonStyle(.bordered).controlSize(.mini)
-                    Button("90°") { rotateAngle = 90 }.buttonStyle(.bordered).controlSize(.mini)
-                    Button("−90°") { rotateAngle = -90 }.buttonStyle(.bordered).controlSize(.mini)
-                    Spacer()
-                    Button("Re-apply") {
-                        onRemove(index)
-                        onRotate(rotateAngle)
-                        selectedStepIndex = nil
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(isBusy)
-                }
-            }
-            .font(.caption)
+            rotateStepEditor(at: index)
         case "straighten":
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "crop.rotate")
-                        .foregroundStyle(.secondary)
-                    Text("Auto-straighten — re-apply to rerun on the current image.")
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                HStack {
-                    Spacer()
-                    Button("Re-apply") {
-                        onRemove(index)
-                        onStraighten()
-                        selectedStepIndex = nil
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(isBusy)
-                }
-            }
+            straightenStepEditor(at: index)
         case "crop":
-            let cropLeft = operation.params["left"] as? Int ?? 0
-            let cropTop = operation.params["top"] as? Int ?? 0
-            let cropWidth = operation.params["width"] as? Int ?? 0
-            let cropHeight = operation.params["height"] as? Int ?? 0
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Image(systemName: "crop").foregroundStyle(.secondary)
-                    Text("\(cropWidth)×\(cropHeight) px")
-                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    Text("at \(cropLeft),\(cropTop)")
-                        .font(.caption2).foregroundStyle(.tertiary)
-                }
-                Text("Aspect ratio presets:")
-                    .font(.caption2).foregroundStyle(.tertiary)
-                HStack(spacing: 6) {
-                    ForEach([("1:1", 1.0), ("4:3", 4.0/3.0), ("3:2", 1.5), ("16:9", 16.0/9.0)],
-                            id: \.0) { label, ratio in
-                        Button(label) {
-                            let newWidth: Int
-                            let newHeight: Int
-                            if cropHeight > 0 && Double(cropWidth) / Double(cropHeight) > ratio {
-                                newHeight = cropHeight
-                                newWidth = Int(Double(cropHeight) * ratio)
-                            } else {
-                                newWidth = cropWidth
-                                newHeight = cropWidth > 0 ? Int(Double(cropWidth) / ratio) : 0
-                            }
-                            let newLeft = cropLeft + (cropWidth - newWidth) / 2
-                            let newTop = cropTop + (cropHeight - newHeight) / 2
-                            onRemove(index)
-                            onCrop(newLeft, newTop, newWidth, newHeight)
-                            selectedStepIndex = nil
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                        .disabled(isBusy || cropWidth == 0 || cropHeight == 0)
-                    }
-                }
-                Text("Or use the canvas marquee to free-crop.")
-                    .font(.caption2).foregroundStyle(.tertiary)
-            }
+            cropStepEditor(for: operation, at: index)
         case "remove_background":
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "person.and.background.dotted")
-                        .foregroundStyle(.secondary)
-                    Text("AI background removal — re-apply to rerun on the current image.")
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                HStack {
-                    Spacer()
-                    Button("Re-apply") {
-                        onRemove(index)
-                        onRemoveBackground()
-                        selectedStepIndex = nil
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(isBusy)
-                }
-            }
+            removeBackgroundStepEditor(at: index)
         case "fuzzy_clean":
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(.secondary)
-                    Text("Despeckle — removes noise and speckle artifacts; re-apply to rerun on the current image.")
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                HStack {
-                    Spacer()
-                    Button("Re-apply") {
-                        onRemove(index)
-                        onFuzzyClean()
-                        selectedStepIndex = nil
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(isBusy)
-                }
-            }
+            fuzzyCleanStepEditor(at: index)
         case "segment":
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.split.2x1")
-                        .foregroundStyle(.secondary)
-                    Text("Region segmentation — re-apply to rerun on the current image.")
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                HStack {
-                    Spacer()
-                    Button("Re-apply") {
-                        onRemove(index)
-                        onSegment()
-                        selectedStepIndex = nil
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(isBusy)
-                }
-            }
+            segmentStepEditor(at: index)
         default:
             HStack {
                 Image(systemName: "info.circle").foregroundStyle(.secondary)
                 Text("Remove and re-add to change settings.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func enhanceStepEditor(at index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            enhanceSlider("Brightness", value: $enhanceBrightness)
+            enhanceSlider("Contrast", value: $enhanceContrast)
+            enhanceSlider("Sharpen", value: $enhanceSharpen)
+            Toggle("Auto Levels", isOn: $enhanceAutoLevels).font(.caption)
+            HStack {
+                Spacer()
+                Button("Re-apply") {
+                    onRemove(index)
+                    onEnhance(enhanceBrightness, enhanceContrast, enhanceSharpen, enhanceAutoLevels)
+                    selectedStepIndex = nil
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isBusy)
+            }
+        }
+        .font(.caption)
+    }
+
+    @ViewBuilder
+    private func rotateStepEditor(at index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text("Angle")
+                    Spacer()
+                    Text("\(Int(rotateAngle))°").monospacedDigit().foregroundStyle(.secondary)
+                }
+                Slider(value: $rotateAngle, in: -180...180, step: 1)
+            }
+            HStack(spacing: 8) {
+                Button("0°") { rotateAngle = 0 }.buttonStyle(.bordered).controlSize(.mini)
+                Button("90°") { rotateAngle = 90 }.buttonStyle(.bordered).controlSize(.mini)
+                Button("−90°") { rotateAngle = -90 }.buttonStyle(.bordered).controlSize(.mini)
+                Spacer()
+                Button("Re-apply") {
+                    onRemove(index)
+                    onRotate(rotateAngle)
+                    selectedStepIndex = nil
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isBusy)
+            }
+        }
+        .font(.caption)
+    }
+
+    @ViewBuilder
+    private func straightenStepEditor(at index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "crop.rotate")
+                    .foregroundStyle(.secondary)
+                Text("Auto-straighten — re-apply to rerun on the current image.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                Spacer()
+                Button("Re-apply") {
+                    onRemove(index)
+                    onStraighten()
+                    selectedStepIndex = nil
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isBusy)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func cropStepEditor(for operation: ImageEditOperation, at index: Int) -> some View {
+        let cropLeft = operation.params["left"] as? Int ?? 0
+        let cropTop = operation.params["top"] as? Int ?? 0
+        let cropWidth = operation.params["width"] as? Int ?? 0
+        let cropHeight = operation.params["height"] as? Int ?? 0
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "crop").foregroundStyle(.secondary)
+                Text("\(cropWidth)×\(cropHeight) px")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Text("at \(cropLeft),\(cropTop)")
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+            Text("Aspect ratio presets:")
+                .font(.caption2).foregroundStyle(.tertiary)
+            HStack(spacing: 6) {
+                ForEach([("1:1", 1.0), ("4:3", 4.0/3.0), ("3:2", 1.5), ("16:9", 16.0/9.0)],
+                        id: \.0) { label, ratio in
+                    Button(label) {
+                        let newWidth: Int
+                        let newHeight: Int
+                        if cropHeight > 0 && Double(cropWidth) / Double(cropHeight) > ratio {
+                            newHeight = cropHeight
+                            newWidth = Int(Double(cropHeight) * ratio)
+                        } else {
+                            newWidth = cropWidth
+                            newHeight = cropWidth > 0 ? Int(Double(cropWidth) / ratio) : 0
+                        }
+                        let newLeft = cropLeft + (cropWidth - newWidth) / 2
+                        let newTop = cropTop + (cropHeight - newHeight) / 2
+                        onRemove(index)
+                        onCrop(newLeft, newTop, newWidth, newHeight)
+                        selectedStepIndex = nil
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .disabled(isBusy || cropWidth == 0 || cropHeight == 0)
+                }
+            }
+            Text("Or use the canvas marquee to free-crop.")
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
+    }
+
+    @ViewBuilder
+    private func removeBackgroundStepEditor(at index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "person.and.background.dotted")
+                    .foregroundStyle(.secondary)
+                Text("AI background removal — re-apply to rerun on the current image.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                Spacer()
+                Button("Re-apply") {
+                    onRemove(index)
+                    onRemoveBackground()
+                    selectedStepIndex = nil
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isBusy)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fuzzyCleanStepEditor(at index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(.secondary)
+                Text("Despeckle — removes noise and speckle artifacts; re-apply to rerun on the current image.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                Spacer()
+                Button("Re-apply") {
+                    onRemove(index)
+                    onFuzzyClean()
+                    selectedStepIndex = nil
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isBusy)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func segmentStepEditor(at index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "square.split.2x1")
+                    .foregroundStyle(.secondary)
+                Text("Region segmentation — re-apply to rerun on the current image.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                Spacer()
+                Button("Re-apply") {
+                    onRemove(index)
+                    onSegment()
+                    selectedStepIndex = nil
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(isBusy)
             }
         }
     }

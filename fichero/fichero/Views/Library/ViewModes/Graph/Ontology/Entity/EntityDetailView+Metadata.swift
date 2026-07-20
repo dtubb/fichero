@@ -45,7 +45,6 @@ extension EntityDetailView {
         return output
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     static func makeSendableJSON(_ value: Any) -> (any Sendable)? {
         switch value {
         case let string as String:
@@ -59,13 +58,7 @@ extension EntityDetailView {
         case let number as NSNumber:
             return number.doubleValue
         case let array as [Any]:
-            var converted: [any Sendable] = []
-            converted.reserveCapacity(array.count)
-            for item in array {
-                guard let sendable = makeSendableJSON(item) else { return nil }
-                converted.append(sendable)
-            }
-            return converted
+            return makeSendableArray(array)
         case let object as [String: Any]:
             return makeSendableMetadata(object)
         case _ as NSNull:
@@ -73,6 +66,16 @@ extension EntityDetailView {
         default:
             return nil
         }
+    }
+
+    private static func makeSendableArray(_ array: [Any]) -> [any Sendable]? {
+        var converted: [any Sendable] = []
+        converted.reserveCapacity(array.count)
+        for item in array {
+            guard let sendable = makeSendableJSON(item) else { return nil }
+            converted.append(sendable)
+        }
+        return converted
     }
 
     /// #3757 — header affordance that opens the external-authority link sheet.

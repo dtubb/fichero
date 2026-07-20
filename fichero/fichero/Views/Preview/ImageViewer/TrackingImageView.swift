@@ -246,7 +246,6 @@ class TrackingImageView: NSImageView {
     // magnify(with:) is NOT overridden - we use gesture recognizers instead
     // to avoid conflicts between event handling and gesture recognition
 
-    // swiftlint:disable function_body_length
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
@@ -258,6 +257,17 @@ class TrackingImageView: NSImageView {
 
         let rect = loupeRect(at: viewPosition)
 
+        drawLoupeMagnifiedImage(in: rect, targetPosition: targetPosition, image: image)
+        drawLoupeBadge(in: rect)
+
+        // Draw lock indicator when locked (top of loupe)
+        if loupeLocked {
+            drawLoupeLockIndicator(in: rect)
+        }
+    }
+
+    /// Draws the clipped, magnified image circle plus its border and crosshair.
+    private func drawLoupeMagnifiedImage(in rect: NSRect, targetPosition: CGPoint, image: NSImage) {
         NSGraphicsContext.current?.saveGraphicsState()
 
         // Draw shadow
@@ -318,8 +328,10 @@ class TrackingImageView: NSImageView {
         crosshair.stroke()
 
         NSGraphicsContext.current?.restoreGraphicsState()
+    }
 
-        // Draw badge showing magnification and size hint
+    /// Draws the magnification/size badge under the loupe.
+    private func drawLoupeBadge(in rect: NSRect) {
         let badgeText = String(format: "%.1fx · %dpx", loupeMagnification, Int(loupeSize))
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 9, weight: .medium),
@@ -350,36 +362,35 @@ class TrackingImageView: NSImageView {
             height: textSize.height
         )
         (badgeText as NSString).draw(in: textRect, withAttributes: attributes)
+    }
 
-        // Draw lock indicator when locked (top of loupe)
-        if loupeLocked {
-            let lockIconSize: CGFloat = 16
-            let lockRect = NSRect(
-                x: rect.midX - lockIconSize / 2,
-                y: rect.maxY - lockIconSize - 8,
-                width: lockIconSize,
-                height: lockIconSize
+    /// Draws the lock badge shown at the top of the loupe when position is locked.
+    private func drawLoupeLockIndicator(in rect: NSRect) {
+        let lockIconSize: CGFloat = 16
+        let lockRect = NSRect(
+            x: rect.midX - lockIconSize / 2,
+            y: rect.maxY - lockIconSize - 8,
+            width: lockIconSize,
+            height: lockIconSize
+        )
+
+        // Lock background
+        let lockBgPath = NSBezierPath(roundedRect: lockRect, xRadius: 4, yRadius: 4)
+        NSColor.controlAccentColor.setFill()
+        lockBgPath.fill()
+
+        // Draw lock symbol
+        if let lockImage = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: nil) {
+            let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .medium)
+            let configuredImage = lockImage.withSymbolConfiguration(config) ?? lockImage
+            configuredImage.draw(
+                in: lockRect.insetBy(dx: 3, dy: 3),
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 1.0
             )
-
-            // Lock background
-            let lockBgPath = NSBezierPath(roundedRect: lockRect, xRadius: 4, yRadius: 4)
-            NSColor.controlAccentColor.setFill()
-            lockBgPath.fill()
-
-            // Draw lock symbol
-            if let lockImage = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: nil) {
-                let config = NSImage.SymbolConfiguration(pointSize: 10, weight: .medium)
-                let configuredImage = lockImage.withSymbolConfiguration(config) ?? lockImage
-                configuredImage.draw(
-                    in: lockRect.insetBy(dx: 3, dy: 3),
-                    from: .zero,
-                    operation: .sourceOver,
-                    fraction: 1.0
-                )
-            }
         }
     }
-    // swiftlint:enable function_body_length
 }
 #elseif canImport(UIKit)
 import UIKit

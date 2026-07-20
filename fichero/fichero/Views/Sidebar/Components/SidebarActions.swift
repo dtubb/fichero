@@ -91,7 +91,6 @@ extension SidebarView {
     }
 
     // Perform the actual deletion
-    // swiftlint:disable:next cyclomatic_complexity
     func performDelete(item: SidebarItem) async {
         logger.info("performDelete for: \(item.name)")
         guard let libraryId = item.libraryId,
@@ -100,53 +99,100 @@ extension SidebarView {
             return
         }
         do {
-            switch item.itemType {
-            case .document(let doc):
-                _ = try await library.actionsService.invokeAction(
-                    name: "document.delete",
-                    params: DocumentDeleteActionParams(docId: doc.id)
-                )
-                undoManager?.registerUndo(withTarget: library.documentStore) { store in
-                    Task { @MainActor in
-                        do {
-                            try await store.documentService.restoreDocument(doc.id)
-                            await store.refresh()
-                        } catch {
-                            logger.error("Failed to restore deleted document: \(error.localizedDescription)")
-                        }
-                    }
-                }
-                undoManager?.setActionName("Move to Trash")
-                await library.documentStore.refresh()
-            case .savedSearch(let search):
-                try await library.savedSearchService.deleteSavedSearch(search.id)
-            case .conversation(let conversation):
-                try await library.conversationService.deleteConversation(conversation.id)
-            case .workflow(let workflow):
-                try await library.workflowStore.deleteWorkflow(workflow.id)
-            case .chain(let chain):
-                try await library.chainService.deleteChain(chain.id)
-            case .schedule(let schedule):
-                try await library.automationService.deleteSchedule(scheduleId: schedule.scheduleId)
-                await loadAutomationData()  // Refresh automation sidebar
-            case .trigger(let trigger):
-                try await library.automationService.deleteTrigger(triggerId: trigger.triggerId)
-                await loadAutomationData()  // Refresh automation sidebar
-            case .batch(let batch):
-                try await library.batchService.deleteBatch(batchId: batch.batchId)
-                await loadActivityData()  // Refresh unified activity sidebar
-            case .comparison, .activityRun:
-                logger.warning("This item type cannot be deleted")
-            case .folder:
-                logger.info("Folder deletion not yet implemented")
-            case .libraryHeader:
-                logger.warning("Cannot delete library header")
-            }
+            try await performDeleteAction(item.itemType, library: library)
             logger.info("Delete successful")
             rebuildCaches(for: libraryId)
             selectedItemId = nil
         } catch {
             logger.error("Failed to delete: \(error.localizedDescription)")
+        }
+    }
+
+    // Dispatches by item-type group — grouping keeps this switch's branch
+    // count (and thus complexity) low; each group's real per-case logic
+    // lives in its own helper below.
+    private func performDeleteAction(
+        _ itemType: SidebarItem.ItemType,
+        library: LibraryManager.LibraryReference
+    ) async throws {
+        switch itemType {
+        case .document(let doc):
+            try await deleteDocumentItem(doc, library: library)
+        case .savedSearch, .conversation, .workflow, .chain:
+            try await deleteSimpleItem(itemType, library: library)
+        case .schedule, .trigger, .batch:
+            try await deleteAutomationItem(itemType, library: library)
+        case .comparison, .activityRun, .folder, .libraryHeader:
+            logNondeletableItem(itemType)
+        }
+    }
+
+    private func deleteDocumentItem(_ doc: Document, library: LibraryManager.LibraryReference) async throws {
+        _ = try await library.actionsService.invokeAction(
+            name: "document.delete",
+            params: DocumentDeleteActionParams(docId: doc.id)
+        )
+        undoManager?.registerUndo(withTarget: library.documentStore) { store in
+            Task { @MainActor in
+                do {
+                    try await store.documentService.restoreDocument(doc.id)
+                    await store.refresh()
+                } catch {
+                    logger.error("Failed to restore deleted document: \(error.localizedDescription)")
+                }
+            }
+        }
+        undoManager?.setActionName("Move to Trash")
+        await library.documentStore.refresh()
+    }
+
+    private func deleteSimpleItem(
+        _ itemType: SidebarItem.ItemType,
+        library: LibraryManager.LibraryReference
+    ) async throws {
+        switch itemType {
+        case .savedSearch(let search):
+            try await library.savedSearchService.deleteSavedSearch(search.id)
+        case .conversation(let conversation):
+            try await library.conversationService.deleteConversation(conversation.id)
+        case .workflow(let workflow):
+            try await library.workflowStore.deleteWorkflow(workflow.id)
+        case .chain(let chain):
+            try await library.chainService.deleteChain(chain.id)
+        default:
+            break
+        }
+    }
+
+    private func deleteAutomationItem(
+        _ itemType: SidebarItem.ItemType,
+        library: LibraryManager.LibraryReference
+    ) async throws {
+        switch itemType {
+        case .schedule(let schedule):
+            try await library.automationService.deleteSchedule(scheduleId: schedule.scheduleId)
+            await loadAutomationData()  // Refresh automation sidebar
+        case .trigger(let trigger):
+            try await library.automationService.deleteTrigger(triggerId: trigger.triggerId)
+            await loadAutomationData()  // Refresh automation sidebar
+        case .batch(let batch):
+            try await library.batchService.deleteBatch(batchId: batch.batchId)
+            await loadActivityData()  // Refresh unified activity sidebar
+        default:
+            break
+        }
+    }
+
+    private func logNondeletableItem(_ itemType: SidebarItem.ItemType) {
+        switch itemType {
+        case .comparison, .activityRun:
+            logger.warning("This item type cannot be deleted")
+        case .folder:
+            logger.info("Folder deletion not yet implemented")
+        case .libraryHeader:
+            logger.warning("Cannot delete library header")
+        default:
+            break
         }
     }
 }

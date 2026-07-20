@@ -265,62 +265,73 @@ extension DocumentInterpretationsSection {
     }
 
     @ViewBuilder
-    // swiftlint:disable:next function_body_length
     private func interpretationRow(_ interp: Components.Schemas.Interpretation) -> some View {
         let isEditing = editingInterpId == interp.id
         VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 4) {
-                Text(actLabel(interp.act))
-                    .font(.caption2)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(Color.accentColor.opacity(0.12))
-                    .foregroundStyle(Color.accentColor)
-                    .clipShape(Capsule())
-                Spacer()
-                if let conf = interp.confidence {
-                    Text(String(format: "%.0f%%", conf * 100))
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.tertiary)
-                }
-                Button {
-                    if isEditing {
-                        editingInterpId = nil
-                        editError = nil
-                    } else {
-                        editText = interp.interpretationText
-                        editConfidence = interp.confidence ?? 0.8
-                        editingInterpId = interp.id
-                        editError = nil
-                    }
-                } label: {
-                    Image(systemName: isEditing ? "xmark.circle" : "pencil.circle")
-                        .font(.caption)
-                        .foregroundStyle(isEditing ? Color.secondary : Color.accentColor)
-                }
-                .buttonStyle(.borderless)
-                .help(isEditing ? "Cancel edit" : "Edit interpretation")
+            interpretationRowHeader(interp, isEditing: isEditing)
+            interpretationRowContent(interp, isEditing: isEditing)
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// Act badge + confidence + edit/cancel toggle for a single interpretation row.
+    @ViewBuilder
+    private func interpretationRowHeader(_ interp: Components.Schemas.Interpretation, isEditing: Bool) -> some View {
+        HStack(spacing: 4) {
+            Text(actLabel(interp.act))
+                .font(.caption2)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(Color.accentColor.opacity(0.12))
+                .foregroundStyle(Color.accentColor)
+                .clipShape(Capsule())
+            Spacer()
+            if let conf = interp.confidence {
+                Text(String(format: "%.0f%%", conf * 100))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.tertiary)
             }
-            if isEditing {
-                editForm(for: interp)
-            } else {
-                Text(interp.interpretationText)
+            Button {
+                if isEditing {
+                    editingInterpId = nil
+                    editError = nil
+                } else {
+                    editText = interp.interpretationText
+                    editConfidence = interp.confidence ?? 0.8
+                    editingInterpId = interp.id
+                    editError = nil
+                }
+            } label: {
+                Image(systemName: isEditing ? "xmark.circle" : "pencil.circle")
                     .font(.caption)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let insights = interp.keyInsights, !insights.isEmpty {
-                    VStack(alignment: .leading, spacing: 1) {
-                        ForEach(insights.prefix(2), id: \.self) { insight in
-                            HStack(alignment: .top, spacing: 4) {
-                                Text("•").font(.caption2).foregroundStyle(.secondary)
-                                Text(insight).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
-                            }
+                    .foregroundStyle(isEditing ? Color.secondary : Color.accentColor)
+            }
+            .buttonStyle(.borderless)
+            .help(isEditing ? "Cancel edit" : "Edit interpretation")
+        }
+    }
+
+    /// Edit form when expanded, otherwise the interpretation text + key insights.
+    @ViewBuilder
+    private func interpretationRowContent(_ interp: Components.Schemas.Interpretation, isEditing: Bool) -> some View {
+        if isEditing {
+            editForm(for: interp)
+        } else {
+            Text(interp.interpretationText)
+                .font(.caption)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            if let insights = interp.keyInsights, !insights.isEmpty {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(insights.prefix(2), id: \.self) { insight in
+                        HStack(alignment: .top, spacing: 4) {
+                            Text("•").font(.caption2).foregroundStyle(.secondary)
+                            Text(insight).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
                         }
                     }
                 }
             }
         }
-        .padding(.vertical, 2)
     }
 
     @ViewBuilder

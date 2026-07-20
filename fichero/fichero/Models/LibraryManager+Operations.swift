@@ -313,7 +313,6 @@ extension LibraryManager {
     }
 
     // Save a library to a new URL (for Save As or initial save)
-    // swiftlint:disable:next function_body_length
     func saveLibrary(_ id: UUID, to url: URL) throws {
         guard let index = openLibraries.firstIndex(where: { $0.id == id }) else {
             throw LibraryError.libraryNotFound
@@ -341,27 +340,7 @@ extension LibraryManager {
             libraryManagerLogger.info("Is temporary library: \(isTempLibrary)")
             libraryManagerLogger.info("Old URL exists: \(fileManager.fileExists(atPath: oldURL.path))")
 
-            if isTempLibrary && fileManager.fileExists(atPath: oldURL.path) {
-                // Temporary libraries can be moved from sandbox temp dir
-                libraryManagerLogger.info("Moving temporary library from \(oldURL.path) to \(url.path)")
-
-                // Check if destination already exists
-                if fileManager.fileExists(atPath: url.path) {
-                    libraryManagerLogger.warning("Destination exists, removing: \(url.path)")
-                    try fileManager.removeItem(at: url)
-                }
-
-                // Move the entire package directory
-                try fileManager.moveItem(at: oldURL, to: url)
-                libraryManagerLogger.info(
-                    "Successfully moved package from \(oldURL.lastPathComponent) to \(url.lastPathComponent)"
-                )
-
-            } else {
-                // Not a temp library, create new package (for Save As on already-saved libraries)
-                createPackageStructure(at: url)
-                libraryManagerLogger.info("Created new package at: \(url.lastPathComponent)")
-            }
+            try moveOrCreateSavedPackage(from: oldURL, to: url, isTempLibrary: isTempLibrary, fileManager: fileManager)
 
             // Extract display name from new file URL (remove .fichero extension)
             let displayName = url.deletingPathExtension().lastPathComponent
@@ -369,25 +348,12 @@ extension LibraryManager {
             // Stop accessing old library's security-scoped resource if needed
             oldLibrary.stopAccessingSecurityScope()
 
-            // Create new library reference with saved URL, preserving the ID and reusing APIClient/DocumentStore
-            // Always need security-scoped access for user-saved libraries
-            let library = LibraryReference(
+            let library = makeSavedLibraryReference(
+                replacing: oldLibrary,
+                at: index,
                 url: url,
-                document: oldLibrary.document,
-                displayName: displayName,
-                id: oldLibrary.id,  // IMPORTANT: Preserve library ID so windows don't lose track
-                apiClient: oldLibrary.apiClient,  // Reuse existing APIClient
-                documentStore: oldLibrary.documentStore,  // Reuse existing DocumentStore
-                startAccessing: true  // Always start accessing for saved libraries
+                displayName: displayName
             )
-
-            // Update the API client's library path to the new location
-            library.apiClient.currentLibraryPath = url.path
-            library.ficheroClient.currentLibraryPath = url.path
-
-            // Update the reference in our array
-            openLibraries[index] = library
-            libraryManagerLogger.info("Saved library to: \(url.lastPathComponent)")
 
             // If we moved from temp, backend will reconnect automatically on next request
             // If we created new (Save As on already-saved library), initialize the database
@@ -407,6 +373,69 @@ extension LibraryManager {
             libraryManagerLogger.error("Failed to save library: \(error.localizedDescription)")
             throw LibraryError.saveFailed
         }
+    }
+
+    /// Move the temp package on disk to its new location, or create a fresh
+    /// package structure for a Save As on an already-saved library.
+    private func moveOrCreateSavedPackage(
+        from oldURL: URL,
+        to url: URL,
+        isTempLibrary: Bool,
+        fileManager: FileManager
+    ) throws {
+        if isTempLibrary && fileManager.fileExists(atPath: oldURL.path) {
+            // Temporary libraries can be moved from sandbox temp dir
+            libraryManagerLogger.info("Moving temporary library from \(oldURL.path) to \(url.path)")
+
+            // Check if destination already exists
+            if fileManager.fileExists(atPath: url.path) {
+                libraryManagerLogger.warning("Destination exists, removing: \(url.path)")
+                try fileManager.removeItem(at: url)
+            }
+
+            // Move the entire package directory
+            try fileManager.moveItem(at: oldURL, to: url)
+            libraryManagerLogger.info(
+                "Successfully moved package from \(oldURL.lastPathComponent) to \(url.lastPathComponent)"
+            )
+
+        } else {
+            // Not a temp library, create new package (for Save As on already-saved libraries)
+            createPackageStructure(at: url)
+            libraryManagerLogger.info("Created new package at: \(url.lastPathComponent)")
+        }
+    }
+
+    /// Create the post-save `LibraryReference` (preserving ID and reusing
+    /// APIClient/DocumentStore), point its clients at the new path, and store
+    /// it back into `openLibraries` at `index`.
+    private func makeSavedLibraryReference(
+        replacing oldLibrary: LibraryReference,
+        at index: Int,
+        url: URL,
+        displayName: String
+    ) -> LibraryReference {
+        // Create new library reference with saved URL, preserving the ID and reusing APIClient/DocumentStore
+        // Always need security-scoped access for user-saved libraries
+        let library = LibraryReference(
+            url: url,
+            document: oldLibrary.document,
+            displayName: displayName,
+            id: oldLibrary.id,  // IMPORTANT: Preserve library ID so windows don't lose track
+            apiClient: oldLibrary.apiClient,  // Reuse existing APIClient
+            documentStore: oldLibrary.documentStore,  // Reuse existing DocumentStore
+            startAccessing: true  // Always start accessing for saved libraries
+        )
+
+        // Update the API client's library path to the new location
+        library.apiClient.currentLibraryPath = url.path
+        library.ficheroClient.currentLibraryPath = url.path
+
+        // Update the reference in our array
+        openLibraries[index] = library
+        libraryManagerLogger.info("Saved library to: \(url.lastPathComponent)")
+
+        return library
     }
 }
 

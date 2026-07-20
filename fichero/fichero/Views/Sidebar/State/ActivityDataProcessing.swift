@@ -19,7 +19,6 @@ struct ActivityWorkflowGroup: Hashable, Identifiable {
 
 // All runs grouped by workflow ID for a specific library
 @MainActor
-// swiftlint:disable:next function_body_length
 func runsByWorkflow(
     for library: LibraryManager.LibraryReference,
     activeExecutions: [String: WorkflowExecution],
@@ -29,34 +28,72 @@ func runsByWorkflow(
     var seenThreadIds = Set<String>()
 
     if library.id == LibraryManager.globalLibraryId {
-        for execution in activeExecutions.values {
-            let workflowName = activityCleanWorkflowName(execution.name)
-            let groupKey = ActivityWorkflowGroup(
-                id: ActivityWorkflowGroup.key(workflowId: execution.id, workflowName: workflowName),
-                displayName: workflowName
-            )
-            let status = activityMapExecutionStatus(execution.status)
-            let sidebarRunId = "\(library.id.uuidString)|\(execution.threadId)"
-            let run = ActivityRun(
-                id: sidebarRunId,
-                runId: execution.threadId,
-                workflowId: execution.id,
-                threadId: execution.threadId,
-                workflowName: workflowName,
-                timestamp: execution.startTime,
-                status: status,
-                progress: execution.overallProgress,
-                currentStep: execution.currentNodeName,
-                errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
-                fileCount: execution.totalFiles,
-                isLive: execution.isRunning
-            )
-            groups[groupKey, default: []].append(run)
-            seenThreadIds.insert(execution.threadId)
-        }
+        addActiveExecutionRuns(
+            activeExecutions,
+            libraryId: library.id,
+            groups: &groups,
+            seenThreadIds: &seenThreadIds
+        )
     }
 
-    let libraryRuns = (historicalRuns[library.id] ?? [])
+    addHistoricalRuns(
+        historicalRuns[library.id] ?? [],
+        libraryId: library.id,
+        groups: &groups,
+        seenThreadIds: &seenThreadIds
+    )
+
+    for key in groups.keys {
+        groups[key]?.sort { $0.timestamp > $1.timestamp }
+    }
+
+    return groups
+}
+
+// Extracted from `runsByWorkflow`: folds live executions (global library
+// only) into `groups`, mirroring the original loop order/side effects.
+private func addActiveExecutionRuns(
+    _ activeExecutions: [String: WorkflowExecution],
+    libraryId: UUID,
+    groups: inout [ActivityWorkflowGroup: [ActivityRun]],
+    seenThreadIds: inout Set<String>
+) {
+    for execution in activeExecutions.values {
+        let workflowName = activityCleanWorkflowName(execution.name)
+        let groupKey = ActivityWorkflowGroup(
+            id: ActivityWorkflowGroup.key(workflowId: execution.id, workflowName: workflowName),
+            displayName: workflowName
+        )
+        let status = activityMapExecutionStatus(execution.status)
+        let sidebarRunId = "\(libraryId.uuidString)|\(execution.threadId)"
+        let run = ActivityRun(
+            id: sidebarRunId,
+            runId: execution.threadId,
+            workflowId: execution.id,
+            threadId: execution.threadId,
+            workflowName: workflowName,
+            timestamp: execution.startTime,
+            status: status,
+            progress: execution.overallProgress,
+            currentStep: execution.currentNodeName,
+            errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
+            fileCount: execution.totalFiles,
+            isLive: execution.isRunning
+        )
+        groups[groupKey, default: []].append(run)
+        seenThreadIds.insert(execution.threadId)
+    }
+}
+
+// Extracted from `runsByWorkflow`: folds historical (persisted) runs into
+// `groups`, skipping thread IDs already seen from live executions.
+private func addHistoricalRuns(
+    _ unsortedRuns: [ActivityItem],
+    libraryId: UUID,
+    groups: inout [ActivityWorkflowGroup: [ActivityRun]],
+    seenThreadIds: inout Set<String>
+) {
+    let libraryRuns = unsortedRuns
         .sorted { ($0.parsedTimestamp ?? .distantPast) > ($1.parsedTimestamp ?? .distantPast) }
     for item in libraryRuns {
         // Batch-level events can be missing threadId; use synthetic thread token.
@@ -69,7 +106,7 @@ func runsByWorkflow(
 
         let status = activityMapActivityType(item.type)
         let workflowName = activityExtractWorkflowName(from: item)
-        let sidebarRunId = "\(library.id.uuidString)|\(threadId)"
+        let sidebarRunId = "\(libraryId.uuidString)|\(threadId)"
         let groupKey = ActivityWorkflowGroup(
             id: ActivityWorkflowGroup.key(workflowId: item.workflowId, workflowName: workflowName),
             displayName: workflowName
@@ -91,12 +128,6 @@ func runsByWorkflow(
         groups[groupKey, default: []].append(run)
         seenThreadIds.insert(threadId)
     }
-
-    for key in groups.keys {
-        groups[key]?.sort { $0.timestamp > $1.timestamp }
-    }
-
-    return groups
 }
 
 func activityMapExecutionStatus(_ status: WorkflowStatus) -> ActivityRunStatus {
