@@ -418,3 +418,41 @@ TWO changes, neither built (both left as documented future work, NOT done now):
 Door held open (per Daniel: "maybe we pull the heavy deps up in future") — the
 architecture (2nd Briefcase app + FeatureManager gating + per-connection transport)
 expresses it; the cost is a data-layer swap, tracked not taken.
+
+## PythonKit-Mac IN-PROCESS ASGI PROBE — VIABLE for unary, SSE cannot stream (2026-07-20)
+
+Headless SwiftPM probe (throwaway, nothing added to repo). Swift → libpython →
+imported the REAL `fichero.api.main` app → drove it with `httpx.ASGITransport` →
+**200 with real health JSON, no subprocess, no socket.** Proven end-to-end.
+
+- Cold import of the app in-process: **2.08s** (matches pure-Python ~2s — confirms
+  the 10.9s figure was a red herring; the 2s import happens in-process OR
+  subprocess either way, so in-memory's startup edge is only the spawn+socket
+  handshake it avoids, NOT the import).
+- Single in-memory request: **5.8ms**.
+- duckdb (native C-ext) dlopen's fine inside the in-process interpreter on Mac.
+  numpy/lance/pyarrow/torch are lazy (not loaded at app-import).
+
+### THE caveat (codex's flag, now empirically confirmed with data)
+`httpx.ASGITransport` (0.28.1, the engine's pin) **BUFFERS the whole response —
+it does not stream.** Measured twice: an app emitting 3 chunks at 0.15s/0.4s
+intervals delivered all 3 simultaneously only after full completion. So in-memory
+ASGITransport **cannot back the engine's live SSE endpoints** (`change_stream.py`
+— the reactive spine — plus activity/changes/batch/workflow_execution). Unbounded
+streams (change stream) are effectively broken; bounded ones just buffer to the end.
+
+### Signing
+Headless worked via `PYTHON_LIBRARY`/`PYTHONHOME` to a homebrew framework Python.
+A shipped app under hardened runtime needs the Python framework + all native wheels
+embedded and signed with the app (Briefcase already does this — Daniel confirmed
+"Briefcase signs them, it works") OR `disable-library-validation` (NOT viable for
+MAS sandbox). GIL/asyncio was a non-issue (`asyncio.run` in a Python helper).
+
+### Verdict
+In-process ASGI-via-PythonKit is **viable and clean for request/response** (fast,
+correct, no port/socket, max security). It **cannot serve SSE with
+`httpx.ASGITransport` as-is** — that needs either (a) a bespoke in-memory transport
+that pumps the ASGI `send` events incrementally into the Swift `HTTPBody` stream
+(medium work), or (b) keeping a real socket (UDS/TCP) for streaming endpoints.
+Because the change stream is the app's reactive spine, in-memory-only is
+insufficient without (a).
