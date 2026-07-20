@@ -1,6 +1,22 @@
 import Foundation
 import OpenAPIRuntime
 import OpenAPIURLSession
+import OpenAPIAsyncHTTPClient
+
+/// Which underlying `ClientTransport` a `FicheroClient` dials the engine with.
+///
+/// This is a **per-instance** choice (not app-global): a single app may run
+/// several `FicheroClient`s concurrently with different modes — e.g. a local
+/// library over `.uds` and a remote-shared library over `.https` at the same
+/// time. The default is `.https`, preserving the existing URLSession behavior.
+public enum TransportMode: Sendable, Equatable {
+    /// Default: HTTPS over URLSession (certificate-pinned where configured).
+    case https
+    /// Plain HTTP/1.1 over an AF_UNIX socket at `path`. TLS is intentionally
+    /// absent — the engine exempts the UDS path and grants loopback-owner auth
+    /// via a transport marker on the socket (engine "Lane E").
+    case uds(path: String)
+}
 
 /// Convenience wrapper for the generated Fichero API client.
 ///
@@ -41,6 +57,11 @@ public final class FicheroClient: ObservableObject {
     /// the real network (the MCP/Schedules/Chain DNS failures).
     private let configuredSession: URLSession?
 
+    /// Which transport this instance dials with (per-instance, default `.https`).
+    /// Retained so `rebuildClient()` selects the same transport on every
+    /// library-path / baseURL change.
+    private let transportMode: TransportMode
+
     /// Current library path - matches legacy APIClient interface
     @Published public var currentLibraryPath: String? {
         didSet {
@@ -55,14 +76,19 @@ public final class FicheroClient: ObservableObject {
     ///   - libraryPath: Optional library path header value
     ///   - session: Optional URL session override, used by callers that need
     ///     a custom transport such as certificate-pinned pairing probes.
+    ///   - transportMode: Which transport to dial with (per-instance; default
+    ///     `.https`). Pass `.uds(path:)` to reach a local engine over an AF_UNIX
+    ///     socket instead of HTTPS.
     public init(
         baseURL: URL = URL(string: "https://127.0.0.1:8765")!,
         libraryPath: String? = nil,
-        session: URLSession? = nil
+        session: URLSession? = nil,
+        transportMode: TransportMode = .https
     ) {
         self.baseURL = baseURL
         self.libraryPathProvider = LibraryPathProvider(libraryPath: libraryPath)
         self.configuredSession = session
+        self.transportMode = transportMode
         self.currentLibraryPath = libraryPath
 
         // The API paths in OpenAPI already include /api prefix, so use base URL directly
@@ -71,9 +97,9 @@ public final class FicheroClient: ObservableObject {
         // `headers: .init(xFicheroLibraryPath:)` args in the generated services
         // become redundant and can be stripped — see issue #1710 for the sweep.
         self.api = Client(
-            serverURL: baseURL,
+            serverURL: Self.makeServerURL(baseURL: baseURL, transportMode: transportMode),
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: Self.makeTransport(session: session),
+            transport: Self.makeTransport(session: session, transportMode: transportMode),
             middlewares: [
                 AuthTokenMiddleware(),
                 libraryPathProvider.createMiddleware()
@@ -90,6 +116,9 @@ public final class FicheroClient: ObservableObject {
     ) throws {
         self.baseURL = baseURL
         self.libraryPathProvider = LibraryPathProvider(libraryPath: libraryPath)
+        // Certificate pinning is inherently an HTTPS concern, so this initializer
+        // is always `.https`.
+        self.transportMode = .https
         self.currentLibraryPath = libraryPath
 
         let session: URLSession? = if let expectedSPKIPin {
@@ -102,7 +131,7 @@ public final class FicheroClient: ObservableObject {
         self.api = Client(
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: Self.makeTransport(session: session),
+            transport: Self.makeTransport(session: session, transportMode: .https),
             middlewares: [
                 AuthTokenMiddleware(),
                 libraryPathProvider.createMiddleware()
@@ -116,9 +145,9 @@ public final class FicheroClient: ObservableObject {
     /// default real-network transport.
     private func rebuildClient() {
         self.api = Client(
-            serverURL: baseURL,
+            serverURL: Self.makeServerURL(baseURL: baseURL, transportMode: transportMode),
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: Self.makeTransport(session: configuredSession),
+            transport: Self.makeTransport(session: configuredSession, transportMode: transportMode),
             middlewares: [
                 AuthTokenMiddleware(),
                 libraryPathProvider.createMiddleware()
@@ -137,11 +166,59 @@ public final class FicheroClient: ObservableObject {
         FicheroClient()
     }
 
-    private static func makeTransport(session: URLSession? = nil) -> URLSessionTransport {
-        let configuration = URLSessionConfiguration.default
-        let session = session ?? RemoteCertificatePinning.configuredSession(configuration: configuration)
-        return URLSessionTransport(configuration: .init(session: session))
+    /// Build the transport for a given mode. Pure helper — no static/global
+    /// state — so concurrent `FicheroClient`s can use different transports.
+    /// `internal` (not `private`) so the transport-selection unit tests can
+    /// assert the chosen concrete type.
+    static func makeTransport(session: URLSession? = nil, transportMode: TransportMode = .https) -> any ClientTransport {
+        switch transportMode {
+        case .https:
+            // Unchanged behavior: HTTPS over URLSession (pinned where configured).
+            let configuration = URLSessionConfiguration.default
+            let session = session ?? RemoteCertificatePinning.configuredSession(configuration: configuration)
+            return URLSessionTransport(configuration: .init(session: session))
+        case .uds:
+            // Plain HTTP/1.1 over the AF_UNIX socket. The socket path is carried
+            // in the (per-request) base URL's `http+unix://` authority — see
+            // `makeServerURL` — so the shared HTTPClient needs no special config
+            // and never needs an explicit shutdown.
+            return AsyncHTTPClientTransport()
+        }
     }
+
+    /// The server URL the generated `Client` is pointed at for a given mode.
+    ///
+    /// For `.https` this is `baseURL` unchanged. For `.uds` the AF_UNIX socket
+    /// path is encoded into the authority of an `http+unix://` URL, which
+    /// AsyncHTTPClient understands (see `Scheme.httpUnix`). The path is left
+    /// empty so the transport appends the operation path (`/api/...`) cleanly.
+    ///
+    /// The host encoding mirrors AsyncHTTPClient's own
+    /// `URL(httpURLWithSocketPath:)` (percent-encodes everything outside its
+    /// URL-host-allowed byte set, so `/` becomes `%2F`).
+    static func makeServerURL(baseURL: URL, transportMode: TransportMode) -> URL {
+        switch transportMode {
+        case .https:
+            return baseURL
+        case .uds(let path):
+            let host = path.addingPercentEncoding(withAllowedCharacters: Self.udsHostAllowed) ?? path
+            guard let url = URL(string: "http+unix://\(host)") else {
+                // A socket path that cannot be encoded is a programmer error;
+                // fall back to the raw baseURL rather than crashing the app.
+                return baseURL
+            }
+            return url
+        }
+    }
+
+    /// Byte set AsyncHTTPClient treats as URL-host-allowed (from its
+    /// `addingPercentEncodingAllowingURLHost`). Everything else — notably `/` —
+    /// is percent-encoded, placing the socket path in the URL authority.
+    private static let udsHostAllowed: CharacterSet = {
+        var set = CharacterSet.alphanumerics
+        set.insert(charactersIn: "!$&'()*+,-.;=_~")
+        return set
+    }()
 }
 
 // MARK: - Type Aliases for Common Types
