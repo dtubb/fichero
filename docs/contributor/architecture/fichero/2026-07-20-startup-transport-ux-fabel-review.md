@@ -376,3 +376,45 @@ for a library is built, not app-globally.
 **Invariant:** `transportMode` is a per-instance property, never a static/global
 switch. Build none of the variants now (YAGNI), but keep the seam per-connection
 so local+remote-simultaneously and partial-local-iOS are not designed out.
+
+## iOS PARTIAL-ENGINE EXPERIMENT — empirical boundary (2026-07-20)
+
+Built + traced empirically (no simulator; static trace + live PyPI + throwaway venvs):
+
+**Wheel nuance the survey missed:** it's not only the 4 heavy deps. pydantic-core,
+cryptography, numpy (the *embeddable core*) have NO PyPI iOS wheels either — they
+come from BeeWare's iOS wheel INDEX (not PyPI), which covers those three but NOT
+duckdb/lancedb/onnxruntime/pymupdf. Pillow now ships official iOS wheels (PEP 730).
+
+**Hard boot blocker:** `api/main.py:68 → from fichero.db import Database` →
+`db.py:57 → import duckdb` (top-level, unguarded). The FastAPI app CANNOT import
+without duckdb. PyMuPDF/fastembed are lazy (prunable); **duckdb is a top-level
+hard requirement**. So a reduced bundle won't even boot until that import is made
+lazy.
+
+**Partial-engine map:** DuckDB is the spine of BOTH library data (`fichero.db`)
+AND app state (`fichero.app_db`). 76 of 88 route modules touch DuckDB. Only ~10
+duckdb-free routes (provider keys/models, orchestration, integrations, sandbox,
+batch, research config) — the control plane, nothing persisted. So a partial iOS
+in-process engine serves only "configure providers / talk to a remote engine" —
+it buys almost nothing useful on its own.
+
+**Briefcase multi-backend (Daniel's refinement) = correct mechanism:** a second
+`[tool.briefcase.app.engineios]` app definition with reduced `requires` is the
+clean expression; sketch captured. Not buildable today (top-level duckdb import +
+numpy pins).
+
+**iOS transport set = {in-memory-partial, HTTPS-remote}, NO UDS** — confirmed
+(iOS can't spawn the subprocess UDS needs).
+
+### Verdict + the real unlock
+iOS is effectively **remote-only near-term.** A useful iOS in-process engine needs
+TWO changes, neither built (both left as documented future work, NOT done now):
+1. make `fichero.db`'s `import duckdb` lazy/optional so the app boots without it;
+2. an in-memory / iOS persistence path — realistically **duckdb → sqlite** (LARGE:
+   rewrite the data layer + FTS; the biggest cost and the true unlock), plus
+   fastembed→CoreML (medium), pymupdf→PDFKit (medium), lance→sqlite-vec (medium-large).
+
+Door held open (per Daniel: "maybe we pull the heavy deps up in future") — the
+architecture (2nd Briefcase app + FeatureManager gating + per-connection transport)
+expresses it; the cost is a data-layer swap, tracked not taken.
