@@ -36,8 +36,16 @@ engine_is_current() {
     echo "Embedded engine has STALE version metadata — rebuilding"
     return 1
   fi
-  # Content, not mtime: git checkouts/merges bump mtimes without changing bytes,
-  if ! diff -rq --exclude=__pycache__ "$ENGINE_DIR/src/fichero" "$ENGINE_APP/Contents/Resources/app/fichero" >/dev/null 2>&1; then
+  # Content, not mtime: git checkouts/merges bump mtimes without changing bytes.
+  # The App Store signer changes fm-bridge's signature bytes, so compare its
+  # stable Mach-O UUID separately instead of forcing a rebuild after signing.
+  local source_bridge="$ENGINE_DIR/src/fichero/resources/bin/fm-bridge"
+  local staged_bridge="$ENGINE_APP/Contents/Resources/app/fichero/resources/bin/fm-bridge"
+  if ! diff -rq --exclude=__pycache__ --exclude=.DS_Store --exclude=fm-bridge \
+      "$ENGINE_DIR/src/fichero" "$ENGINE_APP/Contents/Resources/app/fichero" >/dev/null 2>&1 \
+      || [ ! -f "$source_bridge" ] || [ ! -f "$staged_bridge" ] \
+      || [ "$(dwarfdump --uuid "$source_bridge" | awk 'NR == 1 { print $2 }')" \
+           != "$(dwarfdump --uuid "$staged_bridge" | awk 'NR == 1 { print $2 }')" ]; then
     echo "Embedded engine is STALE (engine sources are newer than the staged copy) — rebuilding"
     return 1
   fi
