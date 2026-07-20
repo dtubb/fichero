@@ -1,0 +1,344 @@
+import SwiftUI
+
+// MARK: - ContentView Detail Layout Extension
+// Agent: ViewBuilderAgent
+// Responsibility: Detail-column chrome (tab strip/status/location bars), the
+// widescreen canvas/reading panes, and the preview/inspector/detail views.
+// Split out of ContentView+ViewBuilders.swift to keep each file under the
+// file_length limit.
+
+extension ContentView {
+    @ViewBuilder
+    var detailShellColumn: some View {
+        VStack(spacing: 0) {
+            // Xcode-style detail chrome (tab strip + location/status path bars)
+            // is a regular-width affordance. At compact width (iPhone) it wastes
+            // the tiny screen and doesn't fit, so it's hidden — the reader gets
+            // the full height (#2811). macOS reports a regular/nil size class, so
+            // the chrome always renders there.
+            if horizontalSizeClass != .compact {
+                detailTabStrip
+                detailLocationPathBar
+                Divider()
+            }
+            centerContent
+            if horizontalSizeClass != .compact {
+                detailStatusPathBar
+            }
+        }
+        .background(Color(platformColor: .textBackgroundColor))
+        // Keep every library/preview/reader combination inside the detail
+        // column bounds. Without this outer clip, inner split panes can still
+        // paint under the shell sidebar or past the left window edge (#3336).
+        .clipped()
+    }
+
+    private var detailTabStrip: some View {
+        HStack(spacing: 8) {
+            Label {
+                Text(toolbarTitle)
+                    .font(.subheadline)
+                    .lineLimit(1)
+            } icon: {
+                Image(systemName: toolbarIcon)
+            }
+            .labelStyle(.titleAndIcon)
+
+            Spacer(minLength: 8)
+
+            Button {
+                WindowOpener.open(libraryId: windowState.libraryId, asTab: true, using: openWindow)
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .help("Open current library in new tab")
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 32)
+        .background(.bar)
+    }
+
+    private var detailStatusPathBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 8) {
+                Text(selectionStatusText)
+                    .font(.caption)
+                    .lineLimit(1)
+                Text(selectionPathText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background(.bar)
+        }
+    }
+
+    private var detailLocationPathBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                .foregroundStyle(.secondary)
+            Text(selectionPathText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 22)
+        .background(.bar)
+        .accessibilityIdentifier("detailLocationPathBar")
+    }
+
+    /// The document-canvas pane of the widescreen reading layout — a PDF page
+    /// viewer when a PDF is active, otherwise the image/preview editor. Carries
+    /// its own flexible width so it fills whatever the list/reading panes leave.
+    /// Extracted so the canvas can be conditionally shown/hidden (#1448).
+    @ViewBuilder
+    var widescreenCanvasPane: some View {
+        // Splittable (h/v) image / canvas viewer — #2276.
+        adaptiveSplittablePane(storageKey: "canvas") {
+            widescreenCanvasPaneContent
+        }
+    }
+
+    @ViewBuilder
+    private var widescreenCanvasPaneContent: some View {
+        if let pdfDocumentId = detailPDFDocumentId {
+            PDFPageWithToolbar(
+                documentId: pdfDocumentId,
+                pageIndex: selectedPageIndex,
+                onPageIndexChange: { index in
+                    guard documentScrollSync.beginDriving(.pdf) else { return }
+                    syncGridSelectionToPDFPage(index: index)
+                },
+                documentTitle: detailDocument?.name,
+                onClose: { setPaneVisible(.canvas, false) }
+            )
+            .overlay { paneFocusIndicator(for: .preview) }
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
+            .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
+        } else {
+            let canvasDocument = CanvasDocumentPolicy.documentForCanvas(
+                selectedDocumentIds: browserSelection,
+                documents: documentStore.currentDocuments,
+                detailDocument: detailDocument,
+                inspectorDocument: inspectorDocument
+            )
+            EditorView(
+                document: canvasDocument,
+                showHeader: false,
+                onPDFPageIndexChange: { index in
+                    syncGridSelectionToPDFPage(index: index)
+                },
+                onNavigateToDocument: { docId in
+                    selectDocument(withId: docId)
+                },
+                selectedDocumentIDs: browserSelection
+            )
+            .overlay { paneFocusIndicator(for: .preview) }
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// The reading / WebKit "Knowledge" pane of the widescreen layout.
+    /// Extracted so it can be conditionally shown/hidden per-window (#1448).
+    @ViewBuilder
+    var widescreenReadingPane: some View {
+        // Compute the page count ONCE (#3866): reading `pdfDocPages` twice here
+        // (isEmpty + count) recomputed a filter+sort per read — 2x O(n log n) per
+        // render. The pane needs only the count, so use the sort-free accessor.
+        let pageCount = pdfDocPageCount
+        // Each SplittablePane instance renders ReadingPaneView independently,
+        // giving left and right split panes their own @State (including pin).
+        adaptiveSplittablePane(storageKey: "reading") {
+            ReadingPaneView(
+                liveDocument: detailDocument,
+                liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
+                livePageCount: pageCount == 0 ? nil : pageCount,
+                scrollSync: documentScrollSync,
+                onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
+                onClose: { setPaneVisible(.reading, false) }
+            )
+        }
+        .overlay { paneFocusIndicator(for: .reading) }
+        .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .reading })
+    }
+
+    // `adaptiveSplittablePane` is internal (not private) because it is also
+    // called from ContentView+SidebarLayout.swift's `centerContentRouting`
+    // (the widescreen library-pane split) — `private` is file-scoped.
+    @ViewBuilder
+    func adaptiveSplittablePane<Content: View>(
+        storageKey: String,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        if shouldUseSplittablePane {
+            SplittablePane(storageKey: storageKey) {
+                content()
+            }
+        } else {
+            content()
+        }
+    }
+
+    // MARK: - Preview View
+
+    /// Preview/editor view for selected item
+    @ViewBuilder
+    var previewView: some View {
+        switch viewMode {
+        case .library, .search:
+            // Stable .id so EditorView keeps its mount across the
+            // first detailDocument nil → some-doc transition. Without
+            // a fixed id, SwiftUI's structural-identity pass treats
+            // the EditorView differently when its document arg flips,
+            // causing the LazyVGrid sibling to re-layout / first-click
+            // flash (#788).
+            VStack(spacing: 0) {
+                let previewDocument = CanvasDocumentPolicy.documentForCanvas(
+                    selectedDocumentIds: browserSelection,
+                    documents: documentStore.currentDocuments,
+                    detailDocument: detailDocument,
+                    inspectorDocument: inspectorDocument
+                )
+                if let pdfDocumentId = detailPDFDocumentId {
+                    PDFReadingView(
+                        document: pageFocusDocument ?? detailDocument,
+                        pdfDocumentId: pdfDocumentId,
+                        pageIndex: selectedPageIndex,
+                        contentWidth: $pageContentPaneWidth,
+                        onPageIndexChange: { index in
+                            guard documentScrollSync.beginDriving(.pdf) else { return }
+                            syncGridSelectionToPDFPage(index: index)
+                        }
+                    )
+                    .id("reader.pdf")
+                    .background(
+                        // Two/three-finger trackpad swipe → previous/next sibling
+                        // (#593). Lives behind the reader so it sees the swipe
+                        // without intercepting clicks/scrolls.
+                        SwipeSiblingNavigator(
+                            onNavigatePrevious: navigateSiblingPrevious,
+                            onNavigateNext: navigateSiblingNext
+                        )
+                    )
+                } else {
+                    EditorView(
+                        document: previewDocument,
+                        onPDFPageIndexChange: { index in
+                            syncGridSelectionToPDFPage(index: index)
+                        }
+                    )
+                    .id("editor.library")
+                    .background(
+                        // Two/three-finger trackpad swipe → previous/next sibling
+                        // (#593). Lives behind the editor so it sees the swipe
+                        // without intercepting clicks/scrolls.
+                        SwipeSiblingNavigator(
+                            onNavigatePrevious: navigateSiblingPrevious,
+                            onNavigateNext: navigateSiblingNext
+                        )
+                    )
+                }
+            }
+
+        case .chat, .comparison:
+            EmptyView()
+
+        case .workflow, .chain:
+            EmptyView()
+
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
+            EmptyView()
+        }
+    }
+
+    // MARK: - Inspector View
+
+    /// Inspector/info sidebar view (rendered inside .inspector panel)
+    @ViewBuilder
+    var inspectorView: some View {
+        switch viewMode {
+        case .library, .search:
+            DocumentInspector(
+                document: inspectorDocument,
+                onNavigateToSource: { sourceDocId in
+                    Task { @MainActor in
+                        await navigateToSourcePage(sourceDocId)
+                    }
+                }
+            )
+            .environment(documentStore.documentService)
+            .environment(artifactService)
+            .environment(entityService)
+            .environment(kgCurationService)
+            .environment(documentStore)
+            .environment(artifactStore)
+            .environment(entityStore)
+            .environment(claimStore)
+
+        case .chat, .comparison:
+            ChatInspector(
+                selectedDocuments: $chatSelectedDocuments,
+                suggestedDocumentIDs: ChatScopeBuilder.currentScopeDocumentIds(
+                    browserSelection: browserSelection,
+                    currentDocuments: documentStore.currentDocuments,
+                    detailDocument: detailDocument
+                ),
+                onAddSuggestedDocuments: {
+                    let scopedIds = ChatScopeBuilder.currentScopeDocumentIds(
+                        browserSelection: browserSelection,
+                        currentDocuments: documentStore.currentDocuments,
+                        detailDocument: detailDocument
+                    )
+                    chatSelectedDocuments = chatSelectedDocuments.union(scopedIds)
+                }
+            )
+
+        case .workflow:
+            WorkflowInspector(
+                workflow: $editingWorkflow,
+                onAddNode: { tool, position in
+                    addNodeFromTool(tool, at: position)
+                }
+            )
+
+        case .chain:
+            WorkflowInspector(
+                workflow: $editingWorkflow,
+                onAddNode: { tool, position in
+                    addNodeFromTool(tool, at: position)
+                }
+            )
+
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Inspector")
+                    .font(.headline)
+                Text("Select an item to inspect.")
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding()
+        }
+    }
+
+    // MARK: - Detail View (Right Column)
+
+    @ViewBuilder
+    var detailView: some View {
+        inspectorView
+            // Focus tracking without .focusable() — avoids swallowing first click
+            .overlay { paneFocusIndicator(for: .inspector) }
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector })
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.bar)
+    }
+}

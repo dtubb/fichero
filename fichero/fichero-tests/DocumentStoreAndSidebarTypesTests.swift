@@ -281,7 +281,14 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testDetailShellColumnClipsAllPreviewLayoutsToItsBounds() throws {
-        let source = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
+        let source = try ([
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
+        ].joined(separator: "\n"))
 
         XCTAssertTrue(source.contains("Keep every library/preview/reader combination inside the detail"))
         XCTAssertTrue(source.contains("column bounds. Without this outer clip"))
@@ -419,7 +426,14 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     func testDocumentTabViewForwardsArtifactServiceIntoContentView() throws {
         let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
         let contentViewSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
-        let builderSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
+        let builderSource = try ([
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
+        ].joined(separator: "\n"))
         let requiredSnippets = [
             "@Environment(ArtifactService.self) var artifactService",
             "@Environment(EntityService.self) var entityService",

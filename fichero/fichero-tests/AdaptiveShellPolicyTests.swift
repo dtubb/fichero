@@ -312,7 +312,14 @@ final class AdaptiveShellPolicyTests: XCTestCase {
 
     func testPersistentShellChromeStaysInSplitColumns() throws {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
-        let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
+        let buildersSource = try ([
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
+        ].joined(separator: "\n"))
         let workspaceRootSource = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
 
         XCTAssertTrue(contentSource.contains("NavigationSplitView("))
@@ -371,7 +378,14 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     func testContentPaneControlsLiveInTopToolbar() throws {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         let toolbarSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
+        let buildersSource = try ([
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
+        ].joined(separator: "\n"))
 
         XCTAssertTrue(contentSource.contains("contentPaneToolbarContent"))
         XCTAssertTrue(contentSource.contains("contentPaneToolbarContent"))
@@ -382,7 +396,14 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testPdfReaderUsesTheExistingReadingLayout() throws {
-        let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
+        let buildersSource = try ([
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
+        ].joined(separator: "\n"))
 
         XCTAssertTrue(buildersSource.contains("PDFReadingView("))
         XCTAssertTrue(buildersSource.contains("contentWidth: $pageContentPaneWidth"))
@@ -390,7 +411,14 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testWidescreenLibraryPaneIsClippedToItsSplitColumn() throws {
-        let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
+        let buildersSource = try ([
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
+        ].joined(separator: "\n"))
 
         XCTAssertTrue(buildersSource.contains("adaptiveSplittablePane(storageKey: \"library\")"))
         XCTAssertTrue(buildersSource.contains(".clipped()"))
@@ -399,7 +427,14 @@ final class AdaptiveShellPolicyTests: XCTestCase {
 
     func testSidebarsUseSystemGlassMaterials() throws {
         let sidebarSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
-        let buildersSource = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
+        let buildersSource = try ([
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
+        ].joined(separator: "\n"))
 
         XCTAssertTrue(sidebarSource.contains(".background(.bar)"))
         XCTAssertFalse(sidebarSource.contains(".background(Color(platformColor: .windowBackgroundColor))"))

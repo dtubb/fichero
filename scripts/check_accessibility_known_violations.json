@@ -51,7 +51,7 @@
   "Views/Settings/MCP/MCPToolsCatalogView.swift#2fcf0ea936": "icon-only Button missing .accessibilityLabel(...) (lines 58-64)",
   "Views/Settings/MCP/MCPToolsCatalogView.swift#a9d3a85d61": "icon-only Button missing .accessibilityLabel(...) (lines 38-44)",
   "Views/Settings/Snapshots/SnapshotsView.swift#a8546da95f": "icon-only Button missing .accessibilityLabel(...) (lines 145-151)",
-  "Views/Shell/ContentView/ContentView+ViewBuilders.swift#8fb85ee84b": "icon-only Button missing .accessibilityLabel(...) (lines 271-278)",
+  "Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift#8fb85ee84b": "icon-only Button missing .accessibilityLabel(...) (lines 49-56)",
   "Views/Workflow/Canvas/WorkflowDiagramPreview.swift#7fe3397d0a": "icon-only Button missing .accessibilityLabel(...) (lines 104-112)",
   "Views/Workflow/Execution/WorkflowExecutionView.swift#99a2a105dc": "icon-only Button missing .accessibilityLabel(...) (lines 78-83)",
   "Views/Workflow/Execution/WorkflowOutputLog+ErrorCell.swift#7e2cb5a899": "icon-only Button missing .accessibilityLabel(...) (lines 41-47)",

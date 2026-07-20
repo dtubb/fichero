@@ -24,7 +24,14 @@ final class ChatWithDocsRoutingTests: XCTestCase {
     }
 
     func testChatWithDocsActionDoesNotOpenSidebarChatSwap() throws {
-        let source = try Self.appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
+        let source = try ([
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
+        ].joined(separator: "\n"))
 
         XCTAssertFalse(source.contains("withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }"))
     }

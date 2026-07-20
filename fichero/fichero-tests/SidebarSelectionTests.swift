@@ -92,7 +92,14 @@ struct SidebarSelectionTests {
             appSource("Views/Shell/ContentView/ContentView+StatePreview.swift"),
             appSource("Views/Shell/ContentView/ContentView+StateEvents.swift"),
         ].joined(separator: "\n")
-        let buildersSource = try appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
+        let buildersSource = try ([
+            appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"),
+            appSource("Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"),
+            appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
+            appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
+            appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
+        ].joined(separator: "\n"))
 
         #expect(stateSource.contains("var activeLocationDocument: Document?"))
         #expect(stateSource.contains("switch focusedPane"))
