@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 #if canImport(AppKit)
 import AppKit
@@ -146,6 +147,53 @@ extension EngineConfig {
         #else
         return false
         #endif
+    }
+
+    // MARK: - Engine transport selection (UDS for the embedded engine)
+
+    /// The AF_UNIX socket the embedded (`.releaseEmbedded`) engine binds and the
+    /// app client dials over UDS. Kept SHORT and stable to stay well under the
+    /// ~104-byte `sun_path` limit (`struct sockaddr_un`) that a longer path would
+    /// overflow. Lives in Application Support so it is per-user and survives
+    /// launches; the parent `Fichero/` dir is created 0700 if missing. This one
+    /// path is shared by the client transport (`transportMode`) and the engine
+    /// spawn env (`FICHERO_UDS_PATH`), so both ends agree on the socket.
+    static var udsSocketPath: String {
+        let fileManager = FileManager.default
+        let appSupport = (try? fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: false
+        )) ?? URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent("Library/Application Support")
+        let directory = appSupport.appendingPathComponent("Fichero", isDirectory: true)
+        try? fileManager.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        return directory.appendingPathComponent("engine.sock").path
+    }
+
+    /// Which transport the app client dials the engine with, derived from the
+    /// live provisioning strategy. Impure boundary around the pure
+    /// `transportMode(for:)`, mirroring `engineProvisioningStrategy()`.
+    static var transportMode: TransportMode {
+        transportMode(for: engineProvisioningStrategy())
+    }
+
+    /// Pure strategy → transport mapping, dependency-injected so all five cases
+    /// are unit-testable without a real launch. Only `.releaseEmbedded` (the
+    /// bundled-engine spawn) binds a UDS, so only it dials one; every other
+    /// strategy keeps the existing HTTPS path unchanged.
+    static func transportMode(for strategy: EngineProvisioningStrategy) -> TransportMode {
+        switch strategy {
+        case .releaseEmbedded:
+            return .uds(path: udsSocketPath)
+        case .debugExternal, .configuredRemote, .iosCompanion, .inert:
+            return .https
+        }
     }
 
     // MARK: - iOS companion launch phase (#3113)

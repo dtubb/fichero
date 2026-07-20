@@ -205,6 +205,12 @@ extension EmbeddedBackendService {
         environment["FICHERO_TLS_KEYFILE"] = accessMaterial.keyPath
         environment["FICHERO_TLS_SPKI_HASH"] = accessMaterial.spkiPin
         environment["FICHERO_BIND_HOST"] = accessMaterial.bindHost
+        // Bind the embedded engine on the same AF_UNIX socket the app client
+        // dials over UDS (EngineConfig.transportMode → .uds). Only this spawn
+        // path (releaseEmbedded) sets it; Debug/remote/inert never spawn and
+        // keep TCP+TLS. The engine's Lane E honors FICHERO_UDS_PATH and binds
+        // UDS-only (no TCP port, no TLS) when it is present.
+        environment["FICHERO_UDS_PATH"] = EngineConfig.udsSocketPath
         if let publicBaseURL {
             // Reuse the same env contract as RemoteAccessConfig so the
             // remote-access launch path cannot drift from the helper (#2611).
