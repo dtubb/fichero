@@ -81,6 +81,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Inspector/Document/DocumentInspector+Sections.swift": "#2955 — DocumentInspectorImageEditsTab is used only by the same-file editsTab() section builder (split from DocumentInspector); scanner misses same-file extension wiring",
     "Views/Library/LibraryView+ArrowNavigation.swift": "#2955 — ArrowDirection + arrow-key nav helpers used only within this same-file LibraryView extension (split from LibraryView+KeyboardShortcuts by file_length); scanner misses same-file extension wiring",
     "Services/ResearchService+Search.swift": "#2955 — WebSearchResultItem is the return type of the same-file webSearch() extension method (split from ResearchService by file_length); scanner misses same-file extension wiring",
+    "Views/Workflow/Canvas/WorkflowEdgeView+Edges.swift": "#2955 — EdgesView/PortPositionCalculator split out of WorkflowEdgeView.swift by file_length; were ALREADY unreferenced pre-split (co-located, so unflagged). Appears to be superseded dead code (edges now render via WorkflowCanvasView+EdgesLayer) — FLAG FOR DANIEL to delete/wire; grandfathered so the split lands.",
 }
 
 
