@@ -179,27 +179,13 @@ struct SpatialNode: Codable, Identifiable, Hashable {
         return (value / gridSize).rounded() * gridSize
     }
 
-    /// Page-image URL used by the Spatial 3D view when a node has a
-    /// source document. The backend schema doesn't currently declare a
-    /// dedicated field, so this is a client-side wrapper over the storage
-    /// thumbnail endpoint.
-    @MainActor
-    var thumbnailUrl: URL? {
-        guard let sourceId, !sourceId.isEmpty else { return nil }
-        return Self.thumbnailURL(
-            forSourceId: sourceId,
-            baseURL: LibraryManager.shared.globalLibrary?.apiClient.baseURL
-        )
-    }
-
-    static func thumbnailURL(
-        forSourceId sourceId: String,
-        baseURL: URL?
-    ) -> URL? {
-        guard !sourceId.isEmpty,
-              let baseURL else { return nil }
-        return baseURL.appendingPathComponent("storage/thumbnail/\(sourceId)")
-    }
+    // The Spatial 3D view loads a node's page image through
+    // `SpaceTextureCache` → `StorageService.thumbnailData(for:)` (the compliant,
+    // transport-agnostic path). A former `thumbnailUrl`/`thumbnailURL(forSourceId:)`
+    // pair that hand-built a raw `…/storage/thumbnail/<id>` engine URL was dead
+    // (no consumers) and is removed — a raw engine URL would break under
+    // UDS/in-memory transports. Any future URL-shaped consumer should use
+    // `APIClient.storageResourceURL(.thumbnail, for:)` (`fichero-res://`).
 }
 
 /// A visual link between nodes. Mirrors `SpatialConnection`.
