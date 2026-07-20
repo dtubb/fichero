@@ -6,6 +6,48 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.07.19.2</title>
+            <pubDate>Sun, 19 Jul 2026 21:51:59 -0300</pubDate>
+            <sparkle:version>2026071902</sparkle:version>
+            <sparkle:shortVersionString>2026.07.19.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h3>Improved</h3>
+<p><strong>RealityKit canvas rendering.</strong> The 2D Canvas and 3D Space views now use the
+RealityKit renderers by default. The previous renderers remain available as a
+revert path while the new interaction and visual behavior is validated.</p>
+<p><strong>Clearer Settings.</strong> Settings now uses a System Settings-style sidebar with
+clearer section names, colored icons, and pairing controls grouped under
+Sharing.</p>
+<h3>Fixed</h3>
+<ul>
+<li>Release builds now reconstruct the embedded Briefcase engine from current
+  source every time instead of reusing a potentially stale staged bundle.</li>
+<li>The app, embedded engine bundle, and installed Python package now carry the
+  same release version.</li>
+<li>Newest-first activity ordering now handles ISO 8601 timestamps both with and
+  without fractional seconds.</li>
+<li>Switching libraries now preserves the app's configured secure network
+  session, and Boolean activity metadata displays as <code>true</code>/<code>false</code> instead of
+  <code>1</code>/<code>0</code>.</li>
+<li>Invalid action payloads now fail safely instead of crashing the app. Legacy
+  decomposed library paths normalize correctly, and whitespace-only searches
+  remain a local no-op instead of reaching the engine.</li>
+</ul>
+<h3>Under The Hood</h3>
+<p>The Inspector, embedded-engine lifecycle service, chat views, and entity
+service were split into smaller concern-focused files without changing their
+behavior. The release gate also resolves the shared project Python correctly
+when run from a git worktree.</p>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.07.19.2/Fichero.dmg"
+                length="495351001"
+                type="application/octet-stream"
+                sparkle:edSignature="rzxQf9Do+iH8GCJUKBW0DRAcbQvIi3n28fSGTFDXXfiYGoq88Y2zHOPIeizuiNZdReV/qjBjVKMaGkAGboCKBQ=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.07.19</title>
             <pubDate>Sun, 19 Jul 2026 10:22:00 -0300</pubDate>
             <sparkle:version>2026071901</sparkle:version>
