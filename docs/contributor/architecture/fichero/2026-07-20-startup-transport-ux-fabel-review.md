@@ -358,3 +358,21 @@ it. Awaiting Daniel's reconfirm before spending that lane — his "build all thr
 iOS shares in-memory" instruction rested on the now-false iOS-in-process premise.
 
 UDS Swift transport lane: IN PROGRESS (unblocked, needed in every scenario).
+
+## DESIGN CONSTRAINT — transport is PER-LIBRARY-CONNECTION, not per-platform (Daniel, 2026-07-20)
+
+The transport is NOT one-per-platform. A single app instance may hold multiple
+open libraries, each with its own transport, concurrently:
+- a local library (in-memory / UDS) AND a remote-shared library (HTTPS) at once;
+- future: an iOS app with a *partial* in-process engine (only the deps that
+  embed) for some capabilities + remote HTTPS for the heavy duckdb/onnxruntime
+  path — "various things."
+
+This maps onto the two-axis ownership model (app owns one engine PROCESS; each
+LIBRARY owns its CONNECTION). The `ClientTransport` seam already supports it
+because `FicheroClient` is per-instance — the transport is chosen when the client
+for a library is built, not app-globally.
+
+**Invariant:** `transportMode` is a per-instance property, never a static/global
+switch. Build none of the variants now (YAGNI), but keep the seam per-connection
+so local+remote-simultaneously and partial-local-iOS are not designed out.
