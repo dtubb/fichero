@@ -43,11 +43,16 @@ extension EntityKindRow {
         }
     }
 
-    // swiftlint:disable function_body_length
     @ViewBuilder
     func claimBulkContextMenu(
         for claim: Components.Schemas.KnowledgeClaim
     ) -> some View {
+        claimMergeMenuSection(claim: claim)
+        claimApprovalActionsSection(claim: claim)
+    }
+
+    @ViewBuilder
+    private func claimMergeMenuSection(claim: Components.Schemas.KnowledgeClaim) -> some View {
         if let claimContextMenuTarget {
             let targetClaims = claimContextMenuTarget(claim)
             if let requestClaimMergeAction {
@@ -73,6 +78,10 @@ extension EntityKindRow {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func claimApprovalActionsSection(claim: Components.Schemas.KnowledgeClaim) -> some View {
         if let claimScopeLabel, let claimContextMenuTarget, let applyClaimBulkAction {
             let targetClaims = claimContextMenuTarget(claim)
             Menu("Approve") {
@@ -116,7 +125,6 @@ extension EntityKindRow {
             }
         }
     }
-    // swiftlint:enable function_body_length
 
     @ViewBuilder
     func claimBulkScopeButtons(

@@ -192,66 +192,72 @@ extension ActivityLogView {
     }
 
     @ViewBuilder
-    // swiftlint:disable:next function_body_length
     private func executionLogContent(_ log: String, run: WorkflowRunResponse) -> some View {
         VStack(spacing: 0) {
-            // Status header
-            if run.status == "failed" || run.error != nil {
-                HStack {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.red)
-                    Text("Workflow Failed")
-                        .font(.subheadline.bold())
-                    Spacer()
-                    if let duration = run.durationMs {
-                        Text(ActivityViewHelpers.formatDuration(duration))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(10)
-                .background(.red.opacity(0.1))
+            executionStatusHeader(run)
+            executionLogScrollContent(log)
+        }
+    }
 
-                if let error = run.error {
-                    Text(error)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.red)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                        .background(.red.opacity(0.05))
+    @ViewBuilder
+    private func executionStatusHeader(_ run: WorkflowRunResponse) -> some View {
+        if run.status == "failed" || run.error != nil {
+            HStack {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                Text("Workflow Failed")
+                    .font(.subheadline.bold())
+                Spacer()
+                if let duration = run.durationMs {
+                    Text(ActivityViewHelpers.formatDuration(duration))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-
-                Divider()
-            } else if run.status == "completed" {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Workflow Completed")
-                        .font(.subheadline.bold())
-                    Spacer()
-                    if let duration = run.durationMs {
-                        Text(ActivityViewHelpers.formatDuration(duration))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(10)
-                .background(.green.opacity(0.1))
-
-                Divider()
             }
+            .padding(10)
+            .background(.red.opacity(0.1))
 
-            // Log content
-            ScrollView {
-                Text(log)
+            if let error = run.error {
+                Text(error)
                     .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.red)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
+                    .padding(10)
+                    .background(.red.opacity(0.05))
             }
-            .background(Color(platformColor: .textBackgroundColor))
+
+            Divider()
+        } else if run.status == "completed" {
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text("Workflow Completed")
+                    .font(.subheadline.bold())
+                Spacer()
+                if let duration = run.durationMs {
+                    Text(ActivityViewHelpers.formatDuration(duration))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(10)
+            .background(.green.opacity(0.1))
+
+            Divider()
         }
+    }
+
+    @ViewBuilder
+    private func executionLogScrollContent(_ log: String) -> some View {
+        ScrollView {
+            Text(log)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+        }
+        .background(Color(platformColor: .textBackgroundColor))
     }
 
     @ViewBuilder

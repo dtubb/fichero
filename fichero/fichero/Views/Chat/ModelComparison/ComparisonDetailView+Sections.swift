@@ -198,87 +198,97 @@ extension ComparisonDetailView {
     }
 
     @ViewBuilder
-    // swiftlint:disable:next function_body_length
     func modelResponseCard(_ result: ModelResultDetail, comparison: ComparisonDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Model header
-            HStack {
-                providerIcon(result.provider)
-                    .frame(width: 24, height: 24)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(result.model)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-
-                    Text(result.provider.capitalized)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                // Badges
-                HStack(spacing: 8) {
-                    if result.model == comparison.fastestModel {
-                        Badge(text: "Fastest", color: .green, icon: "bolt.fill")
-                    }
-                    if result.model == comparison.cheapestModel {
-                        Badge(text: "Cheapest", color: .mint, icon: "leaf.fill")
-                    }
-                }
-
-                // Stats
-                HStack(spacing: 12) {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(formatLatency(result.latencyMs))
-                            .font(.caption)
-                            .fontWeight(.medium)
-                        Text("latency")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(String(format: "$%.4f", result.costUsd))
-                            .font(.caption)
-                            .fontWeight(.medium)
-                        Text("cost")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("\(result.inputTokens + result.outputTokens)")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                        Text("tokens")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+            modelResponseHeader(result, comparison: comparison)
 
             Divider()
 
-            // Response content
-            if let error = result.error {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            } else {
-                Text(result.response)
-                    .font(.body)
-                    .textSelection(.enabled)
-            }
+            modelResponseContent(result)
         }
         .padding(16)
         .background(Color(platformColor: .controlBackgroundColor))
         .cornerRadius(12)
+    }
+
+    @ViewBuilder
+    private func modelResponseHeader(
+        _ result: ModelResultDetail,
+        comparison: ComparisonDetail
+    ) -> some View {
+        HStack {
+            providerIcon(result.provider)
+                .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(result.model)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Text(result.provider.capitalized)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            // Badges
+            HStack(spacing: 8) {
+                if result.model == comparison.fastestModel {
+                    Badge(text: "Fastest", color: .green, icon: "bolt.fill")
+                }
+                if result.model == comparison.cheapestModel {
+                    Badge(text: "Cheapest", color: .mint, icon: "leaf.fill")
+                }
+            }
+
+            // Stats
+            HStack(spacing: 12) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(formatLatency(result.latencyMs))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Text("latency")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(String(format: "$%.4f", result.costUsd))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Text("cost")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(result.inputTokens + result.outputTokens)")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Text("tokens")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func modelResponseContent(_ result: ModelResultDetail) -> some View {
+        if let error = result.error {
+            HStack {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        } else {
+            Text(result.response)
+                .font(.body)
+                .textSelection(.enabled)
+        }
     }
 
     @ViewBuilder

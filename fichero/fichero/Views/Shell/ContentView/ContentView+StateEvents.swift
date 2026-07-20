@@ -1,0 +1,289 @@
+import SwiftUI
+
+// MARK: - ContentView Event & State Change Handlers
+
+extension ContentView {
+
+    // MARK: - onChange Handlers — Sidebar & Selection
+
+    /// Handles `.onChange(of: sidebarSelectionState.selectedItemId)` — the single
+    /// runtime source (#3036). @SceneStorage `selectedSidebarItemId` is now purely
+    /// a persistence adapter (restore-once + write-through), not a second source.
+    /// Restores per-folder view mode and drives the inspector from sidebar selection.
+    func handleSidebarSelectionChange(_ newFolderId: String?) {
+        if isRestoringNavigationHistory { return }
+        if newFolderId == "entities-browser" {
+            viewDisplayMode = .list
+            browserSelection.removeAll()
+            detailDocument = nil
+            kgFocusState.clear()
+            return
+        }
+        kgFocusState.clear()
+        // Restore per-folder view mode when switching folders.
+        // Priority: per-folder save > per-scene @SceneStorage value > global default.
+        // The @SceneStorage value holds the user's last choice for this window/tab
+        // and should win for new or unsaved folders so spatial is not forced (#2311).
+        if let saved = displayMode(for: newFolderId) {
+            viewDisplayMode = normalizedViewDisplayMode(saved)
+        } else {
+            let normalizedSceneValue = normalizedViewDisplayMode(viewDisplayMode)
+            let normalizedDefault = normalizedViewDisplayMode(defaultLibraryViewDisplayMode)
+            // If the scene value is unset or unavailable for this context, fall
+            // back to the global default rather than forcing a spatial/canvas mode.
+            if normalizedSceneValue != normalizedDefault {
+                viewDisplayMode = normalizedSceneValue
+            } else if viewDisplayMode != normalizedDefault {
+                viewDisplayMode = normalizedDefault
+            }
+        }
+
+        // Clear grid selection on sidebar folder change so the folder
+        // inspector shows by default. Without this, a stale browserSelection
+        // from a previous folder can resolve to a child of the new folder
+        // (when ids happen to be present in the new folder's children),
+        // suppressing the folder inspector. (#712)
+        browserSelection.removeAll()
+
+        // Drive the inspector from sidebar selection so clicking a folder
+        // (or any document row) in the sidebar populates the inspector.
+        // Sidebar IDs are prefixed "doc:UUID" — extract the bare doc ID
+        // before looking up. (#696 — folder inspector blank after sidebar
+        // click. MEMORY: SidebarItem.id is 'doc:UUID', strip prefix.)
+        guard let prefixedId = newFolderId,
+              prefixedId.hasPrefix("doc:") else { return }
+        let docId = String(prefixedId.dropFirst("doc:".count))
+        // Force-clear any previewed document immediately so the inspector
+        // reflects the newly-selected folder before the async applyDoc
+        // resolution completes. Without this, detailDocument stays set to
+        // the previously-previewed file and inspectorDocument step 1 can
+        // match it against the stale browserSelection. (#795)
+        detailDocument = nil
+        // Closure to apply a resolved Document — sets detailDocument (#961).
+        // Folders now keep the current layout so the WebKit/reading pane
+        // stays visible for folder-level aggregate content (#1405).
+        let applyDoc: (Document) -> Void = { doc in
+            // Defer mutations to next run loop turn to avoid triggering
+            // multiple FocusedValue updates in the same render cycle (#961).
+            DispatchQueue.main.async {
+                detailDocument = doc
+            }
+        }
+        if detailDocument?.id != docId {
+            if let doc = documentStore.currentDocuments.first(where: { $0.id == docId }) {
+                applyDoc(doc)
+            } else {
+                Task { @MainActor in
+                    let fetched = try? await documentStore.documentService.getDocument(docId)
+                    if let fetched, sidebarSelectionState.selectedItemId == prefixedId {
+                        applyDoc(fetched)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Handles `.onChange(of: columnVisibility)`.
+    /// Persists column visibility and keeps explicit sidebar state in sync.
+    func handleColumnVisibilityChange(_ newVisibility: NavigationSplitViewVisibility) {
+        if horizontalSizeClass == .compact || shouldUseRuntimeSidebarCollapse {
+            return
+        }
+
+        // Persist column visibility to @SceneStorage
+        // Map NavigationSplitViewVisibility to raw int for @SceneStorage
+        columnVisibilityRaw = Self.persistedColumnVisibilityRaw(for: newVisibility)
+
+        // Keep explicit left-sidebar state in sync with split-view visibility.
+        // In this app's layout, `.doubleColumn` is sidebar + content.
+        if newVisibility == .detailOnly {
+            showSidebar = false
+        } else if newVisibility == .all || newVisibility == .doubleColumn || newVisibility == .automatic {
+            showSidebar = true
+        }
+    }
+
+    /// Handles `.onChange(of: browserSelection)`.
+    /// Persists browser selection to @SceneStorage.
+    func handleBrowserSelectionChange(_ newSelection: Set<String>) {
+        // Persist browser selection to @SceneStorage
+        if let encoded = try? JSONEncoder().encode(newSelection) {
+            browserSelectionData = encoded
+        }
+        if isEntityLibrarySelection {
+            guard let firstId = newSelection.first else {
+                kgFocusState.clear()
+                detailDocument = nil
+                return
+            }
+            kgFocusState.focusEntity(entityId: firstId)
+            detailDocument = nil
+            return
+        }
+        if kgFocusState.focusedEntityId != nil {
+            kgFocusState.clear()
+        }
+        guard let firstId = newSelection.first,
+              let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
+              BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
+                layoutMode: currentLayoutMode,
+                selectedDocumentId: firstId,
+                currentDetailDocumentId: detailDocument?.id
+              ) else {
+            if newSelection.isEmpty {
+                detailDocument = nil
+            }
+            return
+        }
+        detailDocument = doc
+    }
+
+    /// Handles `.onChange(of: detailDocument)`.
+    /// Keeps documentStore.selectedDocument in sync and records navigation.
+    func handleDetailDocumentChange(_ newDoc: Document?) {
+        // Keep documentStore.selectedDocument in sync so WorkflowEditor
+        // toolbar button sees the current document at run time.
+        documentStore.selectedDocument = newDoc
+        // Clear page focus so the inspector starts fresh on the new container
+        // rather than showing a page from the previous document (#1463).
+        pageFocusDocument = nil
+        guard !isRestoringNavigationHistory else { return }
+        recordNavigationEntry()
+    }
+
+    // MARK: - Event Handlers
+
+    /// Handles `.onReceive` of `NSApplication.willTerminateNotification`.
+    /// Auto-saves the editing workflow when the app quits.
+    func handleWillTerminate() {
+        // Auto-save workflow when app quits
+        if case .workflow(let workflow) = viewMode, let workflowItem = workflow {
+            let workflowToSave = editingWorkflow
+            Task { @MainActor in
+                await autoSaveWorkflow(workflowId: workflowItem.id, workflow: workflowToSave)
+            }
+        }
+    }
+
+    /// Handles typed entity-search requests from inspector/KG lozenges.
+    /// Fires the toolbar search for an entity-lozenge click.
+    func handleEntitySearchRequested() {
+        // Click on a blue entity lozenge anywhere in the UI fires the
+        // toolbar search for that name. Same code path as typing in
+        // the toolbar — creates a saved search, switches to search
+        // mode, runs the query.
+        //
+        // When the lozenge knows its entity_type (people / places /
+        // keywords / etc.), we construct a SCOPED query like
+        // `keywords:"social license"` so the search hits only that
+        // artifact type — exactly the docs the user is asking about.
+        // Free-text fallback when the type isn't tagged so older
+        // call sites still work.
+        guard let name = entitySearchState.requestedName,
+              !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        let entityType = entitySearchState.requestedEntityType
+        let query: String
+        if let entityType, !entityType.isEmpty {
+            let needsQuoting = name.contains(" ")
+            query = needsQuoting
+                ? "\(entityType):\"\(name)\""
+                : "\(entityType):\(name)"
+        } else {
+            query = name
+        }
+        toolbarSearchText = query
+        runToolbarSearch(query)
+    }
+
+    /// Handles typed source-open requests from inspector/KG/search surfaces.
+    /// Navigates to a claim's source document with the page scrolled into view.
+    func handleOpenClaimSource() {
+        // Claim card source-doc link → navigate to the document
+        // with the page scrolled into view. The typed request carries
+        // documentId (required) + pageLabel / charStart / charEnd /
+        // claimId (all optional). For now this lights up doc
+        // selection + posts an internal navigation event the
+        // PDF preview will consume to scroll to pageLabel. The
+        // highlight-span overlay lands in a later phase (#995). (#978/#979/#982)
+        guard let request = claimSourceNavigationState.currentRequest else { return }
+        let docId = request.documentId
+        // Switch to library view if we're in another mode (KG /
+        // Activity / Workflow) — the source preview lives there.
+        if sidebarMode != .library {
+            sidebarMode = .library
+        }
+        showInspectorSidebar = true
+        focusedPane = .inspector
+        if let claimId = request.claimId {
+            claimFocusState.selectClaim(
+                claimId: claimId,
+                claimText: request.claimText,
+                sourceDocumentId: docId,
+                pageLabel: request.pageLabel,
+                charStart: request.charStart,
+                charEnd: request.charEnd
+            )
+        }
+        // Resolve page-child source documents to their parent file and
+        // select it — now via the ONE engine route (#3577) instead of the
+        // inline client-side walk. Then forward the SAME page-navigation
+        // request that PDFPageView consumes for scrolling/highlighting.
+        Task { @MainActor in
+            await revealResolvedSource(request)
+            var info: [String: Any] = ["documentId": docId]
+            if let claimId = request.claimId { info["claimId"] = claimId }
+            if let pageLabel = request.pageLabel { info["pageLabel"] = pageLabel }
+            if let charStart = request.charStart { info["charStart"] = charStart }
+            if let charEnd = request.charEnd { info["charEnd"] = charEnd }
+            // Forward the source region so the page reader can highlight the
+            // exact bbox — the "reveal in Preview + highlight" tier (#2105/#3449).
+            // Only present when the anchor actually carries a bbox.
+            if let bbox = request.bbox, !bbox.isEmpty { info["bbox"] = bbox }
+            NotificationCenter.default.post(
+                name: .ficheroNavigateToPage,
+                object: nil,
+                userInfo: info
+            )
+        }
+    }
+
+    /// Handles `.onReceive` of `.ficheroSelectDocumentRequested`.
+    /// AppleScript command path for `select document id "..."`.
+    func handleAppleScriptSelectDocument(_ note: Notification) {
+        guard let documentId = note.userInfo?["id"] as? String,
+              !documentId.isEmpty else { return }
+        sidebarMode = .library
+        showSidebar = true
+        showInspectorSidebar = true
+        focusedPane = .inspector
+        browserSelection = [documentId]
+        sidebarSelectionState.selectedItemId = "doc:\(documentId)"
+    }
+
+    /// Handles `.onReceive` of `.ficheroShowPanelRequested`.
+    /// AppleScript command path for `show panel "library|inspector|kg|activity"`.
+    func handleAppleScriptShowPanel(_ note: Notification) {
+        guard let rawPanel = note.userInfo?["panel"] as? String else { return }
+        switch rawPanel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "library":
+            sidebarMode = .library
+            showSidebar = true
+            focusedPane = .content
+        case "inspector":
+            showInspectorSidebar = true
+            focusedPane = .inspector
+        case "kg", "knowledge graph", "knowledge-graph":
+            sidebarMode = .knowledgeGraph
+            showSidebar = true
+            sidebarSelectionState.selectedItemId = "entities-browser"
+            focusedPane = .content
+        case "activity":
+            sidebarMode = .activity
+            showSidebar = true
+            sidebarSelectionState.selectedItemId = "activity-browser"
+            focusedPane = .content
+        default:
+            return
+        }
+    }
+}

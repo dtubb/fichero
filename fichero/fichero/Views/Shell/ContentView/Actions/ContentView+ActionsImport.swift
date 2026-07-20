@@ -1,0 +1,212 @@
+import OSLog
+import SwiftUI
+import UniformTypeIdentifiers
+
+// MARK: - ContentView Import & Service Actions
+
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ContentView")
+
+extension ContentView {
+
+    // MARK: - Conversations
+
+    func refreshConversations() {
+        Task { @MainActor in
+            do {
+                try await conversationService.loadConversations()
+            } catch {
+                logger.error("Failed to refresh conversations: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - Saved Searches
+
+    func refreshSavedSearches() {
+        Task { @MainActor in
+            do {
+                try await savedSearchService.loadSavedSearches()
+            } catch {
+                logger.error("Failed to refresh saved searches: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func runToolbarSearch(_ rawQuery: String) {
+        guard featureManager.isSearchEnabled else { return }
+        let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+
+        Task { @MainActor in
+            do {
+                let saved = try await savedSearchService.saveSearch(
+                    query: query,
+                    isSmartSearch: true,
+                    searchType: "hybrid",
+                    sortBy: "relevance",
+                    sortDirection: "desc"
+                )
+                try await savedSearchService.loadSavedSearches()
+
+                let search = SavedSearch(
+                    id: saved.id,
+                    name: saved.query,
+                    query: saved.query,
+                    isSmartSearch: saved.isSmartSearch,
+                    folderPath: saved.folderPath,
+                    sortOrder: saved.sortOrder
+                )
+
+                sidebarSelectionState.selectedItemId = "search:\(saved.id)"
+                sidebarMode = .search
+                viewMode = .search(search)
+            } catch {
+                logger.error("Toolbar search failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - File Import
+
+    func handleFileDrop(urls: [URL]) {
+        logger.info("Files dropped: \(urls.map { $0.lastPathComponent })")
+
+        let droppedURLs = classifyDroppedURLs(urls)
+        openDroppedLibraries(droppedURLs.libraryURLs)
+
+        guard !droppedURLs.importURLs.isEmpty else { return }
+
+        var targetParentId: String?
+        if case .library(let doc) = viewMode {
+            targetParentId = doc?.id
+        }
+
+        let targetLibrary = LibraryManager.shared.getLibrary(id: windowState.libraryId)
+            ?? LibraryManager.shared.globalLibrary
+
+        Task { @MainActor in
+            isImporting = true
+            importError = nil
+
+            guard let library = targetLibrary else {
+                isImporting = false
+                importProgress = nil
+                importError = "No library available for import."
+                logger.error("Run file drop import failed: no target library")
+                return
+            }
+
+            // Route root-level drops to Inbox — bare files at library root
+            // are invisible in the sidebar since only folders appear there.
+            if targetParentId == nil {
+                targetParentId = library.documentStore.collections.first(where: {
+                    $0.name == "Inbox" && $0.parentId == nil && $0.docType == .folder
+                })?.id
+            }
+
+            do {
+                _ = try await library.importService.importFiles(
+                    droppedURLs.importURLs,
+                    mode: .copy,
+                    parentId: targetParentId
+                ) { current, total in
+                    importProgress = "Importing \(current) of \(total)..."
+                }
+                await library.documentStore.refresh()
+                logger.info("Successfully imported \(droppedURLs.importURLs.count) dropped item(s)")
+            } catch {
+                logger.error("Failed dropped import: \(String(describing: error))")
+                importError = "Import failed: \(error.localizedDescription)"
+            }
+
+            if let importError {
+                logger.error("Dropped import ended with error: \(importError)")
+            }
+
+            await MainActor.run {
+                isImporting = false
+                importProgress = nil
+            }
+        }
+    }
+
+    private func classifyDroppedURLs(_ urls: [URL]) -> (libraryURLs: [URL], importURLs: [URL]) {
+        var libraryURLs: [URL] = []
+        var importURLs: [URL] = []
+
+        for url in urls {
+            if url.isFicheroLibraryPackage {
+                libraryURLs.append(url.standardizedFileURL)
+            } else {
+                importURLs.append(url)
+            }
+        }
+
+        return (libraryURLs, importURLs)
+    }
+
+    private func openDroppedLibraries(_ urls: [URL]) {
+        for libraryURL in urls {
+            LibraryWindowOpener.openOrFocusLibrary(at: libraryURL, using: openWindow)
+        }
+    }
+}
+
+// MARK: - Helper Extension
+
+private extension URL {
+    var isFicheroLibraryPackage: Bool {
+        guard pathExtension.localizedCaseInsensitiveCompare("fichero") == .orderedSame else {
+            return false
+        }
+
+        let resourceValues = try? resourceValues(forKeys: [.contentTypeKey, .isDirectoryKey])
+        if let contentType = resourceValues?.contentType,
+           contentType.conforms(to: .ficheroSession) {
+            return true
+        }
+
+        return resourceValues?.isDirectory == true
+    }
+}
+
+// MARK: - Chat & Router Helpers
+
+enum ChatScopeBuilder {
+    static func currentScopeDocumentIds(
+        browserSelection: Set<String>,
+        currentDocuments: [Document],
+        detailDocument: Document?
+    ) -> [String] {
+        let selectedIds = currentDocuments
+            .filter { browserSelection.contains($0.id) && $0.docType != .folder }
+            .map(\.id)
+        if !selectedIds.isEmpty {
+            return selectedIds
+        }
+
+        if let detailDocument, detailDocument.docType != .folder {
+            return [detailDocument.id]
+        }
+
+        return currentDocuments
+            .filter { $0.docType != .folder }
+            .map(\.id)
+    }
+}
+
+struct ChatWithDocsRoute: Equatable {
+    let selectedDocumentIds: Set<String>
+    let sidebarMode: SidebarMode
+    let viewMode: AppViewMode
+}
+
+enum ChatWithDocsRouter {
+    static func mainChatRoute(documentIds: [String]) -> ChatWithDocsRoute {
+        ChatWithDocsRoute(
+            selectedDocumentIds: Set(documentIds),
+            sidebarMode: .chat,
+            viewMode: .chat(nil)
+        )
+    }
+}

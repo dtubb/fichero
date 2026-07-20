@@ -158,7 +158,14 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testEntityLibrarySelectionLocksDisplayModeToList() throws {
-        let stateSource = try Self.appSource("Views/Shell/ContentView/ContentView+State.swift")
+        // file_length: ContentView+State split into ContentView+State*; read them all concatenated.
+        let stateSource = try [
+            Self.appSource("Views/Shell/ContentView/ContentView+StateDisplay.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateSelection.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StatePreview.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+        ].joined(separator: "\n")
 
         XCTAssertTrue(stateSource.contains("var isEntityLibrarySelection: Bool"))
         XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
@@ -168,7 +175,14 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testEntityLibrarySelectionRoutesBrowserSelectionIntoKGFocus() throws {
-        let stateSource = try Self.appSource("Views/Shell/ContentView/ContentView+State.swift")
+        // file_length: ContentView+State split into ContentView+State*; read them all concatenated.
+        let stateSource = try [
+            Self.appSource("Views/Shell/ContentView/ContentView+StateDisplay.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateSelection.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StatePreview.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+        ].joined(separator: "\n")
         let navigationSource = try Self.appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
 
         XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))

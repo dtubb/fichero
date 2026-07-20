@@ -10,7 +10,6 @@ extension SidebarView {
     // the sidebar caches are ready (#2548) — see `sidebarShouldReconcileSelection`.
     // `lastHandledSelectionDestination` keeps this idempotent: re-invoking with the same
     // id is a no-op, so the reconcile path never double-handles a live click.
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func handleSelectionChange(_ newDestination: SidebarDestination?) {
         sidebarViewLogger.info("selectedItemId changed to: \(newDestination?.serializedID ?? "nil")")
         if case .run(let runId) = newDestination {
@@ -26,6 +25,11 @@ extension SidebarView {
             return
         }
         lastHandledSelectionDestination = destination
+        handleSelectionDestination(destination)
+    }
+
+    // swiftlint:disable:next cyclomatic_complexity
+    private func handleSelectionDestination(_ destination: SidebarDestination) {
         switch destination {
         case .library(let libraryId):
             if windowState.libraryId != libraryId {
@@ -77,7 +81,6 @@ extension SidebarView {
     }
 
     // Handle sidebar item selection and update view mode
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func handleSelection(_ item: SidebarItem?) {
         guard let item = item else {
             sidebarViewLogger.info("handleSelection called with nil item")
@@ -89,6 +92,11 @@ extension SidebarView {
             "handleSelection: \(item.name) (category: \(item.category.rawValue), type: \(itemTypeDesc))"
         )
 
+        handleLibrarySwitching(for: item)
+        handleItemTypeSelection(item)
+    }
+
+    private func handleLibrarySwitching(for item: SidebarItem) {
         // Switch window's library if the selected item belongs to a different library
         if let itemLibraryId = item.libraryId, itemLibraryId != windowState.libraryId {
             sidebarViewLogger.info("Switching window from library \(windowState.libraryId) to library \(itemLibraryId)")
@@ -98,7 +106,9 @@ extension SidebarView {
         } else {
             sidebarViewLogger.info("Item belongs to current library: \(windowState.libraryId)")
         }
+    }
 
+    private func handleItemTypeSelection(_ item: SidebarItem) {
         // Update view mode based on item type
         switch item.itemType {
         case .document(let doc):
@@ -135,32 +145,36 @@ extension SidebarView {
             // These item types are handled by their specialized sidebar modes
             sidebarViewLogger.info("Item type \(item.category.rawValue) clicked - detail views handled by mode sidebar")
         case .folder:
-            // Check if this is a category folder (Search, Chat, Workflow)
-            // and switch to that view mode even if empty
-            sidebarViewLogger.info("Folder clicked: category = \(item.category.rawValue)")
-            switch item.category {
-            case .search:
-                sidebarViewLogger.info("Switching to empty search view")
-                sidebarMode = .search
-                viewMode = .search(nil)
-            case .chat:
-                sidebarViewLogger.info("Switching to empty chat view")
-                sidebarMode = .chat
-                viewMode = .chat(nil)
-            case .workflow:
-                sidebarViewLogger.info("Switching to empty workflow view")
-                sidebarMode = .workflows
-                viewMode = .workflow(nil)
-            case .automation, .batch, .activity:
-                // Automation-related folders
-                sidebarViewLogger.info("Automation folder - just toggling expansion")
-            case .folder, .library:
-                // Regular folders just toggle expansion
-                sidebarViewLogger.info("Regular folder - just toggling expansion")
-            }
+            handleFolderSelection(item)
         case .libraryHeader:
             // Library headers just toggle expansion
             sidebarViewLogger.info("Library header clicked - just toggling expansion")
+        }
+    }
+
+    private func handleFolderSelection(_ item: SidebarItem) {
+        // Check if this is a category folder (Search, Chat, Workflow)
+        // and switch to that view mode even if empty
+        sidebarViewLogger.info("Folder clicked: category = \(item.category.rawValue)")
+        switch item.category {
+        case .search:
+            sidebarViewLogger.info("Switching to empty search view")
+            sidebarMode = .search
+            viewMode = .search(nil)
+        case .chat:
+            sidebarViewLogger.info("Switching to empty chat view")
+            sidebarMode = .chat
+            viewMode = .chat(nil)
+        case .workflow:
+            sidebarViewLogger.info("Switching to empty workflow view")
+            sidebarMode = .workflows
+            viewMode = .workflow(nil)
+        case .automation, .batch, .activity:
+            // Automation-related folders
+            sidebarViewLogger.info("Automation folder - just toggling expansion")
+        case .folder, .library:
+            // Regular folders just toggle expansion
+            sidebarViewLogger.info("Regular folder - just toggling expansion")
         }
     }
 }

@@ -16,6 +16,12 @@ struct SettingsView: View {
     /// ObservableObject until #3743 re-backs its flags on UserDefaults.
     @EnvironmentObject var featureManager: FeatureManager
 
+    /// Back/forward history for the detail pane's System-Settings-style
+    /// navigation chevrons (`SettingsDetailHeader.swift`). Lives here — not on
+    /// `AppState` — because it's pure UI navigation state scoped to this one
+    /// window, not app-wide state other surfaces need to read.
+    @State private var settingsHistory = SettingsNavigationHistory()
+
     /// Sidebar single-selection. `List(selection:)` wants an optional; a nil
     /// selection (rare) falls back to the AI pane rather than a blank detail.
     private var sidebarSelection: Binding<SettingsTab?> {
@@ -32,18 +38,18 @@ struct SettingsView: View {
                 // System-Settings style: each row is a tinted rounded-rect glyph.
                 Section {
                     if featureManager.isSettingsGeneralTabEnabled {
-                        row(.general, "General", "gear", .gray)
+                        row(.general)
                     }
-                    row(.aiModels, "AI", "brain", .purple)
+                    row(.aiModels)
                 }
 
                 // Per-view settings (#3680) — Library is ONE surface (its icon /
                 // column / list / canvas view modes are not separate tabs).
                 Section("Views") {
-                    row(.libraryView, "Library", "square.grid.2x2", .blue)
-                    row(.previewView, "Preview", "sidebar.right", .teal)
-                    row(.readerView, "Reader", "book", .orange)
-                    row(.inspectorView, "Inspector", "slider.horizontal.3", .indigo)
+                    row(.libraryView)
+                    row(.previewView)
+                    row(.readerView)
+                    row(.inspectorView)
                 }
 
                 // MCP servers = the tool config for the agentic surface (chat +
@@ -51,7 +57,7 @@ struct SettingsView: View {
                 // placeholder-only; it returns under Workflows when real.
                 if featureManager.isMCPEnabled {
                     Section("Agents") {
-                        row(.mcp, "MCP", "server.rack", .green)
+                        row(.mcp)
                     }
                 }
 
@@ -65,16 +71,16 @@ struct SettingsView: View {
                     // for internal + tester builds; still hidden in release until the
                     // fail-closed engine-refusal P0 lands (#3776).
                     if Self.showsTesterSettingsPane(tier: featureManager.activeBuildTier) {
-                        row(.engine, "Engine", "square.grid.3x1.below.line.grid.1x2", .gray)
-                        row(.connect, "Sharing", "person.2.badge.gearshape", .blue)
+                        row(.engine)
+                        row(.connect)
                     }
                 }
 
                 Section {
-                    row(.history, "History", "clock.arrow.circlepath", .brown)
-                    row(.backups, "Snapshots", "externaldrive.badge.timemachine", .green)
+                    row(.history)
+                    row(.backups)
                     #if !canImport(AppKit)
-                    row(.about, "About", "info.circle", .gray)
+                    row(.about)
                     #endif
                 }
             }
@@ -87,19 +93,38 @@ struct SettingsView: View {
             // so the main window's sidebar toggle is untouched.
             .toolbar(removing: .sidebarToggle)
         } detail: {
-            detail(for: appState.selectedSettingsTab)
+            // Mimics macOS System Settings' detail pane: back/forward chevrons +
+            // title up top (`SettingsDetailHeader`), then the section's icon +
+            // name repeated as an orientation cue above the pane's own rows
+            // (`SettingsSectionOrientationHeader`), like the Wi-Fi pane repeats
+            // its Wi-Fi icon + "Wi-Fi" above its settings.
+            VStack(spacing: 0) {
+                SettingsDetailHeader(
+                    tab: appState.selectedSettingsTab,
+                    history: settingsHistory
+                ) { target in
+                    appState.selectedSettingsTab = target
+                }
+                SettingsSectionOrientationHeader(tab: appState.selectedSettingsTab)
+                detail(for: appState.selectedSettingsTab)
+            }
         }
         .frame(minWidth: 720, idealWidth: 720, minHeight: 520, idealHeight: 520)
+        .onChange(of: appState.selectedSettingsTab) { previousTab, _ in
+            settingsHistory.recordSelection(from: previousTab)
+        }
     }
 
     /// One sidebar source-list row, tagged by its destination tab so
     /// `List(selection:)` drives `appState.selectedSettingsTab`. Its icon is a
-    /// tinted rounded-rect glyph in the macOS System-Settings style.
-    private func row(_ tab: SettingsTab, _ title: LocalizedStringKey,
-                     _ symbol: String, _ tint: Color) -> some View {
-        Label(title, systemImage: symbol)
+    /// tinted rounded-rect glyph in the macOS System-Settings style, sourced
+    /// from `SettingsSectionInfo` — the same table the detail header reads —
+    /// so sidebar and header never drift apart.
+    private func row(_ tab: SettingsTab) -> some View {
+        let info = SettingsSectionInfo.info(for: tab)
+        return Label(info.title, systemImage: info.symbol)
             .tag(tab)
-            .labelStyle(SettingsRowIconStyle(tint: tint))
+            .labelStyle(SettingsRowIconStyle(tint: info.tint))
     }
 
     /// A white SF Symbol on a tinted rounded rectangle — the System-Settings

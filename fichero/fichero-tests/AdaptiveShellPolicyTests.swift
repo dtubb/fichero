@@ -326,7 +326,14 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testSelectionStatusTextKeepsCountAndPathVisible() throws {
-        let stateSource = try Self.appSource("Views/Shell/ContentView/ContentView+State.swift")
+        // file_length: ContentView+State split into ContentView+State*; read them all concatenated.
+        let stateSource = try [
+            Self.appSource("Views/Shell/ContentView/ContentView+StateDisplay.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateSelection.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateLayout.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StatePreview.swift"),
+            Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+        ].joined(separator: "\n")
 
         XCTAssertTrue(stateSource.contains("var selectionStatusText: String"))
         XCTAssertTrue(stateSource.contains("\"\\(browserSelection.count) items selected\""))

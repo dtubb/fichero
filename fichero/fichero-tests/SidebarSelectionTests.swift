@@ -62,7 +62,13 @@ struct SidebarSelectionTests {
 
     @Test("#2522 sidebar selection clears library selection and content uses pane focus tint")
     func sidebarAndLibrarySelectionStayInSync() throws {
-        let stateSource = try appSource("Views/Shell/ContentView/ContentView+State.swift")
+        let stateSource = try [
+            appSource("Views/Shell/ContentView/ContentView+StateDisplay.swift"),
+            appSource("Views/Shell/ContentView/ContentView+StateSelection.swift"),
+            appSource("Views/Shell/ContentView/ContentView+StateLayout.swift"),
+            appSource("Views/Shell/ContentView/ContentView+StatePreview.swift"),
+            appSource("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+        ].joined(separator: "\n")
         let navigationSource = try appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
         // selectionTint moved to LibraryView+DisplayHelpers and was promoted private→internal
         // when LibraryView+DisplayModes was split by file_length.
@@ -79,7 +85,13 @@ struct SidebarSelectionTests {
 
     @Test("#3406 active split drives location chrome and inspector can claim focus")
     func splitFocusDrivesLocationChrome() throws {
-        let stateSource = try appSource("Views/Shell/ContentView/ContentView+State.swift")
+        let stateSource = try [
+            appSource("Views/Shell/ContentView/ContentView+StateDisplay.swift"),
+            appSource("Views/Shell/ContentView/ContentView+StateSelection.swift"),
+            appSource("Views/Shell/ContentView/ContentView+StateLayout.swift"),
+            appSource("Views/Shell/ContentView/ContentView+StatePreview.swift"),
+            appSource("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+        ].joined(separator: "\n")
         let buildersSource = try appSource("Views/Shell/ContentView/ContentView+ViewBuilders.swift")
 
         #expect(stateSource.contains("var activeLocationDocument: Document?"))

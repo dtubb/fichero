@@ -1,0 +1,108 @@
+import SwiftUI
+
+// MARK: - ContentView UI & Display Actions
+
+extension ContentView {
+
+    // MARK: - UI Actions
+
+    func toggleSidebar() {
+        if horizontalSizeClass == .compact || shouldUseRuntimeSidebarCollapse {
+            return
+        }
+        withAnimation(FrameAnimation.snappy) {
+            showSidebar.toggle()
+            updateColumnVisibility()
+        }
+    }
+
+    func handleWindowWidthChange(_ newWidth: Double) {
+        guard newWidth > 0 else { return }
+        if abs(measuredWindowWidth - newWidth) < 0.5 {
+            return
+        }
+        measuredWindowWidth = newWidth
+        updateColumnVisibility()
+    }
+
+    func updateColumnVisibility() {
+        if horizontalSizeClass == .compact {
+            return
+        }
+        // No animation — instant sidebar show/hide (#2309).
+        if shouldUseRuntimeSidebarCollapse {
+            columnVisibility = .detailOnly
+        } else {
+            columnVisibility = showSidebar ? .all : .detailOnly
+        }
+    }
+
+    // MARK: - View Display & Layout
+
+    func updateViewDisplayMode(_ requestedMode: ViewDisplayMode) {
+        let effectiveMode = normalizedViewDisplayMode(requestedMode)
+        if effectiveMode != viewDisplayMode {
+            viewDisplayMode = effectiveMode
+        }
+
+        viewSettings.libraryLayout = effectiveMode.libraryLayout
+        saveDisplayMode(effectiveMode, for: sidebarSelectionState.selectedItemId)
+        // Promote to the global default so a fresh window / new folder
+        // / new launch all start in this mode. Per-folder overrides
+        // (saveDisplayMode above) still win when present. (#943)
+        defaultLibraryViewDisplayMode = effectiveMode
+    }
+
+    func updateLayoutMode(_ requestedMode: LayoutMode) {
+        guard availableLayoutModes.contains(requestedMode) else { return }
+
+        let previewMode: PreviewMode = switch requestedMode {
+        case .none: .none
+        case .standard: .standard
+        case .widescreen: .widescreen
+        }
+
+        viewSettings.previewMode = normalizedPreviewMode(previewMode)
+        currentLayoutMode = requestedMode
+
+        // Legacy-recovery net: a window persisted with all panes hidden (before
+        // the #1696 invariant existed) gets a pane back on entering widescreen.
+        // The invariant makes all-hidden unreachable for new state.
+        if requestedMode == .widescreen, !paneVisibility.isAnyVisible {
+            setPaneVisible(.canvas, true)
+        }
+    }
+
+    func setCanvasPaneVisible(_ isVisible: Bool) {
+        if isVisible {
+            currentLayoutMode = .widescreen
+            viewSettings.previewMode = .widescreen
+        }
+        // Route through the invariant (#1696): hiding the last visible pane is
+        // refused, so the content area is never left empty.
+        setPaneVisible(.canvas, isVisible)
+    }
+
+    func setReadingPaneVisible(_ isVisible: Bool) {
+        if isVisible {
+            currentLayoutMode = .widescreen
+            viewSettings.previewMode = .widescreen
+        }
+        setPaneVisible(.reading, isVisible)
+    }
+
+    func openChatWithCurrentScope() {
+        // Follow-up (#1723): keep this discoverable sidebar entry, but promote the
+        // scoped-docs chat into a first-class inspector pane/tab once the
+        // library inspector gets a stable chat slot.
+        let scopedIds = ChatScopeBuilder.currentScopeDocumentIds(
+            browserSelection: browserSelection,
+            currentDocuments: documentStore.currentDocuments,
+            detailDocument: detailDocument
+        )
+        let route = ChatWithDocsRouter.mainChatRoute(documentIds: scopedIds)
+        chatSelectedDocuments = route.selectedDocumentIds
+        sidebarMode = route.sidebarMode
+        viewMode = route.viewMode
+    }
+}
