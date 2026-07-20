@@ -446,7 +446,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // The pairing surface moved into ShareSettingsView, which renders the
         // inline PairingCardView / PairedDevicesSectionView (defined in
         // PairingCardView.swift). No sheet, no scanner.
-        let shareSource = try Self.appSource("Views/Settings/Sharing/ShareSettingsView.swift")
+        let shareSource = try Self.appSource("Views/Settings/Sharing/Share/ShareSettingsView.swift")
         let remoteAccessSource = try Self.appSource("Views/Settings/Sharing/PairingCardView.swift")
 
         XCTAssertTrue(shareSource.contains("PairingCardView("))
