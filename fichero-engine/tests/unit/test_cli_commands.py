@@ -866,11 +866,14 @@ def test_plural_document_group_is_not_exposed_when_docs_app_exists():
     assert result.exit_code != 0
 
 
-def test_root_help_exposes_shell_completion_install():
-    result = runner.invoke(cli.app, ["--help"])
-    assert result.exit_code == 0
-    assert "--install-completion" in result.output
-    assert "--show-completion" in result.output
+def test_root_exposes_shell_completion_options():
+    # Typer 0.25 stopped listing --install-completion/--show-completion in the
+    # rich `--help` panel, so assert the options are WIRED by invoking them:
+    # a missing option prints "No such option", a present one reaches shell
+    # detection (which fails in the test env, hence a non-zero exit is fine).
+    for flag in ("--install-completion", "--show-completion"):
+        result = runner.invoke(cli.app, [flag])
+        assert "No such option" not in result.output, f"{flag} is not wired"
 
 
 def test_sergio_import_command_is_exposed():
