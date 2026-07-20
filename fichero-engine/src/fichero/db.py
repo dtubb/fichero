@@ -180,6 +180,14 @@ _ENTITY_NODE_KIND = "entity"
 _ROOM_NODE_KIND = "room"
 _FOLDER_PROTOTYPE_KEY = "folder"
 _ROOM_PROTOTYPE_KEY = "room"
+_WORKFLOW_NODE_KIND = "workflow"
+_WORKFLOW_PROTOTYPE_KEY = "workflow"
+# Distinct from _WORKFLOW_NODE_KIND so `query(Document, node_kind=...)` can
+# tell the one locked container apart from the workflow mirrors it holds.
+_WORKFLOW_CONTAINER_NODE_KIND = "workflow_container"
+# Deterministic id (not a `_new_id()` uuid) so every library reopen finds the
+# same locked container row instead of minting duplicates (#11 Phase 1).
+_DEFAULT_WORKFLOWS_CONTAINER_ID = "system-default-workflows"
 
 _BUILTIN_DOCUMENT_PROTOTYPE_SEEDS: tuple[dict[str, Any], ...] = (
     {
@@ -260,6 +268,12 @@ _BUILTIN_DOCUMENT_PROTOTYPE_SEEDS: tuple[dict[str, Any], ...] = (
         "key": _NOTE_PROTOTYPE_KEY,
         "label": "Note",
         "color": "#FF9500",
+        "attributes": {},
+    },
+    {
+        "key": _WORKFLOW_PROTOTYPE_KEY,
+        "label": "Workflow",
+        "color": "#32ADE6",
         "attributes": {},
     },
     {
@@ -614,6 +628,15 @@ class Database(DatabaseEmbeddingMixin):
         self._backfill_spatial_room_documents()
         self._backfill_research_workspace_documents()
         self._backfill_research_plan_task_step_documents()
+        # NOTE: no unconditional `_seed_default_workflows_container()` call
+        # here — unlike the backfills above, the container has no underlying
+        # row of its own to backfill from. It's created lazily, the first
+        # time an `is_system=True` Workflow is saved (see
+        # `_save_workflow_document`), so a library with zero default
+        # workflows doesn't grow a permanent empty "Default Workflows" node
+        # (and so raw `documents` row counts in tests/tooling stay
+        # predictable for libraries that never touch workflows).
+        self._backfill_workflow_documents()
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
         """Open a DuckDB connection for this library path."""
@@ -1126,6 +1149,8 @@ class Database(DatabaseEmbeddingMixin):
             self._save_note_document(obj)
         if type(obj).__name__ == "Milestone":
             self._save_milestone_document(obj)
+        if type(obj).__name__ == "Workflow":
+            self._save_workflow_document(obj)
         if type(obj).__name__ == "KnowledgeEntity":
             self.schedule_entity_embedding(obj)
         if type(obj).__name__ == "KnowledgeClaim":
@@ -1322,6 +1347,21 @@ class Database(DatabaseEmbeddingMixin):
             hydrated
             for row in rows
             if (hydrated := self._hydrate_row(Milestone, columns, row)) is not None
+        ]
+
+    def _legacy_all_workflow_rows(self) -> list[BaseModel]:
+        """Read Workflow rows without any node-tree bridge logic."""
+        from fichero.models import Workflow
+
+        sql_table = self._sql_table_name(Workflow)
+        self._ensure_table(Workflow)
+        with self._lock:
+            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            columns = [desc[0] for desc in self.conn.description]
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(Workflow, columns, row)) is not None
         ]
 
     @staticmethod
@@ -2430,6 +2470,8 @@ class Database(DatabaseEmbeddingMixin):
             self._delete_note_document(obj.id)
         if type(obj).__name__ == "Milestone":
             self._delete_milestone_document(obj.id)
+        if type(obj).__name__ == "Workflow":
+            self._delete_workflow_document(obj.id)
 
     def _save_saved_search_document(self, saved: BaseModel) -> None:
         """Mirror a SavedSearch row into the document tree as a smart folder."""
@@ -2570,6 +2612,163 @@ class Database(DatabaseEmbeddingMixin):
         doc.updated_at = milestone.updated_at
         self.save(doc)
 
+    def _save_workflow_document(self, workflow: BaseModel) -> None:
+        """Mirror a Workflow row into the document tree for sidebar placement.
+
+        MIRROR, not fold (#11 Phase 1): the ``workflows`` table stays the
+        single source of truth — ``WorkflowStore``/the ``/api/workflows``
+        routes keep reading and writing it directly, and ``get``/``all``/
+        ``query`` for ``Workflow`` are deliberately NOT overridden here
+        (unlike ``SavedSearch``). This mirror only exists so the workflow
+        shows up as a node in the sidebar tree, same as
+        ``_save_milestone_document``/``_save_note_document``.
+
+        ``scope``/``read_only`` ride on the mirror document's ``attributes``
+        dict (no new `workflows` table column): every system-seeded preset
+        (``is_system=True``) is placed under the locked "Default Workflows"
+        container and marked ``read_only``; everything else is a normal
+        library-scoped, writable node at the tree root. NOTE: ``read_only``
+        is descriptive only in Phase 1 — nothing in the write API enforces
+        it yet (see report to Daniel).
+        """
+        from fichero.models import DocType, Document
+
+        is_system = bool(getattr(workflow, "is_system", False))
+        if is_system:
+            self._seed_default_workflows_container()
+            container_parent_id = self._ensure_default_workflows_subfolder(
+                workflow.folder_path
+            )
+
+        existing = self.get(Document, workflow.id)
+        metadata = (
+            dict(existing.metadata)
+            if existing is not None and isinstance(existing.metadata, dict)
+            else {}
+        )
+        metadata.update({
+            "node_class": _WORKFLOW_NODE_KIND,
+            "workflow_id": workflow.id,
+        })
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "format": workflow.format,
+            "provider": workflow.provider,
+            "tags": workflow.tags,
+            "is_template": workflow.is_template,
+            "is_system": is_system,
+            "folder_path": workflow.folder_path,
+            "scope": "global" if is_system else "library",
+            "read_only": is_system,
+        })
+
+        doc = existing or Document(id=workflow.id, name=workflow.name)
+        doc.parent_id = (
+            container_parent_id
+            if is_system
+            else (existing.parent_id if existing is not None else None)
+        )
+        doc.name = workflow.name
+        doc.node_kind = _WORKFLOW_NODE_KIND
+        doc.doc_type = DocType.file
+        doc.prototype_key = _WORKFLOW_PROTOTYPE_KEY
+        doc.sort_order = workflow.sort_order
+        doc.metadata = metadata
+        doc.attributes = attributes
+        doc.created_at = workflow.created_at
+        doc.updated_at = workflow.updated_at
+        self.save(doc)
+
+    def _seed_default_workflows_container(self) -> None:
+        """Idempotently seed the locked, read-only "Default Workflows" folder.
+
+        Deterministic id so reopening a library never mints a second
+        container. Name/scope/read_only are re-asserted on every call —
+        it's locked, so a user rename shouldn't stick.
+        """
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.models import DocType, Document
+
+        existing = self.get(Document, _DEFAULT_WORKFLOWS_CONTAINER_ID)
+        doc = existing or Document(
+            id=_DEFAULT_WORKFLOWS_CONTAINER_ID, name="Default Workflows"
+        )
+        doc.name = "Default Workflows"
+        doc.doc_type = DocType.folder
+        doc.node_kind = _WORKFLOW_CONTAINER_NODE_KIND
+        doc.prototype_key = _FOLDER_PROTOTYPE_KEY
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({"scope": "global", "read_only": True, "system": True})
+        doc.attributes = attributes
+        self.save(doc)
+
+    def _ensure_default_workflows_subfolder(self, folder_path: str | None) -> str:
+        """Get-or-create the locked subfolder for a preset's ``folder_path``.
+
+        Presets ship with a flat ``folder_path`` like ``"/Convert"`` or
+        ``"/Transcribe"`` (see ``src/fichero/resources/default_workflows/*.json``).
+        Root-level presets (``folder_path`` unset or ``"/"``) sit directly in
+        the container — no subfolder. Everything else gets one locked
+        subfolder node per distinct path segment, nested under the
+        container, so the sidebar tree matches "Default Workflows > Convert
+        > <preset>". The subfolder id is deterministic (derived from the
+        path, not `_new_id()`), so re-seeding never mints a duplicate.
+
+        Returns the id of the ``Document`` a preset mirror should use as its
+        ``parent_id`` — either the subfolder id or the container id itself.
+        """
+        normalized = (folder_path or "/").strip()
+        if normalized in ("", "/"):
+            return _DEFAULT_WORKFLOWS_CONTAINER_ID
+
+        from fichero.models import DocType, Document
+
+        subfolder_id = f"{_DEFAULT_WORKFLOWS_CONTAINER_ID}:{normalized}"
+        existing = self.get(Document, subfolder_id)
+        doc = existing or Document(id=subfolder_id, name=normalized.strip("/"))
+        doc.name = normalized.strip("/") or normalized
+        doc.doc_type = DocType.folder
+        doc.node_kind = _WORKFLOW_CONTAINER_NODE_KIND
+        doc.prototype_key = _FOLDER_PROTOTYPE_KEY
+        doc.parent_id = _DEFAULT_WORKFLOWS_CONTAINER_ID
+        attributes = (
+            dict(existing.attributes)
+            if existing is not None and isinstance(existing.attributes, dict)
+            else {}
+        )
+        attributes.update({
+            "scope": "global",
+            "read_only": True,
+            "system": True,
+            "source_folder_path": normalized,
+        })
+        doc.attributes = attributes
+        self.save(doc)
+        return subfolder_id
+
+    def _all_folded_workflows(self) -> list[BaseModel]:
+        """Return the mirrored ``Document`` nodes for every workflow.
+
+        Unlike ``_all_folded_saved_searches`` this returns raw ``Document``
+        rows, not hydrated ``Workflow`` objects — reads for ``Workflow``
+        stay on the real `workflows` table (see ``_save_workflow_document``).
+        This is a tree-side helper for callers that want the mirror nodes
+        (e.g. sidebar listing, tests), not a replacement read path.
+        """
+        from fichero.models import Document
+
+        return self.query(Document, node_kind=_WORKFLOW_NODE_KIND)
+
     def _save_filed_entity_document(self, entity: BaseModel) -> None:
         """Mirror a filed KnowledgeEntity into the document tree."""
         from fichero.models import DocType, Document
@@ -2651,6 +2850,20 @@ class Database(DatabaseEmbeddingMixin):
         if doc is None:
             return
         self._execute("DELETE FROM documents WHERE id = $id", {"id": milestone_id})
+
+    def _delete_workflow_document(self, workflow_id: str) -> None:
+        """Remove the mirrored document row for a workflow, if present.
+
+        Never touches ``_DEFAULT_WORKFLOWS_CONTAINER_ID`` — only the
+        per-workflow shadow shares an id with the deleted workflow row, so
+        this can't accidentally delete the locked container.
+        """
+        from fichero.models import Document
+
+        doc = self.get(Document, workflow_id)
+        if doc is None:
+            return
+        self._execute("DELETE FROM documents WHERE id = $id", {"id": workflow_id})
 
     def _backfill_saved_search_documents(self) -> None:
         """Backfill existing saved_searches rows into same-id document nodes."""
@@ -2736,6 +2949,27 @@ class Database(DatabaseEmbeddingMixin):
 
         for milestone in self._legacy_all_milestone_rows():
             self._save_milestone_document(milestone)
+
+    def _backfill_workflow_documents(self) -> None:
+        """Backfill existing workflow rows into same-id mirrored document nodes."""
+        if not hasattr(self.conn, "execute"):
+            return
+
+        from fichero.models import Workflow
+
+        table_name = self._table_name(Workflow)
+        table_exists = self.execute_fetchone(
+            """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = $table_name
+            """,
+            {"table_name": table_name},
+        )
+        if not table_exists or int(table_exists[0] or 0) == 0:
+            return
+
+        for workflow in self._legacy_all_workflow_rows():
+            self._save_workflow_document(workflow)
 
     def _save_research_workspace_document(self, project: BaseModel) -> None:
         """Mirror a ResearchProject row into the document tree as a workspace."""

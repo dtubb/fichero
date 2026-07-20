@@ -1426,6 +1426,371 @@ class TestNoteAndMilestoneFold:
             temp_db.save(Milestone(title="Broken Again", parent_id=bad_parent.id))
 
 
+class TestWorkflowFold:
+    """#11 Phase 1: workflows mirror into the document tree as folded nodes.
+
+    This is a MIRROR, not a full fold like SavedSearch: the ``workflows``
+    table stays authoritative and ``get``/``all``/``query`` for ``Workflow``
+    still read the real table. Only a same-id ``Document`` shadow is kept in
+    sync for sidebar tree placement (same pattern as Note/Milestone).
+    """
+
+    def test_no_default_workflows_container_when_no_system_workflows(self, temp_db):
+        """A library that never seeds/saves an is_system workflow gets no
+        container node — no permanent empty "Default Workflows" folder
+        cluttering the tree, and raw Document counts stay predictable for
+        libraries that never touch workflows."""
+        from fichero import db as db_module
+
+        assert temp_db.get(Document, db_module._DEFAULT_WORKFLOWS_CONTAINER_ID) is None
+
+    def test_default_workflows_container_created_lazily_on_first_system_save(
+        self, temp_db
+    ):
+        """The locked global container is created the first time an
+        is_system=True workflow is saved — not eagerly on every db open."""
+        from fichero import db as db_module
+
+        assert temp_db.get(Document, db_module._DEFAULT_WORKFLOWS_CONTAINER_ID) is None
+
+        temp_db.save(Workflow(name="First Preset", is_system=True))
+
+        container = temp_db.get(Document, db_module._DEFAULT_WORKFLOWS_CONTAINER_ID)
+        assert container is not None
+        assert container.name == "Default Workflows"
+        assert container.doc_type == DocType.folder
+        assert container.attributes["scope"] == "global"
+        assert container.attributes["read_only"] is True
+
+    def test_save_workflow_mirrors_to_document_node(self, temp_db):
+        workflow = Workflow(
+            name="Transcribe Letters",
+            provider="openai",
+            tags=["ocr"],
+            folder_path="/archive",
+        )
+
+        temp_db.save(workflow)
+
+        # Real table stays authoritative — Workflow reads are not redirected.
+        retrieved = temp_db.get(Workflow, workflow.id)
+        assert retrieved is not None
+        assert retrieved.name == "Transcribe Letters"
+        assert retrieved.provider == "openai"
+
+        mirrored = temp_db.get(Document, workflow.id)
+        assert mirrored is not None
+        assert mirrored.node_kind == "workflow"
+        assert mirrored.prototype_key == "workflow"
+        assert mirrored.name == "Transcribe Letters"
+        assert mirrored.attributes["provider"] == "openai"
+        assert mirrored.attributes["tags"] == ["ocr"]
+        assert mirrored.attributes["scope"] == "library"
+        assert mirrored.attributes["read_only"] is False
+        # Regular (non-system) workflows sit at tree root, not nested
+        # under the locked container.
+        assert mirrored.parent_id is None
+
+    def test_update_workflow_updates_mirror(self, temp_db):
+        workflow = Workflow(name="Original Name")
+        temp_db.save(workflow)
+
+        workflow.name = "Renamed"
+        workflow.provider = "anthropic"
+        temp_db.save(workflow)
+
+        mirrored = temp_db.get(Document, workflow.id)
+        assert mirrored.name == "Renamed"
+        assert mirrored.attributes["provider"] == "anthropic"
+
+    def test_delete_workflow_removes_mirror_no_orphan(self, temp_db):
+        workflow = Workflow(name="Ephemeral")
+        temp_db.save(workflow)
+        assert temp_db.get(Document, workflow.id) is not None
+
+        temp_db.delete(workflow)
+
+        assert temp_db.get(Workflow, workflow.id) is None
+        assert temp_db.get(Document, workflow.id) is None
+
+    def test_system_workflow_nests_under_locked_container(self, temp_db):
+        from fichero import db as db_module
+
+        preset = Workflow(name="Catalogue", is_system=True, is_template=True)
+        temp_db.save(preset)
+
+        mirrored = temp_db.get(Document, preset.id)
+        assert mirrored is not None
+        assert mirrored.parent_id == db_module._DEFAULT_WORKFLOWS_CONTAINER_ID
+        assert mirrored.attributes["scope"] == "global"
+        assert mirrored.attributes["read_only"] is True
+
+        # Container itself is untouched/still singular.
+        containers = temp_db.query(Document, id=db_module._DEFAULT_WORKFLOWS_CONTAINER_ID)
+        assert len(containers) == 1
+
+    def test_delete_system_workflow_does_not_delete_container(self, temp_db):
+        from fichero import db as db_module
+
+        preset = Workflow(name="Catalogue", is_system=True)
+        temp_db.save(preset)
+        temp_db.delete(preset)
+
+        assert temp_db.get(Document, preset.id) is None
+        container = temp_db.get(Document, db_module._DEFAULT_WORKFLOWS_CONTAINER_ID)
+        assert container is not None, "deleting a system workflow must not remove the locked container"
+
+    def test_all_folded_workflows_returns_mirror_nodes_not_duplicated(self, temp_db):
+        w1 = Workflow(name="A")
+        w2 = Workflow(name="B", is_system=True)
+        temp_db.save(w1)
+        temp_db.save(w2)
+
+        folded = temp_db._all_folded_workflows()
+        assert {d.id for d in folded} == {w1.id, w2.id}
+        assert len(folded) == 2  # no double-mirroring on repeated save()
+
+        temp_db.save(w1)  # re-save should upsert, not duplicate
+        folded_again = temp_db._all_folded_workflows()
+        assert len(folded_again) == 2
+
+    def test_saved_search_and_workflow_mirrors_do_not_leak_across_kinds(self, temp_db):
+        """No-leak test: saved-searches and workflows never double-appear
+        or bleed into each other's node_kind bucket."""
+        from fichero.models import SavedSearch
+
+        temp_db.save(SavedSearch(query="unprocessed images"))
+        temp_db.save(Workflow(name="Some Workflow"))
+
+        workflow_docs = temp_db.query(Document, node_kind="workflow")
+        saved_search_docs = temp_db.query(Document, node_kind="saved_search")
+
+        assert len(workflow_docs) == 1
+        assert len(saved_search_docs) == 1
+        assert workflow_docs[0].id != saved_search_docs[0].id
+
+        # SavedSearch.all() still only returns the one saved search — the
+        # workflow mirror doesn't leak into the fully-folded SavedSearch read.
+        assert len(temp_db.all(SavedSearch)) == 1
+        # Workflow.all() still only returns the one real workflow row.
+        assert len(temp_db.all(Workflow)) == 1
+
+    def test_duplicate_global_workflow_drops_read_only(self, temp_db):
+        """Duplicating a locked system preset must land as a normal,
+        writable, library-scoped copy — never inherit is_system/read_only.
+        """
+        from fichero.api.routes.workflows import duplicate_workflow_impl
+
+        preset = Workflow(name="Catalogue", is_system=True, is_template=True)
+        temp_db.save(preset)
+
+        duplicate = duplicate_workflow_impl(temp_db, preset.id)
+
+        assert duplicate.id != preset.id
+        assert duplicate.is_system is False
+
+        mirrored = temp_db.get(Document, duplicate.id)
+        assert mirrored is not None
+        assert mirrored.attributes["scope"] == "library"
+        assert mirrored.attributes["read_only"] is False
+        assert mirrored.parent_id is None
+
+        # The original preset is untouched — still locked under the container.
+        original_mirror = temp_db.get(Document, preset.id)
+        assert original_mirror.attributes["read_only"] is True
+
+    # -- Read-only enforcement (Daniel: "yes, enforce") -----------------
+
+    def test_update_is_system_workflow_rejected_403(self, temp_db):
+        from fastapi import HTTPException
+
+        from fichero.api.routes.workflows import update_workflow_impl
+        from fichero.workflows.types import WorkflowDef
+
+        preset = Workflow(name="Locked", is_system=True)
+        temp_db.save(preset)
+
+        with pytest.raises(HTTPException) as exc_info:
+            update_workflow_impl(
+                temp_db, preset.id, WorkflowDef(name="Hacked", nodes=[], edges=[])
+            )
+        assert exc_info.value.status_code == 403
+        assert "read-only" in exc_info.value.detail
+
+        # Untouched.
+        assert temp_db.get(Workflow, preset.id).name == "Locked"
+
+    def test_patch_is_system_workflow_rejected_403(self, temp_db):
+        from fastapi import HTTPException
+
+        from fichero.api.routes.workflows import (
+            WorkflowPatchRequest,
+            patch_workflow_impl,
+        )
+
+        preset = Workflow(name="Locked", is_system=True)
+        temp_db.save(preset)
+
+        with pytest.raises(HTTPException) as exc_info:
+            patch_workflow_impl(temp_db, preset.id, WorkflowPatchRequest(name="Hacked"))
+        assert exc_info.value.status_code == 403
+
+    def test_delete_is_system_workflow_rejected_403(self, temp_db):
+        from fastapi import HTTPException
+
+        from fichero.api.routes.workflows import delete_workflow_impl
+
+        preset = Workflow(name="Locked", is_system=True)
+        temp_db.save(preset)
+
+        with pytest.raises(HTTPException) as exc_info:
+            delete_workflow_impl(temp_db, preset.id)
+        assert exc_info.value.status_code == 403
+
+        # Still there — the delete never happened.
+        assert temp_db.get(Workflow, preset.id) is not None
+        assert temp_db.get(Document, preset.id) is not None
+
+    def test_reorder_is_system_workflow_rejected_403(self, temp_db):
+        from fastapi import HTTPException
+
+        from fichero.api.routes.workflows import reorder_workflows_impl
+
+        preset = Workflow(name="Locked", is_system=True, sort_order=0)
+        temp_db.save(preset)
+
+        with pytest.raises(HTTPException) as exc_info:
+            reorder_workflows_impl(temp_db, [preset.id])
+        assert exc_info.value.status_code == 403
+
+    def test_update_regular_workflow_still_allowed(self, temp_db):
+        """The 403 guard is scoped to is_system=True only — ordinary
+        library workflows (including user-editable is_template ones) are
+        unaffected."""
+        from fichero.api.routes.workflows import update_workflow_impl
+        from fichero.workflows.types import WorkflowDef
+
+        regular = Workflow(name="Mine", is_template=True, is_system=False)
+        temp_db.save(regular)
+
+        updated = update_workflow_impl(
+            temp_db, regular.id, WorkflowDef(name="Renamed", nodes=[], edges=[])
+        )
+        assert updated.name == "Renamed"
+
+    # -- Default-workflow subfolder seeding (38 presets, Daniel: "in sub
+    # folders") -------------------------------------------------------
+
+    def test_seed_default_workflows_creates_subfolders_under_container(self, temp_db):
+        from fichero import db as db_module
+        from fichero.workflows.default_workflows import seed_default_workflows
+
+        seeded = seed_default_workflows(temp_db)
+        assert seeded > 0
+
+        container = temp_db.get(Document, db_module._DEFAULT_WORKFLOWS_CONTAINER_ID)
+        assert container is not None
+
+        subfolders = temp_db.query(Document, parent_id=container.id)
+        assert len(subfolders) > 0
+        names = {s.name for s in subfolders}
+        # From the shipped preset folder_paths (resources/default_workflows/*.json).
+        assert "Convert" in names
+        assert "Transcribe" in names
+        for subfolder in subfolders:
+            assert subfolder.node_kind == db_module._WORKFLOW_CONTAINER_NODE_KIND
+            assert subfolder.attributes["scope"] == "global"
+            assert subfolder.attributes["read_only"] is True
+
+    def test_seed_default_workflows_nests_presets_under_their_subfolder(self, temp_db):
+        from fichero import db as db_module
+        from fichero.workflows.default_workflows import seed_default_workflows
+
+        seed_default_workflows(temp_db)
+
+        container = temp_db.get(Document, db_module._DEFAULT_WORKFLOWS_CONTAINER_ID)
+        subfolders = {s.name: s for s in temp_db.query(Document, parent_id=container.id)}
+        assert "Convert" in subfolders
+
+        convert_children = temp_db.query(Document, parent_id=subfolders["Convert"].id)
+        assert len(convert_children) > 0
+        for child in convert_children:
+            assert child.node_kind == "workflow"
+            assert child.attributes["scope"] == "global"
+            assert child.attributes["read_only"] is True
+            assert child.attributes["folder_path"] == "/Convert"
+
+        # Folder-view path: the container's OWN direct children are only
+        # subfolders (+ any root "/" presets) — Convert presets are not
+        # flattened directly under the container.
+        container_children = temp_db.query(Document, parent_id=container.id)
+        assert subfolders["Convert"].id in {d.id for d in container_children}
+        assert not any(
+            d.node_kind == "workflow" and d.attributes.get("folder_path") == "/Convert"
+            for d in container_children
+        )
+
+    def test_seed_default_workflows_idempotent_no_duplicate_subfolders(self, temp_db):
+        from fichero import db as db_module
+        from fichero.workflows.default_workflows import seed_default_workflows
+
+        first = seed_default_workflows(temp_db)
+        assert first > 0
+        container = temp_db.get(Document, db_module._DEFAULT_WORKFLOWS_CONTAINER_ID)
+        subfolder_count_1 = len(temp_db.query(Document, parent_id=container.id))
+        preset_mirror_count_1 = len(temp_db._all_folded_workflows())
+
+        second = seed_default_workflows(temp_db)
+        assert second == 0  # names already exist — nothing new seeded
+
+        subfolder_count_2 = len(temp_db.query(Document, parent_id=container.id))
+        preset_mirror_count_2 = len(temp_db._all_folded_workflows())
+
+        assert subfolder_count_2 == subfolder_count_1
+        assert preset_mirror_count_2 == preset_mirror_count_1
+
+    def test_workflow_store_duplicate_also_drops_is_system(self, temp_db):
+        from fichero.workflows.workflow_store import WorkflowStore
+
+        store = WorkflowStore(temp_db)
+        preset = Workflow(name="Preset", is_system=True)
+        # Seeding an is_system row goes through Database.save directly, same
+        # as default_workflows.seed_default_workflows — WorkflowStore.save
+        # itself now REJECTS is_system rows (read-only enforcement below).
+        temp_db.save(preset)
+
+        duplicate = store.duplicate(preset.id)
+
+        assert duplicate.is_system is False
+        mirrored = temp_db.get(Document, duplicate.id)
+        assert mirrored.attributes["scope"] == "library"
+
+    def test_workflow_store_save_rejects_is_system(self, temp_db):
+        """WorkflowStore write path mirrors the route-level 403 (#11 Phase 1
+        read-only enforcement) so nothing outside the routes can sneak past
+        it either."""
+        from fichero.workflows.workflow_store import WorkflowStore
+
+        store = WorkflowStore(temp_db)
+        preset = Workflow(name="Locked", is_system=True)
+
+        with pytest.raises(PermissionError, match="read-only"):
+            store.save(preset)
+
+    def test_workflow_store_delete_rejects_is_system(self, temp_db):
+        from fichero.workflows.workflow_store import WorkflowStore
+
+        store = WorkflowStore(temp_db)
+        preset = Workflow(name="Locked", is_system=True)
+        temp_db.save(preset)  # seed directly, bypassing the store's guard
+
+        with pytest.raises(PermissionError, match="read-only"):
+            store.delete(preset.id)
+
+        # Still there — the delete never happened.
+        assert temp_db.get(Workflow, preset.id) is not None
+
+
 class TestResearchWorkspaceFold:
     def test_workspace_prototype_inherits_folder_attributes(self, temp_db):
         folder_proto = next(
@@ -2156,6 +2521,39 @@ class TestLibraryLinkBackfill:
                 assert mirrored.prototype_key == "saved_search"
                 assert mirrored.attributes["query"] == "reopen me"
                 assert mirrored.metadata["saved_search_query"] == "reopen me"
+            finally:
+                reopened.close()
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def test_reopen_backfills_workflow_document(self):
+        """Existing workflow rows are backfilled into mirrored document nodes on
+        open (#11 Phase 1), same as the saved-search/milestone/note mirrors."""
+        tmpdir = tempfile.mkdtemp()
+        db_path = Path(tmpdir) / "test.duckdb"
+        db = Database(db_path)
+        try:
+            workflow = Workflow(name="Reopen Me", provider="openai", is_system=True)
+            db.save(workflow)
+            db._execute("DELETE FROM documents WHERE id = $id", {"id": workflow.id})
+            assert db.get(Document, workflow.id) is None
+            db.close()
+
+            reopened = Database(db_path)
+            try:
+                mirrored = reopened.get(Document, workflow.id)
+                assert mirrored is not None
+                assert mirrored.node_kind == "workflow"
+                assert mirrored.prototype_key == "workflow"
+                assert mirrored.attributes["provider"] == "openai"
+                assert mirrored.attributes["scope"] == "global"
+                from fichero import db as db_module
+                assert mirrored.parent_id == db_module._DEFAULT_WORKFLOWS_CONTAINER_ID
+
+                # The workflow row itself is untouched — mirror is a shadow.
+                retrieved = reopened.get(Workflow, workflow.id)
+                assert retrieved is not None
+                assert retrieved.name == "Reopen Me"
             finally:
                 reopened.close()
         finally:

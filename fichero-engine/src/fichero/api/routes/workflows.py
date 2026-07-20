@@ -908,13 +908,29 @@ async def estimate_workflow_cost(
     )
 
 
+def _reject_if_read_only(workflow: "Workflow") -> None:  # noqa: F821
+    """Raise 403 if ``workflow`` is a global read-only default (#11 Phase 1).
+
+    ``is_system=True`` workflows are the locked "Default Workflows" mirrored
+    under the global container (see ``Database._save_workflow_document``).
+    They may be read, listed, and duplicated, but never mutated or deleted
+    in place — duplicate first, then edit the (unlocked) copy.
+    """
+    if getattr(workflow, "is_system", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Default workflows are read-only; duplicate to edit.",
+        )
+
+
 def update_workflow_impl(
     db: Database, workflow_id: str, workflow: WorkflowDef
 ) -> "Workflow":  # noqa: F821
     """Replace a node-based workflow's editable fields (extracted from the
     ``PUT /api/workflows/{id}`` route so the route and the ``workflow.update``
     action share one implementation). Raises ``HTTPException(404)`` for an
-    unknown id. Demotes ``is_template`` once a user edits a preset (#780)."""
+    unknown id, ``HTTPException(403)`` for a read-only default. Demotes
+    ``is_template`` once a user edits a preset (#780)."""
     from fichero.models import Workflow
 
     existing = db.get(Workflow, workflow_id)
@@ -922,6 +938,7 @@ def update_workflow_impl(
         raise HTTPException(
             status_code=404, detail=f"Workflow not found: {workflow_id}"
         )
+    _reject_if_read_only(existing)
 
     # Use model_dump_for_storage() to exclude ports (they come from registry)
     existing.name = workflow.name
@@ -1034,6 +1051,7 @@ def patch_workflow_impl(
         raise HTTPException(
             status_code=404, detail=f"Workflow not found: {workflow_id}"
         )
+    _reject_if_read_only(workflow)
 
     if patch.name is not None:
         workflow.name = patch.name
@@ -1107,6 +1125,7 @@ def delete_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # noqa:
         raise HTTPException(
             status_code=404, detail=f"Workflow not found: {workflow_id}"
         )
+    _reject_if_read_only(workflow)
     db.delete(workflow)
     return workflow
 
@@ -1161,7 +1180,12 @@ def duplicate_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # no
         name=f"{original.name} (Copy)",
         description=original.description,
         is_template=original.is_template,
-        is_system=original.is_system,
+        # A duplicate is always a personal, editable, library-scoped copy —
+        # never inherits is_system (#11 Phase 1: the folded-document mirror
+        # derives scope="global"/read_only from is_system, and a locked
+        # system preset's copy must land as an unlocked library workflow,
+        # not nested under the read-only "Default Workflows" container).
+        is_system=False,
         tags=list(original.tags),
         format=original.format,
         config=dict(original.config),
@@ -1235,6 +1259,7 @@ def reorder_workflows_impl(
             raise HTTPException(
                 status_code=404, detail=f"Workflow not found: {workflow_id}"
             )
+        _reject_if_read_only(workflow)
         workflow.sort_order = i
         db.save(workflow)
         updated.append(workflow)

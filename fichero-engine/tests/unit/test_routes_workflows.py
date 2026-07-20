@@ -261,7 +261,12 @@ class TestDuplicateWorkflow:
         assert copy["id"] != wf.id
         assert "Copy" in copy["name"]
 
-    def test_duplicate_preserves_system_trust_metadata(self, client, db):
+    def test_duplicate_preserves_metadata_but_drops_is_system(self, client, db):
+        """#11 Phase 1: a duplicate is always a personal, editable, writable
+        copy — is_system (and therefore the folded-document mirror's
+        read_only/scope=global) never carries over to a duplicate, even of a
+        locked default preset. Everything else about the preset (template
+        flag, tags, config) still copies across."""
         wf = _make_workflow(
             db,
             "Preset",
@@ -275,11 +280,14 @@ class TestDuplicateWorkflow:
 
         assert response.status_code == 200
         payload = response.json()
-        assert payload["untested"] is True
+        # untested is `is_system and not config.tested` (_workflow_untested)
+        # — since the duplicate drops is_system, it's no longer flagged as
+        # an unreviewed shipped preset; it's the user's own copy now.
+        assert payload["untested"] is False
 
         duplicate = db.get(Workflow, payload["id"])
         assert duplicate is not None
-        assert duplicate.is_system is True
+        assert duplicate.is_system is False
         assert duplicate.is_template is True
         assert duplicate.tags == ["preset"]
         assert duplicate.config == {"preset_version": 3}

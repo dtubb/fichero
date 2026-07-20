@@ -70,7 +70,18 @@ class WorkflowStore:
 
         Args:
             workflow: Workflow to save
+
+        Raises:
+            PermissionError: ``workflow.is_system`` is True — global default
+                workflows are read-only (#11 Phase 1); duplicate to edit.
+                Internal seeding (``default_workflows.seed_default_workflows``)
+                writes ``is_system`` rows via ``Database.save`` directly and
+                is unaffected by this guard.
         """
+        if getattr(workflow, "is_system", False):
+            raise PermissionError(
+                "Default workflows are read-only; duplicate to edit."
+            )
         workflow.updated_at = datetime.now()
         self.db.save(workflow)
         if self.db.get(Workflow, workflow.id) is None:
@@ -103,11 +114,18 @@ class WorkflowStore:
 
         Returns:
             True if deleted, False if not found
+
+        Raises:
+            PermissionError: the workflow is ``is_system`` (read-only).
         """
         workflow = self.get(workflow_id)
         if not workflow:
             logger.warning(f"Cannot delete - workflow not found: {workflow_id}")
             return False
+        if getattr(workflow, "is_system", False):
+            raise PermissionError(
+                "Default workflows are read-only; duplicate to edit."
+            )
 
         self.db.delete(workflow)
         logger.info(f"Deleted workflow: {workflow.name} ({workflow_id})")
@@ -211,6 +229,10 @@ class WorkflowStore:
             **original.model_dump(exclude={"id", "created_at", "updated_at"})
         )
         duplicate.name = new_name or f"Copy of {original.name}"
+        # A duplicate is always a personal, editable copy — never inherits
+        # is_system (#11 Phase 1: the folded-document mirror derives
+        # scope="global"/read_only from is_system).
+        duplicate.is_system = False
 
         self.save(duplicate)
         logger.info(f"Duplicated workflow: {original.name} → {duplicate.name}")
