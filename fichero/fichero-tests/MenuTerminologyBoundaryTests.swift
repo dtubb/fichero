@@ -14,6 +14,7 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertFalse(fileMenuSource.contains("Label(\"Static Site (11ty)...\", systemImage: \"globe\")"))
 
         let focusedCommandsSource = try Self.appSource("App/Menus/FocusedCommandButtons.swift")
+            + Self.appSource("App/Menus/FocusedCommandButtons+SidebarActions.swift")
         XCTAssertTrue(focusedCommandsSource.contains("Button(\"Move Files...\")"))
         XCTAssertFalse(focusedCommandsSource.contains("Button(\"Add Files...\")"))
 

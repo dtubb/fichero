@@ -3,11 +3,12 @@ import XCTest
 final class FocusedValueUsageTests: XCTestCase {
     func testLibrarySortAscendingUsesEquatableFocusedWrapper() throws {
         let shortcutsSource = try Self.appSource("Views/Library/LibraryView+KeyboardShortcuts.swift")
+        let focusedValuesSource = try Self.appSource("Views/Library/LibraryViewFocusedValues.swift")
         // #4024: sortAscending focused-value wiring moved to ViewMenuLayoutSections.swift.
         let commandsSource = try Self.appSource("App/Menus/ViewMenuLayoutSections.swift")
 
-        XCTAssertTrue(shortcutsSource.contains("struct FocusedSortAscending: Equatable"))
-        XCTAssertTrue(shortcutsSource.contains("typealias Value = FocusedSortAscending"))
+        XCTAssertTrue(focusedValuesSource.contains("struct FocusedSortAscending: Equatable"))
+        XCTAssertTrue(focusedValuesSource.contains("typealias Value = FocusedSortAscending"))
         XCTAssertTrue(
             shortcutsSource.contains(
                 ".focusedSceneValue(\n                \\.librarySortAscending,\n                FocusedSortAscending("

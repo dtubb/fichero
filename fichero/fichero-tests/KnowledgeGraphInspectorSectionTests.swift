@@ -15,6 +15,14 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    private static func entityStoreSource() throws -> String {
+        try [
+            appSource("Models/EntityStore.swift"),
+            appSource("Models/EntityStore+Loading.swift"),
+            appSource("Models/EntityStore+Mutations.swift"),
+        ].joined(separator: "\n")
+    }
+
     func testVisibleItemsCapsWhenCollapsed() {
         let items = (1...12).map(String.init)
 
@@ -66,6 +74,8 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testWebPaneEntitySelectionDoesNotOpenSourceDocument() throws {
         let source = try Self.appSource("Views/Reader/Knowledge/DocumentKGWebPane.swift")
+            + Self.appSource("Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift")
+            + Self.appSource("Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift")
         guard let entityCase = source.range(of: "case \"entitySelected\":"),
               let claimCase = source.range(of: "case \"claimSelected\":", range: entityCase.upperBound..<source.endIndex)
         else {
@@ -89,7 +99,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Scope.swift"
         )
         // After the EntityStore migration, the view calls the store; the store calls the endpoint.
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        let storeSource = try Self.entityStoreSource()
 
         XCTAssertTrue(source.contains("entityStore.loadEntities(forDocument: documentId, force: force)"))
         XCTAssertFalse(source.contains("listEntitiesForDocument(documentId: documentId)"))
@@ -310,7 +320,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         // into the dedicated KGCurationService.
         let serviceSource = try Self.appSource("Services/KGCurationService.swift")
         // After the EntityStore migration, bulk curation calls live in EntityStore, not the view.
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        let storeSource = try Self.entityStoreSource()
 
         XCTAssertTrue(storeSource.contains("batchSetEntityCurationState"))
         XCTAssertTrue(storeSource.contains("batchCreateEntityRules"))
@@ -333,7 +343,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let sharedSource = try Self.appSource(
             "Views/Inspector/Knowledge/KnowledgeGraphSupport.swift"
         )
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        let storeSource = try Self.entityStoreSource()
 
         XCTAssertTrue(source.contains(".draggable(InspectorEntityDragID(id: entity.stableInspectorId, text: entity.canonicalName))"))
         XCTAssertTrue(source.contains(".dropDestination("))
@@ -394,12 +404,12 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         ) + Self.appSource(
             "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Scope.swift"
         )
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        let storeSource = try Self.entityStoreSource()
 
         XCTAssertTrue(source.contains("entityStore.entities(forDocument: documentId)"))
         XCTAssertTrue(source.contains("entityStore.loadError(forDocument: documentId)"))
         XCTAssertTrue(source.contains("entityStore.isLoading(forDocument: documentId)"))
-        XCTAssertTrue(storeSource.contains("private(set) var entitiesByDocumentId"))
+        XCTAssertTrue(storeSource.contains("var entitiesByDocumentId"))
         XCTAssertTrue(storeSource.contains("func entities(forDocument documentId: String)"))
     }
 
@@ -413,7 +423,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let triageSource = try Self.appSource(
             "Views/Library/ViewModes/Graph/Ontology/Claim/ContradictionTriageSheet.swift"
         )
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        let storeSource = try Self.entityStoreSource()
 
         XCTAssertTrue(browserSource.contains("@Environment(EntityStore.self) var entityStore"))
         XCTAssertTrue(browserSource.contains("entityStore.libraryEntities"))
@@ -479,7 +489,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let serviceSource = try Self.appSource("Services/EntityService+ClaimEntityCRUD.swift")
 
         // deleteEntity now goes through EntityStore; the view still owns the delete button UI.
-        let storeSource = try Self.appSource("Models/EntityStore.swift")
+        let storeSource = try Self.entityStoreSource()
         XCTAssertTrue(entitiesSource.contains("deleteActionButton(targetEntities: selectedEntities)"))
         XCTAssertTrue(entitiesSource.contains("Button(\"Delete…\", role: .destructive)"))
         XCTAssertTrue(storeSource.contains("try await entityService.deleteEntity(entityId)"))

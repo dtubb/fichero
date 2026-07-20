@@ -3,7 +3,7 @@ import XCTest
 final class WorkflowCanvasUndoBoundaryTests: XCTestCase {
     func testWorkflowCanvasWiresUndoManagerForCanvasMutations() throws {
         let canvasSource = try Self.appSource("Views/Workflow/Canvas/WorkflowCanvasView.swift")
-        XCTAssertTrue(canvasSource.contains("@Environment(\\.undoManager) private var undoManager"))
+        XCTAssertTrue(canvasSource.contains("@Environment(\\.undoManager) var undoManager"))
         XCTAssertTrue(canvasSource.contains("registerUndo(from: previousWorkflow"))
 
         let gesturesSource = try Self.appSource("Views/Workflow/Canvas/WorkflowCanvasView+Gestures.swift")

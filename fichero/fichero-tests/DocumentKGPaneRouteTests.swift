@@ -157,6 +157,20 @@ final class DocumentKGPaneRouteTests: XCTestCase {
                 .appendingPathComponent("fichero")
                 .appendingPathComponent("Views/Reader/Knowledge/DocumentKGWebPane.swift"),
             encoding: .utf8
+        ) + String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("fichero")
+                .appendingPathComponent("Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift"),
+            encoding: .utf8
+        ) + String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("fichero")
+                .appendingPathComponent("Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift"),
+            encoding: .utf8
         )
 
         XCTAssertTrue(source.contains("cachedBootstrapScript"))

@@ -143,7 +143,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // in SidebarView+SelectionHandling.swift (browser(.entities) case).
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
 
-        XCTAssertTrue(source.contains("case .browser(.entities):"))
+        XCTAssertTrue(source.contains("case .entities:"))
         XCTAssertTrue(source.contains("sidebarMode = .library"))
         XCTAssertTrue(source.contains("viewMode = .library(nil)"))
     }
@@ -207,9 +207,9 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // Typed SidebarDestination routing (SidebarView+SelectionHandling.swift).
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
 
-        XCTAssertTrue(source.contains("case .browser(.comparison):"))
+        XCTAssertTrue(source.contains("case .comparison:"))
         XCTAssertTrue(source.contains("viewMode = .comparison(nil)"))
-        XCTAssertTrue(source.contains("case .browser(.research):"))
+        XCTAssertTrue(source.contains("case .research:"))
         XCTAssertTrue(source.contains("sidebarMode = .research"))
     }
 
@@ -403,7 +403,11 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testBackendRetryRunsSameReadinessSideEffectsAsStartup() throws {
         let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
-        let connectionSource = try Self.appSource("Views/Components/BackendConnection/BackendConnectionView.swift")
+        let connectionSource = try Self.appSource(
+            "Views/Components/BackendConnection/BackendConnectionView.swift"
+        ) + Self.appSource(
+            "Views/Components/BackendConnection/BackendConnectionView+Actions.swift"
+        )
 
         XCTAssertTrue(tabSource.contains("BackendConnectionView(appState: appState, onRetry: retryBackendConnection)"))
         XCTAssertTrue(tabSource.contains("private func retryBackendConnection() async"))

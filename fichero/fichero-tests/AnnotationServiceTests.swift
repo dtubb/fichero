@@ -14,7 +14,13 @@ final class AnnotationServiceTests: XCTestCase {
     }
 
     func testAnnotationServiceWiresDetailCropAndPromoteEndpoints() throws {
-        let source = try Self.appSource("Services/AnnotationService.swift")
+        let source = try [
+            Self.appSource("Services/AnnotationService.swift"),
+            Self.appSource("Services/AnnotationService+Detail.swift"),
+            Self.appSource("Services/AnnotationService+Crop.swift"),
+            Self.appSource("Services/AnnotationService+Promote.swift"),
+            Self.appSource("Services/AnnotationService+Delete.swift"),
+        ].joined(separator: "\n")
 
         XCTAssertTrue(source.contains("client.api.getAnnotationApiAnnotationsAnnotationIdGet"))
         XCTAssertTrue(source.contains("client.api.getCropApiAnnotationsAnnotationIdCropGet"))
@@ -79,7 +85,11 @@ final class AnnotationServiceTests: XCTestCase {
     }
 
     func testAnnotationServiceUsesExplicitPageAndFolderScopeFields() throws {
-        let source = try Self.appSource("Services/AnnotationService.swift")
+        let source = try [
+            Self.appSource("Services/AnnotationService.swift"),
+            Self.appSource("Services/AnnotationService+List.swift"),
+            Self.appSource("Services/AnnotationService+Create.swift"),
+        ].joined(separator: "\n")
 
         XCTAssertTrue(source.contains("query: .init(pageId: pageId)"))
         XCTAssertTrue(source.contains("query: .init(folderId: folderId)"))
@@ -110,8 +120,9 @@ final class AnnotationServiceTests: XCTestCase {
     func testReaderSurfacesDoNotForceReloadAfterAddNote() throws {
         let documentReader = try Self.appSource("Views/Reader/Page/DocumentTextReader.swift")
         let pageContent = try Self.appSource("Views/Reader/Page/PageContentPane.swift")
+            + Self.appSource("Views/Reader/Page/PageContentPane+Annotations.swift")
         let pdfToolbar = try Self.appSource("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
-        let imageViewer = try Self.appSource("Views/Preview/ImageViewer/ImageViewerComponents.swift")
+        let imageViewer = try Self.appSource("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
 
         XCTAssertTrue(documentReader.contains("await annotationStore.loadAnnotations(for: .document(document.id), force: true)"))
         XCTAssertTrue(pageContent.contains("await annotationStore.loadAnnotations(for: .page(id), force: true)"))
