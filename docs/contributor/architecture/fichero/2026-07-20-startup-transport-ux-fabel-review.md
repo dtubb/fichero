@@ -518,3 +518,28 @@ and debugs identically on any transport; you debug one path, not three.
 Integration wiring MUST select the transport by build config + context (Debug ⇒
 external HTTP), NOT hardcode one — so debugging always runs through the shared
 stack against the most debuggable transport.
+
+## duckdb-swift SHIM SPIKE — empirical (2026-07-20)
+
+Both make-or-break questions PASSED:
+1. **File-format portability YES** — `.duckdb` written by Python duckdb 1.5.3 opened
+   cleanly in duckdb-swift v1.5.0-dev8547, incl. LIST/STRUCT columns + NULLs. On-disk
+   format stable across 1.x → **Swift can read Fichero libraries natively.**
+2. **duckdb-swift compiles for iOS YES** — DuckDB C++ amalgamation built for
+   `arm64-apple-ios18.0` (iPhoneOS 26.5 SDK), zero errors. iOS is first-class in its
+   Package.swift (no macOS floor).
+3. **Shim surface small** — ~8 methods (connect/execute/executemany/fetchall/fetchone/
+   commit/rollback/close) + named `$param` binding + LIST/STRUCT→list/dict marshalling.
+   NO DataFrames/Arrow/Appender. Cheapest = a Python `duckdb` module binding the DuckDB
+   C ABI directly (cffi/C-ext), amalgamation as build vehicle, no Swift wrappers needed.
+   **Cost: medium (~1.5–3k lines).**
+
+**Catches:** iOS forbids dlopen → shim must be a STATICALLY-LINKED built-in Python
+extension baked into embedded Python (packaging chore). And LanceDB has NO Swift port
+— vector search + onnxruntime + pymupdf still wall iOS even with a working duck shim.
+
+**Verdict:** unlocks the DuckDB half only (proven, medium effort); full in-process on
+iOS remains LARGE + multi-dependency (duckdb is the EASIEST blocker). Pragmatic nugget:
+a **read-mostly iOS companion** — reads `.duckdb` natively via duckdb-swift, remote
+HTTPS for writes/search/embeddings — is a lean iOS path that skips porting everything.
+Tracked, not taken. Spike was research-only; nothing merged.
