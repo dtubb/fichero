@@ -495,3 +495,26 @@ per-instance seam, `AsyncHTTPClientTransport` over `http+unix://`, 7 tests pass,
 adds the SwiftNIO stack (async-http-client/nio/nio-http2/nio-ssl) transitively; the
 app build with those deps must be verified before merge. Nothing uses `.uds` yet
 (default stays `.https`), so no rush.
+
+## CONSTRAINT — maximal shared code + debuggable transport (Daniel, 2026-07-20)
+
+"We really want to share code as well, for debugging." The `ClientTransport` seam
+already delivers this: the transport is a thin bottom layer; EVERYTHING above it is
+shared across all transports — generated OpenAPI `Client`, `AuthTokenMiddleware`,
+library-path middleware, all Stores/Services — and the Python FastAPI engine is ONE
+app driven identically over UDS / HTTP / in-process ASGI. A bug therefore reproduces
+and debugs identically on any transport; you debug one path, not three.
+
+**Debug workflow (keep #3042 Debug-external / Release-embedded, as a transport choice):**
+| Build / context | Transport | Why |
+|---|---|---|
+| **Debug** | `.https` → external engine on `:8765` | most debuggable: separate process, attach Py debugger, live logs, independent restart |
+| Release macOS | `.uds` (embedded engine) | production local |
+| Local CLI/MCP | `.uds` (same socket) | "open app → CLI works" |
+| iOS | `.https` (remote) | can't embed engine |
+| Sharing/remote | `.https` (TCP/TLS, additive) | |
+| Mac in-memory | in-process ASGI (PythonKit) | opt-in experiment |
+
+Integration wiring MUST select the transport by build config + context (Debug ⇒
+external HTTP), NOT hardcode one — so debugging always runs through the shared
+stack against the most debuggable transport.
