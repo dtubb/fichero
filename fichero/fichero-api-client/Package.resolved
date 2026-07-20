@@ -19,6 +19,15 @@
       }
     },
     {
+      "identity" : "pythonkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pvieito/PythonKit",
+      "state" : {
+        "branch" : "main",
+        "revision" : "1ac25ddddca845ba0184911de9c00e1508948cf8"
+      }
+    },
+    {
       "identity" : "swift-algorithms",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-algorithms",

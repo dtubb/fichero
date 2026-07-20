@@ -16,6 +16,13 @@ public enum TransportMode: Sendable, Equatable {
     /// absent — the engine exempts the UDS path and grants loopback-owner auth
     /// via a transport marker on the socket (engine "Lane E").
     case uds(path: String)
+    #if os(macOS)
+    /// In-process: drive the Python engine's ASGI app directly via PythonKit —
+    /// no subprocess, no socket, no HTTP server (macOS only; iOS can't embed
+    /// CPython). The engine grants loopback-owner auth via the `inmemory`
+    /// transport marker (mirrors `.uds`). See `Sources/.../InMemory`.
+    case inMemory
+    #endif
 }
 
 /// Convenience wrapper for the generated Fichero API client.
@@ -183,6 +190,13 @@ public final class FicheroClient: ObservableObject {
             // `makeServerURL` — so the shared HTTPClient needs no special config
             // and never needs an explicit shutdown.
             return AsyncHTTPClientTransport()
+        #if os(macOS)
+        case .inMemory:
+            // Drive the engine's ASGI app in-process. `InMemoryEngineApp.shared()`
+            // boots CPython once (env-driven paths, fail-loud) and imports the
+            // FastAPI app; the transport ignores host/port on the server URL.
+            return InMemoryASGIClientTransport(app: InMemoryEngineApp.shared())
+        #endif
         }
     }
 
@@ -200,6 +214,12 @@ public final class FicheroClient: ObservableObject {
         switch transportMode {
         case .https:
             return baseURL
+        #if os(macOS)
+        case .inMemory:
+            // The in-process transport ignores host/port entirely; use a stable
+            // placeholder so the generated client appends `/api/...` cleanly.
+            return URL(string: "http://asgi.local")!
+        #endif
         case .uds(let path):
             let host = path.addingPercentEncoding(withAllowedCharacters: Self.udsHostAllowed) ?? path
             guard let url = URL(string: "http+unix://\(host)") else {
