@@ -83,6 +83,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/ResearchService+Search.swift": "#2955 — WebSearchResultItem is the return type of the same-file webSearch() extension method (split from ResearchService by file_length); scanner misses same-file extension wiring",
     "Views/Workflow/Canvas/WorkflowEdgeView+Edges.swift": "#2955 — EdgesView/PortPositionCalculator split out of WorkflowEdgeView.swift by file_length; were ALREADY unreferenced pre-split (co-located, so unflagged). Appears to be superseded dead code (edges now render via WorkflowCanvasView+EdgesLayer) — FLAG FOR DANIEL to delete/wire; grandfathered so the split lands.",
     "Views/Reader/Page/Immersive/PageTurnModifier.swift": "#2955 — PageTurnModifier + its AnyTransition extension are applied only within the same-cluster ImmersiveReaderView+Navigation (split from ImmersiveReaderView by file_length); scanner misses the ViewModifier-via-extension wiring",
+    "Views/Reader/Knowledge/DocumentKGWebPane+Theme.swift": "#2955 — ReaderTheme value type used only by the same-file theme-resolution funcs (split from DocumentKGWebPane by file_length); scanner misses same-file wiring",
 }
 
 

@@ -80,13 +80,20 @@ KNOWN_VIOLATIONS: dict[str, str] = {
         "the shared pinned transport — so the generic web view validates the "
         "engine's pinned HTTPS cert like every other call site (#2601)."
     ),
-    "Views/Reader/Knowledge/DocumentKGWebPane.swift#10ac98dccd": "§6b baseline — hand-built URLRequest(url:)",
-    "Views/Reader/Knowledge/DocumentKGWebPane.swift#b0f6d9c546": (
+    "Views/Reader/Knowledge/DocumentKGWebPane+Route.swift#10ac98dccd": "§6b baseline — hand-built URLRequest(url:) (moved here when DocumentKGWebPane was split by file_length)",
+    "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift#b0f6d9c546": (
         "WKNavigationDelegate server-trust challenge signature names "
         "URLSession.AuthChallengeDisposition (an enum type, not a raw session); "
         "the handler forwards to RemoteCertificatePinning.resolveServerTrustChallenge — "
         "the shared pinned transport — so the KG/reader WKWebView validates the "
-        "engine's pinned HTTPS cert like every other call site (#2538)."
+        "engine's pinned HTTPS cert like every other call site (#2538). Split from DocumentKGWebPane by file_length."
+    ),
+    "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift#b0f6d9c546": (
+        "WKNavigationDelegate server-trust challenge signature names "
+        "URLSession.AuthChallengeDisposition (an enum type, not a raw session); "
+        "the handler forwards to RemoteCertificatePinning.resolveServerTrustChallenge — "
+        "the shared pinned transport — so the KG/reader WKWebView validates the "
+        "engine's pinned HTTPS cert like every other call site (#2538). Split from DocumentKGWebPane by file_length."
     ),
 }
 
