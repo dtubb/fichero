@@ -206,6 +206,11 @@ struct FicheroApp: App {
         .environment(claimFocusState)
         .environment(kgFocusState)
         .environment(appState.mcpService)
+        // Same retry closure as `onRetry` above, threaded via the environment
+        // so `EngineStatusToolbarItem` (inside `content()`, which now renders
+        // during `.starting` / failures too — #startup-transport-ux S1) can
+        // offer Retry without re-implementing `start()` (#3108).
+        .environment(\.engineRetry, { await appDelegate.controller.retry() })
         .frame(minWidth: 640, minHeight: 700)
         // ★ EVERY FRAME PERFECT (#3615): the semantic surface color is the BASE
         // layer under the whole window, so the BackendConnectionView → LibraryWindow

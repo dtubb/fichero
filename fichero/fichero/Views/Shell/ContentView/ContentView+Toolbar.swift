@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Toolbar item identity
 
 enum ContentToolbarID {
+    static let engineStatus = "fichero.engineStatus"
     static let navigationBack = "fichero.nav.back"
     static let navigationForward = "fichero.nav.forward"
     static let inspectorToggle = "fichero.inspectorToggle"
@@ -41,9 +42,19 @@ extension ContentView {
         leadingToolbarContent
     }
 
-    /// LEADING zone: back/forward history navigation in the content-column toolbar.
+    /// LEADING zone: engine status + back/forward history navigation in the
+    /// content-column toolbar.
     @ToolbarContentBuilder
     private var leadingToolbarContent: some ToolbarContent {
+        // Xcode-style engine connection status (startup-transport-ux S1).
+        // Declared unconditionally — its CONTENT varies by
+        // `appState.engine.phase` (nothing while `.ready`, a spinner while
+        // `.starting`, a tappable warning glyph on failure), the item itself
+        // never appears/disappears (#3163 guard, see the view's doc comment).
+        ToolbarItem(id: ContentToolbarID.engineStatus, placement: .navigation) {
+            EngineStatusToolbarItem()
+        }
+
         ToolbarItem(id: ContentToolbarID.navigationBack, placement: .navigation) {
             Button {
                 navigateBack()
@@ -81,21 +92,16 @@ extension ContentView {
         }
         #endif
 
-        // Activity / error status — sits between the title and the inspector section.
+        // Activity / error status — sits between the title and the inspector
+        // section. Aggregates running workflows + backend-work + the
+        // in-window import into one tap-for-detail popover
+        // (startup-transport-ux S1) instead of growing a pill per source.
         ToolbarItem(id: ContentToolbarID.activityStatus, placement: .automatic) {
-            HStack(spacing: 6) {
-                if isImporting {
-                    ProgressView()
-                        .controlSize(.small)
-                        .help(importProgress ?? "Importing…")
-                }
-                if importError != nil {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundStyle(.red)
-                        .help(importError ?? "Import error")
-                        .onTapGesture { importError = nil }
-                }
-            }
+            ActivityStatusToolbarItem(
+                isImporting: isImporting,
+                importProgress: importProgress,
+                importError: $importError
+            )
         }
 
         // Show/hide-panes + view-mode control on every platform's toolbar,

@@ -108,6 +108,12 @@ private struct FicheroSharedPlatformRoot: View {
                 }
             }
         )
+        // Same retry closure as `onRetry` above, threaded via the environment
+        // so `EngineStatusToolbarItem` (inside `content()`, which now renders
+        // during `.starting` / failures too — startup-transport-ux S1) can
+        // offer Retry without re-implementing `reconnectToConfiguredHost()`
+        // (#3108).
+        .environment(\.engineRetry, { await reconnectToConfiguredHost() })
         .onOpenURL { url in
             // Account invite link (#3157): route to the redeem gate. The token
             // is a secret query param, so it is never logged.
