@@ -316,3 +316,45 @@ simplification. Net: elegance + security vs isolation + independence; measured.
   wheel spike.
 - **iOS-wheel spike (running):** can duckdb/lance(Rust)/onnxruntime/torch build
   for iOS arm64. Vetoes or unlocks iOS in-process.
+
+## iOS-WHEEL SPIKE RESULT — VETO: iOS in-process is NOT feasible (2026-07-20)
+
+Research spike verdict: **iOS cannot embed the engine in-process.** The core
+(non-prunable) native deps have NO iOS arm64 Python wheels and no realistic path
+(6–12mo upstream porting each):
+- **duckdb** — no iOS wheel; iOS DuckDB only via native Swift SDK (not callable from Python).
+- **lancedb / pylance** (Rust) — no iOS wheel.
+- **fastembed → onnxruntime** — no iOS *Python* wheel; iOS onnxruntime is a native C++/ObjC SDK only.
+- **PyMuPDF** — no iOS wheel.
+- pydantic-core / cryptography (Rust) — no iOS wheels either, but most tractable.
+
+Useful side-finding: **pykeen/torch are already pruned** (commented out of the
+Briefcase `requires`, in optional `.kg`/`.image` extras; all `import torch`/
+`import pykeen` are lazy with 503 fallbacks). So torch was never the blocker —
+the DB/vector/embed/PDF core is.
+
+### What the veto changes
+The headline benefit of the in-memory/PythonKit transport was **one shared local
+code path across Mac + iOS**. That benefit is now DEAD — iOS physically cannot
+run the engine in-process. So:
+- **iOS = remote-HTTPS, permanently** (Tailscale serve / local network to a Mac
+  or remote engine). Not a temporary limitation — it's iOS's dynamic-code +
+  POSIX-process restrictions on the native extensions.
+- **in-memory ASGI is macOS-ONLY** and no longer unifies anything.
+
+### Reshaped recommendation (post-veto)
+On Mac, the choice is in-memory vs UDS, and in-memory just lost its main reason
+to exist. Remaining in-memory edge: no spawn latency + no socket (security).
+Remaining UDS edge: **crash-isolation** (engine abort ≠ app crash — matters for
+duckdb/onnxruntime which abort, not raise), independent CLI/MCP/headless, no
+native-dep signing envelope, and it REUSES the standalone engine sharing needs
+anyway. Post-veto, **UDS is the stronger Mac default.**
+
+**Recommendation: ship UDS (Mac local) + HTTPS (iOS/remote/sharing). HOLD the
+PythonKit in-memory lane** — build it only if UDS's measured startup/security
+disappoints. Its cost (embed CPython, ASGITransport, SSE bridge, all native deps
+in the app signing envelope) no longer buys the cross-platform win that justified
+it. Awaiting Daniel's reconfirm before spending that lane — his "build all three,
+iOS shares in-memory" instruction rested on the now-false iOS-in-process premise.
+
+UDS Swift transport lane: IN PROGRESS (unblocked, needed in every scenario).
