@@ -8,6 +8,7 @@
 //
 
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import Testing
 
@@ -84,11 +85,107 @@ struct EngineReadinessProbeTests {
         #expect(classify(200, nonce: "whatever", expected: nil, pid: 7, registry: 200) == .ready)
     }
 
-    @Test("probe URLs are /api/health and /api/registry — the /health path-bug regression")
-    func probeURLs() {
-        let probe = EngineReadinessProbe(hostURL: URL(string: "https://127.0.0.1:8765")!)
-        #expect(probe.healthURL.path == "/api/health")
-        #expect(probe.registryURL.path == "/api/registry")
+}
+
+/// Stubs `GET /api/health` and `GET /api/registry` so the probe's fetch path can
+/// be exercised end-to-end through the real generated `FicheroClient` (over an
+/// HTTPS mock session — the transport the probe now rides instead of a raw
+/// URLSession). The same code path is what a `.uds` client would take; only the
+/// concrete transport differs, so HTTPS coverage validates the client-routed
+/// fetch + typed-response → status-code mapping.
+private final class ReadinessMockURLProtocol: URLProtocol {
+    struct Stub { let status: Int; let json: String }
+    /// Default health: 200 with a matching nonce + pid, so an unset test is a
+    /// deterministic ready-shaped health.
+    nonisolated(unsafe) static var health = Stub(status: 200, json: #"{"status":"ok","launch_nonce":"n","engine_pid":123}"#)
+    /// Default registry: 200 with the required `LibraryRegistryResponse` shape.
+    nonisolated(unsafe) static var registry = Stub(status: 200, json: #"{"libraries":[],"count":0}"#)
+
+    static func reset() {
+        health = Stub(status: 200, json: #"{"status":"ok","launch_nonce":"n","engine_pid":123}"#)
+        registry = Stub(status: 200, json: #"{"libraries":[],"count":0}"#)
+    }
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        guard let path = request.url?.path else { return false }
+        return path.hasPrefix("/api/health") || path.hasPrefix("/api/registry")
+    }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let stub = request.url?.path.hasPrefix("/api/health") == true ? Self.health : Self.registry
+        let response = HTTPURLResponse(
+            url: request.url!, statusCode: stub.status, httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(stub.json.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+/// End-to-end fetch path: the probe fetching health + registry THROUGH the
+/// generated `FicheroClient` (not a raw URLSession bound to `hostURL`). Serialized
+/// because the mock protocol carries per-test stubs in static state.
+@Suite("EngineReadinessProbe fetches through the client", .serialized)
+struct EngineReadinessProbeFetchTests {
+
+    @MainActor
+    private func makeProbe(expectedNonce: String? = nil) -> EngineReadinessProbe {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ReadinessMockURLProtocol.self]
+        let client = FicheroClient(
+            baseURL: URL(string: "https://readiness.test")!,
+            session: URLSession(configuration: configuration)
+        )
+        return EngineReadinessProbe(client: client, expectedNonce: expectedNonce)
+    }
+
+    @Test("health 200 + matching nonce + registry 200 → ready")
+    @MainActor
+    func readyThroughClient() async {
+        ReadinessMockURLProtocol.reset()
+        defer { ReadinessMockURLProtocol.reset() }
+        #expect(await makeProbe(expectedNonce: "n").probe() == .ready)
+    }
+
+    @Test("registry 401 → authRejected (the token the client attaches was refused)")
+    @MainActor
+    func authRejectedThroughClient() async {
+        ReadinessMockURLProtocol.reset()
+        defer { ReadinessMockURLProtocol.reset() }
+        ReadinessMockURLProtocol.registry = .init(status: 401, json: #"{"detail":"unauthorized"}"#)
+        #expect(await makeProbe(expectedNonce: "n").probe() == .authRejected)
+    }
+
+    @Test("health non-200 → notResponding, before any auth (fail-closed)")
+    @MainActor
+    func healthDownThroughClient() async {
+        ReadinessMockURLProtocol.reset()
+        defer { ReadinessMockURLProtocol.reset() }
+        ReadinessMockURLProtocol.health = .init(status: 503, json: #"{"status":"down"}"#)
+        #expect(await makeProbe(expectedNonce: "n").probe() == .notResponding)
+    }
+
+    @Test("nonce mismatch → identityMismatch(pid) from the health body")
+    @MainActor
+    func nonceMismatchThroughClient() async {
+        ReadinessMockURLProtocol.reset()
+        defer { ReadinessMockURLProtocol.reset() }
+        ReadinessMockURLProtocol.health = .init(status: 200, json: #"{"status":"ok","launch_nonce":"other","engine_pid":4242}"#)
+        #expect(await makeProbe(expectedNonce: "mine").probe() == .identityMismatch(pid: 4242))
+    }
+
+    @Test("authFailure() collects the undocumented 401 body → stale bootstrap token")
+    @MainActor
+    func authFailureCollectsBodyThroughClient() async {
+        ReadinessMockURLProtocol.reset()
+        defer { ReadinessMockURLProtocol.reset() }
+        ReadinessMockURLProtocol.registry = .init(
+            status: 401,
+            json: #"{"detail":"local bootstrap token is stale","code":"stale_bootstrap_token"}"#
+        )
+        #expect(await makeProbe().authFailure() == .staleBootstrapToken)
     }
 }
 

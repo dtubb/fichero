@@ -71,6 +71,14 @@ final class EmbeddedBackendService {
     /// Setter widened from `private(set)` to internal: set by the Readiness extension.
     var lastReadiness: ReadinessResult?
 
+    /// The generated client the readiness probe fetches through, so the probe
+    /// rides the app's active transport (UDS / in-memory / HTTPS) and its auth
+    /// middleware — a UDS-only engine never answered the old raw-URLSession probe.
+    /// Injected by `EngineLifecycleController` from `AppState.ficheroClient`; the
+    /// iOS / Settings construction paths that don't set it fall back to a fresh
+    /// loopback HTTPS client in `probeReadiness()`.
+    @ObservationIgnored var readinessClient: FicheroClient?
+
     /// Set true when WE initiate a stop (stop()), so the process
     /// terminationHandler doesn't misread an intentional shutdown as a crash
     /// and flip status to .failed (#2863).

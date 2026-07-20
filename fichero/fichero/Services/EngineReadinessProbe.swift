@@ -1,5 +1,6 @@
 import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 
 // MARK: - The one engine readiness probe (#3106)
 
@@ -20,40 +21,40 @@ enum EngineReadiness: Equatable {
 
 /// The single authenticated readiness probe. "Ready" = `GET /api/health` 200 +
 /// instance identity (launch-nonce echo, when we spawned the engine) + the token
-/// accepted (authenticated `GET /api/registry` 200), over the pinned
-/// loopback/HTTPS transport. **Fail-closed:** any transport/TLS error classifies
-/// as `.notResponding`, never `.ready`.
+/// accepted (authenticated `GET /api/registry` 200), over whatever transport the
+/// injected `FicheroClient` dials with. **Fail-closed:** any transport/TLS error
+/// classifies as `.notResponding`, never `.ready`.
+///
+/// The observations are fetched through the generated `FicheroClient` rather than
+/// raw `URLSession`, so the probe rides the client's active `ClientTransport` —
+/// `.https`, in-memory, or a UDS `AF_UNIX` socket — and its `AuthTokenMiddleware`
+/// attaches the token automatically. A UDS-only engine (which never answers a raw
+/// `hostURL` URLSession request) therefore reports ready here, where the old raw
+/// probe was the last blocker for a UDS launch.
 ///
 /// This is the single home for the readiness contract, replacing the three
 /// drifting copies it superseded (#3106): `EmbeddedBackendService.probeReadiness`,
 /// `AppState.probeAuthenticatedRegistry`, and the broken `checkHealth()` that hit
 /// `/health` with no `/api` prefix (→ always 404).
 struct EngineReadinessProbe {
-    let hostURL: URL
+    /// The app's generated client. Its operations carry the auth middleware and
+    /// the active transport (UDS / in-memory / HTTPS), so the probe works over
+    /// whatever transport the client was configured with — no UDS special-casing.
+    let client: FicheroClient
     /// The `FICHERO_LAUNCH_NONCE` we expect `/api/health` to echo. `nil` = we
     /// adopted an external engine (no nonce to match) → identity is skipped.
     let expectedNonce: String?
-    private let session: URLSession
 
-    init(
-        hostURL: URL,
-        expectedNonce: String? = nil,
-        session: URLSession = RemoteCertificatePinning.configuredSession()
-    ) {
-        self.hostURL = hostURL
+    init(client: FicheroClient, expectedNonce: String? = nil) {
+        self.client = client
         self.expectedNonce = expectedNonce
-        self.session = session
     }
-
-    /// Always `/api/health` — the fix for the `/health` (missing `/api` → 404) bug.
-    var healthURL: URL { hostURL.appendingPathComponent("api/health") }
-    /// Authenticated but library-header-free, so it cleanly exercises the token.
-    var registryURL: URL { hostURL.appendingPathComponent("api/registry") }
 
     /// Run one probe. Order: cheapest/most-telling first — health (unauth) proves
     /// the socket is up and identifies the responder; the authenticated registry
     /// call proves the token works. Skips the registry call once health or
     /// identity has already decided the outcome.
+    @MainActor
     func probe() async -> EngineReadiness {
         let health = await fetchHealth()
         guard health.status == 200 else { return .notResponding }
@@ -70,6 +71,7 @@ struct EngineReadinessProbe {
         )
     }
 
+    @MainActor
     func authFailure() async -> AccessError? {
         let registry = await fetchRegistryObservation()
         return Self.classifyAuthFailure(statusCode: registry.status, body: registry.body)
@@ -115,41 +117,54 @@ struct EngineReadinessProbe {
         let body: Data?
     }
 
+    /// `GET /api/health` through the generated op (unauthenticated). `.ok` reads
+    /// the instance-identity fields off the typed body; any other case or a thrown
+    /// transport error is fail-closed — `status: nil` (or the undocumented code),
+    /// never a synthesized 200.
+    @MainActor
     private func fetchHealth() async -> HealthObservation {
         do {
-            let (data, response) = try await session.data(from: healthURL)
-            let status = (response as? HTTPURLResponse)?.statusCode
-            let body = try? JSONDecoder().decode(EngineHealthBody.self, from: data)
-            return HealthObservation(status: status, nonce: body?.launchNonce, pid: body?.enginePid)
+            let response = try await client.api.healthCheckApiHealthGet(.init())
+            switch response {
+            case .ok(let okResponse):
+                let body = try okResponse.body.json
+                return HealthObservation(status: 200, nonce: body.launchNonce, pid: body.enginePid)
+            case .unprocessableContent:
+                return HealthObservation(status: 422, nonce: nil, pid: nil)
+            case .undocumented(let statusCode, _):
+                return HealthObservation(status: statusCode, nonce: nil, pid: nil)
+            }
         } catch {
             return HealthObservation(status: nil, nonce: nil, pid: nil)
         }
     }
 
+    /// Authenticated `GET /api/registry` through the generated op. The client's
+    /// `AuthTokenMiddleware` attaches the token, so there's no manual auth header.
+    /// `.ok` → 200; a 401/403 (or any other non-2xx) arrives as `.undocumented`,
+    /// whose status + collected body feed `classifyAuthFailure`. A thrown transport
+    /// error is fail-closed (`status: nil`).
+    @MainActor
     private func fetchRegistryObservation() async -> RegistryObservation {
-        var request = URLRequest(url: registryURL)
-        request.httpMethod = "GET"
-        request.addEngineAuth()
         do {
-            let (data, response) = try await session.data(for: request)
-            return RegistryObservation(
-                status: (response as? HTTPURLResponse)?.statusCode,
-                body: data
-            )
+            let response = try await client.api.listKnownLibrariesApiRegistryGet(.init())
+            switch response {
+            case .ok:
+                return RegistryObservation(status: 200, body: nil)
+            case .undocumented(let statusCode, let payload):
+                return RegistryObservation(status: statusCode, body: await Self.collectBody(payload))
+            }
         } catch {
             return RegistryObservation(status: nil, body: nil)
         }
     }
-}
 
-/// Health-only JSON we care about at readiness time (#2862): the two fields that
-/// prove instance identity, decoded raw so we don't depend on the generated
-/// client's schema being regenerated for them.
-private struct EngineHealthBody: Decodable {
-    let launchNonce: String?
-    let enginePid: Int?
-    enum CodingKeys: String, CodingKey {
-        case launchNonce = "launch_nonce"
-        case enginePid = "engine_pid"
+    /// Collect an undocumented response body into raw `Data` so `AccessError`'s
+    /// structured-denial decoder (stale-bootstrap-token / device-expired markers)
+    /// can inspect it. Bounded so a hostile/huge error body can't be read without
+    /// limit.
+    private static func collectBody(_ payload: UndocumentedPayload, upTo maxBytes: Int = 64 * 1024) async -> Data? {
+        guard let body = payload.body else { return nil }
+        return try? await Data(collecting: body, upTo: maxBytes)
     }
 }

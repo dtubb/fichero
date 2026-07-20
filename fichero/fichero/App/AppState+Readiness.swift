@@ -22,11 +22,11 @@ extension AppState {
             await warmContextThenMarkReady()
             return
         }
-        switch await EngineReadinessProbe(hostURL: EngineConfig.host).probe() {
+        switch await EngineReadinessProbe(client: ficheroClient).probe() {
         case .ready:
             await warmContextThenMarkReady()
         case .authRejected:
-            let accessError = await EngineReadinessProbe(hostURL: EngineConfig.host).authFailure() ?? .unauthenticated
+            let accessError = await EngineReadinessProbe(client: ficheroClient).authFailure() ?? .unauthenticated
             backendAccessError = accessError
             engine.markAuthRejected(Self.diagnosis(for: accessError))
             logger.error("Auth rejected on readiness probe — authBroken")
