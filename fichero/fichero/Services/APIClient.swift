@@ -60,7 +60,7 @@ class APIClient {
     }
 
     init(baseURL: URL = EngineConfig.host, libraryPath: String? = nil) {
-        self.client = FicheroClient(baseURL: baseURL, libraryPath: libraryPath)
+        self.client = FicheroClient(baseURL: baseURL, libraryPath: libraryPath, transportMode: EngineConfig.transportMode)
         self.currentLibraryPath = libraryPath
     }
 

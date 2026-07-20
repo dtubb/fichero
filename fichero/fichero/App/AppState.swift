@@ -128,7 +128,7 @@ class AppState {
     // MARK: - Services
 
     let apiClient = APIClient()  // App-wide APIClient for legacy services
-    let ficheroClient = FicheroClient(baseURL: EngineConfig.host)  // App-wide generated client
+    let ficheroClient = FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)  // App-wide generated client
     let providerService: ProviderAPIService  // Public for @EnvironmentObject injection
     let mcpService: MCPService  // Public for @EnvironmentObject injection
     let modelService: ModelService  // Public for @EnvironmentObject injection (HuggingFace browsing)
