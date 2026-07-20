@@ -203,9 +203,12 @@ public final class FicheroClient: ObservableObject {
         case .uds(let path):
             let host = path.addingPercentEncoding(withAllowedCharacters: Self.udsHostAllowed) ?? path
             guard let url = URL(string: "http+unix://\(host)") else {
-                // A socket path that cannot be encoded is a programmer error;
-                // fall back to the raw baseURL rather than crashing the app.
-                return baseURL
+                // Fail LOUD, not silent: silently returning the HTTPS `baseURL`
+                // here would route UDS-intended traffic to the network endpoint —
+                // a confusing, hard-to-debug mis-send. An un-encodable socket path
+                // is a genuine programmer error (percent-encoded paths always
+                // parse), so trap with a clear message instead.
+                preconditionFailure("UDS socket path is not URL-encodable: \(path)")
             }
             return url
         }
