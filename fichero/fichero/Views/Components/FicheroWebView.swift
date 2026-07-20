@@ -23,6 +23,9 @@ struct FicheroWebView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+        // Let embedded `fichero-res://` storage images resolve through the
+        // generated client (transport-agnostic), rather than a raw engine URL.
+        config.setURLSchemeHandler(StorageResourceSchemeHandler(), forURLScheme: StorageResourceURL.scheme)
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
@@ -47,6 +50,9 @@ struct FicheroWebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+        // Let embedded `fichero-res://` storage images resolve through the
+        // generated client (transport-agnostic), rather than a raw engine URL.
+        config.setURLSchemeHandler(StorageResourceSchemeHandler(), forURLScheme: StorageResourceURL.scheme)
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView

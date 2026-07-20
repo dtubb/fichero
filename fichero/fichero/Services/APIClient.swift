@@ -100,17 +100,27 @@ class APIClient {
         }
     }
 
-    // MARK: - URL Builders (for images)
+    // MARK: - Storage resource URLs
+
+    /// A transport-agnostic `fichero-res://` URL for a storage resource served by
+    /// THIS client's `FicheroClient`. The adapters (`URLProtocol` /
+    /// `WKURLSchemeHandler` / `AVAssetResourceLoaderDelegate`) resolve it through
+    /// the generated client, so it works identically over `.https`, `.uds`, and
+    /// in-memory transports — unlike a raw `https://127.0.0.1:8765/...` URL, which
+    /// assumes an HTTP host and breaks the moment the transport isn't HTTPS.
+    func storageResourceURL(_ kind: StorageResourceKind, for documentId: String) -> URL {
+        StorageResourceRegistry.shared.url(for: client, kind: kind, documentId: documentId)
+    }
 
     func thumbnailURL(for documentId: String) -> URL {
-        baseURL.appendingPathComponent("storage/thumbnail/\(documentId)")
+        storageResourceURL(.thumbnail, for: documentId)
     }
 
     func displayURL(for documentId: String) -> URL {
-        baseURL.appendingPathComponent("storage/display/\(documentId)")
+        storageResourceURL(.display, for: documentId)
     }
 
     func sourceURL(for documentId: String) -> URL {
-        baseURL.appendingPathComponent("storage/source/\(documentId)")
+        storageResourceURL(.source, for: documentId)
     }
 }

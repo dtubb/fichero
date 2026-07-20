@@ -5,17 +5,23 @@ import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "MediaStreamPreview")
 
-/// Streams an audio/video document via `AVPlayer` against the storage HTTP
-/// endpoint (#3208), instead of `QuickLookDownloadView` which downloads the WHOLE
-/// file to a temp path before showing anything — minutes of blank pane and
-/// gigabytes duplicated for large recordings.
+/// Streams an audio/video document via `AVPlayer` (#3208), instead of
+/// `QuickLookDownloadView` which downloads the WHOLE file to a temp path before
+/// showing anything — minutes of blank pane and gigabytes duplicated for large
+/// recordings.
 ///
-/// The player points an `AVURLAsset` at `apiClient.sourceURL(for:)` and carries
-/// the SAME auth as every other storage fetch (`Authorization: Bearer` +
-/// `X-Fichero-Library-Path`) via `AVURLAssetHTTPHeaderFieldsKey` — the headers
-/// stay inside the asset's request options, no bare token in the URL, no local
-/// path. AVFoundation then fetches progressively (Range requests) rather than up
-/// front. Cross-platform (AVKit on macOS + iOS).
+/// The player points an `AVURLAsset` at a `fichero-res://source/<docId>` URL and
+/// drives it through `StorageResourceAVAssetDelegate`, so the media bytes travel
+/// the generated OpenAPI client over whatever transport it dials (`.https`,
+/// `.uds`, in-memory) — never a hand-built `https://127.0.0.1:8765/...` URL that
+/// breaks under UDS/in-memory. Auth + library-path headers are applied centrally
+/// by the client middleware, so there is no bare token in the URL and no local
+/// path. Cross-platform (AVKit on macOS + iOS).
+///
+/// Streaming caveat: the generated source op has no `Range` parameter, so the
+/// delegate buffers the whole file once and serves seeks from that buffer (see
+/// `StorageResourceAVAssetDelegate`). Seeks are instant; first playback waits for
+/// the download.
 ///
 /// `canStream(_:)` gates this to formats AVFoundation actually plays; anything
 /// else (mkv / avi / …) stays on the QuickLook download fallback.
@@ -24,6 +30,9 @@ struct MediaStreamPreview: View {
 
     @Environment(APIClient.self) private var apiClient
     @State private var player: AVPlayer?
+    /// Retains the resource-loader delegate for the asset's lifetime —
+    /// `AVURLAsset.resourceLoader` holds its delegate weakly.
+    @State private var resourceDelegate: StorageResourceAVAssetDelegate?
 
     var body: some View {
         Group {
@@ -42,19 +51,15 @@ struct MediaStreamPreview: View {
     }
 
     private func makePlayer() {
-        let url = apiClient.sourceURL(for: document.id)
-        // Reuse the exact auth headers every other storage fetch uses, rather
-        // than re-deriving them — keeps the token out of the URL and in step
-        // with the middleware (#742/#3076). AVFoundation does its own
-        // range-requested streaming, so it takes the headers directly; there is
-        // no request for us to build (and no generated-client op that could
-        // stream this without downloading the whole file first).
-        let headers = engineAuthHeaders(for: url, libraryPath: apiClient.currentLibraryPath)
-
-        // The header-fields option key isn't surfaced as a Swift symbol on this
-        // SDK; its stable underlying string value carries the auth headers into
-        // AVFoundation's own networking.
-        let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": headers])
+        // A `fichero-res://source/<docId>` URL, resolved by the resource-loader
+        // delegate through the generated client — transport-agnostic, no raw
+        // engine URL, no auth headers to hand-assemble (the client middleware
+        // owns auth + library-path centrally).
+        let url = apiClient.storageResourceURL(.source, for: document.id)
+        let delegate = StorageResourceAVAssetDelegate(fileExtension: Self.mediaExtension(for: document))
+        let asset = AVURLAsset(url: url)
+        asset.resourceLoader.setDelegate(delegate, queue: DispatchQueue(label: "app.fichero.media-loader"))
+        resourceDelegate = delegate
         let item = AVPlayerItem(asset: asset)
         logger.info("Streaming media for document: \(document.id, privacy: .public)")
         player = AVPlayer(playerItem: item)

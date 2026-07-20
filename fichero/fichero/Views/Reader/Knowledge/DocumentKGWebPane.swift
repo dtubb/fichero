@@ -64,6 +64,13 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
     func makeNSView(context: Context) -> GuardedWKWebView {
         let config = WKWebViewConfiguration()
+        // Storage images referenced as `fichero-res://…` inside KG HTML resolve
+        // through the generated client (transport-agnostic). Note: the KG page
+        // itself is still a server-rendered `https://…/view/document/…`
+        // navigation whose subresources the engine emits as absolute engine URLs;
+        // routing the whole page over UDS/in-memory needs an engine-side change
+        // (see the report) — this handler only covers `fichero-res://` assets.
+        config.setURLSchemeHandler(StorageResourceSchemeHandler(), forURLScheme: StorageResourceURL.scheme)
         let controller = config.userContentController
         controller.add(context.coordinator, name: "ficheroBridge")
         if DocumentKGPaneRoute.supportsAuthenticatedWebView() {
@@ -170,6 +177,10 @@ struct DocumentKGWebPane: UIViewRepresentable {
 
     func makeUIView(context: Context) -> GuardedWKWebView {
         let config = WKWebViewConfiguration()
+        // See the macOS pane: resolve `fichero-res://` storage assets through the
+        // generated client; full-page KG navigation over UDS/in-memory still
+        // needs an engine-side change.
+        config.setURLSchemeHandler(StorageResourceSchemeHandler(), forURLScheme: StorageResourceURL.scheme)
         let controller = config.userContentController
         controller.add(context.coordinator, name: "ficheroBridge")
         if DocumentKGPaneRoute.supportsAuthenticatedWebView() {

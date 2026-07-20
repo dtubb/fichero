@@ -310,19 +310,21 @@ class StorageService {
 
     // MARK: - URL Providers
 
-    /// Get thumbnail URL for AsyncImage
+    /// Transport-agnostic `fichero-res://` URLs (resolved through the generated
+    /// client by the scheme adapters), so a URL handed to `AsyncImage`/WebKit/
+    /// AVFoundation works over `.https`, `.uds`, and in-memory transports alike.
+    /// These also back the human-readable `notFound` error strings below.
+
     func thumbnailURL(for docId: String) -> URL {
-        baseURL.appendingPathComponent("storage/thumbnail/\(docId)")
+        StorageResourceRegistry.shared.url(for: client, kind: .thumbnail, documentId: docId)
     }
 
-    /// Get display image URL for AsyncImage
     func displayURL(for docId: String) -> URL {
-        baseURL.appendingPathComponent("storage/display/\(docId)")
+        StorageResourceRegistry.shared.url(for: client, kind: .display, documentId: docId)
     }
 
-    /// Get source file URL
     func sourceURL(for docId: String) -> URL {
-        baseURL.appendingPathComponent("storage/source/\(docId)")
+        StorageResourceRegistry.shared.url(for: client, kind: .source, documentId: docId)
     }
 
     // MARK: - File Access
