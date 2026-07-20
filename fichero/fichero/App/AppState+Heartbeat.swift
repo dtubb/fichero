@@ -32,7 +32,7 @@ extension AppState {
         // Health-200 alone is NOT "online" (#2864): a leftover engine can answer
         // health yet reject our token. The shared readiness probe (#3106) does
         // health + authenticated registry in one, over the pinned transport.
-        switch await EngineReadinessProbe(hostURL: EngineConfig.host).probe() {
+        switch await EngineReadinessProbe(client: ficheroClient).probe() {
         case .ready:
             heartbeatFailureCount = 0
             recordActiveEndpoint()
@@ -120,7 +120,10 @@ extension AppState {
             logger.warning(
                 "Endpoint failover: \(PairedHostEndpoints.failoverReason(from: current, to: candidate))"
             )
-            switch await EngineReadinessProbe(hostURL: candidate.url).probe() {
+            // A candidate is a DIFFERENT host than the app's current client, so
+            // dial it with its own client: the default pinned session resolves the
+            // per-URL SPKI trust and AuthTokenMiddleware attaches that host's token.
+            switch await EngineReadinessProbe(client: FicheroClient(baseURL: candidate.url)).probe() {
             case .ready:
                 commitActiveEndpoint(candidate)
                 heartbeatFailureCount = 0

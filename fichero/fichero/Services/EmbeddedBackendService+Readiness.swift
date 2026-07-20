@@ -173,8 +173,14 @@ extension EmbeddedBackendService {
 
     /// One authenticated readiness probe — delegates to the shared
     /// `EngineReadinessProbe` (#3106), the single home for the readiness contract.
+    ///
+    /// Fetches through the app's `FicheroClient` so the probe uses whatever
+    /// transport that client dials (UDS / in-memory / HTTPS), not a raw URLSession
+    /// bound to `backendURL`. Falls back to a fresh loopback HTTPS client on the
+    /// construction paths (iOS / Settings) that never injected one.
     func probeReadiness() async -> ReadinessResult {
-        await EngineReadinessProbe(hostURL: backendURL, expectedNonce: expectedLaunchNonce).probe()
+        let client = readinessClient ?? FicheroClient(baseURL: backendURL)
+        return await EngineReadinessProbe(client: client, expectedNonce: expectedLaunchNonce).probe()
     }
 
     /// Last `lines` lines of the engine log, for surfacing a real cause when

@@ -47,6 +47,15 @@ final class EngineLifecycleController {
     /// window `.task` — now the trigger is a single app-scoped `start()`.
     private var isConnecting = false
 
+    init() {
+        // Fetch the readiness probe through the app-wide generated client so it
+        // rides the same transport (UDS / in-memory / HTTPS) and auth middleware
+        // the app uses — a UDS-only engine never answered the old raw-URLSession
+        // probe. Both properties are this controller's own, so wiring them here
+        // keeps the process and connection halves pointed at one client.
+        backendService.readinessClient = appState.ficheroClient
+    }
+
     /// Kick the engine once at app launch. Called from
     /// `applicationDidFinishLaunching`, never from a window.
     func start() async {
