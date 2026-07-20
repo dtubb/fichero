@@ -2,6 +2,31 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.20-beta
+
+### New
+
+**Workflow nodes in the sidebar.** Saved workflows now appear in the library
+tree. Built-in presets are grouped under a locked **Default Workflows**
+hierarchy; duplicate a default to create an editable library copy.
+
+### Improved
+
+**Settings navigation.** The Settings detail pane now has System
+Settings-style back and forward controls plus a clearer section header.
+
+### Testing Build
+
+This prerelease uses Fichero's development feature tier, exposing every
+implemented app surface and workflow tool for testing.
+
+### Under The Hood
+
+Large SwiftUI files across the app shell, library, sidebar, previews,
+Inspector, services, and platform bridges were split into focused extensions
+without changing behavior. Source-contract tests were updated to follow the
+new file boundaries.
+
 ## 2026.07.19.2
 
 ### Improved
