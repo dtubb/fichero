@@ -199,3 +199,34 @@ sandbox inheritance passes only STATIC rights; the dynamic Powerbox / security-
 scoped-bookmark grants for opening library files outside the container are NOT
 inherited — but that's FILE access (already handled by bookmarks), not the
 socket, which lives inside the container. Supersedes the App-Group line above.
+
+## DECISION — pluggable ClientTransport, build all three (2026-07-20)
+
+Resolved (Daniel): rather than pick one local transport, build a `ClientTransport`
+abstraction with THREE pluggable implementations, selected by where the engine
+is, and A/B-testable:
+
+1. **UDS** — Mac local, works identically for an EMBEDDED (bundled subprocess)
+   or a NON-EMBEDDED (external/dev/test) engine on the same machine. Crash-
+   isolated, GIL-independent, SSE-native over HTTP.
+2. **In-memory ASGI (PythonKit)** — Mac / iOS / iPad in-process. REQUIRED on iOS
+   (no subprocesses). Swift embeds Python, calls the FastAPI ASGI app directly.
+   No socket. Trade-off: in-process = engine crash → app crash, GIL shared with
+   UI-serving calls, and SSE must be driven across the FFI. Building it lets us
+   MEASURE those costs on macOS instead of assuming them, and macOS can switch to
+   it by config in future.
+3. **HTTPS** — remote / sharing. Portable baseline (URLSession + SPKI pinning,
+   tailscale serve / loopback+TLS). Kept because Android/web/remote clients need
+   it. Apple-specific alternatives (Network.framework, MultipeerConnectivity)
+   exist but would strand non-Apple clients, so HTTPS stays the sharing default.
+
+The APP code stays uniform (it talks to `ClientTransport`); only the impl differs
+per context. Sharing is additive on top of any local transport (open the TCP+TLS
+listener when sharing is on) — the engine never restarts to toggle it. This
+supersedes the "UDS-only" framing above; UDS is transport #1 of three.
+
+Lanes: E (engine UDS bind + TCP+TLS-when-sharing + auth marker) proceeds as-is —
+UDS is transport #1. Swift Lane C becomes the `ClientTransport` protocol + the
+three adapters (NIO-UDS, PythonKit-ASGI, URLSession-HTTPS); PythonKit adds a
+dependency to evaluate. Each transport gets an interop/streaming(SSE) test so we
+can compare them empirically.
