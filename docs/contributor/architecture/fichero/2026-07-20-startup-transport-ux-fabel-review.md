@@ -124,3 +124,60 @@ lanes) before push, per house rules.
 ## Deferred (separate)
 - #19 login modal + iOS↔Mac PIN connect.
 - #4029 Sparkle appcast 404 (private-repo raw URL) — infra, unrelated.
+
+## Critic review — resolutions (2026-07-20)
+
+A critic pass raised blockers that reshape S2's implementation. Resolutions:
+
+- **[CRITICAL] Auth over UDS must NOT key off `request.client is None`.** Both the
+  UDS server and the TCP+TLS server share one ASGI app + auth middleware, which
+  can't tell which server delivered a request — and a misconfigured proxy /
+  stripping middleware / ASGI test transport can produce `client is None` on the
+  TCP path, which would then be mis-granted bootstrap-owner. **Fix:** wrap ONLY
+  the UDS server's ASGI app to stamp `scope["fichero.transport"] = "uds"`;
+  `_is_loopback_request` checks that positive marker, never `client is None`. TCP
+  requests never carry the marker, so `test_posture_parity_matrix.py:77`
+  (non-loopback → 401) still holds. This is the safe realization of the approved
+  "trust UDS as loopback-owner" decision.
+- **[CRITICAL] macOS App Store is BLOCKED for UDS** — no `application-groups`
+  entitlement, so the sandboxed app + engine helper have disjoint containers and
+  can't share a socket path; engine sandbox is on HOLD (#3340); and `sun_path`
+  is capped at **104 bytes** (App Group paths exceed it). **Decision: ship UDS on
+  the DMG (Dev-ID, non-sandboxed) target FIRST** at a fixed short path
+  (`~/Library/Application Support/Fichero/fichero.sock`); MAS UDS is DEFERRED
+  behind an App Group entitlement + #3340. Keep the MAS TCP entitlements until
+  the App-Group UDS path is proven end-to-end.
+- **[CRITICAL] Socket path channel spawner→engine is unspecified.** Add
+  `FICHERO_UDS_PATH` (Swift spawner decides a short path, passes it in
+  `buildChildEnvironment`); add `backendUDSPath: String?` to
+  `EmbeddedBackendService`; the Swift transport dials it.
+- **[HIGH] Lifespan fires twice with two servers.** Wrap the TCP+TLS server's app
+  in a no-lifespan shim (intercept `lifespan.*`); only the UDS/primary server
+  runs the real lifespan (DB open, Bonjour, migrations) — exactly once.
+- **[HIGH] Stale UDS socket after a crash → respawn `EADDRINUSE`.** `unlink` the
+  socket path before bind — engine-side (`Path(uds).unlink(missing_ok=True)`)
+  AND a Swift respawn backstop. Both tested.
+- **[HIGH] Swift UDS transport = SwiftNIO `ClientTransport`** over a
+  `UnixSocketAddress`, injected at the `Client(transport:)` seam (+ a NIO SSE
+  loop). The loopback-shim option is **ruled out** (re-introduces a local port).
+- **[MED] Crash-loop guard = 5 crashes / 60s** (named constants; `CrashRecord`
+  with timestamps, not a bare counter). Clear `intentionalStop` only AFTER the
+  new PID is stored. On guard-fire, SIGTERM the last PID before surfacing
+  `.failed`.
+- **[MED] Mid-request socket drop:** the Swift UDS adapter maps
+  `ECONNRESET`/`EPIPE` to retryable `.starting` (relaunch in progress) or
+  `.unreachable`, surfacing "engine restarting", not a raw network error.
+- **[LOW] Claim tightened:** UDS+relaunch removes `portConflict`, shortens the
+  connect leg, and adds crash recovery — it is NOT a general fix for all launch
+  failures (Briefcase import, missing bundle, DuckDB-open, bookmark denial
+  remain).
+- **iOS/iPad:** confirmed correct as-is — `allowsEmbeddedLocalDefault = false`;
+  no UDS work needed. An in-process iOS engine (future) would use in-memory ASGI,
+  not a socket.
+
+### Build order (revised)
+Lane E ships the engine UDS bind + auth marker + unlink + no-lifespan-shim +
+`FICHERO_UDS_PATH`, gated by the FULL pytest suite (security/parity tests), as an
+OPTION — the app keeps using TCP+TLS until Lane C (SwiftNIO transport) lands, so
+nothing breaks mid-migration. Then flip the DMG default to UDS. MAS stays TCP
+until App-Group + #3340.
