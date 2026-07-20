@@ -1,0 +1,7 @@
+.build/
+.swiftpm/
+Package.resolved
+*.xcodeproj
+__pycache__/
+*.pyc
+.pytest_cache/
