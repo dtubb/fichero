@@ -543,3 +543,29 @@ iOS remains LARGE + multi-dependency (duckdb is the EASIEST blocker). Pragmatic 
 a **read-mostly iOS companion** — reads `.duckdb` natively via duckdb-swift, remote
 HTTPS for writes/search/embeddings — is a lean iOS path that skips porting everything.
 Tracked, not taken. Spike was research-only; nothing merged.
+
+## IN-MEMORY TRANSPORT — streaming SOLVED, with concurrency/teardown caveats (2026-07-20)
+
+Standalone `InMemoryASGIClientTransport: ClientTransport` (branch
+`worktree-agent-a1b9cfa6245c9168e`, `29b07da6e`) drives the real FastAPI app
+in-process via PythonKit. **Streaming works INCREMENTALLY** (proven: 3 chunks at
+0.3s intervals arrive 0.3s apart in Swift, not buffered) — via a thread-safe Python
+`queue.Queue` (ASGI app on a bg Python thread; `send` pushes events; Swift drains
+with blocking `q.get()`, GIL released during wait). NOT httpx.ASGITransport. Per-req
+6–19ms; cold import ~2s. Gates green (swift build, 2/2 swift, 2/2 pytest).
+
+**Load-bearing findings (why in-memory stays an EXPERIMENT, not the default):**
+- PythonKit has NO GIL management — needs a dedicated GIL-owning worker thread
+  (`PyEval_SaveThread` after init, `PyGILState_Ensure/Release` per job).
+- DuckDB's C++ static destructor aborts at exit unless an `atexit` GIL-reacquire is
+  registered LIFO-after the app import. Fragile.
+- Single GIL-owning worker SERIALIZES requests — the app fires concurrent Store
+  loads + streaming; needs validation (deadlock/starvation risk).
+- Thread-affinity enforced by convention (Swift-5 mode, non-Sendable PythonObjects),
+  not the type system.
+- AUTH unverified: in-process has no client.host → needs a scope transport marker
+  (like uds_transport.py) or authenticated endpoints fail/bypass. MUST verify.
+
+Verdict: in-memory is PROVEN viable incl. streaming, but its GIL/atexit/serialization/
+affinity surface is a large maintenance cost vs UDS's simplicity — confirms UDS as
+the pragmatic Mac default, in-memory as opt-in. Independent code-reviewer pass running.
