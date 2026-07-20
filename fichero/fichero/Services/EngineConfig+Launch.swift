@@ -180,7 +180,15 @@ extension EngineConfig {
     /// live provisioning strategy. Impure boundary around the pure
     /// `transportMode(for:)`, mirroring `engineProvisioningStrategy()`.
     static var transportMode: TransportMode {
-        transportMode(for: engineProvisioningStrategy())
+        // Debug/testing hook: force UDS at a given socket so the transport can be
+        // exercised without a Release build (only `.releaseEmbedded` natively
+        // dials UDS). Run an external engine with the same `FICHERO_UDS_PATH`,
+        // then launch the app with `FICHERO_FORCE_UDS_PATH` set to that path.
+        if let forced = ProcessInfo.processInfo.environment["FICHERO_FORCE_UDS_PATH"],
+           !forced.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .uds(path: forced)
+        }
+        return transportMode(for: engineProvisioningStrategy())
     }
 
     /// Pure strategy → transport mapping, dependency-injected so all five cases
