@@ -230,3 +230,46 @@ UDS is transport #1. Swift Lane C becomes the `ClientTransport` protocol + the
 three adapters (NIO-UDS, PythonKit-ASGI, URLSession-HTTPS); PythonKit adds a
 dependency to evaluate. Each transport gets an interop/streaming(SSE) test so we
 can compare them empirically.
+
+## CONVERGED DECISION — UDS(Mac) + HTTPS(iOS/remote); PythonKit deferred (2026-07-20)
+
+Three reviews (Claude critic, Claude red-team, codex/gpt). They split on one
+premise: "does iOS force in-process?" The CODE settles it —
+`EngineConfig.allowsEmbeddedLocalDefault` is `true` on macOS, **`false` on iOS**
+→ iOS does NOT embed the engine; it connects to a Mac/remote engine over HTTPS.
+So the red-team's "iOS forces in-process, build PythonKit anyway" premise is
+false, and in-process becomes a net-new major project (embed CPython + native
+wheels, Hardened Runtime / Library Validation / binary size / App Store), not a
+free reuse. Codex + critic + the code converge.
+
+**Decision — build `ClientTransport` with TWO production transports now:**
+- macOS local → **subprocess + UDS** (Lane E, engine side done)
+- iOS / remote / sharing → **HTTPS** (existing URLSession + SPKI pinning)
+- **PythonKit + in-memory ASGI → deferred experiment**, revisited only if a
+  real-device prototype proves the engine embeds acceptably AND the measurement
+  below shows it wins.
+
+**Retractions (were wrong above):** "iOS REQUIRED in-memory ASGI/PythonKit" — no,
+iOS is HTTPS-to-remote. "PythonKit loses the OpenAPI typed client" — no: in-memory
+ASGI returns JSON that decodes into the same generated Codable types (contract is
+at the schema layer, not transport).
+
+**Keepers (all reviews agree):** the `scope["fichero.transport"]` auth marker,
+sharing-as-additive-toggle (no restart), the crash-loop guard, and the
+`ClientTransport` abstraction.
+
+**Landmines to honor:** `sun_path` is a BYTE limit + private parent dir; a UDS is
+NOT authentication by itself — pair the marker with `0600` + ownership check +
+stale-socket/replacement-race handling; verify helper signing/sandbox-inherit/
+bundle-location on MAS AND DevID; `httpx.ASGITransport` may BUFFER SSE (gotcha if
+PythonKit is ever tried); the transport abstraction must model streaming
+(SSE/WebSocket) explicitly, not just request/response.
+
+**Deciding experiment if PythonKit is revisited:** 20 clean release-build
+launches; measure p95 launch-to-first-authenticated-API-response; any
+crash/termination is a hard-fail gate. If in-process doesn't win materially,
+don't carry it.
+
+**Lane C (Swift) scope (revised):** `ClientTransport` protocol + a SwiftNIO UDS
+adapter + the existing URLSession HTTPS adapter (streaming modeled explicitly).
+NOT PythonKit now.
