@@ -254,10 +254,33 @@ extension EmbeddedBackendService {
 
     private func makeTerminationHandler() -> @Sendable (Process) -> Void {
         { [weak self] proc in
-            let code = proc.terminationStatus
+            // Decode BOTH fields: for `.uncaughtSignal`, `terminationStatus` is
+            // the SIGNAL NUMBER, not an exit code — reading only the status
+            // reports a SIGPIPE (signal 13) as the false "exit code 13" (#dev).
+            let status = proc.terminationStatus
+            let reason = proc.terminationReason
+            let description = Self.describeTermination(status: status, reason: reason)
+            let wasSignal = reason == .uncaughtSignal
+            let wasSigpipe = wasSignal && status == SIGPIPE
             Task { @MainActor [weak self] in
                 guard let self, !self.intentionalStop else { return }
-                logger.error("Engine terminated unexpectedly (code \(code))")
+
+                // A SIGPIPE is the engine being told a client hung up mid-write
+                // (a cancelled probe, a connection dropped after a 401) — NOT a
+                // crash. The engine now ignores SIGPIPE (see engine __main__),
+                // so this should not fire; if an older engine build still dies
+                // this way, log it honestly and do NOT feed it to the crash
+                // restart loop, whose "start already in flight" churn (#3108)
+                // is the stuck-on-launch symptom. The readiness/heartbeat loop
+                // re-drives the connection on its own.
+                if wasSigpipe {
+                    logger.notice(
+                        "Engine received SIGPIPE (client closed mid-write); not a crash, not restarting"
+                    )
+                    return
+                }
+
+                logger.error("Engine terminated unexpectedly (\(description, privacy: .public))")
 
                 // #18: auto-restart a crashed embedded engine so a transient
                 // crash self-heals with no manual Retry — but stop if it keeps
@@ -265,25 +288,59 @@ extension EmbeddedBackendService {
                 guard self.shouldAutoRestartAfterCrash() else {
                     let tail = Self.tailEngineLog(lines: 20)
                     self.status = .failed
-                    self.errorMessage = "The engine keeps crashing (code \(code)) — "
+                    self.errorMessage = "The engine keeps crashing (\(description)) — "
                         + "stopped auto-restarting after \(Self.crashLoopMaxRestarts) attempts "
                         + "in \(Int(Self.crashLoopWindow))s."
                         + (tail.isEmpty ? "" : "\n\n\(tail)")
                     return
                 }
 
-                logger.info("Auto-restarting engine after unexpected exit (code \(code))")
+                logger.info("Auto-restarting engine after unexpected termination (\(description, privacy: .public))")
                 self.status = .starting
                 do {
                     try await self.start()
                 } catch {
                     let tail = Self.tailEngineLog(lines: 20)
                     self.status = .failed
-                    self.errorMessage = "The engine crashed (code \(code)) and could not be "
+                    self.errorMessage = "The engine terminated (\(description)) and could not be "
                         + "restarted: \(error.localizedDescription)"
                         + (tail.isEmpty ? "" : "\n\n\(tail)")
                 }
             }
+        }
+    }
+
+    /// Human-readable termination cause. For `.uncaughtSignal`, `status` is the
+    /// signal number (e.g. 13 = SIGPIPE), NOT an exit code — decode it as a
+    /// signal so logs and the failure banner never mislabel a signal as an exit
+    /// code. For `.exit`, `status` is the real process exit code.
+    static func describeTermination(status: Int32, reason: Process.TerminationReason) -> String {
+        switch reason {
+        case .uncaughtSignal:
+            let name = signalName(status)
+            return name.map { "signal \(status) \($0)" } ?? "signal \(status)"
+        case .exit:
+            return "exit code \(status)"
+        @unknown default:
+            return "status \(status)"
+        }
+    }
+
+    /// Best-effort symbolic name for a termination signal (e.g. 13 → "SIGPIPE").
+    private static func signalName(_ signalNumber: Int32) -> String? {
+        guard let cName = strsignal(signalNumber) else { return nil }
+        let text = String(cString: cName)
+        // strsignal returns a human phrase ("Broken pipe"); prefer the SIGxxx
+        // mnemonic for the ones we actually reason about, fall back to the phrase.
+        switch signalNumber {
+        case SIGPIPE: return "SIGPIPE"
+        case SIGKILL: return "SIGKILL"
+        case SIGTERM: return "SIGTERM"
+        case SIGSEGV: return "SIGSEGV"
+        case SIGABRT: return "SIGABRT"
+        case SIGBUS: return "SIGBUS"
+        case SIGILL: return "SIGILL"
+        default: return text.isEmpty ? nil : text
         }
     }
 }

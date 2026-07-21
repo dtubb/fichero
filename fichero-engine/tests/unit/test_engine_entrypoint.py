@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import json
+import signal
+import socket
 from types import SimpleNamespace
+
+import pytest
 
 from engine import __main__ as backend_main
 
@@ -16,6 +20,72 @@ def _manifest_json(material: SimpleNamespace) -> str:
         },
         sort_keys=True,
     )
+
+
+@pytest.fixture
+def _restore_sigpipe():
+    """Save and restore the SIGPIPE disposition around a test that changes it."""
+    previous = signal.getsignal(signal.SIGPIPE)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGPIPE, previous)
+
+
+def test_ignore_sigpipe_installs_sig_ign(_restore_sigpipe) -> None:
+    # Start from the terminating default so the assertion proves the helper acts.
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    assert signal.getsignal(signal.SIGPIPE) == signal.SIG_DFL
+
+    backend_main._ignore_sigpipe()
+
+    assert signal.getsignal(signal.SIGPIPE) == signal.SIG_IGN
+
+
+def test_write_to_hung_up_peer_raises_not_kills(_restore_sigpipe) -> None:
+    """With SIGPIPE ignored, writing to a closed peer raises BrokenPipeError.
+
+    This is the exact scenario that was killing the engine: uvicorn writing a
+    response to a socket whose peer (the app) already hung up. Under SIG_DFL the
+    process receives SIGPIPE and dies (reported as "code 13"); under SIG_IGN the
+    write raises EPIPE -> BrokenPipeError, which the caller handles and lives.
+    """
+    backend_main._ignore_sigpipe()
+
+    left, right = socket.socketpair()
+    try:
+        # Peer hangs up mid-conversation, exactly like the app dropping the UDS
+        # connection after a readiness probe / 401.
+        right.close()
+        with pytest.raises(BrokenPipeError):
+            # Enough writes to overflow the send buffer and force the EPIPE that
+            # would otherwise be delivered as SIGPIPE.
+            for _ in range(1024):
+                left.send(b"x" * 4096)
+    finally:
+        left.close()
+
+    # The process is still alive and the interpreter still running: reaching
+    # this line at all is the assertion — SIGPIPE did not terminate us.
+    assert signal.getsignal(signal.SIGPIPE) == signal.SIG_IGN
+
+
+def test_main_ignores_sigpipe_before_serving(monkeypatch) -> None:
+    """main() calls the SIGPIPE guard first, before any socket/server work."""
+    calls: list[str] = []
+
+    def _record_and_stop() -> None:
+        calls.append("ignore_sigpipe")
+        # Abort main() right after the guard so we never spin up a real server;
+        # reaching here proves the guard runs before argparse/serving.
+        raise RuntimeError("stop after sigpipe guard")
+
+    monkeypatch.setattr(backend_main, "_ignore_sigpipe", _record_and_stop)
+
+    with pytest.raises(RuntimeError, match="stop after sigpipe guard"):
+        backend_main.main([])
+
+    assert calls == ["ignore_sigpipe"]
 
 
 def test_prepare_local_access_flag_prints_manifest_and_returns(monkeypatch, capsys, tmp_path) -> None:

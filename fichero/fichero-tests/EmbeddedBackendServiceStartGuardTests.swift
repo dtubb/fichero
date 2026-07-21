@@ -162,3 +162,45 @@ struct SpawnedEngineEnvironmentTests {
         #expect(EmbeddedBackendService.childEnvironmentBase(inheriting: inherited) == inherited)
     }
 }
+
+/// The engine's `terminationHandler` must decode `terminationReason`: for
+/// `.uncaughtSignal` the `terminationStatus` is the SIGNAL NUMBER, so a SIGPIPE
+/// (13) must read as "signal 13 SIGPIPE", never the false "exit code 13" that
+/// the old status-only path reported. For `.exit` it is a real exit code.
+@Suite("Engine termination decoding (SIGPIPE vs exit code)")
+struct EngineTerminationDecodingTests {
+
+    @Test("SIGPIPE (signal 13) is decoded as a signal, not exit code 13")
+    func sigpipeDecodesAsSignal() {
+        let described = EmbeddedBackendService.describeTermination(
+            status: SIGPIPE, reason: .uncaughtSignal
+        )
+        #expect(described == "signal 13 SIGPIPE")
+        // The regression we are guarding against: it must NOT read as an exit code.
+        #expect(!described.contains("exit code"))
+    }
+
+    @Test("a real non-zero exit code is decoded as an exit code")
+    func nonZeroExitDecodesAsExit() {
+        #expect(EmbeddedBackendService.describeTermination(
+            status: 1, reason: .exit) == "exit code 1")
+        #expect(EmbeddedBackendService.describeTermination(
+            status: 13, reason: .exit) == "exit code 13")
+    }
+
+    @Test("other known signals decode to their mnemonics")
+    func otherSignalsDecode() {
+        #expect(EmbeddedBackendService.describeTermination(
+            status: SIGKILL, reason: .uncaughtSignal) == "signal 9 SIGKILL")
+        #expect(EmbeddedBackendService.describeTermination(
+            status: SIGTERM, reason: .uncaughtSignal) == "signal 15 SIGTERM")
+        #expect(EmbeddedBackendService.describeTermination(
+            status: SIGSEGV, reason: .uncaughtSignal) == "signal 11 SIGSEGV")
+    }
+
+    @Test("a clean exit (code 0) is still described as an exit code")
+    func cleanExitDecodes() {
+        #expect(EmbeddedBackendService.describeTermination(
+            status: 0, reason: .exit) == "exit code 0")
+    }
+}

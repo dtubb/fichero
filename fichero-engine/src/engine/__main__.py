@@ -12,6 +12,7 @@ import argparse
 import logging
 import os
 import pathlib
+import signal
 import socket
 import sys
 import faulthandler
@@ -66,6 +67,31 @@ def _bind_uds_socket(uds_path: str) -> socket.socket:
     return sock
 
 
+def _ignore_sigpipe() -> None:
+    """Ignore SIGPIPE so a write to a hung-up client raises, not signals-kill.
+
+    When the host app closes the Unix-domain (or TCP) socket after a request —
+    e.g. it cancels a readiness probe, or tears down a connection right after a
+    401 — uvicorn may still be mid-write to that peer. With SIGPIPE at its
+    default disposition (SIG_DFL, which terminates the process), that write
+    delivers SIGPIPE and the engine dies. The Swift terminationHandler then
+    reads ``terminationStatus == 13`` and reports it as "code 13", and the
+    crash-restart path trips the "start already in flight" guard (#3108) —
+    the whole stuck-on-launch cascade starts from one dropped write.
+
+    Setting SIG_IGN makes the kernel return ``EPIPE`` from the write instead,
+    which Python surfaces as ``BrokenPipeError`` — caught and logged by uvicorn
+    as a normal client-disconnect, leaving the engine alive. CPython usually
+    installs this at interpreter start, but we set it explicitly and defensively
+    here: the disposition can be inherited/reset across the Briefcase launch
+    wrapper, and this path is the one that actually serves sockets. We force the
+    stdlib asyncio loop (never uvloop) below, so nothing re-installs SIG_DFL
+    after this.
+    """
+    if hasattr(signal, "SIGPIPE"):
+        signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+
+
 def _env_flag(name: str, default: bool = False) -> bool:
     """Parse a boolean env var with common truthy values."""
     value = os.environ.get(name)
@@ -92,6 +118,11 @@ def _is_briefcase_dev_bundle() -> bool:
 
 def main(argv: list[str] | None = None):
     """Start the Fichero API backend server."""
+
+    # Survive a client that hangs up mid-write (readiness probe cancel, a
+    # connection closed right after a 401) instead of dying with SIGPIPE. Set
+    # before anything binds a socket. See _ignore_sigpipe for the full cascade.
+    _ignore_sigpipe()
 
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--prepare-local-access", action="store_true")
