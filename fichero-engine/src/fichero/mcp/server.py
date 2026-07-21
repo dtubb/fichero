@@ -15,9 +15,9 @@ Two tool families (#1269 — "MCP access to the app"):
 
 Usage::
 
-    python -m fichero.mcp_server [--api-url URL] [--library-path PATH]
+    python -m fichero.mcp.server [--api-url URL] [--library-path PATH]
 
-The console entry point ``fichero-mcp = "fichero.mcp_server:main"`` is declared
+The console entry point ``fichero-mcp = "fichero.mcp.server:main"`` is declared
 in pyproject.toml. Configuration falls back to the environment
 (``FICHERO_API_URL``, ``FICHERO_LIBRARY_PATH``, ``FICHERO_API_KEY``) — the same
 variables the CLI honours.
