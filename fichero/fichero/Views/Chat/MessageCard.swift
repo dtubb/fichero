@@ -28,6 +28,16 @@ struct MessageBubble: View {
                             .padding(.leading, 12)
                     }
 
+                    // Audited tool calls the agent made for this message (the
+                    // ToolCall spine). Nil today; lights up when the engine wires
+                    // the agentic /api/chat loop (migration step 2).
+                    if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+                        ForEach(toolCalls) { toolCall in
+                            ToolCallCard(toolCall: toolCall)
+                        }
+                        .padding(.leading, 12)
+                    }
+
                     // Sources (for assistant messages)
                     if let sources = message.sources, !sources.isEmpty {
                         sourcesView(sources)
