@@ -302,11 +302,17 @@ enum RemoteClientPairing {
     }
 
     private static func libraryPathsMatch(_ lhs: String, _ rhs: String) -> Bool {
+        // Lexically standardize (drops trailing slash, `.`/`..`), then compare
+        // case-insensitively: the default macOS APFS volume is case-insensitive,
+        // so `/Users/Daniel/…` and `/Users/daniel/…` are the same library — a
+        // case-sensitive `==` would fail-closed-reject a legitimate pairing. The
+        // check stays sound: paths differing only in case ARE the same file on
+        // such a volume, so matching them is correct, not a weakening.
         func canonical(_ path: String) -> String {
-            path.trimmingCharacters(in: .whitespacesAndNewlines)
-                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            URL(fileURLWithPath: path.trimmingCharacters(in: .whitespacesAndNewlines))
+                .standardizedFileURL.path
         }
-        return canonical(lhs) == canonical(rhs)
+        return canonical(lhs).compare(canonical(rhs), options: .caseInsensitive) == .orderedSame
     }
 
     @MainActor

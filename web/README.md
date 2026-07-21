@@ -6,16 +6,23 @@ the domain (~$10–15/yr).
 
 ## Files
 
-- `.well-known/apple-app-site-association` — the AASA the OS fetches to learn
-  which app claims `fichero.app`. **JSON, served as `application/json`, over
-  HTTPS, with NO redirects.**
+- `.well-known/apple-app-site-association.template` — the AASA the OS fetches to
+  learn which app claims `fichero.app`. Shipped with a `.template` suffix ON
+  PURPOSE: it still contains the `TEAMID` placeholder, and a placeholder AASA
+  served live is worse than none — Apple's CDN caches it for ~24h and every
+  `https://fichero.app/pair` link silently fails until it flushes. **Substitute
+  the real team ID, then rename to exactly `apple-app-site-association`** (no
+  extension) before deploying. Serve it as `application/json`, over HTTPS, with
+  NO redirects.
 - `index.html` — the "get Fichero" landing page for someone who taps an invite
   without the app installed (currently a tapped link just dies).
 
 ## Before it works — two things NOT done here
 
-1. **Replace `TEAMID`** in `apple-app-site-association` with the real Apple
-   Developer Team ID (the app's bundle id is already correct: `app.fichero.fichero`).
+1. **Replace `TEAMID`** in `apple-app-site-association.template` with the real
+   Apple Developer Team ID (the app's bundle id is already correct:
+   `app.fichero.fichero`), then **rename the file to `apple-app-site-association`**
+   (drop the `.template` suffix). Do not deploy the placeholder version.
 2. **Add the Associated Domains entitlement** to the app targets — NOT done in
    this lane because editing `*.entitlements` without matching provisioning
    profiles can break the signing gate. Add to `Fichero.entitlements`,

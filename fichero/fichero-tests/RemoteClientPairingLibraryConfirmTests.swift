@@ -49,6 +49,19 @@ final class RemoteClientPairingLibraryConfirmTests: XCTestCase {
         )
     }
 
+    // The default macOS APFS volume is case-insensitive, so a case difference
+    // between the QR value and the server's reported path is the same library,
+    // not a forgery — it must still confirm.
+    func testCaseDifferenceStillMatchesOnCaseInsensitiveVolume() {
+        let accessible = ["/Users/Daniel/Archive/Open.fichero"]
+        XCTAssertTrue(
+            RemoteClientPairing.isLibraryConfirmed(
+                advertised: "/Users/daniel/Archive/Open.fichero",
+                in: accessible
+            )
+        )
+    }
+
     // Manual host entry carries no advertised library — nothing to confirm here;
     // the library picker (same endpoint) gates access afterwards.
     func testNilOrEmptyAdvertisedPathSkipsConfirmation() {
