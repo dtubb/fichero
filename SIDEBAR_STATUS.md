@@ -2,6 +2,25 @@
 
 Branch `lane/sidebar-ux`. Worktree `~/code/fichero-worktrees/sidebar`. Do NOT push (manager gates).
 
+## ⇢ HANDOFF → f_inspector_manager (2026-07-21): READY FOR BUILD GATE
+17 commits on `lane/sidebar-ux` (base `3e7c27adb`), none pushed. All lint-clean;
+worker only compile-checks (builds serialized). **Please build + run FicheroTests, then
+eyeball the visual items below.** Feature commits:
+- `da12433e2` multi-select (native Set) · `6a01b0963` #3355 chevrons + option-click
+- `edd399fbe`+`5ba662e99` one node list + Activity retire · `933816657` drag-snap
+- `013e12024` #3390 PDF drop (file-url) · `2c8bfe94d` batch delete
+
+**Eyeball after build:** shift-range across section boundaries · #3355 chevrons +
+prefetch fetch-volume on load/refresh · one-list collapse + root Finder drop · #3390 PDF
+drop · Delete-key batch delete. SourceKit "cannot find type" noise = single-file analysis,
+not real errors.
+
+**Milestone triage done (Daniel, 2026-07-21):** #2408 → Performance-SwiftUI (app-wide, not
+sidebar) · #2491 CLOSED (sidebar count already right-aligned). **Still open + to work:**
+#2496 (trailing affordance), #2397 (cross-library drag), #2498 (iOS/iPad library parity) —
+all build/device-in-the-loop. Cleanup follow-ups: dead `workflowItems` bucket, dead
+`unifiedSectionExpansionStates` persistence.
+
 ## Done
 - **Phase 1 — fabel review** → `docs/design/sidebar-view-fabel-review.md` (committed).
   Current state, target (one unified node list per tab), gaps vs the 8 milestone-#116
