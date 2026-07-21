@@ -53,6 +53,11 @@ struct ChatMessage: Identifiable, Codable, Hashable {
     // the backend stores only role/content, so — like `sources` — it is present
     // for a just-sent message and nil after a conversation reload.
     var retrieval: RetrievalInfo?
+    // Audited tool calls the agent made producing THIS message (the ToolCall
+    // spine). Optional + snake_case `tool_calls`: nil against today's single-shot
+    // RAG /api/chat, decodes when the engine wires chat_tools.py (migration
+    // step 2). See docs/design/agentic-surface-consolidation-fabel-review.md.
+    var toolCalls: [ToolCall]?
     var timestamp: Date
 
     init(
@@ -61,6 +66,7 @@ struct ChatMessage: Identifiable, Codable, Hashable {
         content: String,
         sources: [DocumentSource]? = nil,
         retrieval: RetrievalInfo? = nil,
+        toolCalls: [ToolCall]? = nil,
         timestamp: Date = Date()
     ) {
         self.id = id
@@ -68,7 +74,13 @@ struct ChatMessage: Identifiable, Codable, Hashable {
         self.content = content
         self.sources = sources
         self.retrieval = retrieval
+        self.toolCalls = toolCalls
         self.timestamp = timestamp
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, role, content, sources, retrieval, timestamp
+        case toolCalls = "tool_calls"
     }
 }
 
