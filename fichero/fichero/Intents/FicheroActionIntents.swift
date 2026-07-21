@@ -160,7 +160,7 @@ struct CreateNoteIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        let payload = Components.Schemas.FicheroApiRoutesNotesNoteCreateRequest(
+        let payload = Components.Schemas.FicheroApiRoutesDocumentNotesNoteCreateRequest(
             title: nil,
             body: body,
             kind: Components.Schemas.NoteKind(rawValue: (kind ?? FicheroNoteKindChoice.zettel).rawValue)
