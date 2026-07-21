@@ -1,5 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
+#if canImport(AppKit)
+import AppKit
+#endif
 
 func sidebarNeedsDeferredDisclosureContent(_ item: SidebarItem) -> Bool {
     item.isExpandable && item.children == nil
@@ -32,6 +35,14 @@ extension SidebarItemRow {
     }
 
     private func requestSelectionFallback(for id: String) {
+        #if canImport(AppKit)
+        // The plain-click fallback (#645/#1165) writes a SINGLE selection. When
+        // a modifier is held the click is a multi-select gesture that native
+        // `List(selection: Set)` owns — writing here would collapse the whole
+        // cmd/shift selection back to one row. Let the List handle it.
+        let mods = NSEvent.modifierFlags
+        if mods.contains(.command) || mods.contains(.shift) { return }
+        #endif
         guard sidebarSelectionFallback(current: selectedItemId, tapped: id) != nil else {
             return
         }
@@ -127,15 +138,25 @@ extension SidebarItemRow {
     /// users can drag files INTO it but not drag Inbox itself to
     /// another position or parent.
     ///
-    /// `.utf8PlainText` handles internal sidebar drags; `.item` is the
-    /// root UTType conforming to every file / folder type so Finder
-    /// drops match without enumerating each concrete UTI.
+    /// UTTypes a sidebar row accepts as drop targets.
+    ///
+    /// `.utf8PlainText` handles internal sidebar drags. `.item` is the root
+    /// physical-hierarchy type, but a Finder file drag (e.g. a PDF) advertises
+    /// `public.file-url`, which does NOT conform to `public.item` — so `.item`
+    /// alone left `isTargeted` (and the drop) dead for file drags (#3390).
+    /// Accept `.fileURL` (and `.data` as a belt) so file drops light up and land.
+    static let dropTypes: [UTType] = [.utf8PlainText, .item, .fileURL, .data]
+
+    /// Folder row: drop target always; drag source EXCEPT for the
+    /// protected Inbox folder (#621). Inbox stays anchored at the top;
+    /// users can drag files INTO it but not drag Inbox itself to
+    /// another position or parent.
     @ViewBuilder
     private var folderLabel: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: true)
             .onDrop(
-                of: [UTType.utf8PlainText, UTType.item],
+                of: Self.dropTypes,
                 isTargeted: $isDropTargeted
             ) { providers in
                 handleRowDrop(providers)
@@ -150,7 +171,7 @@ extension SidebarItemRow {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: false)
             .onDrop(
-                of: [UTType.utf8PlainText, UTType.item],
+                of: Self.dropTypes,
                 isTargeted: $isDropTargeted
             ) { providers in
                 handleRowDrop(providers)

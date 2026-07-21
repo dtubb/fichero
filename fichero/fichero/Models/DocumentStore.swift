@@ -228,6 +228,11 @@ final class DocumentStore {
             // Publish change
             publish(.collectionsUpdated(collections))
 
+            // Prefetch one level down so ROOT folders show their disclosure
+            // chevrons before any click (#3355). Roots are already rendered from
+            // `collections` above; this fills the chevrons in shortly after.
+            await prefetchChildContainerChildren(of: collections)
+
             // Auto-select first root collection if none selected
             if selectedCollection == nil, let first = collections.first(where: { $0.parentId == nil }) {
                 await selectCollection(first)
@@ -263,19 +268,9 @@ final class DocumentStore {
         await loadChildren(of: collection)
     }
 
-    /// Populate the sidebar child cache without changing the current grid selection.
-    func loadSidebarChildren(of document: Document) async {
-        guard childrenCache[document.id] == nil else { return }
-
-        do {
-            let children = applyStatusOverrides(try await fetchWithRetry { try await documentService.getChildren(document.id) })
-            childrenCache[document.id] = children
-            logger.info("Cached \(children.count) sidebar children for \(document.id)")
-        } catch {
-            logger.error("loadSidebarChildren failed: \(error.localizedDescription)")
-            self.error = error
-        }
-    }
+    // Sidebar child loading + one-level chevron prefetch (#3355) live in
+    // DocumentStore+SidebarPrefetch.swift: loadSidebarChildren(of:),
+    // cacheSidebarChildren(of:), prefetchChildContainerChildren(of:).
 
     /// Load children of a document.
     func loadChildren(of document: Document) async {
