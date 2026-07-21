@@ -569,3 +569,17 @@ with blocking `q.get()`, GIL released during wait). NOT httpx.ASGITransport. Per
 Verdict: in-memory is PROVEN viable incl. streaming, but its GIL/atexit/serialization/
 affinity surface is a large maintenance cost vs UDS's simplicity — confirms UDS as
 the pragmatic Mac default, in-memory as opt-in. Independent code-reviewer pass running.
+
+## FINAL TRANSPORT ARCHITECTURE (Daniel, 2026-07-20, confirmed)
+
+| Target | Transport | Notes |
+|---|---|---|
+| Mac DMG / TestFlight (non-sandboxed) | **UDS** | app spawns engine; CLI + MCP connect to the SAME UDS |
+| Mac App Store (sandboxed) | UDS (sun_path fix) or HTTPS | in-memory NOT available (library validation vs sandbox) |
+| iOS / iPad | **remote HTTPS** | connects to a Mac when sharing/HTTPS is on |
+| CLI / MCP | **UDS** (outside sandbox) or HTTPS | httpx `uds=` locally |
+| in-memory / PythonKit | **Dev / DMG experiment only** | signed app needs `disable-library-validation`, incompatible with App Store sandbox |
+
+**Key consequence:** the non-App-Store DMG build is a deliberate target — it's where UDS + CLI/MCP-over-UDS + the in-memory experiment are unencumbered by the sandbox. App Store is the constrained build (UDS-with-short-path or HTTPS).
+
+Build/test/profile the UDS embedded path (not release it). Then: startup speedup (#18) → login model (#19) → engine/Python hygiene.
