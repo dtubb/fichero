@@ -3200,10 +3200,13 @@ def _langchain_timeout_budget(config: LLMConfig) -> float:
 
 def _fm_bridge_candidates() -> list[Path]:
     here = Path(__file__).resolve()
+    # This body now lives at fichero/llm/__init__.py (#2566); its old
+    # location was fichero/llm.py, one level shallower, so the parent-walk
+    # depths below are bumped by one relative to the pre-move code.
     return [
-        here.parent / "resources" / "bin" / "fm-bridge",
-        here.parent / "bin" / "fm-bridge" / "fm-bridge",
-        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",
+        here.parent.parent / "resources" / "bin" / "fm-bridge",
+        here.parent.parent / "bin" / "fm-bridge" / "fm-bridge",
+        here.parents[4] / "bin" / "fm-bridge" / "fm-bridge",
         Path("fichero-engine/bin/fm-bridge/fm-bridge").resolve(),
     ]
 

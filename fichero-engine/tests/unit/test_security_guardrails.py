@@ -13,12 +13,18 @@ LOGGER_METHODS = {"debug", "info", "warning", "error", "exception", "critical", 
 SECRET_WORDS = ("api_key", "token", "password", "secret")
 PERSISTENCE_PATH_ALLOWLIST = frozenset(
     {
-        "db.py",
-        "db_embeddings.py",
-        "db_migrations.py",
-        "db_manager.py",
-        "app_db.py",
-        "migrations.py",
+        # fichero.db was split into a package (#2566): the real persistence
+        # code now lives in db/__init__.py (the former db.py body), with
+        # db/embeddings.py, db/manager.py, db/app.py as leaves and
+        # db/migrations/{schema,runner}.py already covered by the
+        # "migrations" in Path(rel_path).parts check below. The old
+        # top-level db.py/db_embeddings.py/db_manager.py/app_db.py/
+        # db_migrations.py/migrations.py paths are now one-line
+        # sys.modules-aliasing shims with no persistence logic of their own.
+        "db/__init__.py",
+        "db/embeddings.py",
+        "db/manager.py",
+        "db/app.py",
         "api/change_stream.py",
         "storage_snapshots.py",
         "workflows/action_store.py",

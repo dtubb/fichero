@@ -1,3 +1,7 @@
 """Consolidated knowledge-layer package."""
 
-from .knowledge_models import *  # noqa: F403
+# knowledge_models.py / hermeneutics_models.py relocated to fichero.models/
+# (#2566, Daniel's 2026-07-21 ruling: single models/ package). Import from
+# the new canonical location directly rather than bouncing through the
+# local knowledge_models.py shim.
+from fichero.models.knowledge import *  # noqa: F403
