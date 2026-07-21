@@ -151,7 +151,10 @@ struct FicheroApp: App {
         //
         // It does NOT pair silently: pairing repoints this Mac at a remote host, so
         // the link prefills the existing pairing field and the user presses Connect.
-        if url.scheme?.lowercased() == "fichero" {
+        // Accepts both fichero://pair and the https://fichero.app/pair universal
+        // link (#3791) so a tapped invite works even where the scheme isn't
+        // registered.
+        if RemoteClientPairing.isPairingInviteLink(url) {
             logger.info("handleOpenURL: pairing link received")  // never log the payload
             appState.pendingPairingInvite = url.absoluteString
             appState.openSettings(tab: .backend)

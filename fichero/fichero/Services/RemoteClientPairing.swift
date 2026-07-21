@@ -23,6 +23,18 @@ private struct PairingInviteLink {
     }()
 }
 
+/// The universal-link form of a pairing invite (#3791): `https://fichero.app/pair?payload=…`.
+/// Same `payload` query as the custom-scheme link — the domain is only a name
+/// the app claims via Associated Domains so a tapped link resolves even where the
+/// `fichero://` scheme isn't registered (e.g. Mail on a colleague's device). The
+/// token is still redeemed peer-to-peer against the host in the payload, never
+/// against the domain.
+private struct PairingUniversalLink {
+    static let scheme = "https"
+    static let host = "fichero.app"
+    static let path = "/pair"
+}
+
 enum RemoteClientPairingError: LocalizedError, Equatable {
     case missingPairCode
     case missingDeviceName
@@ -109,8 +121,7 @@ enum RemoteClientPairing {
 
     private static func payloadFromInviteLink(_ message: String) -> PairingQRCodePayload? {
         guard let url = URL(string: message),
-              url.scheme?.lowercased() == PairingInviteLink.scheme,
-              url.host?.lowercased() == PairingInviteLink.host,
+              isPairingInviteLink(url),
               let encodedPayload = queryValue(named: PairingInviteLink.payloadQueryItem, in: url),
               let data = Data(base64Encoded: encodedPayload),
               let payload = try? JSONDecoder.withISO8601Dates.decode(PairingQRCodePayload.self, from: data) else {
@@ -121,8 +132,26 @@ enum RemoteClientPairing {
 
     private static func looksLikeInviteLink(_ message: String) -> Bool {
         guard let url = URL(string: message) else { return false }
-        return url.scheme?.lowercased() == PairingInviteLink.scheme
+        return isPairingInviteLink(url)
+    }
+
+    /// Whether `url` is a pairing invite in EITHER form — the custom
+    /// `fichero://pair` scheme or the `https://fichero.app/pair` universal link
+    /// (#3791). The app's `onOpenURL` handlers route on this so both forms reach
+    /// the same pairing flow. Public within the target so `FicheroApp` can call it.
+    static func isPairingInviteLink(_ url: URL) -> Bool {
+        isCustomSchemeInvite(url) || isUniversalLinkInvite(url)
+    }
+
+    private static func isCustomSchemeInvite(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == PairingInviteLink.scheme
             && url.host?.lowercased() == PairingInviteLink.host
+    }
+
+    private static func isUniversalLinkInvite(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == PairingUniversalLink.scheme
+            && url.host?.lowercased() == PairingUniversalLink.host
+            && url.path.lowercased() == PairingUniversalLink.path
     }
 
     private static func queryValue(named name: String, in url: URL) -> String? {

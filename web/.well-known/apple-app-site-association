@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAMID.app.fichero.fichero"],
+        "components": [
+          {
+            "/": "/pair",
+            "comment": "Pairing invites open the app; the token is redeemed peer-to-peer against the host in the payload, never against this domain."
+          }
+        ]
+      }
+    ]
+  }
+}

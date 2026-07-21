@@ -121,7 +121,9 @@ private struct FicheroSharedPlatformRoot: View {
                 appState.sessionStore.beginInviteRedemption(token: token)
                 return
             }
-            guard url.scheme?.lowercased() == "fichero", url.host?.lowercased() == "pair" else { return }
+            // Accepts both fichero://pair and the https://fichero.app/pair
+            // universal link (#3791).
+            guard RemoteClientPairing.isPairingInviteLink(url) else { return }
             pendingPairURL = IdentifiableURL(url: url)
         }
         .sheet(item: $pendingPairURL) { wrapper in
