@@ -61,6 +61,12 @@ class ActivityTracker:
         self._recent: deque[Activity] = deque(maxlen=max_recent)
         self._subscribers: dict[str, asyncio.Queue[Activity]] = {}
         self._running = False
+        # Fire-and-forget DB saves scheduled by log() (see below) have no
+        # ordering guarantee relative to a caller's immediate follow-up query
+        # — a caller that needs durability before proceeding (tests asserting
+        # on persisted activities, graceful shutdown) awaits
+        # `wait_for_pending_saves()` instead of racing the background task.
+        self._pending_save_tasks: set[asyncio.Task] = set()
 
     def log(
         self,
@@ -98,8 +104,12 @@ class ActivityTracker:
         # Add to recent buffer
         self._recent.appendleft(activity)
 
-        # Save to database (fire and forget)
-        asyncio.create_task(self._save_activity(activity))
+        # Save to database (fire and forget). Tracked in _pending_save_tasks
+        # so a caller that needs the write to have landed can await
+        # wait_for_pending_saves() instead of assuming completion order.
+        save_task = asyncio.create_task(self._save_activity(activity))
+        self._pending_save_tasks.add(save_task)
+        save_task.add_done_callback(self._pending_save_tasks.discard)
 
         # Notify subscribers
         asyncio.create_task(self._notify_subscribers(activity))
@@ -109,6 +119,20 @@ class ActivityTracker:
         logger.log(log_level, f"[{type.value}] {message}")
 
         return activity
+
+    async def wait_for_pending_saves(self) -> None:
+        """Wait for all in-flight fire-and-forget activity DB saves to land.
+
+        `log()` schedules its DB write as a background task so callers are
+        never blocked on activity-store I/O. That means there is no ordering
+        guarantee that a just-logged activity is queryable yet. Call this
+        when durability matters — before asserting on persisted activities,
+        or before a graceful shutdown — to wait for every save scheduled so
+        far to complete.
+        """
+        pending = list(self._pending_save_tasks)
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
     async def _save_activity(self, activity: Activity) -> None:
         """Save activity to persistent storage."""
