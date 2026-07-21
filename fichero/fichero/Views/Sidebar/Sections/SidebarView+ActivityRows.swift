@@ -76,33 +76,6 @@ extension SidebarView {
         selectedItemId = item.id
     }
 
-    func deleteSelectedActivityRuns() {
-        guard !selectedActivityItemIds.isEmpty else { return }
-
-        for selectedId in selectedActivityItemIds {
-            guard selectedId.hasPrefix("run:") else { continue }
-            let rawToken = String(selectedId.dropFirst("run:".count))
-            let parts = rawToken.split(separator: "|", maxSplits: 1).map(String.init)
-            guard parts.count == 2, let libraryId = UUID(uuidString: parts[0]) else { continue }
-            let threadToken = parts[1]
-
-            guard var items = historicalRunsByLibrary[libraryId] else { continue }
-            items.removeAll { item in
-                let candidate = item.threadId ?? item.batchId.map { "batch:\($0)" }
-                return candidate == threadToken
-            }
-            historicalRunsByLibrary[libraryId] = items
-        }
-
-        selectedActivityItemIds.removeAll()
-        if selectedItemId?.hasPrefix("run:") == true {
-            selectedItemId = nil
-        }
-        if case .activity = viewMode {
-            viewMode = .activity(nil)
-        }
-    }
-
     @MainActor
     func unifiedActivityRuns(for library: LibraryManager.LibraryReference) -> [ActivityRun] {
         runsByWorkflow(
