@@ -1,5 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
+#if canImport(AppKit)
+import AppKit
+#endif
 
 func sidebarNeedsDeferredDisclosureContent(_ item: SidebarItem) -> Bool {
     item.isExpandable && item.children == nil
@@ -32,6 +35,14 @@ extension SidebarItemRow {
     }
 
     private func requestSelectionFallback(for id: String) {
+        #if canImport(AppKit)
+        // The plain-click fallback (#645/#1165) writes a SINGLE selection. When
+        // a modifier is held the click is a multi-select gesture that native
+        // `List(selection: Set)` owns — writing here would collapse the whole
+        // cmd/shift selection back to one row. Let the List handle it.
+        let mods = NSEvent.modifierFlags
+        if mods.contains(.command) || mods.contains(.shift) { return }
+        #endif
         guard sidebarSelectionFallback(current: selectedItemId, tapped: id) != nil else {
             return
         }

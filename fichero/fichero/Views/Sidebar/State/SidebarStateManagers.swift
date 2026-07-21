@@ -141,18 +141,67 @@ class DeleteStateManager {
     }
 }
 
+/// The single node that drives the detail pane, derived from the multi-row
+/// highlight set. A one-row selection routes to that row; an empty selection
+/// clears; a multi-row (batch) selection keeps the previous primary so the
+/// detail view doesn't thrash while the user builds up a selection — UNLESS
+/// that previous primary was just removed from the set, in which case it falls
+/// back to a remaining member (never routes to an unhighlighted row).
+func sidebarPrimaryDestination(
+    for selection: Set<SidebarDestination>,
+    previous: SidebarDestination?
+) -> SidebarDestination? {
+    switch selection.count {
+    case 0: return nil
+    case 1: return selection.first
+    default:
+        // Batch selection: keep the primary stable if it's still selected;
+        // otherwise pick any remaining member so the detail matches a
+        // highlighted row (Set.first is fine — any selected row is valid).
+        if let previous, selection.contains(previous) { return previous }
+        return selection.first
+    }
+}
+
+/// Collapse a multi-row selection back to a single anchor — used by Escape
+/// (and any plain-click path). A nil primary clears the selection entirely.
+func sidebarCollapsedSelection(primary: SidebarDestination?) -> Set<SidebarDestination> {
+    guard let primary else { return [] }
+    return [primary]
+}
+
 /// Shared live selection for the sidebar tree.
 /// Keep this as the single runtime source of truth so the List selection,
 /// row taps, and content routing all observe the same value.
 @MainActor
 @Observable
 class SidebarSelectionState {
+    /// Rows highlighted in the sidebar. Bound to `List(selection:)` so macOS
+    /// gives shift-click contiguous range, cmd-click toggle, and shift+arrow
+    /// extend natively — the priority multi-select feature. Kept in sync with
+    /// `selectedDestination` (the routed primary) so single-selection consumers
+    /// are unaffected.
+    var selectedDestinations: Set<SidebarDestination> = []
+
+    /// The single node that drives the detail pane. Existing navigation,
+    /// persistence, and creation code read/write this (via `selectedItemId`)
+    /// unchanged; the multi-row highlight set is kept in sync at the two write
+    /// seams — this `selectedItemId` setter (programmatic single-selection) and
+    /// the `List(selection:)` binding in `SidebarView.unifiedContent` (native
+    /// mouse/keyboard multi-select). Deliberately a plain stored property (no
+    /// `didSet`): the List binding legitimately holds `selectedDestinations`
+    /// different from `[selectedDestination]` during a batch selection, so a
+    /// didSet that force-synced them would clobber the multi-row set.
     var selectedDestination: SidebarDestination?
 
     var selectedItemId: String? {
         get { selectedDestination?.serializedID }
         set {
-            selectedDestination = newValue.flatMap(SidebarDestination.init(serializedID:))
+            let dest = newValue.flatMap(SidebarDestination.init(serializedID:))
+            selectedDestination = dest
+            // Programmatic single-selection (or clear) drives the highlight to
+            // match: exactly this row, or nothing.
+            selectedDestinations = sidebarCollapsedSelection(primary: dest)
         }
     }
 }

@@ -68,7 +68,7 @@ extension SidebarView {
     /// Unified sidebar content with feature-gated sections per library.
     @ViewBuilder
     var unifiedContent: some View {
-        List(selection: $selectionState.selectedDestination) {
+        List(selection: sidebarSelectionBinding) {
             ForEach(filteredLibraryHeaders) { libraryHeader in
                 unifiedLibrarySection(libraryHeader)
             }
@@ -80,9 +80,39 @@ extension SidebarView {
         .scrollContentBackground(.hidden)
         .background(.bar)
         #if os(macOS)
-        .onDeleteCommand {
-            deleteSelectedActivityRuns()
+        // Escape collapses a multi-row selection back to the single routed
+        // anchor ("shift to stop it"). Plain-click collapse is already native.
+        .onExitCommand {
+            selectionState.selectedDestinations =
+                sidebarCollapsedSelection(primary: selectionState.selectedDestination)
         }
         #endif
+    }
+
+    /// Bridges the sidebar tree's native multi-selection to the state.
+    ///
+    /// macOS `List(selection: Binding<Set>)` gives shift-click contiguous
+    /// range, cmd-click toggle, and shift+arrow extend for free. The setter is
+    /// the one seam that derives the routed primary (`selectedDestination`,
+    /// which drives the detail pane and `.onChange` routing) from the highlight
+    /// set. Write ORDER matters: set `selectedDestinations` first so the primary
+    /// is derived from the current set, never a stale one.
+    private var sidebarSelectionBinding: Binding<Set<SidebarDestination>> {
+        Binding(
+            get: { selectionState.selectedDestinations },
+            set: { newValue in
+                selectionState.selectedDestinations = newValue
+                let primary = sidebarPrimaryDestination(
+                    for: newValue,
+                    previous: selectionState.selectedDestination
+                )
+                // Only reroute when the primary actually changes — a >1 batch
+                // selection returns the same primary, so this is a no-op and the
+                // detail pane stays put while the selection is built.
+                if selectionState.selectedDestination != primary {
+                    selectionState.selectedDestination = primary
+                }
+            }
+        )
     }
 }

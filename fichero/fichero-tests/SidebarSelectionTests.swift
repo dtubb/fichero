@@ -151,6 +151,63 @@ struct SidebarSelectionTests {
         #expect(!functionBody.contains("openDocumentInNewWindow(doc, asTab: false)"))
     }
 
+    // MARK: - Multi-select (contiguous / discontiguous)
+
+    @Test("empty selection routes to no primary")
+    func primaryEmptyIsNil() {
+        #expect(sidebarPrimaryDestination(for: [], previous: .document("x")) == nil)
+    }
+
+    @Test("single selection routes to that row")
+    func primarySingleRoutes() {
+        #expect(sidebarPrimaryDestination(for: [.document("a")], previous: nil) == .document("a"))
+    }
+
+    @Test("batch selection keeps the previous primary while it stays selected")
+    func primaryBatchKeepsStablePrimary() {
+        let selection: Set<SidebarDestination> = [.document("a"), .document("b")]
+        // previous (a) is still in the set → detail must not thrash.
+        #expect(sidebarPrimaryDestination(for: selection, previous: .document("a")) == .document("a"))
+    }
+
+    @Test("removing the primary from a batch falls back to a remaining member")
+    func primaryBatchFallsBackWhenPrimaryRemoved() throws {
+        // Was {a,b,c}, user cmd-clicked a off → {b,c}. Previous (a) is gone, so
+        // the primary must be one of the still-highlighted rows, never `a`.
+        let selection: Set<SidebarDestination> = [.document("b"), .document("c")]
+        let primary = try #require(sidebarPrimaryDestination(for: selection, previous: .document("a")))
+        #expect(primary != .document("a"))
+        #expect(selection.contains(primary))
+    }
+
+    @Test("batch selection with no previous primary picks a selected member")
+    func primaryBatchNoPreviousPicksMember() {
+        let selection: Set<SidebarDestination> = [.search("q1"), .search("q2")]
+        let primary = sidebarPrimaryDestination(for: selection, previous: nil)
+        #expect(primary != nil)
+        #expect(selection.contains(primary ?? .document("none")))
+    }
+
+    @Test("collapse returns the single anchor, or empty for none")
+    func collapseToAnchor() {
+        #expect(sidebarCollapsedSelection(primary: nil).isEmpty)
+        #expect(sidebarCollapsedSelection(primary: .document("a")) == [.document("a")])
+    }
+
+    @Test("programmatic single-selection drives the highlight set to that one row")
+    @MainActor
+    func programmaticSelectionSyncsHighlightSet() {
+        let state = SidebarSelectionState()
+        state.selectedItemId = "doc:a"
+        #expect(state.selectedDestinations == [.document("a")])
+        // Re-selecting a different row replaces (does not accumulate).
+        state.selectedItemId = "search:q"
+        #expect(state.selectedDestinations == [.search("q")])
+        // Clearing the routed selection clears the highlight too.
+        state.selectedItemId = nil
+        #expect(state.selectedDestinations.isEmpty)
+    }
+
     @Test("#3187 library browser surfaces keep a shared leading inset clear of the sidebar")
     func libraryBrowserUsesSharedLeadingInset() throws {
         // browserLeadingInset is defined in LibraryView+DisplayHelpers and consumed by the
