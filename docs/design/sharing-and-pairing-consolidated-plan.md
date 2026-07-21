@@ -325,3 +325,9 @@ they are **not** re-litigated here. These are the genuine remaining forks:
 - The exact current state of `FicheroApp_iOS.swift`'s Bonjour-candidate-discovery relative to
   #3371's scope — the critique doc describes it as already fairly complete; #3371 may be near-done
   or may cover a specific remaining gap. Needs a fresh read before scheduling.
+
+## Decisions (Daniel, 2026-07-21)
+- **Share-toggle transport = BOTH, as named routes.** The one-action share offers LAN direct-bind AND loopback+Tailscale-serve; user picks per share. Engine still binds 127.0.0.1 + `tailscale serve` only (never funnel); Tailscale = perimeter, not authz.
+- **Per-library connection (#2573) = auto-detect (Bonjour) + manual host override.**
+- **Agent/MCP accounts (#1847) = Xcode-style consent prompt:** connect → prompt → approve auto-provisions/uses the account; "don't ask again" remembers FOR THE SESSION; relaunch re-prompts.
+- Empty milestones #231 (Discovery) + #205 (Settings): recommend closing (capability built elsewhere).
