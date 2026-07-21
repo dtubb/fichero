@@ -93,6 +93,15 @@ if [ -d "$ENGINE_APP" ] && ! "$ROOT_DIR/scripts/clean-embedded-engine.sh" --chec
 fi
 (
   cd "$ENGINE_DIR"
+  # When this preflight runs as an xcodebuild BUILD PHASE (a direct
+  # `xcodebuild -scheme "Fichero (App Store)"`, vs release-all.sh which runs it
+  # standalone), xcodebuild injects SWIFT_* build settings into the environment.
+  # Briefcase's dylib arch-detection subprocess then emits
+  # "Warning: unknown environment variable SWIFT_DEBUG_INFORMATION_FORMAT" onto
+  # stdout, which Briefcase mis-parses as arch output → "Unable to determine
+  # architectures in …/libmupdf.dylib". Briefcase's own Python build needs none
+  # of these, so clear them.
+  for _v in $(env | sed -n 's/^\(SWIFT_[A-Z0-9_]*\)=.*/\1/p'); do unset "$_v"; done
   if [ ! -d "$ENGINE_DIR/build/engine/macos/app" ]; then
     "$BRIEFCASE" create macOS --app engine
   fi
