@@ -56,6 +56,32 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertFalse(source.contains("api.post(\"/documents\""))
     }
 
+    // MARK: - #3355 one-level chevron prefetch
+
+    func testSidebarPrefetchesOneLevelDownForChevrons() throws {
+        // The backend never sends child_count, so a folder's disclosure chevron
+        // only renders once its children are cached. The fix prefetches one level
+        // down at both load seams so "a folder of folders" shows its triangles.
+        let store = try Self.appSource("Models/DocumentStore.swift")
+        let prefetch = try Self.appSource("Models/DocumentStore+SidebarPrefetch.swift")
+        // Root load prefetches so top-level folders show chevrons before a click.
+        XCTAssertTrue(store.contains("prefetchChildContainerChildren(of: collections)"))
+        // Expanding a folder caches its children AND one level deeper.
+        XCTAssertTrue(prefetch.contains("cacheSidebarChildren(of: document)"))
+        XCTAssertTrue(prefetch.contains("prefetchChildContainerChildren(of: children)"))
+        // Only containers are prefetched — leaf rows have nothing to reveal.
+        XCTAssertTrue(prefetch.contains("where child.docType == .folder"))
+    }
+
+    func testSidebarRowOptionClickExpandsWholeSubtree() throws {
+        let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow.swift")
+        // Option-click on the chevron expands the entire subtree (Finder-style).
+        XCTAssertTrue(source.contains("modifierFlags.contains(.option)"))
+        XCTAssertTrue(source.contains("func expandSubtree("))
+        // The dead childCount>0 gate (backend never sends child_count) is gone.
+        XCTAssertFalse(source.contains("document.childCount > 0"))
+    }
+
     // MARK: - Batch library-item column metadata (#3758)
 
     /// Test seam: a DocumentStore whose generated client is bound to a stubbed

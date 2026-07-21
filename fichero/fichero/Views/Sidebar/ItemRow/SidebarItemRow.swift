@@ -1,6 +1,9 @@
 import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
+#if canImport(AppKit)
+import AppKit
+#endif
 
 let sidebarRowLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarRow")
 
@@ -181,18 +184,40 @@ struct SidebarItemRow: View {
                 if isExpanded {
                     expandedItems.insert(item.id)
                     guard case .document(let document) = item.itemType,
-                          document.childCount > 0,
-                          item.children == nil,
-                          let store = documentStore,
-                          store.childrenCache[document.id] == nil else { return }
-                    Task {
-                        await store.loadSidebarChildren(of: document)
+                          let store = documentStore else { return }
+                    // NOTE: the old guard required `document.childCount > 0`, but
+                    // the backend never sends child_count on getRoots/getChildren
+                    // (it decodes to 0), so that guard was dead and children only
+                    // ever loaded as a side-effect of SELECTING the folder — the
+                    // #3355 root cause. Load whenever they aren't cached yet.
+                    #if canImport(AppKit)
+                    let optionHeld = NSApp.currentEvent?.modifierFlags.contains(.option) ?? false
+                    #else
+                    let optionHeld = false
+                    #endif
+                    if optionHeld {
+                        // Option-click: expand the WHOLE subtree, Finder-style.
+                        Task { await expandSubtree(document, store: store) }
+                    } else if item.children == nil, store.childrenCache[document.id] == nil {
+                        Task { await store.loadSidebarChildren(of: document) }
                     }
                 } else {
                     expandedItems.remove(item.id)
                 }
             }
         )
+    }
+
+    /// Option-click expands the ENTIRE subtree (Finder), lazily loading each
+    /// level. An explicit user gesture, so the deep fan-out fetch is acceptable
+    /// — unlike the bounded one-level prefetch in `loadSidebarChildren`.
+    @MainActor
+    func expandSubtree(_ document: Document, store: DocumentStore) async {
+        expandedItems.insert("doc:\(document.id)")
+        let children = await store.cacheSidebarChildren(of: document)
+        for child in children where child.docType == .folder {
+            await expandSubtree(child, store: store)
+        }
     }
 
     /// Widens `itemLabel`'s hit region to the full available width so
