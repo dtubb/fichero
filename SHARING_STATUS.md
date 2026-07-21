@@ -42,7 +42,7 @@ Lane commits (oldest → newest), not pushed:
   `ConnectDiscoveredMacsSectionIOS.swift` (warning row + glyph for unreachable).
 - **#3791** — `RemoteClientPairing.swift` (`isPairingInviteLink` accepts both
   forms), `FicheroApp.swift` + `FicheroApp_iOS.swift` (route both). Tests:
-  `PairingUniversalLinkTests`. Static assets: `web/.well-known/apple-app-site-association`,
+  `PairingUniversalLinkTests`. Static assets: `web/.well-known/apple-app-site-association.template`,
   `web/index.html`, `web/README.md`.
 - **#1847** — `fichero/Views/Sharing/AgentConsent/` (store + sheet). Tests:
   `AgentConsentStoreTests`.
@@ -62,7 +62,7 @@ SourceKit showed only "No such module" / cross-file "cannot find type" noise
 
 ## Remaining non-Swift steps for #3791 (need you / signing config)
 
-1. Replace `TEAMID` in `web/.well-known/apple-app-site-association` with the real
+1. Replace `TEAMID` in `web/.well-known/apple-app-site-association.template` with the real
    Apple Developer Team ID (bundle id `app.fichero.fichero` is already correct).
 2. Add the Associated Domains entitlement (`applinks:fichero.app`) to
    `Fichero.entitlements` / `FicheroAppStore.entitlements` /
@@ -71,6 +71,19 @@ SourceKit showed only "No such module" / cross-file "cannot find type" noise
    without matching profiles breaks the signing gate. Snippet in `web/README.md`.
 3. Host `web/` on HTTPS (no redirects, `application/json` for the AASA) and
    **test the round trip on a real device** before closing #3791 (#2399 lesson).
+
+## Self-review (2026-07-21)
+
+Ran a code-reviewer on `main...lane/sharing-ux` before the gate (couldn't build
+locally). Verdict: **APPROVE, no criticals** — the #3372 security path is
+correct and fail-closed. Two warnings fixed in `23ea0652e`:
+- #3372 path match was case-sensitive → now standardized + case-insensitive
+  (APFS is case-insensitive; the old check could fail-closed-reject a legit
+  pairing). Test added.
+- #3791 AASA had a literal `TEAMID` → renamed to `...association.template` so a
+  naive `web/` deploy can't serve a broken, CDN-cached (~24h) record.
+Third warning (device token written twice on the success path) is idempotent
+with a correct rollback — left as-is (out of scope).
 
 ## Decisions (resolved by Daniel, 2026-07-21)
 
