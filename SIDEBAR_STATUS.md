@@ -24,18 +24,18 @@ Branch `lane/sidebar-ux`. Worktree `~/code/fichero-worktrees/sidebar`. Do NOT pu
   in a nested tree is the one unknown. If range breaks at a boundary, a pure
   `contiguousRange(from:to:in:)` helper must be promoted in-scope (design §6.3).
 
-## Next (separate commits, from review §5)
-- A. Prefetch one level down → finish #3355 + option-click expand-all-descendants.
-- B. Collapse the 3 per-library sub-sections into ONE node list (driven by `node_kind`);
+## Next — CONFIRMED ORDER (Daniel, 2026-07-21)
+- A. Prefetch one level down → finish #3355 + **option-click = expand WHOLE subtree**
+  (Finder-style, lazy-loading each level).
+- **1.** Collapse the 3 per-library sub-sections into ONE node list (driven by `node_kind`);
   retire remaining Activity-row residue (handleUnifiedRowTap, selectedActivityItemIds,
   ActivityRunGridCell) — keep live Activity view-mode routing (`unifiedSelectedRun`).
-- C. Trailing affordance + right-aligned count (#2496 / #2491).
-- D. Drag-drop fixes (#3390 / #2397).
-- Follow-up: batch **actions** (delete / open-in-tabs over the selection set).
+- **2.** Sidebar bug-fixes: #3390 drag-drop, #2496 click-select + trailing affordance,
+  #2491 right-align count.
+- **3.** Batch **actions**: delete / open-in-tabs over the multi-selection set.
 
 ## Decisions for Daniel
-- **#2515** (Reader toolbar overlaps filmstrip) is mis-filed under Sidebar #116 —
-  it's a Reader-toolbar bug. Suggest re-milestoning. Left untouched.
+- **#2515** moved to **Reader View — Page (#248)** ✓ (was mis-filed under Sidebar #116).
 - On library switch I deliberately DON'T clear the multi-selection (disagreed with
   the critic): all open libraries render in the tree, so a selection in library A
   stays valid when focus moves to B — clearing would regress cross-library selection.
