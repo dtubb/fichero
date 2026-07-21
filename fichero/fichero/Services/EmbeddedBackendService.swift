@@ -165,6 +165,12 @@ enum BackendError: LocalizedError {
     /// by the launch orchestrator (→ `markPortConflict`), never shown as a raw
     /// error string.
     case portConflict(pid: Int?)
+    /// The engine IS reachable and answering, but rejected our credentials
+    /// (health 401/403). Distinct from `.backendAppNotFound` — the engine is NOT
+    /// missing; the app's token doesn't match the engine's (an auth/.api-key
+    /// mismatch). Surfacing this instead of "isn't running" stops the false
+    /// "start the engine" chase when the engine is right there.
+    case authenticationRequired
 
     var errorDescription: String? {
         switch self {
@@ -190,6 +196,11 @@ enum BackendError: LocalizedError {
             return "Backend failed to start within timeout"
         case .engineDidNotStart(let diagnosis):
             return diagnosis
+        case .authenticationRequired:
+            return "The engine is running but rejected the app's credentials (401). "
+                + "The app's token doesn't match the engine's — an auth/.api-key "
+                + "mismatch, not a missing engine. Restart the engine, or clear the "
+                + "app's stale .api-key so it re-reads the current one."
         }
     }
 }

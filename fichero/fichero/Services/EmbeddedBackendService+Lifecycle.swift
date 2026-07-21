@@ -131,6 +131,15 @@ extension EmbeddedBackendService {
             logger.info("Connected to external backend over \(dialTarget, privacy: .public) (will not manage lifecycle)")
         } catch {
             status = .failed
+            // Distinguish "engine unreachable" from "engine reachable but rejected
+            // our token" — the old message always said "isn't running", which is
+            // false (and misleading) when the engine answered 401/403. lastReadiness
+            // holds the final probe verdict.
+            if lastReadiness == .authRejected {
+                logger.error("Engine IS reachable over \(dialTarget, privacy: .public) but rejected our credentials (401/403) — token/.api-key mismatch, NOT a missing engine")
+                errorMessage = "The engine is running but rejected the app's credentials (401). The app's token doesn't match the engine's — this is an auth/.api-key mismatch, not a missing engine."
+                throw BackendError.authenticationRequired
+            }
             logger.error("No external engine reachable over \(dialTarget, privacy: .public) in Debug — start it with start_backend.sh")
             throw BackendError.backendAppNotFound
         }

@@ -1,6 +1,9 @@
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
+import OSLog
+
+private let probeLogger = Logger(subsystem: "app.fichero.fichero", category: "EngineReadinessProbe")
 
 // MARK: - The one engine readiness probe (#3106)
 
@@ -57,18 +60,32 @@ struct EngineReadinessProbe {
     @MainActor
     func probe() async -> EngineReadiness {
         let health = await fetchHealth()
-        guard health.status == 200 else { return .notResponding }
+        // A 401/403 on health means the engine IS reachable and answering — it is
+        // rejecting our credentials, NOT missing. Surfacing that as `.authRejected`
+        // (instead of the old `.notResponding`) lets the launch path say "engine
+        // reachable but rejected our token" rather than the false "engine isn't
+        // running / start it with start_backend.sh". (#dev observability)
+        if health.status == 401 || health.status == 403 {
+            probeLogger.info("readiness legs: health=\(health.status.map(String.init) ?? "?", privacy: .public) → authRejected (engine reachable, credentials rejected)")
+            return .authRejected
+        }
+        guard health.status == 200 else {
+            probeLogger.info("readiness legs: health=\(health.status.map(String.init) ?? "nil (transport error)", privacy: .public) → notResponding (registry not attempted)")
+            return .notResponding
+        }
         if let expectedNonce, health.nonce != expectedNonce {
             return .identityMismatch(pid: health.pid)
         }
         let registryStatus = await fetchRegistryObservation().status
-        return Self.classify(
+        let result = Self.classify(
             healthStatus: 200,
             healthNonce: health.nonce,
             expectedNonce: expectedNonce,
             enginePid: health.pid,
             registryStatus: registryStatus
         )
+        probeLogger.info("readiness legs: health=200 registry=\(registryStatus.map(String.init) ?? "nil (transport error)", privacy: .public) → \(String(describing: result), privacy: .public)")
+        return result
     }
 
     @MainActor
@@ -87,6 +104,11 @@ struct EngineReadinessProbe {
         enginePid: Int?,
         registryStatus: Int?
     ) -> EngineReadiness {
+        // A reachable engine that rejects our credentials answers health with
+        // 401/403 — that is `.authRejected` (reachable, bad token), NOT
+        // `.notResponding` (unreachable). Keeping them distinct is what lets the
+        // launch path give an honest diagnosis instead of "engine isn't running".
+        if healthStatus == 401 || healthStatus == 403 { return .authRejected }
         guard healthStatus == 200 else { return .notResponding }
         if let expectedNonce, healthNonce != expectedNonce {
             return .identityMismatch(pid: enginePid)
