@@ -9,7 +9,12 @@ from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.models import ContentRepresentation, ContentRepresentationRevision
+from fichero.models import (
+    ContentRepresentation,
+    ContentRepresentationListResponse,
+    ContentRepresentationRevision,
+    ContentRepresentationRevisionListResponse,
+)
 
 router = APIRouter(prefix="/content-representations")
 
@@ -53,22 +58,27 @@ def revise_representation(
     )
 
 
-@router.get("/document/{document_id}", response_model=list[ContentRepresentation])
+@router.get("/document/{document_id}", response_model=ContentRepresentationListResponse)
 async def list_representations(
     document_id: str,
     db: Database = Depends(get_library_database),
-) -> list[ContentRepresentation]:
-    return db.query(ContentRepresentation, document_id=document_id)
+) -> ContentRepresentationListResponse:
+    items = db.query(ContentRepresentation, document_id=document_id)
+    return ContentRepresentationListResponse(items=items, count=len(items))
 
 
-@router.get("/{representation_id}/revisions", response_model=list[ContentRepresentationRevision])
+@router.get(
+    "/{representation_id}/revisions",
+    response_model=ContentRepresentationRevisionListResponse,
+)
 async def list_revisions(
     representation_id: str,
     db: Database = Depends(get_library_database),
-) -> list[ContentRepresentationRevision]:
+) -> ContentRepresentationRevisionListResponse:
     if db.get(ContentRepresentation, representation_id) is None:
         raise HTTPException(404, f"Content representation not found: {representation_id}")
-    return db.query(ContentRepresentationRevision, representation_id=representation_id)
+    items = db.query(ContentRepresentationRevision, representation_id=representation_id)
+    return ContentRepresentationRevisionListResponse(items=items, count=len(items))
 
 
 @router.post("/{representation_id}/revisions", response_model=ContentRepresentationRevision)

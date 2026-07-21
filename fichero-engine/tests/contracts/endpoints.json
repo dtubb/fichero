@@ -2463,7 +2463,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ContentRepresentation]"
+        "response_model": "ContentRepresentationListResponse"
       },
       {
         "method": "GET",
@@ -2475,7 +2475,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ContentRepresentationRevision]"
+        "response_model": "ContentRepresentationRevisionListResponse"
       },
       {
         "method": "POST",
