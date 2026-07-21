@@ -152,6 +152,11 @@ struct BackendConnectionView: View {
                             forgetPairingButton
                         }
                     }
+                    // A broken connection needs a way OUT to fix it — open engine
+                    // Settings (host / sharing / login) even while the engine is
+                    // down, since the app now stays fully usable behind this
+                    // non-modal popover instead of a window takeover.
+                    settingsButton
                     showLogButton
                 }
             }

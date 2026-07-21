@@ -7,6 +7,20 @@ import FicheroAPIClient
 import SwiftUI
 
 extension BackendConnectionView {
+    /// Route a broken connection into engine Settings (host / sharing / login) —
+    /// the way OUT when Retry isn't enough (wrong host, needs a remote/login, or
+    /// the engine must be configured). Available on every failure phase, since the
+    /// app now stays usable behind the non-modal toolbar popover.
+    @ViewBuilder
+    var settingsButton: some View {
+        Button {
+            appState.openSettings(tab: .backend)
+        } label: {
+            Label("Settings…", systemImage: "gearshape")
+        }
+        .accessibilityIdentifier("backend.action.openSettings")
+    }
+
     /// The single retry entry point (#3108) — respawn (macOS) / re-adopt (iOS).
     @ViewBuilder
     var retryButton: some View {
