@@ -17,6 +17,19 @@ from fichero.api.main import app
 _UNIT_TEST_AUTH_TOKEN: str | None = None
 _AUTH_MIDDLEWARE_ATTACHED = False
 
+# Attach the enforcing auth middleware to the shared app ONCE, at conftest LOAD —
+# before any test module is collected. A module-level `TestClient(app)` (e.g.
+# tests/unit/test_api_providers.py) can start the shared app's lifespan during
+# collection; if the middleware weren't already attached by then, that first
+# `add_middleware` would raise "Cannot add middleware after an application has
+# started" and — because it raises before the guard flips True — cascade to
+# EVERY later test's setup (the 7941-error storm, #4039). Attaching here, before
+# any test module imports, closes that window. The autouse fixture below stays as
+# an idempotent safety net.
+_UNIT_TEST_AUTH_TOKEN = initialize_token()
+attach_auth_middleware(app, _UNIT_TEST_AUTH_TOKEN)
+_AUTH_MIDDLEWARE_ATTACHED = True
+
 
 @pytest.fixture(autouse=True)
 def _unit_test_single_user_env(monkeypatch):
