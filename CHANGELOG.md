@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+**Transport & Data Loading**
+
+- Add a pluggable `ClientTransport` seam for the engine connection: macOS local
+  builds dial the embedded engine over a Unix domain socket (UDS), iOS/iPad and
+  remote/sharing use HTTPS, and an experimental in-process ASGI transport
+  (PythonKit) can run the engine inside the app on Dev/DMG builds
+  ([#4037](https://github.com/dtubb/fichero/issues/4037)).
+- Route all image, media, and WebKit storage loading through the transport via a
+  `fichero-res://` scheme (`URLProtocol` + `WKURLSchemeHandler` +
+  `AVAssetResourceLoaderDelegate`), so assets load identically over UDS,
+  in-memory, and HTTPS — no component builds a raw `127.0.0.1:8765` URL.
+- Route the engine readiness probe through the transport, so launch reaches
+  "ready" over any transport rather than a hard-coded TCP probe.
+- Grant loopback-owner auth to UDS and in-process connections via an ASGI
+  `scope["fichero.transport"]` marker; fixes authenticated requests returning
+  401 over UDS.
+- Shorten the UDS socket path to fit the AF_UNIX `sun_path` limit inside the App
+  Store sandbox container.
+
+**Notes**
+
+- The in-memory / PythonKit transport is a Dev/DMG experiment only — signed App
+  Store builds cannot disable library validation, which loading an external
+  `libpython` requires.
+- A launch-time import-deferral optimization was shelved pending investigation
+  of an async-test hang it exposed.
+
+---
+
 ## 2026-07-20-beta
 
 **Workflows**
