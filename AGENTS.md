@@ -74,6 +74,45 @@ Workers never push to shared branches for the manager; the manager owns the merg
 This keeps one Xcode and one full-suite run as the gate while many workers grind in
 parallel, isolated worktrees.
 
+## Git Practices — Lanes, Integration, Commits
+
+Short-lived **lane branches** (one worker, one worktree under
+`~/code/fichero-worktrees/<name>`, branched off `origin/main`) merge into an
+**integration branch** when 2+ lanes must land together; the manager gates
+the combined diff there (full suite, 0 failed) before fast-forwarding to
+`main`. Delete a lane branch once its commits reach `main` — nothing is
+lost, the commits stay reachable by SHA / `git log --grep` / the closed
+issue.
+
+**Commit, never stash.** Park interrupted work as a WIP commit on the lane
+branch, not `git stash` — a stash doesn't survive a worktree teardown and is
+invisible outside the shell that made it. Baseline-diffing (comparing two
+tree states) happens in a **separate worktree**, never via
+stash-and-checkout in the same one (see `docs/design/git-practices-fabel-review.md`
+Rule "stash-pop hazard").
+
+**Bring an agent up to speed with data, not a long-lived branch:**
+`agents/ROADMAP.md` + GitHub milestones for "what's next", per-area
+`*_STATUS.md` / fabel-review docs for "what's the current state",
+conventional-commit scopes (`git log --grep '(#1234)'`) for "what happened
+and why". A branch several agents keep rebasing onto is the failure mode
+this replaces.
+
+**Verification runs in the foreground.** Any agent whose job is "verify then
+commit" (worker or otherwise) blocks on its own check and commits in the
+SAME turn it sees the result. Never launch a background test + a `Monitor`
+and pause — the turn ends before the result lands, and the agent loops
+without ever committing.
+
+**Path-keyed guardrails move with the file.** Any commit that moves, renames,
+or splits a file must update every `scripts/check_*.py` `TARGET_FILES`-style
+constant and guardrail allowlist in the SAME commit — see "A `pytest -k`
+subset skips the architecture guardrails" in Common Pitfalls below; the
+guardrail's own test files are part of the gate, not optional.
+
+Full rationale and the incidents behind each rule:
+`docs/design/git-practices-fabel-review.md`.
+
 ### Manager loop — use the scripts, don't improvise
 
 The manager drives work through three scripts. **Do not hand-pick issues, hand-edit ROADMAP order, or `gh issue create` by hand** — that is how duplicate/mis-placed milestones crept in.
@@ -267,6 +306,12 @@ The ones that cost hours, and that no test catches for you:
   has no `docs/<page>.md` substring to grep. Moving a file breaks it silently.
 - **Backtick text inside `git commit -m "..."` is command substitution.** The shell
   executes it and pastes the output into your message. Use `git commit -F <file>`.
+- **Renames/moves break path-keyed guardrails.** `PERSISTENCE_PATH`,
+  `WILDCARD_BIND`, the XML chokepoint check, `db_access`,
+  `single_connection`, and every `check_*.py` `TARGET_FILES` list hardcode
+  paths. A move that doesn't update them in the same commit gives a false
+  green (7 regressions from #3751/#3754). Grep for the old path across
+  `scripts/check_*.py` before committing a rename.
 
 ---
 
@@ -381,7 +426,7 @@ that must never be public goes outside `docs/` entirely — not merely out of `n
 8. Never start a milestone more than one ahead of what Daniel is currently testing.
 9. **Schema changes are no-migration in 0.0.x for fresh DBs, but real data needs migrations.** A new column on a Pydantic model is picked up by `_ensure_table` on fresh databases — don't add an `ALTER TABLE ADD COLUMN` for a column already in the model. BUT once a persisted DB (`app.duckdb` or a real library) exists, a new column needs an idempotent `ALTER`+backfill, not `CREATE-IF-NOT-EXISTS`. Structural changes (table renames, data backfills) belong in `db_migrations.py`.
 10. **New .swift files must be registered with `scripts/add-swift-file.rb`**: The `Fichero` main target uses traditional PBX file references — a file written to disk is invisible to the compiler until registered. Always run `ruby scripts/add-swift-file.rb <path>` after creating any new `.swift` file. Test-target files are the exception (sync'd groups). Never edit `project.pbxproj` by hand. The build gate will catch unregistered files as "Cannot find type" errors.
-11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create worktrees with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main` — never as bare siblings `~/code/fichero-<name>`. Remove them ONLY with `git worktree remove --force <path>` (operates only on registered worktrees). **NEVER `rm -rf` a `~/code/` path and NEVER glob-delete `~/code/fichero-*`** — bare siblings are SEPARATE projects with their own remotes and uncommitted work. Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it.
+11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create worktrees with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main` — never as bare siblings `~/code/fichero-<name>`. Remove them ONLY with `git worktree remove --force <path>` (operates only on registered worktrees). **NEVER `rm -rf` a `~/code/` path and NEVER glob-delete `~/code/fichero-*`** — bare siblings are SEPARATE projects with their own remotes and uncommitted work. Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it. A worktree that must build on un-pushed integration-branch state (not yet on `origin/main`) is created from that branch's HEAD sha explicitly — `git worktree add <path> <integration-branch-or-sha>` — not the Agent tool's default `isolation: "worktree"`, which branches from `origin/main` and won't see integration-only commits.
 
 ---
 

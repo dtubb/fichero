@@ -58,6 +58,14 @@ Manager-only session start. This lane coordinates; it does not implement product
   `Directed-By`) and **Docs Placement** (all docs in `docs/`, public pages in
   `mkdocs.yml` nav; agent scratch in `agent-work/`; crud → `git rm`). When committing a
   worker's leftover changes yourself, attribute to the worker, not the manager.
+- Gate the **integration branch**, not individual lane branches in
+  isolation — a lane can pass `--fast` alone and still break a guardrail
+  once merged with another lane's changes (path-keyed guardrails move
+  together; a combined diff can collide even when neither lane's own diff
+  does).
+- Verify commit provenance before trusting it: `git show --stat <sha>` and
+  confirm the file list matches what the commit message claims, especially
+  for docs/tooling-only commits landed by a concurrent process.
 
 ## Does Not Own
 
