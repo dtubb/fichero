@@ -29,7 +29,7 @@ from fichero.workflows.tools.llm_base import (
     parse_output,
 )
 from fichero.llm import LLMConfig
-from fichero import geo
+from fichero.media import geo
 
 logger = logging.getLogger(__name__)
 

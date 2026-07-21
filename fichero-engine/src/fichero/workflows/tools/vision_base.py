@@ -30,7 +30,7 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from fichero.llm import LLMConfig
 
-from fichero.ocr_geometry import OCRGeometryResult, parse_vlm_geometry
+from fichero.media.ocr_geometry import OCRGeometryResult, parse_vlm_geometry
 from fichero.workflows.types import PortDef, DataType
 
 # Pre-import macOS Vision/Quartz framework symbols at module load on the

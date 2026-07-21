@@ -37,7 +37,7 @@ import base64
 import logging
 
 # Typed OCR/transcription geometry saved on artifacts.
-from fichero.ocr_geometry import OCRGeometryResult
+from fichero.media.ocr_geometry import OCRGeometryResult
 
 # Import ProviderType from providers module (single source of truth)
 from fichero.providers import ProviderType
