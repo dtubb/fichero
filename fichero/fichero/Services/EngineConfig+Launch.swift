@@ -23,24 +23,24 @@ extension EngineConfig {
     /// In-process wins if both are set. A configured *remote* host keeps `.https`
     /// (the overrides only make sense for the local engine on this machine).
     static var transportMode: TransportMode {
+        localDebugTransportOverride ?? transportMode(for: engineProvisioningStrategy())
+    }
+
+    /// Debug-only overrides for the LOCAL engine transport, or `nil` when none is
+    /// set. Returns `nil` for a configured remote host — the overrides only make
+    /// sense for the engine on this machine, and remote always uses HTTPS.
+    private static var localDebugTransportOverride: TransportMode? {
+        guard !requiresExternalBackendConnection else { return nil }
         let env = ProcessInfo.processInfo.environment
-
-        // Remote hosts are reached over HTTPS; the local-only overrides don't apply.
-        guard !requiresExternalBackendConnection else { return .https }
-
         #if os(macOS)
         if let flag = env["FICHERO_FORCE_INMEMORY"], isTruthy(flag) {
             return .inMemory
         }
         #endif
-
         if let socketPath = env["FICHERO_FORCE_UDS_PATH"], !socketPath.isEmpty {
             return .uds(path: socketPath)
         }
-
-        // No override: fall through to the production strategy → transport
-        // mapping (only `.releaseEmbedded` dials UDS; all else stays HTTPS).
-        return transportMode(for: engineProvisioningStrategy())
+        return nil
     }
 
     /// Treats common truthy spellings ("1", "true", "yes", "on") as enabled so
