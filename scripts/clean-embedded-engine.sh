@@ -105,6 +105,10 @@ for candidate in \
   "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/$BUNDLE_PYVER/bin/python$BUNDLE_PYVER" \
   "${FICHERO_PYTHON_BIN:-}" \
   "$(command -v "python$BUNDLE_PYVER" || true)" \
+  "/opt/homebrew/bin/python$BUNDLE_PYVER" \
+  "/opt/homebrew/opt/python@$BUNDLE_PYVER/bin/python$BUNDLE_PYVER" \
+  "/usr/local/bin/python$BUNDLE_PYVER" \
+  "/Library/Frameworks/Python.framework/Versions/$BUNDLE_PYVER/bin/python$BUNDLE_PYVER" \
   "${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}" \
   "${SRCROOT:+$SRCROOT/../.venv/bin/python}" \
   "${SRCROOT:+$SRCROOT/../fichero-engine/.venv/bin/python}" \
