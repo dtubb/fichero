@@ -113,15 +113,25 @@ extension EmbeddedBackendService {
     /// app never terminates.
     private func adoptDebugExternalEngine() async throws {
         expectedLaunchNonce = nil
-        logger.info("DEBUG mode: adopting external engine on :8765 (engine not bundled in Debug)")
+        // Log the ACTUAL transport the app will dial — a hardcoded ":8765" here
+        // was misleading in UDS mode, where the client dials an AF_UNIX socket,
+        // not TCP. Now the log names the exact socket path so a path mismatch is
+        // obvious at a glance.
+        let dialTarget: String
+        if case let .uds(path) = EngineConfig.transportMode {
+            dialTarget = "UDS socket \(path)"
+        } else {
+            dialTarget = "HTTPS :8765"
+        }
+        logger.info("DEBUG mode: adopting external engine over \(dialTarget, privacy: .public) (engine not bundled in Debug)")
         do {
             try await waitForBackend(timeout: 5)
             status = .running
             isExternalBackend = true
-            logger.info("Connected to external backend (will not manage lifecycle)")
+            logger.info("Connected to external backend over \(dialTarget, privacy: .public) (will not manage lifecycle)")
         } catch {
             status = .failed
-            logger.error("No external engine on :8765 in Debug — start it with start_backend.sh")
+            logger.error("No external engine reachable over \(dialTarget, privacy: .public) in Debug — start it with start_backend.sh")
             throw BackendError.backendAppNotFound
         }
     }

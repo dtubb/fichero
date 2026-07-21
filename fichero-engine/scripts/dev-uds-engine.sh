@@ -25,13 +25,17 @@ CONTAINER_UDS="$HOME/Library/Containers/app.fichero.fichero/Data/tmp/fichero.soc
 
 # HTTP liveness over TCP :8765 (curl -k: the loopback cert is self-signed). Any
 # HTTP reply (incl. 401) means alive; a refused connection (exit 7) means down.
+# Probe the PUBLIC /api/health (200, no token) — not /health (401, token-gated),
+# which litters the engine log with scary "401 Unauthorized" liveness noise even
+# though the engine is fine. Any HTTP reply means alive; a refused connection
+# (curl exit 7) means down.
 https_alive() {
-  curl -sk -o /dev/null --max-time 2 https://127.0.0.1:8765/health
+  curl -sk -o /dev/null --max-time 2 https://127.0.0.1:8765/api/health
   [ "$?" -ne 7 ]
 }
 uds_alive() {
   [ -S "${FICHERO_UDS_PATH:-}" ] || return 1
-  curl -s -o /dev/null --max-time 2 --unix-socket "$FICHERO_UDS_PATH" http://localhost/health
+  curl -s -o /dev/null --max-time 2 --unix-socket "$FICHERO_UDS_PATH" http://localhost/api/health
   [ "$?" -ne 7 ]
 }
 
