@@ -103,3 +103,13 @@ Batch = `3dea23f03` (origin/main + mcp + security reorg + main-green's 3 red fix
 **Decisions Daniel approved 2026-07-21 (round 2):** share transport = BOTH as named routes (needs a doc home — put in sharing plan). per-library connect (#2573) = auto-detect + manual override. startup Stage-2 = SKIP tier churn, apscheduler quick win only (real lever = spawn/connect chain). agent accounts (#1847) = Xcode-style consent prompt: connect→prompt→approve auto-provisions, "don't ask again" remembers FOR THE SESSION, relaunch re-prompts. Recorded on #2573/#4038/#1847.
 **Sharing triage:** cluster mostly built; #2573 per-library host = key remaining; #231 Discovery + #205 Settings empty (recommend close); doc = docs/design/sharing-and-pairing-consolidated-plan.md.
 **origin/main WAS red** (4 pre-existing reds) — main-green + envelope fix them; do NOT push until the combined batch gate is 0-failed.
+
+## MILESTONE COMPLETE 2026-07-21 (engine hygiene reorg LANDED)
+main = 20ad9cbdf, GREEN: full engine suite 8048 passed / 0 failed, and Fichero (Dev Local) BUILD SUCCEEDED (envelope's regenerated FicheroAPIClient compiles). The whole reorg is on main: mcp/security/llm/db/models/kg packages + identity-preserving shims; all 4 pre-existing reds fixed (incl. real ActivityTracker fire-and-forget race); #2 content-rep envelope; lazy-import regression fixed (ChatAppleIntelligence lazy factory, module budget 811<850). Guardrail allowlists repointed. #2566 closed. Doc branches folded (speedup + sharing plans, 4 round-2 decisions). 
+
+## IN FLIGHT / FOLLOW-UPS
+- **f_manager tmux** triggered for a DEV build/release off main → GitHub + TestFlight (scripts/release-all.sh). NOTE: f_manager's own context was ~6% from auto-compact — may need Daniel to steer; TestFlight upload likely needs Daniel's Apple ID (told it to flag, not stall).
+- **Pending Swift branches to build-gate + merge** (NOT yet on main): startup-ux test fix (branch worktree-agent-a4a8b8ed692d1e212 — EngineSessionTests + doc comments); sharing lane (lane/sharing-ux — #3372 QR library confirm fix + #1847 consent-prompt UI; tests RemoteClientPairingLibraryConfirmTests + AgentConsentStoreTests + check_*.py). Build-gate each (serialize xcodebuild) before merging.
+- **3 tmux frontend lanes** running independently: sidebar (contiguous multi-select), sharing (done its subset), research (agentic-surface consolidation doc + Swift-safe steps). Each keeps a *_STATUS.md.
+- **Reorg future pass** (flagged): research_models.py, canvas_models.py, storage/paths/library_* db-adjacent, kg/↔knowledge/ near-duplicate.
+- **Out-of-band decisions still to action:** close empty milestones #231/#205; #4040 Python-deps bump (after hygiene).
