@@ -74,16 +74,18 @@ struct DocumentTabView: View {
 
     var body: some View {
         ZStack {
-            if appState.isBackendRunning {
-                contentView
-            } else {
-                backendConnectionView
-            }
+            // Get right to the app: render the real content in EVERY engine phase,
+            // even not-yet-connected / failed. The connection state is surfaced
+            // NON-MODALLY by `EngineStatusToolbarItem` in the toolbar (with Retry),
+            // never as a full-tab `BackendConnectionView` takeover. The old
+            // `if isBackendRunning { content } else { connectionView }` swap
+            // re-introduced exactly the full-window error splash the root gate
+            // (`BackendRootGate`) removed (startup-transport-ux S1). ContentView
+            // handles a down backend with inline empty/error states.
+            contentView
         }
-        // ★ EVERY FRAME PERFECT (#3615): surface color as the base layer so the
-        // isBackendRunning swap (backendConnectionView ↔ contentView) never
-        // exposes a bare white frame if ContentView's first frame isn't painted
-        // yet. Matches backendConnectionView's own fill.
+        // ★ EVERY FRAME PERFECT (#3615): surface color as the base layer so a
+        // not-yet-painted ContentView first frame never exposes a bare white frame.
         .background(Color(platformColor: .windowBackgroundColor))
         .task {
             guard !Task.isCancelled else { return }
@@ -102,22 +104,6 @@ struct DocumentTabView: View {
             // Update last modified when view mode changes
             document.lastModified = Date()
         }
-    }
-
-    @ViewBuilder
-    private var backendConnectionView: some View {
-        // Render-only connection view (#3108): the Retry button re-probes health
-        // and, on success, runs the post-ready wiring. The window's root gate is
-        // the primary surface for a dead engine; this in-tab fallback is rare.
-        BackendConnectionView(appState: appState, onRetry: retryBackendConnection)
-    }
-
-    @MainActor
-    private func retryBackendConnection() async {
-        appState.engine.markStarting()
-        await appState.checkBackendHealth()
-        guard appState.isBackendRunning else { return }
-        await completeBackendRetryReadiness()
     }
 
     @ViewBuilder
@@ -191,17 +177,5 @@ struct DocumentTabView: View {
     private func loadContext() async {
         // Context loading is handled by individual views via their own .task modifiers
         // This method exists for future cross-view state restoration if needed
-    }
-
-    @MainActor
-    private func completeBackendRetryReadiness() async {
-        appState.startBackendHeartbeat()
-        await KnownLibraryRegistryStore.shared.refresh()
-        // Reconnect after the engine was down: the backend's open set may have
-        // changed (restarted, libraries closed elsewhere), so mirror it into the
-        // sidebar just like the cold-launch path (#3393). Must run after refresh()
-        // and before backendDidBecomeReady() loads each open library's data.
-        libraryManager.reconcileOpenLibrariesFromRegistry()
-        await libraryManager.backendDidBecomeReady()
     }
 }
