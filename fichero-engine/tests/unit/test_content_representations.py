@@ -55,7 +55,7 @@ def test_representation_read_routes(client, db):
     db.save(representation)
     response = client.get(f"/api/content-representations/document/{representation.document_id}")
     assert response.status_code == 200
-    assert response.json()[0]["id"] == representation.id
+    assert response.json()["items"][0]["id"] == representation.id
 
 
 def test_revision_routes_reject_missing_representation_and_empty_content(client):

@@ -159,11 +159,11 @@ def test_get_database_normalizes_unicode_equivalent_package_keys(tmp_path, monke
 _CONN_EXECUTE_ALLOWLIST: frozenset[str] = frozenset(
     {
         # Persistence layer — defines the seam.
-        "db.py",
-        "db_manager.py",
-        "db_migrations.py",
-        "db_embeddings.py",
-        "app_db.py",
+        "db/__init__.py",
+        "db/manager.py",
+        "db/migrations/schema.py",
+        "db/embeddings.py",
+        "db/app.py",
         # Workflow stores that own a separate raw connection (lead-review debt).
         "workflows/cache.py",
         "workflows/checkpointer.py",

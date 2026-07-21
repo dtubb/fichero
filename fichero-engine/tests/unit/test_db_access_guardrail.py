@@ -46,12 +46,12 @@ SRC_ROOT = Path(__file__).resolve().parents[2] / "src" / "fichero"
 ALLOWLIST: frozenset[str] = frozenset(
     {
         # Core DB layer
-        "db.py",
-        "db_embeddings.py",
-        "db_migrations.py",
-        "db_manager.py",
-        "app_db.py",
-        "migrations.py",
+        "db/__init__.py",
+        "db/embeddings.py",
+        "db/migrations/schema.py",
+        "db/manager.py",
+        "db/app.py",
+        "db/migrations/runner.py",
         "api/change_stream.py",
         # Backup / restore handles raw connections to snapshot the .duckdb file.
         "storage_snapshots.py",
