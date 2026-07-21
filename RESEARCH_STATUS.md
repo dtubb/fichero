@@ -23,6 +23,20 @@ false negatives (the worktree index isn't built — even existing types like
 `Conversation`/`ChatMessage` reported "not found"); real verification is the
 manager's build gate.
 
+## Delegated to the manager (chat-panel zone work — Option A)
+Filed as worker-sized lanes under milestone **Agent View - Researcher - UX**
+(Daniel: "plan and delegate"). Each carries the memory decisions + the #2033
+hazard + the `librarywindow-body` type-checker discipline:
+- **#4041** zone A — chat column inside the content zone (`HSplitView`, NOT a 2nd right panel)
+- **#4042** zone B — inspector → contextual Plan/detail surface (node PM surface; coordinate with sidebar/node lane)
+- **#4043** zone C — agent-driven visible browser renders in the Reader (ties #2275; needs WebKit-MCP engine)
+- **#4044** zone D — bottom multi-agent activity area (new chrome; feeds off the ToolCall spine)
+- **#4045** zone E — detach chat to window + workspace-window save/restore
+
+## In this lane next (parallel-safe, no zone collision)
+- [ ] Knowledge tab (migration step 5) — conversation-scoped entities/claims; 2nd `KGQueryStore` host.
+- [ ] Polish — ledger source-navigation (click a cited doc → open), ToolCallCard running/error states.
+
 ## Deferred / flagged for coordination
 - Engine steps 1–2 (`chat_tools.py` → `/api/chat` tool loop, audited research actions, OpenAPI tri-copy) — engine lane, post-reorg. Swift `ToolCall` decodes `tool_calls[]` when engine emits it.
 - Step 6 (collapse `SidebarMode.research`, remove ⌘8, node-kind routing / #2446) — sidebar lane + engine. NOT this lane.
