@@ -1,1 +1,1 @@
-from fichero.knowledge.knowledge_models import *  # noqa
+from fichero.models.knowledge import *; import sys; sys.modules[__name__] = sys.modules["fichero.models.knowledge"]  # noqa
