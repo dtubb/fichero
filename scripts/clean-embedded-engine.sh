@@ -84,25 +84,41 @@ fi
 rm -f "$bad_bundle_ids"
 echo "  Embedded engine cleanup: no reserved com.apple.* bundle identifiers found"
 
+# Bytecode magic is per MINOR version: a .pyc compiled by the wrong minor is
+# silently ignored by the runtime, which then recompiles on first launch — the
+# #3940 slow start. So detect the BUNDLE's own CPython version and compile with
+# EXACTLY that, never a hardcoded guess (the bundle has been both 3.12 and 3.13).
+BUNDLE_PYVER=""
+for v in "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/"3.*; do
+  b=$(basename "$v")
+  case "$b" in 3.[0-9]*) BUNDLE_PYVER="$b"; break ;; esac
+done
+if [ -z "$BUNDLE_PYVER" ]; then
+  echo "error: could not detect the embedded Python.framework version under $ENGINE_APP" >&2
+  exit 1
+fi
+PYMAJ="${BUNDLE_PYVER%%.*}"
+PYMIN="${BUNDLE_PYVER#*.}"
+
 ENGINE_PYTHON=""
-# Bytecode magic is per minor version: Python 3.13 .pyc would be ignored by
-# the bundled 3.12 runtime, so accept only an executable Python 3.12.
 for candidate in \
-  "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/3.12/bin/python3.12" \
-  "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/3.12/Python" \
+  "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/$BUNDLE_PYVER/bin/python$BUNDLE_PYVER" \
   "${FICHERO_PYTHON_BIN:-}" \
+  "$(command -v "python$BUNDLE_PYVER" || true)" \
   "${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}" \
   "${SRCROOT:+$SRCROOT/../.venv/bin/python}" \
   "${SRCROOT:+$SRCROOT/../fichero-engine/.venv/bin/python}" \
-  "$(command -v python3.12 || true)" \
   "$(command -v python3 || true)"; do
-  if [ -n "$candidate" ] && "$candidate" -c 'import sys; raise SystemExit(sys.version_info[:2] != (3, 12))' 2>/dev/null; then
+  if [ -n "$candidate" ] \
+     && "$candidate" -c "import sys; raise SystemExit(sys.version_info[:2] != ($PYMAJ, $PYMIN))" 2>/dev/null; then
     ENGINE_PYTHON="$candidate"
     break
   fi
 done
 if [ -z "$ENGINE_PYTHON" ]; then
-  echo "error: embedded engine requires a Python 3.12 interpreter to precompile bytecode" >&2
+  echo "error: embedded engine bundles Python $BUNDLE_PYVER, but no matching python$BUNDLE_PYVER interpreter was found to precompile bytecode." >&2
+  echo "       Compiling with a different minor would ship .pyc the runtime ignores (#3940 slow start)." >&2
+  echo "       Install python$BUNDLE_PYVER (e.g. 'brew install python@$BUNDLE_PYVER'), set FICHERO_PYTHON_BIN, or make briefcase produce the pinned version." >&2
   exit 1
 fi
 
