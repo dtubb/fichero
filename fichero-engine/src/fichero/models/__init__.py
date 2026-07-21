@@ -41,10 +41,17 @@ from fichero.ocr_geometry import OCRGeometryResult
 
 # Import ProviderType from providers module (single source of truth)
 from fichero.providers import ProviderType
-from fichero.knowledge_models import Reference, ReferenceProvenance
 
-# Direct imports — knowledge_models has no dependency on this file.
-from fichero.knowledge_models import (
+# Import from the sibling models/knowledge.py submodule directly (not via
+# the fichero.knowledge_models top-level shim, which routes back through
+# `fichero.models.knowledge` — the shim isn't fully initialized yet when
+# something imports fichero.knowledge_models *before* fichero.models, so
+# going through it here would reintroduce the exact circular-import
+# ordering bug the direct-submodule import avoids) (#2566).
+from fichero.models.knowledge import Reference, ReferenceProvenance
+
+# Direct imports — knowledge.py has no dependency on this file.
+from fichero.models.knowledge import (
     DocumentCitation,
     KnowledgeClaim,
     KnowledgeEntity,
