@@ -1611,7 +1611,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def _effective_prototype_attributes(self, doc: Any) -> dict[str, Any]:
         """Resolve inherited prototype attributes and overlay the node payload."""
-        from fichero.node_prototypes import resolve_prototype_attributes
+        from fichero.models.node_prototypes import resolve_prototype_attributes
 
         attrs = dict(doc.attributes) if isinstance(doc.attributes, dict) else {}
         if not doc.prototype_key:

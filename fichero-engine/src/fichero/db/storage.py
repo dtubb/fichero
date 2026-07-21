@@ -445,7 +445,7 @@ def resolve_edited_source(
     doc: "Document", db: "Database", *, page: int = 1
 ) -> Path | None:
     """Return the cached replay of a document's saved edit chain, if any."""
-    from fichero.image_ops import apply_operation
+    from fichero.media.image_ops import apply_operation
     from fichero.models import ImageEditChain
 
     source = resolve_source(doc, library_root=db.path.parent)

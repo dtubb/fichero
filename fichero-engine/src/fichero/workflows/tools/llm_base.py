@@ -35,7 +35,7 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from fichero.llm import LLMConfig
 
-from fichero.ocr_geometry import OCRGeometryResult
+from fichero.media.ocr_geometry import OCRGeometryResult
 from fichero.workflows.types import PortDef, DataType
 from fichero.workflows.tools._doc_lookup import find_document_by_path
 from fichero.workflows.tools.llm_prompting import (  # noqa: F401 (re-exported)
