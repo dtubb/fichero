@@ -29,7 +29,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from fichero.knowledge_models import Annotation
     from fichero.models import Document
 
-from fichero.utf16_offsets import utf16_range_to_codepoint_range
+from fichero.core.utf16_offsets import utf16_range_to_codepoint_range
 
 logger = logging.getLogger(__name__)
 

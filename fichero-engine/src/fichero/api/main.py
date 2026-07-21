@@ -1283,45 +1283,23 @@ async def get_stats(db: Database = Depends(get_library_database)):
 
 
 # Include route modules
+#
+# #2569 (module-budget follow-up): import each moved route straight from its
+# new domain subpackage rather than through the identity-preserving flat-name
+# shim. The shims (fichero/api/routes/<name>.py) still exist and still work
+# for any external/back-compat caller that does
+# `from fichero.api.routes import <name>` — but importing them here as well
+# would insert a SECOND sys.modules entry per route (old flat name + new
+# nested name) purely for app startup, which is what blew the
+# test_module_count_budget_at_app_import budget after the routes reorg.
+# Importing the nested module directly keeps exactly one entry per route.
 from fichero.api.routes import (  # noqa: E402
-    actions,
-    actions_registry,
-    activity,
-    agent_memory,
-    authz,
-    auth_accounts,
-    annotations,
-    artifacts,
-    batch,
-    bookmarks,
-    bibliography,
-    chains,
-    chat,
-    citation_usages,
-    citation_rendering,
-    citations,
-    content_representations,
-    claim_curation,
-    claim_links,
-    claims,
-    classifications,
-    document_inspector,
-    documents,
-    entities,
-    entity_inspector,
-    export,
-    folders,
-    hermeneutics,
-    image_editing,
-    iiif,
     ingest,
-    integrations,
     kg_claim_analysis,
     kg_claim_search,
     kg_curation_rules,
     kg_entity_curation,
     kg_graph,
-    changes,
     kg_inclusion,
     kg_mutations,
     kg_render,
@@ -1333,39 +1311,99 @@ from fichero.api.routes import (  # noqa: E402
     kg_sparql,
     kg_triangulation,
     library,
-    library_items,
-    library_links,
-    library_entity_types,
-    library_registry,
+    search,
+    workflow_execution,
+)
+from fichero.api.routes.ai import (  # noqa: E402
     local_inference,
     local_models,
-    locations,
-    mcp_servers,
-    mcp_tools,
-    pairing,
-    migrations,
-    canvas,
     model_comparison,
     models,
     multilingual,
-    notes,
-    orchestration,
-    references,
-    projects,
+    provider_keys,
+    provider_models,
     providers,
-    registries,
-    research_agents,
+)
+from fichero.api.routes.auth import (  # noqa: E402
+    accounts as auth_accounts,
+    authz,
+    pairing,
     sandbox_access,
-    schedules,
-    search,
-    search_explain,
-    settings,
+)
+from fichero.api.routes.citation import (  # noqa: E402
+    bibliography,
+    citations,
+    references,
+    rendering as citation_rendering,
+    usages as citation_usages,
+)
+from fichero.api.routes.claim import (  # noqa: E402
+    claims,
+    curation as claim_curation,
+    links as claim_links,
+)
+from fichero.api.routes.document import (  # noqa: E402
+    annotations,
+    artifacts,
+    classifications,
+    content_representations,
+    documents,
+    folders,
+    inspector as document_inspector,
+    notes,
     sources,
+)
+from fichero.api.routes.entity import (  # noqa: E402
+    entities,
+    inspector as entity_inspector,
+)
+from fichero.api.routes.ingest import (  # noqa: E402
+    export,
+    iiif,
+    image_editing,
+)
+from fichero.api.routes.interpretation import (  # noqa: E402
+    canvas,
+    hermeneutics,
+)
+from fichero.api.routes.library import (  # noqa: E402
+    entity_types as library_entity_types,
+    items as library_items,
+    links as library_links,
+    registry as library_registry,
+)
+from fichero.api.routes.mcp import (  # noqa: E402
+    integrations,
+    servers as mcp_servers,
+    tools as mcp_tools,
+)
+from fichero.api.routes.research import agents as research_agents  # noqa: E402
+from fichero.api.routes.search import (  # noqa: E402
+    explain as search_explain,
+)
+from fichero.api.routes.system import (  # noqa: E402
+    actions,
+    actions_registry,
+    activity,
+    agent_memory,
+    bookmarks,
+    changes,
+    chat,
+    locations,
+    migrations,
+    projects,
+    registries,
+    settings,
     storage,
+    views,
+)
+from fichero.api.routes.workflow import (  # noqa: E402
+    batch,
+    chains,
+    orchestration,
+    schedules,
     tasks,
     triggers,
-    views,
-    workflow_execution,
     workflows,
 )
 

@@ -47,7 +47,7 @@ from fichero.security.path_security import (
     allowed_source_roots,
     resolve_under_allowed_roots,
 )
-from fichero.perf import perf_span
+from fichero.core.perf import perf_span
 from fichero.db.paths import engine_state_dir
 
 # PIL is bound lazily (#3985): storage is on the engine boot path, but only the
@@ -445,7 +445,7 @@ def resolve_edited_source(
     doc: "Document", db: "Database", *, page: int = 1
 ) -> Path | None:
     """Return the cached replay of a document's saved edit chain, if any."""
-    from fichero.media.image_ops import apply_operation
+    from fichero.image_ops import apply_operation
     from fichero.models import ImageEditChain
 
     source = resolve_source(doc, library_root=db.path.parent)
@@ -1239,7 +1239,7 @@ def get_display(
 # Snapshot functions — implemented in storage_snapshots.py, re-exported here
 # =============================================================================
 
-from fichero.storage_snapshots import (  # noqa: F401, E402 (re-exported)
+from fichero.db.storage_snapshots import (  # noqa: F401, E402 (re-exported)
     _delete_snapshot_record,
     _enforce_retention,
     _load_all_snapshot_records,

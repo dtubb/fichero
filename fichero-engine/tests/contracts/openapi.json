@@ -2810,7 +2810,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__notes__NoteCreateRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__document__notes__NoteCreateRequest"
               }
             }
           }
@@ -3332,7 +3332,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__projects__ProjectCreateRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__system__projects__ProjectCreateRequest"
               }
             }
           }
@@ -4411,7 +4411,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__bibliography__ImportRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__citation__bibliography__ImportRequest"
               }
             }
           },
@@ -4423,7 +4423,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__bibliography__ImportResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__citation__bibliography__ImportResponse"
                 }
               }
             }
@@ -4516,7 +4516,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__bibliography__ExportRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__citation__bibliography__ExportRequest"
               }
             }
           },
@@ -9588,7 +9588,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__references__DeletedResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__citation__references__DeletedResponse"
                 }
               }
             }
@@ -11057,7 +11057,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/fichero__api__routes__folders__EntityType"
+              "$ref": "#/components/schemas/fichero__api__routes__document__folders__EntityType"
             }
           },
           {
@@ -11107,7 +11107,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/fichero__api__routes__folders__EntityType"
+              "$ref": "#/components/schemas/fichero__api__routes__document__folders__EntityType"
             }
           },
           {
@@ -11156,7 +11156,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/fichero__api__routes__folders__EntityType"
+              "$ref": "#/components/schemas/fichero__api__routes__document__folders__EntityType"
             }
           }
         ],
@@ -11206,7 +11206,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/fichero__api__routes__folders__EntityType"
+              "$ref": "#/components/schemas/fichero__api__routes__document__folders__EntityType"
             }
           },
           {
@@ -11267,7 +11267,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/fichero__api__routes__folders__EntityType"
+              "$ref": "#/components/schemas/fichero__api__routes__document__folders__EntityType"
             }
           }
         ],
@@ -14024,7 +14024,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__provider_models__ModelListResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__ai__provider_models__ModelListResponse"
                 }
               }
             }
@@ -14531,7 +14531,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__providers__DeletedResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__ai__providers__DeletedResponse"
                 }
               }
             }
@@ -14666,7 +14666,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__providers__DeletedResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__ai__providers__DeletedResponse"
                 }
               }
             }
@@ -14812,7 +14812,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__providers__DeletedResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__ai__providers__DeletedResponse"
                 }
               }
             }
@@ -15453,7 +15453,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__search__DeletedResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__search__core__DeletedResponse"
                 }
               }
             }
@@ -16674,7 +16674,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__model_comparison__ModelListResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__ai__model_comparison__ModelListResponse"
                 }
               }
             }
@@ -17108,7 +17108,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__model_comparison__ToolListResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__ai__model_comparison__ToolListResponse"
                 }
               }
             }
@@ -19897,7 +19897,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__workflows__ToolListResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__workflow__workflows__ToolListResponse"
                 }
               }
             }
@@ -22072,7 +22072,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__kg_pykeen__DeleteModelResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__kg__pykeen__DeleteModelResponse"
                 }
               }
             }
@@ -22815,7 +22815,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__citation_rendering__CitationResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__citation__rendering__CitationResponse"
                 }
               }
             }
@@ -27602,7 +27602,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__research_crud__ProjectCreateRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__research__crud__ProjectCreateRequest"
               }
             }
           }
@@ -28537,7 +28537,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__research_notes__NoteCreateRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__research__notes__NoteCreateRequest"
               }
             }
           }
@@ -30310,7 +30310,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__integrations__ImportRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__mcp__integrations__ImportRequest"
               }
             }
           }
@@ -30321,7 +30321,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__integrations__ImportResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__mcp__integrations__ImportResponse"
                 }
               }
             }
@@ -30364,7 +30364,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__integrations__ExportRequest"
+                "$ref": "#/components/schemas/fichero__api__routes__mcp__integrations__ExportRequest"
               }
             }
           }
@@ -30528,7 +30528,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__integrations__CitationResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__mcp__integrations__CitationResponse"
                 }
               }
             }
@@ -30561,7 +30561,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__integrations__DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__mcp__integrations__DocumentListResponse"
                 }
               }
             }
@@ -63066,7 +63066,79 @@
         "type": "object",
         "title": "_EmbedEntityRequest"
       },
-      "fichero__api__routes__bibliography__ExportRequest": {
+      "fichero__api__routes__ai__model_comparison__ModelListResponse": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelInfo"
+            },
+            "type": "array",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "models"
+        ],
+        "title": "ModelListResponse"
+      },
+      "fichero__api__routes__ai__model_comparison__ToolListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ComparisonToolInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ToolListResponse"
+      },
+      "fichero__api__routes__ai__provider_models__ModelListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ModelListResponse",
+        "description": "Envelope for a list of discovered models."
+      },
+      "fichero__api__routes__ai__providers__DeletedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "DeletedResponse"
+      },
+      "fichero__api__routes__citation__bibliography__ExportRequest": {
         "properties": {
           "document_ids": {
             "items": {
@@ -63082,7 +63154,7 @@
         ],
         "title": "ExportRequest"
       },
-      "fichero__api__routes__bibliography__ImportRequest": {
+      "fichero__api__routes__citation__bibliography__ImportRequest": {
         "properties": {
           "text": {
             "type": "string",
@@ -63101,7 +63173,7 @@
         "title": "ImportRequest",
         "description": "Inline import \u2014 the file content as a string."
       },
-      "fichero__api__routes__bibliography__ImportResponse": {
+      "fichero__api__routes__citation__bibliography__ImportResponse": {
         "properties": {
           "count": {
             "type": "integer",
@@ -63123,7 +63195,19 @@
         ],
         "title": "ImportResponse"
       },
-      "fichero__api__routes__citation_rendering__CitationResponse": {
+      "fichero__api__routes__citation__references__DeletedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "deleted"
+          }
+        },
+        "type": "object",
+        "title": "DeletedResponse",
+        "description": "Standard delete envelope."
+      },
+      "fichero__api__routes__citation__rendering__CitationResponse": {
         "properties": {
           "style": {
             "type": "string",
@@ -63151,7 +63235,7 @@
         ],
         "title": "CitationResponse"
       },
-      "fichero__api__routes__folders__EntityType": {
+      "fichero__api__routes__document__folders__EntityType": {
         "type": "string",
         "enum": [
           "workflow",
@@ -63161,177 +63245,7 @@
         "title": "EntityType",
         "description": "Type of entity for folder operations."
       },
-      "fichero__api__routes__integrations__CitationResponse": {
-        "properties": {
-          "citation": {
-            "type": "string",
-            "title": "Citation"
-          },
-          "style": {
-            "type": "string",
-            "title": "Style"
-          }
-        },
-        "type": "object",
-        "required": [
-          "citation",
-          "style"
-        ],
-        "title": "CitationResponse"
-      },
-      "fichero__api__routes__integrations__DocumentListResponse": {
-        "properties": {
-          "documents": {
-            "items": {},
-            "type": "array",
-            "title": "Documents"
-          }
-        },
-        "type": "object",
-        "required": [
-          "documents"
-        ],
-        "title": "DocumentListResponse"
-      },
-      "fichero__api__routes__integrations__ExportRequest": {
-        "properties": {
-          "file_path": {
-            "type": "string",
-            "title": "File Path"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Metadata"
-          },
-          "database": {
-            "type": "string",
-            "nullable": true,
-            "title": "Database"
-          },
-          "group": {
-            "type": "string",
-            "nullable": true,
-            "title": "Group"
-          },
-          "container": {
-            "type": "string",
-            "nullable": true,
-            "title": "Container"
-          },
-          "prototype": {
-            "type": "string",
-            "nullable": true,
-            "title": "Prototype"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file_path"
-        ],
-        "title": "ExportRequest",
-        "description": "Request to export a file to an app."
-      },
-      "fichero__api__routes__integrations__ImportRequest": {
-        "properties": {
-          "external_id": {
-            "type": "string",
-            "title": "External Id"
-          },
-          "target_path": {
-            "type": "string",
-            "nullable": true,
-            "title": "Target Path"
-          }
-        },
-        "type": "object",
-        "required": [
-          "external_id"
-        ],
-        "title": "ImportRequest",
-        "description": "Request to import an item from an app."
-      },
-      "fichero__api__routes__integrations__ImportResponse": {
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "title": "Success"
-          },
-          "file_path": {
-            "type": "string",
-            "nullable": true,
-            "title": "File Path"
-          },
-          "error": {
-            "type": "string",
-            "nullable": true,
-            "title": "Error"
-          }
-        },
-        "type": "object",
-        "required": [
-          "success"
-        ],
-        "title": "ImportResponse",
-        "description": "Response from import operation."
-      },
-      "fichero__api__routes__kg_pykeen__DeleteModelResponse": {
-        "properties": {
-          "deleted": {
-            "type": "boolean",
-            "title": "Deleted"
-          },
-          "model_id": {
-            "type": "string",
-            "title": "Model Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "deleted",
-          "model_id"
-        ],
-        "title": "DeleteModelResponse"
-      },
-      "fichero__api__routes__model_comparison__ModelListResponse": {
-        "properties": {
-          "models": {
-            "items": {
-              "$ref": "#/components/schemas/ModelInfo"
-            },
-            "type": "array",
-            "title": "Models"
-          }
-        },
-        "type": "object",
-        "required": [
-          "models"
-        ],
-        "title": "ModelListResponse"
-      },
-      "fichero__api__routes__model_comparison__ToolListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ComparisonToolInfo"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "count"
-        ],
-        "title": "ToolListResponse"
-      },
-      "fichero__api__routes__notes__NoteCreateRequest": {
+      "fichero__api__routes__document__notes__NoteCreateRequest": {
         "properties": {
           "title": {
             "type": "string",
@@ -63417,94 +63331,140 @@
         "type": "object",
         "title": "NoteCreateRequest"
       },
-      "fichero__api__routes__projects__ProjectCreateRequest": {
+      "fichero__api__routes__kg__pykeen__DeleteModelResponse": {
         "properties": {
-          "name": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
+          },
+          "model_id": {
             "type": "string",
-            "title": "Name"
-          },
-          "description": {
+            "title": "Model Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted",
+          "model_id"
+        ],
+        "title": "DeleteModelResponse"
+      },
+      "fichero__api__routes__mcp__integrations__CitationResponse": {
+        "properties": {
+          "citation": {
             "type": "string",
-            "nullable": true,
-            "title": "Description"
+            "title": "Citation"
           },
-          "color": {
+          "style": {
             "type": "string",
-            "nullable": true,
-            "title": "Color"
-          },
-          "icon": {
-            "type": "string",
-            "nullable": true,
-            "title": "Icon"
-          },
-          "status": {
-            "$ref": "#/components/schemas/fichero__models__knowledge__ProjectStatus",
-            "default": "active"
-          },
-          "members": {
-            "items": {
-              "type": "string"
-            },
+            "title": "Style"
+          }
+        },
+        "type": "object",
+        "required": [
+          "citation",
+          "style"
+        ],
+        "title": "CitationResponse"
+      },
+      "fichero__api__routes__mcp__integrations__DocumentListResponse": {
+        "properties": {
+          "documents": {
+            "items": {},
             "type": "array",
-            "title": "Members",
-            "default": []
+            "title": "Documents"
           }
         },
         "type": "object",
         "required": [
-          "name"
+          "documents"
         ],
-        "title": "ProjectCreateRequest"
+        "title": "DocumentListResponse"
       },
-      "fichero__api__routes__provider_models__ModelListResponse": {
+      "fichero__api__routes__mcp__integrations__ExportRequest": {
         "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ModelResponse"
-            },
-            "type": "array",
-            "title": "Items"
+          "file_path": {
+            "type": "string",
+            "title": "File Path"
           },
-          "count": {
-            "type": "integer",
-            "title": "Count"
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Metadata"
+          },
+          "database": {
+            "type": "string",
+            "nullable": true,
+            "title": "Database"
+          },
+          "group": {
+            "type": "string",
+            "nullable": true,
+            "title": "Group"
+          },
+          "container": {
+            "type": "string",
+            "nullable": true,
+            "title": "Container"
+          },
+          "prototype": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype"
           }
         },
         "type": "object",
         "required": [
-          "items",
-          "count"
+          "file_path"
         ],
-        "title": "ModelListResponse",
-        "description": "Envelope for a list of discovered models."
+        "title": "ExportRequest",
+        "description": "Request to export a file to an app."
       },
-      "fichero__api__routes__providers__DeletedResponse": {
+      "fichero__api__routes__mcp__integrations__ImportRequest": {
         "properties": {
-          "status": {
+          "external_id": {
             "type": "string",
-            "title": "Status"
+            "title": "External Id"
+          },
+          "target_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Path"
           }
         },
         "type": "object",
         "required": [
-          "status"
+          "external_id"
         ],
-        "title": "DeletedResponse"
+        "title": "ImportRequest",
+        "description": "Request to import an item from an app."
       },
-      "fichero__api__routes__references__DeletedResponse": {
+      "fichero__api__routes__mcp__integrations__ImportResponse": {
         "properties": {
-          "status": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "file_path": {
             "type": "string",
-            "title": "Status",
-            "default": "deleted"
+            "nullable": true,
+            "title": "File Path"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
           }
         },
         "type": "object",
-        "title": "DeletedResponse",
-        "description": "Standard delete envelope."
+        "required": [
+          "success"
+        ],
+        "title": "ImportResponse",
+        "description": "Response from import operation."
       },
-      "fichero__api__routes__research_crud__ProjectCreateRequest": {
+      "fichero__api__routes__research__crud__ProjectCreateRequest": {
         "properties": {
           "name": {
             "type": "string",
@@ -63537,7 +63497,7 @@
         ],
         "title": "ProjectCreateRequest"
       },
-      "fichero__api__routes__research_notes__NoteCreateRequest": {
+      "fichero__api__routes__research__notes__NoteCreateRequest": {
         "properties": {
           "project_id": {
             "type": "string",
@@ -63600,7 +63560,7 @@
         ],
         "title": "NoteCreateRequest"
       },
-      "fichero__api__routes__search__DeletedResponse": {
+      "fichero__api__routes__search__core__DeletedResponse": {
         "properties": {
           "status": {
             "type": "string",
@@ -63613,7 +63573,47 @@
         ],
         "title": "DeletedResponse"
       },
-      "fichero__api__routes__workflows__ToolListResponse": {
+      "fichero__api__routes__system__projects__ProjectCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "title": "Icon"
+          },
+          "status": {
+            "$ref": "#/components/schemas/fichero__models__knowledge__ProjectStatus",
+            "default": "active"
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Members",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectCreateRequest"
+      },
+      "fichero__api__routes__workflow__workflows__ToolListResponse": {
         "properties": {
           "items": {
             "items": {

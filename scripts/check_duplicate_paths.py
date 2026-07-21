@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
@@ -100,6 +101,36 @@ def _route_decorator_concern(dec: ast.expr, prefixes: dict[str, str]) -> str | N
     return f"route:{method.upper()} {path}"
 
 
+_SHIM_RE = re.compile(r'sys\.modules\[__name__\]\s*=\s*sys\.modules\[["\']([\w.]+)["\']\]')
+
+
+def _resolve_real_rel_path(root: Path, rel_path: str) -> str:
+    """Resolve a route module's file to wherever its handler bodies actually live.
+
+    #2569 turned several flat route modules into subpackages. Two shapes:
+    1) The old flat name stays as an identity-preserving shim
+       (`sys.modules[__name__] = sys.modules[...]`) pointing at a nested module.
+    2) The old flat name became a package directly (e.g. `search.py` ->
+       `search/core.py`), so the flat file no longer exists at all.
+    Both must resolve to the file that really defines the route functions, or
+    the mounted-prefix lookup below silently misses and drops the prefix.
+    """
+    flat = root / rel_path
+    if flat.is_file():
+        try:
+            match = _SHIM_RE.search(flat.read_text(encoding="utf-8"))
+        except OSError:
+            match = None
+        if match:
+            suffix = match.group(1).removeprefix("fichero.api.routes.")
+            return "api/routes/" + suffix.replace(".", "/") + ".py"
+        return rel_path
+    package_core = root / rel_path.removesuffix(".py") / "core.py"
+    if package_core.is_file():
+        return str(package_core.relative_to(root))
+    return rel_path
+
+
 def _mounted_route_prefixes(root: Path) -> dict[str, str]:
     """Return module prefixes declared by the application's route specs."""
     main = root / "api" / "main.py"
@@ -139,7 +170,8 @@ def _mounted_route_prefixes(root: Path) -> dict[str, str]:
                 or not isinstance(prefix.value, str)
             ):
                 continue
-            prefixes[f"api/routes/{router.value.id}.py"] = prefix.value
+            rel_path = _resolve_real_rel_path(root, f"api/routes/{router.value.id}.py")
+            prefixes[rel_path] = prefix.value
     return prefixes
 
 

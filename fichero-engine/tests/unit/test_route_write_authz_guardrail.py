@@ -17,16 +17,16 @@ MUTATING_METHODS = {"post", "put", "patch", "delete"}
 # Mutating HTTP verbs are sometimes used for read-only compute/export operations.
 # They may keep the read dependency only when listed here with a reason.
 READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
-    "annotations.py:crop_ephemeral:POST": "POST body selects a transient region; handler builds an in-memory Annotation, reads only the source document, and returns a crop — persists nothing (#2256).",
-    "bibliography.py:export_bibtex:POST": "POST body selects document IDs; handler only reads metadata and returns BibTeX.",
-    "kg_predictions.py:generate_heuristic_predictions:POST": "POST body contains prediction parameters; handler only reads claims and vector index.",
-    "kg_render.py:render_paragraph:POST": "POST body contains claim IDs/style; handler only reads claims and renders text.",
-    "kg_sparql.py:sparql_query:POST": "POST body contains SPARQL; validator rejects mutating verbs and handler only queries RDF graph.",
-    "kg_sparql.py:sparql_query_legacy:POST": "Deprecated read-only alias that delegates to sparql_query; same RDF-query-only behavior.",
-    "locations.py:resolve_location:POST": "POST carries a typed navigation anchor; handler validates and resolves document/page identity without persisting state (#3576).",
-    "search.py:enhanced_search:POST": "POST /api/search is read-only search/query compute.",
-    "search_explain.py:explain_search:POST": "POST body contains explanation request; handler only reads search inputs and returns attribution.",
-    "workflows.py:estimate_workflow_cost:POST": "POST body contains estimate inputs; handler only reads workflow pricing context.",
+    "document/annotations.py:crop_ephemeral:POST": "POST body selects a transient region; handler builds an in-memory Annotation, reads only the source document, and returns a crop — persists nothing (#2256).",
+    "citation/bibliography.py:export_bibtex:POST": "POST body selects document IDs; handler only reads metadata and returns BibTeX.",
+    "kg/predictions.py:generate_heuristic_predictions:POST": "POST body contains prediction parameters; handler only reads claims and vector index.",
+    "kg/render.py:render_paragraph:POST": "POST body contains claim IDs/style; handler only reads claims and renders text.",
+    "kg/sparql.py:sparql_query:POST": "POST body contains SPARQL; validator rejects mutating verbs and handler only queries RDF graph.",
+    "kg/sparql.py:sparql_query_legacy:POST": "Deprecated read-only alias that delegates to sparql_query; same RDF-query-only behavior.",
+    "system/locations.py:resolve_location:POST": "POST carries a typed navigation anchor; handler validates and resolves document/page identity without persisting state (#3576).",
+    "search/core.py:enhanced_search:POST": "POST /api/search is read-only search/query compute.",
+    "search/explain.py:explain_search:POST": "POST body contains explanation request; handler only reads search inputs and returns attribution.",
+    "workflow/workflows.py:estimate_workflow_cost:POST": "POST body contains estimate inputs; handler only reads workflow pricing context.",
 }
 
 
@@ -112,5 +112,5 @@ def test_write_dependency_guardrail_allowlist_entries_have_reasons() -> None:
 
 def test_write_dependency_guardrail_keys_are_line_independent() -> None:
     offenders = [offender_key for offender_key, _ in _mutating_handlers_with_read_dependency()]
-    assert "bibliography.py:168:export_bibtex:POST" not in offenders
-    assert "bibliography.py:export_bibtex:POST" in offenders
+    assert "citation/bibliography.py:168:export_bibtex:POST" not in offenders
+    assert "citation/bibliography.py:export_bibtex:POST" in offenders

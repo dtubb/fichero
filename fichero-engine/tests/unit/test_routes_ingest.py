@@ -219,7 +219,10 @@ class TestIngestStatus:
         assert "processed" in data
 
     def test_task_status_is_scoped_to_its_library(self, client, monkeypatch):
-        monkeypatch.setattr(ingest, "_tasks", {
+        # ponytail: patch ingest.core._tasks (the module-level dict the route
+        # handlers actually read), not ingest._tasks — the package re-export
+        # is a separate binding to the same original dict (#2569).
+        monkeypatch.setattr(ingest.core, "_tasks", {
             "other-library": {
                 "status": "completed",
                 "path": "/tmp/import",
@@ -237,7 +240,7 @@ class TestIngestStatus:
         assert response.status_code == 404
 
     def test_expired_terminal_tasks_are_pruned(self, monkeypatch):
-        monkeypatch.setattr(ingest, "_tasks", {
+        monkeypatch.setattr(ingest.core, "_tasks", {
             **{
                 f"old-{index}": {
                     "status": "completed",
@@ -250,10 +253,10 @@ class TestIngestStatus:
 
         ingest._prune_tasks(now=ingest._TASK_TTL_SECONDS + 1)
 
-        assert ingest._tasks == {"running": {"status": "running"}}
+        assert ingest.core._tasks == {"running": {"status": "running"}}
 
     def test_terminal_task_history_is_capped(self, monkeypatch):
-        monkeypatch.setattr(ingest, "_tasks", {
+        monkeypatch.setattr(ingest.core, "_tasks", {
             f"task-{index}": {
                 "status": "completed",
                 "finished_at": float(index),
@@ -263,8 +266,8 @@ class TestIngestStatus:
 
         ingest._prune_tasks(now=ingest._MAX_TERMINAL_TASKS)
 
-        assert len(ingest._tasks) == ingest._MAX_TERMINAL_TASKS
-        assert "task-0" not in ingest._tasks
+        assert len(ingest.core._tasks) == ingest._MAX_TERMINAL_TASKS
+        assert "task-0" not in ingest.core._tasks
 
 
 # ---------------------------------------------------------------------------

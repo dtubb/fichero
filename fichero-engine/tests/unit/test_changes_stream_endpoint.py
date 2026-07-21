@@ -175,7 +175,10 @@ class TestChangesStreamEndpoint:
 
         request.disconnected = True
 
-        with caplog.at_level("INFO", logger="fichero.api.routes.changes"):
+        # Logger name follows __name__ of the file that defines it, which moved
+        # to fichero.api.routes.system.changes under #2569 (changes.py is now
+        # an identity-preserving shim, not the module that actually logs).
+        with caplog.at_level("INFO", logger="fichero.api.routes.system.changes"):
             with pytest.raises(StopAsyncIteration):
                 await anext(stream)
 

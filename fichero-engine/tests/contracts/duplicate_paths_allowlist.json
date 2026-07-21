@@ -5,70 +5,26 @@
   },
   "concerns": {
     "kg_write:KnowledgeClaim": [
-      "api/routes/annotations.py::promote_to_claim_impl",
-      "api/routes/claims.py::create_claim_impl",
-      "api/routes/mcp_tools.py::mcp_knowledge_claim_create",
-      "workflows/tools/kg_persist_finalize.py::kg_persist_finalize",
+      "api/routes/claim/claims.py::create_claim_impl",
+      "api/routes/document/annotations.py::promote_to_claim_impl",
+      "api/routes/mcp/tools.py::mcp_knowledge_claim_create",
       "workflows/tools/_entity_writer.py::save_claim",
       "workflows/tools/book_index.py::book_index_extract",
       "workflows/tools/citations_extract.py::extract_citations_for_document",
-      "workflows/tools/extract_svo_only.py::extract_svo_only",
       "workflows/tools/extract_all.py::_persist_additional_entities",
       "workflows/tools/extractors.py::_write_citation_usage_rows",
-      "workflows/tools/extractors.py::_write_kg_rows",
-      "workflows/tools/merge_dedup_only.py::merge_dedup_only"
+      "workflows/tools/extractors.py::_write_kg_rows"
     ],
     "kg_write:KnowledgeEntity": [
-      "api/routes/entities.py::create_entity_impl",
-      "api/routes/entities.py::upsert_entity",
-      "api/routes/mcp_tools.py::mcp_knowledge_entity_upsert",
+      "api/routes/entity/entities.py::create_entity_impl",
+      "api/routes/mcp/tools.py::mcp_knowledge_entity_upsert",
       "workflows/tools/_entity_writer.py::upsert_entity",
       "workflows/tools/book_index.py::_write_topic_entity",
       "workflows/tools/citations_extract.py::extract_citations_for_document",
-      "workflows/tools/extract_entities_only.py::extract_entities_only",
-      "workflows/tools/extract_svo_only.py::extract_svo_only",
       "workflows/tools/extract_all.py::_persist_additional_entities",
+      "workflows/tools/extract_entities_only.py::extract_entities_only",
       "workflows/tools/extractors.py::_write_kg_rows",
       "workflows/tools/merge_dedup_only.py::merge_dedup_only"
-    ],
-    "route:DELETE /projects/{project_id}": [
-      "api/routes/projects.py::delete_project",
-      "api/routes/research_crud.py::delete_project"
-    ],
-    "route:GET /notes/{note_id}": [
-      "api/routes/mind_palace.py::get_note",
-      "api/routes/notes.py::get_note",
-      "api/routes/research_notes.py::get_note"
-    ],
-    "route:GET /projects": [
-      "api/routes/projects.py::list_projects",
-      "api/routes/research_crud.py::list_projects"
-    ],
-    "route:GET /projects/{project_id}": [
-      "api/routes/projects.py::get_project",
-      "api/routes/research_crud.py::get_project"
-    ],
-    "route:GET /tasks/{task_id}": [
-      "api/routes/research_crud.py::get_task",
-      "api/routes/tasks.py::get_task"
-    ],
-    "route:PATCH /notes/{note_id}": [
-      "api/routes/mind_palace.py::update_note",
-      "api/routes/notes.py::patch_note",
-      "api/routes/research_notes.py::update_note"
-    ],
-    "route:PATCH /projects/{project_id}": [
-      "api/routes/projects.py::patch_project",
-      "api/routes/research_crud.py::update_project"
-    ],
-    "route:POST /notes": [
-      "api/routes/mind_palace.py::create_note",
-      "api/routes/notes.py::create_note",
-      "api/routes/research_notes.py::create_note"
-    ],
-    "route:POST /projects": [
-      "api/routes/projects.py::create_project",
-      "api/routes/research_crud.py::create_project"
     ]
   }
 }

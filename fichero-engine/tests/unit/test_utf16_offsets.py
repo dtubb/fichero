@@ -9,7 +9,7 @@ non-BMP char — silently wrong provenance.
 These tests verify the conversion helper.
 """
 
-from fichero.utf16_offsets import utf16_offset_to_codepoint, utf16_range_to_codepoint_range
+from fichero.core.utf16_offsets import utf16_offset_to_codepoint, utf16_range_to_codepoint_range
 
 
 class TestUtf16OffsetConversion:
