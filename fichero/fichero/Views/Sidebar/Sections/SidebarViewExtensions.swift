@@ -17,6 +17,26 @@ func sidebarDeleteConfirmationMessage(for item: SidebarItem?) -> String {
     return "Move \"\(item.name)\" to Trash? You can put it back later."
 }
 
+/// Delete-confirmation title: names the single item, or the count for a batch.
+func sidebarDeleteConfirmationTitle(for items: [SidebarItem]) -> String {
+    if items.count > 1 { return "Delete \(items.count) items?" }
+    return items.first.map { "Delete \"\($0.name)\"?" } ?? "Delete?"
+}
+
+/// Delete-confirmation body: the per-item message for one, a batch line for many.
+func sidebarDeleteConfirmationMessage(for items: [SidebarItem]) -> String {
+    if items.count > 1 {
+        return "Move \(items.count) items to Trash? You can put them back later."
+    }
+    return sidebarDeleteConfirmationMessage(for: items.first)
+}
+
+/// The rows in a selection that can actually be deleted (drops library headers,
+/// comparisons, activity runs — anything `canBeDeleted` rejects).
+func sidebarDeletableItems(_ items: [SidebarItem]) -> [SidebarItem] {
+    items.filter { $0.itemType.canBeDeleted }
+}
+
 // MARK: - Sidebar Bottom Toolbar
 
 /// Compact bottom toolbar for sidebar with common actions.
@@ -346,14 +366,16 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .confirmationDialog(
-                deleteState.itemToDelete.map { "Delete \"\($0.name)\"?" } ?? "Delete?",
+                sidebarDeleteConfirmationTitle(for: deleteState.itemsToDelete),
                 isPresented: $deleteState.showingDeleteConfirmation,
                 titleVisibility: .visible
             ) {
                 Button("Delete", role: .destructive) {
-                    guard let item = deleteState.itemToDelete else { return }
+                    let items = deleteState.itemsToDelete
                     Task { @MainActor in
-                        await performDelete(item)
+                        for item in items {
+                            await performDelete(item)
+                        }
                     }
                 }
                 .keyboardShortcut(.defaultAction)
@@ -361,7 +383,7 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
                     deleteState.cancelDelete()
                 }
             } message: {
-                Text(sidebarDeleteConfirmationMessage(for: deleteState.itemToDelete))
+                Text(sidebarDeleteConfirmationMessage(for: deleteState.itemsToDelete))
             }
             .alert("Delete Failed", isPresented: $deleteState.showingDeleteError) {
                 Button("OK", role: .cancel) {}

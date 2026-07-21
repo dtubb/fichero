@@ -119,18 +119,28 @@ class RenameStateManager {
 class DeleteStateManager {
     var showingDeleteConfirmation = false
     var showingDeleteError = false
-    var itemToDelete: SidebarItem?
+    /// The items pending deletion. One element for a single-row delete, several
+    /// for a multi-selection batch delete. `itemToDelete` stays as the
+    /// single-item convenience (nil for a batch) so existing single-delete
+    /// callers/messages keep working.
+    var itemsToDelete: [SidebarItem] = []
+    var itemToDelete: SidebarItem? { itemsToDelete.count == 1 ? itemsToDelete.first : nil }
     var deleteErrorMessage = ""
 
     func showDeleteConfirmation(for item: SidebarItem) {
-        itemToDelete = item
+        showDeleteConfirmation(for: [item])
+    }
+
+    func showDeleteConfirmation(for items: [SidebarItem]) {
+        guard !items.isEmpty else { return }
+        itemsToDelete = items
         showingDeleteConfirmation = true
     }
 
     func cancelDelete() {
         showingDeleteConfirmation = false
         showingDeleteError = false
-        itemToDelete = nil
+        itemsToDelete = []
         deleteErrorMessage = ""
     }
 

@@ -39,6 +39,14 @@ extension SidebarView {
         return findItemById(id, in: allCachedItems)
     }
 
+    /// Every highlighted row resolved to its SidebarItem — the multi-selection
+    /// set that batch actions (delete, open-in-tabs) operate over.
+    var selectedItems: [SidebarItem] {
+        selectionState.selectedDestinations.compactMap {
+            findItemById($0.serializedID, in: allCachedItems)
+        }
+    }
+
     /// Get library that owns the selected item
     var selectedItemLibrary: LibraryManager.LibraryReference? {
         guard let item = selectedItem, let libraryId = item.libraryId else { return nil }

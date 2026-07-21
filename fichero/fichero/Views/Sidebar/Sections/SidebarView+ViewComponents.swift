@@ -80,6 +80,10 @@ extension SidebarView {
         .scrollContentBackground(.hidden)
         .background(.bar)
         #if os(macOS)
+        // Delete key removes the whole (deletable) multi-selection, confirming once.
+        .onDeleteCommand {
+            handleDeleteSelection()
+        }
         // Escape collapses a multi-row selection back to the single routed
         // anchor ("shift to stop it"). Plain-click collapse is already native.
         .onExitCommand {

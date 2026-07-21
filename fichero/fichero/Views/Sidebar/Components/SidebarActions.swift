@@ -90,6 +90,14 @@ extension SidebarView {
         }
     }
 
+    /// Delete the whole multi-selection (Delete key / batch). Confirms once for
+    /// every deletable row in the selection; a no-op if nothing is deletable.
+    func handleDeleteSelection() {
+        let items = sidebarDeletableItems(selectedItems)
+        guard !items.isEmpty else { return }
+        deleteState.showDeleteConfirmation(for: items)
+    }
+
     // Perform the actual deletion
     func performDelete(item: SidebarItem) async {
         logger.info("performDelete for: \(item.name)")
