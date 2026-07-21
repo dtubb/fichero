@@ -7,6 +7,7 @@ import SwiftUI
 enum ChatSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
     case conversation
     case sources
+    case plan
     case knowledge
     case compare
 
@@ -15,6 +16,7 @@ enum ChatSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
         switch self {
         case .conversation: return "Conversation"
         case .sources: return "Sources"
+        case .plan: return "Plan"
         case .knowledge: return "Knowledge"
         case .compare: return "Compare"
         }
@@ -23,6 +25,7 @@ enum ChatSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
         switch self {
         case .conversation: return "bubble.left.and.bubble.right"
         case .sources: return "doc.on.doc"
+        case .plan: return "checklist"
         case .knowledge: return "point.3.connected.trianglepath.dotted"
         case .compare: return "rectangle.split.2x1"
         }
@@ -31,6 +34,7 @@ enum ChatSurfaceTab: String, CaseIterable, Identifiable, SurfaceTab {
         switch self {
         case .conversation: return "Conversation — the chat messages"
         case .sources: return "Sources — documents scoped into this conversation"
+        case .plan: return "Plan — the workspace's tasks, checklists, sources and notes"
         case .knowledge: return "Knowledge — entities and claims surfaced from this conversation"
         case .compare: return "Compare — run the same prompt across multiple agents/models side by side"
         }
@@ -48,6 +52,11 @@ struct ChatView: View {
     /// Optional conversation folder filter for hosts that scope chat threads
     /// to one workspace instead of the whole library.
     var conversationFolderPath: String?
+    /// The research-kind workspace this chat belongs to, when it has one. Present
+    /// → the Plan tab shows the workspace's tasks/sources/notes; nil → the Plan
+    /// tab invites promoting the chat to a workspace (the continuum). Defaults
+    /// nil so a plain chat host stays a plain chat.
+    var researchProject: ResearchProject?
 
     @State var currentConversation: Conversation
     // Tracks the backend-confirmed conversation ID. Nil until the first
@@ -85,12 +94,14 @@ struct ChatView: View {
         selectedDocuments: Binding<Set<String>>,
         attachContext: ChatAttachContext = .empty,
         conversationFolderPath: String? = nil,
+        researchProject: ResearchProject? = nil,
         onConversationUpdated: (() -> Void)? = nil
     ) {
         self.conversation = conversation
         self._selectedDocuments = selectedDocuments
         self.attachContext = attachContext
         self.conversationFolderPath = conversationFolderPath
+        self.researchProject = researchProject
         self.onConversationUpdated = onConversationUpdated
         self._currentConversation = State(initialValue: conversation ?? Conversation())
     }
@@ -123,6 +134,7 @@ struct ChatView: View {
             switch chatTab {
             case .conversation: conversationTabContent
             case .sources: sourcesTabContent
+            case .plan: planTabContent
             case .knowledge: knowledgeTabContent
             case .compare: compareTabContent
             }
@@ -203,6 +215,28 @@ struct ChatView: View {
         }
     }
 
+    /// Plan tab — the workspace's tasks/checklists/sources/notes (#3, step 4).
+    /// When the chat belongs to a research-kind workspace it shows the existing
+    /// `ResearchTasksPane` (the same 3-pane component, now reachable from the one
+    /// chat surface). A plain chat has no project → the tab invites promoting it
+    /// to a workspace, which is the continuum seam (save → workspace → plan).
+    @ViewBuilder
+    private var planTabContent: some View {
+        if let researchProject {
+            ResearchTasksPane(project: researchProject)
+        } else {
+            ContentUnavailableView {
+                Label("No Plan Yet", systemImage: "checklist")
+            } description: {
+                Text("Save this chat as a workspace to plan tasks, track sources, and keep notes.")
+            } actions: {
+                Button("Save as Workspace") { saveAsWorkspace() }
+                    .disabled(backendConversationId == nil)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
     /// Compare tab — the folded-in ModelComparison capability (#3532 slice 2):
     /// run one prompt across multiple agents/models side by side, now a facet of
     /// the one chat surface rather than a standalone top-level mode. Reuses
@@ -267,6 +301,8 @@ struct ChatView: View {
         case .sources:
             let count = selectedDocuments.count
             return count == 0 ? "No sources pinned" : "\(count) source\(count == 1 ? "" : "s")"
+        case .plan:
+            return researchProject == nil ? "Not a workspace yet" : "Plan"
         case .knowledge:
             return "Knowledge"
         case .compare:

@@ -29,6 +29,7 @@ struct ResearchChatPane: View {
             conversation: nil,
             selectedDocuments: $chatSelectedDocuments,
             conversationFolderPath: Self.conversationFolderPath(for: project),
+            researchProject: project,
             onConversationUpdated: {}
         )
     }

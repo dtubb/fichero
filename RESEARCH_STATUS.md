@@ -13,10 +13,15 @@ Do NOT push (manager gates). Do NOT touch `fichero-engine/` or the sidebar tree.
   `docs/design/agentic-surface-consolidation-fabel-review.md` (code-grounded:
   current state, gaps, migration steps 1–3 engine / 4–6 Swift, deferrals).
 
-## Next (Swift-parallel-safe subset only)
-- [ ] Step 3a — `ToolCall` model + `ToolCallCard`; `toolCalls: [ToolCall]?` on `ChatMessage`; render in `MessageBubble`.
-- [ ] Step 3b — `SourceLedgerEntry` + `SourcesLedgerView`; surface as a "Cited" section in the Sources tab. + builder test.
-- [ ] Step 4 — `.plan` tab on `ChatSurfaceTab`; `ChatView` optional `researchProject`; `ResearchTasksPane` when present, continuum unavailable-state otherwise; `ResearchChatPane` passes project through.
+## Done (Swift-parallel-safe subset)
+- [x] Step 3a — `ToolCall` model + `ToolCallCard`; `toolCalls: [ToolCall]?` on `ChatMessage` (snake_case, optional); rendered in `MessageBubble`. Tests: back-compat decode + display helpers. (`e3e2ffede`)
+- [x] Step 3b — `SourceLedgerEntry` + `SourcesLedgerView`; "Cited" ledger under the Sources tab (pinned=input / cited=used). Builder test: dedup/empty/research order. (`f1873e536`)
+- [x] Step 4 — `.plan` tab on `ChatSurfaceTab`; `ChatView` optional `researchProject`; `ResearchTasksPane` when present, continuum "Save as Workspace" unavailable-state otherwise; `ResearchChatPane` threads its project. Tab-contract test.
+
+Subset complete. All SourceKit diagnostics during this work were whole-module
+false negatives (the worktree index isn't built — even existing types like
+`Conversation`/`ChatMessage` reported "not found"); real verification is the
+manager's build gate.
 
 ## Deferred / flagged for coordination
 - Engine steps 1–2 (`chat_tools.py` → `/api/chat` tool loop, audited research actions, OpenAPI tri-copy) — engine lane, post-reorg. Swift `ToolCall` decodes `tool_calls[]` when engine emits it.
