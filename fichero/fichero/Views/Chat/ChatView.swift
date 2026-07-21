@@ -183,11 +183,24 @@ struct ChatView: View {
     /// `ChatInspector` inline (previously only shown in the attach sheet), bound
     /// to the same `selectedDocuments` so scope stays in one place (#3532).
     private var sourcesTabContent: some View {
-        ChatInspector(
-            selectedDocuments: $selectedDocuments,
-            suggestedDocumentIDs: [],
-            onAddSuggestedDocuments: nil
-        )
+        VStack(spacing: 0) {
+            // Pinned scope — what the user gave the chat (editable).
+            ChatInspector(
+                selectedDocuments: $selectedDocuments,
+                suggestedDocumentIDs: [],
+                onAddSuggestedDocuments: nil
+            )
+            // Cited ledger — what the conversation actually used (read-only).
+            let ledger = SourceLedgerEntry.ledger(for: currentConversation)
+            if !ledger.isEmpty {
+                Divider()
+                ScrollView {
+                    SourcesLedgerView(entries: ledger)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 180)
+            }
+        }
     }
 
     /// Compare tab — the folded-in ModelComparison capability (#3532 slice 2):
