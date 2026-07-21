@@ -123,6 +123,15 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         }
         let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return true }
+        // A UDS (`http+unix://…`) connection is a local, owner-only filesystem
+        // socket — inherently loopback-equivalent — so it authenticates with the
+        // bootstrap token like localhost. Its URL "host" percent-decodes to the
+        // socket path (not an IP literal), which `isLoopbackHostLiteral` below
+        // would wrongly reject → every authenticated UDS request would 401
+        // (review CRITICAL-1). Recognise the scheme instead.
+        if URL(string: trimmed)?.scheme?.lowercased() == "http+unix" {
+            return true
+        }
         guard let host = URL(string: trimmed)?.host?.lowercased() else {
             return false
         }

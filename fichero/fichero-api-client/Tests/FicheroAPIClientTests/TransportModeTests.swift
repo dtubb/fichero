@@ -82,4 +82,37 @@ final class TransportModeTests: XCTestCase {
         let client = FicheroClient()
         XCTAssertEqual(client.baseURL.absoluteString, "https://127.0.0.1:8765")
     }
+
+    // MARK: - UDS auth (review CRITICAL-1)
+
+    func testUDSHostPrefersBootstrapToken() {
+        // A UDS `http+unix://…` connection is local-owner → must authenticate
+        // with the bootstrap token. Without this it is treated as a remote host,
+        // which attaches no token and 401s every authenticated endpoint.
+        XCTAssertTrue(
+            AuthTokenMiddleware.prefersLocalhostEngineToken(
+                hostString: "http+unix://%2Ftmp%2Ffichero.sock"
+            ),
+            "UDS (http+unix) must prefer the local bootstrap token"
+        )
+    }
+
+    func testRemoteHTTPSHostStaysRemote() {
+        // Preserve existing behavior: a genuine remote host is not bootstrap.
+        XCTAssertFalse(
+            AuthTokenMiddleware.prefersLocalhostEngineToken(
+                hostString: "https://remote.example:8765"
+            ),
+            "A remote HTTPS host must not use the bootstrap token"
+        )
+    }
+
+    func testLoopbackHTTPSHostStillPrefersBootstrapToken() {
+        // Regression guard: the http+unix addition must not disturb loopback.
+        XCTAssertTrue(
+            AuthTokenMiddleware.prefersLocalhostEngineToken(
+                hostString: "https://127.0.0.1:8765"
+            )
+        )
+    }
 }
