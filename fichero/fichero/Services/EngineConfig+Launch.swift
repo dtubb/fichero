@@ -159,21 +159,19 @@ extension EngineConfig {
     /// path is shared by the client transport (`transportMode`) and the engine
     /// spawn env (`FICHERO_UDS_PATH`), so both ends agree on the socket.
     static var udsSocketPath: String {
-        let fileManager = FileManager.default
-        let appSupport = (try? fileManager.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: false
-        )) ?? URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent("Library/Application Support")
-        let directory = appSupport.appendingPathComponent("Fichero", isDirectory: true)
-        try? fileManager.createDirectory(
-            at: directory,
-            withIntermediateDirectories: true,
-            attributes: [.posixPermissions: 0o700]
-        )
-        return directory.appendingPathComponent("engine.sock").path
+        // Must fit the AF_UNIX `sun_path` limit (~104 bytes on macOS). In the App
+        // Store sandbox the container prefix (~/Library/Containers/<id>/Data/) is
+        // already ~62 bytes, so the old `…/Library/Application Support/Fichero/
+        // engine.sock` (+47) overflowed at ~109. The container `tmp` (a) is always
+        // writable in the sandbox, (b) is short, and (c) is shared with the
+        // sandbox-inherited engine subprocess — so a short name there stays well
+        // under the limit. The engine gets the exact absolute path via env.
+        let dir = NSTemporaryDirectory() as NSString
+        let path = dir.appendingPathComponent("fichero.sock")
+        // Fail loud rather than silently binding a truncated path: if even this is
+        // over the limit (pathological container prefix), that's a real bug.
+        assert(path.utf8.count <= 104, "UDS socket path exceeds sun_path limit: \(path)")
+        return path
     }
 
     /// Which transport the app client dials the engine with, derived from the
