@@ -68,7 +68,15 @@ Branch `lane/sidebar-ux`. Worktree `~/code/fichero-worktrees/sidebar`. Do NOT pu
     full-row `.contentShape` + the modifier-aware tap fallback. The remaining ask is an
     additive trailing hover-chevron/open button; it's visual polish under the Every-Frame-
     Perfect bar, best added with a build to eyeball.
-- **3.** Batch **actions**: delete / open-in-tabs over the multi-selection set.
+- **3.** Batch **actions** — IN PROGRESS:
+  - ✅ **Batch delete** (`2c8bfe94d`): Delete key removes every deletable row in the
+    selection, one confirmation ("Delete N items?"). `DeleteStateManager` holds a set;
+    pure title/message/deletable helpers + `selectedItems` resolver, all unit-tested.
+    Reuses per-item `performDelete` so undo/refresh still apply per item.
+  - ⏸ **Context-menu "Delete N items"** + **batch open-in-tabs** — deferred: both need
+    the per-row context menu to be selection-aware (right-click inside a selection acts
+    on the whole set) + window-opening, which is build-in-the-loop work. The Delete-key
+    path already covers batch delete; these are the context-menu/tabs polish on top.
 
 ## Critic pass on item 1 (findings verified as PRE-EXISTING, not regressions)
 A `critic` reviewed the collapse. Both flagged issues were checked against the pre-change
