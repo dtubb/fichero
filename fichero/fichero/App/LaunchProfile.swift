@@ -58,6 +58,21 @@ enum LaunchProfile {
         let label = detail.isEmpty ? name.description : "\(name.description) (\(detail))"
         logger.info("⏱ \(label, privacy: .public) @ \(elapsedMs, format: .fixed(precision: 1))ms")
         signposter.emitEvent(name, id: .exclusive, "\(detail, privacy: .public)")
+        emitToStderrIfProfiling(label)
+    }
+
+    /// Also print the milestone to stderr when `FICHERO_LAUNCH_PROFILE_STDOUT=1`.
+    /// The os_log timeline is invisible to a headless launcher (a shell can't read
+    /// another process's unified log without TCC), so this makes the launch
+    /// timeline capturable by `nohup app 2>timeline.log` for CI/headless startup
+    /// measurement. Off by default; zero cost in normal runs.
+    private static let profileToStderr =
+        ProcessInfo.processInfo.environment["FICHERO_LAUNCH_PROFILE_STDOUT"] == "1"
+    private static func emitToStderrIfProfiling(_ label: String) {
+        guard profileToStderr else { return }
+        FileHandle.standardError.write(
+            Data("⏱ \(label) @ \(String(format: "%.1f", elapsedMs))ms\n".utf8)
+        )
     }
 
     /// Open a signpost interval for a launch phase. The caller holds the returned
