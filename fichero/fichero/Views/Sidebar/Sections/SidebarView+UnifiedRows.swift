@@ -105,10 +105,8 @@ extension SidebarView {
         }
     }
 
-    /// Activity rows need a tap gesture to read `modifierFlags` for
-    /// cmd-click multi-select — `List(selection:)`'s `String?` binding
-    /// can't express a `Set<String>`. All other rows rely on native
-    /// List selection via `.tag(item.id)`.
+    /// Rows rely on native `List(selection: Set)` for click / shift-range /
+    /// cmd-toggle selection via `.tag(item.destination)`.
     @ViewBuilder
     private func unifiedRow(for item: SidebarItem) -> some View {
         // `.moveDisabled` blocks AppKit-level reorder drag on Inbox
@@ -139,13 +137,7 @@ extension SidebarView {
         .moveDisabled(item.icon == "tray.fill")
         .tag(item.destination)
 
-        if item.category == .activity {
-            row.simultaneousGesture(
-                TapGesture().onEnded { handleUnifiedRowTap(item) }
-            )
-        } else {
-            row
-        }
+        row
     }
 
     /// Cross-hierarchy insert: reparent dragged docs to library root

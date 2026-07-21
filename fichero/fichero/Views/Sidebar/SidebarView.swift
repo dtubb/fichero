@@ -68,7 +68,6 @@ struct SidebarView: View {
     @State var historicalRunsByLibrary: [UUID: [ActivityItem]] = [:]
     @State var activityIsLoading = false
     @State var activityLoadError: String?
-    @State var selectedActivityItemIds: Set<String> = []
     @State var showingRenameLibraryPrompt = false
     @State var libraryToRenameId: UUID?
     @State var pendingLibraryName = ""

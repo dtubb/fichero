@@ -12,11 +12,6 @@ extension SidebarView {
     // id is a no-op, so the reconcile path never double-handles a live click.
     func handleSelectionChange(_ newDestination: SidebarDestination?) {
         sidebarViewLogger.info("selectedItemId changed to: \(newDestination?.serializedID ?? "nil")")
-        if case .run(let runId) = newDestination {
-            selectedActivityItemIds = ["run:\(runId)"]
-        } else {
-            selectedActivityItemIds.removeAll()
-        }
         guard let destination = newDestination else {
             lastHandledSelectionDestination = nil
             return

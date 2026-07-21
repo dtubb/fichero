@@ -160,18 +160,4 @@ extension SidebarView {
             unifiedRows(buckets.searchItems, libraryId: libraryId)
         }
     }
-
-    func unifiedSectionStorageKey(libraryId: UUID, sectionKey: String) -> String {
-        "unified-section:\(libraryId.uuidString):\(sectionKey)"
-    }
-
-    func isUnifiedSectionExpanded(libraryId: UUID, sectionKey: String) -> Bool {
-        let key = unifiedSectionStorageKey(libraryId: libraryId, sectionKey: sectionKey)
-        return sidebarState.unifiedSectionExpansionStates[key] ?? true
-    }
-
-    func setUnifiedSectionExpanded(_ expanded: Bool, libraryId: UUID, sectionKey: String) {
-        let key = unifiedSectionStorageKey(libraryId: libraryId, sectionKey: sectionKey)
-        sidebarState.unifiedSectionExpansionStates[key] = expanded
-    }
 }
