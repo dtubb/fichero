@@ -196,7 +196,7 @@ final class DocumentStore {
         }
     }
     /// Retry a fetch with short backoff on a transient failure so one blip doesn't trip the outage pane while 200s still flow (#3972).
-    private func fetchWithRetry<T>(_ operation: () async throws -> T) async throws -> T {
+    func fetchWithRetry<T>(_ operation: () async throws -> T) async throws -> T {
         var attempt = 0
         while true {
             do { return try await operation() } catch {
