@@ -192,7 +192,16 @@ extension EmbeddedBackendService {
             readinessClient = FicheroClient(baseURL: backendURL, transportMode: EngineConfig.transportMode)
         }
         guard let client = readinessClient else { return .notResponding }
-        return await EngineReadinessProbe(client: client, expectedNonce: expectedLaunchNonce).probe()
+        let result = await EngineReadinessProbe(client: client, expectedNonce: expectedLaunchNonce).probe()
+        // Observability (#dev): report EXACTLY what each poll saw, so a failing
+        // adopt shows its stage instead of a bare "no engine". `.notResponding`
+        // = the probe's own client couldn't reach /api/health (transport/connect
+        // failure); `.authRejected` = health 200 but /api/registry 401/403;
+        // `.ready` = both 200. If the engine logs /api/registry 200 while this
+        // says `.notResponding`, the 200 is a DIFFERENT client and the probe's
+        // client is the one failing to connect.
+        logger.info("readiness probe result: \(String(describing: result), privacy: .public)")
+        return result
     }
 
     /// Last `lines` lines of the engine log, for surfacing a real cause when
