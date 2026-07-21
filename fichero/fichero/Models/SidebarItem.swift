@@ -120,6 +120,14 @@ struct SidebarItem: Identifiable, Hashable {
         }
     }
 
+    /// True for the locked "Default Workflows" container folder or one of its
+    /// system subfolders — the row renders these with a distinct colored icon
+    /// to signal they're system/default and not user-editable (#11).
+    var isDefaultWorkflowFolder: Bool {
+        if case .document(let doc) = itemType { return doc.isDefaultWorkflowFolder }
+        return false
+    }
+
     /// Whether this row can actually be reordered by dragging in the sidebar.
     /// Mirrors the kinds `handleUnifiedRowsMove` dispatches (documents/folders,
     /// saved searches, workflows/chains); everything else has no reorder
@@ -169,15 +177,20 @@ struct SidebarItem: Identifiable, Hashable {
         SidebarItem(
             id: "doc:\(doc.id)",
             name: doc.pageThumbnailLabel ?? doc.name,
-            // Prefer the file-type-specific icon (e.g. "doc.richtext" for PDFs)
-            // over the generic docType icon ("doc" for any .file) — makes
-            // PDFs visually distinct in the sidebar (#574). Workflow mirror
-            // nodes carry no fileType, so name them explicitly rather than let
-            // them fall through to the generic "doc" glyph (#4058) — they must
-            // match `fromWorkflow`'s icon to read as workflows.
-            icon: doc.isWorkflowNode
-                ? ItemCategory.workflow.icon
-                : (doc.fileType?.icon ?? doc.docType.icon),
+            // Default-workflow container/subfolders are locked, system-seeded
+            // folders — give them a distinct gear-badged folder icon (colored
+            // in `SidebarItemRow.iconView`) so they read as non-editable (#11).
+            // Workflow mirror nodes carry no fileType, so name them explicitly
+            // rather than let them fall through to the generic "doc" glyph
+            // (#4058) — they must match `fromWorkflow`'s icon to read as
+            // workflows. Otherwise prefer the file-type-specific icon (e.g.
+            // "doc.richtext" for PDFs) over the generic docType icon ("doc"
+            // for any .file) — makes PDFs visually distinct (#574).
+            icon: doc.isDefaultWorkflowFolder
+                ? "folder.badge.gearshape"
+                : doc.isWorkflowNode
+                    ? ItemCategory.workflow.icon
+                    : (doc.fileType?.icon ?? doc.docType.icon),
             category: .folder,
             itemType: .document(doc),
             children: children,

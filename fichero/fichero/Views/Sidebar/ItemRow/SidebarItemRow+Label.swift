@@ -140,6 +140,16 @@ extension SidebarItemRow {
                     .offset(x: 4, y: 4)
             }
             .frame(width: 16, alignment: .center)
+        } else if item.isDefaultWorkflowFolder {
+            // Locked "Default Workflows" container/subfolders: a colored,
+            // gear-badged folder icon so they read as system/default and
+            // not user-editable (#11). Purple matches the workflow-running
+            // accent used above, keeping the sidebar's workflow visual
+            // language consistent. `.hierarchical` keeps the badge legible.
+            Image(systemName: item.icon.isEmpty ? "folder.badge.gearshape" : item.icon)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.purple)
+                .frame(width: 16, alignment: .center)
         } else {
             // Defensive empty-icon guard — see comment above. (#1015)
             Image(systemName: item.icon.isEmpty ? "doc" : item.icon)

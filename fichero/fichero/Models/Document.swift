@@ -418,3 +418,22 @@ extension Document {
     /// doc with NO `fileType` — see `SidebarItemBuilder.isSidebarVisible`.
     var isWorkflowNode: Bool { prototypeKey == "workflow" }
 }
+
+// MARK: - Default Workflows
+
+extension Document {
+    /// Stable id of the engine's locked "Default Workflows" container folder;
+    /// its system subfolders are ids in the `"\(id):…"` namespace. Mirrors
+    /// `_DEFAULT_WORKFLOWS_CONTAINER_ID` in `fichero-engine/src/fichero/db/__init__.py`.
+    static let defaultWorkflowsContainerID = "system-default-workflows"
+
+    /// True for the locked "Default Workflows" container folder or any of its
+    /// system-seeded subfolders. These are read-only, non-editable nodes, so
+    /// the sidebar marks them with a distinct icon (see `SidebarItem.fromDocument`
+    /// and `SidebarItemRow.iconView`).
+    var isDefaultWorkflowFolder: Bool {
+        docType == .folder
+            && (id == Self.defaultWorkflowsContainerID
+                || id.hasPrefix("\(Self.defaultWorkflowsContainerID):"))
+    }
+}
