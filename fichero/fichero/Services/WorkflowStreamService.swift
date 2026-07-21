@@ -16,29 +16,20 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 @Observable
 class WorkflowStreamService {
     /// Single source for BOTH the generated REST calls (execute / stop / resume)
-    /// AND the SSE byte-stream's host, library path, auth and certificate pinning.
+    /// AND the SSE stream's host, library path and auth.
     ///
-    /// The stream stays on a raw byte sequence (not the generated
-    /// `streamWorkflowEvents…` operation) because that operation buffers its body
-    /// via `getResponseBodyAsJSON` — the OpenAPI schema declares the 200 as
-    /// `application/json`, not a streaming `text/event-stream` body — so it can
-    /// never surface an infinite SSE `HTTPBody` (#1714 / #1943 / #2538).
-    ///
-    /// But the raw path now derives its host (`client.baseURL`), library path
-    /// (`client.currentLibraryPath`), auth (`addEngineAuth`, the same on-disk
-    /// token `AuthTokenMiddleware` reads) and certificate pinning
-    /// (`RemoteCertificatePinning.configuredSession()`, the same factory
-    /// `FicheroClient.makeTransport` uses) from THIS one client — the same one the
-    /// generated calls use. That removes the second `FicheroClient` instance the
-    /// stream used to read from (via `APIClient`), so the streaming transport can
-    /// no longer drift from the generated transport (the #2376 regression).
+    /// The stream is NOT the generated `streamWorkflowEvents…` operation because
+    /// that operation buffers its body via `getResponseBodyAsJSON` — the OpenAPI
+    /// schema declares the 200 as `application/json`, not a streaming
+    /// `text/event-stream` body — so it can never surface an infinite SSE
+    /// `HTTPBody` (#1714 / #1943 / #2538). Instead it uses `client.streamLines`,
+    /// which issues the request through the SAME `ClientTransport` + middleware
+    /// stack the generated calls use. That keeps host, library path and auth in
+    /// lockstep with the generated transport (no drift — the #2376 regression) and
+    /// lets the stream work over `.https` / `.uds` / an in-process engine, where a
+    /// raw `URLSession` to `127.0.0.1:8765` would fail.
     private let client: FicheroClient
     private let executionService: WorkflowExecutionService
-
-    /// Certificate-pinned URLSession reused across stream subscriptions.
-    /// URLSession.bytes(for:) only invokes the delegate challenge handler
-    /// when the session is retained at the class level, not as a per-call local.
-    private let urlSession: URLSession = RemoteCertificatePinning.configuredSession()
 
     /// Current streaming status
     var isStreaming = false
@@ -151,34 +142,31 @@ class WorkflowStreamService {
         threadId: String,
         onEvent: ((WorkflowStreamEvent) -> Void)?
     ) async {
-        // Build the stream URL from the SAME FicheroClient the execute/stop/resume
-        // calls use. `client.baseURL` is the host root; the OpenAPI `/api` prefix
-        // is appended here to match the generated operation paths. Deriving the
-        // host, library path, auth and pinning from this one client keeps the raw
-        // byte stream from drifting off the generated transport (#2376 / #2538).
-        let request = engineEventStreamRequest(
-            baseURL: client.apiBaseURL,
-            pathComponents: ["workflow-execution", "stream", threadId],
-            libraryPath: client.currentLibraryPath
-        )
-        let streamUrl = request.url!
+        // Route through the SAME FicheroClient the execute/stop/resume calls use.
+        // `streamLines` issues the request through the shared ClientTransport +
+        // middleware stack, so host, library path and auth stay in lockstep with
+        // the generated transport (#2376 / #2538) and the stream works over
+        // `.https` / `.uds` / in-process. A display URL is derived only for the
+        // failure message — the fetch itself never touches a raw URL.
+        let streamUrl = client.apiBaseURL
+            .appendingPathComponent("workflow-execution")
+            .appendingPathComponent("stream")
+            .appendingPathComponent(threadId)
 
         logger.info("Subscribing to event stream: \(streamUrl)")
 
         do {
-            let (bytes, response) = try await urlSession.bytes(for: request)
+            let (status, lines) = try await client.streamLines(
+                pathComponents: ["workflow-execution", "stream", threadId]
+            )
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw WorkflowStreamError.invalidResponse
-            }
-
-            if httpResponse.statusCode != 200 {
-                throw WorkflowStreamError.httpError(statusCode: httpResponse.statusCode)
+            if status != 200 {
+                throw WorkflowStreamError.httpError(statusCode: status)
             }
 
             liveUpdatesUnavailable = false  // connected — run events flowing (F7)
 
-            try await consumeStreamLines(bytes, onEvent: onEvent)
+            try await consumeStreamLines(lines, onEvent: onEvent)
         } catch {
             if !Task.isCancelled {
                 await handleStreamFailure(error, streamUrl: streamUrl)
@@ -192,12 +180,12 @@ class WorkflowStreamService {
     }
 
     /// Process SSE data lines immediately as they arrive (don't wait for the
-    /// empty line separator as `bytes.lines` may not yield them reliably).
+    /// empty line separator, which the byte stream may not yield reliably).
     private func consumeStreamLines(
-        _ bytes: URLSession.AsyncBytes,
+        _ lines: AsyncThrowingStream<String, any Error>,
         onEvent: ((WorkflowStreamEvent) -> Void)?
     ) async throws {
-        for try await line in bytes.lines {
+        for try await line in lines {
             guard !Task.isCancelled else { return }
 
             // Skip keepalive comments

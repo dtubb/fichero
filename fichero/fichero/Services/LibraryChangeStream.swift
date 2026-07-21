@@ -124,9 +124,10 @@ protocol ChangeEventConsumer: AnyObject {
 // MARK: - LibraryChangeStream
 
 /// Per-library change-event SSE consumer (#1863). The generalization of
-/// `WorkflowStreamService` from one workflow thread to one library: it owns the
-/// `URLSession.bytes` loop on `GET /api/changes/stream`, decodes `data:` lines
-/// into `ChangeEvent`, and fans each to the registered stores by domain.
+/// `WorkflowStreamService` from one workflow thread to one library: it drives the
+/// SSE loop on `GET /api/changes/stream` through the injected transport, decodes
+/// `data:` lines into `ChangeEvent`, and fans each to the registered stores by
+/// domain.
 ///
 /// One per library (registered on `LibraryReference`, shared across that
 /// library's windows). Reconnects with backoff on drop and resyncs its stores
@@ -162,18 +163,17 @@ final class LibraryChangeStream {
     /// Observed (not `@ObservationIgnored`) so views react to it.
     private(set) var liveUpdatesUnavailable = false
 
-    /// The SSE transport (default: certificate-pinned `URLSession.bytes`). Held
-    /// at the class level so its session outlives each `bytes(for:)` call — the
-    /// delegate challenge handler only fires for a retained session. Injected in
-    /// tests so canned frames can drive the classify loop without a socket.
+    /// The SSE transport. Production injects `FicheroClientChangeStreamTransport`
+    /// (routing through the shared `FicheroClient` transport so the stream works
+    /// over `.https` / `.uds` / in-process); tests inject a stub so canned frames
+    /// can drive the classify loop without a socket.
     private let transport: any ChangeStreamTransport
 
     init(
         baseURL: URL,
         libraryPath: String,
         windowId: String = UUID().uuidString,
-        transport: any ChangeStreamTransport =
-            URLSessionChangeStreamTransport(session: RemoteCertificatePinning.configuredSession())
+        transport: any ChangeStreamTransport
     ) {
         self.baseURLProvider = { baseURL }
         self.libraryPath = libraryPath
@@ -185,8 +185,7 @@ final class LibraryChangeStream {
         baseURLProvider: @escaping @MainActor () -> URL,
         libraryPath: String,
         windowId: String = UUID().uuidString,
-        transport: any ChangeStreamTransport =
-            URLSessionChangeStreamTransport(session: RemoteCertificatePinning.configuredSession())
+        transport: any ChangeStreamTransport
     ) {
         self.baseURLProvider = baseURLProvider
         self.libraryPath = libraryPath

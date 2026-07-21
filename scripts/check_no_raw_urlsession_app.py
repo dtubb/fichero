@@ -55,9 +55,9 @@ GRANDFATHERED_FILES: set[str] = {
     # loosening the regex for everyone else.
     "Views/Preview/PDFViewer/PDFLoupeOverlay.swift",
     "Views/Preview/PDFViewer/PDFThumbnailView.swift",
-    "Services/ActivityStreamService.swift",     # SSE
-    "Services/ChangeStreamTransport.swift",     # SSE
-    "Services/WorkflowStreamService.swift",     # SSE
+    # ActivityStreamService / ChangeStreamTransport / WorkflowStreamService moved
+    # off raw URLSession onto the shared FicheroClient ClientTransport
+    # (`streamLines`), so the SSE streams work over `.https` / `.uds` / in-process.
     # MIGRATE (delete when the sub-issue lands)
     "Services/ImageEditingService.swift",  # #3028 (binary preview KEEP)
     "Services/EntityService.swift",  # #3029 (entity free-form-container KEEP; split out of ArtifactService.swift)

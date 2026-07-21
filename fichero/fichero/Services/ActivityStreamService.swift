@@ -3,15 +3,15 @@ import Foundation
 import Observation
 import OSLog
 
-/// Raw SSE transport for `/api/activity/stream`.
+/// SSE consumer for `/api/activity/stream`.
 ///
-/// This lives in Services because it builds the engine request and owns the
-/// pinned URLSession. `ActivityStore` owns state only.
+/// This lives in Services because it drives the engine stream through the shared
+/// `FicheroClient` transport (so it works over `.https` / `.uds` / in-process).
+/// `ActivityStore` owns state only.
 @MainActor
 @Observable
 final class ActivityStreamService {
     private let activityService: ActivityService
-    @ObservationIgnored private let urlSession: URLSession = RemoteCertificatePinning.configuredSession()
     @ObservationIgnored private let log = Logger(subsystem: "app.fichero.fichero", category: "ActivityStreamService")
     @ObservationIgnored nonisolated(unsafe) private var task: Task<Void, Never>?
     @ObservationIgnored private var started = false
@@ -117,25 +117,22 @@ final class ActivityStreamService {
     }
 
     private func subscribeOnce(onEvent: @escaping @MainActor (ActivityItem) -> Void) async throws {
-        let request = engineEventStreamRequest(
-            baseURL: activityService.client.apiBaseURL,
-            pathComponents: ["activity", "stream"],
-            libraryPath: activityService.client.currentLibraryPath
+        // Route through the shared FicheroClient transport — auth and the
+        // library-path header are applied by the client's middleware (nothing
+        // hand-rolled). Works over `.https` / `.uds` / in-process.
+        let (status, lines) = try await activityService.client.streamLines(
+            pathComponents: ["activity", "stream"]
         )
-        let (bytes, response) = try await urlSession.bytes(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
-        if http.statusCode == 403 {
+        if status == 403 {
             throw StreamError.accessDenied
         }
-        guard http.statusCode == 200 else {
+        guard status == 200 else {
             throw URLError(.badServerResponse)
         }
         accessDenied = false
         liveUpdatesUnavailable = false  // (re)connected — activity events flowing
 
-        for try await line in bytes.lines {
+        for try await line in lines {
             guard !Task.isCancelled else { break }
             if line.isEmpty || line.hasPrefix(":") || line.hasPrefix("event:") {
                 continue

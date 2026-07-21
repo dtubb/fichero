@@ -86,12 +86,15 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         XCTAssertTrue(paths.contains("/api/workflow-execution/stream/{thread_id}"))
     }
 
-    func testWorkflowStreamServiceKeepsPinnedSessionAndSharedAPIBaseURL() throws {
+    func testWorkflowStreamServiceRoutesThroughClientTransport() throws {
         let source = try Self.appSource("Services/WorkflowStreamService.swift")
 
-        XCTAssertTrue(source.contains("RemoteCertificatePinning.configuredSession()"))
-        XCTAssertTrue(source.contains("engineEventStreamRequest("))
-        XCTAssertTrue(source.contains("baseURL: client.apiBaseURL"))
+        // SSE now flows through the shared FicheroClient ClientTransport (works
+        // over `.https` / `.uds` / in-process), not a raw pinned URLSession.
+        XCTAssertTrue(source.contains("client.streamLines("))
+        XCTAssertFalse(source.contains("RemoteCertificatePinning.configuredSession()"))
+        XCTAssertFalse(source.contains("urlSession.bytes"))
+        XCTAssertFalse(source.contains("engineEventStreamRequest("))
     }
 
     func testLocalHTTPSStreamFailureExplainsTLSBackendRequirement() throws {
@@ -135,12 +138,15 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         XCTAssertTrue(source.contains("executionService.resumeWorkflow"))
     }
 
-    func testLibraryChangeStreamKeepsPinnedSessionAndSharedRequestBuilder() throws {
+    func testLibraryChangeStreamRoutesThroughClientTransport() throws {
         let source = try Self.appSource("Services/LibraryChangeStream.swift")
 
-        XCTAssertTrue(source.contains("RemoteCertificatePinning.configuredSession()"))
+        // The change stream still builds the request via the shared path builder,
+        // but the pinned-URLSession default transport is gone — it now dials
+        // through the injected FicheroClient transport (`.https`/`.uds`/in-process).
         XCTAssertTrue(source.contains("engineEventStreamRequest("))
         XCTAssertTrue(source.contains("pathComponents: [\"changes\", \"stream\"]"))
+        XCTAssertFalse(source.contains("RemoteCertificatePinning.configuredSession()"))
     }
 
     @MainActor
