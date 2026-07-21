@@ -14,9 +14,14 @@ _SPEC.loader.exec_module(check_service_consistency)  # type: ignore[attr-defined
 
 
 def test_activity_stream_service_is_sanctioned_sse_transport():
+    # ActivityStreamService.swift now routes entirely through FicheroClient's
+    # streamLines() transport (a698b5a69, #1943) instead of a pinned raw
+    # URLSession — no raw-transport pattern remains, so the scanner no longer
+    # flags it in `found`. It stays documented in SANCTIONED_RAW_TRANSPORT for
+    # historical context / in case a future change reintroduces raw transport.
     found = check_service_consistency.scan()
 
-    assert "ActivityStreamService.swift" in found
+    assert "ActivityStreamService.swift" not in found
     assert "ActivityStreamService.swift" in check_service_consistency.SANCTIONED_RAW_TRANSPORT
 
 
