@@ -89,7 +89,17 @@ echo "Building embedded engine with Briefcase"
 # changed; otherwise keep the much faster update/build path.
 if [ -d "$ENGINE_APP" ] && ! "$ROOT_DIR/scripts/clean-embedded-engine.sh" --check-version "$ENGINE_APP" >/dev/null 2>&1; then
   echo "Recreating Briefcase app template for the stamped engine version"
-  rm -rf "$ENGINE_DIR/build/engine/macos/app"
+  # rm -rf can hit a transient "Directory not empty" race when a concurrent
+  # indexer or Briefcase subprocess has a handle open in the Python.xcframework
+  # tree. A 1s pause lets the handle release; retry before treating it as a real
+  # failure (a genuinely stuck file is rare, and aborting a 40-min release on a
+  # one-off FS race is the kind of babysit this script exists to avoid).
+  _rm_ok=0
+  for _ in 1 2 3; do
+    if rm -rf "$ENGINE_DIR/build/engine/macos/app"; then _rm_ok=1; break; fi
+    [ "$_" = 3 ] || sleep 1
+  done
+  [ "$_rm_ok" = 1 ] || { echo "error: could not remove $ENGINE_DIR/build/engine/macos/app after 3 tries" >&2; exit 1; }
 fi
 (
   cd "$ENGINE_DIR"

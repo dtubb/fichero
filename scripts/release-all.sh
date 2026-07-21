@@ -39,6 +39,11 @@ IOS_APP_STORE_PROFILE_PATH="${IOS_APP_STORE_PROFILE_PATH:-$HOME/Downloads/App_St
 IOS_APP_STORE_PROFILE_NAME="${IOS_APP_STORE_PROFILE_NAME:-App Store Connect}"
 IOS_APP_STORE_SIGNING_CERT="${IOS_APP_STORE_SIGNING_CERT:-7CD87BA09F2DA8A79652710DE0F5E3C5DCD2CC35}"
 IOS_APP_STORE_PROFILE_UUID=""
+# Developer ID Application identity used by the DMG path (build-release-dmg.sh).
+# Preflight test-signs with it so a missing keychain partition grant fails fast
+# instead of hanging the DMG sign step 20 minutes in.
+DEV_IDENTITY="${FICHERO_DEV_IDENTITY:-Developer ID Application: DANIEL GAVIN LIVINGSTONE TUBB (QAPB6CWYR6)}"
+APP_BUNDLE_ID="${FICHERO_APP_BUNDLE_ID:-app.fichero.fichero}"
 
 # Keep archive schemes aligned with the feature-tier build map.
 source "$ROOT_DIR/scripts/tier_build_map.sh"
@@ -99,12 +104,70 @@ install_ios_app_store_profile() {
   install_provisioning_profile "$IOS_APP_STORE_PROFILE_PATH" "$IOS_APP_STORE_PROFILE_NAME" IOS_APP_STORE_PROFILE_UUID
 }
 
+# ── Codesign keychain preflight ─────────────────────────────────────────────
+# A codesign that needs a keychain partition grant pops a GUI prompt and hangs a
+# headless release. Test-sign a throwaway binary with each identity the active
+# lanes use BEFORE the long build, so a missing grant fails fast with the
+# one-time fix instead of hanging mid-release. macOS ships no `timeout`, so the
+# probe runs codesign in a subshell and kills it after HANG_SECONDS if it hasn't
+# returned. On a keychain set up once (partition list persisted) every probe is
+# instant and the whole lane runs unattended.
+preflight_codesign_access() {
+  local ids=("$@")
+  local probe_dir probe_bin probe_src
+  probe_dir="$(mktemp -d)"
+  probe_src="$probe_dir/probe.c"
+  probe_bin="$probe_dir/probe"
+  printf 'int main(void){return 0;}\n' > "$probe_src"
+  if ! cc -arch arm64 "$probe_src" -o "$probe_bin" 2>/dev/null; then
+    echo "  codesign preflight: could not build probe binary (cc) — skipping" >&2
+    rm -rf "$probe_dir"
+    return 0
+  fi
+  local HANG_SECONDS=15
+  local failed=0
+  for id in "${ids[@]}"; do
+    ( codesign --force --sign "$id" --timestamp=none "$probe_bin" >/dev/null 2>&1 ) &
+    local pid=$!
+    local hung=0 rc=0
+    for _ in $(seq 1 "$HANG_SECONDS"); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 1
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      hung=1
+    else
+      wait "$pid"; rc=$?
+    fi
+    if [ "$hung" = 1 ] || [ "$rc" -ne 0 ]; then
+      echo "error: codesign cannot access signing identity '$id' without a prompt." >&2
+      echo "  The release would hang here. One-time setup — run in Terminal" >&2
+      echo "  (asks for your login password ONCE, then persists):" >&2
+      echo "    security set-key-partition-list -S apple-tool:,apple:,codesign: \\" >&2
+      echo "      -s -k <login-pw> ~/Library/Keychains/login.keychain-db" >&2
+      failed=1
+    else
+      echo "  codesign OK: $id"
+    fi
+  done
+  rm -rf "$probe_dir"
+  [ "$failed" = 0 ]
+}
+
 SKIP_DMG=false
 SKIP_NOTARIZE=false
 RUN_MAC_TESTFLIGHT=true
 RUN_IOS_TESTFLIGHT=true
 RUN_GITHUB=false
 GITHUB_ARGS=()
+# Default: finish when the TestFlight upload succeeds and let Apple email the
+# team when processing completes/fails (no polling, no JWT, no key dependency).
+# Pass --wait-for-processing to instead block until each build reaches
+# processingState=VALID in App Store Connect (polls the ASC REST API, like
+# fastlane/pilot). Opt-in because it needs a valid ASC API key.
+WAIT_FOR_PROCESSING=false
 
 for arg in "$@"; do
   case "$arg" in
@@ -120,6 +183,8 @@ for arg in "$@"; do
     --ios-only) RUN_MAC_TESTFLIGHT=false ;;
     --github) RUN_GITHUB=true ;;
     --draft) GITHUB_ARGS+=("--draft") ;;
+    --prerelease) GITHUB_ARGS+=("--prerelease") ;;
+    --wait-for-processing) WAIT_FOR_PROCESSING=true ;;
     --help|-h)
       sed -n '2,15p' "$0"
       exit 0
@@ -158,6 +223,19 @@ else
 fi
 
 echo
+echo "── Preflight: codesign keychain access ──"
+# Fail fast if codesign would hang on a keychain prompt mid-release. Only test
+# the identities the active lanes will actually sign with.
+PREFLIGHT_IDS=()
+[ "$SKIP_DMG" = false ] && PREFLIGHT_IDS+=("$DEV_IDENTITY")
+if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
+  PREFLIGHT_IDS+=("$MAC_APP_STORE_SIGNING_CERT")
+fi
+if [ "${#PREFLIGHT_IDS[@]}" -gt 0 ]; then
+  preflight_codesign_access "${PREFLIGHT_IDS[@]}"
+fi
+
+echo
 echo "── Engine: rebuild current Briefcase stage ──"
 "$ROOT_DIR/scripts/preflight-embedded-engine.sh" --rebuild
 
@@ -175,9 +253,8 @@ fi
 
 if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
   echo
-  echo "── TestFlight note ──"
-  echo "  If codesign prompts hang in a headless session, run once in Terminal:"
-  echo "  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k <login-pw> ~/Library/Keychains/login.keychain-db"
+  echo "── TestFlight: codesign keychain already preflighted above ──"
+  echo "  (if a codesign hang ever appears here, the preflight at the top caught it first)"
 fi
 
 AUTH_ARGS=()
@@ -286,6 +363,32 @@ PLIST
     echo "       Check App Store Connect permissions and Mac App Distribution/Mac Installer Distribution signing assets." >&2
     exit 1
   fi
+
+  # exportArchive returns on upload completion, NOT when Apple finishes
+  # processing the build into TestFlight. By default we stop here and let Apple
+  # email the team when processing completes/fails — no polling, no JWT, no
+  # ASC-key dependency. --wait-for-processing opts into polling the ASC REST
+  # API until processingState=VALID (like fastlane/pilot); non-fatal on failure.
+  if [ "$WAIT_FOR_PROCESSING" = true ] && [ -f "$APP_STORE_CONNECT_KEY_PATH" ]; then
+    echo
+    echo "  Mac TestFlight: waiting for Apple processing (until build is in TestFlight)…"
+    if "$ROOT_DIR/scripts/wait-testflight-processing.py" \
+      --key "$APP_STORE_CONNECT_KEY_PATH" \
+      --key-id "$APP_STORE_CONNECT_KEY_ID" \
+      --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+      --bundle-id "$APP_BUNDLE_ID" \
+      --version "$TESTFLIGHT_MARKETING_VERSION" \
+      --build "$TESTFLIGHT_BUILD_VERSION" \
+      --platform macos; then
+      echo "  Mac TestFlight: confirmed in TestFlight"
+    else
+      echo "  warning: Mac TestFlight processing-wait exited non-zero — upload succeeded" >&2
+      echo "           but processing was NOT confirmed. Check App Store Connect manually;" >&2
+      echo "           the build will still process server-side." >&2
+    fi
+  else
+    echo "  Mac TestFlight: uploaded — Apple will email when processing completes (or fails)."
+  fi
 fi
 
 if [ "$RUN_IOS_TESTFLIGHT" = true ]; then
@@ -348,6 +451,29 @@ PLIST
     echo "error: iOS TestFlight export/upload failed" >&2
     echo "       Check the installed iOS App Store profile, Apple Distribution identity, and keychain access for codesign." >&2
     exit 1
+  fi
+
+  # By default: stop here, Apple emails on processing completion. Opt into
+  # polling with --wait-for-processing (see the Mac TestFlight block above).
+  if [ "$WAIT_FOR_PROCESSING" = true ] && [ -f "$APP_STORE_CONNECT_KEY_PATH" ]; then
+    echo
+    echo "  iPhone/iPad TestFlight: waiting for Apple processing (until build is in TestFlight)…"
+    if "$ROOT_DIR/scripts/wait-testflight-processing.py" \
+      --key "$APP_STORE_CONNECT_KEY_PATH" \
+      --key-id "$APP_STORE_CONNECT_KEY_ID" \
+      --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+      --bundle-id "$APP_BUNDLE_ID" \
+      --version "$TESTFLIGHT_MARKETING_VERSION" \
+      --build "$TESTFLIGHT_BUILD_VERSION" \
+      --platform ios; then
+      echo "  iPhone/iPad TestFlight: confirmed in TestFlight"
+    else
+      echo "  warning: iPhone/iPad TestFlight processing-wait exited non-zero — upload succeeded" >&2
+      echo "           but processing was NOT confirmed. Check App Store Connect manually;" >&2
+      echo "           the build will still process server-side." >&2
+    fi
+  else
+    echo "  iPhone/iPad TestFlight: uploaded — Apple will email when processing completes (or fails)."
   fi
 fi
 

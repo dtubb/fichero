@@ -24,21 +24,33 @@ fi
 SYNC_OPENAPI=true
 SKIP_VALIDATION=false
 RELOAD=false
+UDS_MODE=false
 
 for arg in "$@"; do
   case $arg in
     --no-sync) SYNC_OPENAPI=false ;;
     --fast) SYNC_OPENAPI=false; SKIP_VALIDATION=true ;;
     --reload) RELOAD=true ;;
+    # Dev fast loop: serve the engine on a plaintext AF_UNIX socket (no TCP,
+    # no TLS) that a Debug app adopts via FICHERO_FORCE_UDS_PATH. Skips the
+    # remote-access/TLS prep below. `--uds=/path` overrides the socket path.
+    --uds) UDS_MODE=true ;;
+    --uds=*) UDS_MODE=true; FICHERO_UDS_PATH="${arg#--uds=}" ;;
     --help|-h)
-      echo "Usage: $0 [--no-sync] [--fast] [--reload]"
+      echo "Usage: $0 [--no-sync] [--fast] [--reload] [--uds[=/path]]"
       echo
       echo "Default starts uvicorn without reload so the real app DuckDB is opened"
       echo "by one process only. Use --reload only with an isolated/test database."
+      echo "--uds serves the engine on a Unix-domain socket (dev fast loop);"
+      echo "pair with a Debug app launched with FICHERO_FORCE_UDS_PATH set."
       exit 0
       ;;
   esac
 done
+
+# Default dev UDS socket; the Debug app dials the same path via
+# FICHERO_FORCE_UDS_PATH. Short enough for the AF_UNIX sun_path (~104B) limit.
+FICHERO_UDS_PATH="${FICHERO_UDS_PATH:-/tmp/fichero.sock}"
 
 DEFAULTS_REMOTE_ENABLED=false
 DEFAULTS_PUBLIC_BASE_URL=""
@@ -64,7 +76,7 @@ if [ -z "${FICHERO_MULTIUSER:-}" ] && [ -n "$DEFAULTS_MULTIUSER_ENABLED" ]; then
   esac
 fi
 
-if [ -z "${FICHERO_TLS_CERTFILE:-}" ] && [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
+if [ "$UDS_MODE" != true ] && [ -z "${FICHERO_TLS_CERTFILE:-}" ] && [ -z "${FICHERO_TLS_KEYFILE:-}" ]; then
   # Restore persisted Share/remote-access URL when no env override is set.
   if [ -z "${FICHERO_PUBLIC_BASE_URL:-}" ] && [ "$DEFAULTS_REMOTE_ENABLED" = true ] && [ -n "$DEFAULTS_PUBLIC_BASE_URL" ]; then
     FICHERO_PUBLIC_BASE_URL="$DEFAULTS_PUBLIC_BASE_URL"
@@ -197,6 +209,26 @@ prepare_app_bootstrap_token_for_launch(
     app_id=os.environ.get("FICHERO_APP_BUNDLE_ID", "app.fichero.fichero"),
 )
 PY
+
+# Dev UDS fast loop: serve on the Unix-domain socket via the uvicorn CLI so
+# `--reload` (backend hot-reload) works — it watches only the engine src. No
+# TCP, no TLS; a Debug app adopts it over FICHERO_FORCE_UDS_PATH. UDS requests
+# are trusted as owner, so no bootstrap-token dance. Skips openapi sync +
+# model validation for a fast inner loop.
+if [ "$UDS_MODE" = true ]; then
+  export FICHERO_UDS_PATH
+  export FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-0}"
+  export FICHERO_FEATURE_TIER="${FICHERO_FEATURE_TIER:-dev}"
+  rm -f "$FICHERO_UDS_PATH"
+  RELOAD_ARGS=()
+  if [ "$RELOAD" = true ]; then
+    RELOAD_ARGS=(--reload --reload-dir "$API_ROOT/src")
+  fi
+  echo "Starting Fichero engine on unix:$FICHERO_UDS_PATH (reload=$RELOAD, no TCP, no TLS)"
+  exec env PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn \
+    fichero.api.uds_transport:app --uds "$FICHERO_UDS_PATH" \
+    --ws websockets-sansio "${RELOAD_ARGS[@]}"
+fi
 
 if [ "$SYNC_OPENAPI" = true ]; then
   "$API_ROOT/scripts/sync_openapi_schema.sh"

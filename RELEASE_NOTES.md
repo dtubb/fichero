@@ -2,6 +2,36 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.21-beta
+
+### Dev build
+
+Internal TestFlight + DMG dev prerelease cut from green `main` for Daniel's
+testing. Not promoted to production.
+
+### Under The Hood
+
+**Engine hygiene reorg landed on `main`.** The engine's top-level packages were
+reorganized into `mcp/`, `security/`, `llm/`, `db/`, `models/`, and `kg/` using
+identity-preserving `sys.modules` shims, so every existing import keeps
+resolving. Full engine suite green (8048 passed / 0 failed). Route count held at
+360 and guardrail allowlists were repointed to the new package paths.
+
+**Transport architecture done.** A pluggable `ClientTransport` seam routes the
+app↔engine connection by platform: Unix domain sockets for local Mac, HTTPS
+for iOS / remote / sharing / Debug, and in-memory for the Mac Dev/DMG path.
+Loopback + UDS/in-memory connections are owner-scoped with no login wall;
+`AuthTokenMiddleware` recognizes `http+unix` for bootstrap tokens.
+
+**Crash self-heal.** The embedded engine auto-restarts on an unexpected crash
+with a crash-loop guard (max 5 restarts / 60 s, then `.failed`) instead of
+needing a manual Retry.
+
+**Test reliability.** Auth middleware now attaches at conftest load, before any
+module can start the shared app, fixing the "Cannot add middleware" cascade in
+verify-all. `library_discovery.py` (dead home-crawl) was removed; the
+recents-registry is the list source.
+
 ## 2026.07.20-beta
 
 ### New

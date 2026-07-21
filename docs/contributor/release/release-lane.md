@@ -17,11 +17,41 @@ this lane. Build/archive only.
 
 ## One Command
 
-Default full lane:
+Default full lane (builds the embedded engine once, then DMG + Mac TestFlight +
+iOS TestFlight):
 
 ```bash
-scripts/release-all.sh --skip-backend
+scripts/release-all.sh
 ```
+
+`--skip-backend` is **internal plumbing, not a flag you pass**: `release-all.sh`
+rebuilds the Briefcase engine once at the top, then hands `--skip-backend` to the
+DMG sub-script so it reuses that engine instead of rebuilding it a second time.
+The engine is always embedded (Xcode's Embed phase copies `Fichero Engine.app`
+into the app). The top-level parser does not accept `--skip-backend` — passing it
+exits with `unknown argument`.
+
+The lane runs **unattended** end-to-end — kick it off as one background task and
+check back when it exits; no per-step polling:
+
+- **Codesign preflight** runs first: it test-signs a throwaway binary with each
+  signing identity the active lanes use (Developer ID for the DMG, Apple
+  Distribution for TestFlight). If the login keychain isn't partitioned to let
+  `codesign:` access those keys, the lane fails fast with the one-time
+  `security set-key-partition-list …` command instead of hanging mid-build. On a
+  machine set up once, the probe is instant.
+- **`notarize.sh` already uses `notarytool submit … --wait`**, so it blocks until
+  Apple returns Accepted/Rejected.
+- **TestFlight processing-wait (opt-in)**: `xcodebuild -exportArchive` returns on
+  *upload* completion, not when Apple finishes *processing* the build into
+  TestFlight. **By default the lane stops at a successful upload** and lets Apple
+  email the team when processing completes/fails — no polling, no JWT, no ASC-key
+  dependency. Pass `--wait-for-processing` to instead block until each build
+  reaches `processingState=VALID` (polls the App Store Connect REST API with a
+  signed ES256 JWT, like fastlane/pilot). That wait is **non-fatal**: if the poll
+  can't confirm (auth, timeout, transient ASC error), it warns loudly and the lane
+  still finishes, because the upload already succeeded and Apple processes the
+  build server-side.
 
 Useful partial lanes:
 
@@ -30,7 +60,7 @@ Useful partial lanes:
 scripts/release-all.sh --skip-dmg --skip-notarize
 
 # DMG build + notarize only
-scripts/release-all.sh --skip-backend --skip-testflight
+scripts/release-all.sh --skip-testflight
 
 # Mac TestFlight only
 scripts/release-all.sh --skip-dmg --skip-notarize --mac-only
