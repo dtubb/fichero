@@ -179,12 +179,19 @@ extension EmbeddedBackendService {
     /// bound to `backendURL`. Falls back to a fresh loopback HTTPS client on the
     /// construction paths (iOS / Settings) that never injected one.
     func probeReadiness() async -> ReadinessResult {
-        // Fall back to a client on the app's ACTIVE transport, not a bare HTTPS
-        // one: in UDS mode a `.https` fallback dials :8765 where nothing listens,
-        // so the probe never sees a healthy UDS engine and the adopt path fails
-        // with a spurious "no engine on :8765". Mirror APIClient's construction.
-        let client = readinessClient
-            ?? FicheroClient(baseURL: backendURL, transportMode: EngineConfig.transportMode)
+        // Build the fallback client ONCE and cache it. probeReadiness is polled
+        // many times during the readiness wait; creating a fresh FicheroClient
+        // (hence a fresh AF_UNIX connection) per poll is unreliable under a slow
+        // debug launch — each new UDS connection can fail to establish ("nw…
+        // Connection has no local endpoint") even though the engine is up and
+        // the app's persistent main client talks to it fine (logs /api/registry
+        // 200). A cached client establishes its UDS connection once and every
+        // subsequent probe rides it. Also on the app's ACTIVE transport, not a
+        // bare HTTPS one, so UDS mode never dials :8765 where nothing listens.
+        if readinessClient == nil {
+            readinessClient = FicheroClient(baseURL: backendURL, transportMode: EngineConfig.transportMode)
+        }
+        guard let client = readinessClient else { return .notResponding }
         return await EngineReadinessProbe(client: client, expectedNonce: expectedLaunchNonce).probe()
     }
 
