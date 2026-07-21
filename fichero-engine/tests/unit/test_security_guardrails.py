@@ -37,8 +37,8 @@ SQL_INTERPOLATION_ALLOWLIST: dict[str, str] = {}
 XML_ETREE_ALLOWLIST: dict[str, str] = {}
 SECRET_LOG_ALLOWLIST: dict[str, str] = {}
 WILDCARD_BIND_ALLOWLIST: dict[str, str] = {
-    "bind_host.py:resolve_bind_host": "bind_host is the enforcement choke point that refuses 0.0.0.0.",
-    "bind_host.py:resolve_lan_bind_host": "Refusal guard: the only 0.0.0.0 mention raises ValueError demanding one explicit LAN address.",
+    "security/bind_host.py:resolve_bind_host": "bind_host is the enforcement choke point that refuses 0.0.0.0.",
+    "security/bind_host.py:resolve_lan_bind_host": "Refusal guard: the only 0.0.0.0 mention raises ValueError demanding one explicit LAN address.",
 }
 
 ALLOWLISTS: dict[str, dict[str, str]] = {
@@ -291,7 +291,7 @@ def _scan_source_tree() -> dict[str, list[Finding]]:
         results["dangerous_calls"].extend(visitor.dangerous_calls)
         if not _is_persistence_path(rel_path):
             results["sql_interpolation"].extend(visitor.sql_interpolation)
-        if rel_path != "xml_security.py":
+        if rel_path != "security/xml_security.py":
             results["xml_etree"].extend(visitor.xml_etree)
         results["secret_logging"].extend(visitor.secret_logging)
         results["wildcard_bind"].extend(visitor.wildcard_bind)
