@@ -56,6 +56,8 @@ struct SourcesLedgerView: View {
                         .lineLimit(1)
                 }
             }
+            .textSelection(.enabled)
+            .help(entry.detail ?? entry.label)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 8)

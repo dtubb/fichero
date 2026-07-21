@@ -34,8 +34,9 @@ hazard + the `librarywindow-body` type-checker discipline:
 - **#4045** zone E — detach chat to window + workspace-window save/restore
 
 ## In this lane next (parallel-safe, no zone collision)
-- [ ] Knowledge tab (migration step 5) — conversation-scoped entities/claims; 2nd `KGQueryStore` host.
-- [ ] Polish — ledger source-navigation (click a cited doc → open), ToolCallCard running/error states.
+- [x] Knowledge tab (step 5, parallel-safe slice) — summarizes the KG usage already in `RetrievalInfo` (entity/claim references + replies), honest about "references not distinct items". Full OntologyBrowser/SPARQL host DEFERRED: needs 5 env stores injected into every ChatView host + entity/claim identities from the engine.
+- [x] Polish — ToolCallCard running/error states already present (icon+color+pulse); ledger rows now text-selectable + tooltip.
+- [ ] DEFERRED (needs deps, not built speculatively): ledger click-to-open a cited doc — no document-open affordance (openWindow/WindowSeed) exists in this surface; wire when one does.
 
 ## Deferred / flagged for coordination
 - Engine steps 1–2 (`chat_tools.py` → `/api/chat` tool loop, audited research actions, OpenAPI tri-copy) — engine lane, post-reorg. Swift `ToolCall` decodes `tool_calls[]` when engine emits it.
