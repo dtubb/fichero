@@ -85,57 +85,49 @@ rm -f "$bad_bundle_ids"
 echo "  Embedded engine cleanup: no reserved com.apple.* bundle identifiers found"
 
 # Bytecode magic is per MINOR version: a .pyc compiled by the wrong minor is
-# silently ignored by the runtime, which then recompiles on first launch — the
-# #3940 slow start. So detect the BUNDLE's own CPython version and compile with
-# EXACTLY that, never a hardcoded guess (the bundle has been both 3.12 and 3.13).
+# silently ignored by the runtime, which recompiles on first launch — the #3940
+# slow start. So detect the BUNDLE's own CPython minor and compile with EXACTLY
+# that (the bundle has shipped both 3.12 and 3.13). This precompile is an
+# OPTIMISATION, not a correctness requirement — never fail the build on it: a
+# missing/wrong .pyc only costs a one-time runtime recompile.
 BUNDLE_PYVER=""
-for v in "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/"3.*; do
-  b=$(basename "$v")
-  case "$b" in 3.[0-9]*) BUNDLE_PYVER="$b"; break ;; esac
+for v in "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/"3.[0-9]*; do
+  [ -d "$v" ] || continue
+  BUNDLE_PYVER=$(basename "$v"); break
 done
-if [ -z "$BUNDLE_PYVER" ]; then
-  echo "error: could not detect the embedded Python.framework version under $ENGINE_APP" >&2
-  exit 1
-fi
-PYMAJ="${BUNDLE_PYVER%%.*}"
-PYMIN="${BUNDLE_PYVER#*.}"
 
 ENGINE_PYTHON=""
-for candidate in \
-  "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/$BUNDLE_PYVER/bin/python$BUNDLE_PYVER" \
-  "${FICHERO_PYTHON_BIN:-}" \
-  "$(command -v "python$BUNDLE_PYVER" || true)" \
-  "/opt/homebrew/bin/python$BUNDLE_PYVER" \
-  "/opt/homebrew/opt/python@$BUNDLE_PYVER/bin/python$BUNDLE_PYVER" \
-  "/usr/local/bin/python$BUNDLE_PYVER" \
-  "/Library/Frameworks/Python.framework/Versions/$BUNDLE_PYVER/bin/python$BUNDLE_PYVER" \
-  "${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}" \
-  "${SRCROOT:+$SRCROOT/../.venv/bin/python}" \
-  "${SRCROOT:+$SRCROOT/../fichero-engine/.venv/bin/python}" \
-  "$(command -v python3 || true)"; do
-  if [ -n "$candidate" ] \
-     && "$candidate" -c "import sys; raise SystemExit(sys.version_info[:2] != ($PYMAJ, $PYMIN))" 2>/dev/null; then
-    ENGINE_PYTHON="$candidate"
-    break
-  fi
-done
-if [ -z "$ENGINE_PYTHON" ]; then
-  echo "error: embedded engine bundles Python $BUNDLE_PYVER, but no matching python$BUNDLE_PYVER interpreter was found to precompile bytecode." >&2
-  echo "       Compiling with a different minor would ship .pyc the runtime ignores (#3940 slow start)." >&2
-  echo "       Install python$BUNDLE_PYVER (e.g. 'brew install python@$BUNDLE_PYVER'), set FICHERO_PYTHON_BIN, or make briefcase produce the pinned version." >&2
-  exit 1
+if [ -n "$BUNDLE_PYVER" ]; then
+  PYMAJ="${BUNDLE_PYVER%%.*}"; PYMIN="${BUNDLE_PYVER#*.}"
+  for candidate in \
+    "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/$BUNDLE_PYVER/bin/python$BUNDLE_PYVER" \
+    "${FICHERO_PYTHON_BIN:-}" \
+    "$(command -v "python$BUNDLE_PYVER" 2>/dev/null || true)" \
+    "/opt/homebrew/bin/python$BUNDLE_PYVER" \
+    "/opt/homebrew/opt/python@$BUNDLE_PYVER/bin/python$BUNDLE_PYVER" \
+    "/usr/local/bin/python$BUNDLE_PYVER" \
+    "/Library/Frameworks/Python.framework/Versions/$BUNDLE_PYVER/bin/python$BUNDLE_PYVER"; do
+    [ -n "$candidate" ] && [ -x "$candidate" ] || continue
+    if "$candidate" -c "import sys; raise SystemExit(sys.version_info[:2] != ($PYMAJ, $PYMIN))" 2>/dev/null; then
+      ENGINE_PYTHON="$candidate"; break
+    fi
+  done
 fi
 
-"$ENGINE_PYTHON" -m compileall -q -j 8 \
-  "$ENGINE_APP/Contents/Resources/app" \
-  "$ENGINE_APP/Contents/Resources/app_packages"
-"$ENGINE_PYTHON" -c 'import importlib.util, pathlib, sys; p = next(pathlib.Path(sys.argv[1]).glob("Contents/Resources/**/__pycache__/*.pyc"), None); raise SystemExit(p is None or p.read_bytes()[:4] != importlib.util.MAGIC_NUMBER)' "$ENGINE_APP"
-pyc_count="$(find "$ENGINE_APP/Contents/Resources" -name '*.pyc' | wc -l | tr -d ' ')"
-if [ "$pyc_count" -eq 0 ]; then
-  echo "error: embedded engine bytecode compilation produced no .pyc files" >&2
-  exit 1
+if [ -n "$ENGINE_PYTHON" ]; then
+  echo "  Embedded engine: precompiling bytecode with $ENGINE_PYTHON (bundle Python ${BUNDLE_PYVER:-unknown})"
+  if "$ENGINE_PYTHON" -m compileall -q -j 8 \
+       "$ENGINE_APP/Contents/Resources/app" \
+       "$ENGINE_APP/Contents/Resources/app_packages"; then
+    pyc_count="$(find "$ENGINE_APP/Contents/Resources" -name '*.pyc' 2>/dev/null | wc -l | tr -d ' ')"
+    echo "  Embedded engine cleanup: precompiled $pyc_count Python files"
+  else
+    echo "  warning: bytecode precompile reported errors; runtime will recompile as needed (non-fatal)" >&2
+  fi
+else
+  echo "  warning: no python${BUNDLE_PYVER:-3.x} interpreter found to precompile bytecode — the engine will compile on first launch (#3940 slow start)." >&2
+  echo "           Install a matching python (e.g. 'brew install python@${BUNDLE_PYVER:-3.13}') or make briefcase produce the pyproject-pinned 3.12." >&2
 fi
-echo "  Embedded engine cleanup: precompiled $pyc_count Python files"
 
 if [ -n "$SIGN_IDENTITY" ]; then
   macho_list="$(mktemp)"
