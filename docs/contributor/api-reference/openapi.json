@@ -2666,11 +2666,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ContentRepresentation"
-                  },
-                  "title": "Response List Representations Api Content Representations Document  Document Id  Get"
+                  "$ref": "#/components/schemas/ContentRepresentationListResponse"
                 }
               }
             }
@@ -2712,11 +2708,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ContentRepresentationRevision"
-                  },
-                  "title": "Response List Revisions Api Content Representations  Representation Id  Revisions Get"
+                  "$ref": "#/components/schemas/ContentRepresentationRevisionListResponse"
                 }
               }
             }
@@ -40415,6 +40407,28 @@
         ],
         "title": "ContentRepresentationKind"
       },
+      "ContentRepresentationListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ContentRepresentation"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ContentRepresentationListResponse",
+        "description": "Standardized envelope for GET /api/content-representations/document/{document_id}."
+      },
       "ContentRepresentationRevision": {
         "properties": {
           "id": {
@@ -40452,6 +40466,28 @@
         ],
         "title": "ContentRepresentationRevision",
         "description": "A user-authored revision linked to an immutable representation."
+      },
+      "ContentRepresentationRevisionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ContentRepresentationRevision"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ContentRepresentationRevisionListResponse",
+        "description": "Standardized envelope for GET /api/content-representations/{representation_id}/revisions."
       },
       "ContentReviewState": {
         "type": "string",

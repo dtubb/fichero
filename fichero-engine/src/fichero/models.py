@@ -672,6 +672,20 @@ class ContentRepresentationRevision(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class ContentRepresentationListResponse(BaseModel):
+    """Standardized envelope for GET /api/content-representations/document/{document_id}."""
+
+    items: list[ContentRepresentation]
+    count: int
+
+
+class ContentRepresentationRevisionListResponse(BaseModel):
+    """Standardized envelope for GET /api/content-representations/{representation_id}/revisions."""
+
+    items: list[ContentRepresentationRevision]
+    count: int
+
+
 # =============================================================================
 # Workflow - Pipeline Definition
 # =============================================================================
