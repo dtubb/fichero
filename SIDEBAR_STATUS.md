@@ -37,14 +37,20 @@ Branch `lane/sidebar-ux`. Worktree `~/code/fichero-worktrees/sidebar`. Do NOT pu
   lags, gate the prefetch or parallelize (`prefetchChildContainerChildren` ponytail note).
 - **Behavioral test gap**: prefetch/expand tests are source-wiring only — a real GET-stub
   DocumentService test is blocked on the same mock-infra gap as #3917.
+- **Manual: one-list collapse (item 1)** — confirm documents / saved searches / automation
+  read as one continuous node list (no section headers), and that library-ROOT Finder
+  drops still work now that the section-header drop targets are gone (drops go through the
+  `unifiedRows` ForEach `.dropDestination`; the old "Library" header used to be one).
 
 ## Next — CONFIRMED ORDER (Daniel, 2026-07-21)
 - A. Prefetch one level down → #3355 + option-click expand-all — ✅ DONE (`6a01b0963`).
-- **1.** Collapse the 3 per-library sub-sections into ONE node list (driven by `node_kind`);
-  retire remaining Activity-row residue (handleUnifiedRowTap, selectedActivityItemIds,
-  ActivityRunGridCell) — keep live Activity view-mode routing (`unifiedSelectedRun`).
+- **1.** Collapse the 3 per-library sub-sections into ONE node list — ✅ DONE
+  (`edd399fbe` collapse, `5ba662e99` Activity-residue retire). Removed Library/Saved
+  Searches/Automation DisclosureGroup headers + divider; one continuous node list per
+  tab, per-kind `unifiedRows` blocks preserve reorder. Retired dead Activity-row code;
+  kept live `.run` view-mode routing.
 - **2.** Sidebar bug-fixes: #3390 drag-drop, #2496 click-select + trailing affordance,
-  #2491 right-align count.
+  #2491 right-align count.  ← NEXT
 - **3.** Batch **actions**: delete / open-in-tabs over the multi-selection set.
 
 ## Decisions for Daniel
