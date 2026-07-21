@@ -30,7 +30,11 @@ override you lint the *other* tree and get a green run that means nothing.
 3. Implement the **smallest correct slice** + a test (see Test bar).
 4. **Commit only** — NEVER build, NEVER run the full suite or `xcodebuild`
    (the machine is slow; the manager gates serially). Backend: you may `ruff`
-   your own diff, but do NOT run pytest. `Closes #n` in the message.
+   your own diff, but do NOT run pytest. `Closes #n` in the message. Any
+   check you DO run (ruff, swiftlint, check_*.py) runs in the FOREGROUND and
+   blocks until it returns — never background it with a Monitor and pause;
+   if your turn ends before you see the result, you commit nothing and the
+   manager sees a stalled lane.
 5. **Signal the manager:** `bash scripts/notify_manager.sh "done #n (<sha>); next #m"`
 6. **REPEAT from step 2.** Only stop when the milestone has no ready issue — then
    `notify_manager.sh "milestone {{MILESTONE}} drained"` and idle. Never wait for

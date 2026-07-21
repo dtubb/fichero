@@ -37,6 +37,14 @@ cadence:
   (CHECK it has 0 uncommitted + 0 unmerged first — resetting over fresh commits
   orphans them). Red → `python3 scripts/tests_to_issues.py <junit.xml>` files one
   tracked issue per failure; route each to its lane.
+- Gate the FULL suite, not a `-k` subset, before any fast-forward to
+  `main` — targeted subsets skip guardrail tests. Read the summary and
+  confirm 0 failed as its own step; never `&&`-chain the push onto the
+  test command.
+- Delete a lane branch once its commits are confirmed in `main` (or in an
+  integration branch that itself reached `main`) — the commits stay
+  reachable by SHA and by the closed issue; don't keep dead lane branches
+  around as memory.
 
 ## File new issues via the script, never raw gh
 
