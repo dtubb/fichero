@@ -113,3 +113,13 @@ main = 20ad9cbdf, GREEN: full engine suite 8048 passed / 0 failed, and Fichero (
 - **3 tmux frontend lanes** running independently: sidebar (contiguous multi-select), sharing (done its subset), research (agentic-surface consolidation doc + Swift-safe steps). Each keeps a *_STATUS.md.
 - **Reorg future pass** (flagged): research_models.py, canvas_models.py, storage/paths/library_* db-adjacent, kg/↔knowledge/ near-duplicate.
 - **Out-of-band decisions still to action:** close empty milestones #231/#205; #4040 Python-deps bump (after hygiene).
+
+## BIG INTEGRATION 2026-07-21 (frontend lanes → main + DMG)
+batch = 789774742 = green-main-reorg(260888564) + sharing(lane/sharing-ux) + sidebar(lane/sidebar-ux) + research(lane/research-agent-ux), all merged 0-conflict (disjoint Swift surfaces). GOAL (Daniel): bring all frontend lanes to origin/main, verify+build all, then build a LOCAL DMG (do NOT post) for Daniel to bug-test.
+PENDING gates before push:
+- sharing xctest (FicheroTests/AgentConsentStoreTests + RemoteClientPairingLibraryConfirmTests) — result $CLAUDE_JOB_DIR/tmp/sharing_test.txt (build already SUCCEEDED).
+- combined Dev Local Swift BUILD of batch 789774742 (sidebar+research+sharing on reorg).
+- sidebar + research view-model tests.
+- #2569 routes reorg (engine, worktree agent-a9ce3c6e3de7b95ea @ acdaa6f91: collection clean 8183, budget ≤850, walker green) — needs FULL PYTHON gate, then merge into batch too.
+ON ALL GREEN → push batch→main + ff-pull ~/code/fichero → build DMG (scripts/build-release.sh or briefcase; local only, don't post).
+Sidebar + research tmux LEFT OPEN per Daniel ("don't close it" — he bug-tests there). Sidebar did native multi-select (da12433e2)+unified node list+#3355+#3390+batch-delete; decisions: #2515→Reader#248, no-clear-selection-on-library-switch. Research did ToolCall spine/Source ledger/Plan tab/Knowledge tab + consolidated fabel doc + delegated chat-zone as #4041-4045.
