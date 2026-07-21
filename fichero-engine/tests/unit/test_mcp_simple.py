@@ -8,7 +8,7 @@ from contextlib import contextmanager
 
 import httpx
 
-from fichero import mcp_simple
+from fichero.mcp import simple as mcp_simple
 from fichero.cli import FicheroClient
 
 EXPECTED_TOOLS = {

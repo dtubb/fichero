@@ -24,7 +24,7 @@ from fichero.workflows.types import (
 )
 from fichero.workflows.tools.mcp import load_mcp_tools_into_registry
 from fichero.workflows.registry import TOOL_DEFS, TOOLS
-from fichero.mcp_manager import MCPServerConfig, get_mcp_manager
+from fichero.mcp.manager import MCPServerConfig, get_mcp_manager
 
 
 # =============================================================================

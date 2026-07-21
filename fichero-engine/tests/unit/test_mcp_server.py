@@ -15,7 +15,7 @@ from urllib.parse import quote
 import httpx
 import pytest
 
-from fichero import mcp_server
+from fichero.mcp import server as mcp_server
 from fichero.cli import FicheroClient, FicheroError
 
 # Every tool the server is expected to expose. Each wraps one FicheroClient

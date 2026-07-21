@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 
 from langchain_core.tools import BaseTool
 
-from fichero.mcp_manager import (
+from fichero.mcp.manager import (
     MCPServerConfig,
     MCPManager,
     get_mcp_manager,
@@ -358,8 +358,8 @@ class TestMCPManager:
         async def mock_create_session(connection):
             yield mock_session
 
-        with patch("fichero.mcp_manager.create_session", mock_create_session):
-            with patch("fichero.mcp_manager.load_mcp_tools", return_value=mock_tools) as mock_load:
+        with patch("fichero.mcp.manager.create_session", mock_create_session):
+            with patch("fichero.mcp.manager.load_mcp_tools", return_value=mock_tools) as mock_load:
                 tools = await manager.load_server_tools("test-server")
 
                 # Verify tools returned
@@ -394,7 +394,7 @@ class TestMCPManager:
         manager._tool_cache["test-server"] = cached_tools
 
         # Should return cached tools without calling MCP
-        with patch("fichero.mcp_manager.create_session") as mock_create:
+        with patch("fichero.mcp.manager.create_session") as mock_create:
             tools = await manager.load_server_tools("test-server")
 
             assert tools == cached_tools
@@ -423,8 +423,8 @@ class TestMCPManager:
         async def mock_create_session(connection):
             yield mock_session
 
-        with patch("fichero.mcp_manager.create_session", mock_create_session):
-            with patch("fichero.mcp_manager.load_mcp_tools", return_value=new_tools):
+        with patch("fichero.mcp.manager.create_session", mock_create_session):
+            with patch("fichero.mcp.manager.load_mcp_tools", return_value=new_tools):
                 tools = await manager.load_server_tools("test-server", force_reload=True)
 
                 # Should get new tools, not cached
@@ -485,8 +485,8 @@ class TestMCPManager:
                 return tools2
             return []
 
-        with patch("fichero.mcp_manager.create_session", mock_create_session):
-            with patch("fichero.mcp_manager.load_mcp_tools", side_effect=mock_load_mcp_tools):
+        with patch("fichero.mcp.manager.create_session", mock_create_session):
+            with patch("fichero.mcp.manager.load_mcp_tools", side_effect=mock_load_mcp_tools):
                 all_tools = await manager.load_all_tools()
 
                 # Should have tools from both enabled servers
@@ -519,8 +519,8 @@ class TestMCPManager:
                 return tools2
             return []
 
-        with patch("fichero.mcp_manager.create_session", mock_create_session):
-            with patch("fichero.mcp_manager.load_mcp_tools", side_effect=mock_load_mcp_tools):
+        with patch("fichero.mcp.manager.create_session", mock_create_session):
+            with patch("fichero.mcp.manager.load_mcp_tools", side_effect=mock_load_mcp_tools):
                 all_tools = await manager.load_all_tools()
 
                 # Should still get tools from server2
@@ -538,8 +538,8 @@ class TestSingleton:
     def test_get_mcp_manager_returns_same_instance(self):
         """Test that get_mcp_manager() returns the same instance."""
         # Clear global instance first
-        import fichero.mcp_manager
-        fichero.mcp_manager._mcp_manager = None
+        import fichero.mcp.manager
+        fichero.mcp.manager._mcp_manager = None
 
         manager1 = get_mcp_manager()
         manager2 = get_mcp_manager()
@@ -549,8 +549,8 @@ class TestSingleton:
     def test_get_mcp_manager_loads_defaults(self):
         """Test that get_mcp_manager() loads default servers."""
         # Clear global instance first
-        import fichero.mcp_manager
-        fichero.mcp_manager._mcp_manager = None
+        import fichero.mcp.manager
+        fichero.mcp.manager._mcp_manager = None
 
         manager = get_mcp_manager()
 

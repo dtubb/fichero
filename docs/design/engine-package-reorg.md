@@ -382,3 +382,21 @@ no package list drifts. Residual hazards to watch: the `db_migrations`/`migratio
 name collision, the `models/` vs existing `knowledge/` home decision, and the
 handful of flagged kg-vs-llm modules (`pykeen_inference`, `graph_reasoning`) that
 should not be forced into `llm/`.
+
+---
+
+## Decisions (Daniel, 2026-07-21)
+
+1. **`models/` = single package (one home).** Consolidate ALL model types into a new
+   `fichero/models/` package, split into concern submodules (`models/documents.py`,
+   `models/knowledge.py`, `models/research.py`, `models/canvas.py`, `models/hermeneutics.py`,
+   `models/core.py` for the shared `models.py` god-node). RELOCATE `knowledge_models.py`
+   + `hermeneutics_models.py` OUT of `knowledge/` into `models/` so there is a single home
+   (upgrade their weak shims to the `sys.modules`-alias pattern). `models.py` (blast 505)
+   moves LAST, staged with a re-export `models/__init__.py` + incremental call-site migration.
+   Rationale: matches #2566's "where does a new model go" goal; common in pydantic/FastAPI.
+2. **Migrations → `db/migrations/` PACKAGE (directory).** `db_migrations.py` + `migrations.py`
+   split into modules inside `db/migrations/` (e.g. `schema.py`, `data.py`), Django-style.
+   Resolves the name collision + makes room for per-migration files later.
+3. **`pykeen_inference.py` + `graph_reasoning.py` → `kg/`** (KG reasoning, not `llm/`).
+4. `spatial_models.py` does not exist — the issue meant `canvas_models.py` → `models/canvas.py`.

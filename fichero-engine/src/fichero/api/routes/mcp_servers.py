@@ -15,7 +15,7 @@ from fichero.api.routes.auth_accounts import (
 )
 from fichero.app_db import get_app_db
 from fichero.models import MCPServer
-# NOTE: fichero.mcp_manager is imported inside the handlers, not here (#3950).
+# NOTE: fichero.mcp.manager is imported inside the handlers, not here (#3950).
 # It pulls langchain_mcp_adapters -> mcp + langgraph, which the engine paid for
 # at startup just to register this router. MCPServerConfig is referenced below
 # only as a STRING annotation on a private helper, so it is never evaluated at
@@ -23,7 +23,7 @@ from fichero.models import MCPServer
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - import-time typing only
-    from fichero.mcp_manager import MCPServerConfig
+    from fichero.mcp.manager import MCPServerConfig
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(_require_authenticated_or_bootstrap)])
 
@@ -151,11 +151,11 @@ def get_mcp_manager():
     """Return the MCP manager singleton, importing mcp_manager on first call.
 
     A passthrough so the ~7 call sites below stay unchanged while the import
-    itself moves off the startup path (#3950). fichero.mcp_manager pulls
+    itself moves off the startup path (#3950). fichero.mcp.manager pulls
     langchain_mcp_adapters -> mcp + langgraph; nothing here needs it until a
     request actually touches an MCP server.
     """
-    from fichero.mcp_manager import get_mcp_manager as _get_mcp_manager
+    from fichero.mcp.manager import get_mcp_manager as _get_mcp_manager
 
     return _get_mcp_manager()
 
@@ -163,7 +163,7 @@ def get_mcp_manager():
 def _server_to_config(server: MCPServer) -> "MCPServerConfig":
     """Convert MCPServer model to MCPServerConfig."""
     # Imported here rather than at module scope: pulls mcp + langgraph (#3950).
-    from fichero.mcp_manager import MCPServerConfig
+    from fichero.mcp.manager import MCPServerConfig
 
     return MCPServerConfig(
         name=server.name,

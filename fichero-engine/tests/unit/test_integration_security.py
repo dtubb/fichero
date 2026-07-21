@@ -86,7 +86,7 @@ class TestMCPAuthorization:
 
     def test_mcp_sends_bearer_token(self):
         """HIGH-2: MCP client should authenticate with a Bearer token."""
-        from fichero import mcp_server
+        from fichero.mcp import server as mcp_server
 
         with patch.dict(os.environ, {"FICHERO_API_KEY": "test-api-key-12345"}):
             client = mcp_server._client()
@@ -100,7 +100,7 @@ class TestMCPAuthorization:
 
     def test_mcp_reads_api_key_from_environment(self):
         """HIGH-2: MCP client should read the token from the environment."""
-        from fichero import mcp_server
+        from fichero.mcp import server as mcp_server
 
         with patch.dict(os.environ, {"FICHERO_API_KEY": "env-api-key"}):
             client = mcp_server._client()
@@ -114,7 +114,7 @@ class TestMCPAuthorization:
 
     def test_mcp_warns_without_token(self, tmp_path):
         """HIGH-2: MCP server should warn at startup when no token is configured."""
-        from fichero import mcp_server
+        from fichero.mcp import server as mcp_server
         from fichero.cli import client as client_module
 
         with patch.dict(os.environ, {}, clear=True):

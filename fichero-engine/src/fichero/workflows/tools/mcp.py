@@ -15,7 +15,7 @@ from langchain_core.tools import BaseTool
 
 from fichero.workflows.types import State, PortDef, DataType, ToolDef
 from fichero.workflows.registry import TOOL_DEFS, TOOLS
-from fichero.mcp_manager import get_mcp_manager
+from fichero.mcp.manager import get_mcp_manager
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
