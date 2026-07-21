@@ -53,6 +53,19 @@ Branch `lane/sidebar-ux`. Worktree `~/code/fichero-worktrees/sidebar`. Do NOT pu
   #2491 right-align count.  ← NEXT
 - **3.** Batch **actions**: delete / open-in-tabs over the multi-selection set.
 
+## Critic pass on item 1 (findings verified as PRE-EXISTING, not regressions)
+A `critic` reviewed the collapse. Both flagged issues were checked against the pre-change
+code (`edd399fbe^`) and are behavior-preserving in my diff — carry as follow-ups:
+- **Schedules+triggers drag-snap**: dragging an automation row shows the move indicator
+  then snaps back (`handleUnifiedRowsMove` `default: return`). The OLD Automation section
+  rendered the identical `scheduleItems + triggerItems` mixed block, so no change. Fix in
+  **item 2** (drag-drop): `.moveDisabled(true)` on non-reorderable kinds.
+- **`workflowItems` bucket computed but never rendered**: also true before the collapse
+  (only used in `totalCount`). Verify it's always empty per-library, then delete the
+  bucket. Follow-up.
+- **`unifiedSectionExpansionStates`** left as dead persistence on SidebarState — file a
+  cleanup ticket (harmless).
+
 ## Decisions for Daniel
 - **#2515** moved to **Reader View — Page (#248)** ✓ (was mis-filed under Sidebar #116).
 - On library switch I deliberately DON'T clear the multi-selection (disagreed with
