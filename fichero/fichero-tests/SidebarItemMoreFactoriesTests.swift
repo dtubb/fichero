@@ -132,4 +132,31 @@ final class SidebarItemMoreFactoriesTests: XCTestCase {
         XCTAssertTrue(item.showProgress)
         XCTAssertEqual(item.category, .activity)
     }
+
+    // MARK: - supportsSidebarReorder
+
+    /// Only kinds `handleUnifiedRowsMove` dispatches allow reorder drag; the
+    /// rest disable it so they don't show a snap-back insertion indicator.
+    func testSupportsSidebarReorderMatchesHandledKinds() {
+        // Reorderable: workflows / chains (documents / folders / searches
+        // covered in SidebarItemTests).
+        XCTAssertTrue(SidebarItem.fromChain(WorkflowChain(id: "c-1", name: "C"), libraryId: libId)
+            .supportsSidebarReorder)
+
+        // Non-reorderable: schedule, trigger, batch, comparison, activityRun.
+        let schedule = ScheduleInfo(
+            scheduleId: "s-1", name: "Daily", workflowId: "wf", scheduleType: "cron",
+            cronExpression: "0 9 * * *", intervalSeconds: nil, runAt: nil, timezone: "UTC",
+            status: "active", inputs: nil, useBatch: false, batchItems: nil, maxConcurrent: 1,
+            createdAt: "", updatedAt: "", lastRunAt: nil, nextRunAt: nil, runCount: 0, errorMessage: nil
+        )
+        XCTAssertFalse(SidebarItem.fromSchedule(schedule, libraryId: libId).supportsSidebarReorder)
+
+        let batch = BatchInfo(
+            batchId: "b-1", workflowId: "wf", status: "running", totalItems: 1, completedItems: 0,
+            failedItems: 0, maxConcurrent: 1, createdAt: "", startedAt: nil, completedAt: nil,
+            errorMessage: nil, items: nil
+        )
+        XCTAssertFalse(SidebarItem.fromBatch(batch, libraryId: libId).supportsSidebarReorder)
+    }
 }

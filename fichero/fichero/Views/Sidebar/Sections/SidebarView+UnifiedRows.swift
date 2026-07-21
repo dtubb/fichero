@@ -134,7 +134,10 @@ extension SidebarView {
         .contentShape(Rectangle())
         .draggable(item.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(id: item.id))
         .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
-        .moveDisabled(item.icon == "tray.fill")
+        // Inbox is anchored (#621); non-reorderable kinds (schedules, triggers,
+        // conversations…) disable the move drag so they don't show a system
+        // insertion indicator that snaps back with no effect.
+        .moveDisabled(item.icon == "tray.fill" || !item.supportsSidebarReorder)
         .tag(item.destination)
 
         row

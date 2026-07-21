@@ -79,6 +79,20 @@ struct SidebarItem: Identifiable, Hashable {
         SidebarDestination(serializedID: id) ?? .document(id)
     }
 
+    /// Whether this row can actually be reordered by dragging in the sidebar.
+    /// Mirrors the kinds `handleUnifiedRowsMove` dispatches (documents/folders,
+    /// saved searches, workflows/chains); everything else has no reorder
+    /// endpoint, so its rows disable the move drag rather than show a system
+    /// insertion indicator that snaps back with no effect.
+    var supportsSidebarReorder: Bool {
+        switch itemType {
+        case .document, .savedSearch, .workflow, .chain, .folder:
+            return true
+        case .conversation, .comparison, .schedule, .trigger, .batch, .activityRun, .libraryHeader:
+            return false
+        }
+    }
+
     /// What kind of items can this item accept as drop targets, if any?
     ///
     /// Returns:
