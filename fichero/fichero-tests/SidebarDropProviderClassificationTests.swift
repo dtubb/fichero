@@ -52,4 +52,13 @@ struct SidebarDropProviderClassificationTests {
     func emptyProvidersUnsupported() {
         #expect(classifySidebarDropProviders([]) == .unsupported)
     }
+
+    @Test("#3390 sidebar rows accept file-url drops (not just .item)")
+    func rowsAcceptFileURLDrops() {
+        // A Finder file drag (e.g. a PDF) advertises public.file-url, which does
+        // NOT conform to public.item — so accepting `.item` alone left file drops
+        // dead. The row must accept `.fileURL` like the library header does.
+        #expect(SidebarItemRow.dropTypes.contains(.fileURL))
+        #expect(SidebarItemRow.dropTypes.contains(.utf8PlainText))
+    }
 }
