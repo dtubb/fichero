@@ -137,6 +137,11 @@ it also unblocks 2496 (selection ergonomics).
 
 **Phase 2 (this lane, now): contiguous / multi-select.** Adopt native
 `List(selection: Set<SidebarDestination>)`. Detail below §6. Ships with unit tests.
+**Ship gate (manual, manager build):** shift-click range must be verified across
+the Library / Automation / Saved-Searches DisclosureGroup boundaries and the
+pinned global rows — the one thing native selection may not handle in a nested
+tree. If range breaks at a boundary, promote a pure `contiguousRange(from:to:in:
+[flattenedIDs])` helper into scope before merge (§6.3).
 
 Then, in rough order (separate commits, design-doc already grounds them):
 
@@ -212,7 +217,25 @@ collapse rules. Extract them as free functions (mirroring the existing
 for shift-range, add a pure `contiguousRange(from:to:in: [flattenedIDs])` helper
 and test it — but not before it's needed (YAGNI).
 
-### 6.4 Blast radius
+### 6.4 As-built refinements (from the fabel critic pass)
+
+A critic review of this plan surfaced three correctness issues, all fixed in the
+shipped code:
+
+- **No `didSet`.** An earlier sketch synced the set from a `didSet` on
+  `selectedDestination`; during a batch selection the List binding legitimately
+  holds `selectedDestinations != [primary]`, so a force-syncing didSet would
+  clobber the multi-row set. The two write seams (the `selectedItemId` setter and
+  the List binding) sync explicitly instead, each in a fixed order (set first,
+  then derive primary).
+- **Primary never points at an unhighlighted row.** `sidebarPrimaryDestination`
+  falls back to a remaining set member when the previous primary was just
+  deselected from a 3+ selection (not blindly `previous`).
+- **Tap fallback bails on modifier keys.** The `#645/#1165` plain-click fallback
+  writes a *single* selection; it now returns early when Cmd/Shift is held so it
+  can't collapse a native multi-select gesture.
+
+### 6.5 Blast radius
 
 `selectedDestination` / `selectedItemId` keep their API, so the ~25 external
 writers (mostly `ContentView+*` navigation/persistence, creation handlers) are
