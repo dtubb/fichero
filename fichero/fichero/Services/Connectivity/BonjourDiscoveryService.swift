@@ -9,6 +9,11 @@ struct BonjourHostRecord: Identifiable, Equatable {
     let id: String
     let displayName: String
     let reachableURL: String?
+    /// True once resolution FAILED for this service (#3371). Distinct from
+    /// "not resolved yet" (`reachableURL == nil` with this false) so the UI can
+    /// tell "searching…" apart from "found it but couldn't reach it" and fail
+    /// visibly instead of silently offering an unusable candidate.
+    var didFailResolve: Bool = false
 
     var hasReachableURL: Bool {
         guard let reachableURL else { return false }
@@ -105,7 +110,8 @@ final class BonjourDiscoveryService: NSObject, ObservableObject {
         records[id] = BonjourHostRecord(
             id: id,
             displayName: sender.name,
-            reachableURL: nil
+            reachableURL: nil,
+            didFailResolve: true
         )
         refreshHosts()
     }

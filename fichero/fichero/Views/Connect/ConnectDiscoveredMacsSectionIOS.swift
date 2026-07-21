@@ -24,15 +24,13 @@ struct DiscoveredMacsSection: View {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(host.displayName)
-                                Text(host.hasReachableURL
-                                    ? "On your network — scan its QR code to pair"
-                                    : "Found — scan its QR code to pair")
+                                Text(subtitle(for: host))
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(host.didFailResolve ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                             }
                         } icon: {
-                            Image(systemName: "desktopcomputer")
-                                .foregroundStyle(Color.accentColor)
+                            Image(systemName: host.didFailResolve ? "exclamationmark.triangle" : "desktopcomputer")
+                                .foregroundStyle(host.didFailResolve ? Color.orange : Color.accentColor)
                         }
                     }
                     .disabled(isPairing)
@@ -41,6 +39,19 @@ struct DiscoveredMacsSection: View {
         } header: {
             Text("Connect to your Mac")
         }
+    }
+
+    /// Distinguish the three discovery states so a candidate never lies about
+    /// being reachable (#3371): resolved, resolve-failed (visible), or still
+    /// resolving.
+    private func subtitle(for host: BonjourHostRecord) -> String {
+        if host.hasReachableURL {
+            return "On your network — scan its QR code to pair"
+        }
+        if host.didFailResolve {
+            return "Couldn't reach it — make sure it's on and sharing, then try again"
+        }
+        return "Found — scan its QR code to pair"
     }
 }
 #endif

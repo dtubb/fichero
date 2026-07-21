@@ -23,11 +23,24 @@ private struct PairingInviteLink {
     }()
 }
 
+/// The universal-link form of a pairing invite (#3791): `https://fichero.app/pair?payload=…`.
+/// Same `payload` query as the custom-scheme link — the domain is only a name
+/// the app claims via Associated Domains so a tapped link resolves even where the
+/// `fichero://` scheme isn't registered (e.g. Mail on a colleague's device). The
+/// token is still redeemed peer-to-peer against the host in the payload, never
+/// against the domain.
+private struct PairingUniversalLink {
+    static let scheme = "https"
+    static let host = "fichero.app"
+    static let path = "/pair"
+}
+
 enum RemoteClientPairingError: LocalizedError, Equatable {
     case missingPairCode
     case missingDeviceName
     case missingLibraryPath
     case invalidInviteLink
+    case libraryPathNotConfirmed
 
     var errorDescription: String? {
         switch self {
@@ -39,6 +52,9 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
             return "This QR code does not include a shared library. Show a new QR code on the Mac."
         case .invalidInviteLink:
             return "The invite link is incomplete or invalid."
+        case .libraryPathNotConfirmed:
+            return "The Mac did not confirm access to the library named in this QR code. "
+                + "Show a fresh QR code on the Mac and scan it again."
         }
     }
 }
@@ -105,8 +121,7 @@ enum RemoteClientPairing {
 
     private static func payloadFromInviteLink(_ message: String) -> PairingQRCodePayload? {
         guard let url = URL(string: message),
-              url.scheme?.lowercased() == PairingInviteLink.scheme,
-              url.host?.lowercased() == PairingInviteLink.host,
+              isPairingInviteLink(url),
               let encodedPayload = queryValue(named: PairingInviteLink.payloadQueryItem, in: url),
               let data = Data(base64Encoded: encodedPayload),
               let payload = try? JSONDecoder.withISO8601Dates.decode(PairingQRCodePayload.self, from: data) else {
@@ -117,8 +132,26 @@ enum RemoteClientPairing {
 
     private static func looksLikeInviteLink(_ message: String) -> Bool {
         guard let url = URL(string: message) else { return false }
-        return url.scheme?.lowercased() == PairingInviteLink.scheme
+        return isPairingInviteLink(url)
+    }
+
+    /// Whether `url` is a pairing invite in EITHER form — the custom
+    /// `fichero://pair` scheme or the `https://fichero.app/pair` universal link
+    /// (#3791). The app's `onOpenURL` handlers route on this so both forms reach
+    /// the same pairing flow. Public within the target so `FicheroApp` can call it.
+    static func isPairingInviteLink(_ url: URL) -> Bool {
+        isCustomSchemeInvite(url) || isUniversalLinkInvite(url)
+    }
+
+    private static func isCustomSchemeInvite(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == PairingInviteLink.scheme
             && url.host?.lowercased() == PairingInviteLink.host
+    }
+
+    private static func isUniversalLinkInvite(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == PairingUniversalLink.scheme
+            && url.host?.lowercased() == PairingUniversalLink.host
+            && url.path.lowercased() == PairingUniversalLink.path
     }
 
     private static func queryValue(named name: String, in url: URL) -> String? {
@@ -216,8 +249,70 @@ enum RemoteClientPairing {
             deviceName: deviceName,
             expectedSPKIPin: expectedSPKIPin
         )
+        let normalizedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(expectedSPKIPin)
+        // #3372: the QR/deep-link carries `libraryPath`, but that value is
+        // attacker-supplied — nothing in the exchange so far proves the Mac
+        // actually shares it with this device. Confirm it against the server's
+        // own accessible-library set (GET /api/authz/libraries) BEFORE persisting
+        // it, so a forged path can never be written to disk. The authenticated
+        // confirm call needs the device token in the Keychain, so persist the
+        // token first; if confirmation fails, clear it — never leave a
+        // half-persisted pairing behind.
+        try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
+        do {
+            try await confirmLibraryAccess(
+                libraryPath: libraryPath,
+                apiRoot: result.apiRoot,
+                expectedSPKIPin: normalizedSPKIPin
+            )
+        } catch {
+            AuthTokenMiddleware.clearRemoteToken(hostString: result.apiRoot.absoluteString)
+            throw error
+        }
         try persistPairedHost(result, expectedSPKIPin: expectedSPKIPin, libraryPath: libraryPath)
         return result.apiRoot
+    }
+
+    /// #3372: verify the paired credential can actually access `libraryPath`
+    /// before it is persisted. A `nil`/empty advertised path (manual host entry,
+    /// no library on the QR) has nothing to confirm — the library picker, which
+    /// hits the same endpoint, gates access later. When a path IS advertised it
+    /// must appear in the server's accessible-library set or pairing is rejected.
+    @MainActor
+    static func confirmLibraryAccess(
+        libraryPath: String?,
+        apiRoot: URL,
+        expectedSPKIPin: String
+    ) async throws {
+        guard normalizedLibraryPath(libraryPath) != nil else { return }
+        let accessible = try await PairingService(apiRoot: apiRoot, expectedSPKIPin: expectedSPKIPin)
+            .accessibleLibraryPaths()
+        guard isLibraryConfirmed(advertised: libraryPath, in: accessible) else {
+            throw RemoteClientPairingError.libraryPathNotConfirmed
+        }
+    }
+
+    /// Pure decision: is the QR-advertised `advertised` library among the paths
+    /// the server says this credential may access? A `nil`/empty advertised path
+    /// is treated as "nothing to confirm" (true). Kept separate so the security
+    /// decision is unit-testable without a live server (#3372).
+    static func isLibraryConfirmed(advertised: String?, in accessible: [String]) -> Bool {
+        guard let advertised = normalizedLibraryPath(advertised) else { return true }
+        return accessible.contains { libraryPathsMatch($0, advertised) }
+    }
+
+    private static func libraryPathsMatch(_ lhs: String, _ rhs: String) -> Bool {
+        // Lexically standardize (drops trailing slash, `.`/`..`), then compare
+        // case-insensitively: the default macOS APFS volume is case-insensitive,
+        // so `/Users/Daniel/…` and `/Users/daniel/…` are the same library — a
+        // case-sensitive `==` would fail-closed-reject a legitimate pairing. The
+        // check stays sound: paths differing only in case ARE the same file on
+        // such a volume, so matching them is correct, not a weakening.
+        func canonical(_ path: String) -> String {
+            URL(fileURLWithPath: path.trimmingCharacters(in: .whitespacesAndNewlines))
+                .standardizedFileURL.path
+        }
+        return canonical(lhs).compare(canonical(rhs), options: .caseInsensitive) == .orderedSame
     }
 
     @MainActor
