@@ -52,6 +52,17 @@ final class ToolCallTests: XCTestCase {
         XCTAssertFalse(ToolCall(actionName: "x", actor: "chat", auditId: "").isAudited)
     }
 
+    func testUnrecordedMutationOnlyFiresForKnownWrites() {
+        // Known write, no record → raise.
+        XCTAssertTrue(ToolCall(actionName: "w", actor: "chat", isMutation: true).isUnrecordedMutation)
+        // Known write, recorded → fine.
+        XCTAssertFalse(ToolCall(actionName: "w", actor: "chat", auditId: "a", isMutation: true).isUnrecordedMutation)
+        // A read with no record → never cry wolf.
+        XCTAssertFalse(ToolCall(actionName: "r", actor: "chat", isMutation: false).isUnrecordedMutation)
+        // Unknown mutation-ness (today's engine) → don't cry wolf.
+        XCTAssertFalse(ToolCall(actionName: "r", actor: "chat").isUnrecordedMutation)
+    }
+
     func testParamsSummaryIsSortedAndStable() {
         let call = ToolCall(
             actionName: "document.move",

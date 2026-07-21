@@ -70,22 +70,26 @@ struct ToolCallCard: View {
         }
     }
 
-    /// Audited → a badge with the audit id; a mutating-looking call with no
-    /// audit id is the invariant we surface loudly (unaudited write, #1848).
+    /// Provenance in plain language: a recorded action is in the app's history
+    /// (attributable + undoable via the one audited action layer, #1848); a
+    /// write with no record slipped past it and is surfaced loudly, matching
+    /// prefer-raise-over-silent. ("audited" is engine jargon — the user sees
+    /// "recorded".)
     @ViewBuilder
     private var provenanceBadge: some View {
         if toolCall.isAudited {
-            Label("audited", systemImage: "checkmark.seal")
+            Label("recorded", systemImage: "clock.arrow.circlepath")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .labelStyle(.titleAndIcon)
-                .help("Audited action \(toolCall.auditId ?? "")")
-        } else {
-            Label("no audit", systemImage: "exclamationmark.shield")
+                .help("Recorded in history — who did it, and undoable (\(toolCall.auditId ?? ""))")
+        } else if toolCall.isUnrecordedMutation {
+            // Only a KNOWN write with no record — never a read (no crying wolf).
+            Label("not recorded", systemImage: "exclamationmark.shield")
                 .font(.caption2)
                 .foregroundStyle(.orange)
                 .labelStyle(.titleAndIcon)
-                .help("This action has no audit trail")
+                .help("This change left no history entry — it isn't attributable or undoable")
         }
     }
 }

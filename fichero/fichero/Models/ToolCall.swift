@@ -34,8 +34,14 @@ struct ToolCall: Identifiable, Codable, Hashable {
     var actor: String
 
     /// The `ActionAudit` row id. **Required for mutating calls** — a mutation
-    /// without an `auditId` is unaudited and violates #1848; the card flags it.
+    /// without an `auditId` is unrecorded and violates #1848; the card flags it.
     var auditId: String?
+
+    /// Whether this call mutated state, per the engine. nil = unknown (today —
+    /// the engine doesn't mark it yet). Reads legitimately have no record, so the
+    /// UI only raises the "not recorded" flag when this is explicitly true — no
+    /// crying wolf on reads.
+    var isMutation: Bool?
 
     var status: Status
 
@@ -55,6 +61,7 @@ struct ToolCall: Identifiable, Codable, Hashable {
         case params
         case actor
         case auditId = "audit_id"
+        case isMutation = "is_mutation"
         case status
     }
 
@@ -67,6 +74,7 @@ struct ToolCall: Identifiable, Codable, Hashable {
         params: [String: AnyCodable]? = nil,
         actor: String,
         auditId: String? = nil,
+        isMutation: Bool? = nil,
         status: Status = .ok
     ) {
         self.id = id
@@ -77,6 +85,7 @@ struct ToolCall: Identifiable, Codable, Hashable {
         self.params = params
         self.actor = actor
         self.auditId = auditId
+        self.isMutation = isMutation
         self.status = status
     }
 }
@@ -84,9 +93,13 @@ struct ToolCall: Identifiable, Codable, Hashable {
 // MARK: - Display helpers
 
 extension ToolCall {
-    /// True when this call carries an audit trail. A mutating call without one is
-    /// the invariant we surface (see `isUnauditedMutation`).
+    /// True when this call is recorded in history (carries an audit id).
     var isAudited: Bool { auditId?.isEmpty == false }
+
+    /// A write the engine confirmed mutated state but that left no history
+    /// entry — the invariant we raise loudly (prefer-raise-over-silent, #1848).
+    /// Only true when mutation is *known*; nil/false mutation never cries wolf.
+    var isUnrecordedMutation: Bool { isMutation == true && !isAudited }
 
     /// SF Symbol for the current status.
     var statusIcon: String {
