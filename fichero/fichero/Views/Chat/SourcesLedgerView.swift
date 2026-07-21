@@ -11,7 +11,7 @@ struct SourcesLedgerView: View {
     let entries: [SourceLedgerEntry]
 
     private var grouped: [(kind: SourceLedgerEntry.Kind, entries: [SourceLedgerEntry])] {
-        [.document, .research, .knowledge].compactMap { kind in
+        [SourceLedgerEntry.Kind.document, .research, .knowledge].compactMap { kind in
             let matches = entries.filter { $0.kind == kind }
             return matches.isEmpty ? nil : (kind, matches)
         }
