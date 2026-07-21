@@ -48,7 +48,6 @@ _RAW_SESSION_RE = re.compile(
 # generated ops then delete the entry.
 GRANDFATHERED_FILES: set[str] = {
     # KEEP
-    "Services/EngineReadinessProbe.swift",      # readiness bootstrap: probes health/registry over RemoteCertificatePinning before the generated client is usable (#3106)
     # FALSE POSITIVES of the `.data(for:` pattern — these call
     # PDFDocumentCache.data(for:) (the shared #3209 PDF byte cache, which itself
     # fetches through StorageServiceGenerated), NOT URLSession.data(for:). Neither

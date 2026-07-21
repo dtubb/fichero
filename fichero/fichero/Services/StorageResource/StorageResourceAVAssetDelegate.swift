@@ -68,7 +68,7 @@ final class StorageResourceAVAssetDelegate: NSObject, AVAssetResourceLoaderDeleg
         Task { [weak self] in
             guard let self else { return }
             do {
-                let data = try await self.data(for: url)
+                let data = try await self.bufferedData(for: url)
                 self.fulfil(transfer.value, with: data)
             } catch {
                 logger.error("fichero-res media load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
@@ -79,7 +79,7 @@ final class StorageResourceAVAssetDelegate: NSObject, AVAssetResourceLoaderDeleg
     }
 
     /// Fetch (once) and buffer the full source bytes for `url`.
-    private func data(for url: URL) async throws -> Data {
+    private func bufferedData(for url: URL) async throws -> Data {
         // Decide under the lock: serve the buffer, join the in-flight fetch, or
         // start one (created + stored atomically so two callers can't both fetch).
         let outcome: FetchOutcome = state.withLock { current in
