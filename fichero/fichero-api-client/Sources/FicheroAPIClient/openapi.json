@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.7.19"
+    "version": "2026.7.20b1"
   },
   "paths": {
     "/api/health": {
@@ -3372,7 +3372,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__ProjectStatus",
+              "$ref": "#/components/schemas/fichero__models__knowledge__ProjectStatus",
               "nullable": true,
               "title": "Status"
             }
@@ -10026,7 +10026,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
+              "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
               "nullable": true,
               "title": "Entity Type"
             }
@@ -10160,7 +10160,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
+              "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
               "nullable": true,
               "title": "Entity Type"
             }
@@ -23842,7 +23842,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
+              "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
               "nullable": true,
               "title": "Entity Type"
             }
@@ -27642,7 +27642,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__research_models__ProjectStatus",
+              "$ref": "#/components/schemas/fichero__models__research__ProjectStatus",
               "nullable": true,
               "title": "Status"
             }
@@ -43740,7 +43740,7 @@
             "title": "Canonical Name"
           },
           "entity_type": {
-            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
+            "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
             "nullable": true
           },
           "aliases": {
@@ -43844,7 +43844,7 @@
             "title": "Match Canonical Name"
           },
           "match_entity_type": {
-            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
+            "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
             "nullable": true
           },
           "target_canonical_name": {
@@ -43853,7 +43853,7 @@
             "title": "Target Canonical Name"
           },
           "target_entity_type": {
-            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
+            "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
             "nullable": true
           },
           "reason": {
@@ -44100,7 +44100,7 @@
             "title": "Canonical Name"
           },
           "entity_type": {
-            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__EntityType",
+            "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
             "default": "other"
           },
           "aliases": {
@@ -54172,7 +54172,7 @@
             "title": "Icon"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__ProjectStatus",
+            "$ref": "#/components/schemas/fichero__models__knowledge__ProjectStatus",
             "default": "active"
           },
           "members": {
@@ -54325,7 +54325,7 @@
             "title": "Icon"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__ProjectStatus",
+            "$ref": "#/components/schemas/fichero__models__knowledge__ProjectStatus",
             "nullable": true
           },
           "members": {
@@ -54353,7 +54353,7 @@
             "title": "Description"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__research_models__ProjectStatus",
+            "$ref": "#/components/schemas/fichero__models__research__ProjectStatus",
             "nullable": true
           },
           "library_destination_folder_id": {
@@ -56352,7 +56352,7 @@
             "default": ""
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__research_models__ProjectStatus",
+            "$ref": "#/components/schemas/fichero__models__research__ProjectStatus",
             "default": "active"
           },
           "created_by": {
@@ -63439,7 +63439,7 @@
             "title": "Icon"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__knowledge__knowledge_models__ProjectStatus",
+            "$ref": "#/components/schemas/fichero__models__knowledge__ProjectStatus",
             "default": "active"
           },
           "members": {
@@ -63635,29 +63635,6 @@
         "title": "ToolListResponse",
         "description": "All tools by category (standardized {items, count} envelope; items\nare per-category groups)."
       },
-      "fichero__knowledge__knowledge_models__EntityType": {
-        "type": "string",
-        "enum": [
-          "person",
-          "location",
-          "organization",
-          "event",
-          "concept",
-          "citation",
-          "other"
-        ],
-        "title": "EntityType"
-      },
-      "fichero__knowledge__knowledge_models__ProjectStatus": {
-        "type": "string",
-        "enum": [
-          "active",
-          "archived",
-          "shipped"
-        ],
-        "title": "ProjectStatus",
-        "description": "Lifecycle of a research workspace (#918)."
-      },
       "fichero__models__DeleteModelResponse": {
         "properties": {
           "status": {
@@ -63699,7 +63676,30 @@
         "title": "DocumentListResponse",
         "description": "Standardized envelope for document list endpoints (GET /api/documents,\n/collections, /roots, /{id}/children, /{id}/ancestors)."
       },
-      "fichero__research_models__ProjectStatus": {
+      "fichero__models__knowledge__EntityType": {
+        "type": "string",
+        "enum": [
+          "person",
+          "location",
+          "organization",
+          "event",
+          "concept",
+          "citation",
+          "other"
+        ],
+        "title": "EntityType"
+      },
+      "fichero__models__knowledge__ProjectStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "archived",
+          "shipped"
+        ],
+        "title": "ProjectStatus",
+        "description": "Lifecycle of a research workspace (#918)."
+      },
+      "fichero__models__research__ProjectStatus": {
         "type": "string",
         "enum": [
           "active",

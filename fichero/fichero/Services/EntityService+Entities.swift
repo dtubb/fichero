@@ -12,7 +12,7 @@ extension EntityService {
     ///   - query: free-text query against canonical_name + aliases (nil for none)
     ///   - limit: page size
     func listEntities(
-        entityType: Components.Schemas.FicheroKnowledgeKnowledgeModelsEntityType? = nil,
+        entityType: Components.Schemas.FicheroModelsKnowledgeEntityType? = nil,
         query: String? = nil,
         limit: Int = 100
     ) async throws -> [Components.Schemas.KnowledgeEntity] {

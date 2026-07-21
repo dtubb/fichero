@@ -20,7 +20,7 @@ extension EntityService {
         var body = Components.Schemas.EntityPatchRequest()
         body.canonicalName = canonicalName
         body.entityType = entityType.flatMap {
-            Components.Schemas.FicheroKnowledgeKnowledgeModelsEntityType(rawValue: $0)
+            Components.Schemas.FicheroModelsKnowledgeEntityType(rawValue: $0)
         }
         body.aliases = aliases
         body.description = description
@@ -169,7 +169,7 @@ extension EntityService {
         aliases: [String] = []
     ) async throws -> Components.Schemas.KnowledgeEntity {
         let typeEnum = entityType.flatMap {
-            Components.Schemas.FicheroKnowledgeKnowledgeModelsEntityType(rawValue: $0)
+            Components.Schemas.FicheroModelsKnowledgeEntityType(rawValue: $0)
         }
         var body = Components.Schemas.EntityUpsertRequest(canonicalName: name)
         body.entityType = typeEnum
