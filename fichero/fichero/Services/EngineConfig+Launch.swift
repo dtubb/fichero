@@ -1,6 +1,5 @@
 import FicheroAPIClient
 import Foundation
-import FicheroAPIClient
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -39,7 +38,9 @@ extension EngineConfig {
             return .uds(path: socketPath)
         }
 
-        return .https
+        // No override: fall through to the production strategy → transport
+        // mapping (only `.releaseEmbedded` dials UDS; all else stays HTTPS).
+        return transportMode(for: engineProvisioningStrategy())
     }
 
     /// Treats common truthy spellings ("1", "true", "yes", "on") as enabled so
@@ -215,21 +216,6 @@ extension EngineConfig {
         // over the limit (pathological container prefix), that's a real bug.
         assert(path.utf8.count <= 104, "UDS socket path exceeds sun_path limit: \(path)")
         return path
-    }
-
-    /// Which transport the app client dials the engine with, derived from the
-    /// live provisioning strategy. Impure boundary around the pure
-    /// `transportMode(for:)`, mirroring `engineProvisioningStrategy()`.
-    static var transportMode: TransportMode {
-        // Debug/testing hook: force UDS at a given socket so the transport can be
-        // exercised without a Release build (only `.releaseEmbedded` natively
-        // dials UDS). Run an external engine with the same `FICHERO_UDS_PATH`,
-        // then launch the app with `FICHERO_FORCE_UDS_PATH` set to that path.
-        if let forced = ProcessInfo.processInfo.environment["FICHERO_FORCE_UDS_PATH"],
-           !forced.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return .uds(path: forced)
-        }
-        return transportMode(for: engineProvisioningStrategy())
     }
 
     /// Pure strategy → transport mapping, dependency-injected so all five cases
