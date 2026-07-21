@@ -88,7 +88,12 @@ ENGINE_PYTHON=""
 # Bytecode magic is per minor version: Python 3.13 .pyc would be ignored by
 # the bundled 3.12 runtime, so accept only an executable Python 3.12.
 for candidate in \
+  "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/3.12/bin/python3.12" \
   "$ENGINE_APP/Contents/Frameworks/Python.framework/Versions/3.12/Python" \
+  "${FICHERO_PYTHON_BIN:-}" \
+  "${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}" \
+  "${SRCROOT:+$SRCROOT/../.venv/bin/python}" \
+  "${SRCROOT:+$SRCROOT/../fichero-engine/.venv/bin/python}" \
   "$(command -v python3.12 || true)" \
   "$(command -v python3 || true)"; do
   if [ -n "$candidate" ] && "$candidate" -c 'import sys; raise SystemExit(sys.version_info[:2] != (3, 12))' 2>/dev/null; then
