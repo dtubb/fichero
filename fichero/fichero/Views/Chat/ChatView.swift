@@ -334,8 +334,8 @@ struct ChatView: View {
         case .plan:
             return researchProject == nil ? "Not a workspace yet" : "Plan"
         case .knowledge:
-            let s = ConversationKnowledgeSummary.summarize(currentConversation)
-            return s.isEmpty ? "No knowledge used" : "\(s.entityReferences) entity · \(s.claimReferences) claim references"
+            let summary = ConversationKnowledgeSummary.summarize(currentConversation)
+            return summary.isEmpty ? "No knowledge used" : "\(summary.entityReferences) entity · \(summary.claimReferences) claim references"
         case .compare:
             return "Compare agents / models"
         }

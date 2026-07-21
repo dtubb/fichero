@@ -40,6 +40,12 @@ extension EngineConfig {
         if let socketPath = env["FICHERO_FORCE_UDS_PATH"], !socketPath.isEmpty {
             return .uds(path: socketPath)
         }
+        // Path-free UDS: the app computes its own container socket path (the same
+        // one the dev pre-action binds), so the Dev Local scheme can request UDS
+        // with a plain `FICHERO_FORCE_UDS=1` and never hardcode a per-user path.
+        if let flag = env["FICHERO_FORCE_UDS"], isTruthy(flag) {
+            return .uds(path: udsSocketPath)
+        }
         return nil
     }
 

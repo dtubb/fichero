@@ -26,12 +26,12 @@ struct ConversationKnowledgeSummary: Hashable {
         var claims = 0
         for message in conversation.messages {
             guard let retrieval = message.retrieval else { continue }
-            let e = retrieval.kgEntitiesUsed
-            let c = retrieval.kgClaimsUsed
-            if e > 0 || c > 0 {
+            let entitiesUsed = retrieval.kgEntitiesUsed
+            let claimsUsed = retrieval.kgClaimsUsed
+            if entitiesUsed > 0 || claimsUsed > 0 {
                 replies += 1
-                entities += e
-                claims += c
+                entities += entitiesUsed
+                claims += claimsUsed
             }
         }
         return ConversationKnowledgeSummary(

@@ -65,8 +65,8 @@
          <ExecutionAction
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
-               title = "Start Fichero dev engine (UDS)"
-               scriptText = "&quot;${SRCROOT}/../fichero-engine/scripts/dev-uds-engine.sh&quot;&#10;">
+               title = "Start Fichero dev engine (transport = FICHERO_DEV_TRANSPORT)"
+               scriptText = "# Pick ONE transport; it starts exactly that engine, no fallback.&#10;# Keep this word in sync with the enabled FICHERO_FORCE_* env below:&#10;#   uds -> FICHERO_FORCE_UDS=1 | https -> none | inmemory -> FICHERO_FORCE_INMEMORY=1&#10;export FICHERO_DEV_TRANSPORT=uds&#10;&quot;${SRCROOT}/../fichero-engine/scripts/dev-uds-engine.sh&quot;&#10;">
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"
@@ -91,9 +91,14 @@
       </BuildableProductRunnable>
       <EnvironmentVariables>
          <EnvironmentVariable
-            key = "FICHERO_FORCE_UDS_PATH"
-            value = "/tmp/fichero.sock"
+            key = "FICHERO_FORCE_UDS"
+            value = "1"
             isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "FICHERO_FORCE_INMEMORY"
+            value = "1"
+            isEnabled = "NO">
          </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>

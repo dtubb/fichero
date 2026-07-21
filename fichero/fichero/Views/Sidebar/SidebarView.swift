@@ -289,3 +289,28 @@ struct SidebarView: View {
 // View components (sidebarContent, modeContent) are in SidebarView+ViewComponents.swift
 // Selection handling (handleSelection) is in SidebarView+SelectionHandling.swift
 // Environment key (automationRefresh) is in SidebarView+Environment.swift
+#Preview {
+    @Previewable @State var sidebarMode: SidebarMode = .library
+    @Previewable @State var viewMode: AppViewMode = .library(nil)
+
+    let apiClient = APIClient()
+    let selectionState = SidebarSelectionState()
+    let itemRegistry = ItemTypeRegistry()
+
+    NavigationStack {
+        SidebarView(
+            sidebarMode: $sidebarMode,
+            viewMode: $viewMode,
+            selectionState: selectionState,
+            libraryManager: LibraryManager.shared,
+            itemRegistry: itemRegistry,
+            apiClient: apiClient,
+            windowPersistenceId: "preview"
+        )
+    }
+    .environment(AppState())
+    .environment(WindowState(libraryId: UUID()))
+    .environment(apiClient)
+    .environment(WorkflowExecutionObserver())
+}
+
