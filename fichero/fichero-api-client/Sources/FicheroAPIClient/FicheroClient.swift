@@ -1,4 +1,6 @@
+import AsyncHTTPClient
 import Foundation
+import NIOPosix
 import OpenAPIRuntime
 import OpenAPIURLSession
 import OpenAPIAsyncHTTPClient
@@ -196,6 +198,17 @@ public final class FicheroClient: ObservableObject {
         FicheroClient()
     }
 
+    /// Process-wide `HTTPClient` for the `.uds` transport, pinned to a **NIOPosix**
+    /// (BSD-sockets) event loop. AsyncHTTPClient's default `HTTPClient.shared` uses
+    /// `NIOTSEventLoopGroup` (Network.framework) on macOS, whose AF_UNIX
+    /// `NWConnection` flows intermittently fail to establish under Xcode's debug
+    /// launch (the readiness-gate hang this fixes). `MultiThreadedEventLoopGroup`'s
+    /// process-lifetime `.singleton` means this client never needs an explicit
+    /// shutdown. `internal` so `TransportModeTests` can assert the loop is NIOPosix.
+    static let udsHTTPClient = HTTPClient(
+        eventLoopGroupProvider: .shared(MultiThreadedEventLoopGroup.singleton)
+    )
+
     /// Build the transport for a given mode. Pure helper — no static/global
     /// state — so concurrent `FicheroClient`s can use different transports.
     /// `internal` (not `private`) so the transport-selection unit tests can
@@ -208,11 +221,16 @@ public final class FicheroClient: ObservableObject {
             let session = session ?? RemoteCertificatePinning.configuredSession(configuration: configuration)
             return URLSessionTransport(configuration: .init(session: session))
         case .uds:
-            // Plain HTTP/1.1 over the AF_UNIX socket. The socket path is carried
-            // in the (per-request) base URL's `http+unix://` authority — see
-            // `makeServerURL` — so the shared HTTPClient needs no special config
-            // and never needs an explicit shutdown.
-            return AsyncHTTPClientTransport()
+            // Plain HTTP/1.1 over the AF_UNIX socket (path carried in the
+            // `http+unix://` authority — see `makeServerURL`). Dial over a
+            // NIOPosix (BSD-sockets) HTTPClient, NOT AsyncHTTPClient's default
+            // `HTTPClient.shared`: on macOS `.shared` runs on `NIOTSEventLoopGroup`
+            // (Network.framework `NWConnection`), whose AF_UNIX flows intermittently
+            // fail to establish under Xcode's debug launch (LLDB + preview-dylib
+            // injection + contended startup) — "nw_endpoint_flow_failed … / no local
+            // endpoint" — which hangs the readiness gate. NIOPosix does a plain POSIX
+            // connect(), identical to `curl --unix-socket` and the Python engine.
+            return AsyncHTTPClientTransport(configuration: .init(client: udsHTTPClient))
         #if os(macOS)
         case .inMemory:
             // Drive the engine's ASGI app in-process. `InMemoryEngineApp.shared()`

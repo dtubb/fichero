@@ -1,4 +1,6 @@
 import XCTest
+import AsyncHTTPClient
+import NIOPosix
 import OpenAPIRuntime
 import OpenAPIURLSession
 import OpenAPIAsyncHTTPClient
@@ -34,6 +36,21 @@ final class TransportModeTests: XCTestCase {
         XCTAssertTrue(
             transport is AsyncHTTPClientTransport,
             "`.uds` must select the AsyncHTTPClient transport"
+        )
+    }
+
+    func testUDSTransportDialsOverNIOPosixNotNetworkFramework() {
+        // The regression this guards (the readiness-gate hang): AsyncHTTPClient's
+        // default `HTTPClient.shared` uses `NIOTSEventLoopGroup` (Network.framework
+        // NWConnection) on macOS, whose AF_UNIX flows intermittently fail to
+        // establish under Xcode's debug launch. The UDS client MUST dial over a
+        // NIOPosix (BSD-sockets) event loop — a plain POSIX connect(), like
+        // `curl --unix-socket` and the engine. If someone reverts to `.shared`,
+        // the loop becomes NIOTSEventLoopGroup and this fails.
+        XCTAssertTrue(
+            FicheroClient.udsHTTPClient.eventLoopGroup is MultiThreadedEventLoopGroup,
+            "UDS must dial over NIOPosix (BSD sockets), not Network.framework — "
+                + "else AF_UNIX connect starves under the Xcode debug launch"
         )
     }
 
