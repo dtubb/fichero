@@ -53,7 +53,6 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Any, Literal as _Literal
 
-from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import BaseModel
 
 from fichero.llm_models import (  # noqa: F401 (re-exported)
@@ -2149,86 +2148,115 @@ class _AppleStructuredRunnable:
         return asyncio.run(self.ainvoke(input_data, config=config, **kwargs))
 
 
-class ChatAppleIntelligence(BaseChatModel):
-    config: LLMConfig
-    bound_tools: tuple[Any, ...] = ()
-    tool_choice: str | None = None
+# ChatAppleIntelligence is built lazily (see _chat_apple_intelligence_cls below)
+# so that merely importing this package doesn't eagerly pull in langchain_core
+# (and its requests/httpx transitive deps) — Apple Intelligence is a rarely
+# used provider and langchain should stay lazy for the common case.
+_CHAT_APPLE_CLS: type | None = None
 
-    @property
-    def _llm_type(self) -> str:
-        return "apple_intelligence"
 
-    @property
-    def _identifying_params(self) -> dict[str, Any]:
-        return {
-            "provider": self.config.provider,
-            "model": self.config.model,
-            "temperature": self.config.temperature,
-            "max_tokens": self.config.max_tokens,
-        }
+def _chat_apple_intelligence_cls() -> type:
+    """Build (once) and cache the ChatAppleIntelligence class.
 
-    def bind_tools(
-        self,
-        tools: list[Any],
-        *,
-        tool_choice: str | None = None,
-        **kwargs: Any,
-    ) -> "ChatAppleIntelligence":
-        # ponytail: interface-preserving no-op until fm-bridge exposes native tool-call envelopes.
-        return self.model_copy(update={"bound_tools": tuple(tools), "tool_choice": tool_choice})
+    Deferred so importing `fichero.llm` doesn't eagerly import langchain_core.
+    """
+    global _CHAT_APPLE_CLS
+    if _CHAT_APPLE_CLS is not None:
+        return _CHAT_APPLE_CLS
 
-    def with_structured_output(
-        self,
-        schema: dict[str, Any] | type,
-        *,
-        include_raw: bool = False,
-        **kwargs: Any,
-    ) -> _AppleStructuredRunnable:
-        if not isinstance(schema, type) or not issubclass(schema, BaseModel):
-            raise ValueError(
-                "Apple Intelligence structured output currently requires a Pydantic model class."
+    from langchain_core.language_models.chat_models import BaseChatModel
+
+    class ChatAppleIntelligence(BaseChatModel):
+        config: LLMConfig
+        bound_tools: tuple[Any, ...] = ()
+        tool_choice: str | None = None
+
+        @property
+        def _llm_type(self) -> str:
+            return "apple_intelligence"
+
+        @property
+        def _identifying_params(self) -> dict[str, Any]:
+            return {
+                "provider": self.config.provider,
+                "model": self.config.model,
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens,
+            }
+
+        def bind_tools(
+            self,
+            tools: list[Any],
+            *,
+            tool_choice: str | None = None,
+            **kwargs: Any,
+        ) -> "ChatAppleIntelligence":
+            # ponytail: interface-preserving no-op until fm-bridge exposes native tool-call envelopes.
+            return self.model_copy(update={"bound_tools": tuple(tools), "tool_choice": tool_choice})
+
+        def with_structured_output(
+            self,
+            schema: dict[str, Any] | type,
+            *,
+            include_raw: bool = False,
+            **kwargs: Any,
+        ) -> _AppleStructuredRunnable:
+            if not isinstance(schema, type) or not issubclass(schema, BaseModel):
+                raise ValueError(
+                    "Apple Intelligence structured output currently requires a Pydantic model class."
+                )
+            return _AppleStructuredRunnable(self, schema, include_raw=include_raw)
+
+        def _structured_prompt_and_system(self, input_data: Any) -> tuple[str, str | None]:
+            if isinstance(input_data, str):
+                return input_data, None
+            if not isinstance(input_data, list):
+                raise TypeError(f"Unsupported Apple structured input: {type(input_data)!r}")
+            prompt, system = _collapse_apple_prompt(
+                _langchain_messages_to_openai_messages(input_data),
+                None,
             )
-        return _AppleStructuredRunnable(self, schema, include_raw=include_raw)
+            return prompt, system or None
 
-    def _structured_prompt_and_system(self, input_data: Any) -> tuple[str, str | None]:
-        if isinstance(input_data, str):
-            return input_data, None
-        if not isinstance(input_data, list):
-            raise TypeError(f"Unsupported Apple structured input: {type(input_data)!r}")
-        prompt, system = _collapse_apple_prompt(
-            _langchain_messages_to_openai_messages(input_data),
-            None,
-        )
-        return prompt, system or None
+        async def _agenerate(
+            self,
+            messages: list[Any],
+            stop: list[str] | None = None,
+            run_manager: Any = None,
+            **kwargs: Any,
+        ) -> Any:
+            from langchain_core.messages import AIMessage
+            from langchain_core.outputs import ChatGeneration, ChatResult
 
-    async def _agenerate(
-        self,
-        messages: list[Any],
-        stop: list[str] | None = None,
-        run_manager: Any = None,
-        **kwargs: Any,
-    ) -> Any:
-        from langchain_core.messages import AIMessage
-        from langchain_core.outputs import ChatGeneration, ChatResult
+            response_text = await chat(
+                _langchain_messages_to_openai_messages(messages),
+                self.config,
+            )
+            return ChatResult(
+                generations=[ChatGeneration(message=AIMessage(content=response_text))]
+            )
 
-        response_text = await chat(
-            _langchain_messages_to_openai_messages(messages),
-            self.config,
-        )
-        return ChatResult(
-            generations=[ChatGeneration(message=AIMessage(content=response_text))]
-        )
+        def _generate(
+            self,
+            messages: list[Any],
+            stop: list[str] | None = None,
+            run_manager: Any = None,
+            **kwargs: Any,
+        ) -> Any:
+            return asyncio.run(
+                self._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
+            )
 
-    def _generate(
-        self,
-        messages: list[Any],
-        stop: list[str] | None = None,
-        run_manager: Any = None,
-        **kwargs: Any,
-    ) -> Any:
-        return asyncio.run(
-            self._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
-        )
+    _CHAT_APPLE_CLS = ChatAppleIntelligence
+    return _CHAT_APPLE_CLS
+
+
+def __getattr__(name: str) -> Any:
+    """PEP 562 lazy module attribute — `from fichero.llm import ChatAppleIntelligence`
+    still works without forcing langchain to load at package-import time."""
+    if name == "ChatAppleIntelligence":
+        return _chat_apple_intelligence_cls()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # =============================================================================
@@ -3958,7 +3986,7 @@ def _build_langchain_model(config: LLMConfig) -> Any:
         )
 
     if provider == "apple":
-        return ChatAppleIntelligence(config=config)
+        return _chat_apple_intelligence_cls()(config=config)
 
     if not provider:
         raise ValueError(
