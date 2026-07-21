@@ -224,7 +224,8 @@ class LibraryManager {
         @ObservationIgnored lazy var changeStream: LibraryChangeStream = {
             let stream = LibraryChangeStream(
                 baseURLProvider: { self.apiClient.baseURL },
-                libraryPath: self.url.path
+                libraryPath: self.url.path,
+                transport: FicheroClientChangeStreamTransport(client: self.ficheroClient)
             )
             stream.register(self.documentStore)
             stream.register(self.entityStore)

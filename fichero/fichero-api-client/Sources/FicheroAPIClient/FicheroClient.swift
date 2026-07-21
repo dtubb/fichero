@@ -59,8 +59,26 @@ public final class FicheroClient: ObservableObject {
 
     /// Which transport this instance dials with (per-instance, default `.https`).
     /// Retained so `rebuildClient()` selects the same transport on every
-    /// library-path / baseURL change.
-    private let transportMode: TransportMode
+    /// library-path / baseURL change. `internal` (not `private`) so the streaming
+    /// extension can pick the matching server URL for `.uds` vs `.https`.
+    let transportMode: TransportMode
+
+    /// The concrete `ClientTransport` the generated `Client` dials with
+    /// (URLSession for `.https`, AsyncHTTPClient for `.uds`). Built once and
+    /// reused across `rebuildClient()` — and, crucially, reused by the SSE
+    /// streaming helper (`streamLines`) so live streams flow through the SAME
+    /// transport as every generated call. That is what lets SSE work over a
+    /// UDS-only or socket-less engine, where a raw `URLSession` to
+    /// `127.0.0.1:8765` would fail. `internal` so the streaming extension can
+    /// reach it.
+    let transport: any ClientTransport
+
+    /// The auth + library-path middleware stack the generated `Client` runs.
+    /// Both middlewares read their state LIVE per request, so a single instance
+    /// stays correct across library-path / baseURL changes and can be reused by
+    /// `streamLines` — the streaming request then carries identical auth and
+    /// library-scoping headers with nothing hand-rolled.
+    let middlewares: [any ClientMiddleware]
 
     /// Current library path - matches legacy APIClient interface
     @Published public var currentLibraryPath: String? {
@@ -96,14 +114,18 @@ public final class FicheroClient: ObservableObject {
         // #1710 Phase 2: with the middleware in place, the per-call-site
         // `headers: .init(xFicheroLibraryPath:)` args in the generated services
         // become redundant and can be stripped — see issue #1710 for the sweep.
+        let transport = Self.makeTransport(session: session, transportMode: transportMode)
+        let middlewares: [any ClientMiddleware] = [
+            AuthTokenMiddleware(),
+            libraryPathProvider.createMiddleware()
+        ]
+        self.transport = transport
+        self.middlewares = middlewares
         self.api = Client(
             serverURL: Self.makeServerURL(baseURL: baseURL, transportMode: transportMode),
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: Self.makeTransport(session: session, transportMode: transportMode),
-            middlewares: [
-                AuthTokenMiddleware(),
-                libraryPathProvider.createMiddleware()
-            ]
+            transport: transport,
+            middlewares: middlewares
         )
     }
 
@@ -128,14 +150,18 @@ public final class FicheroClient: ObservableObject {
         }
         self.configuredSession = session
 
+        let transport = Self.makeTransport(session: session, transportMode: .https)
+        let middlewares: [any ClientMiddleware] = [
+            AuthTokenMiddleware(),
+            libraryPathProvider.createMiddleware()
+        ]
+        self.transport = transport
+        self.middlewares = middlewares
         self.api = Client(
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: Self.makeTransport(session: session, transportMode: .https),
-            middlewares: [
-                AuthTokenMiddleware(),
-                libraryPathProvider.createMiddleware()
-            ]
+            transport: transport,
+            middlewares: middlewares
         )
     }
 
@@ -147,11 +173,8 @@ public final class FicheroClient: ObservableObject {
         self.api = Client(
             serverURL: Self.makeServerURL(baseURL: baseURL, transportMode: transportMode),
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: Self.makeTransport(session: configuredSession, transportMode: transportMode),
-            middlewares: [
-                AuthTokenMiddleware(),
-                libraryPathProvider.createMiddleware()
-            ]
+            transport: transport,
+            middlewares: middlewares
         )
     }
 
