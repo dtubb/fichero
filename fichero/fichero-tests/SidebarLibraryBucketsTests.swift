@@ -35,4 +35,24 @@ final class SidebarLibraryBucketsTests: XCTestCase {
         XCTAssertTrue(buckets.searchItems.isEmpty)
         XCTAssertTrue(buckets.workflowItems.isEmpty)
     }
+
+    /// The library is ONE unified node list per tab: the Library / Saved Searches
+    /// / Automation section headers (and the divider) are gone. Rows render as
+    /// plain `unifiedRows` blocks with no `unifiedDisclosureSection` chrome.
+    func testUnifiedLibraryHasNoSectionHeaders() throws {
+        let source = try appSource("Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
+        XCTAssertFalse(source.contains("func unifiedDisclosureSection"))
+        XCTAssertFalse(source.contains("Label(title, systemImage: icon)"))
+        XCTAssertFalse(source.contains("Divider()"))
+        XCTAssertTrue(source.contains("unifiedRows(buckets.documentItems, libraryId: libraryId)"))
+    }
+
+    private func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
 }

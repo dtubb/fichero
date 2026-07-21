@@ -130,93 +130,34 @@ extension SidebarView {
         )
     }
 
+    /// ONE unified node list per library (per tab). The old Library / Saved
+    /// Searches / Automation section headers (and the divider between them) are
+    /// gone: every row is just a node, and its kind — folder, saved search,
+    /// schedule, trigger — is conveyed by its own icon. Documents are the
+    /// source-of-truth tree; saved searches and automation are node tools over
+    /// it, so they follow the document tree in one continuous list.
+    ///
+    /// Rendered as separate `unifiedRows` blocks (not one concatenated array) on
+    /// purpose: `handleUnifiedRowsMove` dispatches reorder/drop by the kind of
+    /// the block's first item, so keeping each kind in its own block preserves
+    /// correct per-kind reorder. Empty blocks render nothing — no empty headers.
+    ///
+    /// Workflows / Batches / Activity are app-level destinations (fixed tags, no
+    /// library scope) and stay pinned once at the bottom — see
+    /// `pinnedGlobalNavigationRows()` in `unifiedContent` (#1456).
     @ViewBuilder
     func unifiedLibrarySections(
         libraryId: UUID,
         buckets: UnifiedLibraryBuckets
     ) -> some View {
-        unifiedDisclosureSection(
-            title: "Library",
-            icon: "books.vertical",
-            sectionKey: "library",
-            libraryId: libraryId,
-            items: buckets.documentItems
-        )
-
-        // Visual separator between document library and tools section.
-        // Non-interactive: must not be selectable or receive clicks (#2310).
-        Divider()
-            .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .allowsHitTesting(false)
-            .selectionDisabled()
-
-        // Workflows / Batches / Activity used to render here, once per
-        // library. They are app-level destinations (fixed selection tags, no
-        // library scope), so repeating them under every library both
-        // duplicated the rows and made all copies highlight together. They are
-        // now pinned ONCE at the bottom of the sidebar — see
-        // `pinnedGlobalNavigationRows()` in `unifiedContent`. (#1456)
+        unifiedRows(buckets.documentItems, libraryId: libraryId)
 
         if FeatureManager.shared.isAutomationEnabled {
-            unifiedDisclosureSection(
-                title: "Automation",
-                icon: "gearshape.2",
-                sectionKey: "automation",
-                libraryId: libraryId,
-                items: buckets.scheduleItems + buckets.triggerItems
-            )
+            unifiedRows(buckets.scheduleItems + buckets.triggerItems, libraryId: libraryId)
         }
 
-        // Saved Searches at the bottom — the maintainer: 'saved searches should
-        // be down beside Workflows and Activity'. Mental model: Library
-        // is the source-of-truth tree; Workflows / Activity / Saved
-        // Searches are *tools and history* over that tree, so they
-        // belong together below the library.
         if FeatureManager.shared.isSearchEnabled {
-            unifiedDisclosureSection(
-                title: "Saved Searches",
-                icon: "magnifyingglass",
-                sectionKey: "search",
-                libraryId: libraryId,
-                items: buckets.searchItems
-            )
-        }
-    }
-
-    @ViewBuilder
-    func unifiedDisclosureSection(
-        title: String,
-        icon: String,
-        sectionKey: String,
-        libraryId: UUID,
-        items: [SidebarItem]
-    ) -> some View {
-        if !items.isEmpty {
-            DisclosureGroup(
-                isExpanded: Binding(
-                    get: { isUnifiedSectionExpanded(libraryId: libraryId, sectionKey: sectionKey) },
-                    set: { setUnifiedSectionExpanded($0, libraryId: libraryId, sectionKey: sectionKey) }
-                ),
-                content: {
-                    unifiedRows(items, libraryId: libraryId)
-                        // Let the section open/close drive the reveal. If the
-                        // nested rows animate their own insertion, SwiftUI can
-                        // slide them in from the wrong lateral origin when a
-                        // disclosure expands (#3165).
-                        .transaction { transaction in
-                            transaction.animation = nil
-                        }
-                },
-                label: {
-                    Label(title, systemImage: icon)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
-                        .selectionDisabled()
-                }
-            )
+            unifiedRows(buckets.searchItems, libraryId: libraryId)
         }
     }
 
