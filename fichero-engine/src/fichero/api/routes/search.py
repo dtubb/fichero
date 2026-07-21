@@ -18,8 +18,8 @@ from fichero.actions.registry import registry
 from fichero.api.auth import action_context
 from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
-from fichero.api.routes.kg.claim_search import search_claims_semantic_impl
-from fichero.api.routes.kg.entity_curation import search_entities_semantic_impl
+from fichero.api.routes.kg_claim_search import search_claims_semantic_impl
+from fichero.api.routes.kg_entity_curation import search_entities_semantic_impl
 from fichero.search.query_parser import parse_query
 from fichero.db import (
     Database,
