@@ -66,7 +66,7 @@ from fichero.db_embeddings import (
 )
 from fichero.db_manager import DatabaseManager, db_manager  # noqa: F401
 from fichero.errors import ErrorCategory, handle_error
-from fichero.path_security import resolve_under_allowed_roots
+from fichero.security.path_security import resolve_under_allowed_roots
 
 logger = logging.getLogger(__name__)
 

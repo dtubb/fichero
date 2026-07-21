@@ -34,7 +34,7 @@ from fichero.api.routes.documents import (
     patch_workspace_items_impl,
 )
 from fichero.knowledge_models import KnowledgeClaim
-from fichero.keychain import has_api_key
+from fichero.security.keychain import has_api_key
 # NOTE: fichero.llm is imported inside _build_model below, not here (#3950).
 # It pulls langchain_core -> transformers, which the engine must not pay for
 # just to register this router at startup.

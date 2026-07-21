@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from fichero.api.library_header import optional_library_path, require_library_path
-from fichero import authz
+from fichero.security import authz
 from fichero.actions import ActionContext, ActionNotFoundError, ChangeSpec, action, registry
 from fichero.api.auth import action_context, library_access_denial_payload
 from fichero.app_db import get_app_db

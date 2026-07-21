@@ -10,7 +10,7 @@ Usage:
 
     # Python
     from fichero.api import app
-    from fichero.bind_host import resolve_bind_host
+    from fichero.security.bind_host import resolve_bind_host
     import uvicorn
     uvicorn.run(app, host=resolve_bind_host(), port=8765)
 """

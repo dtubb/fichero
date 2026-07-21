@@ -26,7 +26,7 @@ from fichero.importers.http_client import (
     reset_local_library_if_loopback,
 )
 from fichero.ingest import detect_file_type
-from fichero.xml_security import iterparse_xml
+from fichero.security.xml_security import iterparse_xml
 
 
 DEFAULT_SLIPBOX_FILESYSTEM = Path("~/code/slipbox").expanduser()

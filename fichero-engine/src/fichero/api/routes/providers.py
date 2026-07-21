@@ -23,7 +23,7 @@ from fichero.providers import (
     get_provider_info,
     list_providers as list_catalog_providers,
 )
-from fichero.keychain import (
+from fichero.security.keychain import (
     set_api_key,
     delete_api_key,
     has_api_key,

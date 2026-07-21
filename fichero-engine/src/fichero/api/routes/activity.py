@@ -391,7 +391,7 @@ async def websocket_activity_stream(
     """
     # WebSockets do not run the HTTP auth middleware in TestClient in the same
     # shape as normal routes, so gate before attaching to a library stream.
-    from fichero import authz
+    from fichero.security import authz
 
     try:
         authz.assert_can_read(

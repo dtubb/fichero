@@ -17,8 +17,8 @@ from typing import Optional
 
 import typer
 
-from fichero.bind_host import resolve_bind_host
-from fichero.remote_access_tls import uvicorn_ssl_kwargs_from_env
+from fichero.security.bind_host import resolve_bind_host
+from fichero.security.remote_access_tls import uvicorn_ssl_kwargs_from_env
 
 # PID file location: ~/.fichero/engine.pid
 PID_FILE = Path.home() / ".fichero" / "engine.pid"

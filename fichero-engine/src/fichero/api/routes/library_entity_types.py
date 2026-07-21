@@ -16,7 +16,7 @@ from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from fichero import authz
+from fichero.security import authz
 from fichero.api.main import _is_allowed_library_path
 from fichero.db import Database, DatabaseManager, db_manager
 from fichero.knowledge_models import LibraryEntityType

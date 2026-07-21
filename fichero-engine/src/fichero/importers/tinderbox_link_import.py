@@ -10,7 +10,7 @@ from fichero.importers.http_client import (
     ensure_remote_document,
     reset_local_library_if_loopback,
 )
-from fichero.xml_security import iterparse_xml
+from fichero.security.xml_security import iterparse_xml
 
 
 @dataclass(frozen=True)

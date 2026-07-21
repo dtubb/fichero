@@ -126,7 +126,7 @@ def create_library(
         logger.warning("Failed to register library in registry: %s", exc)
 
     try:
-        from fichero import authz
+        from fichero.security import authz
 
         if authz.ensure_owner_role(getattr(request.state, "user", None), package):
             logger.info("Bootstrapped library owner for %s", package)

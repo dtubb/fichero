@@ -18,7 +18,7 @@ from fichero.api.library_header import require_library_path
 from fichero.api.main import _is_allowed_local_path, db_manager, get_library_database_for_write
 from fichero.api.auth import actor_from_request
 from fichero.actions.registry import ActionContext, registry
-from fichero import authz
+from fichero.security import authz
 from fichero.db import Database
 from fichero.models import Document
 

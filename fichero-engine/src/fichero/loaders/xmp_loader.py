@@ -33,7 +33,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from fichero.xml_security import reject_xml_entities
+from fichero.security.xml_security import reject_xml_entities
 
 logger = logging.getLogger(__name__)
 

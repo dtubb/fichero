@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from fichero.api.routes.auth_accounts import _require_owner_or_bootstrap
 from fichero.providers import get_provider_info
-from fichero.keychain import (
+from fichero.security.keychain import (
     get_api_key,
     set_api_key,
     delete_api_key,

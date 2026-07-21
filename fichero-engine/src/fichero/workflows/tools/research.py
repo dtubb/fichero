@@ -24,7 +24,7 @@ from urllib.parse import urljoin
 
 import httpx
 
-from fichero.url_security import is_internal_ip, is_safe_url
+from fichero.security.url_security import is_internal_ip, is_safe_url
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool
 from fichero.llm import LLMConfig

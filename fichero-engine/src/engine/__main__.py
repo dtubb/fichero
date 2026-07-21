@@ -18,10 +18,10 @@ import faulthandler
 import tracemalloc
 import warnings
 
-from fichero.bind_host import resolve_bind_host
-from fichero.bind_host import resolve_lan_bind_host
-from fichero.security_scoped_access import activate_library_bookmarks
-from fichero.remote_access_tls import (
+from fichero.security.bind_host import resolve_bind_host
+from fichero.security.bind_host import resolve_lan_bind_host
+from fichero.security.security_scoped_access import activate_library_bookmarks
+from fichero.security.remote_access_tls import (
     material_manifest_json,
     prepare_remote_access_tls,
     uvicorn_ssl_kwargs_from_env,

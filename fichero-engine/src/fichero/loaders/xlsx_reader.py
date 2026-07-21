@@ -11,7 +11,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from fichero.xml_security import parse_xml
+from fichero.security.xml_security import parse_xml
 
 _NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 _REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
