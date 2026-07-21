@@ -36,7 +36,7 @@ from fichero.models import (
     DocumentNote,
     RelatedDocumentListResponse,
 )
-from fichero.path_security import validate_stored_document_path
+from fichero.security.path_security import validate_stored_document_path
 from fichero.perf import perf_span
 from fichero.storage import auto_snapshot_before_risky_operation
 from fichero.storage import settings as storage_settings

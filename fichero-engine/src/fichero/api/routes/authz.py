@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ValidationError
 
-from fichero import authz
+from fichero.security import authz
 from fichero.actions import ActionContext, registry
 from fichero.app_db import get_app_db
 from fichero.api.auth import action_context, auth_kind_from_request, library_access_denial_payload

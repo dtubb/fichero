@@ -753,7 +753,7 @@ def _cross_library_candidate_pairs(
     top_k: int,
 ) -> list[CandidatePair]:
     """Match rule-resolved entity names across the libraries this user may read."""
-    from fichero import authz
+    from fichero.security import authz
     from fichero.workflows.tools._entity_writer import _apply_entity_resolution_rules
 
     by_key: dict[tuple[str, str | None], list[tuple[str, KnowledgeEntity]]] = {}

@@ -33,11 +33,11 @@ import uuid
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
-from fichero import accounts
+from fichero.security import accounts
 from fichero.api.library_header import require_library_path
 from fichero.actions import ActionContext
 from fichero.app_db import get_app_db
-from fichero.multiuser import multiuser_enabled
+from fichero.security.multiuser import multiuser_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -525,7 +525,7 @@ def library_access_denial_payload(
     detail: str,
 ) -> dict[str, str | None]:
     """Structured library denial payload for UI-readable 403s."""
-    from fichero import authz
+    from fichero.security import authz
 
     user = getattr(getattr(request, "state", None), "user", None)
     username = getattr(user, "username", None) if user is not None else None

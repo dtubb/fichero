@@ -1054,7 +1054,7 @@ def _read_api_key_uncached(provider: str) -> str | None:
 
     # Try keychain first
     try:
-        from fichero.keychain import get_api_key as _keychain_get
+        from fichero.security.keychain import get_api_key as _keychain_get
 
         key = _keychain_get(provider)
         if key:

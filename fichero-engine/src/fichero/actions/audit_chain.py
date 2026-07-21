@@ -145,7 +145,7 @@ def _write_secret_file(path: Path, secret: bytes) -> bytes:
 def _audit_chain_key(*, create: bool) -> bytes | None:
     if _use_keychain_for_audit_secret():
         try:
-            from fichero.keychain import get_api_key, set_api_key
+            from fichero.security.keychain import get_api_key, set_api_key
 
             existing = _decode_secret(get_api_key(_AUDIT_CHAIN_KEY_ACCOUNT) or "")
             if existing:

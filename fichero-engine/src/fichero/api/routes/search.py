@@ -13,7 +13,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero import authz
+from fichero.security import authz
 from fichero.actions.registry import registry
 from fichero.api.auth import action_context
 from fichero.api.library_header import require_library_path

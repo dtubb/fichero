@@ -35,7 +35,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero.security_scoped_access import BookmarkGrantError, grant_access, granted_paths
+from fichero.security.security_scoped_access import BookmarkGrantError, grant_access, granted_paths
 
 logger = logging.getLogger(__name__)
 

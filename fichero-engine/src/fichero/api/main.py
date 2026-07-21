@@ -66,15 +66,15 @@ from fichero.api.library_header import optional_library_path, require_library_pa
 from fichero.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero.api.routes.local_inference import shutdown_managed_local_inference_services
 from fichero.db import Database, db_manager
-from fichero.discovery import start_bonjour_advertiser
+from fichero.security.discovery import start_bonjour_advertiser
 from fichero.models import (
     EmbeddingStatsResponse,
     HealthResponse,
     LibraryStatsResponse,
 )
 from fichero.paths import migrate_legacy_engine_state
-from fichero.remote_backend import build_remote_backend_status
-from fichero.security_scoped_access import granted_paths
+from fichero.security.remote_backend import build_remote_backend_status
+from fichero.security.security_scoped_access import granted_paths
 from fichero.storage import (
     start_periodic_snapshot_task,
     stop_periodic_snapshot_task,
@@ -1087,7 +1087,7 @@ def _bootstrap_legacy_library_owner_if_needed(
     - and the caller is a trusted owner (session/device owner user or the
       loopback bootstrap path with exactly one active owner).
     """
-    from fichero import authz
+    from fichero.security import authz
     from fichero.app_db import get_app_db
 
     if not authz.multiuser_enabled():
@@ -1127,7 +1127,7 @@ def assert_library_read_authorized(
     target_id: str | None = None,
 ) -> None:
     """Authorize a user-initiated request before touching a library path."""
-    from fichero import authz
+    from fichero.security import authz
     from fichero.api.auth import library_access_denial_payload
 
     if getattr(getattr(request, "state", None), "bootstrap_auth", False):
@@ -1158,7 +1158,7 @@ def assert_library_write_authorized(
     target_id: str | None = None,
 ) -> None:
     """Authorize a user-initiated mutation before touching a library DB."""
-    from fichero import authz
+    from fichero.security import authz
     from fichero.api.auth import library_access_denial_payload
 
     if getattr(getattr(request, "state", None), "bootstrap_auth", False):

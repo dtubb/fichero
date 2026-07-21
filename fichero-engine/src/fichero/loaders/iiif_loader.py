@@ -15,7 +15,7 @@ from PIL import Image
 from typing import TYPE_CHECKING
 
 from fichero.loaders.base import MediaContent, MediaLoader
-from fichero.url_security import is_safe_url
+from fichero.security.url_security import is_safe_url
 
 if TYPE_CHECKING:
     import aiohttp

@@ -7,7 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 
-from fichero import authz
+from fichero.security import authz
 from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write

@@ -180,7 +180,7 @@ class ActionRegistry:
         reg = self.get(name)  # ActionNotFoundError if unknown
         params = reg.params_model.model_validate(raw_params)
 
-        from fichero import authz
+        from fichero.security import authz
 
         target_ids = authz.target_ids_from_params(params)
         if not ctx.is_bootstrap:
