@@ -418,6 +418,12 @@ class TestBatchActivityIntegration:
         )
         await activity_store.save(activity)
 
+        # create_batch()'s BATCH_CREATED activity is logged via
+        # ActivityTracker.log(), which schedules its DB write as a
+        # fire-and-forget background task (no ordering guarantee vs. an
+        # immediate follow-up query). Wait for it to land before asserting.
+        await batch_manager.activity_tracker.wait_for_pending_saves()
+
         # Query activities for this batch
         filter = ActivityFilter(batch_id=batch.batch_id)
         activities = await activity_store.query(filter)
