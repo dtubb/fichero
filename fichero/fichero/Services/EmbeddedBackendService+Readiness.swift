@@ -179,7 +179,12 @@ extension EmbeddedBackendService {
     /// bound to `backendURL`. Falls back to a fresh loopback HTTPS client on the
     /// construction paths (iOS / Settings) that never injected one.
     func probeReadiness() async -> ReadinessResult {
-        let client = readinessClient ?? FicheroClient(baseURL: backendURL)
+        // Fall back to a client on the app's ACTIVE transport, not a bare HTTPS
+        // one: in UDS mode a `.https` fallback dials :8765 where nothing listens,
+        // so the probe never sees a healthy UDS engine and the adopt path fails
+        // with a spurious "no engine on :8765". Mirror APIClient's construction.
+        let client = readinessClient
+            ?? FicheroClient(baseURL: backendURL, transportMode: EngineConfig.transportMode)
         return await EngineReadinessProbe(client: client, expectedNonce: expectedLaunchNonce).probe()
     }
 
