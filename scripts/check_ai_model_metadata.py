@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET_FILES = (
-    "fichero-engine/src/fichero/db_embeddings.py",
+    "fichero-engine/src/fichero/db/embeddings.py",
     "fichero-engine/src/fichero/llm/__init__.py",
     "fichero-engine/src/fichero/llm/embeddings.py",
     "fichero-engine/src/fichero/llm/providers.py",
