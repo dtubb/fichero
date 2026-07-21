@@ -1,10 +1,53 @@
 import FicheroAPIClient
 import Foundation
+import FicheroAPIClient
 #if canImport(AppKit)
 import AppKit
 #endif
 
 extension EngineConfig {
+    // MARK: - Client transport selection (in-process / UDS overrides)
+
+    /// Which `ClientTransport` the app-wide `FicheroClient` should dial with.
+    ///
+    /// Default is `.https` (URLSession, cert-pinned where configured). Two debug
+    /// environment overrides let a developer redirect the local engine
+    /// connection without code changes — both are read once at client
+    /// construction and both are honoured only for a local engine:
+    ///
+    /// - `FICHERO_FORCE_INMEMORY` (macOS only): drive the Python engine
+    ///   in-process via PythonKit (`.inMemory`). Lets a `⌘R` Debug build run the
+    ///   engine embedded in the app process — the "PythonKit for real" path.
+    /// - `FICHERO_FORCE_UDS_PATH=/path/to/engine.sock`: dial the engine over an
+    ///   AF_UNIX socket (`.uds`).
+    ///
+    /// In-process wins if both are set. A configured *remote* host keeps `.https`
+    /// (the overrides only make sense for the local engine on this machine).
+    static var transportMode: TransportMode {
+        let env = ProcessInfo.processInfo.environment
+
+        // Remote hosts are reached over HTTPS; the local-only overrides don't apply.
+        guard !requiresExternalBackendConnection else { return .https }
+
+        #if os(macOS)
+        if let flag = env["FICHERO_FORCE_INMEMORY"], isTruthy(flag) {
+            return .inMemory
+        }
+        #endif
+
+        if let socketPath = env["FICHERO_FORCE_UDS_PATH"], !socketPath.isEmpty {
+            return .uds(path: socketPath)
+        }
+
+        return .https
+    }
+
+    /// Treats common truthy spellings ("1", "true", "yes", "on") as enabled so
+    /// `FICHERO_FORCE_INMEMORY=1` and `=true` both work; anything else is off.
+    private static func isTruthy(_ value: String) -> Bool {
+        ["1", "true", "yes", "on"].contains(value.trimmingCharacters(in: .whitespaces).lowercased())
+    }
+
     // MARK: - Mac launch connection mode (#2381)
 
     /// How a macOS launch should establish its engine connection.

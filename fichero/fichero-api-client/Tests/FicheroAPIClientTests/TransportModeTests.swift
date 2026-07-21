@@ -77,6 +77,16 @@ final class TransportModeTests: XCTestCase {
         XCTAssertEqual(remote.baseURL.absoluteString, "https://remote.example:8765")
     }
 
+    #if os(macOS)
+    func testInMemoryServerURLIsStablePlaceholder() {
+        // The in-process transport ignores host/port, so the server URL is a
+        // fixed placeholder the generated client can append `/api/...` onto.
+        let base = URL(string: "https://127.0.0.1:8765")!
+        let url = FicheroClient.makeServerURL(baseURL: base, transportMode: .inMemory)
+        XCTAssertEqual(url.absoluteString, "http://asgi.local")
+    }
+    #endif
+
     func testDefaultClientInitIsHTTPS() {
         // Existing call sites that don't pass a mode keep HTTPS behavior.
         let client = FicheroClient()
