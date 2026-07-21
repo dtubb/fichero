@@ -2357,16 +2357,11 @@ def kg_reset(
     _invoke(ctx, lambda c: c.kg_reset())
 
 
-# -- library bootstrap -----------------------------------------------------
-# Where `library list` looks for .fichero packages. Mirrors the server-side
-# allowlist in fichero/api/main.py::_is_allowed_library_path — keep these in
-# sync if you change the allowlist there. /var/folders is intentionally
-# omitted from listing (it's a temp-dir escape hatch for tests, not a place
-# users keep real libraries).
-# _LIBRARY_LIST_ROOTS + _discover_libraries moved to fichero.library_discovery
-# (#3163) so the API server can import them without pulling in `typer` (a
-# CLI-only dep the Briefcase engine bundle doesn't ship). Nothing in this CLI
-# module references them, so there is no re-export here.
+# -- library commands ------------------------------------------------------
+# `library list` shows the registry of libraries the user has opened (recents,
+# sorted by last_accessed). There is NO filesystem discovery/crawl — the old
+# `~/Documents`/`~/Dropbox`/`~/code` sweep was removed (it opened dozens of
+# stale scratch copies nobody asked for). Libraries open on demand.
 
 
 @library_app.command("list")
