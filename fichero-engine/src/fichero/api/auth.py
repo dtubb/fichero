@@ -463,12 +463,14 @@ def _is_loopback_request(request: Request) -> bool:
     purposes; do not trust their values. TestClient uses synthetic host names,
     accepted only under pytest so auth middleware tests can exercise the path.
     """
-    # A request delivered over the Unix-domain socket is trusted as
-    # loopback-owner. Only the UDS server's ASGI wrapper stamps this positive
-    # marker (see ``fichero.api.uds_transport``); the shared TCP+TLS app never
-    # sets it, so this can never grant a network client — not even one where
-    # ``request.client is None`` (which we must NOT key off, for safety).
-    if request.scope.get("fichero.transport") == "uds":
+    # A request delivered over the Unix-domain socket, or in-process via the
+    # in-memory ASGI transport, is trusted as loopback-owner. Only those
+    # server-side transports stamp this positive marker (see
+    # ``fichero.api.uds_transport`` and the in-memory client's scope builder);
+    # the shared TCP+TLS app never sets it, so this can never grant a network
+    # client — not even one where ``request.client is None`` (which we must NOT
+    # key off, for safety).
+    if request.scope.get("fichero.transport") in ("uds", "inmemory"):
         return True
     client_host = request.client.host if request.client else None
     if client_host in _LOOPBACK_HOSTS:
