@@ -257,11 +257,32 @@ extension EmbeddedBackendService {
             let code = proc.terminationStatus
             Task { @MainActor [weak self] in
                 guard let self, !self.intentionalStop else { return }
-                let tail = Self.tailEngineLog(lines: 20)
-                self.status = .failed
-                self.errorMessage = "The engine exited unexpectedly (code \(code))."
-                    + (tail.isEmpty ? "" : "\n\n\(tail)")
                 logger.error("Engine terminated unexpectedly (code \(code))")
+
+                // #18: auto-restart a crashed embedded engine so a transient
+                // crash self-heals with no manual Retry — but stop if it keeps
+                // dying, to avoid a hot restart loop.
+                guard self.shouldAutoRestartAfterCrash() else {
+                    let tail = Self.tailEngineLog(lines: 20)
+                    self.status = .failed
+                    self.errorMessage = "The engine keeps crashing (code \(code)) — "
+                        + "stopped auto-restarting after \(Self.crashLoopMaxRestarts) attempts "
+                        + "in \(Int(Self.crashLoopWindow))s."
+                        + (tail.isEmpty ? "" : "\n\n\(tail)")
+                    return
+                }
+
+                logger.info("Auto-restarting engine after unexpected exit (code \(code))")
+                self.status = .starting
+                do {
+                    try await self.start()
+                } catch {
+                    let tail = Self.tailEngineLog(lines: 20)
+                    self.status = .failed
+                    self.errorMessage = "The engine crashed (code \(code)) and could not be "
+                        + "restarted: \(error.localizedDescription)"
+                        + (tail.isEmpty ? "" : "\n\n\(tail)")
+                }
             }
         }
     }

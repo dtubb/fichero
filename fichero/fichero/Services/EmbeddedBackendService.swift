@@ -99,6 +99,26 @@ final class EmbeddedBackendService {
     /// Setter widened from `private(set)` to internal: set by start() in the Lifecycle extension.
     var startAttemptsPassedGuard = 0
 
+    /// Timestamps of recent unexpected engine exits — used to auto-restart a
+    /// crashed embedded engine while bailing out of a hot crash loop (#18). A
+    /// transient crash self-heals without a manual Retry; one that keeps dying
+    /// stops and surfaces `.failed` instead of restarting forever.
+    @ObservationIgnored private var recentEngineCrashes: [Date] = []
+    /// Auto-restart at most this many crashes within `crashLoopWindow` seconds.
+    static let crashLoopMaxRestarts = 5
+    static let crashLoopWindow: TimeInterval = 60
+
+    /// Record a crash and report whether an auto-restart is still within budget.
+    /// Prunes crashes older than the window, then admits the new one.
+    @MainActor
+    func shouldAutoRestartAfterCrash(now: Date = Date()) -> Bool {
+        recentEngineCrashes = recentEngineCrashes.filter {
+            now.timeIntervalSince($0) < Self.crashLoopWindow
+        }
+        recentEngineCrashes.append(now)
+        return recentEngineCrashes.count <= Self.crashLoopMaxRestarts
+    }
+
     /// The user's in-window decision for a foreign :8765 holder (#3111): Stop it
     /// (SIGTERM + respawn) or Use it (adopt, still gated on the authenticated
     /// probe). Quit is a pure UI action (user-chosen terminate), so it isn't
