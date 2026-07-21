@@ -199,6 +199,20 @@ final class PairingService {
         )
     }
 
+    /// The library paths this credential may access on the paired engine,
+    /// from `GET /api/authz/libraries` (app-wide, no library header needed).
+    /// Used by pairing to confirm a QR-advertised library before persisting it
+    /// (#3372). Mirrors `KnownLibraryRegistryStore.refreshAccessible`.
+    func accessibleLibraryPaths() async throws -> [String] {
+        let response = try await client.api.listAccessibleLibrariesApiAuthzLibrariesGet()
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map(\.libraryPath)
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
+    }
+
     static func persistAuthToken(_ token: String, for apiRoot: URL) throws {
         try AuthTokenMiddleware.persistRemoteToken(token, hostString: apiRoot.absoluteString)
     }

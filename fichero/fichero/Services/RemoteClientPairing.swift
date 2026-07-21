@@ -28,6 +28,7 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
     case missingDeviceName
     case missingLibraryPath
     case invalidInviteLink
+    case libraryPathNotConfirmed
 
     var errorDescription: String? {
         switch self {
@@ -39,6 +40,9 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
             return "This QR code does not include a shared library. Show a new QR code on the Mac."
         case .invalidInviteLink:
             return "The invite link is incomplete or invalid."
+        case .libraryPathNotConfirmed:
+            return "The Mac did not confirm access to the library named in this QR code. "
+                + "Show a fresh QR code on the Mac and scan it again."
         }
     }
 }
@@ -216,8 +220,64 @@ enum RemoteClientPairing {
             deviceName: deviceName,
             expectedSPKIPin: expectedSPKIPin
         )
+        let normalizedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(expectedSPKIPin)
+        // #3372: the QR/deep-link carries `libraryPath`, but that value is
+        // attacker-supplied — nothing in the exchange so far proves the Mac
+        // actually shares it with this device. Confirm it against the server's
+        // own accessible-library set (GET /api/authz/libraries) BEFORE persisting
+        // it, so a forged path can never be written to disk. The authenticated
+        // confirm call needs the device token in the Keychain, so persist the
+        // token first; if confirmation fails, clear it — never leave a
+        // half-persisted pairing behind.
+        try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
+        do {
+            try await confirmLibraryAccess(
+                libraryPath: libraryPath,
+                apiRoot: result.apiRoot,
+                expectedSPKIPin: normalizedSPKIPin
+            )
+        } catch {
+            AuthTokenMiddleware.clearRemoteToken(hostString: result.apiRoot.absoluteString)
+            throw error
+        }
         try persistPairedHost(result, expectedSPKIPin: expectedSPKIPin, libraryPath: libraryPath)
         return result.apiRoot
+    }
+
+    /// #3372: verify the paired credential can actually access `libraryPath`
+    /// before it is persisted. A `nil`/empty advertised path (manual host entry,
+    /// no library on the QR) has nothing to confirm — the library picker, which
+    /// hits the same endpoint, gates access later. When a path IS advertised it
+    /// must appear in the server's accessible-library set or pairing is rejected.
+    @MainActor
+    static func confirmLibraryAccess(
+        libraryPath: String?,
+        apiRoot: URL,
+        expectedSPKIPin: String
+    ) async throws {
+        guard normalizedLibraryPath(libraryPath) != nil else { return }
+        let accessible = try await PairingService(apiRoot: apiRoot, expectedSPKIPin: expectedSPKIPin)
+            .accessibleLibraryPaths()
+        guard isLibraryConfirmed(advertised: libraryPath, in: accessible) else {
+            throw RemoteClientPairingError.libraryPathNotConfirmed
+        }
+    }
+
+    /// Pure decision: is the QR-advertised `advertised` library among the paths
+    /// the server says this credential may access? A `nil`/empty advertised path
+    /// is treated as "nothing to confirm" (true). Kept separate so the security
+    /// decision is unit-testable without a live server (#3372).
+    static func isLibraryConfirmed(advertised: String?, in accessible: [String]) -> Bool {
+        guard let advertised = normalizedLibraryPath(advertised) else { return true }
+        return accessible.contains { libraryPathsMatch($0, advertised) }
+    }
+
+    private static func libraryPathsMatch(_ lhs: String, _ rhs: String) -> Bool {
+        func canonical(_ path: String) -> String {
+            path.trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        }
+        return canonical(lhs) == canonical(rhs)
     }
 
     @MainActor
