@@ -359,6 +359,30 @@ class TestGetChildren:
         assert child1.id in ids
         assert child2.id in ids
 
+    def test_default_workflow_subfolder_children_route_resolves(self, client, db):
+        """Regression (#11): a default-workflow subfolder node must load its
+        children over the HTTP route. The old id scheme embedded the preset's
+        `folder_path` verbatim (e.g. "system-default-workflows:/Transcribe"),
+        so the raw "/" split the URL path and `GET /{doc_id}/children` 404'd.
+        The id must now be a single, slash-free path segment that routes."""
+        from fichero import db as db_module
+        from fichero.workflows.default_workflows import seed_default_workflows
+
+        seed_default_workflows(db)
+
+        container = db.get(Document, db_module._DEFAULT_WORKFLOWS_CONTAINER_ID)
+        subfolders = {s.name: s for s in db.query(Document, parent_id=container.id)}
+        transcribe = subfolders["Transcribe"]
+
+        # No raw "/" in the id — otherwise the route below can't match it.
+        assert "/" not in transcribe.id
+
+        response = client.get(f"/api/documents/{transcribe.id}/children")
+        assert response.status_code == 200
+        children = response.json()["items"]
+        assert len(children) > 0
+        assert all(c["node_kind"] == "workflow" for c in children)
+
     def test_returns_filed_entities_as_children(self, client, db):
         parent = Document(name="Parent", doc_type=DocType.folder)
         db.save(parent)

@@ -2756,6 +2756,17 @@ class Database(DatabaseEmbeddingMixin):
         doc.attributes = attributes
         self.save(doc)
 
+        # Drop legacy subfolder rows minted with a slash in their id (the
+        # pre-fix scheme, e.g. "system-default-workflows:/Transcribe"). Those
+        # ids can't be routed by /api/documents/{doc_id}/children, so they'd
+        # linger as un-expandable duplicates once the ":"-joined nodes are
+        # re-seeded by the backfill. The container id itself has no "/", so
+        # this LIKE never removes it.
+        self._execute(
+            "DELETE FROM documents WHERE node_kind = $kind AND id LIKE '%/%'",
+            {"kind": _WORKFLOW_CONTAINER_NODE_KIND},
+        )
+
     def _ensure_default_workflows_subfolder(self, folder_path: str | None) -> str:
         """Get-or-create the locked subfolder for a preset's ``folder_path``.
 
@@ -2777,7 +2788,13 @@ class Database(DatabaseEmbeddingMixin):
 
         from fichero.models import DocType, Document
 
-        subfolder_id = f"{_DEFAULT_WORKFLOWS_CONTAINER_ID}:{normalized}"
+        # A raw "/" in a document id breaks every /api/documents/{doc_id}/...
+        # route: FastAPI's default `{doc_id}` param matches a single path
+        # segment, so an id like "system-default-workflows:/Transcribe" fails to
+        # route (children/ancestors/parent all 404). Join the path segments with
+        # ":" instead so the id stays a single URL path segment (#11).
+        segments = [seg for seg in normalized.split("/") if seg]
+        subfolder_id = ":".join([_DEFAULT_WORKFLOWS_CONTAINER_ID, *segments])
         existing = self.get(Document, subfolder_id)
         doc = existing or Document(id=subfolder_id, name=normalized.strip("/"))
         doc.name = normalized.strip("/") or normalized
