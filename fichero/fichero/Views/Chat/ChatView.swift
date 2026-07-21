@@ -245,16 +245,46 @@ struct ChatView: View {
         ModelComparisonView()
     }
 
-    /// Knowledge tab — entities/claims surfaced from the conversation. The chrome
-    /// facet lands now; wiring the conversation-scoped KG content is a later
-    /// #3532 slice (no chat-knowledge component to reuse yet).
+    /// Knowledge tab — the entities/claims this conversation drew on, summarized
+    /// from the per-message `RetrievalInfo` we already have (#3, step 5). A
+    /// browsable list needs entity/claim identities the engine doesn't return
+    /// yet; until then this surfaces the honest usage counts rather than an empty
+    /// placeholder.
+    @ViewBuilder
     private var knowledgeTabContent: some View {
-        ContentUnavailableView(
-            "Knowledge",
-            systemImage: "point.3.connected.trianglepath.dotted",
-            description: Text("Entities and claims surfaced from this conversation will appear here.")
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        let summary = ConversationKnowledgeSummary.summarize(currentConversation)
+        if summary.isEmpty {
+            ContentUnavailableView(
+                "No Knowledge Used",
+                systemImage: "point.3.connected.trianglepath.dotted",
+                description: Text("When a reply draws on entities or claims from the library, it appears here.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("This conversation drew on library knowledge across \(summary.repliesWithKnowledge) repl\(summary.repliesWithKnowledge == 1 ? "y" : "ies").")
+                    .font(.callout)
+                HStack(spacing: 16) {
+                    knowledgeStat(summary.entityReferences, "Entity", "point.3.connected.trianglepath.dotted")
+                    knowledgeStat(summary.claimReferences, "Claim", "text.quote")
+                }
+                Text("References, not distinct items — a browsable list arrives when the engine returns entity and claim identities.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding()
+        }
+    }
+
+    private func knowledgeStat(_ count: Int, _ noun: String, _ icon: String) -> some View {
+        Label("\(count) \(noun.lowercased())\(count == 1 ? "" : "s")", systemImage: icon)
+            .font(.callout.monospacedDigit())
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(.controlBackgroundColor))
+            .cornerRadius(6)
     }
 
     /// Shared bottom mini-toolbar (#3532) — a per-tab status line plus the
@@ -304,7 +334,8 @@ struct ChatView: View {
         case .plan:
             return researchProject == nil ? "Not a workspace yet" : "Plan"
         case .knowledge:
-            return "Knowledge"
+            let s = ConversationKnowledgeSummary.summarize(currentConversation)
+            return s.isEmpty ? "No knowledge used" : "\(s.entityReferences) entity · \(s.claimReferences) claim references"
         case .compare:
             return "Compare agents / models"
         }
