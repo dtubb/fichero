@@ -389,7 +389,9 @@ class LibraryManager {
 
     private init() {
         // Always load Global library on startup
+        LaunchProfile.milestone("LibraryManager.shared init start")
         loadGlobalLibrary()
+        LaunchProfile.milestone("LibraryManager.shared init done")
     }
 
     /// Load or create the Global library
