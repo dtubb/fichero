@@ -29,6 +29,141 @@ def _app_with_auth() -> FastAPI:
     return app
 
 
+def _drive_asgi(app, path, *, host, server, transport=None, headers=None):
+    """Drive ``app`` as a raw ASGI callable with a hand-built scope and return
+    ``(status, body)``.
+
+    This lets a test reproduce the exact scope uvicorn builds for a Unix-domain
+    socket request: ``server = (<socket path>, None)`` and a Host header that is
+    the percent-encoded socket path (which is NOT a valid hostname). That is the
+    real UDS request the AsyncHTTPClient ``http+unix`` transport sends.
+    """
+    import asyncio
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode("utf-8"),
+        "query_string": b"",
+        "root_path": "",
+        "server": server,
+        "client": None,
+        "headers": [(b"host", host.encode("latin-1"))]
+        + [(k.lower().encode("latin-1"), v.encode("latin-1")) for k, v in (headers or [])],
+    }
+    if transport is not None:
+        scope["fichero.transport"] = transport
+
+    events = []
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(event):
+        events.append(event)
+
+    asyncio.run(app(scope, receive, send))
+
+    status = next(e["status"] for e in events if e["type"] == "http.response.start")
+    body = b"".join(e.get("body", b"") for e in events if e["type"] == "http.response.body")
+    return status, body
+
+
+# The percent-encoded socket path AsyncHTTPClient uses as the Host on the wire.
+_UDS_SOCKET_PATH = "/Users/tester/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock"
+_UDS_ENCODED_HOST = (
+    "%2FUsers%2Ftester%2FLibrary%2FContainers%2Fapp.fichero.fichero"
+    "%2FData%2Ftmp%2Ffichero.sock"
+)
+
+
+def test_uds_health_is_unauthenticated_despite_encoded_host():
+    """Regression: /api/health over UDS must skip auth even though the Host
+    header is the percent-encoded socket path (which corrupts request.url.path).
+
+    Before the fix, the allowlist keyed off ``request.url.path``, which Starlette
+    derives from ``scope["server"] = (<socket path>, None)`` when the Host is not
+    a valid hostname -> ``<socket path>:None/api/health`` -> 401. The fix keys off
+    ``scope["path"]`` (always ``/api/health``), so it passes through.
+    """
+    app = _app_with_auth()
+    status, _ = _drive_asgi(
+        app,
+        "/api/health",
+        host=_UDS_ENCODED_HOST,
+        server=(_UDS_SOCKET_PATH, None),
+        transport="uds",
+    )
+    assert status == 200
+
+
+def test_uds_encoded_host_does_not_break_openapi_allowlist():
+    """The same Host-independence applies to the other unauthenticated paths."""
+    app = _app_with_auth()
+
+    @app.get("/docs/")
+    async def _docs():  # pragma: no cover - route body trivial
+        return {"docs": True}
+
+    status, _ = _drive_asgi(
+        app,
+        "/docs/",
+        host=_UDS_ENCODED_HOST,
+        server=(_UDS_SOCKET_PATH, None),
+        transport="uds",
+    )
+    assert status == 200
+
+
+def test_uds_owner_trust_is_host_independent(monkeypatch):
+    """Owner-trust over UDS must not depend on the Host header: a private path
+    with the bootstrap token succeeds, and WITHOUT the token still 401s (proving
+    we did not loosen auth for the UDS transport)."""
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
+    app = _app_with_auth()
+
+    # With the bootstrap token -> owner-trusted, 200 (Host is the encoded socket).
+    status_ok, _ = _drive_asgi(
+        app,
+        "/api/private",
+        host=_UDS_ENCODED_HOST,
+        server=(_UDS_SOCKET_PATH, None),
+        transport="uds",
+        headers=[("authorization", "Bearer test-token")],
+    )
+    assert status_ok == 200
+
+    # Without any token -> still rejected, even over the trusted UDS transport.
+    status_denied, _ = _drive_asgi(
+        app,
+        "/api/private",
+        host=_UDS_ENCODED_HOST,
+        server=(_UDS_SOCKET_PATH, None),
+        transport="uds",
+    )
+    assert status_denied == 401
+
+
+def test_encoded_host_over_tcp_does_not_grant_unauth_private_path():
+    """Security: the scope["path"] allowlist must not become a bypass on the TCP
+    path. A non-UDS request (no transport marker, real network peer) to a private
+    path is still rejected regardless of Host header shenanigans."""
+    app = _app_with_auth()
+    status, _ = _drive_asgi(
+        app,
+        "/api/private",
+        host=_UDS_ENCODED_HOST,
+        server=("192.0.2.10", 5000),
+        transport=None,
+    )
+    # Non-loopback, non-UDS -> rejected (403 "loopback only" here); never granted.
+    assert status in (401, 403)
+
+
 def test_docs_subpath_is_unauthenticated():
     client = TestClient(_app_with_auth())
     response = client.get("/docs/")

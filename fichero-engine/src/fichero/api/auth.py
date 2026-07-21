@@ -643,8 +643,20 @@ def attach_auth_middleware(
     @app.middleware("http")
     async def _enforce_auth(request: Request, call_next):
         # Allow unauthenticated paths through.
-        if request.url.path in _UNAUTHENTICATED_PATHS or any(
-            request.url.path.startswith(prefix) for prefix in _UNAUTHENTICATED_PREFIXES
+        #
+        # Use the routed ASGI ``scope["path"]`` (what FastAPI itself matches on)
+        # rather than ``request.url.path``. The latter is derived from the Host
+        # header, and Starlette falls back to ``scope["server"]`` when the Host
+        # is not a valid hostname. Over the Unix-domain socket, uvicorn sets
+        # ``scope["server"] = (<socket path>, None)``, and the AsyncHTTPClient
+        # ``http+unix`` transport sends the percent-encoded socket path as the
+        # Host header (not a valid hostname) -- so ``request.url.path`` becomes
+        # ``<socket path>:None/api/health`` and no longer matches the allowlist,
+        # 401ing genuinely public endpoints like ``/api/health``. ``scope["path"]``
+        # is always the clean routed path, making this check Host-independent.
+        routed_path = request.scope.get("path") or request.url.path
+        if routed_path in _UNAUTHENTICATED_PATHS or any(
+            routed_path.startswith(prefix) for prefix in _UNAUTHENTICATED_PREFIXES
         ):
             return await call_next(request)
 
