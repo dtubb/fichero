@@ -49,8 +49,25 @@ Branch `lane/sidebar-ux`. Worktree `~/code/fichero-worktrees/sidebar`. Do NOT pu
   Searches/Automation DisclosureGroup headers + divider; one continuous node list per
   tab, per-kind `unifiedRows` blocks preserve reorder. Retired dead Activity-row code;
   kept live `.run` view-mode routing.
-- **2.** Sidebar bug-fixes: #3390 drag-drop, #2496 click-select + trailing affordance,
-  #2491 right-align count.  ← NEXT
+- **2.** Sidebar bug-fixes — IN PROGRESS:
+  - ✅ Automation drag-snap fixed (`933816657`, `.moveDisabled` on non-reorderable kinds).
+  - ✅ **#2491** — sidebar count is ALREADY right-aligned (`SidebarSectionHeader.swift:110`
+    has `Spacer()` before the count). The non-right-aligned rows in the issue are the
+    LibraryView list/column rows (out of this lane). Recommend closing #2491 for the
+    sidebar or re-scoping to Library view.
+  - ⏸ **#3390** (PDF drop no feedback / no drop) — needs a BUILD to verify (can't test
+    drops here). Diagnosis: the drop routing looks correct (`classifySidebarDropProviders`
+    → externalFiles for a Finder file-url), so the likely culprit is the `.onDrop(of:
+    [.utf8PlainText, .item])` UTType filter not engaging `isTargeted` for the dragged
+    PDF. Candidate fix to verify: add `UTType.fileURL` (and/or `.pdf`) to the accepted
+    types on `folderLabel`/`leafLabel` (`SidebarItemRow+Presentation+Body.swift`). The row
+    already logs provider UTIs in DEBUG (`handleRowDrop`) — drag a PDF and read the log to
+    confirm which UTI arrives, then pin the accepted type. NOT blind-fixed (would risk the
+    #711/#713 drag-source workarounds).
+  - ⏸ **#2496** (trailing affordance) — click-select reliability is already handled by the
+    full-row `.contentShape` + the modifier-aware tap fallback. The remaining ask is an
+    additive trailing hover-chevron/open button; it's visual polish under the Every-Frame-
+    Perfect bar, best added with a build to eyeball.
 - **3.** Batch **actions**: delete / open-in-tabs over the multi-selection set.
 
 ## Critic pass on item 1 (findings verified as PRE-EXISTING, not regressions)
