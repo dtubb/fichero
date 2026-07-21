@@ -86,3 +86,20 @@ sequenced AFTER the store builds ship), then #2594 execution follow-up (leave ru
 - **Batch worktree** = `/Users/danieltubb/code/fichero-worktrees/batch` (currently == origin/main).
   Integration merges happen in `~/code/fichero-worktrees/integrate`, NEVER `~/code/fichero`.
 - A 15-min ScheduleWakeup loop is/was armed to keep momentum.
+
+## EVENING STATE 2026-07-21 (agent-team lanes)
+Batch = `3dea23f03` (origin/main + mcp + security reorg + main-green's 3 red fixes).
+
+**Landed into batch:** mcp/ + security/ reorg (both full-suite gated: mcp 8044 passed; security's guardrail path-repoint fixed — WILDCARD_BIND_ALLOWLIST + xml chokepoint → security/ paths). main-green's 3 fixes: #4 ActivityStream guardrail (now `not in found`), #3 seed 5→6 (legit, #11 workflow-doc mirror), #1 batch activity (REAL fix — added `ActivityTracker.wait_for_pending_saves()`, fire-and-forget had no ordering).
+
+**STILL TO MERGE into batch (branches, commit-only):**
+- envelope (`agent-a1b09550b338f0d3f`) — #2 contract fix: content_representations.py enveloped in {items,count} + OpenAPI/Swift-client regen. Was salvaged (worker died mid-regen); salvage waiter `barrxq3ed` commits it iff guardrail passes. **COLLISION: it edited `models.py` (added 2 ListResponse models) which the reorg lane is MOVING — reconcile at merge: the 2 models go into the reorged `models/` location.**
+- reorg-godnodes (`agent-ad29ece4a704f7faf`) — RUNNING: importers→llm→db→models→kg, per-domain commits, shims, guardrail repoints (esp. PERSISTENCE_PATH_ALLOWLIST for db/).
+- startup-ux (`agent-a4a8b8ed692d1e212`) — S1 already shipped; only a stale-test fix (EngineSessionTests.swift) + 3 doc comments. Needs a Swift BUILD gate.
+- speedup doc (`agent-a78b27c51e80fd3ca`), sharing doc (`agent-ae528ef771b4d1b28`) — doc-only, trivial merges.
+
+**THEN:** reconcile models.py collision → ONE full-suite engine gate on batch (expect 0 failed) → push green → ff-pull ~/code/fichero → Swift build gate (startup-ux test + envelope's regenerated Swift client — verify it compiles) → f_manager dev→GitHub+TestFlight off green main → continue.
+
+**Decisions Daniel approved 2026-07-21 (round 2):** share transport = BOTH as named routes (needs a doc home — put in sharing plan). per-library connect (#2573) = auto-detect + manual override. startup Stage-2 = SKIP tier churn, apscheduler quick win only (real lever = spawn/connect chain). agent accounts (#1847) = Xcode-style consent prompt: connect→prompt→approve auto-provisions, "don't ask again" remembers FOR THE SESSION, relaunch re-prompts. Recorded on #2573/#4038/#1847.
+**Sharing triage:** cluster mostly built; #2573 per-library host = key remaining; #231 Discovery + #205 Settings empty (recommend close); doc = docs/design/sharing-and-pairing-consolidated-plan.md.
+**origin/main WAS red** (4 pre-existing reds) — main-green + envelope fix them; do NOT push until the combined batch gate is 0-failed.
