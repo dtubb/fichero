@@ -23,7 +23,7 @@ from fichero.models import (
     KnowledgeClaim,
     KnowledgeEntity,
 )
-from fichero.storage import resolve_edited_source
+from fichero.db.storage import resolve_edited_source
 
 logger = logging.getLogger(__name__)
 

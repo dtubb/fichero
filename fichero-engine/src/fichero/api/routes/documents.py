@@ -38,8 +38,8 @@ from fichero.models import (
 )
 from fichero.security.path_security import validate_stored_document_path
 from fichero.perf import perf_span
-from fichero.storage import auto_snapshot_before_risky_operation
-from fichero.storage import settings as storage_settings
+from fichero.db.storage import auto_snapshot_before_risky_operation
+from fichero.db.storage import settings as storage_settings
 from fichero.actions.registry import registry
 
 logger = logging.getLogger(__name__)
@@ -1564,7 +1564,7 @@ async def import_file(
     ctx: "ActionContext" = Depends(action_context),
 ) -> Document:
     """Import a file and create a document."""
-    from fichero.storage import UploadTooLargeError, save_uploaded_file
+    from fichero.db.storage import UploadTooLargeError, save_uploaded_file
 
     temp_path: Path | None = None
 

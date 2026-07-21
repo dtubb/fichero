@@ -10,7 +10,7 @@ import shutil
 from typing import Any
 
 from fichero.mlx_runtime import get_mlx_runtime
-from fichero.paths import engine_state_dir
+from fichero.db.paths import engine_state_dir
 from fichero.providers import ProviderType
 
 

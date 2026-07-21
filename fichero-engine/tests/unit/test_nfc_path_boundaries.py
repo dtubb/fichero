@@ -9,7 +9,7 @@ import pytest
 from fichero.api.library_header import optional_library_path
 from fichero.db import Database
 from fichero.db_manager import DatabaseManager
-from fichero.library_paths import nfc_path
+from fichero.db.library_paths import nfc_path
 
 
 def _request(header_value: str | None) -> fastapi.Request:

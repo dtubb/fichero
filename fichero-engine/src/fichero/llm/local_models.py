@@ -25,7 +25,7 @@ from fichero.db_embeddings import (
     DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL,
     SUPPORTED_EMBEDDING_SPACES,
 )
-from fichero.paths import engine_state_dir
+from fichero.db.paths import engine_state_dir
 
 logger = logging.getLogger(__name__)
 

@@ -11,7 +11,7 @@ import subprocess
 class TestUploadStreaming:
     @pytest.mark.asyncio
     async def test_save_uploaded_file_stops_streaming_after_cap_is_hit(self):
-        from fichero.storage import UploadTooLargeError, save_uploaded_file
+        from fichero.db.storage import UploadTooLargeError, save_uploaded_file
 
         class ChunkedUpload:
             filename = "oversized.txt"
@@ -45,7 +45,7 @@ class TestStorageSettings:
         so clear it here to assert the actual default).
         """
         monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
-        from fichero.storage import StorageSettings
+        from fichero.db.storage import StorageSettings
 
         s = StorageSettings()
         assert "Application Support" in str(s.base_path)
@@ -55,7 +55,7 @@ class TestStorageSettings:
 
     def test_computed_fields(self):
         """Computed fields should derive from base_path."""
-        from fichero.storage import StorageSettings
+        from fichero.db.storage import StorageSettings
 
         with tempfile.TemporaryDirectory() as tmpdir:
             s = StorageSettings(base_path=Path(tmpdir))
@@ -65,7 +65,7 @@ class TestStorageSettings:
 
     def test_size_tuples(self):
         """Size properties should return tuples."""
-        from fichero.storage import StorageSettings, THUMBNAIL_MAX_DIMENSION
+        from fichero.db.storage import StorageSettings, THUMBNAIL_MAX_DIMENSION
 
         s = StorageSettings()
         assert s.thumb_size == (THUMBNAIL_MAX_DIMENSION, THUMBNAIL_MAX_DIMENSION)
@@ -73,14 +73,14 @@ class TestStorageSettings:
 
     def test_custom_sizes(self):
         """Custom dimensions should work."""
-        from fichero.storage import StorageSettings
+        from fichero.db.storage import StorageSettings
 
         s = StorageSettings(thumb_width=150, thumb_height=150)
         assert s.thumb_size == (150, 150)
 
     def test_env_override(self, monkeypatch):
         """Environment variables should override defaults."""
-        from fichero.storage import StorageSettings
+        from fichero.db.storage import StorageSettings
 
         monkeypatch.setenv("FICHERO_QUALITY", "90")
         s = StorageSettings()
@@ -92,7 +92,7 @@ class TestPathHelpers:
 
     def test_sharding_uses_first_two_chars(self):
         """Thumbnail paths should use first 2 chars for sharding."""
-        from fichero.storage import expected_thumbnail_path
+        from fichero.db.storage import expected_thumbnail_path
 
         path = expected_thumbnail_path("a1b2c3d4")
         assert "a1" in str(path)
@@ -100,33 +100,33 @@ class TestPathHelpers:
 
     def test_sharding_lowercase(self):
         """Sharding should be case-insensitive."""
-        from fichero.storage import expected_thumbnail_path
+        from fichero.db.storage import expected_thumbnail_path
 
         path = expected_thumbnail_path("A1B2C3D4")
         assert "a1" in str(path)
 
     def test_display_path_suffix(self):
         """Display paths should have _display suffix."""
-        from fichero.storage import expected_display_path
+        from fichero.db.storage import expected_display_path
 
         path = expected_display_path("abc123")
         assert path.name == "abc123_display.jpg"
 
     def test_has_thumbnail_false_for_nonexistent(self):
         """has_thumbnail returns False for non-existent files."""
-        from fichero.storage import has_thumbnail
+        from fichero.db.storage import has_thumbnail
 
         assert has_thumbnail("nonexistent-id-12345") is False
 
     def test_has_display_false_for_nonexistent(self):
         """has_display returns False for non-existent files."""
-        from fichero.storage import has_display
+        from fichero.db.storage import has_display
 
         assert has_display("nonexistent-id-12345") is False
 
     def test_sips_conversion_timeout_is_logged(self, tmp_path, monkeypatch, caplog):
         """#2137: thumbnail conversion failures should be debug-visible."""
-        from fichero.storage import _sips_convert
+        from fichero.db.storage import _sips_convert
 
         source = tmp_path / "bad.jpg"
         source.write_bytes(b"not really a jpeg")
@@ -136,7 +136,7 @@ class TestPathHelpers:
 
         monkeypatch.setattr("subprocess.run", timeout)
 
-        caplog.set_level("DEBUG", logger="fichero.storage")
+        caplog.set_level("DEBUG", logger="fichero.db.storage")
         assert _sips_convert(source) is None
         assert "sips thumbnail conversion timed out" in caplog.text
 
@@ -146,7 +146,7 @@ class TestResolveSource:
 
     def test_path_exists(self, tmp_path):
         """Should return path if doc.path exists."""
-        from fichero.storage import resolve_source
+        from fichero.db.storage import resolve_source
 
         file = tmp_path / "test.jpg"
         file.touch()
@@ -160,7 +160,7 @@ class TestResolveSource:
 
     def test_path_missing_uses_metadata_fallback(self, tmp_path):
         """Should fallback to metadata paths if doc.path missing."""
-        from fichero.storage import resolve_source
+        from fichero.db.storage import resolve_source
 
         file = tmp_path / "test.jpg"
         file.touch()
@@ -174,7 +174,7 @@ class TestResolveSource:
 
     def test_metadata_tilde_path_is_expanded(self, tmp_path, monkeypatch):
         """source_path with '~' should resolve via expanduser()."""
-        from fichero.storage import resolve_source
+        from fichero.db.storage import resolve_source
 
         monkeypatch.setenv("HOME", str(tmp_path))
         file = tmp_path / "from-home.jpg"
@@ -189,7 +189,7 @@ class TestResolveSource:
 
     def test_returns_none_if_nothing_exists(self):
         """Should return None if no paths exist."""
-        from fichero.storage import resolve_source
+        from fichero.db.storage import resolve_source
 
         doc = Mock()
         doc.path = "/nonexistent/path.jpg"
@@ -203,7 +203,7 @@ class TestResolveSource:
 
     def test_invalid_metadata_path_types_are_ignored(self):
         """Non-string metadata path values should not raise."""
-        from fichero.storage import resolve_source
+        from fichero.db.storage import resolve_source
 
         doc = Mock()
         doc.path = "/nonexistent/path.jpg"
@@ -217,7 +217,7 @@ class TestResolveSource:
 
     def test_metadata_priority_order(self, tmp_path):
         """Should check metadata paths in correct order."""
-        from fichero.storage import resolve_source
+        from fichero.db.storage import resolve_source
 
         # Only full_path exists
         file = tmp_path / "full.jpg"
@@ -235,7 +235,7 @@ class TestResolveSource:
 
     def test_library_relative_doc_path_resolves_under_current_library(self, tmp_path):
         """Copied-in package paths should resolve after a library move/rename."""
-        from fichero.storage import resolve_source
+        from fichero.db.storage import resolve_source
 
         library_root = tmp_path / "Renamed.fichero"
         source = library_root / "files" / "ab" / "page.jpg"
@@ -251,7 +251,7 @@ class TestResolveSource:
 
     def test_old_absolute_files_path_falls_back_to_current_library(self, tmp_path):
         """Old absolute paths baking in a prior .fichero name should recover."""
-        from fichero.storage import resolve_source
+        from fichero.db.storage import resolve_source
 
         old_root = tmp_path / "Old.fichero"
         new_root = tmp_path / "New.fichero"
@@ -268,7 +268,7 @@ class TestResolveSource:
 
     def test_invalid_bookmark_raises_instead_of_falling_back_to_path(self, tmp_path):
         """Corrupt bookmark metadata must not silently select another source."""
-        from fichero.storage import _get_bookmark
+        from fichero.db.storage import _get_bookmark
 
         bookmark_file = tmp_path / "bookmark.jpg"
         bookmark_file.touch()
@@ -287,7 +287,7 @@ class TestResolveSource:
     def test_remote_bookmark_disabled_prefers_package_path(self, tmp_path, monkeypatch):
         """Remote engines must not resolve Mac bookmarks from by-reference docs."""
         from fichero import bookmarks
-        from fichero.storage import resolve_source
+        from fichero.db.storage import resolve_source
 
         library_root = tmp_path / "Remote.fichero"
         source = library_root / "files" / "aa" / "page.jpg"
@@ -338,7 +338,7 @@ class TestThumbnailGeneration:
 
     def test_ensure_thumbnail_no_source(self, tmp_path):
         """Should return None if no source found."""
-        from fichero.storage import ensure_thumbnail
+        from fichero.db.storage import ensure_thumbnail
 
         doc = Mock()
         doc.id = "test123"
@@ -355,7 +355,7 @@ class TestThumbnailGeneration:
     def test_ensure_thumbnail_creates_file(self, tmp_path):
         """Should create thumbnail file."""
         from fichero import storage
-        from fichero.storage import (
+        from fichero.db.storage import (
             THUMBNAIL_MAX_DIMENSION,
             ensure_thumbnail,
             StorageSettings,
@@ -401,7 +401,7 @@ class TestThumbnailGeneration:
     def test_ensure_thumbnail_caps_long_edge_at_max_dimension(self, tmp_path):
         """Large source images should be capped at the configured thumbnail size."""
         from fichero import storage
-        from fichero.storage import (
+        from fichero.db.storage import (
             THUMBNAIL_MAX_DIMENSION,
             ensure_thumbnail,
             StorageSettings,
@@ -443,7 +443,7 @@ class TestThumbnailGeneration:
     def test_ensure_thumbnail_writes_versioned_cache_and_alias(self, tmp_path):
         """Thumbnail cache files should be keyed by doc id, size, and source mtime."""
         from fichero import storage
-        from fichero.storage import ensure_thumbnail, get_thumbnail, StorageSettings
+        from fichero.db.storage import ensure_thumbnail, get_thumbnail, StorageSettings
 
         try:
             from PIL import Image
@@ -501,7 +501,7 @@ class TestStorageRouteHeaders:
     def test_ensure_thumbnail_skips_existing(self, tmp_path):
         """Should skip if thumbnail already exists and is newer."""
         from fichero import storage
-        from fichero.storage import ensure_thumbnail, StorageSettings
+        from fichero.db.storage import ensure_thumbnail, StorageSettings
 
         try:
             from PIL import Image
@@ -555,7 +555,7 @@ class TestCleanup:
     def test_cleanup_orphans_removes_invalid(self, tmp_path):
         """Should remove thumbnails for missing documents."""
         from fichero import storage
-        from fichero.storage import cleanup_orphans, StorageSettings
+        from fichero.db.storage import cleanup_orphans, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
         original_settings = storage.settings
@@ -585,7 +585,7 @@ class TestCleanup:
     def test_cleanup_orphans_keeps_versioned_cache_for_live_doc(self, tmp_path):
         """Versioned cache files should map back to the owning document id."""
         from fichero import storage
-        from fichero.storage import cleanup_orphans, StorageSettings
+        from fichero.db.storage import cleanup_orphans, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
         original_settings = storage.settings
@@ -608,7 +608,7 @@ class TestCleanup:
     def test_cleanup_orphans_empty_dir(self, tmp_path):
         """Should handle non-existent thumb directory."""
         from fichero import storage
-        from fichero.storage import cleanup_orphans, StorageSettings
+        from fichero.db.storage import cleanup_orphans, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
         original_settings = storage.settings
@@ -628,7 +628,7 @@ class TestStats:
     def test_stats_empty(self, tmp_path):
         """Should return zeros for empty storage."""
         from fichero import storage
-        from fichero.storage import stats, StorageSettings
+        from fichero.db.storage import stats, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
         original_settings = storage.settings
@@ -645,7 +645,7 @@ class TestStats:
     def test_stats_with_files(self, tmp_path):
         """Should count files and calculate size."""
         from fichero import storage
-        from fichero.storage import stats, StorageSettings
+        from fichero.db.storage import stats, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
         original_settings = storage.settings
@@ -676,7 +676,7 @@ class TestBatchGeneration:
     def test_ensure_thumbnails_returns_futures(self, tmp_path):
         """Should return list of futures."""
         from fichero import storage
-        from fichero.storage import ensure_thumbnails, StorageSettings
+        from fichero.db.storage import ensure_thumbnails, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
         original_settings = storage.settings
@@ -700,7 +700,7 @@ class TestBatchGeneration:
     def test_callback_called_on_completion(self, tmp_path):
         """Callback should be called when thumbnail generation completes."""
         from fichero import storage
-        from fichero.storage import ensure_thumbnails, StorageSettings
+        from fichero.db.storage import ensure_thumbnails, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
         original_settings = storage.settings
@@ -733,7 +733,7 @@ class TestShutdown:
 
     def test_shutdown_idempotent(self):
         """Shutdown should be safe to call multiple times."""
-        from fichero.storage import shutdown
+        from fichero.db.storage import shutdown
 
         # Should not raise
         shutdown()

@@ -20,13 +20,13 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 
 from fichero.db import db_manager
-from fichero.library_paths import nfc_path
+from fichero.db.library_paths import nfc_path
 from fichero.models import (
     KnownLibrary,
     LibraryCreateRequest,
     LibraryCreateResponse,
 )
-from fichero.storage import settings
+from fichero.db.storage import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

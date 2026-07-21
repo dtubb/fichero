@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fichero.api.change_stream import emit_change
-from fichero.library_paths import nfc_path
+from fichero.db.library_paths import nfc_path
 
 if TYPE_CHECKING:
     from fichero.db import Database
@@ -69,7 +69,7 @@ class DatabaseManager:
             migrate_saved_search_table,
             migrate_workflow_table,
         )
-        from fichero.library_bootstrap import ensure_inbox_folder
+        from fichero.db.library_bootstrap import ensure_inbox_folder
         from fichero.workflows.default_workflows import seed_default_workflows
 
         package_path = Path(nfc_path(package_path))

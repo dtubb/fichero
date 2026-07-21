@@ -44,7 +44,7 @@ def _make_model_entry(
 class TestListLocalModels:
     def test_models_base_uses_shared_engine_state_dir(self):
         from fichero.local_models import MODELS_BASE
-        from fichero.paths import engine_state_dir
+        from fichero.db.paths import engine_state_dir
 
         assert MODELS_BASE == engine_state_dir() / "models"
         assert "com.fichero.fichero" not in str(MODELS_BASE)

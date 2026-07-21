@@ -10,7 +10,7 @@ import pytest
 
 from fichero.db import Database
 from fichero.models import Document, KnownLibrary, LibrarySnapshot, SnapshotInitiatorType
-from fichero.storage import StorageSettings
+from fichero.db.storage import StorageSettings
 from fichero import storage_snapshots
 
 

@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero.llm import LLMConfig
-from fichero.paths import engine_state_dir
+from fichero.db.paths import engine_state_dir
 
 from fichero.workflows.types import PortDef, DataType
 

@@ -29,7 +29,7 @@ from fichero.knowledge_models import (
 )
 from fichero.utf16_offsets import utf16_range_to_codepoint_range
 from fichero.models import DocType, Document
-from fichero.storage import resolve_source
+from fichero.db.storage import resolve_source
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/annotations")

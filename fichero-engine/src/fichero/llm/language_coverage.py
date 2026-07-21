@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from fichero.storage import settings
+from fichero.db.storage import settings
 
 
 ScoreBand = Literal["excellent", "good", "limited", "poor", "unknown"]

@@ -13,7 +13,7 @@ from typing import Callable
 import uuid
 import venv
 
-from fichero.paths import engine_state_dir
+from fichero.db.paths import engine_state_dir
 
 MLX_LM_VERSION = "0.31.3"
 _RUNTIME_DIRNAME = "mlx-runtime"

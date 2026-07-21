@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fichero import storage_snapshots
-from fichero.storage import StorageSettings
+from fichero.db.storage import StorageSettings
 
 
 def _use_snapshot_state(monkeypatch, tmp_path: Path) -> None:

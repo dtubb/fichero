@@ -22,7 +22,7 @@ from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.models import ActionAudit, Document, LibrarySnapshot, SnapshotInitiatorType
 from fichero.perf import perf_span
-from fichero.storage import (
+from fichero.db.storage import (
     snapshot_library,
     list_snapshots,
     restore_snapshot,
@@ -136,7 +136,7 @@ async def get_thumbnail(
         package_path = Path(x_fichero_library_path)
         doc = _document_or_404(db, doc_id)
 
-        from fichero.storage import get_thumbnail, ensure_thumbnail, get_display, ensure_display
+        from fichero.db.storage import get_thumbnail, ensure_thumbnail, get_display, ensure_display
 
         thumb_path = get_thumbnail(doc, package_path=package_path, db=db)
         perf["cache_state"] = "hit" if thumb_path else "miss"
@@ -194,7 +194,7 @@ async def get_display_image(
     package_path = Path(x_fichero_library_path)
     doc = _document_or_404(db, doc_id)
 
-    from fichero.storage import get_display, ensure_display, get_thumbnail, ensure_thumbnail
+    from fichero.db.storage import get_display, ensure_display, get_thumbnail, ensure_thumbnail
 
     # Try to get existing display image (with package path for library isolation)
     display_path = get_display(doc, package_path, db=db)
@@ -261,7 +261,7 @@ async def get_source_file(
     """
     doc = _document_or_404(db, doc_id)
 
-    from fichero.storage import resolve_source
+    from fichero.db.storage import resolve_source
 
     source_path = resolve_source(doc, library_root=db.path.parent)
 
@@ -336,7 +336,7 @@ async def storage_stats(
     x_fichero_library_path: str = Depends(require_library_path),
 ):
     """Get storage statistics for a library."""
-    from fichero.storage import stats
+    from fichero.db.storage import stats
 
     package_path = Path(x_fichero_library_path)
     return stats(package_path)
@@ -360,7 +360,7 @@ async def regenerate_missing_thumbnails(
     one synchronously. Idempotent — already-cached thumbs are skipped.
     Returns counts of generated / skipped / failed docs (#2218).
     """
-    from fichero.storage import get_thumbnail, ensure_thumbnail
+    from fichero.db.storage import get_thumbnail, ensure_thumbnail
     from fichero.models import Document
 
     package_path = Path(x_fichero_library_path)
@@ -401,7 +401,7 @@ async def debug_document_paths(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> DocumentDebugResponse:
     """Debug endpoint to check document paths and file access."""
-    from fichero.storage import resolve_source, _thumb_path
+    from fichero.db.storage import resolve_source, _thumb_path
 
     package_path = Path(x_fichero_library_path)
     doc = _document_or_404(db, doc_id)
@@ -613,7 +613,7 @@ async def pin_snapshot(
     pinned: bool = True,
 ) -> LibrarySnapshot:
     """Toggle pinned status. Pinned snapshots are not auto-deleted."""
-    from fichero.storage import _load_all_snapshot_records, _save_snapshot_record
+    from fichero.db.storage import _load_all_snapshot_records, _save_snapshot_record
 
     snapshots = _load_all_snapshot_records()
     snapshot = next((s for s in snapshots if s.id == snapshot_id), None)

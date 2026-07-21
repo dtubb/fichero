@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero.app_db import get_app_db
-from fichero.library_paths import nfc_path
+from fichero.db.library_paths import nfc_path
 from fichero.models import AccountUser, Document
 from fichero.multiuser import multiuser_enabled as _multiuser_enabled
 

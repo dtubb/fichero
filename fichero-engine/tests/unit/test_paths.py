@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fichero.paths import engine_state_dir, migrate_legacy_engine_state
+from fichero.db.paths import engine_state_dir, migrate_legacy_engine_state
 
 
 def test_engine_state_dir_uses_fichero_convention(tmp_path):

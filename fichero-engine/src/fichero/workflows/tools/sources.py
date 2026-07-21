@@ -39,7 +39,7 @@ def _resolve_abs_path(file_doc: "Document", library_root: "str | None") -> str:
     a legitimate LINK-ingest file outside the library returns its raw absolute
     path (confinement rejects it, so resolve_source returns None → fallback).
     """
-    from fichero.storage import resolve_source
+    from fichero.db.storage import resolve_source
 
     resolved = resolve_source(file_doc, library_root=library_root)
     return str(resolved) if resolved else (file_doc.path or "")

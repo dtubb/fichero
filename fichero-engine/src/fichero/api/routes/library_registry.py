@@ -38,7 +38,7 @@ from fichero.api.auth import actor_from_request
 from fichero.db import Database
 from fichero.db_manager import db_manager
 from fichero.knowledge_models import Annotation, KnowledgeEntity, Note
-from fichero.library_paths import nfc_path
+from fichero.db.library_paths import nfc_path
 from fichero.models import (
     DocType,
     Document,
@@ -50,7 +50,7 @@ from fichero.models import (
     UnicodeLibraryCollisionIdentity,
     UnicodeLibraryCollisionResponse,
 )
-from fichero.storage import snapshot_library, settings
+from fichero.db.storage import snapshot_library, settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

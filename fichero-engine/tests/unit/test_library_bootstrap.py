@@ -1,6 +1,6 @@
 """Coverage for default library bootstrap rows."""
 
-from fichero.library_bootstrap import ensure_inbox_folder
+from fichero.db.library_bootstrap import ensure_inbox_folder
 from fichero.models import DocType
 
 

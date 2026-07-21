@@ -21,9 +21,9 @@ from uuid import uuid4
 
 import duckdb
 
-from fichero.library_paths import nfc_path
+from fichero.db.library_paths import nfc_path
 from fichero.security.path_security import resolve_snapshot_record_path
-from fichero.storage import settings  # settings from core storage module
+from fichero.db.storage import settings  # settings from core storage module
 
 if TYPE_CHECKING:
     from fichero.models import LibrarySnapshot

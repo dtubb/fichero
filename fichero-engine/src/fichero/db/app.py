@@ -21,7 +21,7 @@ from pathlib import Path
 
 import duckdb
 from pydantic import BaseModel
-from fichero.storage import settings
+from fichero.db.storage import settings
 from fichero.models import (
     ActionAudit,
     AccountInvite,

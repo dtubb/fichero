@@ -8,7 +8,7 @@ from urllib.parse import unquote
 
 from fastapi import HTTPException, Request
 
-from fichero.library_paths import nfc_path
+from fichero.db.library_paths import nfc_path
 
 LIBRARY_PATH_HEADER = "X-Fichero-Library-Path"
 

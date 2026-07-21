@@ -26,7 +26,7 @@ from fichero.model_recommendations import (
     build_model_recommendations,
 )
 from fichero.models import Document, Workflow
-from fichero.storage import ensure_display, get_display
+from fichero.db.storage import ensure_display, get_display
 from fichero.workflows.resolver import resolve_inputs
 from fichero.workflows.model_comparison import (
     ComparisonRequest,

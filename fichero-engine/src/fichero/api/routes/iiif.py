@@ -20,8 +20,8 @@ from fichero.db import Database
 from fichero.knowledge_models import Annotation, AnnotationKind
 from fichero.models import Document, FileType
 from fichero.security.path_security import allowed_source_roots, resolve_under_allowed_roots
-from fichero.storage import get_display, get_thumbnail, resolve_source
-from fichero.storage import settings as storage_settings
+from fichero.db.storage import get_display, get_thumbnail, resolve_source
+from fichero.db.storage import settings as storage_settings
 from fichero.utf16_offsets import utf16_range_to_codepoint_range
 
 logger = logging.getLogger(__name__)

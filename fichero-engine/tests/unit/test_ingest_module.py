@@ -722,7 +722,7 @@ class TestCopyToLibrary:
     """Tests for _copy_to_library function."""
 
     @patch("fichero.ingest._try_apfs_clone")
-    @patch("fichero.storage.settings")
+    @patch("fichero.db.storage.settings")
     def test_uses_apfs_clone_when_available(self, mock_settings, mock_clone, tmp_path):
         """Should try APFS clone first."""
         from fichero.ingest import _copy_to_library
@@ -739,7 +739,7 @@ class TestCopyToLibrary:
         mock_clone.assert_called_once()
 
     @patch("fichero.ingest._try_apfs_clone")
-    @patch("fichero.storage.settings")
+    @patch("fichero.db.storage.settings")
     @patch("shutil.copy2")
     def test_falls_back_to_shutil(self, mock_copy2, mock_settings, mock_clone, tmp_path):
         """Should fallback to shutil.copy2 if APFS fails."""
@@ -756,7 +756,7 @@ class TestCopyToLibrary:
         mock_copy2.assert_called_once()
 
     @patch("fichero.ingest._try_apfs_clone")
-    @patch("fichero.storage.settings")
+    @patch("fichero.db.storage.settings")
     def test_creates_sharded_directory(self, mock_settings, mock_clone, tmp_path):
         """Should create sharded directory structure."""
         from fichero.ingest import _copy_to_library

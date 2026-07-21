@@ -72,10 +72,10 @@ from fichero.models import (
     HealthResponse,
     LibraryStatsResponse,
 )
-from fichero.paths import migrate_legacy_engine_state
+from fichero.db.paths import migrate_legacy_engine_state
 from fichero.security.remote_backend import build_remote_backend_status
 from fichero.security.security_scoped_access import granted_paths
-from fichero.storage import (
+from fichero.db.storage import (
     start_periodic_snapshot_task,
     stop_periodic_snapshot_task,
 )

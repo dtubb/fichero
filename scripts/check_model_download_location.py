@@ -8,7 +8,7 @@ Rule (one canonical models folder):
     > folder — `engine_state_dir() / "models"` — not in a per-library, scattered,
     > or auto-cleaned (`~/.cache`) location, and not under a stale bundle id.
 
-The canonical shared folder is defined in `fichero/paths.py`:
+The canonical shared folder is defined in `fichero/db/paths.py`:
 
     engine_state_dir() / "models"   →   ~/Library/Application Support/Fichero/models
 
@@ -54,7 +54,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ENGINE_SRC = ROOT / "fichero-engine" / "src" / "fichero"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
-# The canonical shared models folder, as defined in fichero/paths.py.
+# The canonical shared models folder, as defined in fichero/db/paths.py.
 CANONICAL_MODELS_DIR_EXPR = 'engine_state_dir() / "models"'
 
 # Tokens that prove a path derives from the shared models folder.

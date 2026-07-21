@@ -605,6 +605,6 @@ def get_checkpointer() -> AsyncDuckDBCheckpointer:
     Returns:
         AsyncDuckDBCheckpointer instance
     """
-    from fichero.storage import settings
+    from fichero.db.storage import settings
 
     return AsyncDuckDBCheckpointer.from_db_path(settings.db_path)

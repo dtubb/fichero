@@ -10,7 +10,7 @@ from PIL import Image
 from fichero.api.routes import storage as storage_routes
 from fichero.export_service import export_markdown_folder
 from fichero.models import DocType, Document, FileType, ImageEditChain
-from fichero.storage import ensure_thumbnail, resolve_edited_source, resolve_source
+from fichero.db.storage import ensure_thumbnail, resolve_edited_source, resolve_source
 
 
 def _edited_document(db) -> Document:

@@ -93,7 +93,7 @@ def test_models_base_is_the_shared_folder():
     dir (#2269). Regression for the hardcoded `com.fichero.fichero` bundle path
     that sent Whisper to a different folder than embeddings/spaCy.
     """
-    from fichero.paths import engine_state_dir
+    from fichero.db.paths import engine_state_dir
 
     assert audio_base.MODELS_BASE == engine_state_dir() / "models"
     # No stale bundle id, no ~/.cache, no per-library scattering.

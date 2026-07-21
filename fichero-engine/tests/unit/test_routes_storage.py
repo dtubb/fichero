@@ -21,7 +21,7 @@ from fichero import storage as storage_module
 from fichero.api.routes import storage as storage_routes
 from fichero.db import Database
 from fichero.models import Document, DocType, FileType, Status
-from fichero.storage import expected_display_path, expected_thumbnail_path
+from fichero.db.storage import expected_display_path, expected_thumbnail_path
 
 
 # ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ from fichero.storage import expected_display_path, expected_thumbnail_path
 
 class TestStorageStats:
     def test_returns_stats(self, client):
-        with patch("fichero.storage.stats") as mock_stats:
+        with patch("fichero.db.storage.stats") as mock_stats:
             mock_stats.return_value = {
                 "total_size_bytes": 1024,
                 "document_count": 5,

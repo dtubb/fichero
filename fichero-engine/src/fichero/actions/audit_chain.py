@@ -16,8 +16,8 @@ import stat
 import threading
 from typing import Any
 
-from fichero.paths import engine_state_dir
-from fichero.storage import settings
+from fichero.db.paths import engine_state_dir
+from fichero.db.storage import settings
 from fichero.models import ActionAudit
 
 logger = logging.getLogger(__name__)

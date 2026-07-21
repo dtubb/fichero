@@ -28,7 +28,7 @@ from fichero.api.routes.documents import _descendant_document_ids
 from fichero.db import Database
 from fichero.models import DocType, Document, FileType, ImageEditChain
 from fichero.workflows.batch import BatchItemStatus, BatchStatus
-from fichero.storage import resolve_source
+from fichero.db.storage import resolve_source
 # NOTE: apply_operation is imported inside the functions that render (#3985) and
 # apply_fuzzy_clean inside the one handler that uses it
 # (#3950). Importing any module in the tools package runs tools/__init__.py,

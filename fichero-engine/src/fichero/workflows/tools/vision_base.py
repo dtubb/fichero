@@ -1702,7 +1702,7 @@ async def process_vision(
             if library_path and doc_id_for_file:
                 from fichero.db import db_manager
                 from fichero.models import Document
-                from fichero.storage import resolve_edited_source
+                from fichero.db.storage import resolve_edited_source
 
                 live_doc = db_manager.get_database(library_path).get(Document, doc_id_for_file)
                 if live_doc:

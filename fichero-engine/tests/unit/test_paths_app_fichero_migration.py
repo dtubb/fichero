@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fichero.paths import engine_state_dir, migrate_legacy_engine_state
+from fichero.db.paths import engine_state_dir, migrate_legacy_engine_state
 
 
 def test_app_fichero_bundle_dir_migrates_into_canonical(tmp_path: Path) -> None:

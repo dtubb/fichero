@@ -624,7 +624,7 @@ def _copy_to_library(source: Path, package_path: Path | None = None) -> Path:
     Returns:
         Destination path in library
     """
-    from fichero.storage import settings
+    from fichero.db.storage import settings
 
     # Create sharded destination directory
     shard = source.stem[:2].lower() if len(source.stem) >= 2 else "00"

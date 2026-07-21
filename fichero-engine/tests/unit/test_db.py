@@ -86,7 +86,7 @@ class TestDatabaseBasics:
     def test_default_path(self, monkeypatch):
         """Default Database() path should be in Application Support — when
         FICHERO_BASE_PATH isn't set. Conftest sets it for test isolation,
-        so clear it here and reload `fichero.storage` so its module-level
+        so clear it here and reload `fichero.db.storage` so its module-level
         `settings = StorageSettings()` re-reads the (now-empty) env.
         """
         class FakeConn:
@@ -117,7 +117,7 @@ class TestDatabaseBasics:
         monkeypatch.setattr(_db_migrations, "migrate_spatial_node_layout_fields", lambda _conn: None)
         monkeypatch.setattr(_db_migrations, "migrate_references_table", lambda _conn: None)
         monkeypatch.setattr(_db_migrations, "migrate_reference_provenance_table", lambda _conn: None)
-        import fichero.storage as _storage_mod
+        import fichero.db.storage as _storage_mod
         from importlib import reload as _reload
         _reload(_storage_mod)
         from fichero.db import Database as _Database

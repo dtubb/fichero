@@ -572,7 +572,7 @@ class Database(DatabaseEmbeddingMixin):
             path: Path to database file. Defaults to ~/Library/Application Support/com.fichero.fichero/library.duckdb
         """
         if path is None:
-            from fichero.storage import settings
+            from fichero.db.storage import settings
 
             path = settings.db_path
         else:
