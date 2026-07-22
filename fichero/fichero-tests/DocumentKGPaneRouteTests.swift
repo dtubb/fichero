@@ -38,10 +38,13 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertTrue(DocumentKGPaneRoute.supportsAuthenticatedWebView())
     }
 
-    /// The global-KG request is built on the shared engine host: it MUST be an
-    /// `https://` URL (never hand-rolled `http://localhost`) and carry the
-    /// per-library engine-auth header.
-    func testGlobalKGRequestIsHTTPSWithEngineAuth() throws {
+    /// The global-KG request now loads over the custom `fichero-engine://engine`
+    /// origin, NOT a raw `https://…:8765` URL — `EngineWebViewSchemeHandler`
+    /// funnels it through the transport-agnostic `FicheroClient` so it works over
+    /// `.uds`/in-memory too (the old raw URL failed `-1004` over a socket). Auth +
+    /// the per-library header are delegated to `requestData`'s middleware, so no
+    /// header is hand-stamped on this request.
+    func testGlobalKGRequestUsesEngineSchemeAndDelegatesAuth() throws {
         try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
 
         let request = try XCTUnwrap(
@@ -52,18 +55,21 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         )
 
         let url = try XCTUnwrap(request.url)
-        XCTAssertEqual(url.scheme, "https")
-        XCTAssertNotEqual(url.scheme, "http")
+        XCTAssertEqual(url.scheme, EngineWebViewURL.scheme)
+        XCTAssertEqual(url.host, EngineWebViewURL.host)
         XCTAssertTrue(url.absoluteString.hasSuffix("/view/kg/global"), url.absoluteString)
-        // addEngineAuth always stamps the per-library header on engine requests.
-        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Fichero-Library-Path"), "/tmp/library")
+        // Auth is applied by the scheme handler's requestData middleware, never a
+        // header on this navigation request (the handler doesn't forward headers).
+        XCTAssertNil(request.value(forHTTPHeaderField: "X-Fichero-Library-Path"))
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
     }
 
-    /// A non-ASCII library path (diacritics, accented home dirs) must be
-    /// percent-encoded in the transport header so it survives the latin-1 HTTP
-    /// header pipeline; the engine `unquote`s it on read (#2648). Pure-ASCII
-    /// paths are unaffected (encoding is a no-op), as the test above pins.
-    func testNonASCIILibraryPathHeaderIsPercentEncoded() throws {
+    /// A non-ASCII library path must not break request construction. Because the
+    /// scheme handler delegates library scoping to `requestData` (which the
+    /// `LibraryPathMiddleware` percent-encodes for the latin-1 header pipeline,
+    /// #2648), the KG request itself carries no per-library header regardless of
+    /// the path's characters.
+    func testNonASCIILibraryPathStillBuildsEngineRequest() throws {
         try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
 
         let request = try XCTUnwrap(
@@ -73,16 +79,13 @@ final class DocumentKGPaneRouteTests: XCTestCase {
             )
         )
 
-        // ó (U+00F3) → UTF-8 0xC3 0xB3 → "%C3%B3"; "/" stays unencoded.
-        XCTAssertEqual(
-            request.value(forHTTPHeaderField: "X-Fichero-Library-Path"),
-            "/tmp/Choc%C3%B3.fichero"
-        )
+        XCTAssertEqual(request.url?.scheme, EngineWebViewURL.scheme)
+        XCTAssertNil(request.value(forHTTPHeaderField: "X-Fichero-Library-Path"))
     }
 
-    /// A per-document reader request is likewise served over the pinned HTTPS
-    /// transport, with the document id percent-encoded into the path.
-    func testDocumentReaderRequestIsHTTPS() throws {
+    /// A per-document reader request likewise loads over the `fichero-engine://`
+    /// origin, with the document id percent-encoded into the path.
+    func testDocumentReaderRequestUsesEngineScheme() throws {
         try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
 
         let request = try XCTUnwrap(
@@ -90,7 +93,7 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         )
 
         let url = try XCTUnwrap(request.url)
-        XCTAssertEqual(url.scheme, "https")
+        XCTAssertEqual(url.scheme, EngineWebViewURL.scheme)
         XCTAssertTrue(url.absoluteString.hasSuffix("/view/document/doc-123"), url.absoluteString)
     }
 

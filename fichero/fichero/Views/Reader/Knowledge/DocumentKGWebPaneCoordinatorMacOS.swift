@@ -149,6 +149,30 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         webView.evaluateJavaScript("window.fichero?.scrollToSpan(null, \(charStart), \(charEnd));")
     }
 
+    /// A genuine fetch failure (e.g. a pinned remote host the client can't reach,
+    /// or the engine returning non-2xx) fails the `fichero-engine://` provisional
+    /// navigation. Fall back to the static "unavailable" page rather than leaving
+    /// WebKit's default error surface. Only fires for `fichero-engine://` loads so
+    /// the `about:blank` unavailable page itself can't re-trigger a loop.
+    func webView(
+        _ webView: WKWebView,
+        didFailProvisionalNavigation navigation: WKNavigation!,
+        withError error: any Error
+    ) {
+        loadUnavailableIfEngineLoad(webView, error: error)
+    }
+
+    private func loadUnavailableIfEngineLoad(_ webView: WKWebView, error: any Error) {
+        if error.isCancellationError { return }
+        // Failures the scheme handler raises carry no failing-URL key; a genuine
+        // network failure carries one — only fall back for our engine loads (or
+        // the key-less handler errors), never for the `about:blank` unavailable
+        // page, so it can't loop.
+        let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLStringErrorKey] as? String
+        guard failingURL == nil || failingURL?.hasPrefix(EngineWebViewURL.scheme) == true else { return }
+        webView.loadHTMLString(DocumentKGPaneRoute.unavailableHTML(), baseURL: nil)
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         injectContext(into: webView)
         webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
