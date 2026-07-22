@@ -346,29 +346,27 @@ class WorkflowService {
         }
     }
 
-    /// Fetch the rendered LangGraph diagram for a workflow as a `PlatformImage`.
+    /// Fetch the workflow's LangGraph diagram as **mermaid source**.
     ///
-    /// The backend's `visualization.png` route returns raw PNG bytes, but the
-    /// OpenAPI schema mis-declares the 200 body as `application/json`, so the
-    /// generated client can't model it. This performs the authenticated binary
-    /// GET itself (same `addEngineAuth` + `URLSession` pattern as
-    /// `StorageService`), keeping the diagram view free of hand-built
-    /// URLs and raw `URLSession` (#1893). Returns `nil` on any non-200.
-    func fetchDiagramImage(workflowId: String) async throws -> PlatformImage? {
-        let url = client.baseURL
-            .appendingPathComponent("api/workflow-execution/workflows")
-            .appendingPathComponent(workflowId)
-            .appendingPathComponent("visualization.png")
-        var request = URLRequest(url: url)
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
-
-        let session = RemoteCertificatePinning.configuredSession()
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            logger.warning("fetchDiagramImage: non-200 for workflow \(workflowId)")
+    /// The `…/workflows/{id}/visualization` endpoint returns
+    /// `WorkflowVisualizationResponse` JSON whose `mermaidCode` is mermaid
+    /// diagram source (not image bytes) — despite the sibling `.png` route
+    /// carrying the same JSON body. The view renders this live in a WKWebView
+    /// (see `WorkflowMermaidView`), so this runs the generated op directly
+    /// rather than the old raw-`URLSession` image fetch. Returns `nil` on any
+    /// non-200 so a missing diagram degrades to the view's placeholder.
+    func fetchDiagramMermaid(workflowId: String) async throws -> String? {
+        let response = try await client.api
+            .getWorkflowVisualizationApiWorkflowExecutionWorkflowsWorkflowIdVisualizationGet(.init(
+                path: .init(workflowId: workflowId)
+            ))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.mermaidCode
+        default:
+            logger.warning("fetchDiagramMermaid: unexpected response for workflow \(workflowId)")
             return nil
         }
-        return PlatformImage(data: data)
     }
 
     /// Reinstall default workflows from backend presets (Transcribe, Catalogue).
