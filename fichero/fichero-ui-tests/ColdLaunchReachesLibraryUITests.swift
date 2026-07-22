@@ -61,7 +61,18 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
     /// one, and does not sprout one afterwards.
     @MainActor
     func testColdEmbeddedLaunchReachesLibraryWithoutEverOfferingRecovery() throws {
-        throw XCTSkip("#3968: embedded-launch UI tests need the engine, tracked separately")
+        // This test spawns the REAL bundled engine, so it only runs on the
+        // embedded UI leg (scripts/verify_embedded_launch.sh / the Dev Embedded
+        // scheme set FICHERO_UITEST_EMBEDDED=1). Under the Dev Local verify_all
+        // leg there is no bundled engine, so it skips cleanly and the fast gate
+        // stays green — replacing the old blanket #3968 XCTSkip that hid it
+        // everywhere. It runs (and must pass) on the embedded leg.
+        guard ProcessInfo.processInfo.environment["FICHERO_UITEST_EMBEDDED"] == "1" else {
+            throw XCTSkip(
+                "Embedded-launch UX test: runs on the embedded UI leg "
+                + "(FICHERO_UITEST_EMBEDDED=1); skipped on the Dev Local gate leg."
+            )
+        }
         app.launch()
         XCTAssertTrue(
             app.wait(for: .runningForeground, timeout: 30),
