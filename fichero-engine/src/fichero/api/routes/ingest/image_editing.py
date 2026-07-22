@@ -451,12 +451,12 @@ def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     # The PIL names are used by the source-compatibility branch kept below the
     # early return.
     from PIL import Image, ImageEnhance, ImageFilter, ImageOps
-    from fichero.image_ops import apply_operation
+    from fichero.media.image_ops import apply_operation
 
     return apply_operation(image, op)
 
     # Kept below temporarily for source compatibility while operations move to
-    # fichero.image_ops; the return above is the sole runtime path.
+    # fichero.media.image_ops; the return above is the sole runtime path.
     name = str(op.get("op", "")).strip().lower()
     params = op.get("params") or {}
     if not isinstance(params, dict):
@@ -573,7 +573,7 @@ def _render_preview(
     db: Database, document_id: str, apply_edits: bool, page: int
 ) -> tuple[bytes, str]:
     """Render one preview in a worker thread; cached renders are disposable."""
-    from fichero.image_ops import apply_operation  # lazy (#3985): keep PIL off the boot path
+    from fichero.media.image_ops import apply_operation  # lazy (#3985): keep PIL off the boot path
 
     doc = _get_or_404_document(db, document_id)
     chain = _get_chain(db, document_id) if apply_edits else None

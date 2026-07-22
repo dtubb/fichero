@@ -1,7 +1,7 @@
 """Geo-extraction tool (#2266).
 
 Pulls place names out of a document's text with an LLM, then geocodes each
-to lat/lon via ``fichero.geo`` so the result can drive the 2D world-map and
+to lat/lon via ``fichero.media.geo`` so the result can drive the 2D world-map and
 3D globe representations (#2264). Modelled on ``entities.py`` — the only
 net-new step is the geocode pass over the extracted place list.
 
