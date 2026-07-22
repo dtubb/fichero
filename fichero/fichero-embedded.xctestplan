@@ -1,8 +1,8 @@
 {
   "configurations" : [
     {
-      "id" : "1C37B94C-AD56-4CBE-9B8B-C2CE21D2F115",
-      "name" : "Test Scheme Action",
+      "id" : "2C48C0A5-BE67-5DCF-0A9C-D3DF32E3D226",
+      "name" : "Embedded Launch",
       "options" : {
 
       }
@@ -13,8 +13,8 @@
   },
   "testTargets" : [
     {
-      "skippedTests" : [
-        "ColdLaunchReachesLibraryUITests"
+      "selectedTests" : [
+        "ColdLaunchReachesLibraryUITests\/testColdEmbeddedLaunchReachesLibraryWithoutEverOfferingRecovery()"
       ],
       "target" : {
         "containerPath" : "container:fichero.xcodeproj",

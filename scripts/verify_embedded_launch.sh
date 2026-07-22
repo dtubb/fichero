@@ -52,9 +52,17 @@ fi
 # 2) Build + run the embedded-launch UI tests against the real bundled engine.
 echo "-- xcodebuild test: $SCHEME / $ONLY_TESTING --"
 RESULT_BUNDLE="$(mktemp -d)/embedded-launch.xcresult"
+# TEST_RUNNER_<VAR> sets <VAR> in the UI-test RUNNER process's environment (the
+# process where ProcessInfo runs), which the embedded-leg gate keys on. Setting
+# it on the scheme's LaunchAction only reaches the app-under-test, not the runner
+# — that mismatch silently SKIPPED the test, so pass it here explicitly.
+# Use the dedicated fichero-embedded test plan (it SELECTS the embedded-launch
+# tests). The Dev Local verify_all leg uses the `fichero` plan, which lists these
+# in skippedTests and stays green. `-only-testing` does NOT override a plan's
+# skip, so the two-plan split is what actually gates run-vs-skip deterministically.
 xcodebuild -project "$PROJECT" \
   -scheme "$SCHEME" \
-  -only-testing:"$ONLY_TESTING" \
+  -testPlan fichero-embedded \
   -derivedDataPath "$DDPATH" \
   -destination 'platform=macOS' \
   -resultBundlePath "$RESULT_BUNDLE" \

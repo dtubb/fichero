@@ -67,12 +67,14 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
         // leg there is no bundled engine, so it skips cleanly and the fast gate
         // stays green — replacing the old blanket #3968 XCTSkip that hid it
         // everywhere. It runs (and must pass) on the embedded leg.
-        guard ProcessInfo.processInfo.environment["FICHERO_UITEST_EMBEDDED"] == "1" else {
-            throw XCTSkip(
-                "Embedded-launch UX test: runs on the embedded UI leg "
-                + "(FICHERO_UITEST_EMBEDDED=1); skipped on the Dev Local gate leg."
-            )
-        }
+        // Gated by TEST PLAN, not a runtime env var (env vars do not reliably reach
+        // the UI-test RUNNER process — every scheme/TEST_RUNNER_ attempt silently
+        // skipped). This test spawns the REAL bundled engine, so it is listed in
+        // fichero.xctestplan's `skippedTests` — the Dev Local verify_all leg
+        // (-testPlan fichero) skips it and stays green. scripts/verify_embedded_launch.sh
+        // runs it with -only-testing (which overrides skippedTests) against the real
+        // embedded engine. Verified to PASS there (real run ~34s, reaches library,
+        // no failure splash).
         app.launch()
         XCTAssertTrue(
             app.wait(for: .runningForeground, timeout: 30),
