@@ -61,13 +61,10 @@ GRANDFATHERED_FILES: set[str] = {
     # MIGRATE (delete when the sub-issue lands)
     # ImageEditingService.swift migrated off raw URLSession — /preview now
     # declares image/png|image/jpeg binary, so loadPreview runs the generated op.
-    # WorkflowService.fetchDiagramImage GETs /workflows/{id}/visualization.png,
-    # which is a MIS-NAMED JSON endpoint (returns WorkflowVisualizationResponse
-    # mermaid code, not PNG bytes) — there is no workflow-scoped binary endpoint
-    # to route through, so this stays custom pending a server-side decision. The
-    # real binary diagram endpoint (threads/{id}/diagram.png) is run-scoped and
-    # has no caller.
-    "Services/WorkflowService.swift",
+    # WorkflowService.fetchDiagramImage retired: the workflow diagram is mermaid
+    # SOURCE (WorkflowVisualizationResponse.mermaid_code), not image bytes, and is
+    # now rendered live in a WKWebView (WorkflowMermaidView). The service runs the
+    # generated `…/visualization` JSON op, so no raw URLSession remains here.
 }
 
 

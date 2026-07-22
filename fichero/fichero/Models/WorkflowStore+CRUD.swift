@@ -2,8 +2,8 @@ import FicheroAPIClient
 import Foundation
 
 extension WorkflowStore {
-    func fetchWorkflowDiagramImage(_ workflowId: String) async throws -> PlatformImage? {
-        try await workflowService.fetchDiagramImage(workflowId: workflowId)
+    func fetchWorkflowDiagramMermaid(_ workflowId: String) async throws -> String? {
+        try await workflowService.fetchDiagramMermaid(workflowId: workflowId)
     }
 
     func fetchWorkflowPythonCode(_ workflowId: String) async throws -> String? {

@@ -8,7 +8,7 @@ struct WorkflowDiagramPreview: View {
 
     @Environment(WorkflowStore.self) var workflowStore
 
-    @State private var diagramImage: PlatformImage?
+    @State private var mermaidCode: String?
     @State private var pythonCode: String?
     @State private var isLoading: Bool = true
     @State private var error: String?
@@ -70,24 +70,8 @@ struct WorkflowDiagramPreview: View {
                             .padding(.vertical, 4)
                             .background(.bar)
 
-                        if let image = diagramImage {
-                            ScrollView([.horizontal, .vertical]) {
-                                Image(platformImage: image)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .padding()
-                            }
+                        WorkflowMermaidView(mermaidCode: mermaidCode ?? "")
                             .background(Color(platformColor: .textBackgroundColor))
-                        } else {
-                            VStack {
-                                Image(systemName: "flowchart")
-                                    .font(.largeTitle)
-                                    .foregroundStyle(.secondary)
-                                Text("No diagram")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
                     }
                     .frame(minWidth: 300)
 
@@ -163,7 +147,7 @@ struct WorkflowDiagramPreview: View {
 
     private func loadDiagram() async {
         do {
-            diagramImage = try await workflowStore.fetchWorkflowDiagramImage(workflowId)
+            mermaidCode = try await workflowStore.fetchWorkflowDiagramMermaid(workflowId)
         } catch {
             // Diagram loading failure is not fatal
         }
@@ -173,7 +157,7 @@ struct WorkflowDiagramPreview: View {
         do {
             pythonCode = try await workflowStore.fetchWorkflowPythonCode(workflowId)
         } catch {
-            guard diagramImage == nil else { return }
+            guard mermaidCode == nil else { return }
             if let storeError = error as? WorkflowStoreError {
                 switch storeError {
                 case .executionFailed(let message):
