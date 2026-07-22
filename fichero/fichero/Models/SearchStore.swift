@@ -82,6 +82,7 @@ final class SearchStore: ChangeEventConsumer {
             searchStats = response
             log.info("Search '\(trimmed, privacy: .public)' → \(response.count, privacy: .public) results")
         } catch {
+            if error.isCancellationError { return }   // superseded search — keep results, no log
             searchError = error.localizedDescription
             results = []
             searchStats = nil
@@ -107,6 +108,7 @@ final class SearchStore: ChangeEventConsumer {
         do {
             _ = try await searchService.reindexAll()
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             log.error("Reindex kickoff failed: \(error.localizedDescription)")
             return
         }

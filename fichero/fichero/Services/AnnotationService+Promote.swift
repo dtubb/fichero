@@ -18,6 +18,7 @@ extension AnnotationService {
             error = nil
             return true
         } catch {
+            if error.isCancellationError { return false }   // superseded — not a failure
             logger.warning("Failed to promote annotation: \(error.localizedDescription, privacy: .public)")
             self.error = "Could not promote annotation"
             return false

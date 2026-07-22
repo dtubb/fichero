@@ -180,6 +180,7 @@ final class CanvasLayoutStore {
                 layouts[folderId] = []
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — keep current layout, no log
             loadError = error.localizedDescription
             layouts[folderId] = []
             log.error("Canvas layout load failed: \(error.localizedDescription)")
@@ -214,6 +215,7 @@ final class CanvasLayoutStore {
                 return false
             }
         } catch {
+            if error.isCancellationError { return false }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Canvas layout save failed: \(error.localizedDescription)")
             return false

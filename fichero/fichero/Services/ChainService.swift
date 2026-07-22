@@ -57,8 +57,10 @@ class ChainService {
             chains = try await listChains()
             logger.info("Loaded \(self.chains.count) chains")
         } catch {
-            self.error = error.localizedDescription
-            logger.error("Failed to load chains: \(error.localizedDescription)")
+            if !error.isCancellationError {
+                self.error = error.localizedDescription
+                logger.error("Failed to load chains: \(error.localizedDescription)")
+            }
         }
 
         isLoading = false

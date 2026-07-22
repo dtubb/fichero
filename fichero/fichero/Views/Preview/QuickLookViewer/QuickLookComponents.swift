@@ -102,6 +102,9 @@ struct QuickLookDownloadView: View {
             fileURL = url
         case .failure(let message):
             error = message
+        case .cancelled:
+            // Superseded reload — keep current state, surface no error.
+            break
         }
         isLoading = false
     }

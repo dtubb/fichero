@@ -21,6 +21,7 @@ extension WorkflowStore {
             logger.info("Started execution of workflow \(workflowId), thread: \(thread.threadId)")
             return thread
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without logging/error state
             self.error = error
             logger.error("Failed to execute workflow \(workflowId): \(String(describing: error))")
             throw error
@@ -32,6 +33,7 @@ extension WorkflowStore {
         do {
             return try await executionService.getThreadStatus(threadId: threadId)
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without error state
             self.error = error
             throw error
         }
@@ -44,6 +46,7 @@ extension WorkflowStore {
             logger.info("Resumed workflow thread: \(threadId)")
             return thread
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without logging/error state
             self.error = error
             logger.error("Failed to resume workflow thread \(threadId): \(String(describing: error))")
             throw error
@@ -55,6 +58,7 @@ extension WorkflowStore {
         do {
             return try await executionService.listThreads(limit: limit)
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without error state
             self.error = error
             throw error
         }
@@ -66,6 +70,7 @@ extension WorkflowStore {
             try await executionService.deleteThread(threadId: threadId)
             logger.info("Deleted execution thread: \(threadId)")
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without error state
             self.error = error
             throw error
         }

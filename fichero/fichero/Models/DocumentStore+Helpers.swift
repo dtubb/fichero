@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -336,6 +337,7 @@ extension DocumentStore {
                 let fresh = try await documentService.getDocument(id)
                 refreshLocalContent(fresh)
             } catch {
+                if error.isCancellationError { return }   // superseded — not a failure
                 let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentStore")
                 logger.warning(
                     "refreshDocumentsByIds: failed to refresh \(id, privacy: .public): \(error.localizedDescription, privacy: .public)"

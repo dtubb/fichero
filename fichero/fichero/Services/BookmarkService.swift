@@ -44,6 +44,7 @@ final class BookmarkService {
             }
             error = nil
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             logger.warning("list bookmarks failed: \(error.localizedDescription, privacy: .public)")
             self.error = "Could not load bookmarks"
         }
@@ -67,6 +68,7 @@ final class BookmarkService {
             await loadBookmarks(parentId: parentId)
             return true
         } catch {
+            if error.isCancellationError { return false }   // superseded — not a failure
             logger.warning("create bookmark failed: \(error.localizedDescription, privacy: .public)")
             self.error = "Could not create bookmark"
             return false
@@ -85,6 +87,7 @@ final class BookmarkService {
             }
             return try okResponse.body.json.id
         } catch {
+            if error.isCancellationError { return nil }   // superseded — not a failure
             logger.warning("resolve bookmark failed: \(error.localizedDescription, privacy: .public)")
             self.error = "Could not resolve bookmark"
             return nil

@@ -33,6 +33,7 @@ extension AnnotationService {
                 return nil
             }
         } catch {
+            if error.isCancellationError { return nil }   // superseded — not a failure
             logger.warning("Failed to crop annotation: \(error.localizedDescription, privacy: .public)")
             self.error = "Could not crop annotation"
             return nil

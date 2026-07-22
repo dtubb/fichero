@@ -35,6 +35,9 @@ final class AppleAvailabilityStore {
                 status = AppleAvailability.status(available: body.available, reason: body.reason)
             }
         } catch {
+            // A cancelled/superseded probe is not an unavailability signal — keep
+            // the prior status rather than marking Apple Intelligence unavailable.
+            if error.isCancellationError { return }
             // A probe failure is itself an unavailable state — surface it, don't hide it.
             status = AppleAvailability.status(available: false, reason: error.localizedDescription)
             log.error("Apple availability probe failed: \(error.localizedDescription)")

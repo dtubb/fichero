@@ -20,6 +20,7 @@ extension ActionLibraryService {
                 throw ActionLibraryError.serverError
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             self.error = error.localizedDescription
             logger.error("Failed to load actions: \(error.localizedDescription)")
         }
@@ -38,6 +39,7 @@ extension ActionLibraryService {
                 return
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             logger.error("Failed to load categories: \(error.localizedDescription)")
         }
     }
@@ -55,6 +57,7 @@ extension ActionLibraryService {
                 return []
             }
         } catch {
+            if error.isCancellationError { return [] }   // superseded — not a failure
             logger.error("Failed to load category: \(error.localizedDescription)")
             return []
         }
@@ -71,6 +74,7 @@ extension ActionLibraryService {
                 return []
             }
         } catch {
+            if error.isCancellationError { return [] }   // superseded — not a failure
             logger.error("Failed to load builtin actions: \(error.localizedDescription)")
             return []
         }
@@ -87,6 +91,7 @@ extension ActionLibraryService {
                 return []
             }
         } catch {
+            if error.isCancellationError { return [] }   // superseded — not a failure
             logger.error("Failed to load custom actions: \(error.localizedDescription)")
             return []
         }
@@ -105,6 +110,7 @@ extension ActionLibraryService {
                 return
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             logger.error("Failed to load recent actions: \(error.localizedDescription)")
         }
     }
@@ -152,6 +158,7 @@ extension ActionLibraryService {
                 return []
             }
         } catch {
+            if error.isCancellationError { return [] }   // superseded — not a failure
             logger.error("Failed to load popular actions: \(error.localizedDescription)")
             return []
         }

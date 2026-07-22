@@ -24,6 +24,7 @@ extension AnnotationService {
             error = nil
             return updated
         } catch {
+            if error.isCancellationError { return nil }   // superseded — not a failure
             logger.warning("Failed to update annotation: \(error.localizedDescription, privacy: .public)")
             self.error = "Could not update annotation"
             return nil

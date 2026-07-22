@@ -104,8 +104,10 @@ final class IntegrationsService {
                 throw IntegrationsError.serverError
             }
         } catch {
-            self.error = error.localizedDescription
-            logger.error("Failed to load integrations: \(error.localizedDescription)")
+            if !error.isCancellationError {
+                self.error = error.localizedDescription
+                logger.error("Failed to load integrations: \(error.localizedDescription)")
+            }
         }
 
         isLoading = false
@@ -134,6 +136,7 @@ final class IntegrationsService {
                 return nil
             }
         } catch {
+            if error.isCancellationError { return nil }   // superseded — not a failure
             logger.error("Failed to refresh \(name): \(error.localizedDescription)")
             return nil
         }

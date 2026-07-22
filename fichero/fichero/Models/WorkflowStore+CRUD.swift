@@ -49,6 +49,7 @@ extension WorkflowStore {
 
             return item
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without error state
             self.error = error
             throw error
         }
@@ -81,6 +82,7 @@ extension WorkflowStore {
 
             return item
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without error state
             self.error = error
             throw error
         }
@@ -127,6 +129,7 @@ extension WorkflowStore {
             try await workflowService.deleteWorkflow(id)
             workflows.removeAll { $0.id == id }
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without error state
             self.error = error
             throw error
         }
@@ -141,6 +144,7 @@ extension WorkflowStore {
         do {
             return try await workflowService.getWorkflow(id)
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without error state
             self.error = error
             throw error
         }

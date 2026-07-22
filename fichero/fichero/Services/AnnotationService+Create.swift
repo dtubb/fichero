@@ -65,6 +65,7 @@ extension AnnotationService {
             error = nil
             return created
         } catch {
+            if error.isCancellationError { return nil }   // superseded — not a failure
             logger.warning("Failed to create annotation: \(error.localizedDescription, privacy: .public)")
             self.error = "Could not save annotation"
             return nil

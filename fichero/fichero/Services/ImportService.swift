@@ -100,6 +100,10 @@ class ImportService {
                 }
 
             } catch {
+                // A cancelled import (task torn down / user aborted) is not a
+                // per-file failure — abort the whole batch cleanly rather than
+                // logging it and collecting it as an error.
+                if error.isCancellationError { throw error }
                 logger.error("Failed to import \(url.lastPathComponent): \(error.localizedDescription)")
                 errors.append(ImportError(url: url, error: error))
             }

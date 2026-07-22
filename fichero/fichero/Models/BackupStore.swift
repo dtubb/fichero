@@ -67,6 +67,7 @@ final class BackupStore {
                 loadError = "Unexpected response (\(statusCode))"
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("load() failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -102,6 +103,7 @@ final class BackupStore {
                 return false
             }
         } catch {
+            if error.isCancellationError { return false }   // superseded — not a failure
             statusMessage = "Create failed"
             log.error("create() failed: \(error.localizedDescription, privacy: .public)")
             return false
@@ -134,6 +136,7 @@ final class BackupStore {
                 return false
             }
         } catch {
+            if error.isCancellationError { return false }   // superseded — not a failure
             statusMessage = "Restore failed"
             log.error("restore(\(snapshotId, privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
             return false
@@ -165,6 +168,7 @@ final class BackupStore {
                 return false
             }
         } catch {
+            if error.isCancellationError { return false }   // superseded — not a failure
             statusMessage = "Delete failed"
             log.error("delete(\(snapshotId, privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
             return false

@@ -136,6 +136,7 @@ final class NoteService {
             }
             notes = try okResponse.body.json.items.map { try note(from: $0) }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure (defer clears isLoading)
             self.error = error.localizedDescription
             logger.error("load notes failed: \(error.localizedDescription)")
         }

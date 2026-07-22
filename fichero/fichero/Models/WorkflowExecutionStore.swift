@@ -126,6 +126,7 @@ final class WorkflowExecutionStore {
             executions[threadId] = WorkflowExecution(persistedRun: run)
             log.info("Seeded persisted run for thread: \(threadId, privacy: .public)")
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             log.error(
                 "Failed to seed persisted run for \(threadId, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )

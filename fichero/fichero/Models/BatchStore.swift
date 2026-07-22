@@ -32,6 +32,7 @@ final class BatchStore {
             batches = try await batchService.listBatches()
             lastError = nil
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             lastError = error.localizedDescription
             log.error("batch list failed: \(error.localizedDescription)")
         }
@@ -66,6 +67,7 @@ final class BatchStore {
             lastError = nil
             return batch
         } catch {
+            if error.isCancellationError { return nil }   // superseded — not a failure
             lastError = error.localizedDescription
             log.error("batch run failed: \(error.localizedDescription)")
             return nil
@@ -78,6 +80,7 @@ final class BatchStore {
             try await batchService.deleteBatch(batchId: batchId)
             batches.removeAll { $0.batchId == batchId }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             lastError = error.localizedDescription
         }
     }

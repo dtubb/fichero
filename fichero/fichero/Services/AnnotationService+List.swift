@@ -41,6 +41,7 @@ extension AnnotationService {
             // ids). Scope is already enforced by the query above.
             annotations = decoded.items.compactMap { annotation(from: $0) }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure; keep state, no log
             // Backend may not be wired yet during parallel development — degrade
             // to an empty list rather than crashing the inspector (#1276).
             logger.warning("Failed to load annotations: \(error.localizedDescription, privacy: .public)")

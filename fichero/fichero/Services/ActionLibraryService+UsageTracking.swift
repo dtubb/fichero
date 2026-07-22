@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -12,6 +13,7 @@ extension ActionLibraryService {
             )
             logger.debug("Recorded use of action: \(actionId)")
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             logger.error("Failed to record action use: \(error.localizedDescription)")
         }
     }

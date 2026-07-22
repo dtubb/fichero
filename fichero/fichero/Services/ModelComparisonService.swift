@@ -115,8 +115,12 @@ extension ModelComparisonService {
                 self.error = "Server error: \(statusCode)"
             }
         } catch {
-            self.error = error.localizedDescription
-            logger.error("Comparison failed: \(error.localizedDescription)")
+            // Superseded/cancelled comparison is not a failure — skip logging and
+            // the error state, but still clear `isComparing` below.
+            if !error.isCancellationError {
+                self.error = error.localizedDescription
+                logger.error("Comparison failed: \(error.localizedDescription)")
+            }
         }
 
         isComparing = false
@@ -153,8 +157,10 @@ extension ModelComparisonService {
                 self.error = "Server error: \(statusCode)"
             }
         } catch {
-            self.error = error.localizedDescription
-            logger.error("Vision comparison failed: \(error.localizedDescription)")
+            if !error.isCancellationError {
+                self.error = error.localizedDescription
+                logger.error("Vision comparison failed: \(error.localizedDescription)")
+            }
         }
 
         isComparing = false
@@ -204,8 +210,10 @@ extension ModelComparisonService {
                 self.error = "Server error: \(statusCode)"
             }
         } catch {
-            self.error = error.localizedDescription
-            logger.error("Tool comparison failed: \(error.localizedDescription)")
+            if !error.isCancellationError {
+                self.error = error.localizedDescription
+                logger.error("Tool comparison failed: \(error.localizedDescription)")
+            }
         }
 
         isComparing = false
@@ -263,6 +271,7 @@ extension ModelComparisonService {
             )
             return try response.ok.body.json
         } catch {
+            if error.isCancellationError { return nil }   // superseded — not a failure
             logger.error("Failed to estimate cost: \(error.localizedDescription)")
             return nil
         }
@@ -277,6 +286,7 @@ extension ModelComparisonService {
             let response = try await client.api.listAvailableModelsApiModelComparisonModelsGet()
             availableModels = try response.ok.body.json.models
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             logger.error("Failed to load models: \(error.localizedDescription)")
         }
     }
@@ -286,6 +296,7 @@ extension ModelComparisonService {
             let response = try await client.api.getComparisonPresetsApiModelComparisonPresetsGet()
             presets = try response.ok.body.json.presets
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             logger.error("Failed to load presets: \(error.localizedDescription)")
         }
     }
@@ -297,6 +308,7 @@ extension ModelComparisonService {
             )
             history = try response.ok.body.json.history
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             logger.error("Failed to load history: \(error.localizedDescription)")
         }
     }
@@ -306,6 +318,7 @@ extension ModelComparisonService {
             let response = try await client.api.getModelsGroupedByTierApiModelComparisonModelsByTierGet()
             modelsByTier = try response.ok.body.json
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             logger.error("Failed to load models by tier: \(error.localizedDescription)")
         }
     }
@@ -315,6 +328,7 @@ extension ModelComparisonService {
             let response = try await client.api.listAvailableToolsApiModelComparisonToolsGet()
             availableTools = try response.ok.body.json.items
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             logger.error("Failed to load tools: \(error.localizedDescription)")
         }
     }

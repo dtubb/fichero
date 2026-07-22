@@ -18,8 +18,12 @@ extension ResearchService {
                 throw ServiceError.unexpectedResponse
             }
         } catch {
-            self.error = error.localizedDescription
-            logger.error("Failed to load research projects: \(error.localizedDescription)")
+            // Superseded/cancelled load is not a failure — skip logging and the
+            // error state, but still clear `isLoading` below.
+            if !error.isCancellationError {
+                self.error = error.localizedDescription
+                logger.error("Failed to load research projects: \(error.localizedDescription)")
+            }
         }
         isLoading = false
     }
