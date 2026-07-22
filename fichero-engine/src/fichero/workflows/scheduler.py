@@ -20,14 +20,11 @@ from enum import Enum
 from typing import Any, Optional
 
 import duckdb
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.date import DateTrigger
-from apscheduler.jobstores.memory import MemoryJobStore
-from apscheduler.jobstores.base import JobLookupError
-from apscheduler.executors.asyncio import AsyncIOExecutor
 
+# apscheduler is imported lazily inside the methods that use it (constructors,
+# trigger factories, JobLookupError catches). Keeping it off module scope defers
+# ~77ms of import cost off the engine API bind path — the scheduler is only ever
+# instantiated at lifespan startup via init_scheduler(), never at import.
 from fichero.workflows.batch import BatchManager
 from fichero.workflows.workflow_store import WorkflowStore
 
@@ -144,7 +141,11 @@ class WorkflowScheduler:
         self.workflow_store = workflow_store
         self.batch_manager = batch_manager or BatchManager(db_path)
 
-        # Initialize APScheduler
+        # Initialize APScheduler (imported here to keep it off the bind path)
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from apscheduler.jobstores.memory import MemoryJobStore
+        from apscheduler.executors.asyncio import AsyncIOExecutor
+
         jobstores = {"default": MemoryJobStore()}
         executors = {"default": AsyncIOExecutor()}
         job_defaults = {"coalesce": True, "max_instances": 1}
@@ -361,6 +362,10 @@ class WorkflowScheduler:
 
     def _create_trigger(self, config: ScheduleConfig):
         """Create APScheduler trigger from config."""
+        from apscheduler.triggers.cron import CronTrigger
+        from apscheduler.triggers.interval import IntervalTrigger
+        from apscheduler.triggers.date import DateTrigger
+
         if config.schedule_type == ScheduleType.CRON:
             if not config.cron_expression:
                 raise ValueError("Cron expression required for cron schedule")

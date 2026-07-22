@@ -14,12 +14,12 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import duckdb
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.memory import MemoryJobStore
-from apscheduler.executors.asyncio import AsyncIOExecutor
+
+if TYPE_CHECKING:
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from fichero.db import Database
 from fichero.api.change_stream import emit_change
@@ -60,7 +60,7 @@ class TaskQueue(TaskWorkersMixin):
         self.db_path = db_path
         self.database = database
         self._tasks: dict[str, BackgroundTask] = {}
-        self._scheduler: Optional[AsyncIOScheduler] = None
+        self._scheduler: "Optional[AsyncIOScheduler]" = None
         self._running: bool = False
         self._lock = asyncio.Lock()
         self._db_lock = threading.Lock()   # serializes concurrent DuckDB writes
@@ -120,7 +120,12 @@ class TaskQueue(TaskWorkersMixin):
         if self._running:
             return
 
-        # Initialize APScheduler for background execution
+        # Initialize APScheduler for background execution (imported here to keep
+        # apscheduler off the engine API bind path — #4038 startup speedup).
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from apscheduler.jobstores.memory import MemoryJobStore
+        from apscheduler.executors.asyncio import AsyncIOExecutor
+
         jobstores = {"default": MemoryJobStore()}
         executors = {"default": AsyncIOExecutor()}
         job_defaults = {"coalesce": True, "max_instances": 1}
