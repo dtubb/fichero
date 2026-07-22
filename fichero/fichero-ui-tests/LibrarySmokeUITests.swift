@@ -56,7 +56,6 @@ final class LibrarySmokeUITests: XCTestCase {
     /// smoke-test oracle here.
     @MainActor
     func testLaunchShowsLibraryWindowWithoutCrashing() throws {
-        throw XCTSkip("#3968: embedded-launch UI tests need the engine, tracked separately")
         app.launch()
 
         XCTAssertTrue(
@@ -74,7 +73,6 @@ final class LibrarySmokeUITests: XCTestCase {
     /// support directory.
     @MainActor
     func testEmbeddedEngineLaunchRestoresLibraryAfterReadiness() throws {
-        throw XCTSkip("#3968: embedded-launch UI tests need the engine, tracked separately")
         let embeddedApp = XCUIApplication()
         embeddedApp.launchArguments = ["--uitesting", "--uitesting-embedded"]
         embeddedApp.launchEnvironment = [
