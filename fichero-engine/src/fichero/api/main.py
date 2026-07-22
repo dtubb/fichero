@@ -27,26 +27,6 @@ from importlib.metadata import PackageNotFoundError, version as package_version
 # before any import that pulls in transformers / tokenizers.
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-# Suppress LangChain's `allowed_objects` PendingDeprecationWarning (#1083).
-# It fires at module-import time from langgraph.checkpoint.serde.encrypted's
-# `LC_REVIVER = Reviver()` call (no `allowed_objects` argument). The
-# JsonPlusSerializer constructor doesn't expose this option, so we cannot
-# pass an explicit value through — the only fix is to suppress the warning
-# *before* langgraph's checkpoint serde module is first imported.
-#
-# We register the filter by MESSAGE ONLY, deliberately NOT importing
-# `langchain_core` here to obtain the warning category. Importing
-# `langchain_core._api.deprecation` eagerly on the API bind path cost ~250ms
-# of cold-import time (startup speedup, #4038). The message regex
-# `.*allowed_objects.*` is specific to this one warning, so dropping the
-# category does not broaden suppression in practice, and the filter is
-# installed before any lazy langgraph import (checkpointer/tools are now
-# function-local) can emit it.
-warnings.filterwarnings(
-    "ignore",
-    message=r".*allowed_objects.*",
-)
-
 # Route the kreuzberg extraction cache to ~/Library/Caches/ and run the
 # one-time legacy-location migration. Imported here (not lazily via loaders)
 # so the side effect fires at engine startup regardless of whether the
@@ -78,6 +58,19 @@ from fichero.security.security_scoped_access import granted_paths
 from fichero.db.storage import (
     start_periodic_snapshot_task,
     stop_periodic_snapshot_task,
+)
+
+# Suppress LangChain's `allowed_objects` PendingDeprecationWarning (#1083).
+# It fires from langgraph.checkpoint.serde.encrypted's `LC_REVIVER = Reviver()`
+# call. Registered by MESSAGE ONLY — deliberately NOT importing `langchain_core`
+# for the warning category, which cost ~250ms of cold-import time on the bind
+# path (startup speedup, #4038). Placed AFTER the imports (langgraph is now fully
+# off the bind path — checkpointer/tools import it lazily — so the warning cannot
+# fire during module import; the filter only has to exist before the first
+# workflow click). The `.*allowed_objects.*` regex is specific to this one warning.
+warnings.filterwarnings(
+    "ignore",
+    message=r".*allowed_objects.*",
 )
 
 logger = logging.getLogger(__name__)
