@@ -83,7 +83,7 @@ extension ShareSettingsView {
             try Task.checkCancellation()
             pairingCode = try await PairingService(apiRoot: EngineConfig.host).createPairingCode()
         } catch {
-            if !(error is CancellationError) { shareError = error.localizedDescription }
+            if !error.isCancellationError { shareError = error.localizedDescription }
         }
     }
 

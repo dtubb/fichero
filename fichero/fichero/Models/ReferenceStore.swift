@@ -63,9 +63,11 @@ final class ReferenceStore: ObservableDomainStore {
             let resp = try await entityService.listDocumentCitations(documentId: documentId)
             selfRef = resp._self
             references = resp.references
-        } catch is CancellationError {
-            // Superseded by a newer document selection — keep current state.
         } catch {
+            if error.isCancellationError {
+                // Superseded by a newer document selection — keep current state.
+                return
+            }
             loadError = error.localizedDescription
             log.error(
                 "Bibliography fetch failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"

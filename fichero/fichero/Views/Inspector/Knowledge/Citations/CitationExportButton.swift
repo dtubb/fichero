@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Load model
@@ -25,9 +26,11 @@ final class CitationExportModel {
             phase = bibtex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? .empty
                 : .ready(bibtex)
-        } catch is CancellationError {
-            // Superseded by a newer scope — leave the phase to the newer load.
         } catch {
+            if error.isCancellationError {
+                // Superseded by a newer scope — leave the phase to the newer load.
+                return
+            }
             phase = .failed
         }
     }

@@ -32,9 +32,11 @@ final class DocumentOutlineStore {
         do {
             rows = try await service.documentOutline(documentId)
             loadedDocumentId = documentId
-        } catch is CancellationError {
-            // Superseded by a newer selection — keep current state.
         } catch {
+            if error.isCancellationError {
+                // Superseded by a newer selection — keep current state.
+                return
+            }
             rows = []
             loadError = error.localizedDescription
             loadedDocumentId = nil

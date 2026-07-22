@@ -63,9 +63,11 @@ final class CitationStore: ObservableDomainStore {
             inbound = inb
             outbound = out
             usages = use
-        } catch is CancellationError {
-            // Superseded by a newer document selection — keep current state.
         } catch {
+            if error.isCancellationError {
+                // Superseded by a newer document selection — keep current state.
+                return
+            }
             loadError = "Couldn't load citations."
             inbound = []
             outbound = []

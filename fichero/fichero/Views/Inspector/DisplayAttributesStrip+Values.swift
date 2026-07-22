@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 extension DisplayAttributesStrip {
@@ -37,9 +38,11 @@ extension DisplayAttributesStrip {
             )
             claimCount = response.claimCount
             entityCount = response.entityCount
-        } catch is CancellationError {
-            // Superseded by a newer selection — leave the last counts in place.
         } catch {
+            if error.isCancellationError {
+                // Superseded by a newer selection — leave the last counts in place.
+                return
+            }
             // KG is optional context — clear the counts so the rows show "—"
             // while the toggles stay available.
             claimCount = nil

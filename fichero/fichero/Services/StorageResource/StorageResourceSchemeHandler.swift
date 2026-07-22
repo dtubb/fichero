@@ -52,10 +52,12 @@ final class StorageResourceSchemeHandler: NSObject, WKURLSchemeHandler {
                 urlSchemeTask.didReceive(resource.data)
                 urlSchemeTask.didFinish()
                 self.tasks[key] = nil
-            } catch is CancellationError {
-                // `stop` already removed the task; WebKit rejects callbacks on a
-                // stopped task.
             } catch {
+                if error.isCancellationError {
+                    // `stop` already removed the task; WebKit rejects callbacks on a
+                    // stopped task.
+                    return
+                }
                 logger.error("fichero-res web load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
                 guard let self, self.tasks[key] != nil else { return }
                 urlSchemeTask.didFailWithError(error)

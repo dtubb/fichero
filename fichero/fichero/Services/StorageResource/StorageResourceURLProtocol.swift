@@ -90,9 +90,11 @@ final class StorageResourceURLProtocol: URLProtocol, @unchecked Sendable {
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: resource.data)
             client?.urlProtocolDidFinishLoading(self)
-        } catch is CancellationError {
-            // stopLoading already tore the request down; nothing to report.
         } catch {
+            if error.isCancellationError {
+                // stopLoading already tore the request down; nothing to report.
+                return
+            }
             logger.error("fichero-res load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
             client?.urlProtocol(self, didFailWithError: error)
         }
