@@ -15,6 +15,39 @@ struct SidebarSelectionTests {
         #expect(destination.serializedID == "doc:abc")
     }
 
+    @Test("#11 workflow/search/chat folder ids round-trip through the destination")
+    func destinationRoundTripVirtualFolder() throws {
+        // Virtual section folders use id "folder:<path>:<Category>". Before #11
+        // the `folder:` prefix wasn't parsed, so `SidebarItem.destination` fell
+        // back to `.document(id)` and `serializedID` mangled it into
+        // "doc:folder:…" — `findItemById` never matched → clicking the folder
+        // routed to nothing.
+        let destination = try #require(SidebarDestination(serializedID: "folder:/flows:Workflow"))
+        #expect(destination == .folder("/flows:Workflow"))
+        #expect(destination.serializedID == "folder:/flows:Workflow")
+    }
+
+    @Test("#11 a workflow folder item's destination resolves back to its own id")
+    func workflowFolderItemDestinationMatchesId() {
+        // The click path is: row tag = item.destination → its serializedID is fed
+        // to findItemById(id:). If serializedID != item.id, the lookup misses and
+        // handleSelection(nil) shows nothing. This is the exact regression the
+        // folder-nav bug produced.
+        let folder = SidebarItem.folder(
+            name: "Flows", folderPath: "/flows", category: .workflow, libraryId: UUID()
+        )
+        #expect(folder.destination.serializedID == folder.id)
+        // The same must hold for saved-search and chat section folders.
+        let searchFolder = SidebarItem.folder(
+            name: "Saved", folderPath: "/s", category: .search, libraryId: UUID()
+        )
+        #expect(searchFolder.destination.serializedID == searchFolder.id)
+        let chatFolder = SidebarItem.folder(
+            name: "Threads", folderPath: "/c", category: .chat, libraryId: UUID()
+        )
+        #expect(chatFolder.destination.serializedID == chatFolder.id)
+    }
+
     @Test("sidebar destination parses browser sentinels")
     func destinationParsesBrowserSentinel() throws {
         let destination = try #require(SidebarDestination(serializedID: "activity-browser"))
