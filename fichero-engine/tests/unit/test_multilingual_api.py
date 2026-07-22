@@ -10,7 +10,7 @@ Tests cover:
 """
 
 from fichero.models.knowledge import KnowledgeEntity, KnowledgeClaim, EntityType
-from fichero.multilingual import detect_language, normalize_text, stem_text
+from fichero.llm.multilingual import detect_language, normalize_text, stem_text
 
 
 class TestLanguageDetection:
@@ -240,7 +240,7 @@ class TestCrossLanguageMatching:
 
     def test_calculate_similarity_same_language(self):
         """Test similarity calculation for same-language matches."""
-        from fichero.multilingual import calculate_cross_language_similarity
+        from fichero.llm.multilingual import calculate_cross_language_similarity
 
         score = calculate_cross_language_similarity("London", "en", "London", "en")
         # Score might not be exactly 1.0 due to implementation details
@@ -248,7 +248,7 @@ class TestCrossLanguageMatching:
 
     def test_calculate_similarity_transliterated(self):
         """Test similarity for transliterated names."""
-        from fichero.multilingual import calculate_cross_language_similarity
+        from fichero.llm.multilingual import calculate_cross_language_similarity
 
         # Tokyo in different scripts
         score = calculate_cross_language_similarity("Tokyo", "en", "東京", "ja")

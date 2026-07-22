@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from fichero.db.app import get_app_db
 from fichero.security.keychain import get_api_key
-from fichero.providers import get_provider_info
+from fichero.llm.providers import get_provider_info
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

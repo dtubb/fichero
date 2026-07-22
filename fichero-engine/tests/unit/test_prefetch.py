@@ -84,7 +84,7 @@ def test_prewarm_populates_embedder_cache(tmp_path, monkeypatch):
     # the source module rather than the main module namespace.
     fake_models_base = tmp_path / "models"
     fake_models_base.mkdir()
-    with patch("fichero.local_models.MODELS_BASE", fake_models_base):
+    with patch("fichero.llm.local_models.MODELS_BASE", fake_models_base):
         from fichero.api.main import _prewarm_embeddings
 
         _prewarm_embeddings()
@@ -102,7 +102,7 @@ def test_prewarm_then_ensure_embedder_is_cache_hit(tmp_path, monkeypatch):
     fake_models_base = tmp_path / "models"
     fake_models_base.mkdir()
 
-    with patch("fichero.local_models.MODELS_BASE", fake_models_base):
+    with patch("fichero.llm.local_models.MODELS_BASE", fake_models_base):
         from fichero.api.main import _prewarm_embeddings
 
         _prewarm_embeddings()

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from fichero.llm import LLMConfig
-from fichero.multilingual import LanguageDetectionResult
+from fichero.llm.multilingual import LanguageDetectionResult
 from fichero.workflows.tools import language_identification as tool
 
 

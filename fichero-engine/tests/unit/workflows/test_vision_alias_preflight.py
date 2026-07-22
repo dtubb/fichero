@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from fichero.llm import LLMConfig, resolve_model_alias_for_capability
-from fichero.model_profiles import ModelProfile
+from fichero.llm.model_profiles import ModelProfile
 from fichero.workflows.types import NodeDef, WorkflowDef
 from fichero.workflows.validation import (
     validate_workflow_llm_preflight,

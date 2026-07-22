@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from fichero.api.routes import local_inference as routes
-from fichero.local_inference import LocalInferenceServiceManager, ManagedLocalInferenceProcess
+from fichero.llm.local_inference import LocalInferenceServiceManager, ManagedLocalInferenceProcess
 
 
 class FakeProcess:
@@ -377,7 +377,7 @@ def test_model_download_refuses_unsupported_hardware(client, monkeypatch: pytest
 
 def test_start_refuses_when_subprocesses_are_disabled(client, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "fichero.local_inference.get_local_inference_capabilities",
+        "fichero.llm.local_inference.get_local_inference_capabilities",
         lambda: routes.LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",

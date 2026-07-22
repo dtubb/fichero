@@ -43,7 +43,7 @@ def _make_model_entry(
 
 class TestListLocalModels:
     def test_models_base_uses_shared_engine_state_dir(self):
-        from fichero.local_models import MODELS_BASE
+        from fichero.llm.local_models import MODELS_BASE
         from fichero.db.paths import engine_state_dir
 
         assert MODELS_BASE == engine_state_dir() / "models"
@@ -51,7 +51,7 @@ class TestListLocalModels:
 
     def test_returns_all_models(self, client):
         models = [_make_model_entry("base"), _make_model_entry("small")]
-        with patch("fichero.local_models.LocalModelManager") as MockMgr:
+        with patch("fichero.llm.local_models.LocalModelManager") as MockMgr:
             MockMgr.return_value.list_all.return_value = models
             r = client.get("/api/local-models")
         assert r.status_code == 200
@@ -61,7 +61,7 @@ class TestListLocalModels:
 
     def test_filter_by_whisper(self, client):
         models = [_make_model_entry("base", "whisper")]
-        with patch("fichero.local_models.LocalModelManager") as MockMgr:
+        with patch("fichero.llm.local_models.LocalModelManager") as MockMgr:
             MockMgr.return_value.list_whisper_models.return_value = models
             r = client.get("/api/local-models?model_type=whisper")
         assert r.status_code == 200
@@ -69,7 +69,7 @@ class TestListLocalModels:
 
     def test_filter_by_embeddings(self, client):
         models = [_make_model_entry("intfloat/e5-large", "embeddings")]
-        with patch("fichero.local_models.LocalModelManager") as MockMgr:
+        with patch("fichero.llm.local_models.LocalModelManager") as MockMgr:
             MockMgr.return_value.list_embeddings_models.return_value = models
             r = client.get("/api/local-models?model_type=embeddings")
         assert r.status_code == 200
@@ -82,7 +82,7 @@ class TestListLocalModels:
 
 class TestDiskUsage:
     def test_returns_disk_usage(self, client):
-        with patch("fichero.local_models.LocalModelManager") as MockMgr:
+        with patch("fichero.llm.local_models.LocalModelManager") as MockMgr:
             MockMgr.return_value.total_disk_usage.return_value = {
                 "whisper": 500_000,
                 "embeddings": 1_000_000,
@@ -99,8 +99,8 @@ class TestDiskUsage:
 
 class TestDownloadModel:
     def test_download_valid_whisper_model(self, client):
-        with patch("fichero.local_models.LocalModelManager"):
-            with patch("fichero.local_models.WHISPER_MODELS", {"base": {}}):
+        with patch("fichero.llm.local_models.LocalModelManager"):
+            with patch("fichero.llm.local_models.WHISPER_MODELS", {"base": {}}):
                 r = client.post("/api/local-models/download/whisper/base")
         assert r.status_code == 200
         assert r.json()["status"] == "downloading"
@@ -110,6 +110,6 @@ class TestDownloadModel:
         assert r.status_code == 400
 
     def test_download_unknown_whisper_model_returns_400(self, client):
-        with patch("fichero.local_models.WHISPER_MODELS", {"base": {}, "small": {}}):
+        with patch("fichero.llm.local_models.WHISPER_MODELS", {"base": {}, "small": {}}):
             r = client.post("/api/local-models/download/whisper/no-such-model")
         assert r.status_code == 400

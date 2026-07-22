@@ -2789,7 +2789,7 @@ class TestEmbeddingsModelLoading:
         import sys
         import types
         import fichero.db.embeddings as db_embeddings_module
-        from fichero.local_models import MODELS_BASE
+        from fichero.llm.local_models import MODELS_BASE
 
         calls: list[dict] = []
 

@@ -728,7 +728,7 @@ class DatabaseEmbeddingMixin:
         """
         if self._embedder is None:
             try:
-                from fichero.local_models import MODELS_BASE
+                from fichero.llm.local_models import MODELS_BASE
 
                 space = self._get_embedding_space()
                 self._embedding_model_name = space.source_model_name

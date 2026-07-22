@@ -13,7 +13,7 @@ User configurations (enabled providers, custom endpoints)
 are stored in DuckDB via the Provider model.
 
 Usage:
-    from fichero.providers import PROVIDERS, ProviderType, get_provider_info
+    from fichero.llm.providers import PROVIDERS, ProviderType, get_provider_info
 
     # Get all providers
     for ptype, info in PROVIDERS.items():

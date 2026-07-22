@@ -1135,7 +1135,7 @@ async def _run_extractor(
     if not text:
         return {"text": "", "value": [], "error": "No text input"}
 
-    from fichero.lang_detect import resolve_output_language
+    from fichero.llm.lang_detect import resolve_output_language
     output_language = resolve_output_language(
         inputs.get("output_language"), text, default="English"
     )
@@ -2276,7 +2276,7 @@ def _write_kg_rows(
     detected_language: str | None = None
     if page_excerpt:
         try:
-            from fichero.lang_detect import detect_language as _detect
+            from fichero.llm.lang_detect import detect_language as _detect
             full = _detect(page_excerpt[:2000], default="")
             if full:
                 detected_language = full[:2].lower()  # "English"→"en", "Spanish"→"sp"

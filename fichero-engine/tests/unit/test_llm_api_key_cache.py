@@ -106,7 +106,7 @@ def test_missing_key_is_cached(monkeypatch):
     monkeypatch.setattr("fichero.security.keychain.get_api_key", fake_keychain_get)
     # Make sure the env fallback also yields nothing for a deterministic None.
     monkeypatch.setattr(
-        "fichero.providers.get_provider_info", lambda provider: None
+        "fichero.llm.providers.get_provider_info", lambda provider: None
     )
 
     assert llm.get_api_key("openai") is None

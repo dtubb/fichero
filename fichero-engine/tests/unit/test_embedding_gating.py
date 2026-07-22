@@ -24,7 +24,7 @@ from unittest.mock import patch
 
 import pytest
 
-from fichero.llm_embeddings import _enforce_embedding_call_allowed
+from fichero.llm.embeddings import _enforce_embedding_call_allowed
 
 
 def test_remote_embedding_allowed_when_fallbacks_disabled() -> None:

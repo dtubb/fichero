@@ -7,8 +7,8 @@ import time
 
 import pytest
 
-from fichero.local_inference import LocalInferenceRuntimeMissingError, ManagedLocalInferenceProcess
-from fichero.mlx_runtime import MLXRuntime, MLX_LM_VERSION
+from fichero.llm.local_inference import LocalInferenceRuntimeMissingError, ManagedLocalInferenceProcess
+from fichero.llm.mlx_runtime import MLXRuntime, MLX_LM_VERSION
 
 
 def _touch_python(runtime_dir: Path) -> None:

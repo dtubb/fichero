@@ -40,7 +40,7 @@ import logging
 from fichero.media.ocr_geometry import OCRGeometryResult
 
 # Import ProviderType from providers module (single source of truth)
-from fichero.providers import ProviderType
+from fichero.llm.providers import ProviderType
 
 # Import from the sibling models/knowledge.py submodule directly (not via
 # the fichero.models.knowledge top-level shim, which routes back through
@@ -1180,7 +1180,7 @@ class LibraryAclOverride(BaseModel):
 # Provider - AI Service Provider
 # =============================================================================
 
-# Note: ProviderType is imported from fichero.providers (single source of truth)
+# Note: ProviderType is imported from fichero.llm.providers (single source of truth)
 
 
 class Provider(BaseModel):

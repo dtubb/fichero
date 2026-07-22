@@ -37,7 +37,7 @@ by `.format(**kwargs)` at load time.
 ## Usage
 
 ```python
-from fichero.prompts import load_prompt
+from fichero.llm.prompts import load_prompt
 
 prompt = load_prompt("catalogue", "narrative", output_language="English")
 # Returns the latest version; pass version=1 to pin.

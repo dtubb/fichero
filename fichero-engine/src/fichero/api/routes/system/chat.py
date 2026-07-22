@@ -39,8 +39,8 @@ from fichero.security.keychain import has_api_key
 # It pulls langchain_core -> transformers, which the engine must not pay for
 # just to register this router at startup.
 from fichero.models.node_aliases import DanglingAliasError, is_alias, resolve_alias
-from fichero.providers import get_provider_info
-from fichero.prompts import compose_system_prompt
+from fichero.llm.providers import get_provider_info
+from fichero.llm.prompts import compose_system_prompt
 from fichero.retrieval.graph_rag import GraphAwareRetriever
 
 logger = logging.getLogger(__name__)

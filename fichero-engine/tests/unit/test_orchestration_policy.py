@@ -1,6 +1,6 @@
 """Tests for orchestration policy engine (Issue #426)."""
 
-from fichero.orchestration_policy import (
+from fichero.llm.orchestration_policy import (
     PolicyAction,
     EntityTypeScope,
     PolicyRule,
@@ -222,7 +222,7 @@ class TestPolicyEngine:
 
     def setup_method(self):
         """Setup fresh engine for each test."""
-        import fichero.orchestration_policy as op
+        import fichero.llm.orchestration_policy as op
         op._policy_engine = None
         self.engine = get_policy_engine()
 
@@ -410,7 +410,7 @@ class TestGetPolicyEngine:
 
     def test_singleton(self):
         """Test engine is a singleton."""
-        import fichero.orchestration_policy as op
+        import fichero.llm.orchestration_policy as op
         op._policy_engine = None
 
         engine1 = get_policy_engine()

@@ -9,9 +9,9 @@ from pathlib import Path
 import shutil
 from typing import Any
 
-from fichero.mlx_runtime import get_mlx_runtime
+from fichero.llm.mlx_runtime import get_mlx_runtime
 from fichero.db.paths import engine_state_dir
-from fichero.providers import ProviderType
+from fichero.llm.providers import ProviderType
 
 
 @dataclass(frozen=True)
@@ -112,7 +112,7 @@ class MLXModelStore:
         return env
 
     def list_catalog_entries(self) -> list[Any]:
-        from fichero.local_inference import (
+        from fichero.llm.local_inference import (
             LocalModelCatalogEntry,
             LocalModelSource,
             check_local_model_hardware,
@@ -253,7 +253,7 @@ class MLXModelStore:
         return MANAGED_MLX_MODELS[model_id]
 
     def require_supported(self, spec: ManagedModelSpec) -> None:
-        from fichero.local_inference import LocalModelHardwareError, check_local_model_hardware
+        from fichero.llm.local_inference import LocalModelHardwareError, check_local_model_hardware
 
         supported, unsupported_reason = check_local_model_hardware(
             display_name=spec.display_name,

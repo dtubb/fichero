@@ -7,7 +7,7 @@ handling at call time to prevent provider failures from destabilizing the app.
 import logging
 from urllib.parse import urlparse
 
-from fichero.providers import ProviderType, get_provider_info
+from fichero.llm.providers import ProviderType, get_provider_info
 
 logger = logging.getLogger(__name__)
 

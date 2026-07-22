@@ -11,7 +11,7 @@ from fichero.api.routes.auth.accounts import (
     _require_authenticated_or_bootstrap,
     _require_owner_or_bootstrap,
 )
-from fichero.model_profiles import (
+from fichero.llm.model_profiles import (
     ModelProfile,
     ModelProfileCreate,
     ModelProfileListResponse,
@@ -135,7 +135,7 @@ _TIER_SETTING_KEYS = {
 
 
 def _validate_provider_updates(body: AIDefaultsUpdate) -> None:
-    from fichero.providers import get_provider_info
+    from fichero.llm.providers import get_provider_info
 
     for field_name in body.model_fields_set:
         if not field_name.endswith("_provider"):
@@ -151,7 +151,7 @@ def _validate_provider_updates(body: AIDefaultsUpdate) -> None:
 
 
 def _validate_profile(profile: ModelProfile) -> None:
-    from fichero.providers import get_provider_info
+    from fichero.llm.providers import get_provider_info
 
     if not profile.name:
         raise HTTPException(status_code=422, detail="Model profile name is required")

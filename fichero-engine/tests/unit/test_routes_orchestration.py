@@ -8,7 +8,7 @@ test runs. Routes use full /api/policies/... paths (mounted at root "").
 
 from unittest.mock import MagicMock, patch
 
-from fichero.orchestration_policy import (
+from fichero.llm.orchestration_policy import (
     PolicyRule,
     EntityTypeScope,
     PolicyAction,

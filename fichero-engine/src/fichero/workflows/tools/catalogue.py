@@ -175,7 +175,7 @@ def _build_prompt(output_language: str) -> str:
     composable workflow — this tool's job is the catalogue *synthesis*,
     not the extraction.
     """
-    from fichero.prompts import load_prompt
+    from fichero.llm.prompts import load_prompt
     return load_prompt(
         "catalogue", "narrative",
         output_language=output_language,
@@ -496,7 +496,7 @@ async def catalogue(
     # Resolve language via auto-detect when the user picked "auto" (or
     # left it blank). Concrete names like "English" / "Spanish" bypass
     # detection. See fichero/lang_detect.py for the detector.
-    from fichero.lang_detect import resolve_output_language
+    from fichero.llm.lang_detect import resolve_output_language
     output_language = resolve_output_language(
         inputs.get("output_language"), text, default="English"
     )

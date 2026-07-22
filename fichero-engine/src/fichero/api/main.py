@@ -456,7 +456,7 @@ def _prewarm_embeddings() -> None:
             _configured_embedding_space,
             _register_fastembed_model_for_space,
         )
-        from fichero.local_models import MODELS_BASE
+        from fichero.llm.local_models import MODELS_BASE
 
         # Guard against an unsupported model name (e.g. a stale setting, or a
         # default that fastembed dropped support for): fall back to the

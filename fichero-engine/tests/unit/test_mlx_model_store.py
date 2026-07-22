@@ -5,14 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from fichero.local_inference import (
+from fichero.llm.local_inference import (
     LocalInferenceCapabilities,
     LocalModelHardwareError,
     LocalModelNotInstalledError,
     ManagedLocalInferenceProcess,
     LocalProviderProfile,
 )
-from fichero.mlx_model_store import MLXModelStore, MANAGED_MLX_MODELS
+from fichero.llm.mlx_model_store import MLXModelStore, MANAGED_MLX_MODELS
 
 
 def _write_snapshot(root: Path, repo_id: str, revision: str, *, size: int = 4) -> Path:
@@ -47,7 +47,7 @@ def test_catalog_install_state_from_store_layout(tmp_path: Path) -> None:
 
     with pytest.MonkeyPatch.context() as monkeypatch:
         monkeypatch.setattr(
-            "fichero.local_inference.get_local_inference_capabilities",
+            "fichero.llm.local_inference.get_local_inference_capabilities",
             lambda: LocalInferenceCapabilities(
                 system="Darwin",
                 machine="arm64",
@@ -119,8 +119,8 @@ async def test_download_command_pins_revision(tmp_path: Path, monkeypatch: pytes
         def require_python_path(self) -> Path:
             return Path("/tmp/mlx-runtime/bin/python")
 
-    monkeypatch.setattr("fichero.mlx_model_store.get_mlx_runtime", lambda: FakeRuntime())
-    monkeypatch.setattr("fichero.mlx_model_store.asyncio.create_subprocess_exec", fake_exec)
+    monkeypatch.setattr("fichero.llm.mlx_model_store.get_mlx_runtime", lambda: FakeRuntime())
+    monkeypatch.setattr("fichero.llm.mlx_model_store.asyncio.create_subprocess_exec", fake_exec)
 
     job = await store.start_download("mlx-community/Qwen3-VL-8B")
     await store._job_tasks[job.job_id]
@@ -135,9 +135,9 @@ async def test_download_command_pins_revision(tmp_path: Path, monkeypatch: pytes
 
 def test_spawn_with_uninstalled_model_raises_typed_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     store = MLXModelStore(tmp_path / "mlx")
-    monkeypatch.setattr("fichero.mlx_model_store.get_mlx_model_store", lambda: store)
+    monkeypatch.setattr("fichero.llm.mlx_model_store.get_mlx_model_store", lambda: store)
     monkeypatch.setattr(
-        "fichero.local_inference.get_local_inference_capabilities",
+        "fichero.llm.local_inference.get_local_inference_capabilities",
         lambda: LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",
@@ -156,9 +156,9 @@ def test_spawn_refuses_underpowered_mac(tmp_path: Path, monkeypatch: pytest.Monk
     store = MLXModelStore(tmp_path / "mlx")
     spec = MANAGED_MLX_MODELS["mlx-community/Qwen3-VL-8B"]
     _write_snapshot(store.root, spec.repo_id, spec.revision, size=8)
-    monkeypatch.setattr("fichero.mlx_model_store.get_mlx_model_store", lambda: store)
+    monkeypatch.setattr("fichero.llm.mlx_model_store.get_mlx_model_store", lambda: store)
     monkeypatch.setattr(
-        "fichero.local_inference.get_local_inference_capabilities",
+        "fichero.llm.local_inference.get_local_inference_capabilities",
         lambda: LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",
@@ -177,7 +177,7 @@ def test_spawn_refuses_underpowered_mac(tmp_path: Path, monkeypatch: pytest.Monk
 async def test_download_refuses_underpowered_mac(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     store = MLXModelStore(tmp_path / "mlx")
     monkeypatch.setattr(
-        "fichero.local_inference.get_local_inference_capabilities",
+        "fichero.llm.local_inference.get_local_inference_capabilities",
         lambda: LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",
@@ -194,7 +194,7 @@ async def test_download_refuses_underpowered_mac(tmp_path: Path, monkeypatch: py
 def test_catalog_marks_unsupported_when_memory_floor_is_missed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     store = MLXModelStore(tmp_path / "mlx")
     monkeypatch.setattr(
-        "fichero.local_inference.get_local_inference_capabilities",
+        "fichero.llm.local_inference.get_local_inference_capabilities",
         lambda: LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",

@@ -17,7 +17,7 @@ class TestProviderCatalog:
 
     def test_provider_type_enum(self):
         """Test ProviderType enum has expected values."""
-        from fichero.providers import ProviderType
+        from fichero.llm.providers import ProviderType
 
         assert ProviderType.openai.value == "openai"
         assert ProviderType.anthropic.value == "anthropic"
@@ -28,14 +28,14 @@ class TestProviderCatalog:
 
     def test_providers_dict_has_all_types(self):
         """Test PROVIDERS dict contains all provider types."""
-        from fichero.providers import PROVIDERS, ProviderType
+        from fichero.llm.providers import PROVIDERS, ProviderType
 
         for ptype in ProviderType:
             assert ptype in PROVIDERS, f"Missing provider: {ptype}"
 
     def test_provider_info_structure(self):
         """Test ProviderInfo has required fields."""
-        from fichero.providers import PROVIDERS, ProviderType
+        from fichero.llm.providers import PROVIDERS, ProviderType
 
         openai_info = PROVIDERS[ProviderType.openai]
 
@@ -46,13 +46,13 @@ class TestProviderCatalog:
         assert openai_info.supports_vision is True
 
     def test_omlx_provider_uses_decided_user_facing_label(self):
-        from fichero.providers import PROVIDERS, ProviderType
+        from fichero.llm.providers import PROVIDERS, ProviderType
 
         assert PROVIDERS[ProviderType.omlx].name == "MLX (Local)"
 
     def test_ocr_htr_provider_defaults_use_recommended_models(self):
         """Vision/transcription defaults should prefer the OCR/HTR-recommended models."""
-        from fichero.providers import PROVIDERS, ProviderType
+        from fichero.llm.providers import PROVIDERS, ProviderType
 
         assert PROVIDERS[ProviderType.huggingface].default_model == "Qwen/Qwen3-VL-8B-Instruct"
         assert PROVIDERS[ProviderType.google].default_model == "gemini-3-pro-preview"
@@ -60,7 +60,7 @@ class TestProviderCatalog:
 
     def test_local_providers(self):
         """Test local providers are correctly marked."""
-        from fichero.providers import get_local_providers
+        from fichero.llm.providers import get_local_providers
 
         local = get_local_providers()
         assert len(local) >= 3  # ollama, lmstudio, and omlx
@@ -71,7 +71,7 @@ class TestProviderCatalog:
 
     def test_cloud_providers(self):
         """Test cloud providers require API keys."""
-        from fichero.providers import get_cloud_providers
+        from fichero.llm.providers import get_cloud_providers
 
         cloud = get_cloud_providers()
         assert len(cloud) >= 9  # openai, anthropic, huggingface, etc.
@@ -82,7 +82,7 @@ class TestProviderCatalog:
 
     def test_get_provider_info(self):
         """Test get_provider_info helper."""
-        from fichero.providers import get_provider_info, ProviderType
+        from fichero.llm.providers import get_provider_info, ProviderType
 
         # By enum
         info = get_provider_info(ProviderType.openai)
@@ -100,7 +100,7 @@ class TestProviderCatalog:
 
     def test_vision_providers(self):
         """Test vision-capable providers."""
-        from fichero.providers import get_vision_providers
+        from fichero.llm.providers import get_vision_providers
 
         vision = get_vision_providers()
         assert len(vision) >= 5
@@ -112,7 +112,7 @@ class TestProviderCatalog:
 
     def test_embedding_providers(self):
         """Test embedding-capable providers."""
-        from fichero.providers import get_embedding_providers
+        from fichero.llm.providers import get_embedding_providers
 
         embedding = get_embedding_providers()
         assert len(embedding) >= 5
@@ -206,7 +206,7 @@ class TestModelInfo:
         """Test listing models for a provider."""
         from fichero.llm import list_models_for_provider
 
-        with patch("fichero.llm_models._get_litellm") as mock_litellm:
+        with patch("fichero.llm.model_types._get_litellm") as mock_litellm:
             mock_litellm.return_value.model_cost = {
                 "openai/gpt-4o": {
                     "input_cost_per_token": 0.000005,
@@ -238,7 +238,7 @@ class TestModelInfo:
         """Test getting model cost info."""
         from fichero.llm import get_model_cost
 
-        with patch("fichero.llm_models._get_litellm") as mock_litellm:
+        with patch("fichero.llm.model_types._get_litellm") as mock_litellm:
             mock_litellm.return_value.model_cost = {
                 "gpt-4o": {
                     "input_cost_per_token": 0.000005,
@@ -256,7 +256,7 @@ class TestModelInfo:
         """Test cost estimation."""
         from fichero.llm import estimate_cost
 
-        with patch("fichero.llm_models._get_litellm") as mock_litellm:
+        with patch("fichero.llm.model_types._get_litellm") as mock_litellm:
             mock_litellm.return_value.cost_per_token.return_value = (0.05, 0.15)
 
             cost = estimate_cost("gpt-4o", input_tokens=1000, output_tokens=500)
@@ -476,7 +476,7 @@ class TestProviderIntegration:
 
     def test_full_provider_workflow(self):
         """Test creating provider, adding model, then deleting."""
-        from fichero.providers import get_provider_info, ProviderType
+        from fichero.llm.providers import get_provider_info, ProviderType
         from fichero.models import Provider as ProviderModel
 
         # Get OpenAI info

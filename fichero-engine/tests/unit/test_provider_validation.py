@@ -2,7 +2,7 @@
 
 import pytest
 
-from fichero.provider_validation import (
+from fichero.llm.provider_validation import (
     ProviderValidationError,
     validate_provider_config,
     _validate_api_key_format,

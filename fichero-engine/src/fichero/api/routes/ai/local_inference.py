@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Path
 from pydantic import BaseModel, Field
 
-from fichero.local_inference import (
+from fichero.llm.local_inference import (
     ExternalLocalInferenceProcess,
     LocalInferenceCapabilities,
     LocalModelHardwareError,
@@ -23,8 +23,8 @@ from fichero.local_inference import (
     ManagedLocalInferenceProcess,
     get_local_inference_capabilities,
 )
-from fichero.mlx_model_store import get_mlx_model_store
-from fichero.mlx_runtime import get_mlx_runtime
+from fichero.llm.mlx_model_store import get_mlx_model_store
+from fichero.llm.mlx_runtime import get_mlx_runtime
 
 router = APIRouter(prefix="/local-inference")
 

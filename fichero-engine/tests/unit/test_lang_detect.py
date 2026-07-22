@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fichero.lang_detect import detect_language, resolve_output_language
+from fichero.llm.lang_detect import detect_language, resolve_output_language
 
 
 class TestDetectLanguage:

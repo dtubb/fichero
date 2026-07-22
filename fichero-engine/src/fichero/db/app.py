@@ -34,7 +34,7 @@ from fichero.models import (
     Model,
     Provider,
 )
-from fichero.model_profiles import (
+from fichero.llm.model_profiles import (
     ModelProfile,
     ModelProfileParams,
     ModelProfilePrivacy,

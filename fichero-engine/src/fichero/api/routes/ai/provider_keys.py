@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from fichero.api.routes.auth.accounts import _require_owner_or_bootstrap
-from fichero.providers import get_provider_info
+from fichero.llm.providers import get_provider_info
 from fichero.security.keychain import (
     get_api_key,
     set_api_key,
@@ -22,7 +22,7 @@ from fichero.security.keychain import (
     has_api_key,
     is_available as keychain_available,
 )
-from fichero.provider_validation import (
+from fichero.llm.provider_validation import (
     validate_provider_config,
     ProviderValidationError,
 )

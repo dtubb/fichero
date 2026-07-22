@@ -19,7 +19,7 @@ from fichero.api.routes.auth.accounts import (
 )
 from fichero.models import Model, Provider, ProviderRef, ProviderType
 from fichero.models import AppleIntelligenceProbeResponse
-from fichero.providers import (
+from fichero.llm.providers import (
     get_provider_info,
     list_providers as list_catalog_providers,
 )
@@ -28,7 +28,7 @@ from fichero.security.keychain import (
     delete_api_key,
     has_api_key,
 )
-from fichero.provider_validation import (
+from fichero.llm.provider_validation import (
     validate_provider_config,
     ProviderValidationError,
 )

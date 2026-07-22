@@ -16,7 +16,7 @@ import pytest
 from fichero.db import db_manager
 from fichero.llm import LLMConfig, _is_local_or_builtin_provider, chat, chat_structured
 from fichero.models import Artifact, DocType, Document
-from fichero.providers import ProviderType, get_provider_info
+from fichero.llm.providers import ProviderType, get_provider_info
 from fichero.workflows.tools import extract_all as extract_all_module
 
 
@@ -65,7 +65,7 @@ async def test_mock_structured_fails_loud_on_unsupported_required_field():
     """Unknown schema with a required-no-default field raises, never drops."""
     from pydantic import BaseModel
 
-    from fichero.llm_mock import mock_structured_response
+    from fichero.llm.mock import mock_structured_response
 
     class _Needy(BaseModel):
         required_field: str  # no default, no default_factory

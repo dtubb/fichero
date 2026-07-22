@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from fichero.llm import LLMConfig
-from fichero.model_profiles import ModelProfile, ModelProfileParams
+from fichero.llm.model_profiles import ModelProfile, ModelProfileParams
 from fichero.workflows.builder import _resolve_node_llm_config
 from fichero.workflows.types import NodeDef
 

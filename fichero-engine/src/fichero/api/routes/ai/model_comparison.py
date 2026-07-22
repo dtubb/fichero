@@ -14,12 +14,12 @@ from pydantic import BaseModel, Field
 from fichero.db.app import AppDatabase, get_app_db
 from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
-from fichero.language_coverage import (
+from fichero.llm.language_coverage import (
     LanguageFitModelSpec,
     LanguageFitResponse,
     recommend_language_fit,
 )
-from fichero.model_recommendations import (
+from fichero.llm.model_recommendations import (
     ModelRecommendationCandidate,
     ModelRecommendationRequest,
     ModelRecommendationResponse,

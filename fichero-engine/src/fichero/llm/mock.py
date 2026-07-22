@@ -138,6 +138,6 @@ def mock_structured_response(schema: type[BaseModel], prompt: str) -> BaseModel:
         raise ValueError(
             f"mock_structured_response cannot construct {name}: required "
             f"field(s) {missing!r} have no default. Add a canned branch for "
-            f"this schema in fichero.llm_mock."
+            f"this schema in fichero.llm.mock."
         )
     return schema.model_construct(**values)
