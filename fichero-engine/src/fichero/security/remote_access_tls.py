@@ -17,13 +17,17 @@ import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 from urllib.parse import ParseResult, urlparse
 
-from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.x509.oid import NameOID
+if TYPE_CHECKING:
+    # cryptography is heavy (~30ms of engine import time) and is only needed by
+    # the TLS-material helpers below, which run when remote sharing is set up at
+    # runtime -- never at import. Keep it out of the startup path (#4038 lazy
+    # pattern); import it function-locally. Annotations are stringized via
+    # `from __future__ import annotations`, so signatures referencing x509 stay
+    # valid without the runtime import.
+    from cryptography import x509
 
 DEFAULT_BIND_PORT = 8765
 DEFAULT_STORAGE_ROOT = Path.home() / "Library/Application Support/Fichero/Remote Access"
@@ -224,6 +228,11 @@ def _material_directory(
 
 
 def _generate_material(*, certificate_path: Path, key_path: Path, hosts: Sequence[str]) -> None:
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
     certificate_path.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(certificate_path.parent, 0o700)
 
@@ -254,6 +263,8 @@ def _generate_material(*, certificate_path: Path, key_path: Path, hosts: Sequenc
 
 
 def _subject_alt_name(hosts: Sequence[str]) -> x509.SubjectAlternativeName:
+    from cryptography import x509
+
     names: list[x509.GeneralName] = []
     for host in hosts:
         try:
@@ -264,6 +275,9 @@ def _subject_alt_name(hosts: Sequence[str]) -> x509.SubjectAlternativeName:
 
 
 def _spki_pin_from_certificate(certificate_path: Path) -> str:
+    from cryptography import x509
+    from cryptography.hazmat.primitives import serialization
+
     pem = certificate_path.read_text(encoding="utf-8")
     der = _pem_to_der(pem)
     certificate = x509.load_der_x509_certificate(der)
