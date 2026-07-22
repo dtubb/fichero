@@ -338,6 +338,6 @@ struct CompactActionRow: View {
 
 #Preview {
     ActionPickerView()
-        .environment(ActionStore(service: ActionsService()))
+        .environment(ActionStore(service: ActionsService(client: .localhost)))
         .frame(width: 300, height: 500)
 }

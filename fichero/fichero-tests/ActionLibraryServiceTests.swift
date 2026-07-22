@@ -14,7 +14,7 @@ struct ActionLibraryServiceTests {
 
     @Test("decodeModel preserves typed values through the generated-client bridge")
     func decodeModel() throws {
-        let service = ActionLibraryService()
+        let service = ActionLibraryService(client: .localhost)
         let input = ActionPayload(name: "Summarise", enabled: true, count: 3)
 
         let decoded = try service.decodeModel(from: input, as: ActionPayload.self)
@@ -24,7 +24,7 @@ struct ActionLibraryServiceTests {
 
     @Test("objectContainer preserves nested JSON payloads for action graph requests")
     func objectContainer() throws {
-        let service = ActionLibraryService()
+        let service = ActionLibraryService(client: .localhost)
         let container = try service.objectContainer(from: [
             "kind": "workflow",
             "enabled": true,
@@ -41,7 +41,7 @@ struct ActionLibraryServiceTests {
 
     @Test("objectContainer rejects values that JSON cannot represent")
     func objectContainerRejectsNonJSONValue() {
-        let service = ActionLibraryService()
+        let service = ActionLibraryService(client: .localhost)
 
         #expect(throws: Error.self) {
             try service.objectContainer(from: ["date": Date()])

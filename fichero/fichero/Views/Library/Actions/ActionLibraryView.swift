@@ -243,5 +243,5 @@ struct CreateActionSheet: View {
 
 #Preview {
     ActionLibraryView()
-        .environment(ActionStore(service: ActionsService()))
+        .environment(ActionStore(service: ActionsService(client: .localhost)))
 }

@@ -10,7 +10,7 @@ struct ActionStoreTests {
 
     @Test("registers only the action change domain")
     func changeDomain() {
-        let store = ActionStore(service: ActionsService())
+        let store = ActionStore(service: ActionsService(client: .localhost))
 
         #expect(store.changeDomain == "action")
         #expect(store.changeDomains == ["action"])
@@ -18,7 +18,7 @@ struct ActionStoreTests {
 
     @Test("every action event advances the change token")
     func actionEventsAdvanceChangeToken() throws {
-        let store = ActionStore(service: ActionsService())
+        let store = ActionStore(service: ActionsService(client: .localhost))
 
         for verb in ["created", "updated", "deleted", "used"] {
             store.apply(try event(verb))
@@ -31,7 +31,7 @@ struct ActionStoreTests {
 
     @Test("change events do not synchronously replace cached actions")
     func changeEventsLeaveCachedActionsUntilReload() throws {
-        let store = ActionStore(service: ActionsService())
+        let store = ActionStore(service: ActionsService(client: .localhost))
 
         store.apply(try event("created"))
         store.reloadDebouncer.cancel()
