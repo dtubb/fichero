@@ -717,6 +717,7 @@ class WorkflowScheduler:
         Returns:
             Updated Schedule object
         """
+        from apscheduler.jobstores.base import JobLookupError  # lazy: keep apscheduler off bind path
         # Verify schedule exists
         existing = await self.get_schedule(schedule.schedule_id)
         if not existing:
@@ -763,6 +764,7 @@ class WorkflowScheduler:
 
     async def delete_schedule(self, schedule_id: str) -> None:
         """Delete a schedule."""
+        from apscheduler.jobstores.base import JobLookupError  # lazy: keep apscheduler off bind path
         # Remove from APScheduler
         try:
             self._scheduler.remove_job(schedule_id)
