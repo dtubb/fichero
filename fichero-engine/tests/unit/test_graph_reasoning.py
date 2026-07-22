@@ -2,7 +2,7 @@
 
 import pytest
 
-from fichero.graph_reasoning import (
+from fichero.kg.graph_reasoning import (
     AlgorithmType,
     CommunityAlgorithm,
     CentralityResult,
@@ -115,7 +115,7 @@ class TestNetworkXReasoner:
 
     def setup_method(self):
         """Setup fresh reasoner for each test."""
-        import fichero.graph_reasoning as gr
+        import fichero.kg.graph_reasoning as gr
         gr._reasoner = None
         self.reasoner = get_reasoner(enabled=True)
 
@@ -243,7 +243,7 @@ class TestGetReasoner:
 
     def test_singleton(self):
         """Test reasoner is a singleton."""
-        import fichero.graph_reasoning as gr
+        import fichero.kg.graph_reasoning as gr
         gr._reasoner = None
 
         reasoner1 = get_reasoner()
@@ -256,7 +256,7 @@ class TestSetReasonerEnabled:
 
     def test_set_enabled(self):
         """Test enabling/disabling reasoner."""
-        import fichero.graph_reasoning as gr
+        import fichero.kg.graph_reasoning as gr
         gr._reasoner = None
 
         set_reasoner_enabled(True)
@@ -272,7 +272,7 @@ class TestNetworkXNotAvailable:
 
     def test_reasoner_disabled_without_networkx(self, monkeypatch):
         """Test that reasoner reports not available when NetworkX missing."""
-        import fichero.graph_reasoning as gr
+        import fichero.kg.graph_reasoning as gr
 
         original_available = gr.NETWORKX_AVAILABLE
         original_nx = gr.nx
@@ -439,7 +439,7 @@ class TestShortestPaths:
 
     def test_find_shortest_paths_not_available(self, monkeypatch):
         """Test shortest paths when NetworkX not available."""
-        import fichero.graph_reasoning as gr
+        import fichero.kg.graph_reasoning as gr
 
         original = gr.NETWORKX_AVAILABLE
         original_nx = gr.nx

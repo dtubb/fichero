@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from fichero.api.routes import kg_pykeen as routes
-from fichero.pykeen_inference import PredictionResult, PredictionType, StoredPrediction, TrainingResult, TrainingStatus
+from fichero.kg.pykeen_inference import PredictionResult, PredictionType, StoredPrediction, TrainingResult, TrainingStatus
 
 
 def _prediction() -> StoredPrediction:

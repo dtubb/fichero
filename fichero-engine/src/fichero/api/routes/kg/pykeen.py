@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.pykeen_inference import (
+from fichero.kg.pykeen_inference import (
     StoredPrediction,
     TrainingResult,
     get_inference,
