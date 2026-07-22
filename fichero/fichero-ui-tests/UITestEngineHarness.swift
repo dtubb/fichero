@@ -312,8 +312,26 @@ final class UITestEngineHarness {
         if let v = ProcessInfo.processInfo.environment["FICHERO_VENV"], !v.isEmpty {
             candidates.append(URL(fileURLWithPath: v).appendingPathComponent("bin/python"))
         }
+        // Derive the canonical checkout from THIS file's real path (`#filePath`),
+        // which the test process can read (repoRoot already resolved via it) and
+        // which ignores the container-polluted `$HOME`. Worktrees live under
+        // `<root>/code/fichero-worktrees/*`; the canonical checkout with the venv
+        // is `<root>/code/fichero`.
+        if let code = codeAncestor(of: URL(fileURLWithPath: #filePath)) {
+            candidates.append(code.appendingPathComponent("fichero/.venv/bin/python"))
+        }
         candidates.append(URL(fileURLWithPath: realHome)
             .appendingPathComponent("code/fichero/.venv/bin/python"))
         return candidates.first { fm.fileExists(atPath: $0.path) }
+    }
+
+    /// The `code` directory ancestor of `url` (e.g. `/Users/x/code`), or nil.
+    private static func codeAncestor(of url: URL) -> URL? {
+        var u = url
+        while u.pathComponents.count > 1 {
+            if u.lastPathComponent == "code" { return u }
+            u = u.deletingLastPathComponent()
+        }
+        return nil
     }
 }
