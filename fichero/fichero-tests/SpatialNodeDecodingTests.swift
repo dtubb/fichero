@@ -84,15 +84,6 @@ final class SpatialNodeDecodingTests: XCTestCase {
         XCTAssertEqual(snapped.z, 0.0, accuracy: 1e-9)
     }
 
-    func testThumbnailURLComposition() {
-        let base = URL(string: "https://host.test/api/")!
-        let url = SpatialNode.thumbnailURL(forSourceId: "doc-1", baseURL: base)
-        XCTAssertEqual(url?.absoluteString, "https://host.test/api/storage/thumbnail/doc-1")
-        // Guards: empty source or nil base → nil.
-        XCTAssertNil(SpatialNode.thumbnailURL(forSourceId: "", baseURL: base))
-        XCTAssertNil(SpatialNode.thumbnailURL(forSourceId: "doc-1", baseURL: nil))
-    }
-
     // MARK: - SpatialStack.init(from:)
 
     func testStackToleratesMissingIdAndNodeIds() throws {

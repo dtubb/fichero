@@ -71,6 +71,9 @@ final class AgentConsentStoreTests: XCTestCase {
         XCTAssertEqual(store.pending?.clientName, "Agent A")
 
         store.resolve(approved: true, remember: false)
-        XCTAssertTrue(await first.value)
+        // Hoist the async access out of XCTAssertTrue's @autoclosure (which cannot
+        // be async) — evaluate the Task's value first, then assert on the result.
+        let firstApproved = await first.value
+        XCTAssertTrue(firstApproved)
     }
 }
