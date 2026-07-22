@@ -1073,7 +1073,7 @@ async def extract_text(
     This populates the page_content field for search and chat.
     Can be used to re-extract text for documents imported before text extraction was working.
     """
-    from fichero.ingest import _extract_text_content
+    from fichero.importers.ingest import _extract_text_content
 
     extracted = 0
     skipped = 0

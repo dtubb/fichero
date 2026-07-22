@@ -1032,7 +1032,7 @@ def import_manifest_command(
     engine's HTTP API. A local preview is always cached. Idempotent — safe to
     re-run.
     """
-    from fichero.manifest_import import (
+    from fichero.importers.manifest_import import (
         DEFAULT_API_BASE,
         DEFAULT_TOKEN_FILE,
         import_manifest_via_http,
@@ -1127,7 +1127,7 @@ def import_iiif_command(
     ),
 ) -> None:
     """Import IIIF Presentation 3.0 + W3C AnnotationPages via the engine API."""
-    from fichero.iiif_import import (
+    from fichero.importers.iiif_import import (
         DEFAULT_API_BASE,
         DEFAULT_TOKEN_FILE,
         import_iiif_via_http,

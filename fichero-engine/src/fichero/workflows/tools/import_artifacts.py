@@ -14,7 +14,7 @@ import logging
 from typing import Any
 
 from fichero.db import db_manager
-from fichero.manifest_import import (
+from fichero.importers.manifest_import import (
     CANONICAL_VERSION,
     _import_receipt_content,
     _import_receipt_data,

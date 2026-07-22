@@ -10,7 +10,7 @@ Text extraction:
 - Extracted text goes into doc.page_content for search indexing
 
 Usage:
-    from fichero.ingest import ingest_file, ingest_folder, IngestMode
+    from fichero.importers.ingest import ingest_file, ingest_folder, IngestMode
 
     # Link external file (default - uses bookmarks)
     doc = ingest_file(Path("/Users/bob/docs/letter.pdf"))

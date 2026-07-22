@@ -79,7 +79,7 @@ def _llm_config():
 class TestSplitOnImport:
 
     def test_multipage_pdf_creates_one_child_per_page(self, temp_library, tmp_path):
-        from fichero.ingest import _create_pdf_page_children
+        from fichero.importers.ingest import _create_pdf_page_children
         from fichero.models import Document, DocType
 
         library_path, db_manager = temp_library
@@ -102,7 +102,7 @@ class TestSplitOnImport:
     ):
         """If Kreuzberg silently yields nothing, fitz must still split the PDF —
         a multi-page PDF is never left unsplit (#2430, no-silent-fallback)."""
-        import fichero.ingest as ingest
+        import fichero.importers.ingest as ingest
         from fichero.models import Document, DocType
 
         library_path, db_manager = temp_library
@@ -124,7 +124,7 @@ class TestSplitOnImport:
     def test_kreuzberg_missing_dependency_logs_real_fallback_reason(
         self, temp_library, tmp_path, monkeypatch, caplog
     ):
-        import fichero.ingest as ingest
+        import fichero.importers.ingest as ingest
         from fichero.models import Document, DocType
 
         library_path, db_manager = temp_library
@@ -150,7 +150,7 @@ class TestSplitOnImport:
     def test_kreuzberg_extraction_failure_logs_real_fallback_reason(
         self, temp_library, tmp_path, monkeypatch, caplog
     ):
-        import fichero.ingest as ingest
+        import fichero.importers.ingest as ingest
         from fichero.models import Document, DocType
 
         library_path, db_manager = temp_library
@@ -180,7 +180,7 @@ class TestSplitOnImport:
         never silently return as if the PDF had no pages (#2430)."""
         import fitz
 
-        import fichero.ingest as ingest
+        import fichero.importers.ingest as ingest
         from fichero.models import Document, DocType
 
         library_path, db_manager = temp_library
@@ -333,7 +333,7 @@ class TestWholePdfGuard:
         """If a multi-page PDF cannot be split even on the spot, the per-page
         guard must FAIL LOUD (the file errors) rather than write a combined blob
         onto the parent (#2430, no-silent-fallback)."""
-        import fichero.ingest as ingest
+        import fichero.importers.ingest as ingest
         from fichero.models import Artifact, Document, DocType, FileType
         from fichero.workflows.tools.vision_base import process_vision
 

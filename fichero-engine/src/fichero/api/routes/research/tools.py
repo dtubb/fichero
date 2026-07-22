@@ -561,7 +561,7 @@ async def browser_save(
     import httpx  # lazy (#3985): keep off the engine boot path
     import tempfile
     from pathlib import Path as _Path
-    from fichero.ingest import ingest_file, IngestMode
+    from fichero.importers.ingest import ingest_file, IngestMode
 
     if await _is_sandbox_violation(request.url):
         raise HTTPException(status_code=400, detail="URL scheme not allowed in sandboxed fetch")

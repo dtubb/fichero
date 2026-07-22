@@ -1281,7 +1281,7 @@ def test_import_manifest_prints_artifact_counts(monkeypatch, tmp_path):
     Imported transcripts/entities are first-class backend artifacts; hiding
     their counts in CLI output made it look like import skipped them.
     """
-    from fichero.manifest_import import ImportSummary
+    from fichero.importers.manifest_import import ImportSummary
 
     manifest = tmp_path / "manifest.jsonl"
     manifest.write_text("", encoding="utf-8")
@@ -1307,7 +1307,7 @@ def test_import_manifest_prints_artifact_counts(monkeypatch, tmp_path):
         )
 
     monkeypatch.setattr(
-        "fichero.manifest_import.import_manifest_via_http",
+        "fichero.importers.manifest_import.import_manifest_via_http",
         fake_import_manifest_via_http,
     )
 

@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fichero.ingest import ingest_file, ingest_folder, IngestMode
+from fichero.importers.ingest import ingest_file, ingest_folder, IngestMode
 from fichero.models import FileType
 
 

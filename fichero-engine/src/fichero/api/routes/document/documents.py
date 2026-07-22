@@ -1418,7 +1418,7 @@ async def related_documents(
 
 def backfill_pdf_pages_impl(db: Database) -> tuple[PdfBackfillResponse, list[str]]:
     """Create missing PDF page documents using the synchronous ingest helpers."""
-    from fichero.ingest import _create_pdf_page_children
+    from fichero.importers.ingest import _create_pdf_page_children
 
     pdfs = _list_documents(db, file_type=FileType.pdf)
     pdfs_scanned = len(pdfs)
@@ -1521,7 +1521,7 @@ def import_uploaded_file_impl(
     lifecycle — the route writes+cleans a multipart temp file; the action is
     handed a server-side path it does not delete.
     """
-    from fichero.ingest import ingest_file, IngestMode
+    from fichero.importers.ingest import ingest_file, IngestMode
 
     # Get library package path from database path.
     # db.path is like /path/to/Library.fichero/fichero.duckdb

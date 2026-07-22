@@ -5,7 +5,7 @@ from pathlib import Path
 
 def test_copy_into_package_stores_library_relative_path(tmp_path):
     """COPY mode should not bake the .fichero package name into doc.path."""
-    from fichero.ingest import IngestMode, ingest_file
+    from fichero.importers.ingest import IngestMode, ingest_file
 
     source = tmp_path / "source.jpg"
     source.write_bytes(b"fake image bytes")

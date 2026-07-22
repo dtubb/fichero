@@ -48,7 +48,7 @@ class TestIngestFile:
             lambda *args, **kwargs: emitted.append((args, kwargs)),
         )
 
-        with patch("fichero.ingest.ingest_file", return_value=_make_document()):
+        with patch("fichero.importers.ingest.ingest_file", return_value=_make_document()):
             response = client.post("/api/ingest/file", json={"path": str(source)})
 
         assert response.status_code == 200
@@ -64,8 +64,8 @@ class TestIngestFile:
         allowed.parent.mkdir()
         allowed.write_text("safe")
 
-        with patch("fichero.ingest.ingest_file", return_value=_make_document()), \
-             patch("fichero.ingest.IngestMode"):
+        with patch("fichero.importers.ingest.ingest_file", return_value=_make_document()), \
+             patch("fichero.importers.ingest.IngestMode"):
             for sensitive_path in ("/etc/passwd", str(Path.home() / ".ssh" / "id_ed25519")):
                 response = client.post("/api/ingest/file", json={"path": sensitive_path})
                 assert response.status_code == 403
@@ -79,8 +79,8 @@ class TestIngestFile:
         test_file.write_bytes(b"%PDF-1.4")
         doc = _make_document()
 
-        with patch("fichero.ingest.ingest_file", return_value=doc), \
-             patch("fichero.ingest.IngestMode"):
+        with patch("fichero.importers.ingest.ingest_file", return_value=doc), \
+             patch("fichero.importers.ingest.IngestMode"):
             r = client.post("/api/ingest/file", json={"path": str(test_file)})
 
         # ingest_file is called and document returned
@@ -112,8 +112,8 @@ class TestIngestFile:
         test_file.write_text("hello")
         doc = _make_document()
 
-        with patch("fichero.ingest.ingest_file", return_value=doc), \
-             patch("fichero.ingest.IngestMode"):
+        with patch("fichero.importers.ingest.ingest_file", return_value=doc), \
+             patch("fichero.importers.ingest.IngestMode"):
             r = client.post("/api/ingest/file", json={
                 "path": str(test_file),
                 "copy_mode": True,
@@ -149,9 +149,9 @@ class TestIngestFolder:
     def test_ingest_folder_returns_task_id(self, client, tmp_path):
         (tmp_path / "a.txt").write_text("a")
 
-        with patch("fichero.ingest.ingest_folder") as _mock_folder, \
-             patch("fichero.ingest.count_files", return_value=1), \
-             patch("fichero.ingest.IngestMode"):
+        with patch("fichero.importers.ingest.ingest_folder") as _mock_folder, \
+             patch("fichero.importers.ingest.count_files", return_value=1), \
+             patch("fichero.importers.ingest.IngestMode"):
             r = client.post("/api/ingest/folder", json={"path": str(tmp_path)})
 
         assert r.status_code == 200
@@ -181,9 +181,9 @@ class TestIngestFolder:
             seen["db"] = kwargs.get("db")
             return []
 
-        with patch("fichero.ingest.ingest_folder", side_effect=_fake_ingest_folder), \
-             patch("fichero.ingest.count_files", return_value=1), \
-             patch("fichero.ingest.IngestMode"), \
+        with patch("fichero.importers.ingest.ingest_folder", side_effect=_fake_ingest_folder), \
+             patch("fichero.importers.ingest.count_files", return_value=1), \
+             patch("fichero.importers.ingest.IngestMode"), \
              patch("fichero.api.routes.ingest.db_manager.get_database", return_value=fresh_db):
             r = client.post("/api/ingest/folder", json={"path": str(tmp_path)})
 
@@ -204,9 +204,9 @@ class TestIngestStatus:
     def test_task_status_after_folder_ingest(self, client, tmp_path):
         (tmp_path / "b.txt").write_text("b")
 
-        with patch("fichero.ingest.ingest_folder"), \
-             patch("fichero.ingest.count_files", return_value=2), \
-             patch("fichero.ingest.IngestMode"):
+        with patch("fichero.importers.ingest.ingest_folder"), \
+             patch("fichero.importers.ingest.count_files", return_value=2), \
+             patch("fichero.importers.ingest.IngestMode"):
             resp = client.post("/api/ingest/folder", json={"path": str(tmp_path)})
 
         task_id = resp.json()["task_id"]

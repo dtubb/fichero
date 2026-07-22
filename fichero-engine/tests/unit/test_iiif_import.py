@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
-from fichero.iiif_import import import_iiif, parse_iiif_directory
+from fichero.importers.iiif_import import import_iiif, parse_iiif_directory
 
 
 class _TestClientAdapter:
@@ -247,7 +247,7 @@ def test_import_iiif_scopes_entities_to_page_and_preserves_text_annotations(
 
 
 def test_import_annotations_records_structured_skip_reasons():
-    from fichero.iiif_import import _import_annotations
+    from fichero.importers.iiif_import import _import_annotations
 
     class _FakeClient:
         def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
@@ -289,7 +289,7 @@ def test_cli_import_iiif_invokes_importer(monkeypatch, tmp_path):
 
     def fake_import(**kwargs):
         called.update(kwargs)
-        from fichero.iiif_import import IIIFImportSummary
+        from fichero.importers.iiif_import import IIIFImportSummary
 
         return IIIFImportSummary(
             iiif=str(kwargs["iiif_path"]),
@@ -298,7 +298,7 @@ def test_cli_import_iiif_invokes_importer(monkeypatch, tmp_path):
             pages_seen=1,
         )
 
-    monkeypatch.setattr("fichero.iiif_import.import_iiif_via_http", fake_import)
+    monkeypatch.setattr("fichero.importers.iiif_import.import_iiif_via_http", fake_import)
     runner = CliRunner()
     result = runner.invoke(
         cli.app,

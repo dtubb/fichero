@@ -15,7 +15,7 @@ from unittest.mock import patch, MagicMock
 from fichero.db import Database, SearchResult
 from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.models import DocType, Document, FileType
-from fichero.ingest import ingest_file, ingest_folder, IngestMode
+from fichero.importers.ingest import ingest_file, ingest_folder, IngestMode
 
 TEST_EMBEDDING_DIM = 1024
 
@@ -529,7 +529,7 @@ class TestBookmarksIntegration:
         # Create the destination for copy
         (tmp_path / "copy.jpg").write_bytes(b"fake image")
 
-        with patch('fichero.ingest._copy_to_library', return_value=tmp_path / "copy.jpg"):
+        with patch('fichero.importers.ingest._copy_to_library', return_value=tmp_path / "copy.jpg"):
             with patch('fichero.db.db') as mock_db:
                 mock_db.save = MagicMock()
 

@@ -10,7 +10,7 @@ from fichero.models import Document
 class TestCameraIngestProvenance:
     @patch("fichero.bookmarks.create_bookmark", return_value=None)
     def test_ingest_file_records_source_folder_and_mtime(self, _mock_bookmark, tmp_path):
-        from fichero.ingest import ingest_file
+        from fichero.importers.ingest import ingest_file
 
         camera_dir = tmp_path / "camera-import"
         camera_dir.mkdir()
@@ -32,7 +32,7 @@ class TestCameraIngestProvenance:
     def test_ingest_folder_skips_unchanged_duplicate_camera_file(
         self, _mock_bookmark, tmp_path
     ):
-        from fichero.ingest import _file_checksum, ingest_folder
+        from fichero.importers.ingest import _file_checksum, ingest_folder
 
         camera_dir = tmp_path / "camera-import"
         camera_dir.mkdir()

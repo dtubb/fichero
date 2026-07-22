@@ -28,7 +28,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from fichero.ingest import ingest_file, ingest_folder, IngestMode
+from fichero.importers.ingest import ingest_file, ingest_folder, IngestMode
 from fichero.models import Status
 
 
@@ -142,7 +142,7 @@ class TestIngestFolderFailLoud:
         mock_db.get.return_value = None
         mock_db.save.side_effect = lambda doc, **kw: saved_docs.append(doc)
 
-        import fichero.ingest as _ingest_mod
+        import fichero.importers.ingest as _ingest_mod
         real_extract = _ingest_mod._extract_text_content
 
         def selective_extract(doc, path):
@@ -212,7 +212,7 @@ class TestIngestFolderFailLoud:
         mock_db.get.return_value = None
         mock_db.save.side_effect = lambda doc, **kw: saved_docs.append(doc)
 
-        import fichero.ingest as _ingest_mod3
+        import fichero.importers.ingest as _ingest_mod3
         real_ingest_file = _ingest_mod3.ingest_file
 
         def selective_ingest_file(path, **kwargs):
@@ -268,7 +268,7 @@ class TestIngestFolderFailLoud:
         mock_db.get.return_value = None
         mock_db.save.side_effect = lambda doc, **kw: saved_docs.append(doc)
 
-        import fichero.ingest as _ingest_mod4
+        import fichero.importers.ingest as _ingest_mod4
 
         def always_raises(path, **kwargs):
             raise RuntimeError("always fails")

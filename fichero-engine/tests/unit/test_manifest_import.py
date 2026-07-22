@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fichero.manifest_import import import_manifest, validate_nodes
+from fichero.importers.manifest_import import import_manifest, validate_nodes
 from fichero.models import Document
 
 
@@ -279,7 +279,7 @@ class _RecordingClient:
 def test_copy_images_triggers_ingest_copy_and_keeps_page_content(tmp_path):
     """copy_images=True copies the image via the native ingest path AND still
     sets the manifest transcript as page_content (provenance import)."""
-    from fichero.manifest_import import import_manifest
+    from fichero.importers.manifest_import import import_manifest
 
     manifest = _fixture_manifest(tmp_path)
     rec = _RecordingClient()
@@ -332,7 +332,7 @@ def test_copy_images_triggers_ingest_copy_and_keeps_page_content(tmp_path):
 def test_link_mode_references_source_and_warms_local_preview(tmp_path):
     """Default (link) preserves source metadata without copying bytes and still
     warms a local preview cache."""
-    from fichero.manifest_import import import_manifest
+    from fichero.importers.manifest_import import import_manifest
 
     manifest = _fixture_manifest(tmp_path)
     rec = _RecordingClient()
@@ -362,7 +362,7 @@ def test_link_mode_references_source_and_warms_local_preview(tmp_path):
 
 def test_resolve_ingest_mode_and_legacy_alias():
     """ingest_mode wins; copy_images is the legacy alias for 'copy'."""
-    from fichero.manifest_import import resolve_ingest_mode
+    from fichero.importers.manifest_import import resolve_ingest_mode
 
     assert resolve_ingest_mode(None, False) == "link"  # default
     assert resolve_ingest_mode(None, True) == "copy"  # legacy alias
@@ -382,7 +382,7 @@ def test_resolve_ingest_mode_and_legacy_alias():
 def test_group_node_maps_to_folder_doc_type():
     """A manifest 'group' container imports as a navigable FOLDER (not a leaf
     doc_type 'group') so its child pages render in the app grid."""
-    from fichero.manifest_import import _NODE_TYPE_TO_DOC_TYPE, document_payload
+    from fichero.importers.manifest_import import _NODE_TYPE_TO_DOC_TYPE, document_payload
 
     assert _NODE_TYPE_TO_DOC_TYPE["group"] == "folder"
     node = {
@@ -400,7 +400,7 @@ def test_group_node_maps_to_folder_doc_type():
 def test_move_refuses_to_delete_network_source(tmp_path, monkeypatch):
     """Move mode copies the bytes in, but a source on a network/removable
     volume (e.g. /Volumes/...) is NEVER deleted — fall back to copy-and-warn."""
-    import fichero.manifest_import as mi
+    import fichero.importers.manifest_import as mi
 
     deleted: list[str] = []
 
@@ -452,7 +452,7 @@ def test_is_safe_to_delete_source_rules():
     are not."""
     import os
 
-    from fichero.manifest_import import _is_safe_to_delete_source
+    from fichero.importers.manifest_import import _is_safe_to_delete_source
 
     assert _is_safe_to_delete_source(Path("/Volumes/Files/x.jpg")) is False
     home_file = Path(os.path.expanduser("~")) / "Documents" / "x.jpg"

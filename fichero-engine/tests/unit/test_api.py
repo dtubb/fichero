@@ -456,7 +456,7 @@ class TestIngestRoutes:
             temp_path = f.name
 
         try:
-            with patch("fichero.ingest.ingest_file") as mock_ingest:
+            with patch("fichero.importers.ingest.ingest_file") as mock_ingest:
                 mock_ingest.return_value = Document(
                     id="new123",
                     name="ingested.jpg",
@@ -491,7 +491,7 @@ class TestIngestRoutes:
             test_file = Path(tmpdir) / "test.jpg"
             test_file.write_bytes(b"fake image data")
 
-            with patch("fichero.ingest.count_files") as mock_count:
+            with patch("fichero.importers.ingest.count_files") as mock_count:
                 mock_count.return_value = 1
 
                 response = client.post("/api/ingest/folder", json={
@@ -522,7 +522,7 @@ class TestIngestRoutes:
             temp_path = f.name
 
         try:
-            with patch("fichero.ingest.ingest_file") as mock_ingest:
+            with patch("fichero.importers.ingest.ingest_file") as mock_ingest:
                 mock_ingest.return_value = Document(
                     id="new123",
                     name="ingested.jpg",
@@ -583,7 +583,7 @@ class TestIngestRoutes:
             (Path(tmpdir) / "file1.jpg").write_bytes(b"data1")
             (Path(tmpdir) / "file2.png").write_bytes(b"data2")
 
-            with patch("fichero.ingest.count_files") as mock_count:
+            with patch("fichero.importers.ingest.count_files") as mock_count:
                 mock_count.return_value = 2
 
                 response = client.post("/api/ingest/folder", json={
@@ -621,7 +621,7 @@ class TestIngestRoutes:
         """Ingest empty folder returns task ID."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Empty directory
-            with patch("fichero.ingest.count_files") as mock_count:
+            with patch("fichero.importers.ingest.count_files") as mock_count:
                 mock_count.return_value = 0
 
                 response = client.post("/api/ingest/folder", json={
@@ -646,7 +646,7 @@ class TestIngestRoutes:
             test_file = Path(tmpdir) / "test.jpg"
             test_file.write_bytes(b"fake image data")
 
-            with patch("fichero.ingest.count_files") as mock_count:
+            with patch("fichero.importers.ingest.count_files") as mock_count:
                 mock_count.return_value = 1
 
                 create_response = client.post("/api/ingest/folder", json={
@@ -683,7 +683,7 @@ class TestIngestRoutes:
                 temp_path = f.name
 
             try:
-                with patch("fichero.ingest.ingest_file") as mock_ingest:
+                with patch("fichero.importers.ingest.ingest_file") as mock_ingest:
                     mock_ingest.return_value = Document(
                         id="test123",
                         name=filename,
@@ -716,7 +716,7 @@ class TestIngestRoutes:
                 Path(f.name).rename(special_path)
 
             try:
-                with patch("fichero.ingest.ingest_file") as mock_ingest:
+                with patch("fichero.importers.ingest.ingest_file") as mock_ingest:
                     mock_ingest.return_value = Document(
                         id="test123",
                         name=filename,
@@ -740,7 +740,7 @@ class TestIngestRoutes:
             temp_path = f.name
 
         try:
-            with patch("fichero.ingest.ingest_file") as mock_ingest:
+            with patch("fichero.importers.ingest.ingest_file") as mock_ingest:
                 mock_ingest.side_effect = Exception("Test error")
 
                 response = client.post("/api/ingest/file", json={
@@ -761,7 +761,7 @@ class TestIngestRoutes:
             subdir.mkdir()
             (subdir / "file2.jpg").write_bytes(b"data2")
 
-            with patch("fichero.ingest.count_files") as mock_count:
+            with patch("fichero.importers.ingest.count_files") as mock_count:
                 # Test recursive=True
                 mock_count.return_value = 2
                 response = client.post("/api/ingest/folder", json={
@@ -786,7 +786,7 @@ class TestIngestRoutes:
             test_file = Path(tmpdir) / "test.jpg"
             test_file.write_bytes(b"fake image data")
 
-            with patch("fichero.ingest.count_files") as mock_count:
+            with patch("fichero.importers.ingest.count_files") as mock_count:
                 mock_count.return_value = 1
 
                 create_response = client.post("/api/ingest/folder", json={

@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from fichero.ingest import ingest_file
+from fichero.importers.ingest import ingest_file
 
 
 @patch("fichero.bookmarks.create_bookmark")

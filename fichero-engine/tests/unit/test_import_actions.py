@@ -18,7 +18,7 @@ each action via the registry (the same path chat tools / App Intents / the
   (e) the emit fires with the right type + ids (emit_change monkeypatched at
       the SOURCE module, mirroring test_action_registry).
 
-The underlying ``fichero.ingest.ingest_file`` / ``ingest_folder`` and the xlsx
+The underlying ``fichero.importers.ingest.ingest_file`` / ``ingest_folder`` and the xlsx
 reader are monkeypatched so these tests exercise the AUDIT/EMIT/UNDO plumbing
 without invoking the real loaders/embedding pipeline (RAM economy — the MANAGER
 runs the full suite; this worker only writes the tests).
@@ -84,8 +84,8 @@ def fake_ingest(monkeypatch):
             on_progress(len(docs), max(len(docs), 1))
         return docs
 
-    monkeypatch.setattr("fichero.ingest.ingest_file", _fake_ingest_file)
-    monkeypatch.setattr("fichero.ingest.ingest_folder", _fake_ingest_folder)
+    monkeypatch.setattr("fichero.importers.ingest.ingest_file", _fake_ingest_file)
+    monkeypatch.setattr("fichero.importers.ingest.ingest_folder", _fake_ingest_folder)
     return cfg
 
 
