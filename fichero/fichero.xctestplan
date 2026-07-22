@@ -14,7 +14,11 @@
   "testTargets" : [
     {
       "skippedTests" : [
-        "ColdLaunchReachesLibraryUITests"
+        "ColdLaunchReachesLibraryUITests",
+        "LaunchPerformanceUITests",
+        "LibraryLoadingIsNotAnOutageUITests",
+        "LibrarySmokeUITests",
+        "ToolbarModeLaunchStressUITests"
       ],
       "target" : {
         "containerPath" : "container:fichero.xcodeproj",

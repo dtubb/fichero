@@ -71,7 +71,6 @@ final class LaunchPerformanceUITests: XCTestCase {
     /// thing being measured; making it cheap would make it fiction.
     @MainActor
     func testColdLaunchPerformance() throws {
-        throw XCTSkip("#3968: embedded-launch UI tests need the engine, tracked separately")
         let metrics: [XCTMetric] = [
             XCTApplicationLaunchMetric(),
             XCTOSSignpostMetric(subsystem: Self.subsystem, category: Self.category, name: "launch"),

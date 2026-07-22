@@ -86,7 +86,6 @@ final class ToolbarModeLaunchStressUITests: XCTestCase {
     /// duplicate-identifier NSToolbar crash drops it out of `.runningForeground`.
     @MainActor
     func testLaunchStressWorkflowChainsToolbarNoCrash() throws {
-        throw XCTSkip("#3968: embedded-launch UI tests need the engine, tracked separately")
         for iteration in 1...launchCount {
             let app = makeApp()
             app.launch()
