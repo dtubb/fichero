@@ -407,6 +407,19 @@ run_platform_checks() {
       -testPlan "fichero" \
       -destination 'platform=macOS' \
       -resultBundlePath "$(mktemp -d)/verify-ui.xcresult"
+
+    # Embedded-launch UX test — actually LAUNCHES the embedded app and proves it
+    # connects + reaches a live library with no failure splash (the #3968 gap that
+    # let the "library then Can't-Authenticate" bug ship). Opt-in (VERIFY_ALL_EMBEDDED=1)
+    # because it briefcase-builds the ~1GB engine (~10 min) and needs a GUI session
+    # + a one-time Accessibility grant. Reuse a fresh bundle with FICHERO_REUSE_ENGINE_BUNDLE=1.
+    if is_truthy "${VERIFY_ALL_EMBEDDED:-}"; then
+      run_check "embedded launch UX (connects + reaches library)" \
+        scripts/verify_embedded_launch.sh
+    else
+      skip_check "embedded launch UX (connects + reaches library)" \
+        "set VERIFY_ALL_EMBEDDED=1 (briefcase build + GUI session required)"
+    fi
   fi
 
   if [[ "$run_ios" -eq 1 ]]; then
