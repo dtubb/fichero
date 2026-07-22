@@ -73,7 +73,21 @@ extension FicheroClient {
             }
         }
 
-        let (response, responseBody) = try await next(request, httpBody, serverURL)
+        let (response, responseBody): (HTTPResponse, HTTPBody?)
+        do {
+            (response, responseBody) = try await next(request, httpBody, serverURL)
+        } catch {
+            // Observability seam (Daniel's mandate): classify + log the ACTUAL
+            // cause of a transport failure instead of leaking a bare
+            // `NSURLErrorDomain -1004`, then re-throw the ORIGINAL error so
+            // callers' `catch`/control-flow are unchanged.
+            FicheroClient.logConnectionFailure(
+                error,
+                transport: transportMode,
+                operationID: operationID
+            )
+            throw error
+        }
         let data: Data
         if let responseBody {
             data = try await Data(collecting: responseBody, upTo: .max)

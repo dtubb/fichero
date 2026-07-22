@@ -17,8 +17,8 @@ final class LastActionScopingTests: XCTestCase {
     }
 
     func testEachServiceOwnsAnIndependentHolder() {
-        let libraryA = ActionLibraryService()
-        let libraryB = ActionLibraryService()
+        let libraryA = ActionLibraryService(client: .localhost)
+        let libraryB = ActionLibraryService(client: .localhost)
         // Distinct instances — no shared global carrying undo state across libraries.
         XCTAssertFalse(libraryA.lastAction === libraryB.lastAction)
 

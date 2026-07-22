@@ -40,7 +40,15 @@ class ActionLibraryService {
     /// `invokeAction` central seam records every audited mutation here.
     let lastAction = LastAction()
 
-    init(client: FicheroClient = .localhost) {
+    /// - Parameter client: The generated client to route `/api/actions/*` through.
+    ///   Required (no default): production injects the library's real client via
+    ///   `LibraryManager` (which honors `EngineConfig.transportMode` — UDS /
+    ///   in-process / HTTPS). A `.localhost` default here would silently pin every
+    ///   accidental no-arg construction to HTTPS `127.0.0.1:8765`, which fails with
+    ///   a bare `-1004` under an embedded (UDS) engine — so callers that genuinely
+    ///   want the localhost HTTPS client (previews, unit tests) must now opt in
+    ///   explicitly with `.localhost`.
+    init(client: FicheroClient) {
         self.client = client
     }
 
