@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from fichero import accounts
-from fichero.api.auth import attach_auth_middleware, initialize_token
+from fichero.api.auth import (
+    attach_auth_middleware,
+    auth_kind_from_request,
+    initialize_token,
+    library_access_denial_payload,
+)
 from fichero.api.routes import pairing
 
 
@@ -456,3 +462,64 @@ def test_loopback_unknown_token_stays_generic_when_not_sandbox_copy(monkeypatch,
 
     assert response.status_code == 401
     assert response.json() == {"detail": "missing or invalid Authorization header"}
+
+
+def _fake_request(**state) -> SimpleNamespace:
+    """A stand-in Request exposing only ``.state`` (what these helpers read)."""
+    return SimpleNamespace(state=SimpleNamespace(**state))
+
+
+def test_auth_kind_from_request_precedence_bootstrap_wins():
+    # bootstrap outranks both session and device even when all are set.
+    req = _fake_request(bootstrap_auth=True, session=object(), device=object())
+    assert auth_kind_from_request(req) == "bootstrap"
+
+
+def test_auth_kind_from_request_session_over_device():
+    req = _fake_request(bootstrap_auth=False, session=object(), device=object())
+    assert auth_kind_from_request(req) == "session"
+
+
+def test_auth_kind_from_request_device():
+    req = _fake_request(bootstrap_auth=False, session=None, device=object())
+    assert auth_kind_from_request(req) == "device"
+
+
+def test_auth_kind_from_request_none_when_unauthenticated():
+    req = _fake_request(bootstrap_auth=False, session=None, device=None)
+    assert auth_kind_from_request(req) is None
+
+
+def test_auth_kind_from_request_none_when_state_missing():
+    # A bare object with no ``state`` attribute must not raise.
+    assert auth_kind_from_request(SimpleNamespace(state=None)) is None
+
+
+def test_library_access_denial_payload_shape_and_auth_kind():
+    req = _fake_request(
+        bootstrap_auth=False,
+        session=object(),
+        device=None,
+        user=SimpleNamespace(username="ada"),
+    )
+    payload = library_access_denial_payload(
+        req, "/tmp/Lib.fichero", required="write", detail="no write grant"
+    )
+    assert payload["code"] == "library_access_denied"
+    assert payload["detail"] == "no write grant"
+    assert payload["required"] == "write"
+    assert payload["auth_kind"] == "session"
+    assert payload["username"] == "ada"
+    # Path is normalized (realpath) but must remain a non-empty string keyed off
+    # the input, never dropped.
+    assert isinstance(payload["library_path"], str) and payload["library_path"]
+
+
+def test_library_access_denial_payload_username_none_without_user():
+    req = _fake_request(bootstrap_auth=True, session=None, device=None, user=None)
+    payload = library_access_denial_payload(
+        req, "/tmp/Lib.fichero", required="read", detail="denied"
+    )
+    assert payload["username"] is None
+    assert payload["auth_kind"] == "bootstrap"
+    assert payload["required"] == "read"

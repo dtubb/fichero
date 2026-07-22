@@ -42,6 +42,23 @@ def test_ignore_sigpipe_installs_sig_ign(_restore_sigpipe) -> None:
     assert signal.getsignal(signal.SIGPIPE) == signal.SIG_IGN
 
 
+def test_ignore_sigpipe_is_idempotent(_restore_sigpipe) -> None:
+    """Calling the guard twice keeps SIG_IGN — no toggle back to the killer default.
+
+    ``main()`` installs the guard once, but the disposition can also be touched by
+    the Briefcase launch wrapper and by asyncio loop setup; a second explicit call
+    (or a redundant one on a restart path) must leave SIG_IGN in place, never flip
+    back to SIG_DFL. If it did, the very next write to a hung-up peer would deliver
+    SIGPIPE and terminate the engine (the "code 13" cascade, #3108).
+    """
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+    backend_main._ignore_sigpipe()
+    backend_main._ignore_sigpipe()
+
+    assert signal.getsignal(signal.SIGPIPE) == signal.SIG_IGN
+
+
 def test_write_to_hung_up_peer_raises_not_kills(_restore_sigpipe) -> None:
     """With SIGPIPE ignored, writing to a closed peer raises BrokenPipeError.
 
