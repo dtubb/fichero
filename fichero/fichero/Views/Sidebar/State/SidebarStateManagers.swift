@@ -21,6 +21,11 @@ enum SidebarDestination: Hashable {
     case batch(String)
     case run(String)
     case structure(documentId: String, nodeId: String)
+    /// A virtual section folder (saved-search / chat / workflow). The payload is
+    /// the folder item's id minus the "folder:" prefix, i.e. "<path>:<Category>",
+    /// so `serializedID` round-trips back to the sidebar item's id and
+    /// `findItemById` can resolve it (#11).
+    case folder(String)
     case browser(SidebarBrowserDestination)
     case library(UUID)
 
@@ -55,6 +60,14 @@ enum SidebarDestination: Hashable {
                 let parts = payload.split(separator: ":", maxSplits: 1).map(String.init)
                 guard parts.count == 2 else { return nil }
                 self = .structure(documentId: parts[0], nodeId: parts[1])
+            } else if let id = serializedID.stripPrefix("folder:") {
+                // Virtual folder rows (saved-search / chat / workflow section
+                // folders) use id "folder:<path>:<Category>". Without this branch
+                // the id fell through to the `.document(id)` fallback in
+                // `SidebarItem.destination`, so `serializedID` re-prefixed it to
+                // "doc:folder:…" and `findItemById` never matched — clicking a
+                // workflow (or search/chat) folder routed to nothing (#11).
+                self = .folder(id)
             } else if let id = serializedID.stripPrefix("library:"),
                       let uuid = UUID(uuidString: id) {
                 self = .library(uuid)
@@ -76,6 +89,7 @@ enum SidebarDestination: Hashable {
         case .batch(let id): return "batch:\(id)"
         case .run(let id): return "run:\(id)"
         case .structure(let documentId, let nodeId): return "structure:\(documentId):\(nodeId)"
+        case .folder(let id): return "folder:\(id)"
         case .browser(.activity): return "activity-browser"
         case .browser(.workflows): return "workflows-browser"
         case .browser(.batches): return "batches-browser"
