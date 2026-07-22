@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from langchain_core.tools import BaseTool
+# `BaseTool` is used only in annotations (evaluated lazily via
+# `from __future__ import annotations`). Importing langchain_core eagerly costs
+# ~250ms of cold-import time and this module is reachable from the API bind
+# path, so keep it behind TYPE_CHECKING (startup speedup, #4038).
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
 
 from fichero.workflows.types import State, PortDef, DataType, ToolDef
 from fichero.workflows.registry import TOOL_DEFS, TOOLS

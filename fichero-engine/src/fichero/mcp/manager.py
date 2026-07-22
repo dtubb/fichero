@@ -10,21 +10,27 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from langchain_core.tools import BaseTool
-from langchain_mcp_adapters.sessions import (
-    create_session,
-    StdioConnection,
-    SSEConnection,
-    StreamableHttpConnection,
-    WebsocketConnection,
-)
-from langchain_mcp_adapters.tools import load_mcp_tools
-from mcp.client.session import ClientSession
+# langchain_core / langchain_mcp_adapters / mcp are heavy imports (~250ms of
+# cold-import time via langchain_core) and this module is pulled onto the API
+# bind path by routes.mcp for OpenAPI schema generation. Every name below is
+# used ONLY in annotations here (evaluated lazily thanks to
+# `from __future__ import annotations`), so keep them behind TYPE_CHECKING and
+# import the runtime helpers (`create_session`, `load_mcp_tools`) locally inside
+# the methods that actually call them (startup speedup, #4038).
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+    from langchain_mcp_adapters.sessions import (
+        StdioConnection,
+        SSEConnection,
+        StreamableHttpConnection,
+        WebsocketConnection,
+    )
+    from mcp.client.session import ClientSession
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +235,8 @@ class MCPManager:
         Yields:
             Client session
         """
+        from langchain_mcp_adapters.sessions import create_session  # noqa: PLC0415
+
         logger.info(f"Connecting to MCP server: {config.name}")
         connection = config.to_connection()
 
@@ -263,6 +271,8 @@ class MCPManager:
         if not force_reload and server_name in self._tool_cache:
             logger.info(f"Using cached tools for server: {server_name}")
             return self._tool_cache[server_name]
+
+        from langchain_mcp_adapters.tools import load_mcp_tools  # noqa: PLC0415
 
         # Connect and load tools
         async with self._connect_server(config) as session:

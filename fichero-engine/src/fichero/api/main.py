@@ -32,20 +32,20 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 # `LC_REVIVER = Reviver()` call (no `allowed_objects` argument). The
 # JsonPlusSerializer constructor doesn't expose this option, so we cannot
 # pass an explicit value through — the only fix is to suppress the warning
-# *before* langgraph's checkpoint serde module is first imported. Must run
-# before any fichero.* import that transitively pulls in langgraph
-# (e.g. fichero.db -> workflows -> langgraph).
-try:
-    from langchain_core._api.deprecation import LangChainPendingDeprecationWarning
-
-    warnings.filterwarnings(
-        "ignore",
-        message=r".*allowed_objects.*",
-        category=LangChainPendingDeprecationWarning,
-    )
-except ImportError:
-    # langchain_core not installed in some test/lint environments — skip.
-    pass
+# *before* langgraph's checkpoint serde module is first imported.
+#
+# We register the filter by MESSAGE ONLY, deliberately NOT importing
+# `langchain_core` here to obtain the warning category. Importing
+# `langchain_core._api.deprecation` eagerly on the API bind path cost ~250ms
+# of cold-import time (startup speedup, #4038). The message regex
+# `.*allowed_objects.*` is specific to this one warning, so dropping the
+# category does not broaden suppression in practice, and the filter is
+# installed before any lazy langgraph import (checkpointer/tools are now
+# function-local) can emit it.
+warnings.filterwarnings(
+    "ignore",
+    message=r".*allowed_objects.*",
+)
 
 # Route the kreuzberg extraction cache to ~/Library/Caches/ and run the
 # one-time legacy-location migration. Imported here (not lazily via loaders)
@@ -737,6 +737,18 @@ async def lifespan(app: FastAPI):
             from fichero.workflows.registry import _ensure_tools_loaded
 
             _ensure_tools_loaded()
+
+            # Also warm the langgraph execution stack. It used to ride in for
+            # free because MCP's manager imported langchain_mcp_adapters at
+            # module scope (which transitively pulls langgraph), so importing
+            # the tools package loaded it. Those langchain imports are now
+            # deferred off the API bind path (startup speedup, #4038), so the
+            # tools import no longer drags langgraph in. Warm it explicitly via
+            # the workflow runtime — the same graph builder + checkpointer a
+            # real workflow-execution click loads — so the first click stays
+            # fast instead of paying langgraph's import cost with a spinner.
+            import fichero.workflows.runtime  # noqa: F401, PLC0415
+
             logger.info("Workflow tool stack warmed")
         except Exception as exc:
             # Deliberately not fatal: a failed warm-up must not take down an
