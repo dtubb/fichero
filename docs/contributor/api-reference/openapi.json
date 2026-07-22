@@ -38053,6 +38053,13 @@
             "type": "integer",
             "title": "Context Count",
             "default": 0
+          },
+          "tool_calls": {
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            },
+            "type": "array",
+            "title": "Tool Calls"
           }
         },
         "type": "object",
@@ -60144,6 +60151,66 @@
           "tier"
         ],
         "title": "TierModelInfo"
+      },
+      "ToolCall": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workspace Id"
+          },
+          "message_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Message Id"
+          },
+          "task_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Task Id"
+          },
+          "action_name": {
+            "type": "string",
+            "title": "Action Name"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Params"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          },
+          "is_mutation": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Is Mutation"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "action_name",
+          "actor"
+        ],
+        "title": "ToolCall",
+        "description": "One audited tool call the chat agent made during a turn (#1847 / #3).\n\nField names mirror the Swift ``ToolCall`` product spine\n(``fichero/fichero/Models/ToolCall.swift``) in snake_case so the existing\n``ToolCallCard`` UI lights up with zero Swift work. Emitted only when the\n``FICHERO_CHAT_TOOLS`` agent loop is enabled; the array is empty for the\ndefault single-shot RAG path. This slice is READS-ONLY: a dispatched read\ncarries ``is_mutation=False`` + an ``audit_id``; a refused mutating call is\nrecorded with ``status='error'`` + ``is_mutation=True`` and never invoked."
       },
       "ToolCompareRequest": {
         "properties": {

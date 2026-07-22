@@ -107,12 +107,19 @@ def action_tool(action: ActionRegistration) -> dict:
     }
 
 
-def action_tools(reg: ActionRegistry | None = None) -> list[dict]:
+def action_tools(
+    reg: ActionRegistry | None = None, *, read_only: bool = False
+) -> list[dict]:
     """Return one LiteLLM/OpenAI tool definition per registered action.
 
     Reads the process-global :data:`fichero.actions.registry.registry` unless an
     explicit registry is passed (tests). Order follows ``registry.all()`` (sorted
     by action name) so the tool list is stable across calls.
+
+    ``read_only=True`` filters the list to actions flagged
+    :attr:`ActionRegistration.read_only` — the safe subset the chat-tools agent
+    loop (#1847) is allowed to call this slice; every mutating action is withheld
+    from the model entirely (defence-in-depth alongside the dispatch gate).
 
     NOTE: actions register at import time via the ``@action`` decorator on the
     route modules, which ``api/main.py`` imports at app startup — so by the time
@@ -120,7 +127,22 @@ def action_tools(reg: ActionRegistry | None = None) -> list[dict]:
     the relevant route module(s) first to populate it.
     """
     reg = reg or _global_registry
-    return [action_tool(action) for action in reg.all()]
+    actions = reg.all()
+    if read_only:
+        actions = [action for action in actions if action.read_only]
+    return [action_tool(action) for action in actions]
+
+
+def is_read_only_action(tool_name: str, reg: ActionRegistry | None = None) -> bool:
+    """True when ``tool_name`` resolves to an action flagged ``read_only``.
+
+    Accepts either the sanitised tool name or the canonical action name. Raises
+    :class:`ActionNotFoundError` if the name matches no registered action — the
+    caller decides whether an unknown tool is an error (it is, for chat).
+    """
+    reg = reg or _global_registry
+    action_name = resolve_action_name(tool_name, reg)
+    return bool(reg.get(action_name).read_only)
 
 
 def available_tool_names(reg: ActionRegistry | None = None) -> list[str]:
@@ -195,30 +217,28 @@ def dispatch_tool_call(
 
 
 # ===========================================================================
-# WIRING — how to turn these on in the chat agent (#1847)
+# WIRING — now live behind a flag (#1847 / #3)
 # ===========================================================================
 #
-# The live `POST /api/chat` handler (`api/routes/chat.py::chat`) is single-shot
-# RAG: it builds a prompt and calls `llm.invoke(prompt)` (chat.py ~L363) with NO
-# tool list and no tool-calling loop. There is therefore no existing `tools=[...]`
-# to ADD to — wiring action tools in means introducing an agentic loop, a
-# deliberate separate change (kept out of this issue to avoid a risky rewire).
+# The chat agent loop is wired into `POST /api/chat`
+# (`api/routes/system/chat.py::_run_chat_tools_loop`), DEFAULT-OFF behind the
+# `FICHERO_CHAT_TOOLS` env flag. When the flag is off the endpoint stays
+# single-shot RAG, byte-for-byte unchanged. When on, the handler:
 #
-# When that loop is added, the integration is small and additive:
+#     from fichero.actions.chat_tools import (
+#         action_tools, is_read_only_action, dispatch_tool_call,
+#     )
 #
-#     from fichero.actions.chat_tools import action_tools, dispatch_tool_call
+#     tools = action_tools(read_only=True)          # SAFE subset only (this slice)
+#     resp = await llm.bind_tools(tools).ainvoke(messages)
+#     for call in resp.tool_calls:                   # agent asked to act
+#         if not is_read_only_action(call["name"]):  # deny mutations, don't invoke
+#             record denied tool_call; continue
+#         result = dispatch_tool_call(db, call["name"], call["args"], actor="chat", ...)
+#     # loop until the model stops emitting tool calls (bounded max-iterations).
 #
-#     tools = action_tools()                       # one tool per registered action
-#     resp = llm.bind_tools(tools).invoke(messages) # or litellm.completion(..., tools=tools)
-#     for call in resp.tool_calls:                 # agent asked to act
-#         result = dispatch_tool_call(
-#             db, call["name"], call["args"],
-#             actor="chat", origin_window=request.origin_window,
-#             library_path=db.library_path,        # whatever the route has
-#         )
-#         messages.append(tool_result_message(call, result.result))
-#     # loop until the model stops emitting tool calls.
-#
-# Every such call goes through `registry.invoke`, so chat mutations are audited
-# and broadcast on the observable layer exactly like UI / App-Intent / test
-# mutations — one path, one audit, one undo.
+# READS-ONLY THIS SLICE: only actions flagged `read_only=True` are exposed AND
+# dispatched. Mutating tool calls are refused (recorded as a denied `tool_call`,
+# never invoked) so no write can reach `registry.invoke` from chat until a later
+# write-policy review lands (EPIC #1848). Every dispatched read still flows
+# through the audited `registry.invoke` choke point — one path, one audit.
