@@ -47,6 +47,15 @@ final class SidebarLibraryBucketsTests: XCTestCase {
         XCTAssertTrue(source.contains("unifiedRows(buckets.documentItems, libraryId: libraryId)"))
     }
 
+    /// Slice 0: workflow nodes/folders now render inside the library tree (they
+    /// were bucketed but never rendered — only counted). The render is gated on
+    /// the workflows feature flag, consistent with the search/automation blocks.
+    func testWorkflowItemsAreRenderedGatedOnFlag() throws {
+        let source = try appSource("Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
+        XCTAssertTrue(source.contains("if FeatureManager.shared.isWorkflowsEnabled {"))
+        XCTAssertTrue(source.contains("unifiedRows(buckets.workflowItems, libraryId: libraryId)"))
+    }
+
     private func appSource(_ relativePath: String) throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

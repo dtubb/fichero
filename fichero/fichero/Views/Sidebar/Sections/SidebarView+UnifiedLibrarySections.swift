@@ -159,5 +159,9 @@ extension SidebarView {
         if FeatureManager.shared.isSearchEnabled {
             unifiedRows(buckets.searchItems, libraryId: libraryId)
         }
+
+        if FeatureManager.shared.isWorkflowsEnabled {
+            unifiedRows(buckets.workflowItems, libraryId: libraryId)
+        }
     }
 }
