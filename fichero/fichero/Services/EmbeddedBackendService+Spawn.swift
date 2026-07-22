@@ -314,7 +314,7 @@ extension EmbeddedBackendService {
     /// signal number (e.g. 13 = SIGPIPE), NOT an exit code — decode it as a
     /// signal so logs and the failure banner never mislabel a signal as an exit
     /// code. For `.exit`, `status` is the real process exit code.
-    static func describeTermination(status: Int32, reason: Process.TerminationReason) -> String {
+    nonisolated static func describeTermination(status: Int32, reason: Process.TerminationReason) -> String {
         switch reason {
         case .uncaughtSignal:
             let name = signalName(status)
@@ -327,7 +327,7 @@ extension EmbeddedBackendService {
     }
 
     /// Best-effort symbolic name for a termination signal (e.g. 13 → "SIGPIPE").
-    private static func signalName(_ signalNumber: Int32) -> String? {
+    nonisolated private static func signalName(_ signalNumber: Int32) -> String? {
         guard let cName = strsignal(signalNumber) else { return nil }
         let text = String(cString: cName)
         // strsignal returns a human phrase ("Broken pipe"); prefer the SIGxxx
