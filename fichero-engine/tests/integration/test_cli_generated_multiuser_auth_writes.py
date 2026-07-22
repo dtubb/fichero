@@ -15,7 +15,8 @@ import pytest
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.db.app import AppDatabase
 from fichero.cli import client as client_module
 

@@ -19,7 +19,7 @@ from typing import Any
 from fichero.db.app import get_app_db
 from fichero.db.library_paths import nfc_path
 from fichero.models import AccountUser, Document
-from fichero.multiuser import multiuser_enabled as _multiuser_enabled
+from fichero.security.multiuser import multiuser_enabled as _multiuser_enabled
 
 ROLE_OWNER = "owner"
 ROLE_EDITOR = "editor"

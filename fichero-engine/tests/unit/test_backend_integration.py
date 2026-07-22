@@ -444,7 +444,7 @@ class TestKeychainRubicon:
 
     def test_keychain_uses_security_command(self):
         """keychain.py uses macOS security command via subprocess."""
-        import fichero.keychain as keychain
+        import fichero.security.keychain as keychain
 
         # Check that the module uses subprocess to call security command
         source = Path(keychain.__file__).read_text()
@@ -455,7 +455,7 @@ class TestKeychainRubicon:
 
     def test_keychain_has_service_name(self):
         """keychain.py should define a service name."""
-        import fichero.keychain as keychain
+        import fichero.security.keychain as keychain
 
         # Module should define SERVICE constant
         source = Path(keychain.__file__).read_text()
@@ -463,7 +463,7 @@ class TestKeychainRubicon:
 
     def test_keychain_is_available_check(self):
         """is_available() checks if running on macOS."""
-        from fichero.keychain import is_available
+        from fichero.security.keychain import is_available
 
         # Should return bool based on platform (True on macOS)
         result = is_available()

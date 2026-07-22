@@ -5,13 +5,13 @@ import os
 
 import pytest
 
-from fichero.path_security import (
+from fichero.security.path_security import (
     path_within_any_root,
     resolve_snapshot_record_path,
     resolve_under_allowed_roots,
     validate_stored_document_path,
 )
-from fichero.xml_security import iterparse_xml, parse_xml, reject_xml_entities
+from fichero.security.xml_security import iterparse_xml, parse_xml, reject_xml_entities
 
 
 def test_resolve_under_allowed_roots_rejects_parent_traversal_escape(tmp_path):

@@ -11,7 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.actions.registry import ActionContext
 from fichero.api.routes.authz import share_library_object
 from fichero.models import ShareRequest

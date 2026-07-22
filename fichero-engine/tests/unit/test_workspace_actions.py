@@ -5,7 +5,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.actions.registry import ActionContext, registry
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.models import ActionAudit, DocType, Document

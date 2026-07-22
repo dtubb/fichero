@@ -13,7 +13,8 @@ import threading
 
 import pytest
 
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 
 
 def _mk(app_db, username):

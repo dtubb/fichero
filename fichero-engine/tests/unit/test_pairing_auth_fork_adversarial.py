@@ -8,7 +8,7 @@ import pytest
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 
-from fichero import accounts
+from fichero.security import accounts
 from fichero.api.auth import attach_auth_middleware
 from fichero.api.routes import pairing
 

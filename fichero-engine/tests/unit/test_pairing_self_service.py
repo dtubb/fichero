@@ -5,7 +5,7 @@ import importlib
 import pytest
 from fastapi.testclient import TestClient
 
-from fichero import accounts
+from fichero.security import accounts
 
 
 def _bearer(token: str) -> dict[str, str]:

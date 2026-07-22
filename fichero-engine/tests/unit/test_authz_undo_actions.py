@@ -6,7 +6,8 @@ from types import SimpleNamespace
 import pytest
 
 import fichero.api.routes.actions_registry  # noqa: F401
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.actions.registry import ActionContext
 from fichero.api.routes.actions_registry import undo_action
 from fichero.api.routes.authz import (

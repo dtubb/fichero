@@ -9,7 +9,7 @@ import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 
-from fichero.remote_access_tls import (
+from fichero.security.remote_access_tls import (
     material_manifest_json,
     prepare_remote_access_tls,
     validate_spki_pin,

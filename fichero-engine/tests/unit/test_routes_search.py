@@ -18,7 +18,8 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.api.routes import search as search_routes
 from fichero.knowledge_models import ClaimType, EntityType
 from fichero.db import SearchAnchor, SearchExcerpt, SearchResult

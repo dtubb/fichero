@@ -5,7 +5,7 @@ import importlib
 
 from fastapi.testclient import TestClient
 import pytest
-from fichero import accounts
+from fichero.security import accounts
 import fichero.api.auth as api_auth
 
 

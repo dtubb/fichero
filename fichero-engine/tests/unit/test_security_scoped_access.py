@@ -14,7 +14,7 @@ import json
 
 import pytest
 
-from fichero import security_scoped_access as ssa
+from fichero.security import security_scoped_access as ssa
 
 
 @pytest.fixture(autouse=True)

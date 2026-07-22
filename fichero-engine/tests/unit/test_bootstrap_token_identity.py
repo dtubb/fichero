@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 
-from fichero import accounts
+from fichero.security import accounts
 from fichero.api.auth import initialize_token
 
 

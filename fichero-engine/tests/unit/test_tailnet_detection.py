@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import fichero.api.main as api_main
-import fichero.remote_backend as remote_backend
+import fichero.security.remote_backend as remote_backend
 
 
 def _health_remote_backend(monkeypatch: pytest.MonkeyPatch, **env: str) -> dict[str, object]:

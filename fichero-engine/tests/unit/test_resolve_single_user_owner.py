@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 
 
-from fichero import accounts
+from fichero.security import accounts
 from fichero.api.auth import _resolve_single_user_owner
 
 

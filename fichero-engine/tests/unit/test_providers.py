@@ -175,7 +175,7 @@ class TestAPIKeyResolution:
         """Test API key resolution from keychain."""
         from fichero.llm import get_api_key
 
-        with patch("fichero.keychain.get_api_key") as mock_keychain:
+        with patch("fichero.security.keychain.get_api_key") as mock_keychain:
             mock_keychain.return_value = "sk-test-key"
 
             key = get_api_key("openai")
@@ -187,7 +187,7 @@ class TestAPIKeyResolution:
         from fichero.llm import get_api_key
         import os
 
-        with patch("fichero.keychain.get_api_key") as mock_keychain:
+        with patch("fichero.security.keychain.get_api_key") as mock_keychain:
             mock_keychain.return_value = None
 
             with patch.dict(os.environ, {"OPENAI_API_KEY": "env-key"}):

@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from fichero import __version__
-from fichero.bind_host import resolve_bind_host
-from fichero.remote_access_tls import _validate_public_base_url
+from fichero.security.bind_host import resolve_bind_host
+from fichero.security.remote_access_tls import _validate_public_base_url
 
 SERVICE_TYPE = "_fichero._tcp.local."
 DEFAULT_PORT = 8765

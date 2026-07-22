@@ -4,7 +4,7 @@ import logging
 
 from fastapi.testclient import TestClient
 
-from fichero import discovery
+from fichero.security import discovery
 from fichero.api import main as api_main
 
 

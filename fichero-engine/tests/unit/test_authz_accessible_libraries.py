@@ -6,7 +6,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.api.routes.authz import list_accessible_libraries
 from fichero.db import Database
 from fichero.models import KnownLibrary

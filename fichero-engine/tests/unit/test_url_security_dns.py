@@ -14,8 +14,8 @@ import socket
 
 import pytest
 
-import fichero.url_security as us
-from fichero.url_security import is_internal_ip, is_safe_url
+import fichero.security.url_security as us
+from fichero.security.url_security import is_internal_ip, is_safe_url
 
 
 def _run(coro):

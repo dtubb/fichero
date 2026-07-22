@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.mcp import server as mcp_server
 from fichero.actions.registry import ActionContext, registry
 from fichero.knowledge_models import KnowledgeClaim

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fichero import accounts
+from fichero.security import accounts
 from fichero.db.app import AppDatabase
 
 

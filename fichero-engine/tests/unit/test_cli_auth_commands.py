@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
-from fichero import accounts
+from fichero.security import accounts
 from fichero.db.app import AppDatabase
 from fichero.cli import FicheroError
 from fichero.cli import client as client_module

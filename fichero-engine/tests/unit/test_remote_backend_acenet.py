@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import fichero.api.main as api_main
-from fichero.remote_backend import build_remote_backend_status
+from fichero.security.remote_backend import build_remote_backend_status
 
 
 def test_remote_backend_status_defaults_to_disabled() -> None:

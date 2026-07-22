@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.models import Document, DocType
 
 

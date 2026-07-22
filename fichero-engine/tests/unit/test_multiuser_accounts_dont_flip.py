@@ -8,8 +8,8 @@ that in so the fallback can't be reintroduced.
 """
 from __future__ import annotations
 
-from fichero import accounts
-from fichero.multiuser import multiuser_enabled
+from fichero.security import accounts
+from fichero.security.multiuser import multiuser_enabled
 
 
 def test_accounts_alone_do_not_enable_multiuser(app_db, monkeypatch):

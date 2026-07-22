@@ -14,7 +14,8 @@ import pytest
 from fastapi import HTTPException
 
 import fichero.api.routes.actions_registry  # noqa: F401 - registers acl.set
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.actions.registry import ActionContext, registry
 from fichero.api.routes.authz import revoke_library_member_role
 from fichero.models import AccountUser
