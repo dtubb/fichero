@@ -29,7 +29,7 @@ an alias node with `node_kind="alias"` and `prototype_key="bookmark"`.
 Prototype resolution is implemented in
 `fichero-engine/src/fichero/node_prototypes.py`, and the built-in prototype
 definitions are seeded from `_BUILTIN_DOCUMENT_PROTOTYPE_SEEDS` in
-`fichero-engine/src/fichero/db.py`. The current shipped behavior is attribute
+`fichero-engine/src/fichero/db/`. The current shipped behavior is attribute
 inheritance, not a full behavior system.
 
 - A prototype definition is a `ClassificationValue` row with
@@ -77,7 +77,7 @@ This is the shared foundation the bookmark fold now reuses.
 
 Saved searches are now folded into document nodes in the database layer.
 
-The relevant implementation is in `fichero-engine/src/fichero/db.py`:
+The relevant implementation is in `fichero-engine/src/fichero/db/`:
 
 - `_save_saved_search_document` mirrors a `SavedSearch` into a same-id
   `Document`.
@@ -99,7 +99,7 @@ surface; it changed the storage representation under it.
 
 Mind-palace rooms now have a node-backed representation in the database layer.
 
-The relevant implementation is split between `fichero-engine/src/fichero/db.py`
+The relevant implementation is split between `fichero-engine/src/fichero/db/`
 and the now-removed mind-palace room routes:
 
 - `Database.save(...)` special-cases `SpatialRoom` and mirrors it through
@@ -134,7 +134,7 @@ through a room-only storage path.
 
 Research workspaces are also folded into `Document` rows in the database layer.
 
-The relevant implementation is in `fichero-engine/src/fichero/db.py`:
+The relevant implementation is in `fichero-engine/src/fichero/db/`:
 
 - `Database.save(...)` special-cases `ResearchProject` and mirrors it through
   `_save_research_workspace_document`.

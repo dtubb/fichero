@@ -66,7 +66,7 @@ each route owning its own persistence strategy.
 
 ## 4. Storage: DuckDB + LanceDB
 
-`fichero-engine/src/fichero/db.py` is the main storage wrapper.
+`fichero-engine/src/fichero/db/` is the main storage wrapper.
 
 Current built split:
 
@@ -103,7 +103,7 @@ So the accurate description is:
 
 ## 6. LLM path
 
-The centralized LLM entry surface is `fichero-engine/src/fichero/llm.py`.
+The centralized LLM entry surface is `fichero-engine/src/fichero/llm/`.
 
 For current workflow/tool code, the important public helpers are:
 

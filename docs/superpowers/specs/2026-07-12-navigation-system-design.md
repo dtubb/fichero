@@ -111,7 +111,7 @@ see §2.
   and `requestGraphReveal(entityId:)` (bumps `graphRevealRequestToken`, watched
   by `ContentView` to switch into Knowledge Graph mode).
 - **Gap (this is the crux of requirement 4):** this whole mechanism is Swift-only.
-  `fichero-engine/src/fichero/mcp_document_tools.py` exposes `fichero_get_document`
+  `fichero-engine/src/fichero/mcp/document_tools.py` exposes `fichero_get_document`
   with only a `document_id` param — no page, no bbox, no "reveal"/"navigate" tool at
   all. There is no engine endpoint, no OpenAPI schema, and no audited action
   (`fichero-engine/src/fichero/actions/registry.py`, EPIC #1848) for "resolve/reveal

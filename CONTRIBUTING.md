@@ -153,7 +153,7 @@ All surfaces sit on top of fichero-engine. They render and accept input; they do
 |---|---|---|
 | SwiftUI app (macOS, iOS, iPad) | `fichero/` (Xcode project: `fichero/fichero.xcodeproj`) | Live |
 | `fichero` CLI | `fichero-engine/src/fichero/cli/` | Live (typed, end-to-end verified) |
-| MCP server | `fichero-engine/src/fichero/mcp_server.py` (`fichero-mcp`) | Live |
+| MCP server | `fichero-engine/src/fichero/mcp/server.py` (`fichero-mcp`) | Live |
 
 
 **Use the CLI (against a running fichero-engine):**

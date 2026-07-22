@@ -67,7 +67,7 @@ observer updates.
 ## Eager schema reconciliation on the write path
 
 The other part of the current write-path hardening lives in
-`fichero-engine/src/fichero/db.py`.
+`fichero-engine/src/fichero/db/`.
 
 `Database.save(...)`, `save_many(...)`, `delete(...)`, and the main query/count
 helpers call `_ensure_table(...)` before using a model's table. `_ensure_table`

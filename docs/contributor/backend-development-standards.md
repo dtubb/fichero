@@ -236,7 +236,7 @@ Two backends, one Python API:
 
 Workflow and tool code should not construct provider clients directly.
 
-The current shipped path is centralized in `fichero-engine/src/fichero/llm.py`:
+The current shipped path is centralized in `fichero-engine/src/fichero/llm/`:
 
 - workflow/tool callers use `chat_workflow(...)` as the workflow-facing shim
 - `chat_workflow(...)` dispatches into the shared `chat(...)`,
@@ -356,7 +356,7 @@ async def my_tool(inputs, state, llm_config):
 
 ## LLM Stack Architecture (post-#872)
 
-The LLM call surface in `fichero-engine/src/fichero/llm.py` was overhauled
+The LLM call surface in `fichero-engine/src/fichero/llm/` was overhauled
 in commits `d04dae26..da0a6a67` (master plan #872). Five contracts you
 should know before touching it:
 

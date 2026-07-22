@@ -11,7 +11,7 @@
 
 ### 1.1 The model-access choke point — `llm.py` (BUILT)
 
-`fichero-engine/src/fichero/llm.py` is the shipped entry layer for LLM calls.
+`fichero-engine/src/fichero/llm/` is the shipped entry layer for LLM calls.
 The current public call surface is the set of coroutines in `llm.py`; provider
 construction sits underneath them.
 
