@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from fichero.db import Database
 
 from fichero.api.main import get_library_database, get_library_database_for_write
-from fichero.migrations import MigrationRunner
+from fichero.db.migrations.runner import MigrationRunner
 
 router = APIRouter(prefix="/migrations", tags=["migrations"])
 
@@ -348,7 +348,7 @@ async def data_integrity_check(
     Returns counts and identifies orphaned links, unreferenced entities,
     and claims without valid sources.
     """
-    from fichero.knowledge_models import (
+    from fichero.models.knowledge import (
         KnowledgeClaim,
         KnowledgeClaimLink,
         KnowledgeEntity,

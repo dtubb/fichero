@@ -1,4 +1,4 @@
-"""Direct unit coverage for the shared SSRF guard `fichero.url_security`.
+"""Direct unit coverage for the shared SSRF guard `fichero.security.url_security`.
 
 `is_safe_url` / `is_internal_ip` are the single primitive every research/web tool
 delegates to (`research._is_safe_url` → `is_safe_url`). The existing SSRF tests
@@ -16,7 +16,7 @@ import asyncio
 
 import pytest
 
-from fichero.url_security import is_internal_ip, is_safe_url
+from fichero.security.url_security import is_internal_ip, is_safe_url
 
 
 @pytest.mark.parametrize(

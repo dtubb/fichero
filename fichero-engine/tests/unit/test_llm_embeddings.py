@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from fichero.llm import LocalOnlyViolationError
-from fichero import llm_embeddings
+from fichero.llm import embeddings as llm_embeddings
 
 
 def test_remote_embeddings_allowed_when_paid_fallbacks_disabled(monkeypatch) -> None:
@@ -22,7 +22,7 @@ def test_remote_embeddings_allowed_when_paid_fallbacks_disabled(monkeypatch) -> 
 
     with patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=False):
         with patch(
-            "fichero.llm_embeddings._get_langchain_embeddings",
+            "fichero.llm.embeddings._get_langchain_embeddings",
             return_value=FakeEmbeddings(),
         ):
             # Must NOT raise — user explicitly chose a remote model
@@ -47,7 +47,7 @@ def test_remote_embeddings_run_when_paid_fallbacks_enabled(monkeypatch) -> None:
 
     with patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
         with patch(
-            "fichero.llm_embeddings._get_langchain_embeddings",
+            "fichero.llm.embeddings._get_langchain_embeddings",
             return_value=FakeEmbeddings(),
         ):
             result = llm_embeddings.embed(["hola"], model="text-embedding-3-small")

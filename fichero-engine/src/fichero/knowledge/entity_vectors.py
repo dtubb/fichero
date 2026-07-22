@@ -11,12 +11,12 @@ import logging
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Optional
 
-from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
+from fichero.db.embeddings import KG_ENTITY_EMBEDDINGS_TABLE
 from fichero.kg._common import enum_value
 
 if TYPE_CHECKING:  # pragma: no cover
     from fichero.db import Database
-    from fichero.knowledge_models import EntityType
+    from fichero.models.knowledge import EntityType
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ def index_entity(
 ) -> None:
     """Add or update an entity's vector in the canonical table."""
     try:
-        from fichero.knowledge_models import KnowledgeEntity
+        from fichero.models.knowledge import KnowledgeEntity
 
         entity = db.get(KnowledgeEntity, entity_id)
         if entity is None:

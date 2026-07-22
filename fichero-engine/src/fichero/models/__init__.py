@@ -40,12 +40,12 @@ import logging
 from fichero.media.ocr_geometry import OCRGeometryResult
 
 # Import ProviderType from providers module (single source of truth)
-from fichero.providers import ProviderType
+from fichero.llm.providers import ProviderType
 
 # Import from the sibling models/knowledge.py submodule directly (not via
-# the fichero.knowledge_models top-level shim, which routes back through
+# the fichero.models.knowledge top-level shim, which routes back through
 # `fichero.models.knowledge` — the shim isn't fully initialized yet when
-# something imports fichero.knowledge_models *before* fichero.models, so
+# something imports fichero.models.knowledge *before* fichero.models, so
 # going through it here would reintroduce the exact circular-import
 # ordering bug the direct-submodule import avoids) (#2566).
 from fichero.models.knowledge import Reference, ReferenceProvenance
@@ -1180,7 +1180,7 @@ class LibraryAclOverride(BaseModel):
 # Provider - AI Service Provider
 # =============================================================================
 
-# Note: ProviderType is imported from fichero.providers (single source of truth)
+# Note: ProviderType is imported from fichero.llm.providers (single source of truth)
 
 
 class Provider(BaseModel):

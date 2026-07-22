@@ -134,7 +134,7 @@ class ModelProfileNotFoundError(RuntimeError):
 
 def provider_is_local_or_builtin(provider: str) -> bool:
     """Return whether a provider is local/on-device/builtin."""
-    from fichero.providers import get_provider_info
+    from fichero.llm.providers import get_provider_info
 
     info = get_provider_info((provider or "").strip().lower())
     return bool(info and (info.is_local or info.is_builtin))

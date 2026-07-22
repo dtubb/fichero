@@ -10,7 +10,7 @@ from datetime import datetime
 import pytest
 
 from fichero.models import ActionAudit
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimRelationType,
     ClaimCurationState,
     KnowledgeClaim,

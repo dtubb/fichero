@@ -4,7 +4,7 @@ These helpers wire structured-extraction outputs into the existing
 KnowledgeEntity + KnowledgeClaim KG layer (#728).
 """
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimCurationState,
     ClaimSuppressionRule,
     ClaimSuppressionRuleAction,
@@ -1711,7 +1711,7 @@ class TestEmbeddingPrecisionGate:
     """
 
     def test_san_pablo_vs_san_juan_do_not_merge_with_embeddings_on(self, db):
-        from fichero.knowledge_models import EntityMatchCandidate
+        from fichero.models.knowledge import EntityMatchCandidate
         from fichero.workflows.tools._entity_writer import upsert_entity
 
         san_pablo = upsert_entity(

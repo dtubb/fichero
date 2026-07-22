@@ -4,7 +4,7 @@ macOS Keychain for API key storage using the security command-line tool.
 This approach is reliable and works in both sandboxed and non-sandboxed apps.
 
 Usage:
-    from fichero.keychain import get_api_key, set_api_key, delete_api_key
+    from fichero.security.keychain import get_api_key, set_api_key, delete_api_key
 
     # Store key
     set_api_key("openai", "sk-...")

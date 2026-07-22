@@ -22,7 +22,7 @@ from fichero.knowledge.paragraph import (
     _superscript_number,
     render_paragraph_claims,
 )
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 
 
 def _claim(**kw) -> KnowledgeClaim:

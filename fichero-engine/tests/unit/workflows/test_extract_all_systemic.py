@@ -278,7 +278,7 @@ class TestExtractAllOutputLanguageOverride:
                 return None
 
         monkeypatch.setattr(module, "_run_two_stage", fake_run_two_stage)
-        monkeypatch.setattr("fichero.app_db.get_app_db", lambda: _FakeAppDB())
+        monkeypatch.setattr("fichero.db.app.get_app_db", lambda: _FakeAppDB())
 
         result = await module.extract_all(
             {

@@ -21,7 +21,7 @@ from fichero.importers.http_client import (
     HttpManifestClient,
     resolve_http_token,
 )
-from fichero.manifest_import import (
+from fichero.importers.manifest_import import (
     CANONICAL_VERSION,
     ImportSummary,
     ManifestApiClient,

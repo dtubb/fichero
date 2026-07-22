@@ -7,7 +7,7 @@ mounted at "/api/hermeneutics").
 """
 
 from fichero.models import KnowledgeClaim
-from fichero.hermeneutics_models import (
+from fichero.models.hermeneutics import (
     FrameworkType,
     InterpretiveActType,
     InterpretiveFramework,

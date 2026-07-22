@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from fichero import authz
+from fichero.security import authz
 from fichero.api.auth import _use_multiuser_auth
-from fichero.multiuser import multiuser_enabled
+from fichero.security.multiuser import multiuser_enabled
 
 
 def test_multiuser_enabled_explicit_flag(monkeypatch):

@@ -19,7 +19,7 @@ from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.routes.ingest.iiif import build_document_annotation_page
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Annotation,
     ClassificationDimension,
     ClassificationValue,
@@ -1164,7 +1164,7 @@ def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:
 
     Returns ``(claims_deleted, entities_pruned)``.
     """
-    from fichero.knowledge_models import (
+    from fichero.models.knowledge import (
         KnowledgeClaim,
         KnowledgeEntity,
         MutationLog,
@@ -1418,7 +1418,7 @@ async def related_documents(
 
 def backfill_pdf_pages_impl(db: Database) -> tuple[PdfBackfillResponse, list[str]]:
     """Create missing PDF page documents using the synchronous ingest helpers."""
-    from fichero.ingest import _create_pdf_page_children
+    from fichero.importers.ingest import _create_pdf_page_children
 
     pdfs = _list_documents(db, file_type=FileType.pdf)
     pdfs_scanned = len(pdfs)
@@ -1521,7 +1521,7 @@ def import_uploaded_file_impl(
     lifecycle — the route writes+cleans a multipart temp file; the action is
     handed a server-side path it does not delete.
     """
-    from fichero.ingest import ingest_file, IngestMode
+    from fichero.importers.ingest import ingest_file, IngestMode
 
     # Get library package path from database path.
     # db.path is like /path/to/Library.fichero/fichero.duckdb

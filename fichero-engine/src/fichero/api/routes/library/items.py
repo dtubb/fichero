@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
-from fichero.knowledge_models import Annotation, KnowledgeClaim, KnowledgeEntity, Note
+from fichero.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity, Note
 from fichero.models import Document
 
 router = APIRouter(prefix="/library-items", tags=["library-items"])

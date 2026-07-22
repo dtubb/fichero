@@ -1,4 +1,4 @@
-"""Unit coverage for ``fichero.model_profiles`` — the named model/provider
+"""Unit coverage for ``fichero.llm.model_profiles`` — the named model/provider
 profile contracts and the privacy-enforcement helpers. Previously only exercised
 indirectly (settings validators / builder config). Pure logic; the provider
 catalog lookup is deterministic and needs no network.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.model_profiles import (
+from fichero.llm.model_profiles import (
     ModelProfile,
     ModelProfileCreate,
     ModelProfileParams,

@@ -14,7 +14,7 @@ from typing import Any
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool, get_tool
 from fichero.llm import LLMConfig, chat_workflow
-from fichero.prompts import compose_system_prompt
+from fichero.llm.prompts import compose_system_prompt
 
 logger = logging.getLogger(__name__)
 

@@ -26,14 +26,14 @@ from fichero.models import (
     DocType, FileType, Status, RunStatus, SavedSearch
 )
 from fichero.db import Database
-from fichero.research_models import (
+from fichero.models.research import (
     ResearchPlan,
     ResearchProject,
     ResearchStep,
     ResearchTask,
     StepTool,
 )
-from fichero.canvas_models import (
+from fichero.models.canvas import (
     CanvasItem,
     CanvasItemKind,
     CanvasLayout,
@@ -45,7 +45,7 @@ from fichero.canvas_models import (
     SpatialRoom,
     SpatialViewport,
 )
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimRelationType,
     ClassificationDimension,
     ClassificationValue,
@@ -58,7 +58,7 @@ from fichero.knowledge_models import (
     Note,
     NoteKind,
 )
-from fichero.node_prototypes import (
+from fichero.models.node_prototypes import (
     PrototypeResolutionError,
     resolve_prototype_attributes,
 )
@@ -106,7 +106,7 @@ class TestDatabaseBasics:
 
         monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
         monkeypatch.setattr(duckdb, "connect", lambda _path: FakeConn())
-        import fichero.db_migrations as _db_migrations
+        import fichero.db.migrations.schema as _db_migrations
         monkeypatch.setattr(_db_migrations, "migrate_document_table", lambda _conn: None)
         monkeypatch.setattr(_db_migrations, "migrate_workflow_table", lambda _conn: None)
         monkeypatch.setattr(_db_migrations, "migrate_saved_search_table", lambda _conn: None)
@@ -2788,8 +2788,8 @@ class TestEmbeddingsModelLoading:
         """Embedding model should use app-managed cache dir and the pinned alias."""
         import sys
         import types
-        import fichero.db_embeddings as db_embeddings_module
-        from fichero.local_models import MODELS_BASE
+        import fichero.db.embeddings as db_embeddings_module
+        from fichero.llm.local_models import MODELS_BASE
 
         calls: list[dict] = []
 

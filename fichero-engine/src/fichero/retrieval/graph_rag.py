@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from fichero.knowledge_models import KnowledgeEntity
+from fichero.models.knowledge import KnowledgeEntity
 from fichero.models import Document
 
 

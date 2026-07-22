@@ -8,7 +8,8 @@ from urllib.parse import quote
 import pytest
 from fastapi.testclient import TestClient
 
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.api.main import app
 from fichero.models import AccountUser, Document
 

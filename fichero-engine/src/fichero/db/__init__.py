@@ -57,14 +57,14 @@ import unicodedata
 import duckdb
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefinedType
-from fichero.db_embeddings import (
+from fichero.db.embeddings import (
     EMBEDDINGS_TABLE,
     DatabaseEmbeddingMixin,
     EmbeddingSpaceMismatchError,
     _dequantize_int8,
     _quantize_int8,
 )
-from fichero.db_manager import DatabaseManager, db_manager  # noqa: F401
+from fichero.db.manager import DatabaseManager, db_manager  # noqa: F401
 from fichero.errors import ErrorCategory, handle_error
 from fichero.security.path_security import resolve_under_allowed_roots
 
@@ -595,7 +595,7 @@ class Database(DatabaseEmbeddingMixin):
         self._vector_append_counts: dict[str, int] = {}
 
         # Migrate tables if needed
-        from fichero.db_migrations import (
+        from fichero.db.migrations.schema import (
             migrate_canvas_layout_table,
             migrate_document_table,
             migrate_workflow_table,
@@ -691,7 +691,7 @@ class Database(DatabaseEmbeddingMixin):
         # drop unsafe indexes again.
         self._tables_created.clear()
         try:
-            from fichero.db_migrations import migrate_knowledge_indices
+            from fichero.db.migrations.schema import migrate_knowledge_indices
 
             migrate_knowledge_indices(self.conn)
         except Exception as exc:
@@ -702,13 +702,13 @@ class Database(DatabaseEmbeddingMixin):
         self._materialize_schema()
 
     def _all_schema_models(self) -> tuple[type[BaseModel], ...]:
-        from fichero.hermeneutics_models import (
+        from fichero.models.hermeneutics import (
             HermeneuticCircleState,
             Interpretation,
             InterpretiveFramework,
             PatternInstance,
         )
-        from fichero.knowledge_models import (
+        from fichero.models.knowledge import (
             Annotation,
             BookStructureNode,
             ClaimMergeAudit,
@@ -747,7 +747,7 @@ class Database(DatabaseEmbeddingMixin):
             Trace,
             Workflow,
         )
-        from fichero.research_models import (
+        from fichero.models.research import (
             ResearchChecklist,
             ResearchNote,
             ResearchPlan,
@@ -756,7 +756,7 @@ class Database(DatabaseEmbeddingMixin):
             ResearchTask,
             SearchSource,
         )
-        from fichero.canvas_models import (
+        from fichero.models.canvas import (
             CanvasLayout,
             CanvasItem,
             SpatialConnection,
@@ -1263,7 +1263,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def _legacy_all_research_project_rows(self) -> list[BaseModel]:
         """Read legacy ResearchProject rows without node folding."""
-        from fichero.research_models import ResearchProject
+        from fichero.models.research import ResearchProject
 
         sql_table = self._sql_table_name(ResearchProject)
         self._ensure_table(ResearchProject)
@@ -1291,7 +1291,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def _legacy_all_spatial_room_rows(self) -> list[BaseModel]:
         """Read legacy SpatialRoom rows without node folding."""
-        from fichero.canvas_models import SpatialRoom
+        from fichero.models.canvas import SpatialRoom
 
         sql_table = self._sql_table_name(SpatialRoom)
         self._ensure_table(SpatialRoom)
@@ -1306,7 +1306,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def _legacy_all_knowledge_entity_rows(self) -> list[BaseModel]:
         """Read KnowledgeEntity rows without any node-tree bridge logic."""
-        from fichero.knowledge_models import KnowledgeEntity
+        from fichero.models.knowledge import KnowledgeEntity
 
         sql_table = self._sql_table_name(KnowledgeEntity)
         self._ensure_table(KnowledgeEntity)
@@ -1321,7 +1321,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def _legacy_all_note_rows(self) -> list[BaseModel]:
         """Read Note rows without any node-tree bridge logic."""
-        from fichero.knowledge_models import Note
+        from fichero.models.knowledge import Note
 
         sql_table = self._sql_table_name(Note)
         self._ensure_table(Note)
@@ -1336,7 +1336,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def _legacy_all_milestone_rows(self) -> list[BaseModel]:
         """Read Milestone rows without any node-tree bridge logic."""
-        from fichero.knowledge_models import Milestone
+        from fichero.models.knowledge import Milestone
 
         sql_table = self._sql_table_name(Milestone)
         self._ensure_table(Milestone)
@@ -1412,7 +1412,7 @@ class Database(DatabaseEmbeddingMixin):
     @staticmethod
     def _spatial_room_from_document(db: "Database", doc: Any) -> BaseModel:
         """Hydrate a SpatialRoom view-model from its folded room document."""
-        from fichero.canvas_models import RoomType, SpatialRoom
+        from fichero.models.canvas import RoomType, SpatialRoom
 
         if doc.prototype_key != _ROOM_PROTOTYPE_KEY:
             raise ValueError(f"Document {doc.id} is not a room node")
@@ -1526,7 +1526,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero.knowledge_models import (
+        from fichero.models.knowledge import (
             ClassificationDimension,
             ClassificationValue,
         )
@@ -1584,7 +1584,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero.knowledge_models import (
+        from fichero.models.knowledge import (
             ClassificationDimension,
             ClassificationValue,
         )
@@ -1623,7 +1623,7 @@ class Database(DatabaseEmbeddingMixin):
     @staticmethod
     def _research_project_from_document(db: "Database", doc: Any) -> BaseModel:
         """Hydrate a ResearchProject view-model from its workspace document."""
-        from fichero.research_models import ProjectStatus, ResearchProject
+        from fichero.models.research import ProjectStatus, ResearchProject
 
         if doc.prototype_key != _RESEARCH_WORKSPACE_PROTOTYPE_KEY:
             raise ValueError(f"Document {doc.id} is not a research workspace node")
@@ -1677,7 +1677,7 @@ class Database(DatabaseEmbeddingMixin):
     @staticmethod
     def _research_plan_from_document(doc: Any) -> BaseModel:
         """Hydrate a ResearchPlan view-model from its document node."""
-        from fichero.research_models import PlanStatus, ResearchPlan
+        from fichero.models.research import PlanStatus, ResearchPlan
 
         if doc.prototype_key != _RESEARCH_PLAN_PROTOTYPE_KEY:
             raise ValueError(f"Document {doc.id} is not a research plan node")
@@ -1717,7 +1717,7 @@ class Database(DatabaseEmbeddingMixin):
     @staticmethod
     def _research_task_from_document(doc: Any) -> BaseModel:
         """Hydrate a ResearchTask view-model from its document node."""
-        from fichero.research_models import ResearchTask, TaskStatus
+        from fichero.models.research import ResearchTask, TaskStatus
 
         if doc.prototype_key != _RESEARCH_TASK_PROTOTYPE_KEY:
             raise ValueError(f"Document {doc.id} is not a research task node")
@@ -1772,7 +1772,7 @@ class Database(DatabaseEmbeddingMixin):
     @staticmethod
     def _research_step_from_document(doc: Any) -> BaseModel:
         """Hydrate a ResearchStep view-model from its document node."""
-        from fichero.research_models import ResearchStep, StepStatus, StepTool
+        from fichero.models.research import ResearchStep, StepStatus, StepTool
 
         if doc.prototype_key != _RESEARCH_STEP_PROTOTYPE_KEY:
             raise ValueError(f"Document {doc.id} is not a research step node")
@@ -2210,7 +2210,7 @@ class Database(DatabaseEmbeddingMixin):
         self, doc_ids: set[str]
     ) -> list[Any]:
         """Claims linked to any seed document by source_document_id or source_ids."""
-        from fichero.knowledge_models import KnowledgeClaim as KnowledgeClaimModel
+        from fichero.models.knowledge import KnowledgeClaim as KnowledgeClaimModel
 
         if not doc_ids:
             return []
@@ -2247,7 +2247,7 @@ class Database(DatabaseEmbeddingMixin):
         limit: int | None = None,
     ) -> list[Any]:
         """Claims whose entity_ids JSON list intersects the frontier ids."""
-        from fichero.knowledge_models import KnowledgeClaim as KnowledgeClaimModel
+        from fichero.models.knowledge import KnowledgeClaim as KnowledgeClaimModel
 
         if not entity_ids or limit == 0:
             return []
@@ -2892,7 +2892,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero.knowledge_models import KnowledgeEntity
+        from fichero.models.knowledge import KnowledgeEntity
 
         table_name = self._table_name(KnowledgeEntity)
         table_exists = self.execute_fetchone(
@@ -2913,7 +2913,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero.knowledge_models import Note
+        from fichero.models.knowledge import Note
 
         table_name = self._table_name(Note)
         table_exists = self.execute_fetchone(
@@ -2934,7 +2934,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero.knowledge_models import Milestone
+        from fichero.models.knowledge import Milestone
 
         table_name = self._table_name(Milestone)
         table_exists = self.execute_fetchone(
@@ -3190,7 +3190,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero.research_models import ResearchProject
+        from fichero.models.research import ResearchProject
 
         table_name = self._table_name(ResearchProject)
         table_exists = self.execute_fetchone(
@@ -3211,7 +3211,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero.canvas_models import SpatialRoom
+        from fichero.models.canvas import SpatialRoom
 
         table_name = self._table_name(SpatialRoom)
         table_exists = self.execute_fetchone(
@@ -3232,7 +3232,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero.research_models import ResearchPlan, ResearchStep, ResearchTask
+        from fichero.models.research import ResearchPlan, ResearchStep, ResearchTask
 
         for model_cls, saver in (
             (ResearchPlan, self._save_research_plan_document),
@@ -3257,7 +3257,7 @@ class Database(DatabaseEmbeddingMixin):
         if not hasattr(self.conn, "execute"):
             return
 
-        from fichero.knowledge_models import (
+        from fichero.models.knowledge import (
             KnowledgeClaimLink,
             LibraryItemLink,
             LibraryItemType,
@@ -3781,7 +3781,7 @@ class Database(DatabaseEmbeddingMixin):
             return results
 
         try:
-            from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+            from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
         except Exception as exc:  # noqa: BLE001
             logger.debug("KG models unavailable during search enrichment: %s", exc)
             return results
@@ -3868,7 +3868,7 @@ class Database(DatabaseEmbeddingMixin):
             return [], set()
 
         try:
-            from fichero.knowledge_models import KnowledgeEntity
+            from fichero.models.knowledge import KnowledgeEntity
 
             entities = self.all(KnowledgeEntity)
         except Exception as exc:  # noqa: BLE001
@@ -3909,7 +3909,7 @@ class Database(DatabaseEmbeddingMixin):
         if not matched_entity_ids:
             return set()
         try:
-            from fichero.knowledge_models import KnowledgeClaim
+            from fichero.models.knowledge import KnowledgeClaim
 
             claims = self.all(KnowledgeClaim)
         except Exception as exc:  # noqa: BLE001
@@ -4415,7 +4415,7 @@ class Database(DatabaseEmbeddingMixin):
     # Trace JSONL Export (for debug logs)
     # =========================================================================
     # reindex_all, embedding_stats, and embedding helpers are in DatabaseEmbeddingMixin
-    # (fichero.db_embeddings)
+    # (fichero.db.embeddings)
 
     def export_traces_jsonl(self, run_id: str, path: str | Path | None = None) -> Path:
         """Export all traces for a run to JSONL file.
@@ -4742,7 +4742,7 @@ class Database(DatabaseEmbeddingMixin):
             # is a no-op when already present); critical for query latency
             # at 50K+ claims. (#991 — scaling-review bottleneck 2)
             if first_reconcile_this_connection and table in {"knowledgeclaims", "knowledgeentitys"}:
-                from fichero.db_migrations import migrate_knowledge_indices
+                from fichero.db.migrations.schema import migrate_knowledge_indices
                 migrate_knowledge_indices(self.conn)
 
     def _python_to_duckdb_type(self, python_type) -> str:
@@ -4788,27 +4788,27 @@ class Database(DatabaseEmbeddingMixin):
 
     def _migrate_workflow_table(self) -> None:
         """Delegate to db_migrations.migrate_workflow_table."""
-        from fichero.db_migrations import migrate_workflow_table
+        from fichero.db.migrations.schema import migrate_workflow_table
         migrate_workflow_table(self.conn)
 
     def _migrate_saved_search_table(self) -> None:
         """Delegate to db_migrations.migrate_saved_search_table."""
-        from fichero.db_migrations import migrate_saved_search_table
+        from fichero.db.migrations.schema import migrate_saved_search_table
         migrate_saved_search_table(self.conn)
 
     def _migrate_provider_refs_table(self) -> None:
         """Delegate to db_migrations.migrate_provider_refs_table."""
-        from fichero.db_migrations import migrate_provider_refs_table
+        from fichero.db.migrations.schema import migrate_provider_refs_table
         migrate_provider_refs_table(self.conn)
 
     def _migrate_activity_tables(self) -> None:
         """Delegate to db_migrations.migrate_activity_tables."""
-        from fichero.db_migrations import migrate_activity_tables
+        from fichero.db.migrations.schema import migrate_activity_tables
         migrate_activity_tables(self.conn)
 
     def _migrate_checkpoint_tables(self) -> None:
         """Delegate to db_migrations.migrate_checkpoint_tables."""
-        from fichero.db_migrations import migrate_checkpoint_tables
+        from fichero.db.migrations.schema import migrate_checkpoint_tables
         migrate_checkpoint_tables(self.conn)
 
 

@@ -17,7 +17,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 
 
 @pytest.fixture

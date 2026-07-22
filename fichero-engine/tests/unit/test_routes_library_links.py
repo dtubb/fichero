@@ -14,7 +14,7 @@ from datetime import datetime
 import fichero.api.routes.actions_registry  # noqa: F401
 from fichero.actions.registry import ActionContext
 from fichero.api.routes.actions_registry import undo_action
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimRelationType,
     KnowledgeClaim,
     KnowledgeClaimLink,

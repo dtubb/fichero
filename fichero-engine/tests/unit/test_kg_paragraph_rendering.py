@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 from fichero.kg.paragraph import ParagraphStyle, render_paragraph_claims
 from fichero.workflows.tools._entity_writer import save_claim
 

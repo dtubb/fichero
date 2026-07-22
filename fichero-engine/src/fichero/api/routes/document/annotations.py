@@ -20,7 +20,7 @@ from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.actions.registry import registry
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Annotation,
     AnnotationKind,
     KnowledgeClaim,

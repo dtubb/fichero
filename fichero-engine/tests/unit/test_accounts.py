@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero import accounts
+from fichero.security import accounts
 from fichero.api.routes.auth_accounts import _dummy_password_hash
 
 

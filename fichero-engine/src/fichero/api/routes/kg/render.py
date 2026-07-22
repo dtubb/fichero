@@ -12,7 +12,7 @@ from fichero.api.main import get_library_database, get_library_database_for_writ
 from fichero.api.auth import action_context
 from fichero.actions.registry import ActionContext, registry
 from fichero.db import Database
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 # NOTE: fichero.llm is imported inside the one handler that uses it (#3950).
 # It pulls langchain_core (~600 modules) onto the engine startup path.
 from fichero.kg.paragraph import (
@@ -140,7 +140,7 @@ async def generate_entity_bio(
 
     prompt = _build_bio_prompt(entity, entity_claims)
 
-    from fichero.app_db import get_app_db  # noqa: PLC0415
+    from fichero.db.app import get_app_db  # noqa: PLC0415
 
     defaults = get_app_db().get_ai_defaults()
     # LLMConfig only — `chat` resolves to the module-level passthrough above,

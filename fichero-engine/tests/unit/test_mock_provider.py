@@ -16,7 +16,7 @@ import pytest
 from fichero.db import db_manager
 from fichero.llm import LLMConfig, _is_local_or_builtin_provider, chat, chat_structured
 from fichero.models import Artifact, DocType, Document
-from fichero.providers import ProviderType, get_provider_info
+from fichero.llm.providers import ProviderType, get_provider_info
 from fichero.workflows.tools import extract_all as extract_all_module
 
 
@@ -65,7 +65,7 @@ async def test_mock_structured_fails_loud_on_unsupported_required_field():
     """Unknown schema with a required-no-default field raises, never drops."""
     from pydantic import BaseModel
 
-    from fichero.llm_mock import mock_structured_response
+    from fichero.llm.mock import mock_structured_response
 
     class _Needy(BaseModel):
         required_field: str  # no default, no default_factory
@@ -78,7 +78,7 @@ async def test_mock_structured_fails_loud_on_unsupported_required_field():
 async def test_extract_all_mock_writes_claims_and_artifacts(db, test_package, caplog):
     """A full extract_all run with provider=mock writes KG claim rows +
     per-page Artifact rows, with no exception and no paid-cost warning."""
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
 
     folder = Document(name="Folder", path="/tmp/folder", doc_type=DocType.folder)
     page1 = Document(name="p1", path="/tmp/folder/p1.png", doc_type=DocType.page)
@@ -126,7 +126,7 @@ async def test_extract_all_mock_emits_workflow_change_events(
     monkeypatch,
     tmp_path,
 ):
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
     monkeypatch.setattr(
         "fichero.workflows.tools.extractors._build_alias_index",

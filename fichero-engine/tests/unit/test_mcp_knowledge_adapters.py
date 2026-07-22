@@ -10,7 +10,7 @@ Tests verify thin MCP adapters for canonical knowledge APIs work correctly:
 import pytest
 from datetime import datetime
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     KnowledgeEntity,
     KnowledgeClaim,
     EntityType,

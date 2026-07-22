@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.knowledge_models import Annotation, AnnotationKind
+from fichero.models.knowledge import Annotation, AnnotationKind
 from fichero.models import DocType, Document, FileType, Status
 from fichero.workflows.tools._annotation_input import crop_text
 
@@ -521,7 +521,7 @@ class TestAnnotationCreatedByAttribution:
 
     def test_create_action_sets_created_by_from_actor(self, db):
         from fichero.actions.registry import ActionContext, registry
-        from fichero.knowledge_models import Annotation
+        from fichero.models.knowledge import Annotation
 
         doc = Document(name="doc.pdf")
         db.save(doc)
@@ -543,7 +543,7 @@ class TestAnnotationCreatedByAttribution:
 
     def test_create_action_default_actor_is_human(self, db):
         from fichero.actions.registry import ActionContext, registry
-        from fichero.knowledge_models import Annotation
+        from fichero.models.knowledge import Annotation
 
         doc = Document(name="doc.pdf")
         db.save(doc)
@@ -565,7 +565,7 @@ class TestAnnotationCreatedByAttribution:
 
     def test_duplicate_action_sets_created_by_from_actor(self, db):
         from fichero.actions.registry import ActionContext, registry
-        from fichero.knowledge_models import Annotation
+        from fichero.models.knowledge import Annotation
 
         doc = Document(name="doc.pdf")
         db.save(doc)
@@ -598,7 +598,7 @@ class TestAnnotationCreatedByAttribution:
 
     def test_promote_to_claim_action_inherits_actor(self, db):
         from fichero.actions.registry import ActionContext, registry
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
 
         # Create an annotation with actor "dave"
         doc = Document(name="doc.pdf")

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from fichero import accounts
-from fichero.app_db import AppDatabase
+from fichero.security import accounts
+from fichero.db.app import AppDatabase
 
 
 def _owner(db: AppDatabase, username: str):

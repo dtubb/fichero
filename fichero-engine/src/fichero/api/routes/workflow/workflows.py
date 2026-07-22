@@ -12,7 +12,7 @@ from datetime import datetime
 from fastapi import APIRouter, Body, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero.app_db import get_app_db
+from fichero.db.app import get_app_db
 from fichero.db import Database
 from fichero.api.library_header import require_library_path
 from fichero.api.auth import request_actor

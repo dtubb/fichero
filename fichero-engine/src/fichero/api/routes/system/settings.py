@@ -11,7 +11,7 @@ from fichero.api.routes.auth.accounts import (
     _require_authenticated_or_bootstrap,
     _require_owner_or_bootstrap,
 )
-from fichero.model_profiles import (
+from fichero.llm.model_profiles import (
     ModelProfile,
     ModelProfileCreate,
     ModelProfileListResponse,
@@ -135,7 +135,7 @@ _TIER_SETTING_KEYS = {
 
 
 def _validate_provider_updates(body: AIDefaultsUpdate) -> None:
-    from fichero.providers import get_provider_info
+    from fichero.llm.providers import get_provider_info
 
     for field_name in body.model_fields_set:
         if not field_name.endswith("_provider"):
@@ -151,7 +151,7 @@ def _validate_provider_updates(body: AIDefaultsUpdate) -> None:
 
 
 def _validate_profile(profile: ModelProfile) -> None:
-    from fichero.providers import get_provider_info
+    from fichero.llm.providers import get_provider_info
 
     if not profile.name:
         raise HTTPException(status_code=422, detail="Model profile name is required")
@@ -182,7 +182,7 @@ def list_model_profiles(request: Request) -> ModelProfileListResponse:
     """List named AI model/provider profiles."""
     _require_authenticated_or_bootstrap(request)
 
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     return ModelProfileListResponse(items=get_app_db().list_model_profiles())
 
@@ -195,7 +195,7 @@ def create_model_profile(
 ) -> ModelProfile:
     """Create a named AI model/provider profile."""
     from duckdb import ConstraintException
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     profile = body.to_profile()
     _validate_profile(profile)
@@ -213,7 +213,7 @@ def get_model_profile(profile_id: str, request: Request) -> ModelProfile:
     """Get a named AI model/provider profile."""
     _require_authenticated_or_bootstrap(request)
 
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     return _get_profile_or_404(get_app_db(), profile_id)
 
@@ -227,7 +227,7 @@ def update_model_profile(
 ) -> ModelProfile:
     """Update a named AI model/provider profile."""
     from duckdb import ConstraintException
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     db = get_app_db()
     current = _get_profile_or_404(db, profile_id)
@@ -254,7 +254,7 @@ def delete_model_profile(
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> StatusOkResponse:
     """Delete a named AI model/provider profile."""
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     deleted = get_app_db().delete_model_profile(profile_id)
     if deleted is None:
@@ -267,7 +267,7 @@ def get_ai_defaults(request: Request) -> AIDefaults:
     """Get default AI models for each category."""
     _require_authenticated_or_bootstrap(request)
 
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     db = get_app_db()
     defaults = db.get_ai_defaults()
@@ -308,7 +308,7 @@ def set_ai_defaults(
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> StatusOkResponse:
     """Set default AI models for each category."""
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     _validate_provider_updates(body)
 
@@ -341,7 +341,7 @@ def repair_ai_defaults(
     values the user has already set. Fixes libraries created before the
     factory-defaults seed was added (#1057).
     """
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     db = get_app_db()
     apple = "apple"
@@ -368,7 +368,7 @@ def reset_ai_defaults(
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> StatusOkResponse:
     """Reset all AI default settings to empty."""
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     db = get_app_db()
     db.reset_ai_defaults()

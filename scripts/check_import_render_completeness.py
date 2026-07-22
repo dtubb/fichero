@@ -7,7 +7,7 @@ Rule (reform master plan §N / §H, lines 144-145):
     > representation.
 
 The type-system boundary where this is exactly enforceable: the engine assigns
-each imported document a `DocType` / `FileType` (`fichero-engine/.../models.py`).
+each imported document a `DocType` / `FileType` (`fichero-engine/.../models/__init__.py`).
 The Swift app decodes those at one canonical point — the `convertFromGenerated*`
 switches in `Services/DocumentService.swift` — which map every generated
 (== engine) case to a local renderable `DocType` / `FileType`. If the engine can
@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PY_MODELS = ROOT / "fichero-engine" / "src" / "fichero" / "models.py"
+PY_MODELS = ROOT / "fichero-engine" / "src" / "fichero" / "models" / "__init__.py"
 DECODER = ROOT / "fichero" / "fichero" / "Services" / "DocumentService.swift"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 

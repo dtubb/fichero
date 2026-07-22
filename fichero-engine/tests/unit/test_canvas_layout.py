@@ -5,13 +5,14 @@ from types import SimpleNamespace
 
 from fichero.api.routes.actions_registry import undo_action
 from fichero.db import Database
-from fichero.db_migrations import migrate_canvas_layout_table
+from fichero.db.migrations.schema import migrate_canvas_layout_table
 from fichero.knowledge.knowledge_models import KnowledgeEntity
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import DocType, Document
 from fichero.models import ActionAudit
-from fichero.canvas_models import CanvasItem, CanvasItemKind, CanvasLayout
+from fichero.models.canvas import CanvasItem, CanvasItemKind, CanvasLayout
 
 BASE = "/api/canvas/folders"
 

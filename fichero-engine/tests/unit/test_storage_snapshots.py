@@ -11,7 +11,7 @@ import pytest
 from fichero.db import Database
 from fichero.models import Document, KnownLibrary, LibrarySnapshot, SnapshotInitiatorType
 from fichero.db.storage import StorageSettings
-from fichero import storage_snapshots
+from fichero.db import storage_snapshots
 
 
 def _use_snapshot_state(monkeypatch, tmp_path: Path) -> None:

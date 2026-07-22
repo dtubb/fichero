@@ -41,7 +41,7 @@ async def reset_kg(
     db: Database = Depends(get_library_database_for_write),
 ) -> KGResetResponse:
     """Delete all KG rows (entities, claims, links)."""
-    from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim, KnowledgeClaimLink
+    from fichero.models.knowledge import KnowledgeEntity, KnowledgeClaim, KnowledgeClaimLink
 
     entities = db.query(KnowledgeEntity)
     claims = db.query(KnowledgeClaim)

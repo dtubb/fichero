@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.routes.auth.accounts import _require_authenticated_or_bootstrap
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimType,
     ClaimCurationState,
     EpistemicStatus,

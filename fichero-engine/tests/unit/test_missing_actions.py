@@ -39,7 +39,7 @@ import fichero.api.routes.batch as batch_routes  # noqa: F401
 import fichero.api.routes.search  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import ActionAudit, Document, DocType
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Annotation,
     AnnotationKind,
     KnowledgeClaim,

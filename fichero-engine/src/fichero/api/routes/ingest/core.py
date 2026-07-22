@@ -144,7 +144,7 @@ def import_file_impl(
     Extracted verbatim from the ``POST /file`` route so the route handler and
     the ``import.file`` action drive the SAME code.
     """
-    from fichero.ingest import ingest_file as do_ingest, IngestMode
+    from fichero.importers.ingest import ingest_file as do_ingest, IngestMode
 
     path = Path(request.path)
     _validate_ingest_path(request.path)
@@ -191,7 +191,7 @@ def import_folder_impl(
     task_id); the ``import.folder`` action runs it synchronously so it can audit
     the created doc ids. Both share this one validated ingest.
     """
-    from fichero.ingest import ingest_folder as do_ingest, IngestMode
+    from fichero.importers.ingest import ingest_folder as do_ingest, IngestMode
 
     path = Path(request.path)
     _validate_ingest_path(request.path)
@@ -257,7 +257,7 @@ async def ingest_folder(
 
     Returns immediately with a task_id. Use /status/{task_id} to check progress.
     """
-    from fichero.ingest import count_files
+    from fichero.importers.ingest import count_files
 
     _require_ingest_owner(http_request, x_fichero_library_path)
     path = Path(request.path)

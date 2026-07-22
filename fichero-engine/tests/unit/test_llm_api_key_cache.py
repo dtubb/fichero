@@ -31,7 +31,7 @@ def test_same_provider_hits_keychain_once(monkeypatch):
         calls["n"] += 1
         return f"key-for-{provider}"
 
-    monkeypatch.setattr("fichero.keychain.get_api_key", fake_keychain_get)
+    monkeypatch.setattr("fichero.security.keychain.get_api_key", fake_keychain_get)
 
     first = llm.get_api_key("openai")
     second = llm.get_api_key("openai")
@@ -50,7 +50,7 @@ def test_clear_forces_fresh_read(monkeypatch):
         # Simulate a rotated credential between reads.
         return f"key-{calls['n']}"
 
-    monkeypatch.setattr("fichero.keychain.get_api_key", fake_keychain_get)
+    monkeypatch.setattr("fichero.security.keychain.get_api_key", fake_keychain_get)
 
     assert llm.get_api_key("openai") == "key-1"
     assert llm.get_api_key("openai") == "key-1"  # cached
@@ -69,7 +69,7 @@ def test_clear_all_forces_fresh_read(monkeypatch):
         calls["n"] += 1
         return f"key-{provider}-{calls['n']}"
 
-    monkeypatch.setattr("fichero.keychain.get_api_key", fake_keychain_get)
+    monkeypatch.setattr("fichero.security.keychain.get_api_key", fake_keychain_get)
 
     llm.get_api_key("openai")
     llm.get_api_key("anthropic")
@@ -86,7 +86,7 @@ def test_different_providers_do_not_collide(monkeypatch):
     def fake_keychain_get(provider):
         return f"key-for-{provider}"
 
-    monkeypatch.setattr("fichero.keychain.get_api_key", fake_keychain_get)
+    monkeypatch.setattr("fichero.security.keychain.get_api_key", fake_keychain_get)
 
     openai_key = llm.get_api_key("openai")
     anthropic_key = llm.get_api_key("anthropic")
@@ -103,10 +103,10 @@ def test_missing_key_is_cached(monkeypatch):
         calls["n"] += 1
         return None
 
-    monkeypatch.setattr("fichero.keychain.get_api_key", fake_keychain_get)
+    monkeypatch.setattr("fichero.security.keychain.get_api_key", fake_keychain_get)
     # Make sure the env fallback also yields nothing for a deterministic None.
     monkeypatch.setattr(
-        "fichero.providers.get_provider_info", lambda provider: None
+        "fichero.llm.providers.get_provider_info", lambda provider: None
     )
 
     assert llm.get_api_key("openai") is None
@@ -120,7 +120,7 @@ class TestKeychainWriteInvalidatesCache:
     immediately, no process restart (#2545 follow-up — wired in keychain.py)."""
 
     def test_set_api_key_invalidates_cache(self, monkeypatch):
-        import fichero.keychain as keychain
+        import fichero.security.keychain as keychain
 
         reads = {"n": 0}
 
@@ -143,7 +143,7 @@ class TestKeychainWriteInvalidatesCache:
         assert reads["n"] == 2
 
     def test_delete_api_key_invalidates_cache(self, monkeypatch):
-        import fichero.keychain as keychain
+        import fichero.security.keychain as keychain
 
         reads = {"n": 0}
         monkeypatch.setattr(

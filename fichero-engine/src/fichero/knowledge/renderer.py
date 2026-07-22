@@ -39,7 +39,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from fichero.knowledge_models import SourceMetadata
+    from fichero.models.knowledge import SourceMetadata
 
 
 # =============================================================================

@@ -1,4 +1,4 @@
-from fichero.knowledge_models import KnowledgePredictionReview
+from fichero.models.knowledge import KnowledgePredictionReview
 
 
 def test_prediction_review_persists_and_transitions(client, db):

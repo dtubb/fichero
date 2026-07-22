@@ -18,9 +18,9 @@ from pathlib import Path
 
 import pytest
 
-from fichero.app_db import AppDatabase
+from fichero.db.app import AppDatabase
 from fichero.models import Provider, Model
-from fichero.providers import ProviderType
+from fichero.llm.providers import ProviderType
 
 
 @pytest.fixture

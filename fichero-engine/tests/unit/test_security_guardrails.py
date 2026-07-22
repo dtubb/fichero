@@ -26,7 +26,7 @@ PERSISTENCE_PATH_ALLOWLIST = frozenset(
         "db/manager.py",
         "db/app.py",
         "api/change_stream.py",
-        "storage_snapshots.py",
+        "db/storage_snapshots.py",
         "workflows/action_store.py",
         "workflows/cache.py",
         "workflows/checkpointer.py",
@@ -372,7 +372,7 @@ def test_xml_parsing_stays_inside_xml_security_chokepoint() -> None:
     unexpected = _unexpected_findings(findings, XML_ETREE_ALLOWLIST)
     lines = [
         "Non-test engine code must not import or call xml.etree directly.",
-        "Route all XML parsing through fichero.xml_security instead.",
+        "Route all XML parsing through fichero.security.xml_security instead.",
         "",
         "Unexpected xml.etree findings:",
         *[f"  {finding.location}: {finding.detail} [{finding.key}]" for finding in unexpected],
@@ -404,7 +404,7 @@ def test_wildcard_bind_host_is_never_used_outside_sanctioned_guards() -> None:
     unexpected = _unexpected_findings(findings, WILDCARD_BIND_ALLOWLIST)
     lines = [
         "Engine code must not bind or default to 0.0.0.0.",
-        "Use fichero.bind_host.resolve_bind_host and only mention 0.0.0.0 inside",
+        "Use fichero.security.bind_host.resolve_bind_host and only mention 0.0.0.0 inside",
         "the existing refusal/SSRF guard paths.",
         "",
         "Unexpected 0.0.0.0 findings:",

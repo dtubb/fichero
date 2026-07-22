@@ -12,15 +12,15 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from fichero.language_coverage import (
+from fichero.llm.language_coverage import (
     LanguageCoverageRecord,
     LanguageFitModelSpec,
     LanguageSpec,
     language_spec,
     recommend_language_fit,
 )
-from fichero.model_profiles import provider_is_local_or_builtin
-from fichero.providers import get_provider_info
+from fichero.llm.model_profiles import provider_is_local_or_builtin
+from fichero.llm.providers import get_provider_info
 
 
 RecommendationSource = Literal["explicit", "settings"]

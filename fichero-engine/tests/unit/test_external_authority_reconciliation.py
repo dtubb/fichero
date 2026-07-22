@@ -5,7 +5,7 @@ from fastapi import HTTPException
 
 from fichero.api.routes import kg_entity_curation as curation
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     AuthoritySnapshot,
     EntityType,
     KnowledgeEntity,

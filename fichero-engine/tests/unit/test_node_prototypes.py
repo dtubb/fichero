@@ -11,7 +11,7 @@ from fichero.knowledge.knowledge_models import (
     ClassificationDimension,
     ClassificationValue,
 )
-from fichero.node_prototypes import (
+from fichero.models.node_prototypes import (
     PrototypeResolutionError,
     resolve_prototype_attributes,
 )

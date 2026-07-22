@@ -6,7 +6,7 @@ The review queue manages KnowledgeClaim curation state transitions
 at /api.
 """
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     KnowledgeClaim,
     KnowledgeClaimLink,
     KnowledgeEntity,

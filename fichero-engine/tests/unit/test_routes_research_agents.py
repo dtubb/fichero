@@ -9,10 +9,10 @@ import pytest
 from fastapi import HTTPException
 
 from fichero.actions.registry import ActionContext
-from fichero.knowledge_models import ClassificationDimension, ClassificationValue
+from fichero.models.knowledge import ClassificationDimension, ClassificationValue
 from fichero.models import DocType, Document
-from fichero.node_prototypes import PrototypeResolutionError
-from fichero.research_models import (
+from fichero.models.node_prototypes import PrototypeResolutionError
+from fichero.models.research import (
     ResearchPlan,
     ResearchProject,
     ResearchStep,

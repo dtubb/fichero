@@ -29,7 +29,7 @@ from fichero.llm import (
     parse_thinking_response,
     vision_inference_api,
 )
-from fichero.local_inference import LocalProviderStartupPolicy, LocalServiceState
+from fichero.llm.local_inference import LocalProviderStartupPolicy, LocalServiceState
 
 
 class _StructuredResult(BaseModel):
@@ -1055,7 +1055,7 @@ async def test_omlx_start_failure_raises_unavailable_and_skips_langchain(monkeyp
 @pytest.mark.asyncio
 async def test_omlx_runtime_missing_raises_typed_error(monkeypatch):
     from fichero.api.routes import local_inference as routes
-    from fichero.local_inference import LocalInferenceRuntimeMissingError
+    from fichero.llm.local_inference import LocalInferenceRuntimeMissingError
 
     cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
 
@@ -1076,7 +1076,7 @@ async def test_omlx_runtime_missing_raises_typed_error(monkeypatch):
 @pytest.mark.asyncio
 async def test_omlx_hardware_gate_raises_typed_error(monkeypatch):
     from fichero.api.routes import local_inference as routes
-    from fichero.local_inference import LocalModelHardwareError as LocalInferenceHardwareError
+    from fichero.llm.local_inference import LocalModelHardwareError as LocalInferenceHardwareError
 
     cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
 
@@ -1096,10 +1096,10 @@ async def test_omlx_hardware_gate_raises_typed_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_apple_chat_reports_platform_unavailable_before_missing_binary(monkeypatch):
-    from fichero.local_inference import LocalInferenceCapabilities
+    from fichero.llm.local_inference import LocalInferenceCapabilities
 
     monkeypatch.setattr(
-        "fichero.local_inference.get_local_inference_capabilities",
+        "fichero.llm.local_inference.get_local_inference_capabilities",
         lambda: LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",

@@ -14,7 +14,7 @@ from fichero.db import Database
 from fichero.models import CanvasDeletedResponse, CanvasListResponse, Document
 from fichero.knowledge.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.spatial_arrange import DEFAULT_SPACING, ArrangeStrategy, compute_arrangement
-from fichero.canvas_models import CanvasItem, CanvasItemKind, CanvasLayout
+from fichero.models.canvas import CanvasItem, CanvasItemKind, CanvasLayout
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

@@ -13,7 +13,7 @@ from fichero.api.routes.auth.accounts import (
     _require_authenticated_or_bootstrap,
     _require_owner_or_bootstrap,
 )
-from fichero.app_db import get_app_db
+from fichero.db.app import get_app_db
 from fichero.models import MCPServer
 # NOTE: fichero.mcp.manager is imported inside the handlers, not here (#3950).
 # It pulls langchain_mcp_adapters -> mcp + langgraph, which the engine paid for

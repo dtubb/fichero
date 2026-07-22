@@ -11,7 +11,7 @@ import pytest
 from fichero.actions.registry import ActionContext, registry
 from fichero.api.routes import library_registry  # noqa: F401  # register action
 from fichero.db import Database
-from fichero.knowledge_models import Annotation, AnnotationKind, EntityType, KnowledgeEntity, Note, NoteKind
+from fichero.models.knowledge import Annotation, AnnotationKind, EntityType, KnowledgeEntity, Note, NoteKind
 from fichero.models import ActionAudit, DocType, Document, KnownLibrary
 
 

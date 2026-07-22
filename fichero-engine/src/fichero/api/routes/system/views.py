@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero.models import DocType, Document
 
 router = APIRouter(prefix="/view", tags=["views"])

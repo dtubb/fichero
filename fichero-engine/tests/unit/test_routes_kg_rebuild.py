@@ -6,7 +6,7 @@ import asyncio
 from types import SimpleNamespace
 
 from fichero.api.routes import kg_rebuild as routes
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeClaimLink, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeClaimLink, KnowledgeEntity
 
 
 class FakeDB:

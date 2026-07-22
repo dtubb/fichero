@@ -1,8 +1,8 @@
 """Library Links API — generic node-to-node links between library items.
 
 Backend slice of #2590. Reuses the typed relation vocabulary from
-:class:`fichero.knowledge_models.ClaimRelationType` and mirrors the shape of
-:class:`fichero.knowledge_models.KnowledgeClaimLink`, but connects any two
+:class:`fichero.models.knowledge.ClaimRelationType` and mirrors the shape of
+:class:`fichero.models.knowledge.KnowledgeClaimLink`, but connects any two
 library items (document, note, entity, claim) via source_id/target_id.
 """
 
@@ -20,7 +20,7 @@ from fichero.api.auth import action_context, request_actor
 from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimRelationType,
     KnowledgeClaim,
     KnowledgeEntity,

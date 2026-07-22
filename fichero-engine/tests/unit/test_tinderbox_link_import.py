@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from fichero.importers.tinderbox_link_import import import_tinderbox_links_via_http
-from fichero.tinderbox_link_import import parse_tinderbox_notes
+from fichero.importers.tinderbox_link_import import parse_tinderbox_notes
 
 
 def _write_tbx(path: Path, body: str) -> None:

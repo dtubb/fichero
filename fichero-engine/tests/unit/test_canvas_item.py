@@ -15,11 +15,12 @@ import pytest
 
 # Importing the route module registers the ``canvas.item.*`` actions.
 import fichero.api.routes.canvas  # noqa: F401
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.api.routes.actions_registry import undo_action
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import ActionAudit
-from fichero.canvas_models import CanvasItem, CanvasItemKind
+from fichero.models.canvas import CanvasItem, CanvasItemKind
 
 BASE = "/api/canvas/folders"
 KINDS = ["note", "quote", "work_note", "link", "text"]

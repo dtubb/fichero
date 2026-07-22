@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from fichero.security import accounts
 from fichero.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
-from fichero.app_db import AppDatabase, get_app_db
+from fichero.db.app import AppDatabase, get_app_db
 from fichero.models import AccountInvite, AccountUser, ActionAudit, AuthIdentityResponse, AuthIdentityUser
 
 logger = logging.getLogger(__name__)

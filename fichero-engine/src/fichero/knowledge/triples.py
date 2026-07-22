@@ -49,7 +49,7 @@ from rdflib.namespace import FOAF, RDF, RDFS, SKOS, XSD
 from fichero.kg._common import enum_value, extract_svo, slug_verb
 
 if TYPE_CHECKING:  # pragma: no cover
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
 logger = logging.getLogger(__name__)
 

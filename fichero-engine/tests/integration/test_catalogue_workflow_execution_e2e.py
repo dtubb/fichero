@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from fichero.db import Database
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 from fichero.models import Artifact, DocType, Document, FileType, Workflow
 from fichero.workflows.default_workflows import _load_preset_files
 

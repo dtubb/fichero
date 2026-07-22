@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fichero.db import db_manager
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeClaimLink, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeClaimLink, KnowledgeEntity
 from fichero.models import Artifact, Document
 
 from .task_types import BackgroundTask, TaskResult, TaskStatus

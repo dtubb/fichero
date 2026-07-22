@@ -1,7 +1,7 @@
 """Hermeneutics route link-integrity tests (#501)."""
 
-from fichero.hermeneutics_models import FrameworkType
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.hermeneutics import FrameworkType
+from fichero.models.knowledge import KnowledgeClaim
 
 
 class TestHermeneuticsInterpretationClaimLinking:

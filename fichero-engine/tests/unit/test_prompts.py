@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from fichero.prompts import (
+from fichero.llm.prompts import (
     INSTRUMENT_SYSTEM_PROMPT,
     Prompt,
     PromptMetadata,
@@ -116,7 +116,7 @@ class TestLookup:
     @pytest.fixture
     def fake_dir(self, tmp_path, monkeypatch):
         # Build a fake prompts dir, point _PROMPTS_DIR + clear cache.
-        from fichero import prompts as registry
+        from fichero.llm import prompts as registry
         tool_dir = tmp_path / "demo"
         tool_dir.mkdir()
         for version in (1, 2, 4):  # gap intentional
@@ -154,7 +154,7 @@ class TestLookup:
         (fake_dir / "demo" / "narrative_v5.md").write_text(
             "---\nversion: 5\n---\nLang: {output_language}"
         )
-        from fichero import prompts as registry
+        from fichero.llm import prompts as registry
         registry._list_prompt_files.cache_clear()
         result = load_prompt(
             "demo", "narrative", output_language="English",

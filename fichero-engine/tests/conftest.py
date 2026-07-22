@@ -60,7 +60,7 @@ os.environ.setdefault("FICHERO_BASE_PATH", str(_test_base))
 
 from fichero.api.main import app  # noqa: E402
 from fichero.db import db_manager  # noqa: E402
-from fichero.app_db import AppDatabase  # noqa: E402
+from fichero.db.app import AppDatabase  # noqa: E402
 
 _deadlock_dump_armed = False
 
@@ -241,7 +241,7 @@ def app_db(tmp_path):
     app_db_path = tmp_path / "test_app.duckdb"
     db = AppDatabase(path=app_db_path)
 
-    import fichero.app_db as _app_db_module
+    import fichero.db.app as _app_db_module
     saved_singleton = _app_db_module._app_db
     _app_db_module._app_db = db
 

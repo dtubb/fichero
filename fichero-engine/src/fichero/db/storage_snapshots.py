@@ -58,7 +58,7 @@ def _quote_identifier(identifier: str) -> str:
 
 def _quiesce_library_database(library_path: Path, *, close: bool) -> None:
     """Drain/checkpoint manager-owned DuckDB work before file-level operations."""
-    from fichero.db_manager import db_manager
+    from fichero.db.manager import db_manager
 
     db_manager.quiesce_database(library_path, checkpoint=True, close=close)
 

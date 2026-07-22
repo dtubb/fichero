@@ -54,7 +54,7 @@ ALLOWLIST: frozenset[str] = frozenset(
         "db/migrations/runner.py",
         "api/change_stream.py",
         # Backup / restore handles raw connections to snapshot the .duckdb file.
-        "storage_snapshots.py",
+        "db/storage_snapshots.py",
         # Workflow-subsystem persistence stores (each is the DB layer for its
         # own concern: checkpointing, scheduling, caching, activity, tasks,
         # actions). Consolidating these behind db.py is future work (#1876).

@@ -79,11 +79,11 @@ async def test_background_runner_handles_non_dict_node_output(monkeypatch, tmp_p
         lambda *_args, **_kwargs: (_FakeRunApp(), _FakeCheckpointer()),
     )
     monkeypatch.setattr(
-        "fichero.db_manager.db_manager.get_database",
+        "fichero.db.manager.db_manager.get_database",
         lambda _library_path: SimpleNamespace(path=tmp_path / "library.duckdb"),
     )
     monkeypatch.setattr(
-        "fichero.db_manager.db_manager.close_current_thread",
+        "fichero.db.manager.db_manager.close_current_thread",
         lambda: None,
     )
 

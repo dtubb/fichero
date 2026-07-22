@@ -14,7 +14,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from fichero.db import Database, db_manager
-from fichero.knowledge_models import ClaimType, EntityType, KnowledgeEntity
+from fichero.models.knowledge import ClaimType, EntityType, KnowledgeEntity
 from fichero.llm import LLMConfig, chat_structured_with_fallback
 from fichero.models import DocType, Document
 from fichero.workflows.registry import register_tool

@@ -30,7 +30,7 @@ def list_local_models(model_type: str | None = None) -> LocalModelListResponse:
     Query params:
         model_type: "whisper" or "embeddings" (optional, lists all if omitted)
     """
-    from fichero.local_models import LocalModelManager
+    from fichero.llm.local_models import LocalModelManager
 
     mgr = LocalModelManager()
 
@@ -49,7 +49,7 @@ def list_local_models(model_type: str | None = None) -> LocalModelListResponse:
 @router.get("/disk-usage", response_model=DiskUsageResponse)
 def disk_usage() -> DiskUsageResponse:
     """Get total disk usage by model type."""
-    from fichero.local_models import LocalModelManager
+    from fichero.llm.local_models import LocalModelManager
 
     data = LocalModelManager().total_disk_usage()
     return DiskUsageResponse(**data)
@@ -67,7 +67,7 @@ def download_model(
         model_type: "whisper" or "embeddings"
         model_id: Model identifier (e.g., "base" for Whisper, "intfloat/multilingual-e5-large" for embeddings)
     """
-    from fichero.local_models import (
+    from fichero.llm.local_models import (
         LocalModelManager,
         WHISPER_MODELS,
         EMBEDDINGS_MODELS,
@@ -104,7 +104,7 @@ def delete_model(model_type: str, model_id: str) -> DeleteModelResponse:
         model_type: "whisper" or "embeddings"
         model_id: Model identifier
     """
-    from fichero.local_models import LocalModelManager
+    from fichero.llm.local_models import LocalModelManager
 
     if model_type not in ("whisper", "embeddings"):
         raise HTTPException(status_code=400, detail=f"Unknown model type: {model_type}")

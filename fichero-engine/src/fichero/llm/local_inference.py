@@ -22,7 +22,7 @@ from urllib.parse import urljoin, urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StrictBool, field_validator, model_validator
 
-from fichero.providers import ProviderType, get_provider_info
+from fichero.llm.providers import ProviderType, get_provider_info
 
 
 class LocalInferenceValidationError(ValueError):
@@ -481,7 +481,7 @@ class ManagedLocalInferenceProcess:
         if candidate:
             return candidate
         try:
-            from fichero.mlx_runtime import get_mlx_runtime
+            from fichero.llm.mlx_runtime import get_mlx_runtime
 
             return str(get_mlx_runtime().require_python_path())
         except RuntimeError as exc:
@@ -490,7 +490,7 @@ class ManagedLocalInferenceProcess:
 
     def _model_spec(self) -> str:
         try:
-            from fichero.mlx_model_store import get_mlx_model_store
+            from fichero.llm.mlx_model_store import get_mlx_model_store
 
             store = get_mlx_model_store()
             spec = store.spec(self.profile.model_id)
@@ -525,7 +525,7 @@ class ManagedLocalInferenceProcess:
     def _environment(self) -> dict[str, str]:
         env = os.environ.copy()
         try:
-            from fichero.mlx_model_store import get_mlx_model_store
+            from fichero.llm.mlx_model_store import get_mlx_model_store
 
             env.update(get_mlx_model_store().env())
         except Exception:

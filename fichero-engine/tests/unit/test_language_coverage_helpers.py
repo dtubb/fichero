@@ -1,4 +1,4 @@
-"""Unit coverage for the pure helpers in ``fichero.language_coverage``.
+"""Unit coverage for the pure helpers in ``fichero.llm.language_coverage``.
 
 The existing ``test_language_coverage.py`` covers a few derived-JSON / heuristic /
 unsupported scenarios end-to-end; this file locks the individual pure functions:
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.language_coverage import (
+from fichero.llm.language_coverage import (
     LanguageFitModelSpec as Spec,
     LanguageSpec,
     _find_language_in_list,

@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from fichero.app_db import get_db_path
+from fichero.db.app import get_db_path
 from fichero.workflows.batch import (
     BatchEvent,
     BatchExecution,

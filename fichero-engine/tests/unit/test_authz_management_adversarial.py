@@ -4,8 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from fichero import accounts, authz
-from fichero.db_manager import db_manager
+from fichero.security import accounts
+from fichero.security import authz
+from fichero.db.manager import db_manager
 from fichero.models import AccountUser, Document, DocType
 
 

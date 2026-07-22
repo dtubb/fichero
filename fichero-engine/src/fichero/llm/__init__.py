@@ -55,13 +55,13 @@ from typing import AsyncIterator, Any, Literal as _Literal
 
 from pydantic import BaseModel
 
-from fichero.llm_models import (  # noqa: F401 (re-exported)
+from fichero.llm.model_types import (  # noqa: F401 (re-exported)
     estimate_cost,
     get_model_cost,
     get_model_info,
     list_models_for_provider,
 )
-from fichero.llm_embeddings import (  # noqa: F401 (re-exported)
+from fichero.llm.embeddings import (  # noqa: F401 (re-exported)
     _get_langchain_embeddings,
     aembed,
     embed,
@@ -153,7 +153,7 @@ def clear_api_key_cache(provider: str | None = None) -> None:
     # A rotated key must also drop cached embedding clients built with the old
     # key (#2545 N1). Cheap and rare; clear all (the client cache isn't keyed
     # by provider). Lazy import avoids a circular dependency at module load.
-    from fichero.llm_embeddings import clear_embeddings_client_cache
+    from fichero.llm.embeddings import clear_embeddings_client_cache
 
     clear_embeddings_client_cache()
 
@@ -701,7 +701,7 @@ def resolve_model_alias(
     if env_provider and env_model:
         return (env_provider, env_model)
 
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
     db = get_app_db()
     tier = _alias_tier(raw)
     resolved_provider = db.get_setting(f"default_{tier}_provider")
@@ -727,7 +727,7 @@ def _model_has_capability(
     provider-level capability metadata.
     """
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
 
         db = get_app_db()
         provider_key = (provider or "").strip().lower()
@@ -766,7 +766,7 @@ def validate_model_capability(
         return
 
     if capability == "vision":
-        from fichero.providers import get_provider_info
+        from fichero.llm.providers import get_provider_info
 
         provider_info = get_provider_info((provider or "").strip().lower())
         if provider_info and not provider_info.supports_vision:
@@ -801,8 +801,8 @@ def resolve_model_profile_for_capability(
     required_capability: str | None,
 ) -> LLMConfig:
     """Resolve a named profile and enforce role/capability/privacy policy."""
-    from fichero.app_db import get_app_db
-    from fichero.model_profiles import (
+    from fichero.db.app import get_app_db
+    from fichero.llm.model_profiles import (
         ModelProfileNotFoundError,
         enforce_model_profile_privacy,
         llm_config_from_profile,
@@ -971,7 +971,7 @@ def _paid_remote_fallbacks_enabled() -> bool:
         return raw.strip().lower() in {"1", "true", "yes", "on"}
 
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
 
         setting = get_app_db().get_setting("allow_paid_ai_fallbacks")
     except Exception:
@@ -989,7 +989,7 @@ def is_local_only() -> bool:
         return raw.strip().lower() in {"1", "true", "yes", "on"}
 
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
 
         setting = get_app_db().get_setting("local_only_ai")
     except Exception:
@@ -1001,7 +1001,7 @@ def is_local_only() -> bool:
 
 
 def _is_local_or_builtin_provider(provider: str) -> bool:
-    from fichero.providers import get_provider_info
+    from fichero.llm.providers import get_provider_info
 
     info = get_provider_info((provider or "").strip().lower())
     return bool(info and (info.is_local or info.is_builtin))
@@ -1049,7 +1049,7 @@ def get_api_key(provider: str) -> str | None:
 
 def _read_api_key_uncached(provider: str) -> str | None:
     """Resolve an API key from the Keychain then env, without caching."""
-    from fichero.providers import get_provider_info
+    from fichero.llm.providers import get_provider_info
 
     # Try keychain first
     try:
@@ -1420,7 +1420,7 @@ async def chat(
                 "Mock provider does not support streaming — it returns a "
                 "single deterministic response."
             )
-        from fichero.llm_mock import mock_chat_response
+        from fichero.llm.mock import mock_chat_response
 
         prompt_text = prompt if isinstance(prompt, str) else str(prompt)
         return mock_chat_response(prompt_text)
@@ -2821,7 +2821,7 @@ async def chat_structured(
     # Built-in deterministic debug provider (#1566): no LLM, no network,
     # no cost. chat_structured_with_fallback inherits this automatically.
     if config.provider == "mock":
-        from fichero.llm_mock import mock_structured_response
+        from fichero.llm.mock import mock_structured_response
 
         return mock_structured_response(schema, prompt)
 
@@ -3251,7 +3251,7 @@ def _find_fm_bridge_binary() -> Path | None:
 
 
 def _fm_bridge_unavailable_reason() -> str | None:
-    from fichero.local_inference import get_local_inference_capabilities
+    from fichero.llm.local_inference import get_local_inference_capabilities
 
     if not get_local_inference_capabilities().subprocess_capable:
         return "Apple Intelligence is not available on this device"
@@ -3644,7 +3644,7 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig) -> None:
     if config.provider.lower() != "omlx":
         return
     from fichero.api.routes.local_inference import _configured_omlx_profile, _manager_for_profile
-    from fichero.local_inference import (
+    from fichero.llm.local_inference import (
         LocalModelHardwareError as LocalInferenceHardwareError,
         LocalInferenceRuntimeMissingError,
         LocalModelNotInstalledError,

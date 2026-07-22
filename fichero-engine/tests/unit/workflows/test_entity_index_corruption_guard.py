@@ -5,7 +5,7 @@ from __future__ import annotations
 import duckdb
 
 from fichero.db import Database
-from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.workflows.tools._entity_writer import upsert_entity
 
 

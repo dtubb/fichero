@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimCurationState,
     ClaimType,
     ClaimRelationType,

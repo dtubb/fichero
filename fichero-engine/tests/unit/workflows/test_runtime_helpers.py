@@ -149,7 +149,7 @@ def test_apply_default_provider_model_leaves_node_workflows_unset(monkeypatch):
     )
 
     fake_db = SimpleNamespace(get_default_model=lambda: ("openrouter", "openai/gpt-4o-mini"))
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: fake_db)
 
     resolved = apply_default_provider_model(workflow)
     assert resolved.provider == ""
@@ -166,7 +166,7 @@ def test_apply_default_provider_model_backfills_non_node_workflows(monkeypatch):
     )
 
     fake_db = SimpleNamespace(get_default_model=lambda: ("openrouter", "openai/gpt-4o-mini"))
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: fake_db)
 
     resolved = apply_default_provider_model(workflow)
     assert resolved.provider == "openrouter"

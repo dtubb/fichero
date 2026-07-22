@@ -357,7 +357,7 @@ async def files_tool(
                     # next workflow run. (no-silent-fallback)
                     from pathlib import Path
 
-                    from fichero.ingest import _create_pdf_page_children
+                    from fichero.importers.ingest import _create_pdf_page_children
 
                     abs_path = _abs(file_doc)
                     try:

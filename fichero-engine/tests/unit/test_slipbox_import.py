@@ -7,7 +7,7 @@ import pytest
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
-from fichero.slipbox_import import (
+from fichero.importers.slipbox_import import (
     decode_tinderbox_text,
     import_slipbox_via_http,
     iter_slipbox_files,
@@ -89,7 +89,7 @@ def test_cli_import_slipbox_invokes_importer(monkeypatch, tmp_path):
     calls = []
 
     def fake_import_slipbox(_client, **kwargs):
-        from fichero.slipbox_import import SlipboxImportSummary
+        from fichero.importers.slipbox_import import SlipboxImportSummary
 
         calls.append(kwargs)
         return SlipboxImportSummary(

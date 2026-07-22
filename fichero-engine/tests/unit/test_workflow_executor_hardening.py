@@ -150,10 +150,10 @@ async def test_background_runner_marks_systemic_failures_failed(tmp_path, monkey
         lambda *_args, **_kwargs: (_SystemicFailingRunApp(), _FakeCheckpointer()),
     )
     monkeypatch.setattr(
-        "fichero.db_manager.db_manager.get_database",
+        "fichero.db.manager.db_manager.get_database",
         lambda _library_path: SimpleNamespace(path=tmp_path / "library.duckdb"),
     )
-    monkeypatch.setattr("fichero.db_manager.db_manager.close_current_thread", lambda: None)
+    monkeypatch.setattr("fichero.db.manager.db_manager.close_current_thread", lambda: None)
 
     await runner._run_workflow_in_background(
         thread_id,
@@ -199,10 +199,10 @@ async def test_background_runner_cancellation_marks_run_cancelled(tmp_path, monk
         lambda *_args, **_kwargs: (_SingleEventRunApp(), _FakeCheckpointer()),
     )
     monkeypatch.setattr(
-        "fichero.db_manager.db_manager.get_database",
+        "fichero.db.manager.db_manager.get_database",
         lambda _library_path: SimpleNamespace(path=tmp_path / "library.duckdb"),
     )
-    monkeypatch.setattr("fichero.db_manager.db_manager.close_current_thread", lambda: None)
+    monkeypatch.setattr("fichero.db.manager.db_manager.close_current_thread", lambda: None)
 
     await runner._run_workflow_in_background(
         thread_id,

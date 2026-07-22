@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fichero.db import Database
-    from fichero.knowledge_models import KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeEntity
 
 logger = logging.getLogger(__name__)
 

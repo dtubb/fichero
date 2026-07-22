@@ -32,7 +32,7 @@ from fastapi import HTTPException
 import fichero.api.routes.annotations  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import ActionAudit, Document, DocType
-from fichero.knowledge_models import Annotation, AnnotationKind, KnowledgeClaim
+from fichero.models.knowledge import Annotation, AnnotationKind, KnowledgeClaim
 
 
 LIB = "/lib/test.fichero"

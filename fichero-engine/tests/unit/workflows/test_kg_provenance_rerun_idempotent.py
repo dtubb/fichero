@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.knowledge_models import EntityType, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeEntity
 from fichero.models import DocType, Document, FileType
 
 

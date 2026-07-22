@@ -32,7 +32,7 @@ from typing import Any, Optional
 from mcp.server.fastmcp import FastMCP
 
 from fichero.cli import FicheroClient
-from fichero.knowledge_models import Note, NoteKind
+from fichero.models.knowledge import Note, NoteKind
 
 logger = logging.getLogger(__name__)
 

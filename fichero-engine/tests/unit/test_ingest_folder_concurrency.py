@@ -34,7 +34,7 @@ from unittest.mock import patch
 import pytest
 
 from fichero.db import Database
-from fichero.ingest import ingest_folder, IngestMode
+from fichero.importers.ingest import ingest_folder, IngestMode
 from fichero.models import Document, Status
 
 # A minimal-but-valid JPEG header so detect_file_type classifies these as

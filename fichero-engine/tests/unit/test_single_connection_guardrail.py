@@ -69,7 +69,7 @@ def _references_get_ident(tree: ast.AST) -> list[int]:
 def test_db_manager_pool_not_keyed_by_thread_ident() -> None:
     """db_manager.py must NOT reference ``get_ident`` anywhere — re-introducing a
     per-thread connection key is the exact #2508 hazard."""
-    db_manager_py = SRC_ROOT / "db_manager.py"
+    db_manager_py = SRC_ROOT / "db" / "manager.py"
     tree = ast.parse(db_manager_py.read_text(encoding="utf-8"))
     hits = _references_get_ident(tree)
     assert not hits, (
@@ -88,7 +88,7 @@ def test_get_database_is_one_shared_instance_across_threads(tmp_path, monkeypatc
     """K real threads opening the same package get the SAME Database object, and
     db_manager holds exactly ONE pool entry for that package."""
     monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
-    from fichero.db_manager import DatabaseManager
+    from fichero.db.manager import DatabaseManager
 
     manager = DatabaseManager()
     lib = tmp_path / "Guardrail.fichero"
@@ -125,7 +125,7 @@ def test_get_database_is_one_shared_instance_across_threads(tmp_path, monkeypatc
 def test_get_database_normalizes_unicode_equivalent_package_keys(tmp_path, monkeypatch) -> None:
     """NFD/NFC spellings of one package path must hit one shared cache entry."""
     monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
-    from fichero.db_manager import DatabaseManager
+    from fichero.db.manager import DatabaseManager
 
     manager = DatabaseManager()
     lib = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")

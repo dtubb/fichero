@@ -20,7 +20,7 @@ from fichero.api.change_stream import emit_change
 from fichero.api.routes.claim.claims import _descendant_doc_ids
 from fichero.db import Database
 from fichero.api.main import get_library_database, get_library_database_for_write
-from fichero.app_db import get_app_db, AppDatabase
+from fichero.db.app import get_app_db, AppDatabase
 from fichero.models import (
     Conversation,
     DocType,
@@ -33,14 +33,14 @@ from fichero.api.routes.document.documents import (
     WorkspacePatchRequest,
     patch_workspace_items_impl,
 )
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 from fichero.security.keychain import has_api_key
 # NOTE: fichero.llm is imported inside _build_model below, not here (#3950).
 # It pulls langchain_core -> transformers, which the engine must not pay for
 # just to register this router at startup.
-from fichero.node_aliases import DanglingAliasError, is_alias, resolve_alias
-from fichero.providers import get_provider_info
-from fichero.prompts import compose_system_prompt
+from fichero.models.node_aliases import DanglingAliasError, is_alias, resolve_alias
+from fichero.llm.providers import get_provider_info
+from fichero.llm.prompts import compose_system_prompt
 from fichero.retrieval.graph_rag import GraphAwareRetriever
 
 logger = logging.getLogger(__name__)
@@ -1073,7 +1073,7 @@ async def extract_text(
     This populates the page_content field for search and chat.
     Can be used to re-extract text for documents imported before text extraction was working.
     """
-    from fichero.ingest import _extract_text_content
+    from fichero.importers.ingest import _extract_text_content
 
     extracted = 0
     skipped = 0

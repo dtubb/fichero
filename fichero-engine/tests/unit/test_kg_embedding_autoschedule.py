@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
-from fichero.knowledge_models import ClaimType, EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import ClaimType, EntityType, KnowledgeClaim, KnowledgeEntity
 
 
 def test_save_autoschedules_entity_embedding(db):

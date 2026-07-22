@@ -1,6 +1,6 @@
 """Tests for zettelkasten notes routes (#917)."""
 
-from fichero.knowledge_models import Note, NoteKind, NoteLink
+from fichero.models.knowledge import Note, NoteKind, NoteLink
 from fichero.models import DocType, Document
 
 

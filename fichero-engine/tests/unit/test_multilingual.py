@@ -9,7 +9,7 @@ Tests cover:
 """
 
 
-from fichero.multilingual import (
+from fichero.llm.multilingual import (
     detect_language,
     normalize_text,
     get_transliteration_variants,

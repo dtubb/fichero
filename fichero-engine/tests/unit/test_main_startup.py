@@ -51,7 +51,7 @@ def test_tokenizers_parallelism_disabled() -> None:
 def test_prewarm_embeddings_honors_bge_m3_env(monkeypatch) -> None:
     """Prewarm must load the same explicit embedding space as the real embedder."""
     from fichero.api.main import _prewarm_embeddings
-    from fichero.local_models import MODELS_BASE
+    from fichero.llm.local_models import MODELS_BASE
 
     calls: list[dict] = []
     supported: list[types.SimpleNamespace] = []

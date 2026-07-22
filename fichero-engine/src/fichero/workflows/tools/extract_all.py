@@ -587,7 +587,7 @@ def _load_registry_types(db, library_path: str) -> list[str]:
     if not library_path:
         return []
     try:
-        from fichero.knowledge_models import LibraryEntityType
+        from fichero.models.knowledge import LibraryEntityType
         items = db.query(LibraryEntityType, library_id=library_path, enabled=True)
         return [
             item.entity_type_key
@@ -620,7 +620,7 @@ def _persist_additional_entities(
     (#1562 write-path).
     """
     container_id = target_doc_id
-    from fichero.knowledge_models import KnowledgeEntity, EntityType
+    from fichero.models.knowledge import KnowledgeEntity, EntityType
     from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
     written_entity_ids: list[str] = []
     written_claim_ids: list[str] = []
@@ -1555,8 +1555,8 @@ async def extract_all(
     if not text:
         return {"text": "", "value": {}, "error": "No text input"}
 
-    from fichero.app_db import get_app_db
-    from fichero.lang_detect import resolve_output_language
+    from fichero.db.app import get_app_db
+    from fichero.llm.lang_detect import resolve_output_language
     primary_language = get_app_db().get_setting("default_primary_language")
     output_language = resolve_output_language(
         inputs.get("output_language"),

@@ -21,9 +21,9 @@ from fichero.api.routes.auth_accounts import _require_owner_or_bootstrap
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.db_manager import db_manager
-from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
-from fichero.knowledge_models import (
+from fichero.db.manager import db_manager
+from fichero.db.embeddings import KG_ENTITY_EMBEDDINGS_TABLE
+from fichero.models.knowledge import (
     EntityMergeAudit,
     EntityMergeOperationType,
     EntityCurationState,

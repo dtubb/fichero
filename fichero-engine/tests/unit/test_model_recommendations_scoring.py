@@ -1,5 +1,5 @@
 """Unit coverage for the pure scoring functions in
-``fichero.model_recommendations``. The existing ``test_model_recommendations.py``
+``fichero.llm.model_recommendations``. The existing ``test_model_recommendations.py``
 covers a few end-to-end ranking scenarios; this file locks the individual score
 components (weights, thresholds, directions) and the rank assignment. No network
 — the recommender composes local catalog metadata only.
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.model_recommendations import (
+from fichero.llm.model_recommendations import (
     ModelRecommendationCandidate as Candidate,
     ModelRecommendationCost as Cost,
     ModelRecommendationRequest as Request,

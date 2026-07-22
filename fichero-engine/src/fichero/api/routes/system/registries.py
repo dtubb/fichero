@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClassificationDimension,
     ClassificationValue,
 )
@@ -230,7 +230,7 @@ async def delete_epistemic_status(
         )
 
     # Check for claims using this epistemic status
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
     claims_using = [
         c for c in db.query(KnowledgeClaim)
         if c.epistemic_status and c.epistemic_status.value == value.key
@@ -361,7 +361,7 @@ async def delete_claim_kind(
         )
 
     # Check for claims using this claim kind
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
     claims_using = [
         c for c in db.query(KnowledgeClaim)
         if c.claim_type and c.claim_type.value == value.key

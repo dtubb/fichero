@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     KnowledgeClaim,
     KnowledgeClaimLink,
     KnowledgeEntity,
@@ -14,7 +14,7 @@ from fichero.knowledge_models import (
     MutationOperationType,
     SourceType,
 )
-from fichero.migrations import (
+from fichero.db.migrations.runner import (
     MigrationResult,
     MigrationRunner,
     MigrationStatus,
@@ -113,7 +113,7 @@ class TestMigrationRunner:
 
     def test_repair_orphaned_claim_links_dry_run(self, migration_runner, mock_db):
         """Test dry-run counts orphaned links without deleting."""
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
 
         # Setup: Create links - one orphaned, one valid
         orphaned_link = KnowledgeClaimLink(
@@ -204,7 +204,7 @@ class TestMigrationRunner:
 
     def test_backfill_source_metadata_dry_run(self, migration_runner, mock_db):
         """Test backfill dry-run counts claims needing metadata."""
-        from fichero.knowledge_models import SourceMetadata
+        from fichero.models.knowledge import SourceMetadata
 
         claim_needing_backfill = KnowledgeClaim(
             id="claim1",

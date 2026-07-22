@@ -68,7 +68,7 @@ def _make_png(path: Path) -> None:
 @pytest.fixture
 def temp_library(tmp_path, monkeypatch):
     monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
-    from fichero.db_manager import db_manager
+    from fichero.db.manager import db_manager
 
     lib = tmp_path / "HTR.fichero"
     lib.mkdir(parents=True, exist_ok=True)
@@ -359,7 +359,7 @@ class TestUnwiredBackstop:
     ):
         """Review pass with documents=[] (the #2523 repro) on a split PDF must
         route per-page to the page children, never the parent."""
-        from fichero.ingest import _create_pdf_page_children
+        from fichero.importers.ingest import _create_pdf_page_children
         from fichero.models import Artifact, Document, DocType, FileType
         from fichero.workflows.tools.transcribe_review import transcribe_review
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 
 
-from fichero import accounts
+from fichero.security import accounts
 from fichero.api.auth import _resolve_single_user_owner
 
 
@@ -69,7 +69,7 @@ def test_inactive_owner_is_ignored_and_one_is_created(app_db):
 
 def test_degrades_to_none_and_logs_on_error(monkeypatch, caplog):
     # get_app_db is imported inside the function; make it raise.
-    import fichero.app_db as app_db_module
+    import fichero.db.app as app_db_module
 
     def boom():
         raise RuntimeError("db unavailable")

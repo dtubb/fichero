@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from fichero.api.routes import kg_claim_analysis as routes
-from fichero.knowledge_models import ClaimRelationType, KnowledgeClaim, KnowledgeClaimLink
+from fichero.models.knowledge import ClaimRelationType, KnowledgeClaim, KnowledgeClaimLink
 from fichero.models import Document
 
 

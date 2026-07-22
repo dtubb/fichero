@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from fichero import geo
+from fichero.media import geo
 from fichero.workflows.tools.geo_extract import _coerce_place_names
 from fichero.api.routes import documents as documents_routes
 from fichero.api.routes.documents import _points_from_metadata

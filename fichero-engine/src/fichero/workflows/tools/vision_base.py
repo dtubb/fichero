@@ -2269,7 +2269,7 @@ async def process_vision(
                         # to split on the spot, then re-propagate per-page.
                         try:
                             from fichero.db import db_manager as _dbm
-                            from fichero.ingest import _create_pdf_page_children
+                            from fichero.importers.ingest import _create_pdf_page_children
                             from fichero.models import Document as _Document
 
                             _db = _dbm.get_database(library_path)

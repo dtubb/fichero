@@ -1,7 +1,7 @@
 """Cross-cutting replay invariants for archival image operations (#3625)."""
 from PIL import Image
 
-from fichero.image_ops import apply_operation
+from fichero.media.image_ops import apply_operation
 
 
 OPS = [

@@ -23,7 +23,7 @@ from __future__ import annotations
 import time
 from datetime import datetime
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimCurationState,
     EntityType,
     KnowledgeClaim,

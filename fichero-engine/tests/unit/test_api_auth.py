@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from fichero import accounts
+from fichero.security import accounts
 from fichero.api.auth import (
     attach_auth_middleware,
     auth_kind_from_request,

@@ -33,7 +33,7 @@ import fichero.api.routes.claim_links  # noqa: F401
 import fichero.api.routes.claim_curation  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import ActionAudit, Document, DocType
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimCurationState,
     ClaimRelationType,
     KnowledgeClaim,

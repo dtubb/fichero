@@ -1,6 +1,6 @@
 """Tests for PyKEEN latent inference (Issue #429)."""
 
-from fichero.pykeen_inference import (
+from fichero.kg.pykeen_inference import (
     ModelType,
     PredictionType,
     TrainingConfig,
@@ -10,7 +10,7 @@ from fichero.pykeen_inference import (
     set_inference_enabled,
     StoredPrediction,
 )
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     KnowledgeEntity,
     KnowledgeClaim,
     KnowledgeClaimLink,
@@ -92,7 +92,7 @@ class TestPyKEENInference:
 
     def setup_method(self):
         """Setup fresh inference engine for each test."""
-        import fichero.pykeen_inference as pi
+        import fichero.kg.pykeen_inference as pi
         pi._inference = None
         self.inference = get_inference(enabled=True)
 
@@ -277,7 +277,7 @@ class TestGetInference:
 
     def test_singleton(self):
         """Test inference is a singleton."""
-        import fichero.pykeen_inference as pi
+        import fichero.kg.pykeen_inference as pi
         pi._inference = None
 
         inference1 = get_inference()
@@ -290,7 +290,7 @@ class TestSetInferenceEnabled:
 
     def test_set_enabled(self):
         """Test enabling/disabling inference."""
-        import fichero.pykeen_inference as pi
+        import fichero.kg.pykeen_inference as pi
         pi._inference = None
 
         set_inference_enabled(True)

@@ -139,7 +139,7 @@ def _resolve_node_llm_config(
         return workflow_llm_config
 
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
         app_db = get_app_db()
 
         from fichero.llm import extract_model_profile_reference

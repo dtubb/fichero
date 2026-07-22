@@ -6,7 +6,7 @@ from fichero.kg.probabilistic_scorer import (
     apply_thresholds,
     compute_entity_pair_score,
 )
-from fichero.knowledge_models import EntityType, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeEntity
 
 
 class TestCanonicalNameSimilarity:

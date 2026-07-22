@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fichero.models import DocType, Document
-from fichero.node_aliases import ALIAS_NODE_KIND
+from fichero.models.node_aliases import ALIAS_NODE_KIND
 
 
 def test_create_bookmark_creates_alias_document(client, db):

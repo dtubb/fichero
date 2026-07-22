@@ -68,8 +68,8 @@ def walk_client(tmp_path):
     package_path = tmp_path / "walk.fichero"
     seed(package_path)  # builds the full deterministic library + closes the db
 
-    from fichero.app_db import AppDatabase
-    import fichero.app_db as _app_db_module
+    from fichero.db.app import AppDatabase
+    import fichero.db.app as _app_db_module
 
     app_db = AppDatabase(path=tmp_path / "walk_app.duckdb")
     saved_singleton = _app_db_module._app_db

@@ -49,7 +49,7 @@ def rebuild_kg(
     index on entity #42 doesn't stop the loop from processing #43,
     and a failed triple write doesn't take down the caller.
     """
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
     stats = {
         "entities": 0,

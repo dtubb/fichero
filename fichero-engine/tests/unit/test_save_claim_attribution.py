@@ -14,7 +14,7 @@ import tempfile
 from pathlib import Path
 
 from fichero.db import Database
-from fichero.knowledge_models import KnowledgeClaim, QuotationKind
+from fichero.models.knowledge import KnowledgeClaim, QuotationKind
 from fichero.models import Document, DocType
 from fichero.workflows.tools._entity_writer import (
     _detect_audience,

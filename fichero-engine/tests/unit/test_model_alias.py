@@ -24,7 +24,7 @@ class TestResolveModelAlias:
         assert resolve_model_alias("openai", "$small") == ("openai", "$small")
 
     def test_resolves_small_alias(self):
-        with patch("fichero.app_db.get_app_db") as mock_db:
+        with patch("fichero.db.app.get_app_db") as mock_db:
             mock_db.return_value.get_setting.side_effect = lambda k: {
                 "default_small_provider": "apple",
                 "default_small_model": "apple-intelligence",
@@ -35,7 +35,7 @@ class TestResolveModelAlias:
             )
 
     def test_resolves_large_alias(self):
-        with patch("fichero.app_db.get_app_db") as mock_db:
+        with patch("fichero.db.app.get_app_db") as mock_db:
             mock_db.return_value.get_setting.side_effect = lambda k: {
                 "default_large_provider": "anthropic",
                 "default_large_model": "claude-sonnet-4-6",
@@ -46,7 +46,7 @@ class TestResolveModelAlias:
             )
 
     def test_resolves_medium_alias(self):
-        with patch("fichero.app_db.get_app_db") as mock_db:
+        with patch("fichero.db.app.get_app_db") as mock_db:
             mock_db.return_value.get_setting.side_effect = lambda k: {
                 "default_medium_provider": "openrouter",
                 "default_medium_model": "openai/gpt-4o-mini",
@@ -57,26 +57,26 @@ class TestResolveModelAlias:
             )
 
     def test_unset_small_raises_actionable_error(self):
-        with patch("fichero.app_db.get_app_db") as mock_db:
+        with patch("fichero.db.app.get_app_db") as mock_db:
             mock_db.return_value.get_setting.return_value = None
             with pytest.raises(ValueError, match="Default small model"):
                 resolve_model_alias("$small", "")
 
     def test_unset_large_raises_actionable_error(self):
-        with patch("fichero.app_db.get_app_db") as mock_db:
+        with patch("fichero.db.app.get_app_db") as mock_db:
             mock_db.return_value.get_setting.return_value = None
             with pytest.raises(ValueError, match="Default large model"):
                 resolve_model_alias("$large", "")
 
     def test_unset_medium_raises_actionable_error(self):
-        with patch("fichero.app_db.get_app_db") as mock_db:
+        with patch("fichero.db.app.get_app_db") as mock_db:
             mock_db.return_value.get_setting.return_value = None
             with pytest.raises(ValueError, match="Default medium model"):
                 resolve_model_alias("$medium", "")
 
     def test_partial_setting_raises(self):
         # Provider set but model missing — still an error.
-        with patch("fichero.app_db.get_app_db") as mock_db:
+        with patch("fichero.db.app.get_app_db") as mock_db:
             mock_db.return_value.get_setting.side_effect = lambda k: (
                 "anthropic" if k == "default_large_provider" else None
             )

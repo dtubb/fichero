@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,

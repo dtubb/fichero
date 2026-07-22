@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import unicodedata
 
-from fichero.knowledge_models import GeoPoint
+from fichero.models.knowledge import GeoPoint
 
 logger = logging.getLogger(__name__)
 

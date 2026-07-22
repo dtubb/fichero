@@ -36,7 +36,7 @@ from fichero.kg.paragraph import (
 from fichero.kg.probabilistic_scorer import ThresholdDecision
 from fichero.kg.pykeen_predictor import LinkPrediction, load_model, predict_for_subject
 from fichero.kg.triangulation import TripleKey, TripleSupport
-from fichero.knowledge_models import ClaimRelationType
+from fichero.models.knowledge import ClaimRelationType
 
 
 class _FakeDatabase:

@@ -7,7 +7,7 @@ from urllib.parse import quote
 import pytest
 from fastapi.testclient import TestClient
 
-from fichero import accounts
+from fichero.security import accounts
 from fichero.api.auth import initialize_token
 from fichero.api.routes import pairing
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import fitz
 
 from fichero.db import db_manager
-from fichero.knowledge_models import BookStructureNode
+from fichero.models.knowledge import BookStructureNode
 from fichero.llm import LLMConfig
 from fichero.models import DocType, Document
 from fichero.workflows.tools.book_structure import (

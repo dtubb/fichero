@@ -178,7 +178,7 @@ def apply_default_provider_model(workflow_def: WorkflowDef) -> WorkflowDef:
         return workflow_def
 
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
 
         default = get_app_db().get_default_model()
         if default:

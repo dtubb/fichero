@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.provider_validation import (
+from fichero.llm.provider_validation import (
     ProviderCallError,
     ProviderValidationError,
     _parse_provider_error,

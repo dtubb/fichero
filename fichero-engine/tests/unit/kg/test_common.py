@@ -6,7 +6,7 @@ from fichero.kg._common import (
     is_bare_is_a_copula,
     is_trivial_claim,
 )
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 
 
 class _DemoEnum(Enum):

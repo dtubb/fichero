@@ -13,7 +13,7 @@ from rdflib.namespace import FOAF, SKOS
 
 from fichero.knowledge import triples as T
 from fichero.knowledge.triples import FICHERO, SCHEMA
-from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 
 
 def _entity(**kw) -> KnowledgeEntity:

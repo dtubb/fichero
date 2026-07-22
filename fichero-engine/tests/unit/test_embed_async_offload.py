@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fichero.db_embeddings import DatabaseEmbeddingMixin
+from fichero.db.embeddings import DatabaseEmbeddingMixin
 
 
 class _FakeMixin(DatabaseEmbeddingMixin):

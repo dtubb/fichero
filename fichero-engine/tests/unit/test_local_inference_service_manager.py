@@ -14,8 +14,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-import fichero.local_inference as local_inference
-from fichero.local_inference import (
+import fichero.llm.local_inference as local_inference
+from fichero.llm.local_inference import (
     LocalInferenceRuntimeMissingError,
     ManagedLocalInferenceProcess,
     LocalInferenceServiceManager,

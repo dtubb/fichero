@@ -36,7 +36,7 @@ from fastapi.responses import JSONResponse
 from fichero.security import accounts
 from fichero.api.library_header import require_library_path
 from fichero.actions import ActionContext
-from fichero.app_db import get_app_db
+from fichero.db.app import get_app_db
 from fichero.security.multiuser import multiuser_enabled
 
 logger = logging.getLogger(__name__)
@@ -562,7 +562,7 @@ CANONICAL_OWNER_USERNAME = "owner"
 def ensure_owner_account(app_db=None):
     """Return the canonical owner, creating it only when none exists."""
     if app_db is None:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
 
         app_db = get_app_db()
 

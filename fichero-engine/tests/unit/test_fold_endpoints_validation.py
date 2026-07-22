@@ -13,7 +13,7 @@ test strict xfail so it flips when fixed.
 
 from __future__ import annotations
 
-from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.models import DocType, Document, SavedSearch
 
 

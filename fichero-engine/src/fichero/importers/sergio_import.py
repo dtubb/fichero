@@ -13,7 +13,7 @@ from fichero.importers.http_client import (
     ensure_remote_document,
     reset_local_library_if_loopback,
 )
-from fichero.ingest import detect_file_type
+from fichero.importers.ingest import detect_file_type
 from fichero.loaders.xlsx_reader import read_xlsx_records
 
 DEFAULT_LIBRARY = Path(

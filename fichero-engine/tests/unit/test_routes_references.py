@@ -1,4 +1,4 @@
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Reference,
     ReferenceCitationLocation,
     ReferenceKind,

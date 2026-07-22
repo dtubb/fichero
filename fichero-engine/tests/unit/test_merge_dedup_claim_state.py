@@ -10,7 +10,7 @@ strength.
 
 from __future__ import annotations
 
-from fichero.knowledge_models import ClaimCurationState, KnowledgeClaim
+from fichero.models.knowledge import ClaimCurationState, KnowledgeClaim
 from fichero.workflows.tools.merge_dedup_only import (
     ClaimSuppressionRuleAction,
     _claim_target_state,

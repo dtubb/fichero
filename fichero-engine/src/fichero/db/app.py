@@ -34,7 +34,7 @@ from fichero.models import (
     Model,
     Provider,
 )
-from fichero.model_profiles import (
+from fichero.llm.model_profiles import (
     ModelProfile,
     ModelProfileParams,
     ModelProfilePrivacy,
@@ -339,7 +339,7 @@ class AppDatabase:
 
         # App-wide identity migration.  This runs only when both historical
         # owner rows exist, so a real pre-existing owner is never replaced.
-        from fichero.db_migrations import migrate_paired_device_owner
+        from fichero.db.migrations.schema import migrate_paired_device_owner
 
         migrate_paired_device_owner(self.conn)
 

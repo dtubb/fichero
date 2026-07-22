@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityResolutionRule,
     EntityResolutionRuleType,
     KnowledgeEntity,

@@ -79,7 +79,7 @@ def test_shipped_deps_have_no_heavy_ml(list_name):
 
 def test_apple_and_mlx_providers_are_registered_local():
     """Both on-device backends are selectable and marked local/private."""
-    from fichero.providers import PROVIDERS, ProviderType
+    from fichero.llm.providers import PROVIDERS, ProviderType
 
     apple = PROVIDERS[ProviderType.apple]
     assert apple.is_local, "Apple FM must be marked local (zero cloud calls)"
@@ -100,7 +100,7 @@ def test_mlx_provider_uses_local_openai_compatible_base_url():
 
 
 def test_mlx_runtime_targets_separate_prefix(tmp_path, monkeypatch):
-    from fichero.mlx_runtime import mlx_runtime_dir
+    from fichero.llm.mlx_runtime import mlx_runtime_dir
 
     runtime_dir = tmp_path / "Fichero" / "mlx-runtime"
     monkeypatch.setenv("FICHERO_MLX_RUNTIME_DIR", str(runtime_dir))

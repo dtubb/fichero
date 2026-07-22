@@ -22,7 +22,7 @@ from pydantic import BaseModel
 import fichero.api.routes.kg_entity_curation  # noqa: F401
 from fichero.actions.registry import ActionContext, ChangeSpec, registry
 from fichero.models import ActionAudit
-from fichero.knowledge_models import KnowledgeEntity
+from fichero.models.knowledge import KnowledgeEntity
 
 
 # ---------------------------------------------------------------------------

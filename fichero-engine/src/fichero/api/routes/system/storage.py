@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from fichero.db import Database
-from fichero.app_db import get_app_db
+from fichero.db.app import get_app_db
 from fichero.api.change_stream import emit_change
 from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write

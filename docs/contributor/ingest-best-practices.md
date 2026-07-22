@@ -442,7 +442,7 @@ cProfile.run("ingest_folder(folder)")
 **Unit Testing:**
 ```python
 # Test individual components
-from fichero.ingest import detect_file_type
+from fichero.importers.ingest import detect_file_type
 assert detect_file_type(Path("test.jpg")) == FileType.image
 ```
 

@@ -13,7 +13,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from fichero import accounts, authz
+from fichero.security import accounts
+from fichero.security import authz
 from fichero.api.routes.authz import get_library_authz_snapshot
 
 

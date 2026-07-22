@@ -6,7 +6,7 @@ import types
 import pytest
 import typer
 
-from fichero.bind_host import (
+from fichero.security.bind_host import (
     DEFAULT_BIND_HOST,
     LAN_BIND_HOST_ENV,
     NON_LOOPBACK_BIND_ACK_ENV,
@@ -16,7 +16,7 @@ from fichero.bind_host import (
     resolve_lan_bind_host,
 )
 from fichero.cli import engine_manager
-from fichero.remote_access_tls import prepare_remote_access_tls
+from fichero.security.remote_access_tls import prepare_remote_access_tls
 
 
 def _fake_popen_factory(captured: dict[str, list[str]]):

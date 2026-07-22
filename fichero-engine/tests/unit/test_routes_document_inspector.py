@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from fichero.api.routes import document_inspector as inspector
-from fichero.knowledge_models import KnowledgeEntity
+from fichero.models.knowledge import KnowledgeEntity
 from fichero.models import Artifact
 
 

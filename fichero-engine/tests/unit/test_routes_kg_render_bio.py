@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, EntityType
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity, EntityType
 from fichero.models import ActionAudit, Document, DocType
 
 

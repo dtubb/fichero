@@ -2,7 +2,7 @@ from PIL import Image
 from fastapi import HTTPException
 import pytest
 
-from fichero.image_ops import apply_operation
+from fichero.media.image_ops import apply_operation
 
 
 def test_rotate_and_straighten_use_bicubic_white_fill(monkeypatch):

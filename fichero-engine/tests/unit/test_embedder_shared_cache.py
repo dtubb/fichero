@@ -14,7 +14,7 @@ import types
 
 import pytest
 
-from fichero import db_embeddings
+from fichero.db import embeddings as db_embeddings
 
 
 @pytest.fixture(autouse=True)

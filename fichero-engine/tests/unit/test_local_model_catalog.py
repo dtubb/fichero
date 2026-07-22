@@ -4,8 +4,8 @@ from __future__ import annotations
 
 
 def test_embedding_catalog_preserves_current_default() -> None:
-    from fichero.db_embeddings import DEFAULT_MODEL
-    from fichero.local_models import EMBEDDINGS_MODELS
+    from fichero.db.embeddings import DEFAULT_MODEL
+    from fichero.llm.local_models import EMBEDDINGS_MODELS
 
     assert DEFAULT_MODEL == "intfloat/multilingual-e5-large"
 
@@ -17,7 +17,7 @@ def test_embedding_catalog_preserves_current_default() -> None:
 
 
 def test_lighter_english_embedding_option_lists_ram_and_quality_note() -> None:
-    from fichero.local_models import EMBEDDINGS_MODELS
+    from fichero.llm.local_models import EMBEDDINGS_MODELS
 
     bge_small = EMBEDDINGS_MODELS["BAAI/bge-small-en-v1.5"]
 
@@ -29,7 +29,7 @@ def test_lighter_english_embedding_option_lists_ram_and_quality_note() -> None:
 
 
 def test_download_only_embedding_models_are_not_silent_search_spaces() -> None:
-    from fichero.local_models import EMBEDDINGS_MODELS
+    from fichero.llm.local_models import EMBEDDINGS_MODELS
 
     bge_small = EMBEDDINGS_MODELS["BAAI/bge-small-en-v1.5"]
 
@@ -41,8 +41,8 @@ def test_download_only_embedding_models_are_not_silent_search_spaces() -> None:
 
 
 def test_catalog_marks_supported_opt_in_embedding_spaces_only() -> None:
-    from fichero.db_embeddings import BGE_M3_MODEL
-    from fichero.local_models import EMBEDDINGS_MODELS
+    from fichero.db.embeddings import BGE_M3_MODEL
+    from fichero.llm.local_models import EMBEDDINGS_MODELS
 
     bge_m3 = EMBEDDINGS_MODELS[BGE_M3_MODEL]
     bge_small = EMBEDDINGS_MODELS["BAAI/bge-small-en-v1.5"]
@@ -56,7 +56,7 @@ def test_catalog_marks_supported_opt_in_embedding_spaces_only() -> None:
 
 
 def test_manager_lists_embedding_metadata_without_download(tmp_path, monkeypatch) -> None:
-    from fichero import local_models
+    from fichero.llm import local_models
 
     monkeypatch.setattr(local_models, "MODELS_BASE", tmp_path / "models")
 

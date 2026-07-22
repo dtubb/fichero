@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 from fastapi import Request
 
-from fichero.db_manager import DatabaseManager
+from fichero.db.manager import DatabaseManager
 from fichero.models import Artifact, Document
 
 
@@ -387,7 +387,7 @@ class TestKnowledgeGraphRoutes:
     """
 
     def test_entity_documents_and_co_occurrence(self, search_library) -> None:
-        from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeEntity, KnowledgeClaim
         from fichero.api.routes.entities import (
             get_entity_documents,
             get_entity_co_occurrence,
@@ -445,7 +445,7 @@ class TestKnowledgeGraphRoutes:
         """`/api/entities/{id}/drill-down` returns the three rails in
         one shot — frontend can render an entity inspector from one
         fetch."""
-        from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeEntity, KnowledgeClaim
         from fichero.api.routes.entities import entity_drill_down
         import asyncio
 
@@ -470,7 +470,7 @@ class TestKnowledgeGraphRoutes:
 
     def test_top_entities_ranks_by_claim_count(self, search_library) -> None:
         """`/api/entities/top` returns entities ranked by total claim count."""
-        from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeEntity, KnowledgeClaim
         from fichero.api.routes.entities import top_entities
         import asyncio
 
@@ -508,7 +508,7 @@ class TestKnowledgeGraphRoutes:
         Build a third doc that shares the Quibdó entity with fix-leidy-001
         and assert it surfaces as related. Self is excluded.
         """
-        from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeEntity, KnowledgeClaim
         from fichero.models import Document
         from fichero.api.routes.documents import related_documents
         import asyncio

@@ -10,7 +10,7 @@ from collections import defaultdict
 from typing import Any
 
 from fichero.llm import LLMConfig
-from fichero.multilingual import detect_language, SUPPORTED_LANGUAGES
+from fichero.llm.multilingual import detect_language, SUPPORTED_LANGUAGES
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.llm_base import (
     BASE_INPUT_PORTS,

@@ -316,7 +316,7 @@ class TestThumbnailGeneration:
 
     def test_ensure_thumbnail_no_pillow(self):
         """Should return None if Pillow not available."""
-        from fichero import storage
+        from fichero.db import storage
 
         original_image = storage.Image
         original_load = storage._load_pil
@@ -354,7 +354,7 @@ class TestThumbnailGeneration:
     )
     def test_ensure_thumbnail_creates_file(self, tmp_path):
         """Should create thumbnail file."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import (
             THUMBNAIL_MAX_DIMENSION,
             ensure_thumbnail,
@@ -400,7 +400,7 @@ class TestThumbnailGeneration:
     )
     def test_ensure_thumbnail_caps_long_edge_at_max_dimension(self, tmp_path):
         """Large source images should be capped at the configured thumbnail size."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import (
             THUMBNAIL_MAX_DIMENSION,
             ensure_thumbnail,
@@ -442,7 +442,7 @@ class TestThumbnailGeneration:
     )
     def test_ensure_thumbnail_writes_versioned_cache_and_alias(self, tmp_path):
         """Thumbnail cache files should be keyed by doc id, size, and source mtime."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import ensure_thumbnail, get_thumbnail, StorageSettings
 
         try:
@@ -500,7 +500,7 @@ class TestStorageRouteHeaders:
     )
     def test_ensure_thumbnail_skips_existing(self, tmp_path):
         """Should skip if thumbnail already exists and is newer."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import ensure_thumbnail, StorageSettings
 
         try:
@@ -554,7 +554,7 @@ class TestCleanup:
 
     def test_cleanup_orphans_removes_invalid(self, tmp_path):
         """Should remove thumbnails for missing documents."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import cleanup_orphans, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
@@ -584,7 +584,7 @@ class TestCleanup:
 
     def test_cleanup_orphans_keeps_versioned_cache_for_live_doc(self, tmp_path):
         """Versioned cache files should map back to the owning document id."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import cleanup_orphans, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
@@ -607,7 +607,7 @@ class TestCleanup:
 
     def test_cleanup_orphans_empty_dir(self, tmp_path):
         """Should handle non-existent thumb directory."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import cleanup_orphans, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
@@ -627,7 +627,7 @@ class TestStats:
 
     def test_stats_empty(self, tmp_path):
         """Should return zeros for empty storage."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import stats, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
@@ -644,7 +644,7 @@ class TestStats:
 
     def test_stats_with_files(self, tmp_path):
         """Should count files and calculate size."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import stats, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
@@ -675,7 +675,7 @@ class TestBatchGeneration:
 
     def test_ensure_thumbnails_returns_futures(self, tmp_path):
         """Should return list of futures."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import ensure_thumbnails, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)
@@ -699,7 +699,7 @@ class TestBatchGeneration:
 
     def test_callback_called_on_completion(self, tmp_path):
         """Callback should be called when thumbnail generation completes."""
-        from fichero import storage
+        from fichero.db import storage
         from fichero.db.storage import ensure_thumbnails, StorageSettings
 
         test_settings = StorageSettings(base_path=tmp_path)

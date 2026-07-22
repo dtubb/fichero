@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, patch
 
 import fitz
 
-from fichero import storage as storage_module
+from fichero.db import storage as storage_module
 from fichero.api.routes import storage as storage_routes
 from fichero.db import Database
 from fichero.models import Document, DocType, FileType, Status

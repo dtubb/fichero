@@ -5,7 +5,7 @@ from __future__ import annotations
 import fichero.api.routes.research_notes  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import ActionAudit
-from fichero.research_models import ResearchChecklist, ResearchNote, SearchSource
+from fichero.models.research import ResearchChecklist, ResearchNote, SearchSource
 
 
 LIB = "/lib/test.fichero"

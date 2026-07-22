@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     KnowledgeClaim,
     KnowledgeClaimLink,
     KnowledgeEntity,

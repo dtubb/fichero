@@ -4,7 +4,7 @@ import pytest
 
 from fichero.api.routes import library_items
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Annotation,
     AnnotationKind,
     EntityType,

@@ -113,7 +113,7 @@ async def annotations_source_tool(
 ) -> dict[str, Any]:
     """Emit one (file, document, count) entry per matching annotation."""
     from fichero.db import db_manager
-    from fichero.knowledge_models import Annotation
+    from fichero.models.knowledge import Annotation
     from fichero.models import Document
     from fichero.workflows.tools._annotation_input import (
         crop_image,

@@ -5,9 +5,9 @@ import importlib
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from fichero import accounts
+from fichero.security import accounts
 from fichero.api.auth import attach_auth_middleware, initialize_token
-from fichero.multiuser import multiuser_enabled
+from fichero.security.multiuser import multiuser_enabled
 
 
 def _bearer(token: str) -> dict[str, str]:

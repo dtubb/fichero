@@ -19,7 +19,7 @@ from fichero.security import accounts
 from fichero.actions import ActionContext, ChangeSpec, action
 from fichero.api.auth import _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
 from fichero.api.routes.auth.accounts import _current_session_user
-from fichero.app_db import AppDatabase, get_app_db
+from fichero.db.app import AppDatabase, get_app_db
 from fichero.models import AccountUser, ActionAudit, Device
 from fichero.security.remote_access_tls import validate_spki_pin, validate_tailnet_url
 

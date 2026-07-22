@@ -16,8 +16,8 @@ from pydantic import BaseModel, Field
 from fichero.db import db_manager
 from fichero.api.library_header import require_library_path
 from fichero.api.main import assert_library_read_authorized
-from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
-from fichero.multilingual import (
+from fichero.models.knowledge import KnowledgeEntity, KnowledgeClaim
+from fichero.llm.multilingual import (
     detect_language,
     find_cross_language_matches,
     get_transliteration_variants,

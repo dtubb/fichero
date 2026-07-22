@@ -18,8 +18,8 @@ from pydantic import BaseModel
 from fichero.api.main import get_library_database
 from fichero.api.routes.document.documents import _document_or_404, _normalize_document_id
 from fichero.db import Database
-from fichero.hermeneutics_models import Interpretation
-from fichero.knowledge_models import (
+from fichero.models.hermeneutics import Interpretation
+from fichero.models.knowledge import (
     Annotation,
     BookStructureNode,
     DocumentCitation,

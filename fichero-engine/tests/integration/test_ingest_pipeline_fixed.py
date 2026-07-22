@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fichero.db import Database
-from fichero.ingest import IngestMode, ingest_folder
+from fichero.importers.ingest import IngestMode, ingest_folder
 from fichero.models import DocType, Document, FileType, Status
 
 
@@ -161,7 +161,7 @@ class TestIngestPipelineIntegration:
             (test_folder / "file2.png").write_bytes(b"fake data 2")
 
             with patch("fichero.bookmarks.create_bookmark", return_value=b"bookmark_data"):
-                with patch("fichero.ingest._try_apfs_clone", return_value=True) as mock_clone:
+                with patch("fichero.importers.ingest._try_apfs_clone", return_value=True) as mock_clone:
                     docs = ingest_folder(
                         test_folder,
                         mode=IngestMode.COPY,

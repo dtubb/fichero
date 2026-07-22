@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fichero.citations import render_apa, render_bibtex, render_chicago, render_mla
-from fichero.knowledge_models import SourceMetadata
+from fichero.models.knowledge import SourceMetadata
 
 
 # A book — Daniel's own book, used throughout the test corpus.

@@ -146,8 +146,8 @@ class GraphMetricsResponse(BaseModel):
 async def metrics(
     db: Database = Depends(get_library_database),
 ) -> GraphMetricsResponse:
-    from fichero.hermeneutics_models import Interpretation
-    from fichero.knowledge_models import (
+    from fichero.models.hermeneutics import Interpretation
+    from fichero.models.knowledge import (
         Annotation,
         DocumentCitation,
         KnowledgeClaim,
@@ -220,7 +220,7 @@ async def traverse(
     include_claims: bool = Query(default=True),
     db: Database = Depends(get_library_database),
 ) -> TraverseResponse:
-    from fichero.knowledge_models import (
+    from fichero.models.knowledge import (
         KnowledgeClaim,
         KnowledgeClaimLink,
         KnowledgeEntity,
@@ -426,7 +426,7 @@ async def neighborhood(
     ),
     db: Database = Depends(get_library_database),
 ) -> NeighborhoodResponse:
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
     focus = db.get(KnowledgeEntity, entity_id)
     if focus is None:
@@ -650,7 +650,7 @@ async def pagerank(
 ) -> KGGraphListResponse:
     import networkx as nx
     from fichero.kg.graph import build_full_graph
-    from fichero.knowledge_models import KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeEntity
 
     g = build_full_graph(db)
     if g.number_of_nodes() == 0:
@@ -707,7 +707,7 @@ async def communities(
 ) -> KGGraphListResponse:
     import networkx as nx
     from fichero.kg.graph import build_full_cooccurrence
-    from fichero.knowledge_models import KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeEntity
 
     # Use the undirected co-occurrence graph — community detection
     # algorithms expect undirected input. The directed claim graph would
@@ -774,7 +774,7 @@ async def similar(
 ) -> KGGraphListResponse:
     import networkx as nx
     from fichero.kg.graph import build_full_cooccurrence
-    from fichero.knowledge_models import KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeEntity
 
     focus = db.get(KnowledgeEntity, entity_id)
     if focus is None:
@@ -874,7 +874,7 @@ async def triangles(
 ) -> TriangleRow:
     import networkx as nx
     from fichero.kg.graph import build_full_cooccurrence
-    from fichero.knowledge_models import KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeEntity
 
     focus = db.get(KnowledgeEntity, entity_id)
     if focus is None:
@@ -917,7 +917,7 @@ async def clustering(
 ) -> KGGraphListResponse:
     import networkx as nx
     from fichero.kg.graph import build_full_cooccurrence
-    from fichero.knowledge_models import KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeEntity
 
     g = build_full_cooccurrence(db)
     if g.number_of_nodes() == 0:

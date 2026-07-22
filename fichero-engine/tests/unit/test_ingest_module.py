@@ -25,7 +25,7 @@ class TestIngestMode:
 
     def test_enum_values(self):
         """Should have LINK and COPY modes."""
-        from fichero.ingest import IngestMode
+        from fichero.importers.ingest import IngestMode
 
         assert IngestMode.LINK.value == "link"
         assert IngestMode.COPY.value == "copy"
@@ -36,7 +36,7 @@ class TestDetectFileType:
 
     def test_image_types(self):
         """Should detect image file types."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.jpg")) == FileType.image
@@ -57,7 +57,7 @@ class TestDetectFileType:
         backend side of the contract — `detect_file_type` normalises
         extensions via `.suffix.lower()` and must stay case-insensitive.
         """
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.JPG")) == FileType.image
@@ -71,14 +71,14 @@ class TestDetectFileType:
 
     def test_pdf_type(self):
         """Should detect PDF file type."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.pdf")) == FileType.pdf
 
     def test_audio_types(self):
         """Should detect audio file types."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.mp3")) == FileType.audio
@@ -88,7 +88,7 @@ class TestDetectFileType:
 
     def test_video_types(self):
         """Should detect video file types."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.mp4")) == FileType.video
@@ -97,7 +97,7 @@ class TestDetectFileType:
 
     def test_text_types(self):
         """Should detect text file types."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.txt")) == FileType.text
@@ -105,7 +105,7 @@ class TestDetectFileType:
 
     def test_word_types(self):
         """Should detect Word file types."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.doc")) == FileType.word
@@ -113,7 +113,7 @@ class TestDetectFileType:
 
     def test_unknown_type(self):
         """Should return 'other' for unknown types."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.xyz")) == FileType.other
@@ -121,7 +121,7 @@ class TestDetectFileType:
 
     def test_case_insensitive(self):
         """Should handle uppercase extensions."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.JPG")) == FileType.image
@@ -129,7 +129,7 @@ class TestDetectFileType:
 
     def test_all_image_formats(self):
         """Should detect all supported image formats."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         # Standard formats
@@ -160,7 +160,7 @@ class TestDetectFileType:
 
     def test_all_audio_formats(self):
         """Should detect all supported audio formats."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.mp3")) == FileType.audio
@@ -173,7 +173,7 @@ class TestDetectFileType:
 
     def test_all_video_formats(self):
         """Should detect all supported video formats."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.mp4")) == FileType.video
@@ -184,7 +184,7 @@ class TestDetectFileType:
 
     def test_all_text_formats(self):
         """Should detect all supported text formats."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.txt")) == FileType.text
@@ -194,7 +194,7 @@ class TestDetectFileType:
 
     def test_all_word_formats(self):
         """Should detect all supported word document formats."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.doc")) == FileType.word
@@ -203,7 +203,7 @@ class TestDetectFileType:
 
     def test_all_ebook_formats(self):
         """Should detect all supported ebook formats."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
 
         assert detect_file_type(Path("test.epub")) == FileType.epub
@@ -215,7 +215,7 @@ class TestDiscoverFiles:
 
     def test_discovers_files(self, tmp_path):
         """Should discover files in folder."""
-        from fichero.ingest import discover_files
+        from fichero.importers.ingest import discover_files
 
         # Create test files
         (tmp_path / "file1.jpg").touch()
@@ -228,7 +228,7 @@ class TestDiscoverFiles:
 
     def test_excludes_hidden_files(self, tmp_path):
         """Should exclude hidden files (starting with .)."""
-        from fichero.ingest import discover_files
+        from fichero.importers.ingest import discover_files
 
         (tmp_path / "visible.jpg").touch()
         (tmp_path / ".hidden.jpg").touch()
@@ -240,7 +240,7 @@ class TestDiscoverFiles:
 
     def test_recursive_search(self, tmp_path):
         """Should search subdirectories when recursive=True."""
-        from fichero.ingest import discover_files
+        from fichero.importers.ingest import discover_files
 
         (tmp_path / "file1.jpg").touch()
         subdir = tmp_path / "subdir"
@@ -255,7 +255,7 @@ class TestDiscoverFiles:
 
     def test_filter_by_extension(self, tmp_path):
         """Should filter by extension set."""
-        from fichero.ingest import discover_files
+        from fichero.importers.ingest import discover_files
 
         (tmp_path / "image.jpg").touch()
         (tmp_path / "image.png").touch()
@@ -272,7 +272,7 @@ class TestCountFiles:
 
     def test_counts_files(self, tmp_path):
         """Should count files correctly."""
-        from fichero.ingest import count_files
+        from fichero.importers.ingest import count_files
 
         (tmp_path / "file1.jpg").touch()
         (tmp_path / "file2.jpg").touch()
@@ -284,7 +284,7 @@ class TestCountFiles:
 
     def test_counts_with_filter(self, tmp_path):
         """Should count with extension filter."""
-        from fichero.ingest import count_files
+        from fichero.importers.ingest import count_files
 
         (tmp_path / "image.jpg").touch()
         (tmp_path / "doc.txt").touch()
@@ -299,7 +299,7 @@ class TestFindDuplicates:
 
     def test_finds_duplicates_by_checksum(self):
         """Should find documents with same checksum."""
-        from fichero.ingest import find_duplicates
+        from fichero.importers.ingest import find_duplicates
         from fichero.models import Document
 
         doc1 = Document(name="file1.jpg", metadata={"checksum": "abc123"})
@@ -314,7 +314,7 @@ class TestFindDuplicates:
 
     def test_no_duplicates(self):
         """Should return empty dict when no duplicates."""
-        from fichero.ingest import find_duplicates
+        from fichero.importers.ingest import find_duplicates
         from fichero.models import Document
 
         doc1 = Document(name="file1.jpg", metadata={"checksum": "abc123"})
@@ -327,7 +327,7 @@ class TestFindDuplicates:
 
 class TestIffySidecar:
     def test_parse_iffy_sidecar_maps_fields_and_notes(self, tmp_path):
-        from fichero.ingest import _parse_iffy_sidecar
+        from fichero.importers.ingest import _parse_iffy_sidecar
 
         image = tmp_path / "map-001.jpg"
         image.write_text("x", encoding="utf-8")
@@ -344,7 +344,7 @@ class TestIffySidecar:
         assert parsed["iffy_notes"] == "n1, n2"
 
     def test_apply_iffy_does_not_override_existing_metadata(self):
-        from fichero.ingest import _apply_iffy_to_document
+        from fichero.importers.ingest import _apply_iffy_to_document
         from fichero.models import Document
 
         doc = Document(name="x.jpg", metadata={"iffy_status": "human-reviewed"})
@@ -362,7 +362,7 @@ class TestIffySidecar:
 
     def test_handles_missing_checksum(self):
         """Should handle documents without checksum."""
-        from fichero.ingest import find_duplicates
+        from fichero.importers.ingest import find_duplicates
         from fichero.models import Document
 
         doc1 = Document(name="file1.jpg", metadata={})
@@ -378,20 +378,20 @@ class TestIngestFile:
 
     def test_file_not_found_raises(self):
         """Should raise FileNotFoundError for non-existent file."""
-        from fichero.ingest import ingest_file
+        from fichero.importers.ingest import ingest_file
 
         with pytest.raises(FileNotFoundError):
             ingest_file(Path("/nonexistent/file.jpg"))
 
     def test_directory_raises_value_error(self, tmp_path):
         """Should raise ValueError for directory."""
-        from fichero.ingest import ingest_file
+        from fichero.importers.ingest import ingest_file
 
         with pytest.raises(ValueError):
             ingest_file(tmp_path)
 
     def test_symlinked_file_raises_value_error(self, tmp_path):
-        from fichero.ingest import ingest_file
+        from fichero.importers.ingest import ingest_file
 
         target = tmp_path / "outside.txt"
         target.write_text("secret", encoding="utf-8")
@@ -405,7 +405,7 @@ class TestIngestFile:
     @patch("fichero.bookmarks.create_bookmark")
     def test_link_mode_creates_bookmark(self, mock_bookmark, mock_db, tmp_path):
         """LINK mode should create bookmark and save document."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import DocType, FileType
 
         file = tmp_path / "test.jpg"
@@ -423,10 +423,10 @@ class TestIngestFile:
         mock_db.save.assert_called_once()
 
     @patch("fichero.db.db")
-    @patch("fichero.ingest._copy_to_library")
+    @patch("fichero.importers.ingest._copy_to_library")
     def test_copy_mode_copies_file(self, mock_copy, mock_db, tmp_path):
         """COPY mode should copy file to library."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
 
         file = tmp_path / "test.jpg"
         file.write_bytes(b"fake image data")
@@ -445,7 +445,7 @@ class TestIngestFile:
     @patch("fichero.bookmarks.create_bookmark")
     def test_extracts_metadata(self, mock_bookmark, mock_db, tmp_path):
         """Should extract metadata when requested."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
 
         file = tmp_path / "test.jpg"
         file.write_bytes(b"fake image data" * 100)
@@ -462,7 +462,7 @@ class TestIngestFile:
     @patch("fichero.bookmarks.create_bookmark")
     def test_skips_save_when_requested(self, mock_bookmark, mock_db, tmp_path):
         """Should not save when save=False."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
 
         file = tmp_path / "test.jpg"
         file.write_bytes(b"fake")
@@ -478,7 +478,7 @@ class TestIngestFile:
     @patch("fichero.bookmarks.create_bookmark")
     def test_sets_parent_id(self, mock_bookmark, mock_db, tmp_path):
         """Should set parent_id when provided."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
 
         file = tmp_path / "test.jpg"
         file.write_bytes(b"fake")
@@ -495,14 +495,14 @@ class TestIngestFolder:
 
     def test_folder_not_found_raises(self):
         """Should raise FileNotFoundError for non-existent folder."""
-        from fichero.ingest import ingest_folder
+        from fichero.importers.ingest import ingest_folder
 
         with pytest.raises(FileNotFoundError):
             ingest_folder(Path("/nonexistent/folder"))
 
     def test_file_raises_value_error(self, tmp_path):
         """Should raise ValueError for file (not folder)."""
-        from fichero.ingest import ingest_folder
+        from fichero.importers.ingest import ingest_folder
 
         file = tmp_path / "test.txt"
         file.touch()
@@ -514,7 +514,7 @@ class TestIngestFolder:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingests_all_files(self, mock_bookmark, mock_db, tmp_path):
         """Should ingest all files in folder."""
-        from fichero.ingest import ingest_folder, IngestMode
+        from fichero.importers.ingest import ingest_folder, IngestMode
 
         (tmp_path / "file1.jpg").write_bytes(b"data1")
         (tmp_path / "file2.png").write_bytes(b"data2")
@@ -529,7 +529,7 @@ class TestIngestFolder:
     @patch("fichero.bookmarks.create_bookmark")
     def test_creates_collection(self, mock_bookmark, mock_db, tmp_path):
         """Should create collection for folder."""
-        from fichero.ingest import ingest_folder
+        from fichero.importers.ingest import ingest_folder
         from fichero.models import DocType
 
         (tmp_path / "file1.jpg").write_bytes(b"data")
@@ -550,7 +550,7 @@ class TestIngestFolder:
     @patch("fichero.bookmarks.create_bookmark")
     def test_progress_callback(self, mock_bookmark, mock_db, tmp_path):
         """Should call progress callback."""
-        from fichero.ingest import ingest_folder
+        from fichero.importers.ingest import ingest_folder
 
         (tmp_path / "file1.jpg").write_bytes(b"data")
         (tmp_path / "file2.jpg").write_bytes(b"data")
@@ -572,7 +572,7 @@ class TestIngestFolder:
     @patch("fichero.bookmarks.create_bookmark")
     def test_skips_sidecar_files(self, mock_bookmark, mock_db, tmp_path):
         """Folder ingest should treat sidecars as metadata for primary files only."""
-        from fichero.ingest import ingest_folder
+        from fichero.importers.ingest import ingest_folder
 
         (tmp_path / "photo.jpg").write_bytes(b"image")
         (tmp_path / "photo.xmp").write_text("<x:xmpmeta/>", encoding="utf-8")
@@ -585,7 +585,7 @@ class TestIngestFolder:
         assert docs[0].name == "photo.jpg"
 
     def test_folder_ingest_rejects_symlinked_files_with_failed_stub(self, tmp_path):
-        from fichero.ingest import ingest_folder
+        from fichero.importers.ingest import ingest_folder
         from fichero.models import Status
 
         target = tmp_path.parent / "outside.txt"
@@ -613,7 +613,7 @@ class TestIngestFolder:
         self, mock_bookmark, tmp_path
     ):
         """Child ingest should refresh the parent folder timestamp."""
-        from fichero.ingest import ingest_folder
+        from fichero.importers.ingest import ingest_folder
         from fichero.models import DocType, Document
 
         (tmp_path / "file1.txt").write_text("hello")
@@ -641,7 +641,7 @@ class TestIngestFolder:
 
     @patch("fichero.bookmarks.create_bookmark", return_value=None)
     def test_logs_loud_when_checksum_preindex_fails(self, _mock_bookmark, tmp_path, caplog):
-        from fichero.ingest import ingest_folder
+        from fichero.importers.ingest import ingest_folder
 
         (tmp_path / "file1.txt").write_text("hello")
 
@@ -674,7 +674,7 @@ class TestIngestFolder:
         coverage* (all 6 files come back, each once), not raw wall-clock
         overlap of the serialized critical section.
         """
-        from fichero.ingest import ingest_folder
+        from fichero.importers.ingest import ingest_folder
         from fichero.models import DocType, Document, FileType
 
         for i in range(6):
@@ -699,7 +699,7 @@ class TestIngestFolder:
                 parent_id=parent_id,
             )
 
-        monkeypatch.setattr("fichero.ingest.ingest_file", fake_ingest_file)
+        monkeypatch.setattr("fichero.importers.ingest.ingest_file", fake_ingest_file)
 
         mock_db = MagicMock()
         mock_db.all.return_value = []
@@ -721,11 +721,11 @@ class TestIngestFolder:
 class TestCopyToLibrary:
     """Tests for _copy_to_library function."""
 
-    @patch("fichero.ingest._try_apfs_clone")
+    @patch("fichero.importers.ingest._try_apfs_clone")
     @patch("fichero.db.storage.settings")
     def test_uses_apfs_clone_when_available(self, mock_settings, mock_clone, tmp_path):
         """Should try APFS clone first."""
-        from fichero.ingest import _copy_to_library
+        from fichero.importers.ingest import _copy_to_library
 
         # Setup
         source = tmp_path / "source.jpg"
@@ -738,12 +738,12 @@ class TestCopyToLibrary:
 
         mock_clone.assert_called_once()
 
-    @patch("fichero.ingest._try_apfs_clone")
+    @patch("fichero.importers.ingest._try_apfs_clone")
     @patch("fichero.db.storage.settings")
     @patch("shutil.copy2")
     def test_falls_back_to_shutil(self, mock_copy2, mock_settings, mock_clone, tmp_path):
         """Should fallback to shutil.copy2 if APFS fails."""
-        from fichero.ingest import _copy_to_library
+        from fichero.importers.ingest import _copy_to_library
 
         source = tmp_path / "source.jpg"
         source.write_bytes(b"test data")
@@ -755,11 +755,11 @@ class TestCopyToLibrary:
 
         mock_copy2.assert_called_once()
 
-    @patch("fichero.ingest._try_apfs_clone")
+    @patch("fichero.importers.ingest._try_apfs_clone")
     @patch("fichero.db.storage.settings")
     def test_creates_sharded_directory(self, mock_settings, mock_clone, tmp_path):
         """Should create sharded directory structure."""
-        from fichero.ingest import _copy_to_library
+        from fichero.importers.ingest import _copy_to_library
 
         source = tmp_path / "source.jpg"
         source.write_bytes(b"test data")
@@ -783,7 +783,7 @@ class TestTryApfsClone:
     )
     def test_clones_file_on_same_volume(self, tmp_path):
         """Should clone file on same volume."""
-        from fichero.ingest import _try_apfs_clone
+        from fichero.importers.ingest import _try_apfs_clone
 
         source = tmp_path / "source.txt"
         source.write_text("test content")
@@ -798,7 +798,7 @@ class TestTryApfsClone:
 
     def test_returns_false_on_error(self, tmp_path):
         """Should return False when clone fails."""
-        from fichero.ingest import _try_apfs_clone
+        from fichero.importers.ingest import _try_apfs_clone
 
         source = tmp_path / "nonexistent.txt"
         dest = tmp_path / "dest.txt"
@@ -815,7 +815,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_jpg_file(self, mock_bookmark, mock_db):
         """Should ingest JPG file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.jpg"
@@ -834,7 +834,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_png_file(self, mock_bookmark, mock_db):
         """Should ingest PNG file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.png"
@@ -852,7 +852,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_tiff_file(self, mock_bookmark, mock_db):
         """Should ingest TIFF file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.tiff"
@@ -870,7 +870,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_webp_file(self, mock_bookmark, mock_db):
         """Should ingest WEBP file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.webp"
@@ -888,7 +888,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_pdf_file(self, mock_bookmark, mock_db):
         """Should ingest PDF file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.pdf"
@@ -906,7 +906,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_docx_file(self, mock_bookmark, mock_db):
         """Should ingest DOCX file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.docx"
@@ -924,7 +924,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_text_file(self, mock_bookmark, mock_db):
         """Should ingest text file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
@@ -942,7 +942,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_markdown_file(self, mock_bookmark, mock_db):
         """Should ingest markdown file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.md"
@@ -960,7 +960,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_mp3_file(self, mock_bookmark, mock_db):
         """Should ingest MP3 file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.mp3"
@@ -978,7 +978,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_wav_file(self, mock_bookmark, mock_db):
         """Should ingest WAV file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.wav"
@@ -996,7 +996,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_mp4_file(self, mock_bookmark, mock_db):
         """Should ingest MP4 file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.mp4"
@@ -1014,7 +1014,7 @@ class TestIngestWithRealFiles:
     @patch("fichero.bookmarks.create_bookmark")
     def test_ingest_epub_file(self, mock_bookmark, mock_db):
         """Should ingest EPUB file correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.epub"
@@ -1034,7 +1034,7 @@ class TestExtractFileMetadata:
 
     def test_extracts_file_size(self, tmp_path):
         """Should extract file size."""
-        from fichero.ingest import _extract_file_metadata
+        from fichero.importers.ingest import _extract_file_metadata
         from fichero.models import Document, FileType
 
         file = tmp_path / "test.txt"
@@ -1047,7 +1047,7 @@ class TestExtractFileMetadata:
 
     def test_extracts_checksum(self, tmp_path):
         """Should extract checksum."""
-        from fichero.ingest import _extract_file_metadata
+        from fichero.importers.ingest import _extract_file_metadata
         from fichero.models import Document, FileType
 
         file = tmp_path / "test.txt"
@@ -1061,7 +1061,7 @@ class TestExtractFileMetadata:
 
     def test_extracts_mime_type(self, tmp_path):
         """Should extract MIME type."""
-        from fichero.ingest import _extract_file_metadata
+        from fichero.importers.ingest import _extract_file_metadata
         from fichero.models import Document, FileType
 
         file = tmp_path / "test.txt"
@@ -1078,7 +1078,7 @@ class TestExtractFileMetadata:
     )
     def test_extracts_image_dimensions(self, tmp_path):
         """Should extract image dimensions for images."""
-        from fichero.ingest import _extract_file_metadata
+        from fichero.importers.ingest import _extract_file_metadata
         from fichero.models import Document, FileType
 
         try:
@@ -1098,7 +1098,7 @@ class TestExtractFileMetadata:
 
     def test_rejects_oversized_image_metadata(self, tmp_path, monkeypatch):
         """Oversized images should fail loud instead of warning-and-continuing."""
-        from fichero.ingest import _extract_file_metadata
+        from fichero.importers.ingest import _extract_file_metadata
         from fichero.models import Document, FileType
 
         try:
@@ -1120,7 +1120,7 @@ class TestContentAccess:
 
     def test_text_extraction_from_txt(self, tmp_path):
         """Should extract text from TXT files."""
-        from fichero.ingest import _extract_text_content
+        from fichero.importers.ingest import _extract_text_content
         from fichero.models import Document, FileType
         
         file = tmp_path / "test.txt"
@@ -1137,7 +1137,7 @@ class TestContentAccess:
 
     def test_text_extraction_from_md(self, tmp_path):
         """Should extract text from Markdown files."""
-        from fichero.ingest import _extract_text_content
+        from fichero.importers.ingest import _extract_text_content
         from fichero.models import Document, FileType
         
         file = tmp_path / "test.md"
@@ -1154,7 +1154,7 @@ class TestContentAccess:
 
     def test_pdf_text_extraction(self, tmp_path):
         """Should extract text from PDF files."""
-        from fichero.ingest import _extract_text_content
+        from fichero.importers.ingest import _extract_text_content
         from fichero.models import Document, FileType
         
         try:
@@ -1188,7 +1188,7 @@ class TestEdgeCases:
 
     def test_corrupted_file_handling(self, tmp_path):
         """Should handle corrupted files gracefully."""
-        from fichero.ingest import _extract_file_metadata
+        from fichero.importers.ingest import _extract_file_metadata
         from fichero.models import Document, FileType
         
         file = tmp_path / "corrupted.jpg"
@@ -1208,7 +1208,7 @@ class TestEdgeCases:
 
     def test_file_with_special_characters(self, tmp_path):
         """Should handle files with special characters in names."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
         
         # Test various special characters
@@ -1227,7 +1227,7 @@ class TestEdgeCases:
 
     def test_very_large_filename(self, tmp_path):
         """Should handle very long filenames."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
         
         long_name = "a" * 200 + ".jpg"
@@ -1236,7 +1236,7 @@ class TestEdgeCases:
 
     def test_file_with_no_extension(self, tmp_path):
         """Should handle files with no extension."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
         
         result = detect_file_type(Path("no_extension"))
@@ -1244,7 +1244,7 @@ class TestEdgeCases:
 
     def test_file_with_multiple_extensions(self, tmp_path):
         """Should handle files with multiple extensions."""
-        from fichero.ingest import detect_file_type
+        from fichero.importers.ingest import detect_file_type
         from fichero.models import FileType
         
         # Should use the last extension
@@ -1260,7 +1260,7 @@ class TestIntegration:
 
     def test_complete_ingestion_workflow(self, tmp_path):
         """Should complete full ingestion workflow successfully."""
-        from fichero.ingest import ingest_file
+        from fichero.importers.ingest import ingest_file
         from fichero.models import Document, FileType
         
         # Create a test file
@@ -1273,10 +1273,10 @@ class TestIntegration:
             mock_db.get.return_value = None
             
             # Mock file operations
-            with patch("fichero.ingest.shutil") as mock_shutil:
+            with patch("fichero.importers.ingest.shutil") as mock_shutil:
                 mock_shutil.copy2.return_value = None
                 
-                from fichero.ingest import IngestMode
+                from fichero.importers.ingest import IngestMode
                 
                 result = ingest_file(
                     path=str(file),
@@ -1296,7 +1296,7 @@ class TestIntegration:
 
     def test_ingestion_with_text_extraction(self, tmp_path):
         """Should ingest file with text extraction enabled."""
-        from fichero.ingest import ingest_file
+        from fichero.importers.ingest import ingest_file
         from fichero.models import Document, FileType
         
         # Create a text file
@@ -1307,10 +1307,10 @@ class TestIntegration:
             mock_db.save.return_value = None
             mock_db.get.return_value = None
             
-            with patch("fichero.ingest.shutil") as mock_shutil:
+            with patch("fichero.importers.ingest.shutil") as mock_shutil:
                 mock_shutil.copy2.return_value = None
                 
-                from fichero.ingest import IngestMode
+                from fichero.importers.ingest import IngestMode
                 
                 result = ingest_file(
                     path=str(file),
@@ -1333,7 +1333,7 @@ class TestTextExtraction:
 
     def test_text_extraction_from_txt_file(self):
         """Should extract text from TXT files using real sample."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
@@ -1356,7 +1356,7 @@ class TestTextExtraction:
 
     def test_text_extraction_from_md_file(self):
         """Should extract text from Markdown files using real sample."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.md"
@@ -1381,7 +1381,7 @@ class TestTextExtraction:
 
     def test_text_extraction_from_docx_file(self):
         """Should extract text from DOCX files using real sample."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.docx"
@@ -1404,7 +1404,7 @@ class TestTextExtraction:
 
     def test_text_extraction_from_epub_file(self):
         """Should extract text from EPUB files using real sample."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.epub"
@@ -1431,7 +1431,7 @@ class TestTextExtraction:
 
     def test_text_extraction_from_pdf_file(self):
         """Should extract text from PDF files using real sample."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.pdf"
@@ -1456,7 +1456,7 @@ class TestTextExtraction:
         Kreuzberg's page extraction is mocked so this test exercises only the
         ingest layer's fan-out logic — not pdfium's actual PDF parsing.
         """
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType, DocType
 
         file_path = _make_pdf(
@@ -1526,7 +1526,7 @@ class TestTextExtraction:
 
     def test_pdf_page_children_without_named_page_labels_leave_page_label_none(self, tmp_path):
         """Unlabeled PDFs must leave page_label unset so the UI falls back to sequence."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import DocType
 
         file_path = _make_pdf(tmp_path, "plain.pdf", 2)
@@ -1560,7 +1560,7 @@ class TestTextExtraction:
 
     def test_pdf_page_label_source_failures_do_not_crash_page_creation(self, tmp_path):
         """Broken or partial page-label sources fall back to None per page."""
-        from fichero.ingest import _create_pdf_page_children
+        from fichero.importers.ingest import _create_pdf_page_children
         from fichero.models import Document, DocType
 
         file_path = tmp_path / "partial.pdf"
@@ -1614,7 +1614,7 @@ class TestTextExtraction:
 
     def test_text_extraction_disabled(self):
         """Should not extract text when extract_text=False."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
@@ -1637,7 +1637,7 @@ class TestTextExtraction:
 
     def test_text_extraction_metadata(self):
         """Should populate text extraction metadata correctly."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
@@ -1660,7 +1660,7 @@ class TestTextExtraction:
 
     def test_text_extraction_multilingual(self):
         """Should handle multilingual text content."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
         file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
@@ -1684,7 +1684,7 @@ class TestTextExtraction:
 
     def test_text_extraction_unsupported_format(self):
         """Should handle unsupported formats gracefully."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
         # Create a file with unsupported format
@@ -1707,7 +1707,7 @@ class TestTextExtraction:
 
     def test_text_extraction_error_handling(self):
         """Should handle text extraction errors gracefully."""
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
         # Create a corrupted file
@@ -1738,7 +1738,7 @@ class TestPerformance:
 
     def test_multiple_file_ingestion(self, tmp_path):
         """Should handle ingestion of multiple files efficiently."""
-        from fichero.ingest import ingest_file
+        from fichero.importers.ingest import ingest_file
         from fichero.models import FileType
         import time
         
@@ -1755,13 +1755,13 @@ class TestPerformance:
             mock_db.save.return_value = None
             mock_db.get.return_value = None
             
-            with patch("fichero.ingest.shutil") as mock_shutil:
+            with patch("fichero.importers.ingest.shutil") as mock_shutil:
                 mock_shutil.copy2.return_value = None
                 
                 # Ingest all files
                 results = []
                 for file in files:
-                    from fichero.ingest import IngestMode
+                    from fichero.importers.ingest import IngestMode
                     
                     result = ingest_file(
                         path=str(file),
@@ -1780,7 +1780,7 @@ class TestPerformance:
 
     def test_large_file_handling(self, tmp_path):
         """Should handle large files without crashing."""
-        from fichero.ingest import ingest_file
+        from fichero.importers.ingest import ingest_file
         
         # Create a large file (10MB)
         file = tmp_path / "large_file.jpg"
@@ -1791,11 +1791,11 @@ class TestPerformance:
             mock_db.save.return_value = None
             mock_db.get.return_value = None
             
-            with patch("fichero.ingest.shutil") as mock_shutil:
+            with patch("fichero.importers.ingest.shutil") as mock_shutil:
                 mock_shutil.copy2.return_value = None
                 
                 # Should not crash with large file
-                from fichero.ingest import IngestMode
+                from fichero.importers.ingest import IngestMode
                 
                 result = ingest_file(
                     path=str(file),
@@ -1818,7 +1818,7 @@ class TestIngestModeMetadata:
     @patch("fichero.db.db")
     @patch("fichero.bookmarks.create_bookmark")
     def test_link_mode_recorded_in_metadata(self, mock_bookmark, mock_db, tmp_path):
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
 
         file = tmp_path / "test.jpg"
         file.write_bytes(b"x")
@@ -1828,9 +1828,9 @@ class TestIngestModeMetadata:
         assert doc.metadata.get("ingest_mode") == "link"
 
     @patch("fichero.db.db")
-    @patch("fichero.ingest._copy_to_library")
+    @patch("fichero.importers.ingest._copy_to_library")
     def test_copy_mode_recorded_in_metadata(self, mock_copy, mock_db, tmp_path):
-        from fichero.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file, IngestMode
 
         file = tmp_path / "test.jpg"
         file.write_bytes(b"x")
@@ -1847,7 +1847,7 @@ class TestTouchAncestorDocumentsCycleGuard:
 
     def test_cyclic_parent_chain_terminates(self):
         """A->B->A cycle must stop (visited guard) without hanging."""
-        from fichero.ingest import _touch_ancestor_documents
+        from fichero.importers.ingest import _touch_ancestor_documents
         from fichero.models import Document, DocType
         from datetime import datetime
 
@@ -1872,7 +1872,7 @@ class TestTouchAncestorDocumentsCycleGuard:
 
     def test_truthy_magicmock_parent_id_terminates_without_looping(self):
         """Non-string parent ids (e.g. MagicMock) must stop immediately."""
-        from fichero.ingest import _touch_ancestor_documents
+        from fichero.importers.ingest import _touch_ancestor_documents
 
         mock_parent = MagicMock()
         mock_parent.parent_id = MagicMock()  # truthy, non-str, unstable

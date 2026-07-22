@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.knowledge_models import EntityType, KnowledgeEntity, KnowledgeClaim
+from fichero.models.knowledge import EntityType, KnowledgeEntity, KnowledgeClaim
 from fichero.models import Document, DocType
 from fichero.llm import LLMConfig
 from fichero.workflows.tools.extractors import EXTRACTORS, _SECTION_SCHEMAS

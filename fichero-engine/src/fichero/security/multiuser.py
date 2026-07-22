@@ -41,7 +41,7 @@ def multiuser_enabled(env: Mapping[str, str] | None = None) -> bool:
 
 def _persisted_multiuser_enabled() -> bool | None:
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
 
         value = get_app_db().get_setting(MULTIUSER_SETTING_KEY)
     except Exception as exc:

@@ -14,11 +14,11 @@ from unittest.mock import AsyncMock
 import pytest
 
 
-from fichero import storage as storage_module
+from fichero.db import storage as storage_module
 from fichero.actions.registry import ActionContext, ActionResult
 from fichero.api.routes import documents as documents_routes
 from fichero.api.routes.documents import related_documents
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClassificationDimension,
     ClassificationValue,
     KnowledgeClaim,
@@ -28,7 +28,7 @@ from fichero.knowledge_models import (
     Note,
 )
 from fichero.models import Document, DocType
-from fichero.node_prototypes import resolve_prototype_attributes
+from fichero.models.node_prototypes import resolve_prototype_attributes
 
 
 # ---------------------------------------------------------------------------
@@ -1206,7 +1206,7 @@ class TestDeleteDocument:
 
     def test_delete_preserves_kg_rows_for_restore(self, client, db):
         """Soft-delete hides the document without destroying its KG rows."""
-        from fichero.knowledge_models import (
+        from fichero.models.knowledge import (
             KnowledgeClaim,
             KnowledgeEntity,
         )
@@ -1243,7 +1243,7 @@ class TestRestoreAndPurgeDocument:
         assert client.get(f"/api/documents/{doc.id}").status_code == 200
 
     def test_purge_hard_deletes_document_and_kg_rows(self, client, db):
-        from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, MutationLog
+        from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity, MutationLog
 
         doc = _make_doc(db, "Source Doc")
         entity = KnowledgeEntity(canonical_name="Eldorado")

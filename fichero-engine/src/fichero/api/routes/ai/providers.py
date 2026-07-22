@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from fichero.db import Database
-from fichero.app_db import get_app_db, AppDatabase
+from fichero.db.app import get_app_db, AppDatabase
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.routes.auth.accounts import (
     _require_authenticated_or_bootstrap,
@@ -19,7 +19,7 @@ from fichero.api.routes.auth.accounts import (
 )
 from fichero.models import Model, Provider, ProviderRef, ProviderType
 from fichero.models import AppleIntelligenceProbeResponse
-from fichero.providers import (
+from fichero.llm.providers import (
     get_provider_info,
     list_providers as list_catalog_providers,
 )
@@ -28,7 +28,7 @@ from fichero.security.keychain import (
     delete_api_key,
     has_api_key,
 )
-from fichero.provider_validation import (
+from fichero.llm.provider_validation import (
     validate_provider_config,
     ProviderValidationError,
 )

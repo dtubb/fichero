@@ -2,7 +2,7 @@
 
 import json
 
-from fichero.model_recommendations import (
+from fichero.llm.model_recommendations import (
     ModelRecommendationCandidate,
     ModelRecommendationRequest,
     build_model_recommendations,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, patch
 
-from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.llm import LLMConfig
 from fichero.models import DocType, Document
 

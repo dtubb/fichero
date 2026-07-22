@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.multiuser import multiuser_enabled
+from fichero.security.multiuser import multiuser_enabled
 
 
 _APP_WIDE_ROUTES = ["/api/registry", "/api/providers"]

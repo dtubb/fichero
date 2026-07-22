@@ -29,9 +29,9 @@ from fichero.api.main import (
     get_library_database_for_write,
 )
 from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityMergeOperationType,
     EntityType,
     KnowledgeEntity,
@@ -596,7 +596,7 @@ def delete_entity_impl(
     db.delete(entity)
 
     try:
-        from fichero.knowledge_models import MutationLog, MutationOperationType
+        from fichero.models.knowledge import MutationLog, MutationOperationType
 
         db.save(
             MutationLog(

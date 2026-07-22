@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from fichero.api.routes import kg_inclusion as routes
-from fichero.knowledge_models import InclusionScopeType, KnowledgeGraphInclusion
+from fichero.models.knowledge import InclusionScopeType, KnowledgeGraphInclusion
 
 
 class FakeDB:

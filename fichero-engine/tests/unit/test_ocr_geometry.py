@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from fichero.ocr_geometry import (
+from fichero.media.ocr_geometry import (
     OCRCloudProviderBlocked,
     OCRGeometryBox,
     OCRGeometryLevel,

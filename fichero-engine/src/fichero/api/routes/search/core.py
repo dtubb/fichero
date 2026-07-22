@@ -29,7 +29,7 @@ from fichero.db import (
     _search_result_preview,
     _search_match_terms,
 )
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero.models import DocType, Document, EmbeddingStatsResponse, SavedSearch
 
 logger = logging.getLogger(__name__)

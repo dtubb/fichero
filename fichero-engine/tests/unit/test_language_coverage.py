@@ -2,7 +2,7 @@
 
 import json
 
-from fichero.language_coverage import (
+from fichero.llm.language_coverage import (
     LanguageFitModelSpec,
     evaluate_language_fit,
     language_spec,

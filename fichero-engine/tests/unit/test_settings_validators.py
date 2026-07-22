@@ -17,7 +17,7 @@ from fichero.api.routes.settings import (
     _validate_profile,
     _validate_provider_updates,
 )
-from fichero.model_profiles import ModelProfile
+from fichero.llm.model_profiles import ModelProfile
 
 
 # ---------------------------------------------------------------------------

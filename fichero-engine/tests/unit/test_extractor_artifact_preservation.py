@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from fichero.ingest import IngestMode, ingest_file
+from fichero.importers.ingest import IngestMode, ingest_file
 from fichero.loaders.base import MediaContent
 from fichero.loaders.kreuzberg_artifacts import (
     KREUZBERG_IMAGE_DESCRIPTION,

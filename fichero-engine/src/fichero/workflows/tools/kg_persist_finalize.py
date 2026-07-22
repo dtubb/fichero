@@ -23,13 +23,13 @@ from pathlib import Path
 from typing import Any
 
 from fichero.db import db_manager
-from fichero.db_embeddings import (
+from fichero.db.embeddings import (
     KG_CLAIM_EMBEDDINGS_TABLE,
     KG_ENTITY_EMBEDDINGS_TABLE,
 )
 from fichero.kg.rebuild import rebuild_kg
 from fichero.kg.triangulation import persist_support_counts
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero.llm import LLMConfig
 from fichero.models import Document
 from fichero.workflows.registry import register_tool

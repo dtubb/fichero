@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fichero.security import authz
 from fichero.api.main import _is_allowed_library_path
 from fichero.db import Database, DatabaseManager, db_manager
-from fichero.knowledge_models import LibraryEntityType
+from fichero.models.knowledge import LibraryEntityType
 from fichero.models import LibraryEntityTypeListResponse
 
 logger = logging.getLogger(__name__)

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from fichero.path_security import (
+from fichero.security.path_security import (
     ENGINE_TEMP_DERIVED_DIRS,
     allowed_source_roots,
     engine_temp_derived_roots,

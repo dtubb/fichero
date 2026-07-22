@@ -1747,7 +1747,7 @@ def test_every_default_preset_passes_execution_gate(
         monkeypatch.setenv(f"FICHERO_VISION_{tier}_PROVIDER", "apple")
         monkeypatch.setenv(f"FICHERO_VISION_{tier}_MODEL", "apple-vision")
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: SimpleNamespace(
             get_default_model_for_category=lambda _category: None,
             list_providers=lambda: [],

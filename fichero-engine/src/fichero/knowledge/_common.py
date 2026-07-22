@@ -32,7 +32,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
 
 
 def enum_value(x: Any) -> str:

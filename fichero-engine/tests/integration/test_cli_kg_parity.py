@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 from fichero import __main__ as cli
 from fichero.api.routes.document_inspector import DocumentKnowledgeGraphResponse
 from fichero.api.routes.workflow_execution.schemas import ExecuteAcceptedResponse
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero.models import Artifact
 
 

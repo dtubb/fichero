@@ -4,7 +4,7 @@ import json
 from types import SimpleNamespace
 from urllib.parse import quote
 
-from fichero.knowledge_models import ClaimType, EntityType
+from fichero.models.knowledge import ClaimType, EntityType
 from fichero.loaders.xlsx_reader import read_xlsx_records
 from fichero.models import Artifact, DocType, Document, FileType
 from fichero.models import KnowledgeClaim, KnowledgeEntity

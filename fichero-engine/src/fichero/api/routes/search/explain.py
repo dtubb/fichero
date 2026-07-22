@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
 from fichero.db import Database, _fold_for_search
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 from fichero.models import Document
 
 logger = logging.getLogger(__name__)

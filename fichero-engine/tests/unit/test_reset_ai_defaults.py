@@ -19,10 +19,10 @@ from pathlib import Path
 
 import pytest
 
-from fichero.app_db import AppDatabase
+from fichero.db.app import AppDatabase
 from fichero.api.main import _ensure_default_ai_defaults, _repair_known_bad_ai_defaults
 from fichero.models import Provider, Model
-from fichero.providers import ProviderType
+from fichero.llm.providers import ProviderType
 
 
 @pytest.fixture
