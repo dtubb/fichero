@@ -507,7 +507,7 @@ final class EntityStoreTests: XCTestCase {
             libraryPath: "/tmp/test.fichero",
             session: session
         )
-        let entityService = EntityService(ficheroClient: client, session: session)
+        let entityService = EntityService(ficheroClient: client)
         let kgCurationService = KGCurationService(ficheroClient: client)
         return EntityStore(
             entityService: entityService,

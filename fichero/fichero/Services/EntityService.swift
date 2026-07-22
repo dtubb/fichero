@@ -17,10 +17,6 @@ struct LibraryEntityTypeItem: Decodable {
     }
 }
 
-private struct EntityTypeListPayload: Decodable {
-    let items: [LibraryEntityTypeItem]
-}
-
 struct EntityCitationUsage: Decodable, Identifiable {
     let citation: Components.Schemas.DocumentCitation
     let claim: Components.Schemas.KnowledgeClaim?
@@ -43,10 +39,6 @@ struct EntityCitationUsage: Decodable, Identifiable {
     }
 }
 
-private struct CitationUsageListPayload: Decodable {
-    let items: [EntityCitationUsage]
-}
-
 private let entityServiceLogger = Logger(
     subsystem: "app.fichero.fichero",
     category: "EntityService"
@@ -67,14 +59,9 @@ final class EntityService {
     // internal (not private) so the EntityService+*.swift concern extensions can
     // reach the generated client directly, same as endpointData/decodeSimilar (#1943).
     let client: FicheroClient
-    private let session: URLSession
 
-    init(
-        ficheroClient: FicheroClient,
-        session: URLSession = RemoteCertificatePinning.configuredSession()
-    ) {
+    init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
-        self.session = session
     }
 
     enum ServiceError: Error, LocalizedError {
@@ -94,35 +81,32 @@ final class EntityService {
         }
     }
 
+    /// Generic buffered request helper for the ~90 concern-extension callers.
+    ///
+    /// Routes through `FicheroClient.requestData` — the SAME `ClientTransport` +
+    /// auth/library middleware stack the generated `client.api` calls use — so it
+    /// reaches the engine over `.https`, `.uds`, or the in-process `.inMemory`
+    /// transport. A raw `URLSession` to `client.baseURL` could dial only `.https`
+    /// and silently failed over UDS / in-process (the "Loaded 0 entities" symptom).
+    /// Auth (`AuthTokenMiddleware`) and library scoping (`LibraryPathMiddleware`)
+    /// are injected by the middleware stack, so no headers are hand-rolled here.
     func endpointData(
         path: String,
         method: String = "GET",
         queryItems: [URLQueryItem] = [],
         jsonBody: [String: Any]? = nil
     ) async throws -> Data {
-        guard var components = URLComponents(
-            url: client.baseURL.appending(path: path),
-            resolvingAgainstBaseURL: false
-        ) else {
-            throw ServiceError.unexpectedResponse(0)
+        let bodyData: Data? = try jsonBody.map {
+            try JSONSerialization.data(withJSONObject: $0)
         }
-        if !queryItems.isEmpty {
-            components.queryItems = queryItems
-        }
-        guard let url = components.url else {
-            throw ServiceError.unexpectedResponse(0)
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
-        if let jsonBody {
-            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: jsonBody)
-        }
-        let (data, response) = try await session.data(for: request)
-        if let http = response as? HTTPURLResponse,
-           !(200...299).contains(http.statusCode) {
-            throw ServiceError.unexpectedResponse(http.statusCode)
+        let (status, data) = try await client.requestData(
+            path: path,
+            method: method,
+            queryItems: queryItems,
+            jsonBody: bodyData
+        )
+        if !(200...299).contains(status) {
+            throw ServiceError.unexpectedResponse(status)
         }
         return data
     }
@@ -132,37 +116,28 @@ final class EntityService {
     func citationUsages(
         sourceDocumentId: String
     ) async throws -> [EntityCitationUsage] {
-        guard var components = URLComponents(
-            url: client.baseURL.appending(path: "/api/citation-usages"),
-            resolvingAgainstBaseURL: false
-        ) else {
-            throw ServiceError.unexpectedResponse(0)
-        }
-        components.queryItems = [
-            URLQueryItem(name: "source_document_id", value: sourceDocumentId)
-        ]
-        guard let url = components.url else {
-            throw ServiceError.unexpectedResponse(0)
-        }
-        var request = URLRequest(url: url)
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
-        let (data, response) = try await session.data(for: request)
-        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            throw ServiceError.unexpectedResponse(http.statusCode)
-        }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let raw = try container.decode(String.self)
-            if let date = parseEngineDate(raw) {
-                return date
+        // Through the generated op (centralized transport) — dates decode via the
+        // client's `LenientISO8601DateTranscoder`, the same one every other
+        // generated call already uses for `DocumentCitation` / `KnowledgeClaim`.
+        let response = try await client.api.listCitationUsagesApiCitationUsagesGet(
+            query: .init(sourceDocumentId: sourceDocumentId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map {
+                EntityCitationUsage(
+                    citation: $0.citation,
+                    claim: $0.claim,
+                    referenceId: $0.referenceId,
+                    stance: $0.stance
+                )
             }
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Cannot decode date: \(raw)"
-            )
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
         }
-        return try decoder.decode(CitationUsageListPayload.self, from: data).items
     }
 
     // MARK: - Library entity-type registry (#874 / #1372)
@@ -171,20 +146,25 @@ final class EntityService {
         guard let lib = client.currentLibraryPath, !lib.isEmpty else {
             throw ServiceError.validationError("No library selected")
         }
-        let encoded = lib.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? lib
-        guard let url = URL(string: "\(client.baseURL)/api/libraries/\(encoded)/entity-types") else {
-            throw ServiceError.validationError("Invalid entity-types URL")
-        }
-        var req = URLRequest(url: url)
-        req.addEngineAuth(libraryPath: lib)
         // Non-silent: surface non-2xx and decode failures instead of returning []
         // (which silently drops custom ontology types and changes extractor
         // behaviour without telling the user — #1672).
-        let (data, response) = try await RemoteCertificatePinning.configuredSession().data(for: req)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw ServiceError.unexpectedResponse(http.statusCode)
+        let response = try await client.api.listLibraryEntityTypesApiLibrariesLibEntityTypesGet(
+            path: .init(lib: lib)
+        )
+        switch response {
+        case .ok(let okResponse):
+            // `items` is an open-ended `[OpenAPIValueContainer]`; re-encode and
+            // decode into our typed rows, preserving the throw-on-malformed
+            // behaviour the raw path had.
+            let data = try JSONEncoder().encode(try okResponse.body.json.items)
+            return try JSONDecoder().decode([LibraryEntityTypeItem].self, from: data)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
         }
-        return try JSONDecoder().decode(EntityTypeListPayload.self, from: data).items
     }
 
     @discardableResult
@@ -192,81 +172,93 @@ final class EntityService {
         guard let lib = client.currentLibraryPath, !lib.isEmpty else {
             throw ServiceError.noLibrary
         }
-        let encoded = lib.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? lib
-        let keyEncoded = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
-        let urlString = "\(client.baseURL)/api/libraries/\(encoded)/entity-types"
-            + "?entity_type_key=\(keyEncoded)&enabled=true"
-        guard let url = URL(string: urlString) else {
-            throw ServiceError.noLibrary
+        let response = try await client.api.addLibraryEntityTypeApiLibrariesLibEntityTypesPost(
+            path: .init(lib: lib),
+            query: .init(entityTypeKey: key, enabled: true)
+        )
+        switch response {
+        case .ok(let okResponse):
+            let created = try okResponse.body.json
+            return LibraryEntityTypeItem(
+                id: created.id,
+                entityTypeKey: created.entityTypeKey,
+                enabled: created.enabled
+            )
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
         }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
-        return try JSONDecoder().decode(LibraryEntityTypeItem.self, from: data)
     }
 
     func removeLibraryEntityType(key: String) async throws {
         guard let lib = client.currentLibraryPath, !lib.isEmpty else {
             throw ServiceError.validationError("No library selected")
         }
-        let encoded = lib.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? lib
-        let keyEncoded = key.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? key
-        guard let url = URL(string: "\(client.baseURL)/api/libraries/\(encoded)/entity-types/\(keyEncoded)") else {
-            throw ServiceError.validationError("Invalid entity-type URL")
-        }
-        var req = URLRequest(url: url)
-        req.httpMethod = "DELETE"
-        req.addEngineAuth(libraryPath: lib)
         // Non-silent: a rejected delete must throw so the UI keeps the chip
         // instead of appearing to succeed (#1672).
-        let (_, response) = try await RemoteCertificatePinning.configuredSession().data(for: req)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw ServiceError.unexpectedResponse(http.statusCode)
+        let response = try await client.api
+            .removeLibraryEntityTypeApiLibrariesLibEntityTypesEntityTypeKeyDelete(
+                path: .init(lib: lib, entityTypeKey: key)
+            )
+        switch response {
+        case .noContent:
+            return
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
         }
     }
 
     // MARK: - Document prototype / class registry (#1377)
 
-    /// Fetch all classification values for the document_prototype dimension.
-    /// Uses a direct URLRequest because ClassificationListResponse.items is
-    /// [OpenAPIValueContainer] — untyped — so we decode directly to [ClassificationValue].
+    /// Fetch all classification values for the document_prototype dimension via
+    /// the generated op (centralized transport). `ClassificationListResponse.items`
+    /// is untyped `[OpenAPIValueContainer]`, so `classificationValues` re-encodes
+    /// and decodes into `[ClassificationValue]`.
     func listDocumentPrototypes() async throws -> [Components.Schemas.ClassificationValue] {
-        guard let lib = client.currentLibraryPath else {
+        guard client.currentLibraryPath != nil else {
             throw ServiceError.validationError("No library selected")
         }
-        guard let url = URL(string: "\(client.baseURL)/api/classifications?dimension=document_prototype") else {
-            throw ServiceError.validationError("Invalid classifications URL")
-        }
-        var req = URLRequest(url: url)
-        req.addEngineAuth(libraryPath: lib)
         // Non-silent: a failed load must surface a backend/API error, not render
         // as "No types defined" empty state (#1671).
-        let (data, response) = try await RemoteCertificatePinning.configuredSession().data(for: req)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw ServiceError.unexpectedResponse(http.statusCode)
+        return try await classificationValues(dimension: .documentPrototype)
+    }
+
+    /// Fetch classification values for a dimension through the generated op.
+    /// `ClassificationListResponse.items` is an open-ended
+    /// `[OpenAPIValueContainer]`, so we re-encode and decode into the typed
+    /// `ClassificationValue` rows (same decode the raw path used).
+    private func classificationValues(
+        dimension: Components.Schemas.ClassificationDimension
+    ) async throws -> [Components.Schemas.ClassificationValue] {
+        let response = try await client.api.listValuesApiClassificationsGet(
+            query: .init(dimension: dimension)
+        )
+        switch response {
+        case .ok(let okResponse):
+            let data = try JSONEncoder().encode(try okResponse.body.json.items)
+            return try JSONDecoder().decode([Components.Schemas.ClassificationValue].self, from: data)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
         }
-        struct Envelope: Decodable {
-            let items: [Components.Schemas.ClassificationValue]
-        }
-        return try JSONDecoder().decode(Envelope.self, from: data).items
     }
 
     /// Fetch all classification values for the node_class dimension —
     /// Tinderbox-style node classes for workspace curated items (#1570).
     /// Mirrors `listDocumentPrototypes()`; `dimension=node_class`.
     func listNodeClasses() async throws -> [Components.Schemas.ClassificationValue] {
-        guard let lib = client.currentLibraryPath else { return [] }
-        guard let url = URL(string: "\(client.baseURL)/api/classifications?dimension=node_class") else {
-            return []
-        }
-        var req = URLRequest(url: url)
-        req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await RemoteCertificatePinning.configuredSession().data(for: req)
-        struct Envelope: Decodable {
-            let items: [Components.Schemas.ClassificationValue]
-        }
-        return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
+        guard client.currentLibraryPath != nil else { return [] }
+        // Lenient by design (unlike the prototypes/entity-type loaders): node
+        // classes are optional decoration, so any failure degrades to [] rather
+        // than surfacing an error.
+        return (try? await classificationValues(dimension: .nodeClass)) ?? []
     }
 
     // MARK: - KG-RAG: similar-claim search (#959)
