@@ -819,7 +819,17 @@ async def get_workflow_run(
         raise workflow_internal_error("Failed to get workflow run")
 
 
-@router.get("/threads/{thread_id}/diagram.png")
+@router.get(
+    "/threads/{thread_id}/diagram.png",
+    responses={
+        200: {
+            "content": {
+                "image/png": {"schema": {"type": "string", "format": "binary"}},
+            },
+            "description": "PNG image of the workflow diagram",
+        },
+    },
+)
 async def get_thread_diagram_png(
     thread_id: str,
     db: Database = Depends(get_library_database),

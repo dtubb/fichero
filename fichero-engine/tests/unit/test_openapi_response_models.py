@@ -48,6 +48,30 @@ def test_consistency_audit_batch_routes_have_explicit_response_models() -> None:
     assert _response_schema("delete", "/api/providers/{provider_id}")["$ref"].endswith("DeletedResponse")
 
 
+def _binary_media_types(method: str, path: str) -> dict:
+    """The 200 response `content` block for a route (all declared media types)."""
+    spec = app.openapi()
+    return spec["paths"][path][method]["responses"]["200"]["content"]
+
+
+def test_image_preview_route_declares_binary_response() -> None:
+    """`/preview` streams PNG/JPEG bytes — the OpenAPI 200 must model them as
+    binary so the generated Swift client can decode the body instead of forcing
+    the callsite onto raw URLSession (#3028)."""
+    content = _binary_media_types("get", "/api/images/{document_id}/preview")
+    for media in ("image/png", "image/jpeg"):
+        assert content[media]["schema"] == {"type": "string", "format": "binary"}, media
+
+
+def test_thread_diagram_png_route_declares_binary_response() -> None:
+    """`/threads/{thread_id}/diagram.png` returns real PNG bytes; its 200 must be
+    declared binary rather than defaulting to application/json (#3028)."""
+    content = _binary_media_types(
+        "get", "/api/workflow-execution/threads/{thread_id}/diagram.png"
+    )
+    assert content["image/png"]["schema"] == {"type": "string", "format": "binary"}
+
+
 def test_hermeneutics_list_routes_have_typed_item_envelopes() -> None:
     cases = {
         "/api/hermeneutics/frameworks": ("FrameworkListResponse", "InterpretiveFramework"),
