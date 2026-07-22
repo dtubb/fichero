@@ -25,21 +25,57 @@ extension EmbeddedBackendService {
         let keyPath: String
     }
 
-    private static let tlsCacheDefaultsPrefix = "fichero.engine.tls_material|"
+    nonisolated private static let tlsCacheDefaultsPrefix = "fichero.engine.tls_material|"
 
     /// Everything that could change WHICH material the engine hands back: the
     /// arguments (host / port / public URL / alt hosts) and the engine binary's
     /// own identity. The binary matters because an engine update could change how
     /// the material directory is derived, and a stale path would leave us pinning
     /// a certificate the new engine no longer serves.
-    private static func tlsCacheKey(executablePath: String, arguments: [String]) -> String? {
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: executablePath),
+    nonisolated static func tlsCacheKey(executablePath: String, arguments: [String]) -> String? {
+        // Key on the engine BUNDLE VERSION, not the executable's mtime+size. mtime
+        // changes on every rebuild, so the old key missed on EVERY dev launch and
+        // re-paid the ~2.74s TLS-prep subprocess (#4038 startup speedup). A marketing
+        // version is stable across rebuilds of the same release, so the cache hits.
+        //
+        // Safe against staleness: `cachedTLSMaterial` re-checks the cert/key paths
+        // still exist AND re-derives the SPKI pin from the certificate ON DISK, never
+        // from the cache — so a stale entry self-heals (fileExists fails → re-prep)
+        // and the pin can never be stale against a rotated cert. Falls back to the
+        // mtime+size fingerprint when the version can't be read, so an unidentifiable
+        // binary still never risks a wrong-cache hit.
+        guard let identity = engineBundleVersion(forExecutableAt: executablePath)
+            ?? executableFingerprint(atPath: executablePath) else {
+            return nil
+        }
+        return tlsCacheDefaultsPrefix + "\(executablePath)|\(identity)|\(arguments.joined(separator: " "))"
+    }
+
+    /// The engine bundle's marketing version (`CFBundleShortVersionString`), read
+    /// from `<Engine.app>/Contents/Info.plist`. Stable across rebuilds of the same
+    /// release — the point of the #4038 cache-hit fix. Returns nil if unreadable.
+    nonisolated static func engineBundleVersion(forExecutableAt executablePath: String) -> String? {
+        // executablePath = <Engine.app>/Contents/MacOS/<exe>; Info.plist is two up.
+        let contentsDir = ((executablePath as NSString).deletingLastPathComponent as NSString)
+            .deletingLastPathComponent
+        let infoPlist = (contentsDir as NSString).appendingPathComponent("Info.plist")
+        guard let dict = NSDictionary(contentsOfFile: infoPlist),
+              let version = dict["CFBundleShortVersionString"] as? String,
+              !version.isEmpty else {
+            return nil
+        }
+        return version
+    }
+
+    /// mtime+size fingerprint — the fallback when the bundle version can't be read,
+    /// so an unidentifiable binary never risks a stale cache (the pre-#4038 behavior).
+    nonisolated static func executableFingerprint(atPath path: String) -> String? {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let size = attrs[.size] as? Int,
               let modified = attrs[.modificationDate] as? Date else {
-            return nil  // Can't identify the binary → don't risk a stale cache.
+            return nil
         }
-        let engineIdentity = "\(executablePath)|\(size)|\(modified.timeIntervalSince1970)"
-        return tlsCacheDefaultsPrefix + "\(engineIdentity)|\(arguments.joined(separator: " "))"
+        return "\(size)|\(modified.timeIntervalSince1970)"
     }
 
     private static func cachedTLSMaterial(forKey key: String) -> RemoteAccessTLSMaterial? {

@@ -204,3 +204,73 @@ struct EngineTerminationDecodingTests {
             status: 0, reason: .exit) == "exit code 0")
     }
 }
+
+/// The TLS-material cache key must be STABLE across rebuilds (keyed on the engine
+/// bundle VERSION, not the executable mtime) so the ~2.74s prep subprocess isn't
+/// re-paid on every dev launch (#4038) — while still changing on a version bump or
+/// a different argument set.
+@Suite("TLS-prep cache key (#4038 stable across rebuilds)")
+struct TLSCacheKeyTests {
+
+    /// Build a throwaway `Fichero Engine.app/Contents/{MacOS/exe, Info.plist}` and
+    /// return the executable path. version==nil writes no Info.plist (fallback path).
+    private func makeEngineBundle(version: String?) throws -> (exe: String, root: URL) {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tlskey-\(UUID().uuidString)", isDirectory: true)
+        let contents = root.appendingPathComponent("Fichero Engine.app/Contents", isDirectory: true)
+        let macos = contents.appendingPathComponent("MacOS", isDirectory: true)
+        try FileManager.default.createDirectory(at: macos, withIntermediateDirectories: true)
+        let exe = macos.appendingPathComponent("Fichero Engine")
+        try Data("binary".utf8).write(to: exe)
+        if let version {
+            let data = try PropertyListSerialization.data(
+                fromPropertyList: ["CFBundleShortVersionString": version],
+                format: .xml, options: 0
+            )
+            try data.write(to: contents.appendingPathComponent("Info.plist"))
+        }
+        return (exe.path, root)
+    }
+
+    @Test("key is unchanged when only the executable mtime/size changes (the fix)")
+    func stableAcrossRebuild() throws {
+        let (exe, root) = try makeEngineBundle(version: "2026.07.22")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let key1 = EmbeddedBackendService.tlsCacheKey(executablePath: exe, arguments: ["--host", "127.0.0.1"])
+        try Data("rebuilt-binary-larger".utf8).write(to: URL(fileURLWithPath: exe))  // simulate rebuild
+        let key2 = EmbeddedBackendService.tlsCacheKey(executablePath: exe, arguments: ["--host", "127.0.0.1"])
+        #expect(key1 != nil)
+        #expect(key1 == key2)  // version-keyed → cache HITS across the rebuild
+    }
+
+    @Test("key changes on a version bump")
+    func changesOnVersionBump() throws {
+        let (exe, root) = try makeEngineBundle(version: "2026.07.22")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let k1 = EmbeddedBackendService.tlsCacheKey(executablePath: exe, arguments: [])
+        let plist = URL(fileURLWithPath: exe).deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Info.plist")
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: ["CFBundleShortVersionString": "2026.07.23"], format: .xml, options: 0)
+        try data.write(to: plist)
+        let k2 = EmbeddedBackendService.tlsCacheKey(executablePath: exe, arguments: [])
+        #expect(k1 != k2)
+    }
+
+    @Test("key changes when the arguments differ")
+    func changesOnArguments() throws {
+        let (exe, root) = try makeEngineBundle(version: "2026.07.22")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let a = EmbeddedBackendService.tlsCacheKey(executablePath: exe, arguments: ["--host", "127.0.0.1"])
+        let b = EmbeddedBackendService.tlsCacheKey(executablePath: exe, arguments: ["--host", "0.0.0.0"])
+        #expect(a != b)
+    }
+
+    @Test("falls back to a fingerprint when no Info.plist version is present")
+    func fingerprintFallback() throws {
+        let (exe, root) = try makeEngineBundle(version: nil)
+        defer { try? FileManager.default.removeItem(at: root) }
+        #expect(EmbeddedBackendService.engineBundleVersion(forExecutableAt: exe) == nil)
+        #expect(EmbeddedBackendService.tlsCacheKey(executablePath: exe, arguments: []) != nil)
+    }
+}
