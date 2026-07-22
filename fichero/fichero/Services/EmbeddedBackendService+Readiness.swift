@@ -195,9 +195,9 @@ extension EmbeddedBackendService {
         let result = await EngineReadinessProbe(client: client, expectedNonce: expectedLaunchNonce).probe()
         // Observability (#dev): report EXACTLY what each poll saw, so a failing
         // adopt shows its stage instead of a bare "no engine". `.notResponding`
-        // = the probe's own client couldn't reach /api/health (transport/connect
-        // failure); `.authRejected` = health 200 but /api/registry 401/403;
-        // `.ready` = both 200. If the engine logs /api/registry 200 while this
+        // means the probe's own client couldn't reach /api/health (transport/connect
+        // failure). `.authRejected` means health 200 but /api/registry 401/403.
+        // `.ready` means both 200. If the engine logs /api/registry 200 while this
         // says `.notResponding`, the 200 is a DIFFERENT client and the probe's
         // client is the one failing to connect.
         logger.info("readiness probe result: \(String(describing: result), privacy: .public)")

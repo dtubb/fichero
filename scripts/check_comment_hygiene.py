@@ -27,7 +27,6 @@ RULE_DOC = "agents/ROADMAP.md"
 KNOWN_VIOLATIONS: dict[str, str] = {
 "fichero/fichero/Services/ChatService.swift#9190295867": "#1916 baseline",
     "fichero/fichero/Services/ProviderAPIService.swift#4add631a96": "#1916 baseline",
-    "fichero/fichero/Services/WorkflowStreamService+Parsing.swift#a55c320098": "#1916 baseline",
     "fichero/fichero/Views/Library/ViewModes/LibraryView+Helpers.swift#6db3c7cd5e": "#1916 baseline (DocRowIdentity doc block moved here when LibraryView+DisplayModes was split by file_length)",
     "fichero/fichero/Views/Preview/ImageViewer/ZoomableImagePreviewMac+ZoomActions.swift#c7669329ed": "#1916 baseline",
     "fichero/fichero/Views/Library/LibraryView+KeyboardShortcuts.swift#d5e49f726d": "#1916 baseline",
