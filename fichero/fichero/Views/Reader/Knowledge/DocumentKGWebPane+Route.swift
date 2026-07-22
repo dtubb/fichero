@@ -4,8 +4,14 @@ import Foundation
 extension DocumentKGPaneRoute {
     static let globalKGDocumentID = "__kg_global__"
 
+    /// The KG page loads over the custom `fichero-engine://engine` origin, NOT a
+    /// raw `https://…:8765` URL. `EngineWebViewSchemeHandler` intercepts every
+    /// navigation + relative subresource and fetches it through the transport-
+    /// agnostic `FicheroClient`, so the whole page works over `.https`, `.uds`,
+    /// and in-memory transports alike (a raw engine URL fails `-1004` over UDS
+    /// because WKWebView can only dial an HTTP host).
     static var baseURL: String {
-        EngineConfig.host.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        "\(EngineWebViewURL.scheme)://\(EngineWebViewURL.host)"
     }
 
     static func documentURL(documentId: String) -> URL? {
@@ -13,6 +19,18 @@ extension DocumentKGPaneRoute {
             return nil
         }
         return URL(string: "\(baseURL)/view/document/\(encoded)")
+    }
+
+    /// The `FicheroClient` whose transport the KG page's scheme handler funnels
+    /// through — the open library matching `libraryPath`, falling back to the
+    /// Global library. Its `currentLibraryPath` is already set to `libraryPath`,
+    /// so `requestData` applies the correct library scoping automatically.
+    @MainActor
+    static func webViewClient(libraryPath: String) -> FicheroClient? {
+        if let match = LibraryManager.shared.openLibraries.first(where: { $0.url.path == libraryPath }) {
+            return match.ficheroClient
+        }
+        return LibraryManager.shared.globalLibrary?.ficheroClient
     }
 
     static func supportsAuthenticatedWebView() -> Bool {
@@ -34,9 +52,12 @@ extension DocumentKGPaneRoute {
             url = documentURL(documentId: documentId)
         }
         guard let url else { return nil }
-        var request = URLRequest(url: url)
-        request.addEngineAuth(libraryPath: libraryPath)
-        return request
+        // No auth headers here: `EngineWebViewSchemeHandler` re-issues every load
+        // through `FicheroClient.requestData`, whose middleware stack applies the
+        // auth token + `X-Fichero-Library-Path`. Headers set on this request are
+        // not forwarded by the handler.
+        _ = libraryPath
+        return URLRequest(url: url)
     }
 
     static func unavailableHTML() -> String {

@@ -172,6 +172,21 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         applyZoom(to: webView, zoom: parent?.zoom ?? 1.0)
     }
 
+    /// A genuine fetch failure (pinned remote unreachable, engine non-2xx) fails
+    /// the `fichero-engine://` provisional navigation. Fall back to the static
+    /// "unavailable" page. Only fires for engine loads (or the key-less handler
+    /// errors) so the `about:blank` unavailable page can't re-trigger a loop.
+    func webView(
+        _ webView: WKWebView,
+        didFailProvisionalNavigation navigation: WKNavigation!,
+        withError error: any Error
+    ) {
+        if error.isCancellationError { return }
+        let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLStringErrorKey] as? String
+        guard failingURL == nil || failingURL?.hasPrefix(EngineWebViewURL.scheme) == true else { return }
+        webView.loadHTMLString(DocumentKGPaneRoute.unavailableHTML(), baseURL: nil)
+    }
+
     /// Validate the engine's TLS certificate against Fichero's persisted
     /// SPKI pin — the same pinned transport the URLSession stack uses (see
     /// the macOS variant for the rationale, #2538).

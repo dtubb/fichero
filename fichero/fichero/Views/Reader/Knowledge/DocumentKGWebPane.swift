@@ -64,12 +64,16 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
     func makeNSView(context: Context) -> GuardedWKWebView {
         let config = WKWebViewConfiguration()
+        // The whole KG page loads over the custom `fichero-engine://` origin so
+        // `EngineWebViewSchemeHandler` funnels every navigation + relative
+        // subresource through the transport-agnostic `FicheroClient` — making the
+        // pane work over `.uds`/in-memory, not just HTTPS (a raw `https://…:8765`
+        // navigation fails `-1004` when WKWebView can't dial the socket).
+        if let client = DocumentKGPaneRoute.webViewClient(libraryPath: libraryPath) {
+            config.setURLSchemeHandler(EngineWebViewSchemeHandler(client: client), forURLScheme: EngineWebViewURL.scheme)
+        }
         // Storage images referenced as `fichero-res://…` inside KG HTML resolve
-        // through the generated client (transport-agnostic). Note: the KG page
-        // itself is still a server-rendered `https://…/view/document/…`
-        // navigation whose subresources the engine emits as absolute engine URLs;
-        // routing the whole page over UDS/in-memory needs an engine-side change
-        // (see the report) — this handler only covers `fichero-res://` assets.
+        // through the generated client too (transport-agnostic).
         config.setURLSchemeHandler(StorageResourceSchemeHandler(), forURLScheme: StorageResourceURL.scheme)
         let controller = config.userContentController
         controller.add(context.coordinator, name: "ficheroBridge")
@@ -177,9 +181,12 @@ struct DocumentKGWebPane: UIViewRepresentable {
 
     func makeUIView(context: Context) -> GuardedWKWebView {
         let config = WKWebViewConfiguration()
-        // See the macOS pane: resolve `fichero-res://` storage assets through the
-        // generated client; full-page KG navigation over UDS/in-memory still
-        // needs an engine-side change.
+        // See the macOS pane: the whole KG page loads over `fichero-engine://` so
+        // `EngineWebViewSchemeHandler` routes it through the transport-agnostic
+        // `FicheroClient`, and `fichero-res://` storage assets resolve the same way.
+        if let client = DocumentKGPaneRoute.webViewClient(libraryPath: libraryPath) {
+            config.setURLSchemeHandler(EngineWebViewSchemeHandler(client: client), forURLScheme: EngineWebViewURL.scheme)
+        }
         config.setURLSchemeHandler(StorageResourceSchemeHandler(), forURLScheme: StorageResourceURL.scheme)
         let controller = config.userContentController
         controller.add(context.coordinator, name: "ficheroBridge")
