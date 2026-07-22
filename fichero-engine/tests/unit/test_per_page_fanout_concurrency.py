@@ -60,7 +60,7 @@ def temp_library(tmp_path, monkeypatch):
     # Avoid seeding default workflow presets — keeps the library minimal.
     monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 
-    from fichero.db_manager import db_manager
+    from fichero.db.manager import db_manager
 
     lib = tmp_path / "Concurrency.fichero"
     lib.mkdir(parents=True, exist_ok=True)

@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from fichero.db_embeddings import (
+from fichero.db.embeddings import (
     BGE_M3_MODEL,
     DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL,
     SUPPORTED_EMBEDDING_SPACES,

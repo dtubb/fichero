@@ -14,7 +14,7 @@ from fichero.knowledge_models import (
     MutationOperationType,
     SourceType,
 )
-from fichero.migrations import (
+from fichero.db.migrations.runner import (
     MigrationResult,
     MigrationRunner,
     MigrationStatus,

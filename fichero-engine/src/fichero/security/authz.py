@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fichero.app_db import get_app_db
+from fichero.db.app import get_app_db
 from fichero.db.library_paths import nfc_path
 from fichero.models import AccountUser, Document
 from fichero.multiuser import multiuser_enabled as _multiuser_enabled
@@ -291,7 +291,7 @@ def _matching_override_effect(
 def _target_ancestor_ids(library_path: str, target_id: str) -> list[str]:
     """Return target id followed by document ancestors, if the target is a document."""
     try:
-        from fichero.db_manager import db_manager
+        from fichero.db.manager import db_manager
 
         db = db_manager.get_database(library_path)
         doc = db.get(Document, target_id)

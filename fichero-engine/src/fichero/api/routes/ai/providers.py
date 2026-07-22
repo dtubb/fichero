@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from fichero.db import Database
-from fichero.app_db import get_app_db, AppDatabase
+from fichero.db.app import get_app_db, AppDatabase
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.routes.auth.accounts import (
     _require_authenticated_or_bootstrap,

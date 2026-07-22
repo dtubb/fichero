@@ -57,14 +57,14 @@ import unicodedata
 import duckdb
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefinedType
-from fichero.db_embeddings import (
+from fichero.db.embeddings import (
     EMBEDDINGS_TABLE,
     DatabaseEmbeddingMixin,
     EmbeddingSpaceMismatchError,
     _dequantize_int8,
     _quantize_int8,
 )
-from fichero.db_manager import DatabaseManager, db_manager  # noqa: F401
+from fichero.db.manager import DatabaseManager, db_manager  # noqa: F401
 from fichero.errors import ErrorCategory, handle_error
 from fichero.security.path_security import resolve_under_allowed_roots
 
@@ -595,7 +595,7 @@ class Database(DatabaseEmbeddingMixin):
         self._vector_append_counts: dict[str, int] = {}
 
         # Migrate tables if needed
-        from fichero.db_migrations import (
+        from fichero.db.migrations.schema import (
             migrate_canvas_layout_table,
             migrate_document_table,
             migrate_workflow_table,
@@ -691,7 +691,7 @@ class Database(DatabaseEmbeddingMixin):
         # drop unsafe indexes again.
         self._tables_created.clear()
         try:
-            from fichero.db_migrations import migrate_knowledge_indices
+            from fichero.db.migrations.schema import migrate_knowledge_indices
 
             migrate_knowledge_indices(self.conn)
         except Exception as exc:
@@ -4415,7 +4415,7 @@ class Database(DatabaseEmbeddingMixin):
     # Trace JSONL Export (for debug logs)
     # =========================================================================
     # reindex_all, embedding_stats, and embedding helpers are in DatabaseEmbeddingMixin
-    # (fichero.db_embeddings)
+    # (fichero.db.embeddings)
 
     def export_traces_jsonl(self, run_id: str, path: str | Path | None = None) -> Path:
         """Export all traces for a run to JSONL file.
@@ -4742,7 +4742,7 @@ class Database(DatabaseEmbeddingMixin):
             # is a no-op when already present); critical for query latency
             # at 50K+ claims. (#991 — scaling-review bottleneck 2)
             if first_reconcile_this_connection and table in {"knowledgeclaims", "knowledgeentitys"}:
-                from fichero.db_migrations import migrate_knowledge_indices
+                from fichero.db.migrations.schema import migrate_knowledge_indices
                 migrate_knowledge_indices(self.conn)
 
     def _python_to_duckdb_type(self, python_type) -> str:
@@ -4788,27 +4788,27 @@ class Database(DatabaseEmbeddingMixin):
 
     def _migrate_workflow_table(self) -> None:
         """Delegate to db_migrations.migrate_workflow_table."""
-        from fichero.db_migrations import migrate_workflow_table
+        from fichero.db.migrations.schema import migrate_workflow_table
         migrate_workflow_table(self.conn)
 
     def _migrate_saved_search_table(self) -> None:
         """Delegate to db_migrations.migrate_saved_search_table."""
-        from fichero.db_migrations import migrate_saved_search_table
+        from fichero.db.migrations.schema import migrate_saved_search_table
         migrate_saved_search_table(self.conn)
 
     def _migrate_provider_refs_table(self) -> None:
         """Delegate to db_migrations.migrate_provider_refs_table."""
-        from fichero.db_migrations import migrate_provider_refs_table
+        from fichero.db.migrations.schema import migrate_provider_refs_table
         migrate_provider_refs_table(self.conn)
 
     def _migrate_activity_tables(self) -> None:
         """Delegate to db_migrations.migrate_activity_tables."""
-        from fichero.db_migrations import migrate_activity_tables
+        from fichero.db.migrations.schema import migrate_activity_tables
         migrate_activity_tables(self.conn)
 
     def _migrate_checkpoint_tables(self) -> None:
         """Delegate to db_migrations.migrate_checkpoint_tables."""
-        from fichero.db_migrations import migrate_checkpoint_tables
+        from fichero.db.migrations.schema import migrate_checkpoint_tables
         migrate_checkpoint_tables(self.conn)
 
 

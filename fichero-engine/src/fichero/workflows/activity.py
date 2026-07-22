@@ -666,7 +666,7 @@ def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:
     """
     if db_path is None:
         # Fallback to app database - not ideal but maintains backward compatibility
-        from fichero.app_db import get_db_path
+        from fichero.db.app import get_db_path
 
         db_path = get_db_path()
         logger.warning(

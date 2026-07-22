@@ -6,7 +6,7 @@ and 500'd every app-DB endpoint (providers, ai-defaults, ...)."""
 from __future__ import annotations
 
 
-from fichero.app_db import AppDatabase
+from fichero.db.app import AppDatabase
 
 
 def _make_legacy_devices_db(path) -> None:

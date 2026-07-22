@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.app_db import get_app_db
+from fichero.db.app import get_app_db
 from fichero.security.keychain import get_api_key
 from fichero.providers import get_provider_info
 

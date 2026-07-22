@@ -11,7 +11,7 @@ import logging
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Optional
 
-from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
+from fichero.db.embeddings import KG_ENTITY_EMBEDDINGS_TABLE
 from fichero.kg._common import enum_value
 
 if TYPE_CHECKING:  # pragma: no cover

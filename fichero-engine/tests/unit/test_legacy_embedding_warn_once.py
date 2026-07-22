@@ -19,8 +19,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fichero import db_embeddings
-from fichero.db_embeddings import DatabaseEmbeddingMixin
+from fichero.db import embeddings as db_embeddings
+from fichero.db.embeddings import DatabaseEmbeddingMixin
 
 
 @pytest.fixture(autouse=True)
@@ -42,7 +42,7 @@ def _make_mixin() -> DatabaseEmbeddingMixin:
 
 def test_warning_fires_once_for_same_table(caplog):
     mixin = _make_mixin()
-    with caplog.at_level(logging.WARNING, logger="fichero.db_embeddings"):
+    with caplog.at_level(logging.WARNING, logger="fichero.db.embeddings"):
         mixin._warn_legacy_vector_table("kg_entity_embeddings")
         mixin._warn_legacy_vector_table("kg_entity_embeddings")
         mixin._warn_legacy_vector_table("kg_entity_embeddings")
@@ -53,7 +53,7 @@ def test_warning_fires_once_for_same_table(caplog):
 
 def test_warning_fires_once_per_distinct_table(caplog):
     mixin = _make_mixin()
-    with caplog.at_level(logging.WARNING, logger="fichero.db_embeddings"):
+    with caplog.at_level(logging.WARNING, logger="fichero.db.embeddings"):
         mixin._warn_legacy_vector_table("kg_entity_embeddings")
         mixin._warn_legacy_vector_table("kg_claim_embeddings")
         mixin._warn_legacy_vector_table("kg_entity_embeddings")
@@ -69,7 +69,7 @@ def test_warning_fires_once_across_multiple_instances(caplog):
     """Different Database instances (different threads) share the module-level set."""
     mixin_a = _make_mixin()
     mixin_b = _make_mixin()
-    with caplog.at_level(logging.WARNING, logger="fichero.db_embeddings"):
+    with caplog.at_level(logging.WARNING, logger="fichero.db.embeddings"):
         mixin_a._warn_legacy_vector_table("kg_entity_embeddings")
         mixin_b._warn_legacy_vector_table("kg_entity_embeddings")
 
@@ -83,7 +83,7 @@ def test_warning_fires_once_across_threads(caplog):
 
     def _worker():
         mixin = _make_mixin()
-        with caplog.at_level(logging.WARNING, logger="fichero.db_embeddings"):
+        with caplog.at_level(logging.WARNING, logger="fichero.db.embeddings"):
             mixin._warn_legacy_vector_table("kg_entity_embeddings")
         count = sum(1 for r in caplog.records if "legacy/unstamped" in r.message)
         results.append(count)

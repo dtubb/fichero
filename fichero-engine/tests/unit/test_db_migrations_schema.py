@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import duckdb
 
-from fichero.db_migrations import (
+from fichero.db.migrations.schema import (
     migrate_canvas_layout_table,
     migrate_document_table,
     migrate_saved_search_table,

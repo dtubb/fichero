@@ -140,7 +140,7 @@ async def generate_entity_bio(
 
     prompt = _build_bio_prompt(entity, entity_claims)
 
-    from fichero.app_db import get_app_db  # noqa: PLC0415
+    from fichero.db.app import get_app_db  # noqa: PLC0415
 
     defaults = get_app_db().get_ai_defaults()
     # LLMConfig only — `chat` resolves to the module-level passthrough above,

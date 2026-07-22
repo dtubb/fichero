@@ -32,7 +32,7 @@ from fichero.api.library_header import optional_library_path, require_library_pa
 from fichero.security import authz
 from fichero.actions import ActionContext, ActionNotFoundError, ChangeSpec, action, registry
 from fichero.api.auth import action_context, library_access_denial_payload
-from fichero.app_db import get_app_db
+from fichero.db.app import get_app_db
 from fichero.api.main import (
     LibraryAccessDeniedError,
     get_library_database,

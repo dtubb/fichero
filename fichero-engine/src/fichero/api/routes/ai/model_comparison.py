@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.app_db import AppDatabase, get_app_db
+from fichero.db.app import AppDatabase, get_app_db
 from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
 from fichero.language_coverage import (

@@ -12,7 +12,7 @@ import pytest
 
 
 def test_default_embedding_model_stays_pinned_until_migration_exists() -> None:
-    from fichero.db_embeddings import DEFAULT_MODEL
+    from fichero.db.embeddings import DEFAULT_MODEL
 
     assert DEFAULT_MODEL == "intfloat/multilingual-e5-large"
 
@@ -36,7 +36,7 @@ def test_db_default_model_is_fastembed_supported() -> None:
 
 
 def test_db_embeddings_default_model_is_fastembed_supported() -> None:
-    from fichero.db_embeddings import DEFAULT_MODEL
+    from fichero.db.embeddings import DEFAULT_MODEL
 
     if DEFAULT_MODEL == "BAAI/bge-m3" and DEFAULT_MODEL not in _supported_models():
         pytest.skip("installed fastembed TextEmbedding catalog does not include BAAI/bge-m3")
@@ -48,7 +48,7 @@ def test_db_embeddings_default_model_is_fastembed_supported() -> None:
 
 def test_db_and_embeddings_defaults_agree() -> None:
     from fichero.db import DEFAULT_MODEL as db_default
-    from fichero.db_embeddings import DEFAULT_MODEL as embed_default
+    from fichero.db.embeddings import DEFAULT_MODEL as embed_default
 
     assert db_default == embed_default, (
         "db.DEFAULT_MODEL and db_embeddings.DEFAULT_MODEL diverged — the "

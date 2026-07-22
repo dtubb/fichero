@@ -43,7 +43,7 @@ def _make_pdf(path: Path, n_pages: int, *, with_text: bool = True) -> None:
 def temp_library(tmp_path, monkeypatch):
     """A real .fichero package backed by a real DuckDB file."""
     monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
-    from fichero.db_manager import db_manager
+    from fichero.db.manager import db_manager
 
     lib = tmp_path / "Granularity.fichero"
     lib.mkdir(parents=True, exist_ok=True)

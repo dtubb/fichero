@@ -19,7 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from fichero.db_embeddings import (
+from fichero.db.embeddings import (
     EMBEDDING_MODEL_ID_FIELD,
     EmbeddingSpaceMismatchError,
     _LEGACY_TABLE_WARNED,

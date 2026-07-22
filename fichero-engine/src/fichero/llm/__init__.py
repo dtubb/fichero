@@ -701,7 +701,7 @@ def resolve_model_alias(
     if env_provider and env_model:
         return (env_provider, env_model)
 
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
     db = get_app_db()
     tier = _alias_tier(raw)
     resolved_provider = db.get_setting(f"default_{tier}_provider")
@@ -727,7 +727,7 @@ def _model_has_capability(
     provider-level capability metadata.
     """
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
 
         db = get_app_db()
         provider_key = (provider or "").strip().lower()
@@ -801,7 +801,7 @@ def resolve_model_profile_for_capability(
     required_capability: str | None,
 ) -> LLMConfig:
     """Resolve a named profile and enforce role/capability/privacy policy."""
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
     from fichero.model_profiles import (
         ModelProfileNotFoundError,
         enforce_model_profile_privacy,
@@ -971,7 +971,7 @@ def _paid_remote_fallbacks_enabled() -> bool:
         return raw.strip().lower() in {"1", "true", "yes", "on"}
 
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
 
         setting = get_app_db().get_setting("allow_paid_ai_fallbacks")
     except Exception:
@@ -989,7 +989,7 @@ def is_local_only() -> bool:
         return raw.strip().lower() in {"1", "true", "yes", "on"}
 
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
 
         setting = get_app_db().get_setting("local_only_ai")
     except Exception:

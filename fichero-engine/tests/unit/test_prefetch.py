@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import pytest
 
-from fichero import db_embeddings
+from fichero.db import embeddings as db_embeddings
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +110,7 @@ def test_prewarm_then_ensure_embedder_is_cache_hit(tmp_path, monkeypatch):
     assert calls["n"] == 1
 
     # Simulate what _ensure_embedder does: call _get_shared_embedder.
-    from fichero.db_embeddings import _configured_embedding_space, _get_shared_embedder
+    from fichero.db.embeddings import _configured_embedding_space, _get_shared_embedder
 
     space = _configured_embedding_space()
     cache_dir = str(fake_models_base / "embeddings")

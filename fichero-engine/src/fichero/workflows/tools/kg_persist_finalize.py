@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero.db import db_manager
-from fichero.db_embeddings import (
+from fichero.db.embeddings import (
     KG_CLAIM_EMBEDDINGS_TABLE,
     KG_ENTITY_EMBEDDINGS_TABLE,
 )

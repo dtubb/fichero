@@ -207,7 +207,7 @@ def _validate_model_sync() -> bool:
 def _seed_builtin_providers() -> None:
     """Ensure Apple Intelligence (on-device) provider exists — no API key, always available on macOS."""
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
         from fichero.models import Model, Provider, ProviderType
 
         app_db = get_app_db()
@@ -402,7 +402,7 @@ def _collapse_duplicate_providers() -> None:
     deleting the dupes.
     """
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
         from collections import defaultdict
 
         app_db = get_app_db()
@@ -451,7 +451,7 @@ def _prewarm_embeddings() -> None:
 
         # Use the embedder's own configured embedding space (single source of
         # truth) so pre-warm always loads the same model the real embedder uses.
-        from fichero.db_embeddings import (
+        from fichero.db.embeddings import (
             DEFAULT_MODEL,
             _configured_embedding_space,
             _register_fastembed_model_for_space,
@@ -477,7 +477,7 @@ def _prewarm_embeddings() -> None:
         except Exception:  # noqa: BLE001 — never let the guard block pre-warm
             pass
 
-        from fichero.db_embeddings import _get_shared_embedder
+        from fichero.db.embeddings import _get_shared_embedder
 
         cache_dir = MODELS_BASE / "embeddings"
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -511,7 +511,7 @@ def prefetch_library_caches(package_path: Path) -> dict:
     Never raises — all failures are logged as warnings so startup is not
     blocked by a missing or empty library.
     """
-    from fichero.db_embeddings import (
+    from fichero.db.embeddings import (
         EMBEDDINGS_TABLE,
         KG_CLAIM_EMBEDDINGS_TABLE,
         KG_ENTITY_EMBEDDINGS_TABLE,
@@ -1093,7 +1093,7 @@ def _bootstrap_legacy_library_owner_if_needed(
       loopback bootstrap path with exactly one active owner).
     """
     from fichero.security import authz
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     if not authz.multiuser_enabled():
         return

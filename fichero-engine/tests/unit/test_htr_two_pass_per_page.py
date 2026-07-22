@@ -68,7 +68,7 @@ def _make_png(path: Path) -> None:
 @pytest.fixture
 def temp_library(tmp_path, monkeypatch):
     monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
-    from fichero.db_manager import db_manager
+    from fichero.db.manager import db_manager
 
     lib = tmp_path / "HTR.fichero"
     lib.mkdir(parents=True, exist_ok=True)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fichero import storage_snapshots
+from fichero.db import storage_snapshots
 from fichero.db.storage import StorageSettings
 
 

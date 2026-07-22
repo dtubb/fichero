@@ -108,7 +108,7 @@ class TestActionStoreConcurrency:
     def shared_db(self, tmp_path, monkeypatch):
         """One shared managed Database for a real .fichero package."""
         monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
-        from fichero.db_manager import db_manager
+        from fichero.db.manager import db_manager
 
         lib = tmp_path / "ActionConc.fichero"
         lib.mkdir(parents=True, exist_ok=True)

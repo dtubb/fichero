@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from fichero import __main__ as cli
 from fichero import accounts
-from fichero.app_db import AppDatabase
+from fichero.db.app import AppDatabase
 from fichero.cli import FicheroError
 from fichero.cli import client as client_module
 

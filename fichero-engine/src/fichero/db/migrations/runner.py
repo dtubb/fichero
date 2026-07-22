@@ -11,7 +11,7 @@ Migration Framework Features:
 - Progress callbacks: Real-time progress reporting for long operations
 
 Usage:
-    from fichero.migrations import MigrationRunner
+    from fichero.db.migrations.runner import MigrationRunner
     from fichero.db import Database
 
     db = Database(path)

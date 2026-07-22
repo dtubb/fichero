@@ -39,8 +39,8 @@ def et_client(et_package):
     test db_manager (same global singleton, fresh package each test).
     """
     from fichero.api.routes.library_entity_types import _get_db_manager
-    from fichero.app_db import AppDatabase
-    import fichero.app_db as _app_db_module
+    from fichero.db.app import AppDatabase
+    import fichero.db.app as _app_db_module
 
     # Isolate the app DB so the fixture never touches the prod DuckDB.
     app_db_path = et_package.parent / "test_app.duckdb"

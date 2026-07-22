@@ -7,7 +7,7 @@ from pydantic import BaseModel, ValidationError
 
 from fichero.security import authz
 from fichero.actions import ActionContext, registry
-from fichero.app_db import get_app_db
+from fichero.db.app import get_app_db
 from fichero.api.auth import action_context, auth_kind_from_request, library_access_denial_payload
 from fichero.api.routes.library.registry import get_global_database
 from fichero.api.library_header import require_library_path

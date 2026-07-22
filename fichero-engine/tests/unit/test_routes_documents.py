@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 
-from fichero import storage as storage_module
+from fichero.db import storage as storage_module
 from fichero.actions.registry import ActionContext, ActionResult
 from fichero.api.routes import documents as documents_routes
 from fichero.api.routes.documents import related_documents

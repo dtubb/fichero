@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.db_embeddings import KG_CLAIM_EMBEDDINGS_TABLE
+from fichero.db.embeddings import KG_CLAIM_EMBEDDINGS_TABLE
 from fichero.models import KGGraphListResponse
 from fichero.knowledge_models import (
     ClaimCurationState,

@@ -43,7 +43,7 @@ def temp_library(tmp_path, monkeypatch):
     test opened across all threads so connections don't leak between tests.
     """
     monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
-    from fichero.db_manager import db_manager
+    from fichero.db.manager import db_manager
 
     lib = tmp_path / "WriteModel.fichero"
     lib.mkdir(parents=True, exist_ok=True)

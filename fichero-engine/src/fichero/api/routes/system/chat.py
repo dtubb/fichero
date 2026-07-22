@@ -20,7 +20,7 @@ from fichero.api.change_stream import emit_change
 from fichero.api.routes.claim.claims import _descendant_doc_ids
 from fichero.db import Database
 from fichero.api.main import get_library_database, get_library_database_for_write
-from fichero.app_db import get_app_db, AppDatabase
+from fichero.db.app import get_app_db, AppDatabase
 from fichero.models import (
     Conversation,
     DocType,

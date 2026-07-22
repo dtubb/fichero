@@ -182,7 +182,7 @@ def list_model_profiles(request: Request) -> ModelProfileListResponse:
     """List named AI model/provider profiles."""
     _require_authenticated_or_bootstrap(request)
 
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     return ModelProfileListResponse(items=get_app_db().list_model_profiles())
 
@@ -195,7 +195,7 @@ def create_model_profile(
 ) -> ModelProfile:
     """Create a named AI model/provider profile."""
     from duckdb import ConstraintException
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     profile = body.to_profile()
     _validate_profile(profile)
@@ -213,7 +213,7 @@ def get_model_profile(profile_id: str, request: Request) -> ModelProfile:
     """Get a named AI model/provider profile."""
     _require_authenticated_or_bootstrap(request)
 
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     return _get_profile_or_404(get_app_db(), profile_id)
 
@@ -227,7 +227,7 @@ def update_model_profile(
 ) -> ModelProfile:
     """Update a named AI model/provider profile."""
     from duckdb import ConstraintException
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     db = get_app_db()
     current = _get_profile_or_404(db, profile_id)
@@ -254,7 +254,7 @@ def delete_model_profile(
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> StatusOkResponse:
     """Delete a named AI model/provider profile."""
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     deleted = get_app_db().delete_model_profile(profile_id)
     if deleted is None:
@@ -267,7 +267,7 @@ def get_ai_defaults(request: Request) -> AIDefaults:
     """Get default AI models for each category."""
     _require_authenticated_or_bootstrap(request)
 
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     db = get_app_db()
     defaults = db.get_ai_defaults()
@@ -308,7 +308,7 @@ def set_ai_defaults(
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> StatusOkResponse:
     """Set default AI models for each category."""
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     _validate_provider_updates(body)
 
@@ -341,7 +341,7 @@ def repair_ai_defaults(
     values the user has already set. Fixes libraries created before the
     factory-defaults seed was added (#1057).
     """
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     db = get_app_db()
     apple = "apple"
@@ -368,7 +368,7 @@ def reset_ai_defaults(
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> StatusOkResponse:
     """Reset all AI default settings to empty."""
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     db = get_app_db()
     db.reset_ai_defaults()

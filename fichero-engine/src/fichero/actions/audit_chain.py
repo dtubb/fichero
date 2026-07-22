@@ -193,7 +193,7 @@ def _load_chain_anchor(db) -> dict[str, Any] | None:
         raw = path.read_text(encoding="utf-8")
         payload = json.loads(raw)
     except (OSError, json.JSONDecodeError):
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
 
         raw = get_app_db().get_setting(_anchor_setting_key(db))
         if not raw:

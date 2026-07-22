@@ -144,7 +144,7 @@ def test_embed_many_embeds_batch_and_is_searchable(temp_db):
     count = temp_db.embed_many(docs)
     assert count == 8
 
-    from fichero.db_embeddings import EMBEDDINGS_TABLE
+    from fichero.db.embeddings import EMBEDDINGS_TABLE
 
     table = temp_db.lance.open_table(EMBEDDINGS_TABLE)
     rows = table.count_rows()

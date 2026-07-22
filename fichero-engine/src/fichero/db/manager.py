@@ -62,7 +62,7 @@ class DatabaseManager:
             The single shared Database instance for this package.
         """
         from fichero.db import Database
-        from fichero.db_migrations import (
+        from fichero.db.migrations.schema import (
             migrate_activity_tables,
             migrate_checkpoint_tables,
             migrate_provider_refs_table,

@@ -34,7 +34,7 @@ def test_workflow_default_beats_category_default_for_llm_node(monkeypatch):
         "fichero.workflows.builder.get_tool_def",
         lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
     )
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: _FakeAppDB())
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: _FakeAppDB())
 
     resolved = _resolve_node_llm_config(node, workflow_cfg)
     assert resolved.provider == "openai"
@@ -49,7 +49,7 @@ def test_category_default_applies_when_workflow_default_missing(monkeypatch):
         "fichero.workflows.builder.get_tool_def",
         lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
     )
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: _FakeAppDB())
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: _FakeAppDB())
 
     resolved = _resolve_node_llm_config(node, workflow_cfg)
     assert resolved.provider == "openai"
@@ -115,7 +115,7 @@ def test_node_profile_override_beats_alias_and_applies_params(monkeypatch):
         "fichero.workflows.builder.get_tool_def",
         lambda _tool: SimpleNamespace(uses_llm=True, category="llm"),
     )
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: fake_db)
 
     resolved = _resolve_node_llm_config(node, workflow_cfg)
 
@@ -151,7 +151,7 @@ def test_workflow_profile_reference_resolves_before_category_default(monkeypatch
         "fichero.workflows.builder.get_tool_def",
         lambda _tool: SimpleNamespace(uses_llm=True, category="llm"),
     )
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: fake_db)
 
     resolved = _resolve_node_llm_config(node, workflow_cfg)
 
@@ -179,7 +179,7 @@ def test_explicit_node_override_beats_configured_vision_slot(monkeypatch):
         "fichero.workflows.builder.get_tool_def",
         lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
     )
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: fake_db)
 
     resolved = _resolve_node_llm_config(node, workflow_cfg)
     assert resolved.provider == "openai"
@@ -200,7 +200,7 @@ def test_generic_default_applies_when_category_default_missing(monkeypatch):
         "fichero.workflows.builder.get_tool_def",
         lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
     )
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: fake_db)
 
     resolved = _resolve_node_llm_config(node, workflow_cfg)
     assert resolved.provider == "anthropic"
@@ -221,7 +221,7 @@ def test_transcribe_node_without_override_uses_vision_category_default(monkeypat
         "fichero.workflows.builder.get_tool_def",
         lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
     )
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: fake_db)
 
     resolved = _resolve_node_llm_config(node, workflow_cfg)
     assert resolved.provider == "apple"
@@ -256,7 +256,7 @@ def test_apple_included_in_vision_provider_fallback(monkeypatch):
         "fichero.workflows.builder.get_tool_def",
         lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
     )
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: fake_db)
 
     resolved = _resolve_node_llm_config(node, workflow_cfg)
     assert resolved.provider == "apple"
@@ -297,7 +297,7 @@ def test_apple_excluded_from_llm_text_provider_fallback(monkeypatch):
         "fichero.workflows.builder.get_tool_def",
         lambda _tool: SimpleNamespace(uses_llm=True, category="text"),
     )
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: fake_db)
 
     resolved = _resolve_node_llm_config(node, workflow_cfg)
     assert resolved.provider == "openai"
@@ -328,7 +328,7 @@ def test_provider_lookup_failure_falls_back_to_workflow_config(monkeypatch):
         lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
     )
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: (_ for _ in ()).throw(RuntimeError("db unavailable")),
     )
 

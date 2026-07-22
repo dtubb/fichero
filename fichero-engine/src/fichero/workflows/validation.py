@@ -308,7 +308,7 @@ def validate_workflow_llm_preflight(
 
             if not (provider and model):
                 try:
-                    from fichero.app_db import get_app_db
+                    from fichero.db.app import get_app_db
 
                     app_db = get_app_db()
                     cat_default = app_db.get_default_model_for_category(

@@ -875,7 +875,7 @@ class TestCollapseDuplicateProviders:
 
         # Patch get_app_db so the startup function operates on our test db.
         monkeypatch.setattr(
-            "fichero.app_db.get_app_db", lambda: app_db, raising=False
+            "fichero.db.app.get_app_db", lambda: app_db, raising=False
         )
 
         api_main._collapse_duplicate_providers()
@@ -898,7 +898,7 @@ class TestCollapseDuplicateProviders:
             app_db.save_provider(p)
 
         monkeypatch.setattr(
-            "fichero.app_db.get_app_db", lambda: app_db, raising=False
+            "fichero.db.app.get_app_db", lambda: app_db, raising=False
         )
 
         api_main._collapse_duplicate_providers()

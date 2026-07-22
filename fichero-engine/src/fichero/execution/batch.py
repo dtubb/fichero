@@ -602,7 +602,7 @@ class BatchManager:
                     # first step (#1282). Scoped to THIS item's documents so
                     # concurrent items don't complete each other's pages.
                     try:
-                        from fichero.db_manager import db_manager
+                        from fichero.db.manager import db_manager
                         from fichero.workflows.completion import (
                             collect_processed_document_ids,
                             complete_run_documents,

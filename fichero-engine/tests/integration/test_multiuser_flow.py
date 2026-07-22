@@ -13,7 +13,7 @@ import pytest
 
 from fichero.api.auth import initialize_token
 from fichero.api.routes import auth_accounts, pairing
-from fichero.db_manager import db_manager
+from fichero.db.manager import db_manager
 from fichero.models import ActionAudit, DocType, Document, FileType, Status
 
 
@@ -601,7 +601,7 @@ def test_multiuser_invite_attack_surface_and_concurrent_redeem(
         )
 
         monkeypatch.setattr(auth_accounts, "datetime", FrozenDateTime)
-        monkeypatch.setattr("fichero.app_db.datetime", FrozenDateTime)
+        monkeypatch.setattr("fichero.db.app.datetime", FrozenDateTime)
         expiring = _mint_invite(client, "bea", "Bea")
         FrozenDateTime.current = base_now + auth_accounts.INVITE_TTL + timedelta(seconds=1)
         expired = client.post(

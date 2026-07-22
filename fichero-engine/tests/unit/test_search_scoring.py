@@ -26,8 +26,8 @@ from fichero.db import (
     _is_content_marker_only,
     _search_result_preview,
 )
-from fichero.db_embeddings import _l2_normalize
-from fichero.db_embeddings import _quantize_int8, _dequantize_int8
+from fichero.db.embeddings import _l2_normalize
+from fichero.db.embeddings import _quantize_int8, _dequantize_int8
 
 
 class TestL2Normalize:

@@ -239,7 +239,7 @@ class TestGlobalRegistryHeaderless:
 
     def test_open_inventory_reflects_live_manager_handles(self, global_client, tmp_path):
         """Live inventory reports handles opened outside persisted registry flows."""
-        from fichero.db_manager import db_manager
+        from fichero.db.manager import db_manager
 
         library_path = (tmp_path / "OutsideRegistry.fichero").resolve()
         library_path.mkdir()
@@ -301,7 +301,7 @@ class TestGlobalRegistryHeaderless:
         global_client,
         tmp_path,
     ):
-        from fichero.db_manager import db_manager
+        from fichero.db.manager import db_manager
 
         lib_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
         lib_path.mkdir(parents=True, exist_ok=True)
@@ -447,7 +447,7 @@ class TestGlobalRegistryHeaderless:
         assert nfc_path.stat().st_mtime == before_mtime
 
     def test_unicode_collision_prompt_stays_read_only_until_confirm(self, global_client, tmp_path):
-        from fichero.db_manager import db_manager
+        from fichero.db.manager import db_manager
 
         left = tmp_path / unicodedata.normalize("NFD", "Chocó.fichero")
         right = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
@@ -530,7 +530,7 @@ class TestGlobalRegistryHeaderless:
     def test_remove_handles_spaces(self, global_client, tmp_path):
         """DELETE /api/registry/{path} works for a path containing spaces."""
         from urllib.parse import quote
-        from fichero.db_manager import db_manager
+        from fichero.db.manager import db_manager
 
         lib_path = tmp_path / "My Marshall Library.fichero"
         lib_path.mkdir(parents=True, exist_ok=True)
@@ -584,7 +584,7 @@ class TestGlobalRegistryHeaderless:
 
     def test_add_seeds_single_root_inbox(self, global_client, tmp_path):
         """Registering a real .fichero package eagerly seeds one root Inbox."""
-        from fichero.db_manager import db_manager
+        from fichero.db.manager import db_manager
 
         lib_path = tmp_path / "Marshall Diaries.fichero"
         lib_path.mkdir(parents=True, exist_ok=True)

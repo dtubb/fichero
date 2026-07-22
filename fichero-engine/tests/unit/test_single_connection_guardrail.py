@@ -88,7 +88,7 @@ def test_get_database_is_one_shared_instance_across_threads(tmp_path, monkeypatc
     """K real threads opening the same package get the SAME Database object, and
     db_manager holds exactly ONE pool entry for that package."""
     monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
-    from fichero.db_manager import DatabaseManager
+    from fichero.db.manager import DatabaseManager
 
     manager = DatabaseManager()
     lib = tmp_path / "Guardrail.fichero"
@@ -125,7 +125,7 @@ def test_get_database_is_one_shared_instance_across_threads(tmp_path, monkeypatc
 def test_get_database_normalizes_unicode_equivalent_package_keys(tmp_path, monkeypatch) -> None:
     """NFD/NFC spellings of one package path must hit one shared cache entry."""
     monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
-    from fichero.db_manager import DatabaseManager
+    from fichero.db.manager import DatabaseManager
 
     manager = DatabaseManager()
     lib = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")

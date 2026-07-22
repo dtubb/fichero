@@ -168,7 +168,7 @@ def test_invites_keep_short_qr_ttl_but_email_lives_for_a_day(app_db, monkeypatch
             return cls.current if tz is None else tz.fromutc(cls.current.replace(tzinfo=tz))
 
     monkeypatch.setattr(auth_accounts, "datetime", FrozenDateTime)
-    monkeypatch.setattr("fichero.app_db.datetime", FrozenDateTime)
+    monkeypatch.setattr("fichero.db.app.datetime", FrozenDateTime)
 
     with _client(app_db, monkeypatch) as client:
         qr = client.post(
@@ -240,7 +240,7 @@ def test_expired_invite_fails(app_db, monkeypatch):
             return cls.current if tz is None else tz.fromutc(cls.current.replace(tzinfo=tz))
 
     monkeypatch.setattr(auth_accounts, "datetime", FrozenDateTime)
-    monkeypatch.setattr("fichero.app_db.datetime", FrozenDateTime)
+    monkeypatch.setattr("fichero.db.app.datetime", FrozenDateTime)
 
     with _client(app_db, monkeypatch) as client:
         invite = client.post(

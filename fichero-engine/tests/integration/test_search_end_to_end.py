@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 from fastapi import Request
 
-from fichero.db_manager import DatabaseManager
+from fichero.db.manager import DatabaseManager
 from fichero.models import Artifact, Document
 
 

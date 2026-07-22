@@ -50,7 +50,7 @@ def test_vision_small_resolves_from_env_without_provider_call(monkeypatch):
     monkeypatch.setenv("FICHERO_VISION_SMALL_MODEL", "apple-vision")
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(models_by_provider={"apple": [_model("apple-vision", ["vision"])]}),
     )
     node = NodeDef(id="vision", tool="transcribe", provider_name="$vision_small")
@@ -68,7 +68,7 @@ def test_vision_small_resolves_from_app_settings(monkeypatch):
     monkeypatch.delenv("FICHERO_VISION_SMALL_MODEL", raising=False)
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(
             settings={
                 "default_vision_small_provider": "apple",
@@ -132,7 +132,7 @@ def test_vision_alias_on_audio_llm_node_fails_preflight(monkeypatch):
 def test_audio_capable_saved_model_satisfies_audio_node(monkeypatch):
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(
             models_by_provider={"apple": [_model("apple-speech", ["audio"])]},
         ),
@@ -152,7 +152,7 @@ def test_audio_capable_saved_model_satisfies_audio_node(monkeypatch):
 def test_video_capable_saved_model_satisfies_video_node(monkeypatch):
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(
             models_by_provider={"apple": [_model("apple-video", ["video"])]},
         ),
@@ -172,7 +172,7 @@ def test_video_capable_saved_model_satisfies_video_node(monkeypatch):
 def test_text_only_saved_model_cannot_satisfy_audio_node(monkeypatch):
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(
             models_by_provider={"openai": [_model("gpt-4.1-mini", ["text"])]},
         ),
@@ -208,7 +208,7 @@ def test_text_only_provider_cannot_satisfy_vision_node(monkeypatch):
 def test_text_only_saved_model_cannot_satisfy_vision_node(monkeypatch):
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(
             models_by_provider={"openai": [_model("gpt-4.1-mini", ["text"])]},
         ),
@@ -229,7 +229,7 @@ def test_text_only_saved_model_cannot_satisfy_vision_node(monkeypatch):
 def test_vision_large_cloud_provider_rejected_under_local_only(monkeypatch):
     monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(
             settings={
                 "default_vision_large_provider": "openai",
@@ -265,7 +265,7 @@ def test_private_model_profile_rejects_cloud_provider_in_preflight(monkeypatch):
         profile if profile_id == "private-cloud" else None
     )
     fake_db.get_model_profile_by_name = lambda _name: None
-    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    monkeypatch.setattr("fichero.db.app.get_app_db", lambda: fake_db)
     node = NodeDef(
         id="text",
         tool="summarize_file",
@@ -291,7 +291,7 @@ def test_spanish_script_subworkflow_parent_is_valid_and_passes_preflight(monkeyp
     # test_spanish_script_v2_child_resolves_distinct_vision_tiers.
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(
             category_defaults={"vision": ("apple", "apple-vision")},
             models_by_provider={"apple": [_model("apple-vision", ["vision"])]},
@@ -321,7 +321,7 @@ def test_spanish_script_subworkflow_parent_is_valid_and_passes_preflight(monkeyp
 def test_spanish_script_v2_child_resolves_distinct_vision_tiers(monkeypatch):
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(
             settings={
                 "default_vision_small_provider": "apple",
@@ -389,7 +389,7 @@ def test_paleography_ensemble_translate_node_passes_preflight(monkeypatch):
     """
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(
             settings={
                 "default_vision_small_provider": "apple",
@@ -440,7 +440,7 @@ def test_paleography_ensemble_translate_node_passes_preflight(monkeypatch):
 def test_spanish_script_v2_child_rejects_cloud_vision_tier_under_local_only(monkeypatch):
     monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
     monkeypatch.setattr(
-        "fichero.app_db.get_app_db",
+        "fichero.db.app.get_app_db",
         lambda: _fake_db(
             settings={
                 "default_vision_small_provider": "apple",

@@ -28,8 +28,8 @@ def __getattr__(name: str) -> Any:
 
     This eager import was the root of the fichero.db <-> api.main cycle:
 
-        fichero.db          (line 67: from fichero.db_manager import ...)
-        -> fichero.db_manager (line 14: from fichero.api.change_stream import ...)
+        fichero.db          (line 67: from fichero.db.manager import ...)
+        -> fichero.db.manager (line 14: from fichero.api.change_stream import ...)
         -> fichero.api        (this __init__)
         -> fichero.api.main   (line 68: from fichero.db import Database)
         -> fichero.db         ... still half-initialised. ImportError.

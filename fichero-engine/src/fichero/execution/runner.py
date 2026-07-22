@@ -583,7 +583,7 @@ async def _run_workflow_in_background(
     # returns a fresh connection to the same file for the worker. Tool
     # nodes likewise get their own connection via db_manager. (#1000)
     if hasattr(db, "path"):
-        from fichero.db_manager import db_manager
+        from fichero.db.manager import db_manager
         db = db_manager.get_database(db.path.parent)
 
     # Get the event hub for this thread
@@ -1506,7 +1506,7 @@ async def _run_workflow_in_background(
         # thread does not own a per-thread connection to release. Kept for the
         # daemon-thread teardown seam; close_current_thread() is a no-op.
         try:
-            from fichero.db_manager import db_manager
+            from fichero.db.manager import db_manager
             db_manager.close_current_thread()
         except Exception as exc:
             logger.warning("worker-thread db cleanup failed: %s", exc)

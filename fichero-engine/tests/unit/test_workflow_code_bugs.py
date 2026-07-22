@@ -237,7 +237,7 @@ async def test_batch_item_execution_accepts_string_db_path(tmp_path, monkeypatch
         lambda *a, **k: None,
     )
     monkeypatch.setattr(
-        "fichero.db_manager.db_manager.get_database",
+        "fichero.db.manager.db_manager.get_database",
         lambda path: SimpleNamespace(),
     )
 
@@ -273,7 +273,7 @@ async def test_batch_records_document_completion_failure(tmp_path, monkeypatch):
         "fichero.workflows.completion.collect_processed_document_ids", lambda values: []
     )
     monkeypatch.setattr(
-        "fichero.db_manager.db_manager.get_database", lambda path: SimpleNamespace()
+        "fichero.db.manager.db_manager.get_database", lambda path: SimpleNamespace()
     )
 
     def fail_completion(*_args, **_kwargs):

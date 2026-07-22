@@ -332,7 +332,7 @@ async def _build_term_plan(
     project_description: str | None = None,
 ) -> dict[str, Any]:
     """Use the existing ReAct agent to draft a minimal research plan."""
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
 
     # LLMConfig only — react_agent is a module-level passthrough below,
     # because tests patch it; a local import here would shadow the patch.

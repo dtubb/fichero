@@ -229,7 +229,7 @@ def _resolve_apple_intelligence_id() -> str | None:
     sentinel survives in the preset and the user picks manually.
     """
     try:
-        from fichero.app_db import get_app_db
+        from fichero.db.app import get_app_db
         from fichero.models import ProviderType
         app_db = get_app_db()
         for provider in app_db.list_providers():

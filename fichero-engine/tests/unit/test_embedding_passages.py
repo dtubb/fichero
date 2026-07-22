@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import pytest
 
-from fichero import db_embeddings
+from fichero.db import embeddings as db_embeddings
 from fichero.db import Database
-from fichero.db_embeddings import (
+from fichero.db.embeddings import (
     BGE_M3_EMBEDDING_MODEL_ID,
     BGE_M3_EMBEDDING_SPACE,
     BGE_M3_FASTEMBED_MODEL,
@@ -120,7 +120,7 @@ def test_pinned_embedding_space_ignores_mutable_app_setting(monkeypatch) -> None
 
     monkeypatch.setitem(
         sys.modules,
-        "fichero.app_db",
+        "fichero.db.app",
         types.SimpleNamespace(get_app_db=lambda: FakeAppDB()),
     )
     dummy = _Dummy()

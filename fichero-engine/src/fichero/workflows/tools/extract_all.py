@@ -1555,7 +1555,7 @@ async def extract_all(
     if not text:
         return {"text": "", "value": {}, "error": "No text input"}
 
-    from fichero.app_db import get_app_db
+    from fichero.db.app import get_app_db
     from fichero.lang_detect import resolve_output_language
     primary_language = get_app_db().get_setting("default_primary_language")
     output_language = resolve_output_language(

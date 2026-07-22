@@ -18,7 +18,7 @@ import pytest
 
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 
-from fichero.db_manager import DatabaseManager  # noqa: E402
+from fichero.db.manager import DatabaseManager  # noqa: E402
 from fichero.models import Document, DocType  # noqa: E402
 
 
