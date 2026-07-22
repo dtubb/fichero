@@ -59,9 +59,15 @@ GRANDFATHERED_FILES: set[str] = {
     # off raw URLSession onto the shared FicheroClient ClientTransport
     # (`streamLines`), so the SSE streams work over `.https` / `.uds` / in-process.
     # MIGRATE (delete when the sub-issue lands)
-    "Services/ImageEditingService.swift",  # #3028 (binary preview KEEP)
-    "Services/EntityService.swift",  # #3029 (entity free-form-container KEEP; split out of ArtifactService.swift)
-    "Services/WorkflowService.swift",  # #3029 (visualization.png binary KEEP; op mis-declares JSON)
+    # ImageEditingService.swift migrated off raw URLSession — /preview now
+    # declares image/png|image/jpeg binary, so loadPreview runs the generated op.
+    # WorkflowService.fetchDiagramImage GETs /workflows/{id}/visualization.png,
+    # which is a MIS-NAMED JSON endpoint (returns WorkflowVisualizationResponse
+    # mermaid code, not PNG bytes) — there is no workflow-scoped binary endpoint
+    # to route through, so this stays custom pending a server-side decision. The
+    # real binary diagram endpoint (threads/{id}/diagram.png) is run-scoped and
+    # has no caller.
+    "Services/WorkflowService.swift",
 }
 
 

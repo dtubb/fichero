@@ -118,20 +118,24 @@ struct ImageEditChain {
 /// generated `FicheroClient` so the library-path header is injected centrally
 /// by `LibraryPathMiddleware` (#3028/#1666) and every call throws on non-`.ok`.
 ///
-/// `loadPreview`/`previewURL` stay on raw pinned `URLSession`: the backend
-/// streams image bytes, but the OpenAPI spec models `/preview` as
-/// `application/json`, so the generated op can't decode the binary body (audit
-/// rule 4 — binary paths stay custom; this file remains grandfathered in
-/// `check_no_raw_urlsession_app.py` for that reason).
+/// `loadPreview` runs through the generated `previewImage…Get` op: the backend
+/// now declares `/preview` as `image/png`/`image/jpeg` binary (#3028), so the
+/// generated client decodes the bytes with the library-path header injected
+/// centrally — no raw `URLSession`. `previewURL` remains a plain URL builder
+/// (no transport) so host-rebind coverage keeps exercising the resolved path.
 @MainActor
 @Observable
 final class ImageEditingService {
     var isLoading: Bool = false
     var lastError: Error?
 
+    /// Upper bound on a single decoded preview download (mirrors
+    /// `StorageService.maxImageBytes`); guards `Data(collecting:)` against a
+    /// runaway body.
+    private static let maxPreviewBytes = 50 * 1024 * 1024
+
     private let libraryPath: String
     private let client: FicheroClient
-    private let session = RemoteCertificatePinning.configuredSession()
 
     /// Engine root without `/api`, read live off the wrapped client so a pairing /
     /// Settings host change (#2349) rebinds the raw-bytes `previewURL` path too —
@@ -174,15 +178,31 @@ final class ImageEditingService {
     }
 
     func loadPreview(documentId: String, applyEdits: Bool, page: Int = 1) async throws -> PreviewImage {
-        var request = URLRequest(url: previewURL(documentId: documentId, applyEdits: applyEdits, page: page))
-        request.addEngineAuth(libraryPath: libraryPath)
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw ImageEditingError.invalidResponse }
-        guard http.statusCode == 200 else {
-            let peek = String(data: data.prefix(200), encoding: .utf8) ?? "<binary>"
-            throw ImageEditingError.unexpectedStatus(status: http.statusCode, bodyPeek: peek)
+        let response = try await client.api.previewImageApiImagesDocumentIdPreviewGet(.init(
+            path: .init(documentId: documentId),
+            query: .init(applyEdits: applyEdits, page: page)
+        ))
+        switch response {
+        case .ok(let okResponse):
+            // The server renders PNG for images with transparency, otherwise
+            // JPEG; both are binary bodies. A `.json` body would mean the spec /
+            // handler drifted back to the old JSON modelling.
+            let body: OpenAPIRuntime.HTTPBody
+            switch okResponse.body {
+            case .png(let png):
+                body = png
+            case .jpeg(let jpeg):
+                body = jpeg
+            case .json:
+                throw ImageEditingError.invalidResponse
+            }
+            let data = try await Data(collecting: body, upTo: Self.maxPreviewBytes)
+            return try await Self.decodePreview(from: data)
+        case .unprocessableContent:
+            throw ImageEditingError.unexpectedStatus(status: 422, bodyPeek: "validation error")
+        case .undocumented(let statusCode, _):
+            throw ImageEditingError.unexpectedStatus(status: statusCode, bodyPeek: "<undocumented>")
         }
-        return try await Self.decodePreview(from: data)
     }
 
     nonisolated private static func decodePreview(from data: Data) async throws -> PreviewImage {

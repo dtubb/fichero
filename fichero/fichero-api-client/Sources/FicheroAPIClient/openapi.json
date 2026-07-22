@@ -12446,10 +12446,22 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Rendered preview image bytes (PNG for images with transparency, otherwise JPEG)",
             "content": {
               "application/json": {
                 "schema": {}
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },
@@ -19521,10 +19533,16 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "PNG image of the workflow diagram",
             "content": {
               "application/json": {
                 "schema": {}
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
               }
             }
           },

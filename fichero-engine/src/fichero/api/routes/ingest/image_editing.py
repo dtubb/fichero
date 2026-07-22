@@ -1342,7 +1342,19 @@ async def delete_edit_chain(
     )
 
 
-@router.get("/{document_id}/preview")
+@router.get(
+    "/{document_id}/preview",
+    responses={
+        200: {
+            "content": {
+                "image/png": {"schema": {"type": "string", "format": "binary"}},
+                "image/jpeg": {"schema": {"type": "string", "format": "binary"}},
+            },
+            "description": "Rendered preview image bytes (PNG for images with "
+            "transparency, otherwise JPEG)",
+        },
+    },
+)
 async def preview_image(
     document_id: str,
     apply_edits: bool = Query(
