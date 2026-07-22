@@ -165,9 +165,29 @@ extension LibraryView {
     /// and preview that document here, then clear the intent so sibling
     /// windows don't also consume it.
     func consumePendingOpen() {
-        guard let pendingId = libraryManager.pendingOpenDocumentId,
-              let doc = documents.first(where: { $0.id == pendingId }) else { return }
+        guard let pendingId = libraryManager.pendingOpenDocumentId else { return }
+        if let doc = documents.first(where: { $0.id == pendingId }) {
+            libraryManager.pendingOpenDocumentId = nil
+            openDocument(doc)
+            return
+        }
+        // Test hook (InspectorFlowsUITests): the wanted document may be nested
+        // under a collection and absent from the *current* folder listing. Under
+        // XCUITest only, fetch it by id and show it directly so the inspector
+        // flow tests can open a seeded child document without navigating folders.
+        // Production behaviour is unchanged — the fetch branch never runs outside
+        // a UI test.
+        guard isUITesting() else { return }
+        // Claim the id (nil it) so overlapping revision ticks don't each launch a
+        // fetch; on failure — e.g. the engine isn't connected yet — restore it so
+        // a later revision retries once the connection is live.
         libraryManager.pendingOpenDocumentId = nil
-        openDocument(doc)
+        Task { @MainActor in
+            if let doc = try? await documentStore.documentService.getDocument(pendingId) {
+                detailDocument = doc
+            } else {
+                libraryManager.pendingOpenDocumentId = pendingId
+            }
+        }
     }
 }

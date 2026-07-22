@@ -210,6 +210,11 @@ extension DocumentInspectorEntitiesTab {
         .padding(.vertical, 4)
         .background(dropTargetHighlight(for: entity))
         .inspectorListRowTarget()
+        // Stable XCUITest hook (InspectorFlowsUITests): every entity row carries
+        // this identifier so a UI test can assert the loaded entity list is
+        // non-empty — the regression guard for the EntityService transport fix
+        // (a document that used to show "0 entities" over the broken transport).
+        .accessibilityIdentifier("inspector.entity.row")
         .tag(entity.stableInspectorId)
         .draggable(InspectorEntityDragID(id: entity.stableInspectorId, text: entity.canonicalName))
         .dropDestination(

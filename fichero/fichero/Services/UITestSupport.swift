@@ -72,4 +72,26 @@ func openUITestLibraryOverrideIfNeeded() {
     // side effect (open the library and make it current); the caller reads the
     // active library through LibraryManager, not this return value (#3978).
     _ = LibraryManager.shared.openLibrary(at: libraryURL)
+    // Test hook (InspectorFlowsUITests): deterministically open a seeded
+    // document into the detail/inspector so the entities-load + KG-pane flows
+    // don't depend on fragile double-click-through-folders navigation. The id
+    // is honoured by `LibraryView.consumePendingOpen()`, which fetches it by id
+    // (even when it's nested under a collection and not in the root listing).
+    if let openId = uiTestOpenDocumentId() {
+        LibraryManager.shared.pendingOpenDocumentId = openId
+    }
+}
+
+/// Optional seeded-document id an XCUITest wants opened straight into the
+/// detail/inspector at launch (`FICHERO_UITEST_OPEN_DOCUMENT`). Test hook only —
+/// gated by `--uitesting` and nil otherwise. Consumed by
+/// `LibraryView.consumePendingOpen()`.
+func uiTestOpenDocumentId(
+    arguments: [String] = ProcessInfo.processInfo.arguments,
+    environment: [String: String] = ProcessInfo.processInfo.environment
+) -> String? {
+    guard arguments.contains("--uitesting"),
+          let id = environment["FICHERO_UITEST_OPEN_DOCUMENT"],
+          !id.isEmpty else { return nil }
+    return id
 }
