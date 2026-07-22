@@ -28,7 +28,7 @@ from pathlib import Path
 
 from fichero.db import db_manager
 from fichero.models import Artifact, Document, DocType, FileType, Status, Workflow
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimType,
     EpistemicStatus,
     KnowledgeClaim,

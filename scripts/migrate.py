@@ -38,7 +38,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "fichero-engine" / "src"))
 
 from fichero.db import Database
-from fichero.migrations import MigrationRunner, MigrationResult, MigrationStatus
+from fichero.db.migrations.runner import MigrationRunner, MigrationResult, MigrationStatus
 
 
 # Configure logging

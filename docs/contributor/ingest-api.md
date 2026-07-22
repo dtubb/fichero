@@ -3,8 +3,7 @@
 # Ingest API Documentation
 
 The ingest module provides an API for file and folder ingestion with various
-configuration options. The functions live in `fichero.importers.ingest`;
-`fichero.ingest` is a thin re-export shim, so either import path works.
+configuration options. The functions live in `fichero.importers.ingest`.
 
 Both `ingest_file` and `ingest_folder` also accept internal `db` and
 `package_path` arguments (inject a `Database` / target the library package);
@@ -17,7 +16,7 @@ omit them for normal use — they default to the active library.
 Ingest a single file with configurable options.
 
 ```python
-from fichero.ingest import ingest_file, IngestMode
+from fichero.importers.ingest import ingest_file, IngestMode
 
 # Basic usage - LINK mode (default)
 doc = ingest_file(Path("/path/to/file.pdf"))
@@ -58,7 +57,7 @@ doc = ingest_file(
 Ingest all files from a folder with recursive processing.
 
 ```python
-from fichero.ingest import ingest_folder, IngestMode
+from fichero.importers.ingest import ingest_folder, IngestMode
 
 # Basic folder ingestion
 docs = ingest_folder(Path("/path/to/folder"))
@@ -157,7 +156,7 @@ doc = ingest_file(Path("/external/file.jpg"), mode=IngestMode.MOVE)
 Detect file type from extension.
 
 ```python
-from fichero.ingest import detect_file_type
+from fichero.importers.ingest import detect_file_type
 
 file_type = detect_file_type(Path("/path/to/file.jpg"))
 # Returns: FileType.image
@@ -173,7 +172,7 @@ file_type = detect_file_type(Path("/path/to/file.jpg"))
 Discover files in a folder with filtering.
 
 ```python
-from fichero.ingest import discover_files
+from fichero.importers.ingest import discover_files
 
 # Find all files
 for file_path in discover_files(Path("/path/to/folder")):
@@ -199,7 +198,7 @@ for file_path in discover_files(
 Count files in a folder.
 
 ```python
-from fichero.ingest import count_files
+from fichero.importers.ingest import count_files
 
 count = count_files(Path("/path/to/folder"))
 print(f"Found {count} files")
@@ -223,7 +222,7 @@ image_count = count_files(
 Find duplicate documents by checksum.
 
 ```python
-from fichero.ingest import find_duplicates
+from fichero.importers.ingest import find_duplicates
 
 duplicates = find_duplicates(documents)
 for checksum, duplicate_docs in duplicates.items():
@@ -315,7 +314,7 @@ except Exception as e:
 
 ```python
 from fichero.db import db
-from fichero.ingest import ingest_file
+from fichero.importers.ingest import ingest_file
 
 # Ingest and query
 doc = ingest_file(Path("/path/to/file.pdf"))

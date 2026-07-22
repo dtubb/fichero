@@ -100,7 +100,7 @@ if [ "$UDS_MODE" != true ] && [ -z "${FICHERO_TLS_CERTFILE:-}" ] && [ -z "${FICH
   TLS_MANIFEST="$(
     PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - "$PREPARE_URL" "$PREPARE_ALLOW_LOOPBACK" "${FICHERO_LAN_HOST:-}" <<'PY'
 import sys
-from fichero.remote_access_tls import material_manifest_json, prepare_remote_access_tls
+from fichero.security.remote_access_tls import material_manifest_json, prepare_remote_access_tls
 
 public_base_url = sys.argv[1]
 allow_loopback = sys.argv[2] == "true"
