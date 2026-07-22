@@ -58,6 +58,7 @@ final class AuditStore {
                 loadError = "Unexpected response (\(statusCode))"
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("load() failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -95,6 +96,7 @@ final class AuditStore {
                 return false
             }
         } catch {
+            if error.isCancellationError { return false }   // superseded — not a failure
             statusMessage = "Undo failed"
             log.error("undo(\(auditId, privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
             return false

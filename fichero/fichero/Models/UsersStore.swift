@@ -65,6 +65,7 @@ final class UsersStore {
                 }
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Failed to load users: \(error.localizedDescription)")
         }
@@ -121,6 +122,7 @@ final class UsersStore {
                 invites = []
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — keep current invites, no log
             invites = []
             log.error("Failed to load invites: \(error.localizedDescription)")
         }

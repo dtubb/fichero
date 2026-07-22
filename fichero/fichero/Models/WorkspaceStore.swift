@@ -37,6 +37,7 @@ final class WorkspaceStore {
             workspaces = try await chatService.listAgentWorkspaces()
             loadError = nil
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("workspace list failed: \(error.localizedDescription)")
         }
@@ -54,6 +55,7 @@ final class WorkspaceStore {
             await load(force: true)
             return saved
         } catch {
+            if error.isCancellationError { return nil }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("workspace save failed: \(error.localizedDescription)")
             return nil
@@ -71,6 +73,7 @@ final class WorkspaceStore {
             try await chatService.deleteAgentWorkspace(id: id)
             workspaces.removeAll { $0.id == id }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("workspace delete failed: \(error.localizedDescription)")
         }

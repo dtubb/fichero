@@ -28,6 +28,9 @@ struct PreviewDownloadService: Sendable {
         case success(URL)
         /// A human-readable message for the error UI (never a bare status code).
         case failure(message: String)
+        /// The download was superseded/cancelled (view torn down, newer selection).
+        /// Not a failure — the caller should keep its current state and show no error.
+        case cancelled
     }
 
     /// The generated-client storage service does the transport (#3726). This
@@ -70,6 +73,7 @@ struct PreviewDownloadService: Sendable {
                 documentPath: request.documentPath
             ))
         } catch {
+            if error.isCancellationError { return .cancelled }   // superseded — not a failure
             logger.error("Download error: \(error.localizedDescription)")
             return .failure(message: "Failed to load: \(error.localizedDescription)")
         }

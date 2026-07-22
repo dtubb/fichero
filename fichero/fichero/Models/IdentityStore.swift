@@ -72,6 +72,7 @@ final class IdentityStore {
                 log.error("Identity probe returned \(statusCode)")
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — keep identity, no error state
             identity = nil
             loadError = AccessError.classify(error)
             log.error("Identity probe failed: \(error.localizedDescription, privacy: .public)")

@@ -10,6 +10,7 @@ extension WorkflowStore {
             isConnected = true
             error = nil
         } catch {
+            if error.isCancellationError { return }   // superseded — keep state, not a failure
             isConnected = false
             self.error = error
         }
@@ -53,9 +54,13 @@ extension WorkflowStore {
             }
             isConnected = true
         } catch {
-            self.error = error
-            isConnected = false
-            logger.error("Failed to load workflows: \(String(describing: error))")
+            // Superseded/cancelled load is not a failure — keep state and skip
+            // logging, but still clear `isLoading` below.
+            if !error.isCancellationError {
+                self.error = error
+                isConnected = false
+                logger.error("Failed to load workflows: \(String(describing: error))")
+            }
         }
 
         isLoading = false

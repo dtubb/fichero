@@ -146,6 +146,7 @@ final class CanvasItemStore {
                 itemsByScope[folderId] = []
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — keep current items, no log
             loadError = error.localizedDescription
             itemsByScope[folderId] = []
             log.error("Canvas items load failed: \(error.localizedDescription)")
@@ -191,6 +192,7 @@ final class CanvasItemStore {
                 return nil
             }
         } catch {
+            if error.isCancellationError { return nil }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Canvas item create failed: \(error.localizedDescription)")
             return nil
@@ -240,6 +242,7 @@ final class CanvasItemStore {
                 return false
             }
         } catch {
+            if error.isCancellationError { return false }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Canvas item update failed: \(error.localizedDescription)")
             return false
@@ -267,6 +270,7 @@ final class CanvasItemStore {
                 return false
             }
         } catch {
+            if error.isCancellationError { return false }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Canvas item delete failed: \(error.localizedDescription)")
             return false

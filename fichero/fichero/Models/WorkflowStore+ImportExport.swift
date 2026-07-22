@@ -37,6 +37,7 @@ extension WorkflowStore {
 
             return item
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without error state
             self.error = error
             throw error
         }
@@ -54,6 +55,7 @@ extension WorkflowStore {
 
             return result
         } catch {
+            if error.isCancellationError { throw error }   // superseded — rethrow without error state
             self.error = error
             throw error
         }

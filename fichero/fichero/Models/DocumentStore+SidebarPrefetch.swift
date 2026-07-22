@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 // MARK: - Sidebar child loading + one-level chevron prefetch (#3355)
@@ -33,6 +34,7 @@ extension DocumentStore {
             logger.info("Cached \(children.count) sidebar children for \(document.id)")
             return children
         } catch {
+            if error.isCancellationError { return [] }   // superseded — not a failure
             logger.error("cacheSidebarChildren failed: \(error.localizedDescription)")
             self.error = error
             return []

@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -21,6 +22,7 @@ extension ActionLibraryService {
                 return []
             }
         } catch {
+            if error.isCancellationError { return [] }   // superseded — not a failure
             logger.error("Search failed: \(error.localizedDescription)")
             return []
         }

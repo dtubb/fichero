@@ -52,6 +52,7 @@ final class KGQueryStore {
                 errorMessage = "Query failed (HTTP \(code))"
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — keep response, no error state
             response = nil
             errorMessage = error.localizedDescription
         }

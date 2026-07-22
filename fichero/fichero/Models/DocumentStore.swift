@@ -238,9 +238,13 @@ final class DocumentStore {
                 await selectCollection(first)
             }
         } catch {
-            logger.error("ERROR loading documents: \(String(describing: error))")
-            self.error = error
-            isConnected = false
+            // Superseded/cancelled load is not a failure — skip logging and the
+            // error/disconnected state, but still clear `isLoading` below.
+            if !error.isCancellationError {
+                logger.error("ERROR loading documents: \(String(describing: error))")
+                self.error = error
+                isConnected = false
+            }
         }
 
         isLoading = false
@@ -285,9 +289,13 @@ final class DocumentStore {
             self.currentDocuments = children
             logger.info("loadChildren succeeded, got \(children.count) children")
         } catch {
-            logger.error("loadChildren failed: \(error.localizedDescription)")
-            self.error = error
-            self.currentDocuments = []
+            // Superseded/cancelled load is not a failure — keep current documents
+            // and skip the error state, but still clear `isLoadingChildren` below.
+            if !error.isCancellationError {
+                logger.error("loadChildren failed: \(error.localizedDescription)")
+                self.error = error
+                self.currentDocuments = []
+            }
         }
 
         self.isLoadingChildren = false
@@ -355,6 +363,7 @@ final class DocumentStore {
             childrenCache[documentId] = applyStatusOverrides(fresh)
             return childrenCache[documentId] ?? []
         } catch {
+            if error.isCancellationError { return [] }   // superseded — not a failure
             // Surface the failure: an empty result here is otherwise
             // indistinguishable from a genuinely empty folder, leaving the
             // user with no children and no explanation (#1718).

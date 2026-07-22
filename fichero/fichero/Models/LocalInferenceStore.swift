@@ -72,6 +72,7 @@ final class LocalInferenceStore {
             if case .ok(let okResp) = try await catalogTask { catalog = try okResp.body.json.items }
             if case .ok(let okResp) = try await profilesTask { profiles = try okResp.body.json.items }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Failed to load local inference state: \(error.localizedDescription)")
         }
@@ -96,6 +97,7 @@ final class LocalInferenceStore {
             }
             await pollRuntimeUntilSettled()
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Runtime provision failed: \(error.localizedDescription)")
         }
@@ -111,6 +113,7 @@ final class LocalInferenceStore {
                 runtime = try okResp.body.json
             }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Runtime remove failed: \(error.localizedDescription)")
         }
@@ -157,6 +160,7 @@ final class LocalInferenceStore {
             }
             await refreshCatalog()
         } catch {
+            if error.isCancellationError { return }   // superseded/cancelled download — not a failure
             loadError = error.localizedDescription
             log.error("Download failed for \(modelId): \(error.localizedDescription)")
         }
@@ -170,6 +174,7 @@ final class LocalInferenceStore {
                     path: .init(jobId: jobId)
                 )
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             log.error("Cancel download failed for \(modelId): \(error.localizedDescription)")
         }
     }
@@ -183,6 +188,7 @@ final class LocalInferenceStore {
             downloads[modelId] = nil
             await refreshCatalog()
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Delete failed for \(modelId): \(error.localizedDescription)")
         }
@@ -204,6 +210,7 @@ final class LocalInferenceStore {
                 )
             if case .ok(let okResp) = response { serviceStatuses[id] = try okResp.body.json }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Start profile \(id) failed: \(error.localizedDescription)")
         }
@@ -217,6 +224,7 @@ final class LocalInferenceStore {
                 )
             if case .ok(let okResp) = response { serviceStatuses[id] = try okResp.body.json }
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription
             log.error("Stop profile \(id) failed: \(error.localizedDescription)")
         }

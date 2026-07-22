@@ -31,6 +31,7 @@ extension DocumentStore {
         do {
             workspaces = try await documentService.getWorkspaces()
         } catch {
+            if error.isCancellationError { return }   // superseded — not a failure
             logger.error("Failed to load workspaces: \(error.localizedDescription)")
         }
     }
@@ -195,6 +196,7 @@ extension DocumentStore {
             do {
                 try await reorderDocuments(orderedIds)
             } catch {
+                if error.isCancellationError { return }   // superseded — not a failure, don't revert
                 logger.error("reorderDocuments failed — reverting: \(error.localizedDescription)")
                 await refresh()
             }
