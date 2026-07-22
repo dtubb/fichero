@@ -287,6 +287,103 @@ def test_concurrent_readers_never_see_a_half_loaded_registry() -> None:
     assert low >= 135, f"concurrent readers saw an incomplete registry: {low} defs"
 
 
+def test_langchain_core_fully_absent_after_app_import() -> None:
+    """Bare ``langchain_core`` is off the bind path after #4038.
+
+    Before #4038, api.main imported ``langchain_core._api.deprecation`` at
+    module top purely to name the warning CATEGORY for a #1083 filter — that one
+    import pulled ~langchain_core (importtime cumulative ~250ms) onto the bind
+    path. The fix registers the filter by MESSAGE ONLY. This asserts the stronger
+    post-#4038 property: NOTHING under ``langchain_core`` is present after the app
+    is built, so re-adding a ``category=<langchain warning>`` import (which would
+    silently drag the package back on) fails here.
+
+    NB: HEAVY_MODULES guards ``langchain_core.messages`` for the older #3976
+    regression; this guards the whole ``langchain_core`` tree for #4038.
+    """
+    out = _run(
+        """
+        import sys
+        import fichero.api.main  # noqa: F401
+        present = [m for m in sys.modules
+                   if m == "langchain_core" or m.startswith("langchain_core.")]
+        print("PRESENT:" + ",".join(sorted(present)) if present else "ABSENT")
+        """
+    )
+    assert out == "ABSENT", (
+        f"langchain_core is imported at engine startup ({out}). #4038 registers "
+        f"the allowed_objects warning filter by message only so the package stays "
+        f"off the bind path — something re-imported it for the warning category."
+    )
+
+
+def test_allowed_objects_warning_filter_is_registered_message_only() -> None:
+    """The #1083 filter must exist AND be message-only (#4038).
+
+    The filter has to be registered before the first workflow click (otherwise
+    the ``allowed_objects`` PendingDeprecationWarning leaks to the user). But it
+    must NOT be registered against a langchain warning class — naming the
+    category re-imports langchain_core onto the bind path, the exact regression
+    #4038 removed. A message-only ``warnings.filterwarnings`` defaults the
+    category to the base ``Warning``, so we assert both: the filter is present
+    with a pattern matching ``allowed_objects`` AND its category is base
+    ``Warning`` (not a langchain subclass).
+    """
+    out = _run(
+        """
+        import warnings
+        import fichero.api.main  # noqa: F401
+        hits = [
+            f for f in warnings.filters
+            if f[1] is not None and "allowed_objects" in getattr(f[1], "pattern", "")
+        ]
+        if not hits:
+            print("MISSING")
+        else:
+            action, _pat, category, *_ = hits[0]
+            # module-qualname pins it to the stdlib base Warning, not a
+            # langchain_core.* subclass that would have re-imported the package.
+            print(f"{action}|{category.__module__}.{category.__name__}")
+        """
+    )
+    assert out == "ignore|builtins.Warning", (
+        f"allowed_objects filter is not message-only ({out}). It must be "
+        f"registered with the base Warning category (message-only) so naming a "
+        f"langchain warning class can't drag langchain_core onto the bind path "
+        f"(#4038)."
+    )
+
+
+def test_mcp_modules_import_without_langchain() -> None:
+    """Importing the MCP modules must not pull langchain onto the bind path.
+
+    ``routes.mcp`` / ``routes.workflow`` import ``fichero.mcp.manager`` and
+    ``fichero.workflows.tools.mcp`` at module scope, so those two modules are on
+    the engine bind path. #4038 moved their ``langchain_core.tools.BaseTool`` /
+    ``langchain_mcp_adapters`` imports behind ``TYPE_CHECKING`` (annotation-only)
+    and into the methods that actually call them. If any of those imports creep
+    back to module scope, langchain rides the bind path again — this catches it.
+    """
+    out = _run(
+        """
+        import sys
+        import fichero.mcp.manager  # noqa: F401
+        import fichero.workflows.tools.mcp  # noqa: F401
+        leaked = [
+            m for m in sys.modules
+            if any(m == p or m.startswith(p + ".")
+                   for p in ("langchain_core", "langchain_mcp_adapters", "langgraph"))
+        ]
+        print("LEAKED:" + ",".join(sorted(leaked)) if leaked else "CLEAN")
+        """
+    )
+    assert out == "CLEAN", (
+        f"importing the MCP modules pulled langchain onto the bind path ({out}). "
+        f"#4038 keeps BaseTool/ClientSession/create_session/load_mcp_tools behind "
+        f"TYPE_CHECKING or function-local — one crept back to module scope."
+    )
+
+
 def test_tool_load_failure_raises_loudly() -> None:
     """A broken tool import must NOT be swallowed.
 
