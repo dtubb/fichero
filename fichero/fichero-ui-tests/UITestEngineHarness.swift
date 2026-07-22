@@ -121,7 +121,9 @@ final class UITestEngineHarness {
     // MARK: - Seeding
 
     private func seedLibrary(at libURL: URL, repo: URL) throws -> ([String: Int], [String: String]) {
-        let venvPython = repo.appendingPathComponent(".venv/bin/python")
+        guard let venvPython = Self.venvPython(for: repo) else {
+            throw HarnessError.seedFailed("no venv python (tried repo/.venv, FICHERO_VENV, ~/code/fichero/.venv)")
+        }
         let seeder = repo.appendingPathComponent("fichero-engine/scripts/seed_test_library.py")
 
         let proc = Process()
@@ -160,7 +162,9 @@ final class UITestEngineHarness {
         // Stale socket from a crashed prior run would make bind fail.
         try? FileManager.default.removeItem(atPath: socketPath)
 
-        let venvPython = repo.appendingPathComponent(".venv/bin/python")
+        guard let venvPython = Self.venvPython(for: repo) else {
+            throw HarnessError.engineDidNotBind("no venv python (tried repo/.venv, FICHERO_VENV, ~/code/fichero/.venv)")
+        }
         let proc = Process()
         proc.executableURL = venvPython
         // Mirrors start_backend.sh's UDS fast loop exactly.
@@ -284,8 +288,25 @@ final class UITestEngineHarness {
     }
 
     private static func looksLikeRepo(_ url: URL) -> Bool {
+        // Only the engine SEEDER is required — a git worktree under test has the
+        // engine but NOT its own `.venv` (that lives in the canonical checkout).
+        // The venv is resolved separately by `venvPython(for:)`, so this no longer
+        // demands both in the same dir (which made the harness skip in a worktree).
+        FileManager.default.fileExists(
+            atPath: url.appendingPathComponent("fichero-engine/scripts/seed_test_library.py").path)
+    }
+
+    /// The venv python used to run the engine. Prefers the repo's own `.venv`,
+    /// else a `FICHERO_VENV` override, else the canonical `~/code/fichero/.venv`
+    /// (a worktree under test has no venv of its own). nil if none exists.
+    static func venvPython(for repo: URL) -> URL? {
         let fm = FileManager.default
-        return fm.fileExists(atPath: url.appendingPathComponent(".venv/bin/python").path)
-            && fm.fileExists(atPath: url.appendingPathComponent("fichero-engine/scripts/seed_test_library.py").path)
+        var candidates = [repo.appendingPathComponent(".venv/bin/python")]
+        if let v = ProcessInfo.processInfo.environment["FICHERO_VENV"], !v.isEmpty {
+            candidates.append(URL(fileURLWithPath: v).appendingPathComponent("bin/python"))
+        }
+        candidates.append(fm.homeDirectoryForCurrentUser
+            .appendingPathComponent("code/fichero/.venv/bin/python"))
+        return candidates.first { fm.fileExists(atPath: $0.path) }
     }
 }
