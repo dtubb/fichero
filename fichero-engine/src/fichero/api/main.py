@@ -1320,8 +1320,6 @@ from fichero.api.routes.ai import (  # noqa: E402
     model_comparison,
     models,
     multilingual,
-    provider_keys,
-    provider_models,
     providers,
 )
 from fichero.api.routes.auth import (  # noqa: E402

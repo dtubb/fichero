@@ -2120,7 +2120,7 @@ class _AppleStructuredRunnable:
 
     def __init__(
         self,
-        model: "ChatAppleIntelligence",
+        model: "ChatAppleIntelligence",  # noqa: F821 (built lazily in _chat_apple_intelligence_cls)
         schema: type[BaseModel],
         *,
         include_raw: bool,
