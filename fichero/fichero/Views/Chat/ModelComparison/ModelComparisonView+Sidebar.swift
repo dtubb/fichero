@@ -95,13 +95,13 @@ extension ModelComparisonView {
         .padding()
         .sheet(isPresented: $showingModelPicker) {
             ModelPickerSheet(
-                availableModels: service.availableModels,
+                availableModels: store.availableModels,
                 selectedModels: $selectedModels
             )
         }
         .sheet(isPresented: $showingPresets) {
             PresetPickerSheet(
-                presets: service.presets,
+                presets: store.presets,
                 selectedModels: $selectedModels
             )
         }
@@ -111,14 +111,14 @@ extension ModelComparisonView {
         VStack(spacing: 12) {
             Button {
                 Task {
-                    await service.compare(
+                    await store.compare(
                         prompt: prompt,
                         models: selectedModels,
                         systemPrompt: systemPrompt.isEmpty ? nil : systemPrompt
                     )
                 }
             } label: {
-                if service.isComparing {
+                if store.isComparing {
                     ProgressView()
                         .controlSize(.small)
                 } else {
@@ -126,9 +126,9 @@ extension ModelComparisonView {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(prompt.isEmpty || selectedModels.isEmpty || service.isComparing)
+            .disabled(prompt.isEmpty || selectedModels.isEmpty || store.isComparing)
 
-            if let error = service.error {
+            if let error = store.error {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -142,13 +142,13 @@ extension ModelComparisonView {
             Text("History")
                 .font(.headline)
 
-            if service.history.isEmpty {
+            if store.history.isEmpty {
                 Text("No previous comparisons")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 List(selection: historySelection) {
-                    ForEach(service.history) { result in
+                    ForEach(store.history) { result in
                         historyRow(result)
                             .tag(result.id)
                     }
@@ -159,14 +159,12 @@ extension ModelComparisonView {
         .padding()
     }
 
-    /// Selection binding bridging the native List to the service's current result.
+    /// Selection binding bridging the native List to the store's current result.
     private var historySelection: Binding<ComparisonResult.ID?> {
         Binding(
-            get: { service.lastResult?.id },
+            get: { store.lastResult?.id },
             set: { newID in
-                if let newID, let match = service.history.first(where: { $0.id == newID }) {
-                    service.lastResult = match
-                }
+                store.selectResult(id: newID)
             }
         )
     }

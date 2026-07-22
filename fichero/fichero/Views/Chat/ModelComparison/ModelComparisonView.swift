@@ -2,7 +2,7 @@ import OSLog
 import SwiftUI
 
 struct ModelComparisonView: View {
-    @State var service = ModelComparisonService()
+    @State var store = ModelComparisonStore()
     @State var prompt = ""
     @State var systemPrompt = ""
     @State var selectedModels: [ModelSpec] = [
@@ -17,7 +17,7 @@ struct ModelComparisonView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 250, ideal: 300)
         } detail: {
-            if let result = service.lastResult {
+            if let result = store.lastResult {
                 ComparisonResultView(result: result)
             } else {
                 ContentUnavailableView(
@@ -28,8 +28,8 @@ struct ModelComparisonView: View {
             }
         }
         .task {
-            await service.loadModels()
-            await service.loadPresets()
+            await store.loadModels()
+            await store.loadPresets()
         }
     }
 }
