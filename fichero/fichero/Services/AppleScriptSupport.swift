@@ -92,7 +92,7 @@ class AppleScriptBridge {
     private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
     private init() {
-        self.client = FicheroClient(baseURL: EngineConfig.host)
+        self.client = FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
         self.workflowExecutionService = WorkflowExecutionService(ficheroClient: client)
         // Rebind on a pairing / Settings host change (#2349) — otherwise AppleScript
         // workflow commands keep hitting the launch host (localhost) after the app

@@ -29,7 +29,7 @@ class WorkflowExecutionService {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         components?.path = ""
         let host = components?.url ?? baseURL
-        self.client = FicheroClient(baseURL: host, libraryPath: libraryPath)
+        self.client = FicheroClient(baseURL: host, libraryPath: libraryPath, transportMode: EngineConfig.transportMode)
     }
 
     init(ficheroClient: FicheroClient) {

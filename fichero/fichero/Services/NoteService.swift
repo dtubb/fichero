@@ -91,7 +91,7 @@ final class NoteService {
     private let decoder = JSONDecoder()
 
     init(ficheroClient: FicheroClient? = nil, libraryPath: String? = nil) {
-        let resolvedClient = ficheroClient ?? FicheroClient(baseURL: EngineConfig.host, libraryPath: libraryPath)
+        let resolvedClient = ficheroClient ?? FicheroClient(baseURL: EngineConfig.host, libraryPath: libraryPath, transportMode: EngineConfig.transportMode)
         self.client = resolvedClient
         self.libraryPath = libraryPath ?? resolvedClient.currentLibraryPath
         client.currentLibraryPath = self.libraryPath

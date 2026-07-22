@@ -310,8 +310,17 @@ class LibraryManager {
             self.apiClient.currentLibraryPath = url.path
 
             // Create the generated API client (shares same library path), bound
-            // to this library's backend host.
-            self.ficheroClient = FicheroClient(baseURL: host.url, libraryPath: url.path)
+            // to this library's backend host. Pass `transportMode` so an EMBEDDED
+            // engine is dialed over its UDS socket, not TCP https://127.0.0.1:8765
+            // (which nothing binds when embedded → errno 61). Mirrors APIClient's
+            // inner client and AppState.ficheroClient; without it every generated
+            // service on this client (WorkflowStore's list_workflows was the
+            // reported symptom) fails "Could not connect to the server".
+            self.ficheroClient = FicheroClient(
+                baseURL: host.url,
+                libraryPath: url.path,
+                transportMode: EngineConfig.transportMode
+            )
 
             // Initialize all services with the library's APIClient
             self.documentStore = documentStore ?? DocumentStore(apiClient: self.apiClient)

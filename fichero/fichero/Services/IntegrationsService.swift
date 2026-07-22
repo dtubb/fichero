@@ -33,7 +33,7 @@ final class IntegrationsService {
     /// App-wide client (auth only, no library scope) — see type doc.
     let client: FicheroClient
 
-    init(client: FicheroClient = FicheroClient(baseURL: EngineConfig.host)) {
+    init(client: FicheroClient = FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)) {
         self.client = client
         hostChangeObservation = NotificationCenter.default.addObserver(
             forName: EngineConfig.engineHostDidChangeNotification,

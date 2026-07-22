@@ -35,7 +35,7 @@ final class ModelComparisonService {
     let client: FicheroClient
 
     init() {
-        self.client = FicheroClient(baseURL: EngineConfig.host)
+        self.client = FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
         hostChangeObservation = NotificationCenter.default.addObserver(
             forName: EngineConfig.engineHostDidChangeNotification,
             object: nil,

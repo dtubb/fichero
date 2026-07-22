@@ -32,7 +32,7 @@ extension ComparisonDetailView {
         // instead of a hand-written URLSession call. Model-comparison is a
         // dev-tier, app-wide feature; the middleware still supplies the bearer
         // token the backend requires.
-        let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient(baseURL: EngineConfig.host)
+        let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
 
         do {
             let response = try await client.api.getComparisonApiModelComparisonComparisonComparisonIdGet(

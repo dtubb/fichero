@@ -87,7 +87,7 @@ class StorageService {
 
     convenience init(apiClient: APIClient) {
         let libraryPath = apiClient.currentLibraryPath ?? ""
-        let ficheroClient = FicheroClient(baseURL: EngineConfig.host, libraryPath: libraryPath)
+        let ficheroClient = FicheroClient(baseURL: EngineConfig.host, libraryPath: libraryPath, transportMode: EngineConfig.transportMode)
         self.init(ficheroClient: ficheroClient)
     }
 

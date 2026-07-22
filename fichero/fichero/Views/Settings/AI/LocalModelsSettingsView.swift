@@ -128,7 +128,7 @@ struct LocalModelsSettingsView: View {
     /// through the generated client still supplies the bearer token the backend
     /// requires and removes the hardcoded localhost URLs.
     private var client: FicheroClient {
-        libraryManager.globalLibrary?.ficheroClient ?? FicheroClient(baseURL: EngineConfig.host)
+        libraryManager.globalLibrary?.ficheroClient ?? FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
     }
 
     private func downloadModel(type: String, modelId: String) async {

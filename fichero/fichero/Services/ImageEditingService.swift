@@ -142,7 +142,7 @@ final class ImageEditingService {
     /// - Parameter engineURL: Engine root without `/api` (e.g. `http://127.0.0.1:8765`).
     init(libraryPath: String, engineURL: URL = EngineConfig.host, client: FicheroClient? = nil) {
         self.libraryPath = libraryPath
-        self.client = client ?? FicheroClient(baseURL: engineURL, libraryPath: libraryPath)
+        self.client = client ?? FicheroClient(baseURL: engineURL, libraryPath: libraryPath, transportMode: EngineConfig.transportMode)
     }
 
     convenience init(apiClient: APIClient) {
