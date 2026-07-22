@@ -80,7 +80,13 @@ KNOWN_VIOLATIONS: dict[str, str] = {
         "the shared pinned transport — so the generic web view validates the "
         "engine's pinned HTTPS cert like every other call site (#2601)."
     ),
-    "Views/Reader/Knowledge/DocumentKGWebPane+Route.swift#10ac98dccd": "§6b baseline — hand-built URLRequest(url:) (moved here when DocumentKGWebPane was split by file_length)",
+    "Views/Reader/Knowledge/DocumentKGWebPane+Route.swift#94530504ad": (
+        "NOT a transport bypass: this URLRequest loads a `fichero-engine://` "
+        "custom-scheme URL into WKWebView, which `EngineWebViewSchemeHandler` "
+        "intercepts and re-issues through `FicheroClient.requestData` (the shared "
+        "transport + auth/library middleware). WKWebView needs a URL/URLRequest to "
+        "load; the network hop happens through the transport, not this request (#4048 KG bridge)."
+    ),
     "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift#b0f6d9c546": (
         "WKNavigationDelegate server-trust challenge signature names "
         "URLSession.AuthChallengeDisposition (an enum type, not a raw session); "
