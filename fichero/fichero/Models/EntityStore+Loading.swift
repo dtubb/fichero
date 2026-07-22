@@ -23,9 +23,11 @@ extension EntityStore {
             libraryEntities = try await loadedEntities
             libraryClaimCounts = (try? await loadedCounts) ?? [:]
             lastLibraryQuery = searchQuery
-        } catch is CancellationError {
-            // Superseded by a newer search/load.
         } catch {
+            if error.isCancellationError {
+                // Superseded by a newer search/load.
+                return
+            }
             libraryEntities = []
             libraryLoadError = "Couldn't load entities: \(error.localizedDescription)"
         }
@@ -59,9 +61,11 @@ extension EntityStore {
             log.debug(
                 "Loaded \(loaded.count, privacy: .public) entities for \(documentId, privacy: .public)"
             )
-        } catch is CancellationError {
-            // Superseded by a newer document selection — keep current state.
         } catch {
+            if error.isCancellationError {
+                // Superseded by a newer document selection — keep current state.
+                return
+            }
             entitiesByDocumentId[documentId] = []
             loadErrorsByDocumentId[documentId] = "Couldn't load entities: \(error.localizedDescription)"
             loadedDocumentIds.remove(documentId)
@@ -107,9 +111,10 @@ extension EntityStore {
         for docId in scopeIds {
             do {
                 lists.append(try await entityService.listInspectorEntitiesForDocument(documentId: docId))
-            } catch is CancellationError {
-                return  // superseded by a newer selection — keep current state
             } catch {
+                if error.isCancellationError {
+                    return  // superseded by a newer selection — keep current state
+                }
                 lastError = error  // partial aggregation beats none; remember for the all-failed case
             }
         }

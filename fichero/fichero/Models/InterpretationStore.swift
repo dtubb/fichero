@@ -66,9 +66,11 @@ final class InterpretationStore: ObservableDomainStore {
         defer { isLoading = false }
         do {
             items = try await entityService.listDocumentInterpretations(documentId: documentId)
-        } catch is CancellationError {
-            // Superseded by a newer document selection — keep current state.
         } catch {
+            if error.isCancellationError {
+                // Superseded by a newer document selection — keep current state.
+                return
+            }
             loadError = error.localizedDescription
             items = []
             log.error(
@@ -84,9 +86,11 @@ final class InterpretationStore: ObservableDomainStore {
         defer { isLoadingFrameworks = false }
         do {
             frameworks = try await entityService.listFrameworks()
-        } catch is CancellationError {
-            // Superseded by closing the interpretation form.
         } catch {
+            if error.isCancellationError {
+                // Superseded by closing the interpretation form.
+                return
+            }
             frameworksError = error.localizedDescription
         }
     }

@@ -110,9 +110,11 @@ final class ClaimStore: ObservableDomainStore {
             claims = loaded
             scope = newScope
             log.debug("Loaded \(loaded.count, privacy: .public) claims for scope")
-        } catch is CancellationError {
-            // Superseded by a newer selection — keep current state.
         } catch {
+            if error.isCancellationError {
+                // Superseded by a newer selection — keep current state.
+                return
+            }
             loadError = "Couldn't load claims: \(error.localizedDescription)"
             claims = []
             scope = newScope

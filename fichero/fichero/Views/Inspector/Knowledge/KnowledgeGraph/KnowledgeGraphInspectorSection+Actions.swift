@@ -62,9 +62,11 @@ extension KnowledgeGraphInspectorSection {
             claims = response.claims
             canonicalGroups = response.groups
             syncSelectionToLoadedClaims()
-        } catch is CancellationError {
-            // Task superseded by a newer page selection — not a load failure.
         } catch {
+            if error.isCancellationError {
+                // Task superseded by a newer page selection — not a load failure.
+                return
+            }
             loadError = "Couldn't load: \(error.localizedDescription)"
             claims = []
             canonicalGroups = []

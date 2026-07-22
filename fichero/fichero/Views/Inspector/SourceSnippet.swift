@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Source crop model (#2105)
@@ -83,10 +84,12 @@ final class SourceSnippetLoader {
             } else {
                 phase = .empty
             }
-        } catch is CancellationError {
-            // A newer request superseded this one — leave the phase for the
-            // in-flight load to set; don't flash a spurious error.
         } catch {
+            if error.isCancellationError {
+                // A newer request superseded this one — leave the phase for the
+                // in-flight load to set; don't flash a spurious error.
+                return
+            }
             phase = .failed(error.localizedDescription)
         }
     }

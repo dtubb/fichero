@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import Observation
 import OSLog
@@ -76,9 +77,11 @@ final class ArtifactStore: ObservableDomainStore {
             log.debug(
                 "Loaded \(self.items.count, privacy: .public) artifacts for \(documentId, privacy: .public)"
             )
-        } catch is CancellationError {
-            // Superseded by a newer document selection — keep current state.
         } catch {
+            if error.isCancellationError {
+                // Superseded by a newer document selection — keep current state.
+                return
+            }
             loadError = "Couldn't load artifacts: \(error.localizedDescription)"
             items = []
             log.error(

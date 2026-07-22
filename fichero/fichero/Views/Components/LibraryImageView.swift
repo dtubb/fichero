@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
@@ -97,7 +98,7 @@ struct LibraryImageView: View {
                 return
             }
             loadError = error
-            if Task.isCancelled || error is CancellationError {
+            if Task.isCancelled || error.isCancellationError {
                 // SwiftUI cancels the in-flight load when the row scrolls off or
                 // the list refreshes; the transport surfaces that as a -999
                 // "cancelled". A cancellation is not a load failure, so trace it
