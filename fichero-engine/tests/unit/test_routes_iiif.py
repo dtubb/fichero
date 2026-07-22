@@ -7,7 +7,7 @@ pattern: actual paths are at /api/iiif/iiif/...
 
 from PIL import Image
 
-from fichero.knowledge_models import Annotation, AnnotationKind
+from fichero.models.knowledge import Annotation, AnnotationKind
 from fichero.models import Document, DocType, FileType
 
 

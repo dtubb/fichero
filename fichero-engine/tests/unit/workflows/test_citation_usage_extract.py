@@ -1,6 +1,6 @@
 """Tests for body citation-usage extraction (#1277)."""
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     DocumentCitation,
     KnowledgeClaim,
     Reference,

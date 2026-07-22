@@ -52,7 +52,7 @@ def _metadata_for_document(db: Database, document_id: str):
     first and fall back to the legacy dict location. If neither works,
     fall back to the most-recent claim from that document.
     """
-    from fichero.knowledge_models import KnowledgeClaim, SourceMetadata
+    from fichero.models.knowledge import KnowledgeClaim, SourceMetadata
     from fichero.models import Document
 
     doc = db.get(Document, document_id)

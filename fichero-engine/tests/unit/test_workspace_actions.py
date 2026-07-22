@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from fichero.security import accounts
 from fichero.security import authz
 from fichero.actions.registry import ActionContext, registry
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 from fichero.models import ActionAudit, DocType, Document
 
 

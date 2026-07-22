@@ -6,7 +6,7 @@ import pytest
 
 from fichero.kg import triangulation
 from fichero.models import DocType, Document, SourceAuthority
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,
@@ -214,7 +214,7 @@ class TestPersistSupportCounts:
         # corroborating_source_ids went [] → ["doc-1"], so one write.
         assert updated == 1
 
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         claim = db.query(KnowledgeClaim, id=cid)[0]
         assert claim.corroboration_count == 1
         assert claim.weighted_corroboration_count == 1.0
@@ -235,7 +235,7 @@ class TestPersistSupportCounts:
         updated = triangulation.persist_support_counts(db)
         assert updated == 3  # all three claims updated (were 1, now 3)
 
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         for cid in c_ids:
             claim = db.query(KnowledgeClaim, id=cid)[0]
             assert claim.corroboration_count == 3
@@ -258,7 +258,7 @@ class TestPersistSupportCounts:
         updated = triangulation.persist_support_counts(db)
         assert updated == 3
 
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         claims = db.query(KnowledgeClaim)
         assert len(claims) == 3
         for claim in claims:
@@ -285,7 +285,7 @@ class TestPersistSupportCounts:
 
         triangulation.persist_support_counts(db)
 
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         e_claim = db.query(KnowledgeClaim, id=e_cid)[0]
         # Eugenio's claim should be untouched (still 1).
         assert e_claim.corroboration_count == 1
@@ -306,7 +306,7 @@ class TestPersistSupportCounts:
 
     def test_date_only_claims_skipped(self, db):
         """Claims with no entity_ids (date-style) are not touched."""
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
 
         date_claim = KnowledgeClaim(
             text="1933-07-23 records the deed",

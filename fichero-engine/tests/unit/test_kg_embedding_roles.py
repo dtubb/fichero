@@ -56,7 +56,7 @@ def test_entity_dedup_find_similar_uses_passage_role() -> None:
 async def test_find_similar_claims_uses_passage_role() -> None:
     """find_similar_claims must call _embed_text with role='passage'."""
     from fichero.api.routes.kg_claim_search import find_similar_claims
-    from fichero.knowledge_models import ClaimCurationState, ClaimType, KnowledgeClaim
+    from fichero.models.knowledge import ClaimCurationState, ClaimType, KnowledgeClaim
 
     captured: list[str] = []
 
@@ -108,7 +108,7 @@ async def test_heuristic_predictions_uses_passage_role() -> None:
         generate_heuristic_predictions,
         HeuristicRequest,
     )
-    from fichero.knowledge_models import ClaimCurationState, ClaimType, KnowledgeClaim
+    from fichero.models.knowledge import ClaimCurationState, ClaimType, KnowledgeClaim
 
     captured: list[str] = []
 
@@ -155,7 +155,7 @@ async def test_heuristic_predictions_raises_when_a_claim_cannot_be_embedded() ->
         HeuristicRequest,
         generate_heuristic_predictions,
     )
-    from fichero.knowledge_models import ClaimCurationState, ClaimType, KnowledgeClaim
+    from fichero.models.knowledge import ClaimCurationState, ClaimType, KnowledgeClaim
 
     claim = KnowledgeClaim(
         id="broken-claim",

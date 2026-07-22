@@ -337,7 +337,7 @@ def test_epistemic_and_claim_type_plumbed_through(_capture_save_claim) -> None:
     coerced to enums. Unknown values silently fall back to None /
     ClaimType.fact (model defaults), so a single misclassification
     doesn't drop the claim."""
-    from fichero.knowledge_models import ClaimType, EpistemicStatus
+    from fichero.models.knowledge import ClaimType, EpistemicStatus
 
     db, captured = _capture_save_claim
     _write_kg_rows(

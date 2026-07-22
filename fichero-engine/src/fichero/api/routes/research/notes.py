@@ -12,7 +12,7 @@ from fichero.api.main import get_library_database, get_library_database_for_writ
 from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.db import Database
 from fichero.models import ResearchNotesListResponse
-from fichero.research_models import (
+from fichero.models.research import (
     ChecklistItem,
     ResearchChecklist,
     ResearchNote,

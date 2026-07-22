@@ -25,7 +25,7 @@ from fichero.api.change_stream import (
     format_change_sse,
 )
 from fichero.db import db_manager
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Annotation,
     AnnotationKind,
     Reference,
@@ -34,7 +34,7 @@ from fichero.knowledge_models import (
     KnowledgeEntity,
     Note,
 )
-from fichero.hermeneutics_models import (
+from fichero.models.hermeneutics import (
     CircleNavigationDirection,
     FrameworkType,
     HermeneuticCircleState,

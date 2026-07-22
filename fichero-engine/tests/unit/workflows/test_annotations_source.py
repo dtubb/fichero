@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from fichero.models import Document
-from fichero.knowledge_models import Annotation, AnnotationKind
+from fichero.models.knowledge import Annotation, AnnotationKind
 from fichero.workflows.tools import annotations_source as tool
 
 

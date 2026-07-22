@@ -188,7 +188,7 @@ class TestMetadataValidation:
 
     def test_isbn_validator_handles_malformed_input(self):
         """ISBN validator should handle edge cases gracefully."""
-        from fichero.knowledge_models import SourceMetadata
+        from fichero.models.knowledge import SourceMetadata
 
         # Test various malformed inputs
         test_cases = [
@@ -227,7 +227,7 @@ class TestTripleBuildingSecurity:
         Fixed: Check claim.sensitivity before adding to triples.
         """
         from fichero.api.routes.kg_predictions import _build_minimal_pykeen_triples
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
 
         # Create a confidential claim
         confidential_claim = KnowledgeClaim(

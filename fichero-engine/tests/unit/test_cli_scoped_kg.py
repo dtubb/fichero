@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,

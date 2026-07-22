@@ -12,7 +12,7 @@ deduped to one row with BOTH page ids recorded.
 
 from __future__ import annotations
 
-from fichero.knowledge_models import EntityType, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeEntity
 from fichero.models import Document
 from fichero.workflows.tools._entity_writer import upsert_entity
 

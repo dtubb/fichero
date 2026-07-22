@@ -22,7 +22,7 @@ def test_duplicate_detector_flags_unallowlisted_duplicates(tmp_path):
     (src / "dupes.py").write_text(
         """
 from fastapi import APIRouter
-from fichero.knowledge_models import KnowledgeEntity
+from fichero.models.knowledge import KnowledgeEntity
 router = APIRouter(prefix="/dupes")
 
 @router.post("/x")

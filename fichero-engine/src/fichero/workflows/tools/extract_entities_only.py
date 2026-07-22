@@ -17,7 +17,7 @@ import os
 from typing import Any
 
 from fichero.db import db_manager
-from fichero.knowledge_models import KnowledgeEntity
+from fichero.models.knowledge import KnowledgeEntity
 from fichero.llm import LLMConfig, chat_structured_with_fallback
 from fichero.models import Artifact, Document
 from fichero.workflows.registry import register_tool

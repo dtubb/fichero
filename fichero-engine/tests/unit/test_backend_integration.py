@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from fichero.db import Database, SearchResult
-from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.models import DocType, Document, FileType
 from fichero.ingest import ingest_file, ingest_folder, IngestMode
 

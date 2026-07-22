@@ -8,7 +8,7 @@ import pytest
 from tests.integration._seedlib import seed
 
 from fichero.db import db_manager
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 from fichero.models import DocType, Document, FileType, Status, Workflow
 from fichero.workflows.builder import build_graph
 from fichero.workflows.default_workflows import _load_preset_files

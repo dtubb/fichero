@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from fichero.api.routes import kg_predictions as routes
-from fichero.knowledge_models import ClaimRelationType, KnowledgeClaim, KnowledgeClaimLink
+from fichero.models.knowledge import ClaimRelationType, KnowledgeClaim, KnowledgeClaimLink
 
 
 def test_build_minimal_triples_excludes_sensitive_claims_and_deduplicates():

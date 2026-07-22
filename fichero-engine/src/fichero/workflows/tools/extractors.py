@@ -25,7 +25,7 @@ from __future__ import annotations
 
 # EntityType import placed here so future authors see the KG mapping next
 # to the section table below.
-from fichero.knowledge_models import EntityType
+from fichero.models.knowledge import EntityType
 
 import asyncio
 import json
@@ -1685,7 +1685,7 @@ def _build_alias_index(db) -> list[tuple[str, str]]:
     section, not per claim, so the cost is O(entities) once instead
     of O(entities × claims).
     """
-    from fichero.knowledge_models import KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeEntity
 
     pairs: list[tuple[str, str]] = []
     for ent in db.query(KnowledgeEntity):
@@ -1831,7 +1831,7 @@ def _reference_match_labels(reference) -> list[str]:
 
 def _bibliography_candidates(db, source_document_id: str) -> tuple[dict[str, Any], list[str]]:
     """Return match labels for references cited by this document."""
-    from fichero.knowledge_models import Reference, ReferenceProvenance
+    from fichero.models.knowledge import Reference, ReferenceProvenance
 
     linked_reference_ids = {
         link.reference_id
@@ -1891,7 +1891,7 @@ def _write_citation_usage_rows(
 ) -> None:
     """Persist body citation usages as DocumentCitation + KnowledgeClaim."""
     from fichero.kg._common import canonical_hermeneutic_predicate, slug_verb
-    from fichero.knowledge_models import ClaimType, DocumentCitation, KnowledgeClaim
+    from fichero.models.knowledge import ClaimType, DocumentCitation, KnowledgeClaim
     from fichero.models import Document as DocumentModel
     from fichero.workflows.tools._entity_writer import save_claim
     from fichero.workflows.tools.llm_prompting import match_to_reference
@@ -2052,7 +2052,7 @@ def _write_kg_rows(
         )
         return [], []
 
-    from fichero.knowledge_models import (
+    from fichero.models.knowledge import (
         ClaimType,
         EntityType,
         EpistemicStatus,

@@ -12,7 +12,7 @@ from unittest.mock import patch, AsyncMock
 
 import pytest
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityType,
     KnowledgeEntity,
     KnowledgeClaim,
@@ -613,7 +613,7 @@ class TestRerunIdempotence1120:
         save → assert the row is updated, not duplicated, and no crash
         occurs. This locks the contract that ``save`` is genuinely
         idempotent on id (the contract its docstring promises)."""
-        from fichero.knowledge_models import KnowledgeEntity, EntityType
+        from fichero.models.knowledge import KnowledgeEntity, EntityType
 
         first = KnowledgeEntity(
             canonical_name="Quibdó",

@@ -6,7 +6,7 @@ from fichero.export_service import (
     export_word_docx,
     iter_export_records,
 )
-from fichero.knowledge_models import ClaimType, EntityType
+from fichero.models.knowledge import ClaimType, EntityType
 from fichero.models import DocType, Document, FileType, KnowledgeClaim, KnowledgeEntity
 
 

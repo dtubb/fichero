@@ -37,7 +37,7 @@ from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.auth import actor_from_request
 from fichero.db import Database
 from fichero.db.manager import db_manager
-from fichero.knowledge_models import Annotation, KnowledgeEntity, Note
+from fichero.models.knowledge import Annotation, KnowledgeEntity, Note
 from fichero.db.library_paths import nfc_path
 from fichero.models import (
     DocType,

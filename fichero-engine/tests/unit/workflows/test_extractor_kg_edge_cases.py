@@ -12,7 +12,7 @@ from unittest.mock import patch, AsyncMock
 
 import pytest
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityType,
     KnowledgeEntity,
     KnowledgeClaim,
@@ -781,7 +781,7 @@ class TestInvariantViolationLogging:
         subject_canonical, predicate_verb, object_phrase (or all are None
         for synthetic/fallback SVO cases). This is the #1113 invariant."""
         from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
 
         places_section = next(s for s in _SECTIONS if s["name"] == "places_extract")
         # Mix of LLM-SVO and legacy-context items.
@@ -818,7 +818,7 @@ class TestInvariantViolationLogging:
         >=3 words AND not a substring of canonical_name. This prevents
         the silent #1016 / #1009 degradation."""
         from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
-        from fichero.knowledge_models import KnowledgeEntity
+        from fichero.models.knowledge import KnowledgeEntity
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
         # Items: one with valid description, one with short description.
@@ -864,7 +864,7 @@ class TestInvariantViolationLogging:
 
 
 def test_pronoun_subject_reuses_preceding_entity(db, container_doc):
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
     from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
 
     section = next(s for s in _SECTIONS if s["name"] == "places_extract")
@@ -883,7 +883,7 @@ def test_pronoun_subject_reuses_preceding_entity(db, container_doc):
 
 
 def test_claim_writer_cleans_escaped_text_and_deletion_markers(db, container_doc):
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
     from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
 
     section = next(s for s in _SECTIONS if s["name"] == "places_extract")
@@ -899,7 +899,7 @@ def test_claim_writer_cleans_escaped_text_and_deletion_markers(db, container_doc
 
 
 def test_claim_writer_preserves_source_bbox(db, container_doc):
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
     from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
 
     section = next(s for s in _SECTIONS if s["name"] == "places_extract")
@@ -914,7 +914,7 @@ def test_claim_writer_preserves_source_bbox(db, container_doc):
 
 
 def test_hermeneutics_stage_persists_svo_claim(db, container_doc):
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
     from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
 
     section = next(s for s in _SECTIONS if s["name"] == "hermeneutics_extract")

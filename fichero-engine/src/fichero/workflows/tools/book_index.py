@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from fichero.books.page_offset import page_offset_from_inputs, resolve_printed_page
 from fichero.db import db_manager
 from fichero.kg._common import slug_verb
-from fichero.knowledge_models import ClaimType, EntityType, KnowledgeEntity
+from fichero.models.knowledge import ClaimType, EntityType, KnowledgeEntity
 from fichero.llm import LLMConfig, chat_structured_with_fallback
 from fichero.models import Artifact, Document
 from fichero.workflows.registry import register_tool

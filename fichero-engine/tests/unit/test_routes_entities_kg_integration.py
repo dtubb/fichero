@@ -12,7 +12,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from fichero.api.main import app
-from fichero.knowledge_models import EntityType
+from fichero.models.knowledge import EntityType
 from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
 
 

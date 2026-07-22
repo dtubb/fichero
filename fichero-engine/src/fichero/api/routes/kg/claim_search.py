@@ -17,7 +17,7 @@ from fichero.api.main import get_library_database, get_library_database_for_writ
 from fichero.db import Database
 from fichero.db.embeddings import KG_CLAIM_EMBEDDINGS_TABLE
 from fichero.models import KGGraphListResponse
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimCurationState,
     ClaimType,
     KnowledgeClaim,

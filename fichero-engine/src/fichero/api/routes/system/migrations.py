@@ -348,7 +348,7 @@ async def data_integrity_check(
     Returns counts and identifies orphaned links, unreferenced entities,
     and claims without valid sources.
     """
-    from fichero.knowledge_models import (
+    from fichero.models.knowledge import (
         KnowledgeClaim,
         KnowledgeClaimLink,
         KnowledgeEntity,

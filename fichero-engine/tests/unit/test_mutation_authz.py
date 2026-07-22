@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from fichero.security import accounts
 from fichero.security import authz
-from fichero.knowledge_models import Note
+from fichero.models.knowledge import Note
 from fichero.models import ActionAudit, AccountUser, Document, KnowledgeClaim, KnowledgeEntity
 
 

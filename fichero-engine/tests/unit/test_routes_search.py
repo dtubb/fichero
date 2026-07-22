@@ -21,9 +21,9 @@ from fastapi.testclient import TestClient
 from fichero.security import accounts
 from fichero.security import authz
 from fichero.api.routes import search as search_routes
-from fichero.knowledge_models import ClaimType, EntityType
+from fichero.models.knowledge import ClaimType, EntityType
 from fichero.db import SearchAnchor, SearchExcerpt, SearchResult
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero.models import AccountUser, DocType, Document, FileType, KGGraphListResponse, SavedSearch
 
 

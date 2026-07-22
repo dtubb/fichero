@@ -13,7 +13,7 @@ import fichero.api.routes.entities  # noqa: F401
 import fichero.api.routes.notes  # noqa: F401
 import fichero.api.routes.search  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, NoteKind
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity, NoteKind
 from fichero.models import ActionAudit, DocType, Document
 
 

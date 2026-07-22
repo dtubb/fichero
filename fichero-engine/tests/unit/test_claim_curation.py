@@ -17,7 +17,7 @@ from fichero.api.routes.claim_curation import (
     BatchClaimTransitionRequest,
     QueueClaimItem,
 )
-from fichero.knowledge_models import ClaimCurationState
+from fichero.models.knowledge import ClaimCurationState
 
 
 class TestCurationStateValidation:

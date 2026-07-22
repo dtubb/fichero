@@ -6,7 +6,7 @@ import duckdb
 from pathlib import Path
 
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Annotation,
     AnnotationKind,
     ClassificationDimension,

@@ -1,6 +1,6 @@
 """Tests for the hosted document knowledge-surface HTML route (#1228)."""
 
-from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.db import Database
 from fichero.models import Document, DocType, FileType, Status
 

@@ -7,7 +7,7 @@ HTTP-level tests in test_routes_entities.
 
 from __future__ import annotations
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityMatchCandidate,
     EntityType,
     KnowledgeClaim,

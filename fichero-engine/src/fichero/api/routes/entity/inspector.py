@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Annotation,
     EntityType,
     KnowledgeClaim,

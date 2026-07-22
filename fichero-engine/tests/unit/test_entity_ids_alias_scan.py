@@ -15,7 +15,7 @@ path is covered by the existing extractor edge-case tests.
 
 from __future__ import annotations
 
-from fichero.knowledge_models import EntityType, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeEntity
 from fichero.workflows.tools.extractors import (
     _build_alias_index,
     _scan_for_mentioned_entities,
@@ -195,7 +195,7 @@ class TestEndToEndAliasScanThroughWriter:
             source_document_id="doc1",
             entity_ids=[chocó_id, *mentioned],
         )
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         loaded = db.get(KnowledgeClaim, claim_id)
         assert chocó_id in loaded.entity_ids
         assert andes_id in loaded.entity_ids

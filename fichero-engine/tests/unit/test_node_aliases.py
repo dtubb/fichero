@@ -8,7 +8,7 @@ import pytest
 
 from fichero.db import Database
 from fichero.models import Document, DocType
-from fichero.node_aliases import (
+from fichero.models.node_aliases import (
     ALIAS_NODE_KIND,
     DanglingAliasError,
     is_alias,

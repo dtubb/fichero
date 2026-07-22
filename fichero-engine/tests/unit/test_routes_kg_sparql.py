@@ -10,7 +10,7 @@ import asyncio
 import pytest
 from fastapi import HTTPException
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimCurationState,
     ClaimType,
     EntityType,

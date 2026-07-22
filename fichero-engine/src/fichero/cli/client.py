@@ -50,7 +50,7 @@ from fichero.api.routes.kg_rebuild import KGResetResponse, RebuildResponse
 from fichero.api.routes.kg_search import KGSearchResponse
 from fichero.api.routes.model_comparison import ComparisonResultResponse
 from fichero.api.routes.provider_models import ProviderResponse
-from fichero.hermeneutics_models import Interpretation
+from fichero.models.hermeneutics import Interpretation
 from fichero.api.routes.search import SearchResponse
 from fichero.api.routes.settings import AIDefaults
 from fichero.api.routes.workflow_execution.schemas import (
@@ -62,7 +62,7 @@ from fichero.api.routes.workflow_execution.threads import (
     CancelResponse,
     ThreadDeletedResponse,
 )
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, Note, NoteKind
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity, Note, NoteKind
 from fichero.models import (
     Artifact,
     ClaimListResponse,

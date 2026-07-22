@@ -15,7 +15,7 @@ from unittest.mock import patch, AsyncMock
 
 import pytest
 
-from fichero.knowledge_models import EntityType
+from fichero.models.knowledge import EntityType
 from fichero.llm import LLMConfig
 from fichero.models import Document, DocType, FileType, Artifact
 

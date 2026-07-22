@@ -19,7 +19,7 @@ from typing import Any
 
 from fichero.db import db_manager
 from fichero.kg._common import is_trivial_claim
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimCurationState,
     ClaimSuppressionRuleAction,
     EntityCurationState,

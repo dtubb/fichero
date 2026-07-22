@@ -25,7 +25,7 @@ from fichero.api.routes.mcp_tools import (
     _validate_epistemic_status,
     _validate_source_type,
 )
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityType,
     ClaimType,
     ClaimCurationState,

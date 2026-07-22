@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from fichero.security import accounts
 from fichero.security import authz
 from fichero.api.main import app
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     KnowledgeEntity,
     KnowledgeClaim,
     ClaimType,

@@ -78,7 +78,7 @@ async def test_mock_structured_fails_loud_on_unsupported_required_field():
 async def test_extract_all_mock_writes_claims_and_artifacts(db, test_package, caplog):
     """A full extract_all run with provider=mock writes KG claim rows +
     per-page Artifact rows, with no exception and no paid-cost warning."""
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
 
     folder = Document(name="Folder", path="/tmp/folder", doc_type=DocType.folder)
     page1 = Document(name="p1", path="/tmp/folder/p1.png", doc_type=DocType.page)
@@ -126,7 +126,7 @@ async def test_extract_all_mock_emits_workflow_change_events(
     monkeypatch,
     tmp_path,
 ):
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
     monkeypatch.setattr(
         "fichero.workflows.tools.extractors._build_alias_index",

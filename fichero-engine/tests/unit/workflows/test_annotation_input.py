@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from fichero.knowledge_models import Annotation, AnnotationKind
+from fichero.models.knowledge import Annotation, AnnotationKind
 from fichero.models import Document, DocType
 from fichero.workflows.tools._annotation_input import (
     annotation_crops_for_document,

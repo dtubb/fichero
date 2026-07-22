@@ -6,7 +6,7 @@ from pathlib import Path
 from tests.integration._seedlib import seed
 
 from fichero.db import db_manager
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimCurationState,
     ClaimSuppressionRule,
     ClaimSuppressionRuleAction,

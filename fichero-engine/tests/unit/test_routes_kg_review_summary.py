@@ -1,6 +1,6 @@
 """Tests for review-queue summary API used by UI badge counts (#1356)."""
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityMatchCandidate,
     PendingMatchState,
 )

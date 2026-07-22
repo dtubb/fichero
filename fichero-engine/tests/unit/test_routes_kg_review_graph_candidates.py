@@ -6,7 +6,7 @@ surface form but are co-mentioned with the same other entities. This
 endpoint surfaces those proposals into the review queue.
 """
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimType,
     EntityMatchCandidate,
     EpistemicStatus,

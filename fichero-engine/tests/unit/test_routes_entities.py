@@ -10,7 +10,7 @@ import asyncio
 import logging
 from unittest.mock import patch
 
-from fichero.knowledge_models import EntityType, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeEntity
 from fichero.models import EntityCoOccurrenceListResponse, EntityDocumentListResponse
 
 
@@ -72,7 +72,7 @@ class TestListEntities:
     def test_filter_by_document_id(self, client, db):
         """Filter entities by document_id - returns only entities
         mentioned in claims from that document."""
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         
         # Create entities
         entity1 = _make_entity(db, "Alice", EntityType.person)
@@ -112,7 +112,7 @@ class TestListEntities:
         assert names == {"Charlie"}
 
     def test_filter_by_parent_document_id_rolls_up_page_claims(self, client, db):
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         from fichero.models import DocType, Document
 
         parent = Document(name="Preface.pdf", doc_type=DocType.file)
@@ -158,7 +158,7 @@ class TestListEntities:
         CLAIMS point at the PARENT doc (legacy / non-aggregate flow)."""
         from datetime import datetime
 
-        from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+        from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
         from fichero.models import DocType, Document
 
         parent = Document(name="Chapter.pdf", doc_type=DocType.file)
@@ -416,7 +416,7 @@ class TestDeleteEntity:
     def test_delete_strips_entity_from_claims_by_default(self, client, db):
         """Without cascade, claims keep their text + provenance but
         lose the deleted entity from their entity_ids list."""
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         entity = _make_entity(db, "Alice")
         claim = KnowledgeClaim(
             text="Alice signed the deed.",
@@ -432,7 +432,7 @@ class TestDeleteEntity:
         assert "other-id" in reloaded.entity_ids
 
     def test_delete_with_cascade_removes_dependent_claims(self, client, db):
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         entity = _make_entity(db, "Alice")
         claim = KnowledgeClaim(
             text="Alice signed.",
@@ -450,7 +450,7 @@ class TestDeleteEntity:
 
     def test_delete_does_not_full_scan_claim_table(self, client, db, monkeypatch):
         """Regression for #3192: entity delete should not call db.query(KnowledgeClaim)."""
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
 
         entity = _make_entity(db, "Alice")
         claim = KnowledgeClaim(
@@ -475,7 +475,7 @@ class TestDeleteEntity:
     def test_claim_lookup_for_multiple_entity_ids_returns_shared_claim_once(self, db):
         """Shared-claim lookup should return a claim once even if it matches two ids."""
         from fichero.api.routes.entities import _claims_referencing_entity_ids
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
 
         entity_a = _make_entity(db, "Alice")
         entity_b = _make_entity(db, "Bob")
@@ -563,7 +563,7 @@ class TestEntityBiography:
     def test_biography_returns_entity_with_claims(self, client, db):
         """Entity with claims — biography contains entity facts, claims,
         documents, and co-occurring entities."""
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         from fichero.models import DocType, Document
 
         # Entity under test
@@ -640,7 +640,7 @@ class TestEntityBiography:
 
     def test_biography_respects_claims_limit(self, client, db):
         """claims_limit query param caps the returned claims list."""
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
 
         entity = _make_entity(db, "Busy Person", EntityType.person)
         for i in range(10):
@@ -666,7 +666,7 @@ class TestEntityBiography:
 
 class TestEntityBiographyExport:
     def test_export_formats_are_attachments_with_safe_filenames(self, client, db):
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
 
         entity = _make_entity(db, "Douglas / Adams", EntityType.person)
         db.save(KnowledgeClaim(text="Douglas wrote", entity_ids=[entity.id]))
@@ -687,7 +687,7 @@ class TestEntityBiographyExport:
         ).text
 
     def test_markdown_export_preserves_claim_text_that_looks_like_a_heading(self, client, db):
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
 
         entity = _make_entity(db, "Rosario", EntityType.person)
         claim_text = "The witness said Claims: were fabricated"

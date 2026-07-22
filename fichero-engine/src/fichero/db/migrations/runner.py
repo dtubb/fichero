@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 
 from fichero.db import Database
 from fichero.kg._common import parse_kwarg_repr
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     KnowledgeClaim,
     KnowledgeEntity,
     KnowledgeClaimLink,
@@ -368,7 +368,7 @@ class MigrationRunner:
 
                 if not dry_run:
                     # Build source_metadata from document
-                    from fichero.knowledge_models import SourceMetadata
+                    from fichero.models.knowledge import SourceMetadata
 
                     doc_meta = source_doc.metadata
                     source_metadata = SourceMetadata(

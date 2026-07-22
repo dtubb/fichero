@@ -145,7 +145,7 @@ class TestSaveClaimPopulatesPredicateCanonical:
 
     def test_known_verb_canonicalised(self):
         from fichero.db import Database
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         from fichero.models import Document, DocType
         from fichero.workflows.tools._entity_writer import save_claim
 
@@ -171,7 +171,7 @@ class TestSaveClaimPopulatesPredicateCanonical:
         # verb stays in predicate_verb for display; the canonical slug
         # is what downstream SPARQL / aggregation pivots on.
         from fichero.db import Database
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         from fichero.models import Document, DocType
         from fichero.workflows.tools._entity_writer import save_claim
 
@@ -193,7 +193,7 @@ class TestSaveClaimPopulatesPredicateCanonical:
         # "blargled" isn't in the vocabulary — predicate_verb keeps the
         # raw text, predicate_canonical encodes honest absence.
         from fichero.db import Database
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         from fichero.models import Document, DocType
         from fichero.workflows.tools._entity_writer import save_claim
 
@@ -215,7 +215,7 @@ class TestSaveClaimPopulatesPredicateCanonical:
         # A claim written without any predicate_verb at all should not
         # get a fabricated canonical slug.
         from fichero.db import Database
-        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models.knowledge import KnowledgeClaim
         from fichero.models import Document, DocType
         from fichero.workflows.tools._entity_writer import save_claim
 

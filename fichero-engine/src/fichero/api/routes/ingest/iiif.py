@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.knowledge_models import Annotation, AnnotationKind
+from fichero.models.knowledge import Annotation, AnnotationKind
 from fichero.models import Document, FileType
 from fichero.security.path_security import allowed_source_roots, resolve_under_allowed_roots
 from fichero.db.storage import get_display, get_thumbnail, resolve_source

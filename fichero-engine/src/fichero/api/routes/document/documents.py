@@ -19,7 +19,7 @@ from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.routes.ingest.iiif import build_document_annotation_page
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Annotation,
     ClassificationDimension,
     ClassificationValue,
@@ -1164,7 +1164,7 @@ def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:
 
     Returns ``(claims_deleted, entities_pruned)``.
     """
-    from fichero.knowledge_models import (
+    from fichero.models.knowledge import (
         KnowledgeClaim,
         KnowledgeEntity,
         MutationLog,

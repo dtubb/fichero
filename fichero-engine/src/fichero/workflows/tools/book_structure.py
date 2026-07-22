@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from fichero.db import Database, db_manager
-from fichero.knowledge_models import BookStructureNode
+from fichero.models.knowledge import BookStructureNode
 from fichero.models import DocType, Document
 from fichero.workflows.registry import register_tool
 from fichero.workflows.types import DataType, PortDef, State

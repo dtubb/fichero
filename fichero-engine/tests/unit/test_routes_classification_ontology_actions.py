@@ -30,8 +30,8 @@ import fichero.api.routes.classifications  # noqa: F401
 import fichero.api.routes.hermeneutics  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import ActionAudit, KnowledgeClaim
-from fichero.knowledge_models import ClassificationDimension, ClassificationValue
-from fichero.hermeneutics_models import (
+from fichero.models.knowledge import ClassificationDimension, ClassificationValue
+from fichero.models.hermeneutics import (
     FrameworkType,
     InterpretiveActType,
     InterpretiveFramework,

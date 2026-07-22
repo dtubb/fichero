@@ -9,7 +9,7 @@ import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from fichero.models import Conversation, DocType, Document
-from fichero.node_aliases import make_alias
+from fichero.models.node_aliases import make_alias
 
 
 # ---------------------------------------------------------------------------

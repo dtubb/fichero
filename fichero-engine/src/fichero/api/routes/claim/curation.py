@@ -18,7 +18,7 @@ from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.kg._common import is_trivial_claim
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimCurationState,
     ClaimMergeAudit,
     ClaimMergeOperationType,

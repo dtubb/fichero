@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 from fichero import __main__ as cli
 from fichero.cli import FicheroClient
 from fichero.db import db_manager
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityResolutionRule,
     EntityResolutionRuleType,
     EntityType,

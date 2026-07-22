@@ -33,7 +33,7 @@ from fichero.api.routes.workflow_execution.schemas import (
     ThreadListResponse,
 )
 from fichero.api.routes.workflow_execution.threads import ThreadDeletedResponse
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, Note
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity, Note
 from fichero.models import LibraryCreateResponse, Workflow
 
 runner = CliRunner()
@@ -483,7 +483,7 @@ class FakeClient:
     def merge_entities(self, absorbing_id, absorbed_ids, **kw):
         self.calls.append(("merge_entities", absorbing_id, absorbed_ids, kw))
         from datetime import datetime
-        from fichero.knowledge_models import EntityMergeOperationType
+        from fichero.models.knowledge import EntityMergeOperationType
         return EntityAuditResponse(
             id="audit-1",
             operation_type=EntityMergeOperationType.merge,
@@ -498,7 +498,7 @@ class FakeClient:
     def split_entity(self, primary_id, split_off_ids, **kw):
         self.calls.append(("split_entity", primary_id, split_off_ids, kw))
         from datetime import datetime
-        from fichero.knowledge_models import EntityMergeOperationType
+        from fichero.models.knowledge import EntityMergeOperationType
         return EntityAuditResponse(
             id="audit-2",
             operation_type=EntityMergeOperationType.split,
@@ -550,7 +550,7 @@ class FakeClient:
     def list_audits(self, *, limit=50):
         self.calls.append(("list_audits", limit))
         from datetime import datetime
-        from fichero.knowledge_models import EntityMergeOperationType
+        from fichero.models.knowledge import EntityMergeOperationType
         return [
             EntityAuditResponse(
                 id="audit-1",
@@ -567,7 +567,7 @@ class FakeClient:
     def undo_audit(self, audit_id):
         self.calls.append(("undo_audit", audit_id))
         from datetime import datetime
-        from fichero.knowledge_models import EntityMergeOperationType
+        from fichero.models.knowledge import EntityMergeOperationType
         return EntityAuditResponse(
             id=audit_id,
             operation_type=EntityMergeOperationType.merge,

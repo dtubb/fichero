@@ -26,14 +26,14 @@ from fichero.models import (
     DocType, FileType, Status, RunStatus, SavedSearch
 )
 from fichero.db import Database
-from fichero.research_models import (
+from fichero.models.research import (
     ResearchPlan,
     ResearchProject,
     ResearchStep,
     ResearchTask,
     StepTool,
 )
-from fichero.canvas_models import (
+from fichero.models.canvas import (
     CanvasItem,
     CanvasItemKind,
     CanvasLayout,
@@ -45,7 +45,7 @@ from fichero.canvas_models import (
     SpatialRoom,
     SpatialViewport,
 )
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimRelationType,
     ClassificationDimension,
     ClassificationValue,
@@ -58,7 +58,7 @@ from fichero.knowledge_models import (
     Note,
     NoteKind,
 )
-from fichero.node_prototypes import (
+from fichero.models.node_prototypes import (
     PrototypeResolutionError,
     resolve_prototype_attributes,
 )

@@ -5,7 +5,7 @@ from __future__ import annotations
 import networkx as nx
 
 from fichero.kg import graph
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,

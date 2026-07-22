@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fichero.kg import rebuild
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,

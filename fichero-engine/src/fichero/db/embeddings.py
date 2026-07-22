@@ -671,7 +671,7 @@ class DatabaseEmbeddingMixin:
                 "pass confirm=True to run it deliberately."
             )
 
-        from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+        from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
         before = self.embedding_table_model_ids()
         table_names: list[str] = []

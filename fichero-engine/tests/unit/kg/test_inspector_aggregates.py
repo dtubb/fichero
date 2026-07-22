@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import asyncio
 
-from fichero.hermeneutics_models import FrameworkType, Interpretation, InterpretiveActType, InterpretiveFramework
-from fichero.knowledge_models import (
+from fichero.models.hermeneutics import FrameworkType, Interpretation, InterpretiveActType, InterpretiveFramework
+from fichero.models.knowledge import (
     Annotation,
     AnnotationKind,
     BookStructureNode,

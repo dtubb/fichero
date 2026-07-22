@@ -19,7 +19,7 @@ except ImportError:
     NETWORKX_AVAILABLE = False
     nx = None
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     KnowledgeClaim,
     KnowledgeClaimLink,
     KnowledgeEntity,

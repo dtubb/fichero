@@ -43,7 +43,7 @@ import fichero.api.routes.entities  # noqa: F401
 import fichero.api.routes.kg_entity_curation  # noqa: F401
 from fichero.api.routes.actions_registry import list_audit_log, undo_action
 from fichero.actions.registry import ActionContext, registry
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero.models import ActionAudit, DocType, Document
 
 LIB = "/lib/test.fichero"

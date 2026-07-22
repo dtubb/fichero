@@ -28,7 +28,7 @@ import fichero.api.routes.bibliography  # noqa: F401
 import fichero.api.routes.references  # noqa: F401
 import fichero.api.routes.sources  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Reference,
     ReferenceCitationLocation,
     ReferenceProvenance,

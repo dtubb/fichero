@@ -79,7 +79,7 @@ def _gather_triples(db: "Database") -> list[tuple[str, str, str]]:
     where possible so the model learns over entities, not literals.
     """
     from fichero.kg._common import extract_svo, slug_verb
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
 
     triples: list[tuple[str, str, str]] = []
     for claim in db.query(KnowledgeClaim):

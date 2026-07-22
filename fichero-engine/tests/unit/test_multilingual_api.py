@@ -9,7 +9,7 @@ Tests cover:
 - Language persistence verification
 """
 
-from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim, EntityType
+from fichero.models.knowledge import KnowledgeEntity, KnowledgeClaim, EntityType
 from fichero.multilingual import detect_language, normalize_text, stem_text
 
 

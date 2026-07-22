@@ -9,7 +9,7 @@ parse, then fall back to the most-recent claim, else None.
 from __future__ import annotations
 
 from fichero.api.routes.citation_rendering import _metadata_for_document
-from fichero.knowledge_models import KnowledgeClaim, SourceMetadata
+from fichero.models.knowledge import KnowledgeClaim, SourceMetadata
 from fichero.models import Document
 
 
@@ -83,7 +83,7 @@ def test_returns_none_when_no_metadata_anywhere() -> None:
 def test_prefers_document_source_metadata_field_over_metadata_dict() -> None:
     """When both doc.source_metadata and doc.metadata['source_metadata'] exist,
     the top-level field wins (it's the authoritative writer location)."""
-    from fichero.knowledge_models import SourceMetadata
+    from fichero.models.knowledge import SourceMetadata
 
     doc = Document(
         id="d1",

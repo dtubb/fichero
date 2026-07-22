@@ -327,7 +327,7 @@ def _cached_rdf_graph(db: Database) -> Any:
     """
     from fichero.kg import graph as graph_module
     from fichero.kg import triples as triples_module
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
     key = str(db.path)
     signature = graph_module._cache_signature(db)

@@ -5,7 +5,7 @@ from fichero.kg._common import (
     HERMENEUTIC_PREDICATES,
     canonical_hermeneutic_predicate,
 )
-from fichero.hermeneutics_models import Interpretation, InterpretiveActType
+from fichero.models.hermeneutics import Interpretation, InterpretiveActType
 
 
 class TestHermeneuticPredicatesVocabulary:

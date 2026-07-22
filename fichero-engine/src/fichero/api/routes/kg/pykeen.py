@@ -15,7 +15,7 @@ from fichero.pykeen_inference import (
     TrainingResult,
     get_inference,
 )
-from fichero.knowledge_models import KnowledgePredictionReview, PredictionReviewState
+from fichero.models.knowledge import KnowledgePredictionReview, PredictionReviewState
 from fichero.models import PykeenListResponse, KGGraphListResponse
 
 logger = logging.getLogger(__name__)

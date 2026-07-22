@@ -1,6 +1,6 @@
 """Tests for projects / research workspace routes (#918)."""
 
-from fichero.knowledge_models import Project, ProjectInclusion, ProjectStatus
+from fichero.models.knowledge import Project, ProjectInclusion, ProjectStatus
 
 
 class TestProjectsCRUD:

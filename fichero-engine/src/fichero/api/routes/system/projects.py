@@ -18,7 +18,7 @@ from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     Project,
     ProjectInclusion,
     ProjectStatus,

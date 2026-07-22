@@ -35,7 +35,7 @@ from fichero.kg._common import enum_value, extract_svo
 
 if TYPE_CHECKING:  # pragma: no cover
     from fichero.db import Database
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
 logger = logging.getLogger(__name__)
 
@@ -367,7 +367,7 @@ def contradiction_subgraph(
     disagree with each other — primary candidates for hermeneutic
     interpretation.
     """
-    from fichero.knowledge_models import (
+    from fichero.models.knowledge import (
         ClaimRelationType,
         KnowledgeClaim,
         KnowledgeClaimLink,
@@ -442,7 +442,7 @@ def _build_cached(db: "Database", builder, cache: dict):
     the exact same lookup / rebuild / store sequence — only the
     builder function and which cache dict they write to differs.
     """
-    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+    from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
     key = str(db.path)
     signature = _cache_signature(db)

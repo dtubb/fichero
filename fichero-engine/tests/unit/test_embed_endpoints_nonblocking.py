@@ -19,7 +19,7 @@ from fastapi import HTTPException
 
 from fichero.api.routes import kg_claim_search, kg_entity_curation
 from fichero.kg import rebuild
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimType,
     EntityType,
     KnowledgeClaim,

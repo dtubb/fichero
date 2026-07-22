@@ -24,7 +24,7 @@ from fichero.knowledge.renderer import (
     render_chicago,
     render_mla,
 )
-from fichero.knowledge_models import SourceMetadata
+from fichero.models.knowledge import SourceMetadata
 
 
 def _meta(**kwargs) -> SourceMetadata:

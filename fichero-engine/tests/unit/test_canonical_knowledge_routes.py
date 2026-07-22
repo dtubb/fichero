@@ -38,7 +38,7 @@ from fichero.api.routes.claim_links import (
     update_claim_link,
     delete_claim_link,
 )
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityType,
     ClaimType,
     ClaimCurationState,

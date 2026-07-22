@@ -21,7 +21,7 @@ from typing import Optional
 
 from fichero.db import Database
 from fichero.kg._common import is_bare_is_a_copula
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     AttributionRole,
     AttributionStep,
     ClaimCurationState,
@@ -1542,7 +1542,7 @@ def upsert_entity(
     if _pending_review is not None:
         survivor_id, score, survivor_name = _pending_review
         try:
-            from fichero.knowledge_models import (
+            from fichero.models.knowledge import (
                 EntityMatchCandidate,
                 PendingMatchMethod,
                 PendingMatchState,

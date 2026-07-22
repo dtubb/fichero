@@ -8,7 +8,7 @@ import pytest
 from fichero.api.routes import kg_entity_curation
 from fichero.api.routes.kg_entity_curation import EntityMergeRequest, merge_entities_impl
 from fichero.db import Database
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityCurationState,
     EntityResolutionRule,
     EntityResolutionRuleType,

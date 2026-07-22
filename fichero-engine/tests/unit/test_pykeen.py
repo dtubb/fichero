@@ -10,7 +10,7 @@ from fichero.pykeen_inference import (
     set_inference_enabled,
     StoredPrediction,
 )
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     KnowledgeEntity,
     KnowledgeClaim,
     KnowledgeClaimLink,

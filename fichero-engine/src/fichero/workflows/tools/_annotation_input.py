@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from fichero.knowledge_models import Annotation
+    from fichero.models.knowledge import Annotation
     from fichero.models import Document
 
 from fichero.core.utf16_offsets import utf16_range_to_codepoint_range

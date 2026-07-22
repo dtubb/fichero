@@ -14,7 +14,7 @@ from __future__ import annotations
 from rdflib import Literal
 from rdflib.namespace import FOAF, RDF, RDFS, SKOS
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     ClaimType,
     EntityType,
     EpistemicStatus,

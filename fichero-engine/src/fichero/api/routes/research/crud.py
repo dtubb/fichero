@@ -14,7 +14,7 @@ from fichero.api.main import get_library_database, get_library_database_for_writ
 from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.db import Database
 # NOTE: fichero.llm is imported inside _draft_plan below, not here (#3950).
-from fichero.research_models import (
+from fichero.models.research import (
     PlanStatus,
     ProjectStatus,
     ResearchPlan,

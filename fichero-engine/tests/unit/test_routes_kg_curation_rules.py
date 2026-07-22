@@ -1,7 +1,7 @@
 """Tests for persistent KG curation-rule routes."""
 
 from fichero.actions.registry import ActionContext, registry
-from fichero.knowledge_models import ClaimSuppressionRule, EntityResolutionRule
+from fichero.models.knowledge import ClaimSuppressionRule, EntityResolutionRule
 from fichero.models import ActionAudit
 
 LIB = "/lib/test.fichero"

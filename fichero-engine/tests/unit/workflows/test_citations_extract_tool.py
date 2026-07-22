@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 from fichero.llm import LLMConfig
 from fichero.models import DocType, Document
 from fichero.workflows.tools import citations_extract as citations_module

@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
 from fichero.models import DocType, Document
-from fichero.research_models import (
+from fichero.models.research import (
     BrowserNavigateRequest,
     BrowserNavigateResponse,
     BrowserSaveRequest,

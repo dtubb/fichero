@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from fichero.api.routes import kg_claim_search as routes
-from fichero.knowledge_models import ClaimType, KnowledgeClaim
+from fichero.models.knowledge import ClaimType, KnowledgeClaim
 
 
 class DB:

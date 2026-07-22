@@ -924,7 +924,7 @@ def _build_data_from_claims(
     matching artifact_types — those keep their markdown previews; we
     don't try to reconstruct them from the KG.
     """
-    from fichero.knowledge_models import (
+    from fichero.models.knowledge import (
         EntityType,
         KnowledgeClaim,
         KnowledgeEntity,

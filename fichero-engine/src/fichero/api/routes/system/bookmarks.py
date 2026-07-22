@@ -15,9 +15,9 @@ from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero.api.auth import action_context
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
-from fichero.knowledge_models import Milestone
+from fichero.models.knowledge import Milestone
 from fichero.models import DocType, Document, DocumentListResponse
-from fichero.node_aliases import (
+from fichero.models.node_aliases import (
     ALIAS_NODE_KIND,
     DanglingAliasError,
     make_alias,

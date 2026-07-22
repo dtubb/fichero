@@ -7,7 +7,7 @@ from unittest.mock import patch
 from tests.integration._seedlib import seed
 
 from fichero.db import Database, db_manager
-from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.models import Artifact, DocType, Document, FileType, Workflow
 from fichero.workflows.builder import build_graph
 from fichero.workflows.default_workflows import _load_preset_files

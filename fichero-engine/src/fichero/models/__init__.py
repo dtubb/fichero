@@ -43,9 +43,9 @@ from fichero.media.ocr_geometry import OCRGeometryResult
 from fichero.providers import ProviderType
 
 # Import from the sibling models/knowledge.py submodule directly (not via
-# the fichero.knowledge_models top-level shim, which routes back through
+# the fichero.models.knowledge top-level shim, which routes back through
 # `fichero.models.knowledge` — the shim isn't fully initialized yet when
-# something imports fichero.knowledge_models *before* fichero.models, so
+# something imports fichero.models.knowledge *before* fichero.models, so
 # going through it here would reintroduce the exact circular-import
 # ordering bug the direct-submodule import avoids) (#2566).
 from fichero.models.knowledge import Reference, ReferenceProvenance

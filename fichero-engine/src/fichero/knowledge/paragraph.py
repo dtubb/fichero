@@ -11,7 +11,7 @@ from typing import Sequence
 
 from pydantic import BaseModel, Field
 
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 
 _SUPERSCRIPT_TRANSLATION = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
 

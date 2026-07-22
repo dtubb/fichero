@@ -23,7 +23,7 @@ from fichero.api.main import get_library_database, get_library_database_for_writ
 from fichero.db import Database
 from fichero.db.manager import db_manager
 from fichero.db.embeddings import KG_ENTITY_EMBEDDINGS_TABLE
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityMergeAudit,
     EntityMergeOperationType,
     EntityCurationState,

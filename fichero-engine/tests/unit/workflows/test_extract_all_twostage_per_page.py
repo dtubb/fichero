@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.llm import LLMConfig
 from fichero.models import DocType, Document
 from fichero.workflows.tools import extract_all as extract_all_module

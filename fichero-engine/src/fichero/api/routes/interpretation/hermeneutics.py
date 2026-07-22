@@ -10,7 +10,7 @@ from fichero.api.main import get_library_database, get_library_database_for_writ
 from fichero.api.auth import action_context
 from fichero.actions.registry import registry
 from fichero.db import Database
-from fichero.hermeneutics_models import (
+from fichero.models.hermeneutics import (
     CircleNavigationDirection,
     FrameworkType,
     HermeneuticCircleState,
@@ -22,7 +22,7 @@ from fichero.hermeneutics_models import (
     PatternStatus,
 )
 from fichero.kg._common import canonical_hermeneutic_predicate
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.models.knowledge import KnowledgeClaim
 
 
 router = APIRouter()

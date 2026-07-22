@@ -130,7 +130,7 @@ def compute_support_counts(db: "Database") -> dict[TripleKey, TripleSupport]:
     isn't meaningful for "1933-07-23 records X" since each is
     uniquely tied to a date.
     """
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
 
     # Group: TripleKey → (sources, claims)
     grouped: dict[TripleKey, tuple[set[str], list[str]]] = defaultdict(
@@ -221,7 +221,7 @@ def persist_support_counts(
     computed at write time (per-claim).  This function replaces the write-time
     value with the corpus-global value. (#900)
     """
-    from fichero.knowledge_models import KnowledgeClaim
+    from fichero.models.knowledge import KnowledgeClaim
 
     supports = compute_support_counts(db)
 

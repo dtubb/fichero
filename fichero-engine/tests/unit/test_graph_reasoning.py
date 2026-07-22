@@ -12,7 +12,7 @@ from fichero.graph_reasoning import (
     get_reasoner,
     set_reasoner_enabled,
 )
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     KnowledgeEntity,
     KnowledgeClaim,
     EntityType,

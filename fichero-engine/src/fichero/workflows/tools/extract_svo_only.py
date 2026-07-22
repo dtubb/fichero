@@ -20,7 +20,7 @@ from collections import defaultdict
 from typing import Any
 
 from fichero.db import db_manager
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero.llm import LLMConfig
 from fichero.models import Document
 from fichero.workflows.registry import register_tool

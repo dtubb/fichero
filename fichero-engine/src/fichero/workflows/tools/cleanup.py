@@ -35,7 +35,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from fichero.db import db_manager
-from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.llm import (
     LLMConfig,
     apple_intelligence_fits_in_context,

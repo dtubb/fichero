@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     AttributionRole,
     AttributionStep,
     ClaimSuppressionRule,

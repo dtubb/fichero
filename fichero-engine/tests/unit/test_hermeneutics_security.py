@@ -19,7 +19,7 @@ class TestFrameworkSecurity:
         The metadata dict should not allow code execution.
         This test verifies Pydantic BaseModel constraints.
         """
-        from fichero.hermeneutics_models import InterpretiveFramework
+        from fichero.models.hermeneutics import InterpretiveFramework
 
         # Test that metadata stores data only
         framework = InterpretiveFramework(
@@ -41,7 +41,7 @@ class TestFrameworkSecurity:
 
         Attempt to store malicious data in metadata.
         """
-        from fichero.hermeneutics_models import InterpretiveFramework
+        from fichero.models.hermeneutics import InterpretiveFramework
 
         # Store "malicious" string patterns
         framework = InterpretiveFramework(
@@ -69,7 +69,7 @@ class TestLLMInjectionFutureRisk:
 
     def test_suggestions_endpoint_is_explicitly_unavailable(self, client):
         """MEDIUM-1: /suggestions does not present placeholder text as AI output."""
-        from fichero.hermeneutics_models import HermesSuggestionRequest
+        from fichero.models.hermeneutics import HermesSuggestionRequest
 
         # Create a framework first
         framework_resp = client.post(
@@ -101,7 +101,7 @@ class TestLLMInjectionFutureRisk:
 
         This test documents what should be sanitized when LLM is added.
         """
-        from fichero.hermeneutics_models import InterpretiveFramework
+        from fichero.models.hermeneutics import InterpretiveFramework
 
         injection_patterns = [
             "Ignore previous instructions",

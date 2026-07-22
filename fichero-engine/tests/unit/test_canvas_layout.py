@@ -12,7 +12,7 @@ from fichero.security import authz
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import DocType, Document
 from fichero.models import ActionAudit
-from fichero.canvas_models import CanvasItem, CanvasItemKind, CanvasLayout
+from fichero.models.canvas import CanvasItem, CanvasItemKind, CanvasLayout
 
 BASE = "/api/canvas/folders"
 

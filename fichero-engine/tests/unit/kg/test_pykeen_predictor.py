@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from fichero.kg import pykeen_predictor
-from fichero.knowledge_models import (
+from fichero.models.knowledge import (
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,

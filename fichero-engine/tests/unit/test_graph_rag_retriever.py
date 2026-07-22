@@ -1,4 +1,4 @@
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero.models import Document
 from fichero.retrieval.graph_rag import GraphAwareRetriever, RetrievalPayload
 
