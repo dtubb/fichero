@@ -2,6 +2,38 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.22-beta
+
+### Dev build
+
+Internal TestFlight + DMG dev prerelease cut from green `integration`. Not
+promoted to production.
+
+### Under The Hood
+
+**Connection hygiene complete.** Every app↔engine call now routes through the
+centralized `FicheroClient` transport (UDS / HTTPS-when-sharing / in-memory) —
+no remaining hand-rolled `URLSession` bypasses. `EntityService` (the inspector's
+"0 entities" bug), `ImageEditingService` preview, the knowledge-graph web pane,
+and the workflow diagram were all migrated. The KG web pane works over UDS via a
+`WKURLSchemeHandler` bridge (no new network listener), and the workflow diagram
+now renders live mermaid (`mermaid.js` in a `WKWebView`) instead of a broken
+JSON-as-image.
+
+**Legible failures.** A typed `ConnectionError` classifies transport failures by
+`{transport, operation, cause}` so an error names itself instead of a bare
+`NSURLErrorDomain -1004`. A wrapped-cancellation fix (`Error.isCancellationError`
+across ~60 sites) stops superseded inspector/store loads from mislogging as
+failures.
+
+**Fixes.** Sidebar folder-node click (workflow/search/chat folders showed
+nothing) now navigates correctly.
+
+**Engine cleanup + speed.** The 61 flat re-export shims left by the package reorg
+were removed and 487 callers repointed to the restructured paths; `cryptography`
+was deferred off the startup import graph (−50 modules). ModelComparison moved to
+an `@Observable` store (#1863). Full engine suite green (7955 passed / 0 failed).
+
 ## 2026.07.21-beta
 
 ### Dev build
