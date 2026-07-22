@@ -69,7 +69,7 @@ def _references_get_ident(tree: ast.AST) -> list[int]:
 def test_db_manager_pool_not_keyed_by_thread_ident() -> None:
     """db_manager.py must NOT reference ``get_ident`` anywhere — re-introducing a
     per-thread connection key is the exact #2508 hazard."""
-    db_manager_py = SRC_ROOT / "db_manager.py"
+    db_manager_py = SRC_ROOT / "db" / "manager.py"
     tree = ast.parse(db_manager_py.read_text(encoding="utf-8"))
     hits = _references_get_ident(tree)
     assert not hits, (

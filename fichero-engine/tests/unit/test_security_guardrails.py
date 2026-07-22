@@ -26,7 +26,7 @@ PERSISTENCE_PATH_ALLOWLIST = frozenset(
         "db/manager.py",
         "db/app.py",
         "api/change_stream.py",
-        "storage_snapshots.py",
+        "db/storage_snapshots.py",
         "workflows/action_store.py",
         "workflows/cache.py",
         "workflows/checkpointer.py",
