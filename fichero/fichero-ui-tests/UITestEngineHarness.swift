@@ -296,6 +296,13 @@ final class UITestEngineHarness {
             atPath: url.appendingPathComponent("fichero-engine/scripts/seed_test_library.py").path)
     }
 
+    /// Real login home from the user database, ignoring any `$HOME` override. The
+    /// Dev Local scheme overrides `$HOME` to the app container (dev parity) and the
+    /// Test action inherits it (`shouldUseLaunchSchemeArgsEnv`), so
+    /// `homeDirectoryForCurrentUser`/`NSHomeDirectory()` resolve the container —
+    /// wrong for finding the canonical `~/code/fichero/.venv`.
+    static var realHome: String { NSHomeDirectoryForUser(NSUserName()) ?? NSHomeDirectory() }
+
     /// The venv python used to run the engine. Prefers the repo's own `.venv`,
     /// else a `FICHERO_VENV` override, else the canonical `~/code/fichero/.venv`
     /// (a worktree under test has no venv of its own). nil if none exists.
@@ -305,7 +312,7 @@ final class UITestEngineHarness {
         if let v = ProcessInfo.processInfo.environment["FICHERO_VENV"], !v.isEmpty {
             candidates.append(URL(fileURLWithPath: v).appendingPathComponent("bin/python"))
         }
-        candidates.append(fm.homeDirectoryForCurrentUser
+        candidates.append(URL(fileURLWithPath: realHome)
             .appendingPathComponent("code/fichero/.venv/bin/python"))
         return candidates.first { fm.fileExists(atPath: $0.path) }
     }
