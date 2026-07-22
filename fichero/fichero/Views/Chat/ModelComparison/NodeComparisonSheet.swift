@@ -12,7 +12,7 @@ struct NodeComparisonSheet: View {
     /// Called when user taps "Apply" on a winning model
     let onApply: (String, String) -> Void
 
-    @State private var service = ModelComparisonService()
+    @State private var store = ModelComparisonStore()
 
     @State private var selectedModelIds: Set<String> = []
     @State private var pinnedText: String = ""
@@ -39,7 +39,7 @@ struct NodeComparisonSheet: View {
         }
         .frame(minWidth: 700, minHeight: 500)
         .task {
-            await service.loadModels()
+            await store.loadModels()
         }
     }
 
@@ -93,7 +93,7 @@ struct NodeComparisonSheet: View {
                     .foregroundStyle(.secondary)
             }
 
-            if service.availableModels.isEmpty {
+            if store.availableModels.isEmpty {
                 ProgressView("Loading models…")
                     .frame(maxWidth: .infinity)
             } else {
@@ -102,7 +102,7 @@ struct NodeComparisonSheet: View {
                         columns: [GridItem(.adaptive(minimum: 200))],
                         spacing: 6
                     ) {
-                        ForEach(service.availableModels) { model in
+                        ForEach(store.availableModels) { model in
                             modelToggle(model)
                         }
                     }
@@ -207,7 +207,7 @@ struct NodeComparisonSheet: View {
         isRunning = true
         defer { isRunning = false }
 
-        let modelSpecs = service.availableModels
+        let modelSpecs = store.availableModels
             .filter { selectedModelIds.contains($0.id) }
             .map { ModelSpec(provider: $0.provider, model: $0.model) }
 
@@ -217,7 +217,7 @@ struct NodeComparisonSheet: View {
         }
 
         do {
-            result = try await service.compareNode(
+            result = try await store.compareNode(
                 workflowId: workflowId,
                 nodeId: node.id,
                 models: modelSpecs,
