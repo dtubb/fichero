@@ -67,6 +67,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/Document.swift::Status": "§6b baseline — enum shadows Components.Schemas.Status",
     "Models/AppleAvailabilityStore.swift::Status": "#2649 — local availability row-state model, distinct from the transport schema",
     "Models/ToolCall.swift::Status": "#1848 — nested enum scoped to ToolCall (pending/running/ok/error, tool-call execution state); distinct concept from Components.Schemas.Status (source/document processing status: pending/processing/active/completed/failed)",
+    "Models/ToolCall.swift::ToolCall": "#1847/#3 — hand-written product-spine display model (Identifiable/Hashable + display helpers: statusIcon, paramsSummary, isUnrecordedMutation); richer than the transport Components.Schemas.ToolCall the engine now emits on ChatResponse.tool_calls",
     "Models/Note.swift::Note": "§6b baseline — struct shadows Components.Schemas.Note",
     "Models/ResearchModels.swift::BrowserSaveRequest": "§6b baseline — struct shadows Components.Schemas.BrowserSaveRequest",
     "Models/ResearchModels.swift::BrowserSaveResponse": "§6b baseline — struct shadows Components.Schemas.BrowserSaveResponse",

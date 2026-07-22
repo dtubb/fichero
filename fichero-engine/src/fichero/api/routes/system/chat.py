@@ -5,7 +5,9 @@ RAG-style chat using LangChain for semantic search and LLM generation.
 """
 
 import asyncio
+import json
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -148,6 +150,30 @@ class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class ToolCall(BaseModel):
+    """One audited tool call the chat agent made during a turn (#1847 / #3).
+
+    Field names mirror the Swift ``ToolCall`` product spine
+    (``fichero/fichero/Models/ToolCall.swift``) in snake_case so the existing
+    ``ToolCallCard`` UI lights up with zero Swift work. Emitted only when the
+    ``FICHERO_CHAT_TOOLS`` agent loop is enabled; the array is empty for the
+    default single-shot RAG path. This slice is READS-ONLY: a dispatched read
+    carries ``is_mutation=False`` + an ``audit_id``; a refused mutating call is
+    recorded with ``status='error'`` + ``is_mutation=True`` and never invoked.
+    """
+
+    id: str
+    workspace_id: str | None = None
+    message_id: str | None = None
+    task_id: str | None = None
+    action_name: str
+    params: dict[str, Any] | None = None
+    actor: str
+    audit_id: str | None = None
+    is_mutation: bool | None = None
+    status: str = "ok"  # pending | running | ok | error (Swift ToolCall.Status)
+
+
 class ChatResponse(BaseModel):
     """Response model for chat."""
 
@@ -161,6 +187,9 @@ class ChatResponse(BaseModel):
     kg_entities_used: int = 0
     document_count: int = 0
     context_count: int = 0
+    tool_calls: list[ToolCall] = Field(
+        default_factory=list
+    )  # populated only by the FICHERO_CHAT_TOOLS agent loop; else empty
 
 
 class ProviderInfo(BaseModel):
@@ -508,6 +537,172 @@ def _build_history_messages(
     return result
 
 
+# ---------------------------------------------------------------------------
+# Chat-tools agent loop (#1847 / #3) — DEFAULT-OFF, READS-ONLY
+# ---------------------------------------------------------------------------
+#
+# Wires the fully-built-but-unwired `fichero.actions.chat_tools` generator +
+# dispatcher into the live chat handler. Gated behind FICHERO_CHAT_TOOLS so the
+# single-shot RAG path is byte-for-byte unchanged when the flag is off. This
+# slice only exposes and dispatches actions flagged `read_only=True`; a mutating
+# tool call is refused (recorded, never invoked) pending a write-policy review
+# (EPIC #1848).
+
+_CHAT_TOOLS_TRUTHY = {"1", "true", "yes", "on"}
+
+# Bound the agent loop so a misbehaving model cannot spin forever.
+MAX_CHAT_TOOL_ITERATIONS = 4
+
+
+def _chat_tools_enabled() -> bool:
+    """Whether the read-only chat-tools agent loop is enabled (default off)."""
+    return os.environ.get("FICHERO_CHAT_TOOLS", "").strip().lower() in _CHAT_TOOLS_TRUTHY
+
+
+async def _run_chat_tools_loop(
+    llm: Any,
+    messages: list,
+    *,
+    db: Database,
+    ctx: ActionContext,
+) -> tuple[str, list[ToolCall]]:
+    """Run the bounded, read-only chat-tools agent loop.
+
+    Binds the SAFE (``read_only=True``) subset of registry actions as tools,
+    then loops: ask the model; if it emits tool calls, run each read-only one
+    through the audited ``dispatch_tool_call`` choke point and refuse any
+    mutating one; feed results back; repeat until the model returns a final
+    text answer or the iteration cap is hit.
+
+    Returns ``(final_text, tool_calls)`` — ``tool_calls`` records every call the
+    model made (dispatched reads and refused mutations) for the ``ToolCallCard``
+    UI. Any tool call that fails to resolve or dispatch is recorded as an error
+    tool_call rather than aborting the whole chat turn.
+    """
+    from langchain_core.messages import ToolMessage  # noqa: PLC0415
+
+    from fichero.actions.chat_tools import (  # noqa: PLC0415
+        action_tools,
+        dispatch_tool_call,
+        is_read_only_action,
+        resolve_action_name,
+    )
+    from fichero.actions.registry import ActionNotFoundError  # noqa: PLC0415
+
+    tools = action_tools(read_only=True)
+    bound = llm.bind_tools(tools) if tools else llm
+
+    convo = list(messages)
+    tool_calls: list[ToolCall] = []
+    response = None
+    actor = ctx.actor or "chat"
+
+    for _ in range(MAX_CHAT_TOOL_ITERATIONS):
+        response = await bound.ainvoke(convo)
+        calls = getattr(response, "tool_calls", None) or []
+        if not calls:
+            break
+
+        convo.append(response)
+        for call in calls:
+            raw_name = call.get("name") or ""
+            args = call.get("args") or {}
+            call_id = call.get("id") or uuid4().hex
+
+            # Unknown tool — record an error, tell the model, keep going.
+            try:
+                canonical = resolve_action_name(raw_name)
+            except ActionNotFoundError:
+                tool_calls.append(
+                    ToolCall(
+                        id=call_id,
+                        action_name=raw_name,
+                        params=args,
+                        actor=actor,
+                        is_mutation=None,
+                        status="error",
+                    )
+                )
+                convo.append(
+                    ToolMessage(
+                        content=f"unknown tool: {raw_name}", tool_call_id=call_id
+                    )
+                )
+                continue
+
+            # READS-ONLY gate: refuse (do NOT invoke) any mutating action.
+            if not is_read_only_action(canonical):
+                tool_calls.append(
+                    ToolCall(
+                        id=call_id,
+                        action_name=canonical,
+                        params=args,
+                        actor=actor,
+                        is_mutation=True,
+                        status="error",
+                    )
+                )
+                convo.append(
+                    ToolMessage(
+                        content=(
+                            f"denied: '{canonical}' mutates state; chat tools are "
+                            "read-only in this build"
+                        ),
+                        tool_call_id=call_id,
+                    )
+                )
+                continue
+
+            # Safe read — dispatch through the audited choke point.
+            try:
+                result = dispatch_tool_call(
+                    db,
+                    canonical,
+                    args,
+                    actor=actor,
+                    origin_window=ctx.origin_window,
+                    run_id=ctx.run_id,
+                    library_path=ctx.library_path,
+                )
+                tool_calls.append(
+                    ToolCall(
+                        id=call_id,
+                        action_name=canonical,
+                        params=args,
+                        actor=actor,
+                        audit_id=result.audit_id,
+                        is_mutation=False,
+                        status="ok",
+                    )
+                )
+                convo.append(
+                    ToolMessage(
+                        content=json.dumps(result.result, default=str),
+                        tool_call_id=call_id,
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - never abort the whole turn
+                logger.warning("chat tool dispatch failed: %s -> %s", canonical, exc)
+                tool_calls.append(
+                    ToolCall(
+                        id=call_id,
+                        action_name=canonical,
+                        params=args,
+                        actor=actor,
+                        is_mutation=False,
+                        status="error",
+                    )
+                )
+                convo.append(
+                    ToolMessage(
+                        content=f"tool error: {exc}", tool_call_id=call_id
+                    )
+                )
+
+    text = getattr(response, "content", "") if response is not None else ""
+    return text, tool_calls
+
+
 @router.post("")
 async def chat(
     request: ChatRequest,
@@ -633,8 +828,16 @@ async def chat(
         HumanMessage(content=user_prompt),
     ]
 
-    response = await llm.ainvoke(messages)
-    response_text = response.content
+    # Default single-shot RAG (byte-for-byte unchanged) unless the read-only
+    # chat-tools agent loop is explicitly enabled via FICHERO_CHAT_TOOLS (#1847).
+    tool_calls: list[ToolCall] = []
+    if _chat_tools_enabled():
+        response_text, tool_calls = await _run_chat_tools_loop(
+            llm, messages, db=db, ctx=ctx
+        )
+    else:
+        response = await llm.ainvoke(messages)
+        response_text = response.content
 
     # Add assistant message
     conv.messages.append({"role": "assistant", "content": response_text})
@@ -660,6 +863,7 @@ async def chat(
         kg_entities_used=kg_entities_used,
         document_count=document_count,
         context_count=context_count,
+        tool_calls=tool_calls,
     )
 
 

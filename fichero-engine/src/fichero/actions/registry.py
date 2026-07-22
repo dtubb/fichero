@@ -120,6 +120,13 @@ class ActionRegistration:
     undoable: bool = False
     invert: InvertFn | None = None
     atomic: bool = True
+    # Whether this action only READS state (no domain mutation). The action layer
+    # is otherwise the write path — every registered action is assumed to mutate
+    # unless it explicitly opts in here. The chat-tools agent loop (#1847) uses
+    # this bit to expose/dispatch ONLY read-only actions while mutations stay
+    # gated behind a later write-policy review (EPIC #1848). Default False =
+    # mutating, so existing actions are untouched and fail safe.
+    read_only: bool = False
 
 
 class ActionNotFoundError(KeyError):
@@ -275,10 +282,14 @@ def action(
     undoable: bool = False,
     invert: InvertFn | None = None,
     atomic: bool = True,
+    read_only: bool = False,
 ) -> Callable[[ExecuteFn], ExecuteFn]:
     """Decorator: register ``fn`` as the action ``name``.
 
     ``fn`` must have signature ``(db, params, ctx) -> (result, ChangeSpec)``.
+
+    ``read_only=True`` marks an action that only reads state; the chat-tools
+    agent loop (#1847) only exposes/dispatches these while mutations stay gated.
     """
 
     def decorator(fn: ExecuteFn) -> ExecuteFn:
@@ -291,6 +302,7 @@ def action(
                 undoable=undoable,
                 invert=invert,
                 atomic=atomic,
+                read_only=read_only,
             )
         )
         return fn

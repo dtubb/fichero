@@ -31,6 +31,7 @@ from fichero.actions.chat_tools import (
     action_tools,
     available_tool_names,
     dispatch_tool_call,
+    is_read_only_action,
     resolve_action_name,
     tool_name_for,
 )
@@ -291,3 +292,73 @@ class TestDispatch:
         assert result.result["actor"] == "chat"
         audit = db.get(ActionAudit, result.audit_id)
         assert audit.actor == "chat"
+
+
+# ---------------------------------------------------------------------------
+# Read-only gating (#1847 / #3) — the safe subset the chat loop may call
+# ---------------------------------------------------------------------------
+
+
+def _make_read_write_registry() -> ActionRegistry:
+    """A registry with one read-only action and one mutating action."""
+    reg = ActionRegistry()
+
+    def _execute(db, params: _DummyParams, ctx: ActionContext):
+        return (
+            {"echo": params.value},
+            ChangeSpec(domains=["demo"], target_ids=["demo-1"], emit_type="demo.changed"),
+        )
+
+    reg.register(
+        ActionRegistration(
+            name="demo.read",
+            params_model=_DummyParams,
+            execute=_execute,
+            domains=["demo"],
+            read_only=True,
+        )
+    )
+    reg.register(
+        ActionRegistration(
+            name="demo.write",
+            params_model=_DummyParams,
+            execute=_execute,
+            domains=["demo"],
+            read_only=False,
+        )
+    )
+    return reg
+
+
+class TestReadOnlyGate:
+    def test_registered_actions_default_to_mutating(self):
+        # Every real action registered by the route modules is a write path —
+        # none opts into read_only, so the safe subset is empty by default.
+        assert action_tools(read_only=True) == []
+
+    def test_action_tools_read_only_filters_to_flagged_actions(self):
+        reg = _make_read_write_registry()
+        all_tools = {t["function"]["name"] for t in action_tools(reg)}
+        read_tools = {t["function"]["name"] for t in action_tools(reg, read_only=True)}
+        assert all_tools == {"demo_read", "demo_write"}
+        assert read_tools == {"demo_read"}
+
+    def test_is_read_only_action_by_tool_and_action_name(self):
+        reg = _make_read_write_registry()
+        assert is_read_only_action("demo_read", reg) is True
+        assert is_read_only_action("demo.read", reg) is True
+        assert is_read_only_action("demo_write", reg) is False
+        assert is_read_only_action("demo.write", reg) is False
+
+    def test_is_read_only_action_unknown_raises(self):
+        reg = _make_read_write_registry()
+        with pytest.raises(ActionNotFoundError):
+            is_read_only_action("ghost_tool", reg)
+
+    def test_read_only_action_still_dispatches_through_audit(self, db):
+        reg = _make_read_write_registry()
+        result = dispatch_tool_call(
+            db, "demo_read", {"value": "hi"}, library_path=None, reg=reg
+        )
+        assert result.ok is True
+        assert result.result == {"echo": "hi"}
