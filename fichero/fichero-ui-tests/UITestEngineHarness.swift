@@ -195,7 +195,11 @@ final class UITestEngineHarness {
         engineProcess = proc
         Self.spawnedProcess = proc
         if !Self.atexitRegistered {
-            atexit(Self.terminateAtExit)
+            // atexit needs a @convention(c) pointer: a non-capturing LITERAL
+            // closure calling the static handler (a bare method reference
+            // `Self.terminateAtExit` doesn't convert). Use the explicit type name
+            // so no dynamic `Self` is captured.
+            atexit { UITestEngineHarness.terminateAtExit() }
             Self.atexitRegistered = true
         }
     }
@@ -228,7 +232,7 @@ final class UITestEngineHarness {
         var ok = false
         path.withCString { cstr in
             if strlen(cstr) < maxLen {
-                withUnsafeMutablePointer(to: &addr.sun_path) { dst in
+                _ = withUnsafeMutablePointer(to: &addr.sun_path) { dst in
                     dst.withMemoryRebound(to: CChar.self, capacity: maxLen) { dstPtr in
                         strcpy(dstPtr, cstr)
                     }
