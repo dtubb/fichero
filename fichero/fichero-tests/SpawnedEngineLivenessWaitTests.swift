@@ -78,7 +78,7 @@ struct SpawnedEngineLivenessWaitTests {
     @Test("a dead engine fails immediately and carries the log tail")
     func deadEngineFailsImmediatelyWithLogTail() {
         let diagnosis = """
-        The engine exited unexpectedly (code 1).
+        The engine exited unexpectedly (exit code 1).
 
         ModuleNotFoundError: No module named 'duckdb'
         """
@@ -88,6 +88,48 @@ struct SpawnedEngineLivenessWaitTests {
             elapsed: 2  // two seconds in — nowhere near the cap
         )
         #expect(step == .engineExited(diagnosis: diagnosis))
+    }
+
+    /// The termination handler must publish the crash diagnosis immediately during
+    /// the supervised spawn wait. If it auto-restarts first, `waitForSpawnedBackend`
+    /// sees `.starting`, keeps polling, and the UI loses the specific log tail.
+    @Test("startup death is surfaced instead of auto-restarted")
+    func startupDeathIsSurfacedInsteadOfAutoRestarted() {
+        #expect(
+            EmbeddedBackendService.shouldSurfaceUnexpectedExitImmediately(
+                status: .starting,
+                isStarting: true
+            )
+        )
+        #expect(
+            EmbeddedBackendService.shouldSurfaceUnexpectedExitImmediately(
+                status: .starting,
+                isStarting: false
+            )
+        )
+        #expect(
+            !EmbeddedBackendService.shouldSurfaceUnexpectedExitImmediately(
+                status: .running,
+                isStarting: false
+            )
+        )
+    }
+
+    /// The diagnostic string is exactly what reaches `BackendError.engineDidNotStart`,
+    /// then `EngineLifecycleController.showBackendError`, then `EngineSession.phase`.
+    /// Keep it specific and tail-bearing — never regress to a generic timeout.
+    @Test("unexpected exit diagnosis preserves engine log tail")
+    func unexpectedExitDiagnosisPreservesEngineLogTail() {
+        let diagnosis = EmbeddedBackendService.unexpectedExitDiagnosis(
+            description: "exit code 1",
+            tail: "ModuleNotFoundError: No module named 'duckdb'"
+        )
+        #expect(diagnosis.contains("The engine exited unexpectedly (exit code 1)."))
+        #expect(diagnosis.contains("ModuleNotFoundError: No module named 'duckdb'"))
+        #expect(!diagnosis.contains("timeout"))
+
+        let surfaced = BackendError.engineDidNotStart(diagnosis: diagnosis).localizedDescription
+        #expect(surfaced == diagnosis)
     }
 
     /// Death outranks the cap, so a child that dies at the boundary still reports

@@ -281,11 +281,17 @@ extension EmbeddedBackendService {
 
                 logger.error("Engine terminated unexpectedly (\(description, privacy: .public))")
 
+                let tail = Self.tailEngineLog(lines: 20)
+                if Self.shouldSurfaceUnexpectedExitImmediately(status: self.status, isStarting: self.isStarting) {
+                    self.status = .failed
+                    self.errorMessage = Self.unexpectedExitDiagnosis(description: description, tail: tail)
+                    return
+                }
+
                 // #18: auto-restart a crashed embedded engine so a transient
                 // crash self-heals with no manual Retry — but stop if it keeps
                 // dying, to avoid a hot restart loop.
                 guard self.shouldAutoRestartAfterCrash() else {
-                    let tail = Self.tailEngineLog(lines: 20)
                     self.status = .failed
                     self.errorMessage = "The engine keeps crashing (\(description)) — "
                         + "stopped auto-restarting after \(Self.crashLoopMaxRestarts) attempts "
@@ -307,6 +313,17 @@ extension EmbeddedBackendService {
                 }
             }
         }
+    }
+
+    static func shouldSurfaceUnexpectedExitImmediately(status: BackendStatus, isStarting: Bool) -> Bool {
+        if isStarting { return true }
+        if case .starting = status { return true }
+        return false
+    }
+
+    static func unexpectedExitDiagnosis(description: String, tail: String) -> String {
+        "The engine exited unexpectedly (\(description))."
+            + (tail.isEmpty ? "" : "\n\n\(tail)")
     }
 
     /// Human-readable termination cause. For `.uncaughtSignal`, `status` is the
