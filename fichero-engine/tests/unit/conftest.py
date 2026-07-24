@@ -18,14 +18,14 @@ _UNIT_TEST_AUTH_TOKEN: str | None = None
 _AUTH_MIDDLEWARE_ATTACHED = False
 
 # Attach the enforcing auth middleware to the shared app ONCE, at conftest LOAD —
-# before any test module is collected. A module-level `TestClient(app)` (e.g.
-# tests/unit/test_api_providers.py) can start the shared app's lifespan during
-# collection; if the middleware weren't already attached by then, that first
-# `add_middleware` would raise "Cannot add middleware after an application has
-# started" and — because it raises before the guard flips True — cascade to
-# EVERY later test's setup (the 7941-error storm, #4039). Attaching here, before
-# any test module imports, closes that window. The autouse fixture below stays as
-# an idempotent safety net.
+# before any test module is collected. Historically, a module-level
+# `TestClient(app)` could start the shared app's lifespan during collection; if
+# the middleware weren't already attached by then, that first `add_middleware`
+# would raise "Cannot add middleware after an application has started" and —
+# because it raises before the guard flips True — cascade to EVERY later test's
+# setup (the 7941-error storm, #4039). Attaching here, before any test module
+# imports, closes that window. The autouse fixture below stays as an idempotent
+# safety net.
 _UNIT_TEST_AUTH_TOKEN = initialize_token()
 attach_auth_middleware(app, _UNIT_TEST_AUTH_TOKEN)
 _AUTH_MIDDLEWARE_ATTACHED = True
@@ -83,8 +83,8 @@ def _unit_test_auth_all_testclients(monkeypatch):
     ``_unit_test_auth_header`` re-attaches the enforcing auth middleware to the
     shared ``app`` (module-global, persists for the whole session), but many
     route-test modules build their OWN bare ``TestClient(app)`` (e.g.
-    ``test_api_providers``, ``test_library_entity_types``, ``test_routes_library``)
-    instead of the shared fixture. Those clients carried no Authorization header
+    ``test_library_entity_types``, ``test_routes_library``) instead of the
+    shared fixture. Those clients carried no Authorization header
     and so 401'd against the re-attached middleware. Inject the token via
     ``setdefault`` so it never clobbers a header a security/negative-auth test set
     deliberately (those tests pass an explicit/empty/wrong header or run their own

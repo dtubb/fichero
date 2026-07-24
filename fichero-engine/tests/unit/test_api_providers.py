@@ -11,12 +11,22 @@ from unittest.mock import patch
 import tempfile
 from pathlib import Path
 
-# Create test client for the API
 from fichero.api.main import app
-client = TestClient(app)
 
 # Base URL for TestClient
 API_BASE = "/api"
+
+
+@pytest.fixture
+def client():
+    """Build an API client per test so collection never starts shared app lifespan."""
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def test_provider_tests_do_not_construct_module_scope_testclient():
+    """Regression for #4039: importing this module must not start the shared app."""
+    assert not isinstance(globals()["client"], TestClient)
 
 
 # =============================================================================
@@ -26,7 +36,7 @@ API_BASE = "/api"
 class TestProviderCatalog:
     """Tests for GET /providers/catalog"""
 
-    def test_catalog_returns_all_providers(self):
+    def test_catalog_returns_all_providers(self, client):
         """Test that catalog returns all expected providers."""
         response = client.get(f"{API_BASE}/providers/catalog")
 
@@ -43,7 +53,7 @@ class TestProviderCatalog:
         assert "apple" in types
         assert "huggingface" in types
 
-    def test_catalog_has_required_fields(self):
+    def test_catalog_has_required_fields(self, client):
         """Test that each provider has all required fields."""
         response = client.get(f"{API_BASE}/providers/catalog")
         data = response.json()["items"]
@@ -59,7 +69,7 @@ class TestProviderCatalog:
             for field in required_fields:
                 assert field in provider, f"Missing {field} in {provider['type']}"
 
-    def test_catalog_has_is_builtin_field(self):
+    def test_catalog_has_is_builtin_field(self, client):
         """Test that is_builtin field is present for Apple providers."""
         response = client.get(f"{API_BASE}/providers/catalog")
         data = response.json()["items"]
@@ -79,7 +89,7 @@ class TestProviderCatalog:
         assert openai is not None
         assert openai["is_builtin"] is False
 
-    def test_catalog_has_logo_asset_field(self):
+    def test_catalog_has_logo_asset_field(self, client):
         """Test that logo_asset field is present."""
         response = client.get(f"{API_BASE}/providers/catalog")
         data = response.json()["items"]
@@ -95,7 +105,7 @@ class TestProviderCatalog:
         apple_provider = next((p for p in data if p["type"] == "apple"), None)
         assert apple_provider["logo_asset"] is None
 
-    def test_catalog_sorted_by_order(self):
+    def test_catalog_sorted_by_order(self, client):
         """Test that catalog is sorted by sort_order."""
         response = client.get(f"{API_BASE}/providers/catalog")
         data = response.json()["items"]
@@ -110,7 +120,7 @@ class TestProviderCatalog:
         assert data[0]["type"] == "apple"
         assert data[0]["sort_order"] == 0
 
-    def test_catalog_local_providers(self):
+    def test_catalog_local_providers(self, client):
         """Test local providers are correctly marked."""
         response = client.get(f"{API_BASE}/providers/catalog")
         data = response.json()["items"]
@@ -127,7 +137,7 @@ class TestProviderCatalog:
                 assert provider["is_local"] is False, f"{provider['type']} should not be local"
                 assert provider["api_key_env"] is not None
 
-    def test_get_single_provider_catalog_entry(self):
+    def test_get_single_provider_catalog_entry(self, client):
         """Test GET /providers/catalog/{provider_type}"""
         response = client.get(f"{API_BASE}/providers/catalog/openai")
 
@@ -137,7 +147,7 @@ class TestProviderCatalog:
         assert data["name"] == "OpenAI"
         assert data["supports_vision"] is True
 
-    def test_get_invalid_provider_returns_404(self):
+    def test_get_invalid_provider_returns_404(self, client):
         """Test that invalid provider type returns 404."""
         response = client.get(f"{API_BASE}/providers/catalog/invalid_provider")
         assert response.status_code == 404
@@ -150,7 +160,7 @@ class TestProviderCatalog:
 class TestProviderConnectionTest:
     """Tests for POST /providers/{provider_type}/test"""
 
-    def test_test_apple_vision(self):
+    def test_test_apple_vision(self, client):
         """Test connection test for Apple provider (always available on macOS)."""
         response = client.post(f"{API_BASE}/providers/apple/test")
 
@@ -160,13 +170,13 @@ class TestProviderConnectionTest:
         assert data["success"] is True
         assert "configuration valid" in data["message"].lower()
 
-    def test_test_invalid_provider(self):
+    def test_test_invalid_provider(self, client):
         """Test connection test for invalid provider."""
         response = client.post(f"{API_BASE}/providers/invalid/test")
 
         assert response.status_code == 404
 
-    def test_test_response_structure(self):
+    def test_test_response_structure(self, client):
         """Test that connection test response has correct structure."""
         response = client.post(f"{API_BASE}/providers/apple/test")
         data = response.json()
@@ -179,7 +189,7 @@ class TestProviderConnectionTest:
         assert "latency_ms" in data or data.get("latency_ms") is None
         assert "model_tested" in data or data.get("model_tested") is None
 
-    def test_test_ollama_success(self):
+    def test_test_ollama_success(self, client):
         """Test connection test for Ollama local provider."""
 
         class MockResponse:
@@ -209,7 +219,7 @@ class TestProviderConnectionTest:
         assert data["success"] is True
         assert "2 models" in data["message"]
 
-    def test_test_lmstudio_success(self):
+    def test_test_lmstudio_success(self, client):
         """Test connection test for LM Studio local provider."""
 
         class MockResponse:
@@ -247,7 +257,7 @@ class TestProviderConnectionTest:
 class TestModelsAPI:
     """Tests for /models endpoints"""
 
-    def test_list_available_models(self):
+    def test_list_available_models(self, client):
         """Test GET /providers/models/{provider_type}"""
         response = client.get(f"{API_BASE}/providers/models/openai")
 
@@ -265,7 +275,7 @@ class TestModelsAPI:
             assert "input_cost_per_million" in model
             assert "output_cost_per_million" in model
 
-    def test_omlx_catalog_entry(self):
+    def test_omlx_catalog_entry(self, client):
         response = client.get(f"{API_BASE}/providers/catalog/omlx")
 
         assert response.status_code == 200
@@ -283,7 +293,7 @@ class TestModelsAPI:
 class TestHuggingFaceModelBrowser:
     """Tests for /models/huggingface endpoints"""
 
-    def test_search_hf_models(self):
+    def test_search_hf_models(self, client):
         """Test GET /models/huggingface"""
         response = client.get(
             f"{API_BASE}/models/huggingface",
@@ -298,7 +308,7 @@ class TestHuggingFaceModelBrowser:
         assert "has_more" in data
         assert isinstance(data["models"], list)
 
-    def test_search_hf_models_by_task(self):
+    def test_search_hf_models_by_task(self, client):
         """Test searching HF models by task."""
         response = client.get(
             f"{API_BASE}/models/huggingface",
@@ -311,7 +321,7 @@ class TestHuggingFaceModelBrowser:
         # Should return models
         assert len(data["models"]) > 0
 
-    def test_search_hf_models_structure(self):
+    def test_search_hf_models_structure(self, client):
         """Test that HF model response has correct structure."""
         response = client.get(
             f"{API_BASE}/models/huggingface",
@@ -326,7 +336,7 @@ class TestHuggingFaceModelBrowser:
             for field in required_fields:
                 assert field in model, f"Missing {field}"
 
-    def test_list_hf_tasks(self):
+    def test_list_hf_tasks(self, client):
         """Test GET /models/huggingface/tasks"""
         response = client.get(f"{API_BASE}/models/huggingface/tasks")
 
@@ -347,7 +357,7 @@ class TestHuggingFaceModelBrowser:
 class TestProviderCRUD:
     """Tests for provider create/read/update/delete"""
 
-    def test_list_configured_providers(self):
+    def test_list_configured_providers(self, client):
         """Test GET /providers"""
         response = client.get(f"{API_BASE}/providers")
 
@@ -355,7 +365,7 @@ class TestProviderCRUD:
         data = response.json()["items"]
         assert isinstance(data, list)
 
-    def test_provider_response_structure(self):
+    def test_provider_response_structure(self, client):
         """Test that provider response has correct structure."""
         response = client.get(f"{API_BASE}/providers")
         data = response.json()["items"]
@@ -377,7 +387,7 @@ class TestProviderCRUD:
 class TestAPIHealth:
     """Basic API health tests"""
 
-    def test_health_check(self):
+    def test_health_check(self, client):
         """Test GET /health"""
         response = client.get(f"{API_BASE}/health")
 
@@ -385,7 +395,7 @@ class TestAPIHealth:
         data = response.json()
         assert data["status"] == "healthy"
 
-    def test_stats(self):
+    def test_stats(self, client):
         """Test GET /stats"""
         with tempfile.TemporaryDirectory() as tmpdir:
             library_path = Path(tmpdir) / "test.fichero"
