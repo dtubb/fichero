@@ -198,14 +198,25 @@ struct AccessErrorTests {
     }
 
     @Test func authBrokenRoutesToTheActionableAuthTitle() {
-        // Health-200-but-auth-broken: connected to the engine, stale sign-in →
-        // the "Can't Authenticate" screen (Reset Sign-In & Retry), never "not running".
+        // Health-200-but-auth-broken on a user-managed engine: connected to the
+        // engine, stale sign-in → the "Can't Authenticate" screen, never "not running".
         let title = BackendConnectionView.connectionFailureTitle(
             accessError: .unauthenticated,
             authBroken: true,
             usesExternalBackendConnection: false
         )
         #expect(title == "Can't Authenticate to Engine")
+    }
+
+    @Test func embeddedAuthBrokenUsesAppOwnedCopy() {
+        let title = BackendConnectionView.connectionFailureTitle(
+            accessError: .unauthenticated,
+            authBroken: true,
+            usesExternalBackendConnection: false,
+            usesAppManagedEmbeddedEngine: true
+        )
+        #expect(title == "Fichero Couldn't Authenticate to Its Engine")
+        #expect(!title.contains("Sign-In"))
     }
 
     @Test func externalUnreachableReadsAsBackendNotReachable() {

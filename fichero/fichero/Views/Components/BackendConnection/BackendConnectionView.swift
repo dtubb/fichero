@@ -140,12 +140,12 @@ struct BackendConnectionView: View {
                     if isPortConflict {
                         portConflictActions
                     } else {
-                        if failureAccessError?.recovery == .resetPin {
+                        if showsResetCertificateButton {
                             resetCertificateButton
-                        } else {
+                        } else if showsRetryButton {
                             retryButton
                         }
-                        if failureAccessError?.recovery == .signIn {
+                        if showsResetSignInButton {
                             resetSignInButton
                         }
                         if showsForgetPairingButton {

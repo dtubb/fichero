@@ -26,6 +26,16 @@ extension BackendConnectionView {
         usesExternalBackendConnection ? "Connect to Fichero" : "Starting Fichero"
     }
 
+    static func usesAppManagedEmbeddedEngine(
+        _ strategy: EngineConfig.EngineProvisioningStrategy
+    ) -> Bool {
+        strategy.spawnsBundledEngine
+    }
+
+    var usesAppManagedEmbeddedEngine: Bool {
+        Self.usesAppManagedEmbeddedEngine(EngineConfig.engineProvisioningStrategy())
+    }
+
     /// The holding PID when the engine is in the `portConflict` phase (#3111),
     /// else nil. Drives whether "Stop it" is offerable.
     ///
@@ -55,7 +65,8 @@ extension BackendConnectionView {
         return Self.connectionFailureTitle(
             accessError: failureAccessError,
             authBroken: appState.authBroken,
-            usesExternalBackendConnection: usesExternalBackendConnection
+            usesExternalBackendConnection: usesExternalBackendConnection,
+            usesAppManagedEmbeddedEngine: usesAppManagedEmbeddedEngine
         )
     }
 
@@ -68,13 +79,14 @@ extension BackendConnectionView {
     static func connectionFailureTitle(
         accessError: AccessError?,
         authBroken: Bool,
-        usesExternalBackendConnection: Bool
+        usesExternalBackendConnection: Bool,
+        usesAppManagedEmbeddedEngine: Bool = false
     ) -> String {
         switch accessError {
         case .staleBootstrapToken:
-            return "Engine Token Mismatch"
+            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Refresh Its Engine Token" : "Engine Token Mismatch"
         case .tlsPinFailure:
-            return "Certificate Mismatch"
+            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Verify Its Engine" : "Certificate Mismatch"
         case .deviceAccessExpired:
             return "Device Access Expired"
         case .forbidden:
@@ -89,9 +101,9 @@ extension BackendConnectionView {
         }
         if authBroken {
             // Health-200-but-auth-broken: the specific state that used to blank
-            // the window with silent 401s (#2864). Connected to the engine, but
-            // the saved sign-in is stale → the Reset Sign-In & Retry action.
-            return "Can't Authenticate to Engine"
+            // the window with silent 401s (#2864). Connected to a user-managed
+            // engine, but the saved sign-in is stale → remote auth recovery.
+            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Authenticate to Its Engine" : "Can't Authenticate to Engine"
         }
         // Unclassified failure (e.g. `.failed`): we know we couldn't connect, not
         // that the engine is stopped — so never assert "Engine Not Running" (#3341).
@@ -108,11 +120,23 @@ extension BackendConnectionView {
         appState.backendAccessError ?? (appState.authBroken ? .unauthenticated : nil)
     }
 
+    static func retryButtonTitle(
+        accessError: AccessError?,
+        usesExternalBackendConnection: Bool,
+        usesAppManagedEmbeddedEngine: Bool = false
+    ) -> String {
+        if usesAppManagedEmbeddedEngine { return "" }
+        if !usesExternalBackendConnection { return "Start External Engine" }
+        if case .staleBootstrapToken? = accessError { return "Retry After Restarting Engine" }
+        return "Retry Connection"
+    }
+
     var retryButtonTitle: String {
-        if case .staleBootstrapToken? = failureAccessError {
-            return usesExternalBackendConnection ? "Retry After Restarting Engine" : "Restart Engine"
-        }
-        return usesExternalBackendConnection ? "Retry Connection" : "Restart Engine"
+        Self.retryButtonTitle(
+            accessError: failureAccessError,
+            usesExternalBackendConnection: usesExternalBackendConnection,
+            usesAppManagedEmbeddedEngine: usesAppManagedEmbeddedEngine
+        )
     }
 
     var secondaryStatusText: String {

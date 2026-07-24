@@ -21,7 +21,15 @@ extension BackendConnectionView {
         .accessibilityIdentifier("backend.action.openSettings")
     }
 
-    /// The single retry entry point (#3108) — respawn (macOS) / re-adopt (iOS).
+    static func showsRetryButton(usesAppManagedEmbeddedEngine: Bool) -> Bool {
+        !usesAppManagedEmbeddedEngine
+    }
+
+    var showsRetryButton: Bool {
+        Self.showsRetryButton(usesAppManagedEmbeddedEngine: usesAppManagedEmbeddedEngine)
+    }
+
+    /// The single retry entry point (#3108) — reconnect (remote / debug-local).
     @ViewBuilder
     var retryButton: some View {
         Button {
@@ -36,9 +44,8 @@ extension BackendConnectionView {
         }
         .buttonStyle(.borderedProminent)
         .disabled(backendService.isStarting)
-        // Stable across the copy this button cycles through ("Restart Engine" /
-        // "Retry Connection" / "Retry After Restarting Engine") — a UI test
-        // asserts the ACTION exists, not the wording (#3919).
+        // Stable identifier for the user-managed retry action; app-managed
+        // embedded engines hide it entirely (#3944).
         .accessibilityIdentifier("backend.action.restartEngine")
     }
 
@@ -96,12 +103,39 @@ extension BackendConnectionView {
         #endif
     }
 
+    static func showsResetSignInButton(
+        accessError: AccessError?,
+        usesAppManagedEmbeddedEngine: Bool
+    ) -> Bool {
+        accessError?.recovery == .signIn && !usesAppManagedEmbeddedEngine
+    }
+
+    var showsResetSignInButton: Bool {
+        Self.showsResetSignInButton(
+            accessError: failureAccessError,
+            usesAppManagedEmbeddedEngine: usesAppManagedEmbeddedEngine
+        )
+    }
+
+    static func showsResetCertificateButton(
+        accessError: AccessError?,
+        usesAppManagedEmbeddedEngine: Bool
+    ) -> Bool {
+        accessError?.recovery == .resetPin && !usesAppManagedEmbeddedEngine
+    }
+
+    var showsResetCertificateButton: Bool {
+        Self.showsResetCertificateButton(
+            accessError: failureAccessError,
+            usesAppManagedEmbeddedEngine: usesAppManagedEmbeddedEngine
+        )
+    }
+
     /// Stale-credential recovery, shown only in the auth-rejected phase (#2864):
-    /// the engine is up but refusing our token. Clearing the session token forces
-    /// the next connect to fall back to the loopback/bootstrap credential (and, in
-    /// multi-user, back to the sign-in gate) instead of retrying the same rejected
-    /// token forever. Harmless no-op when no session token exists (single-user),
-    /// so it is safe to offer whenever auth is broken.
+    /// the engine is up but refusing a user-managed token. Clearing the session token
+    /// forces the next connect to recover remote/debug-local auth instead of retrying
+    /// the same rejected token forever. App-managed embedded engines mint their own
+    /// bootstrap credential, so they never show sign-in reset (#3944).
     @ViewBuilder
     var resetSignInButton: some View {
         Button {
