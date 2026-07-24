@@ -7,11 +7,52 @@ import Security
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "EmbeddedBackend")
 
 extension EmbeddedBackendService {
+    /// Process-lifecycle ownership derived from one pure mapping (#4057).
+    enum EngineOwnership: Equatable {
+        /// The app spawned or otherwise owns the local engine process; app quit
+        /// must terminate it.
+        case ownedEmbedded
+        /// The app adopted a user/developer-managed engine and must leave it
+        /// running on quit.
+        case adoptedExternal
+
+        var isExternalBackend: Bool { self == .adoptedExternal }
+    }
+
+    /// Pure ownership table (#4057): strategy + transport + port outcome → whether
+    /// the app owns the process lifecycle. Transport matters because a Debug dev
+    /// engine reached via UDS/in-process is this app's local development engine and
+    /// must die with the app; ordinary HTTPS Debug / remote / user-approved port
+    /// adoption remains external and is left running.
+    static func engineOwnership(
+        strategy: EngineConfig.EngineProvisioningStrategy,
+        transportMode: TransportMode,
+        portResolution: PortResolution?
+    ) -> EngineOwnership {
+        switch strategy {
+        case .releaseEmbedded:
+            return portResolution == .adoptExisting ? .adoptedExternal : .ownedEmbedded
+        case .debugExternal:
+            switch transportMode {
+            case .uds:
+                return .ownedEmbedded
+            #if os(macOS)
+            case .inMemory:
+                return .ownedEmbedded
+            #endif
+            case .https:
+                return .adoptedExternal
+            }
+        case .configuredRemote, .iosCompanion, .inert:
+            return .adoptedExternal
+        }
+    }
+
     /// How the port pre-flight resolved (#2863).
     /// Promoted from `private` to internal: `resolvePortConflict` (this file)
     /// returns it and `spawnAndAdoptEmbeddedEngine` (Lifecycle extension) switches
     /// on it — a cross-file reference a private nested type can't satisfy.
-    enum PortResolution { case spawnOurs, adoptExisting }
+    enum PortResolution: Equatable { case spawnOurs, adoptExisting }
 
     /// The three port-conflict outcomes (#3111), separated from the lsof/kill
     /// syscalls so every branch is unit-testable.
@@ -183,7 +224,44 @@ extension EmbeddedBackendService {
         }
     }
 
+    /// PID of the owned Debug-local engine, if ownership says this app must tear
+    /// it down. UDS dev engines are started by the Xcode pre-action, not
+    /// `launchEmbeddedBackend()`, so this bridges that adopted-but-owned path.
+    static func ownedDebugEnginePID(transportMode: TransportMode) -> pid_t? {
+        #if FICHERO_APP_STORE
+        return nil
+        #else
+        switch transportMode {
+        case .uds(let path):
+            return pidOnUnixSocket(path)
+        #if os(macOS)
+        case .inMemory:
+            return nil
+        #endif
+        case .https:
+            return nil
+        }
+        #endif
+    }
+
     #if !FICHERO_APP_STORE
+    private static func pidOnUnixSocket(_ path: String) -> pid_t? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        task.arguments = ["-t", path]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        guard (try? task.run()) != nil else { return nil }
+        task.waitUntilExit()
+        let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
+        let first = String(data: data, encoding: .utf8)?
+            .split(separator: "\n").first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespaces)
+        return first.flatMap { pid_t($0) }
+    }
+
     /// PID of the process LISTENing on `port`, or nil if the port is free.
     ///
     /// Shells out to lsof, so it is compiled out of the App Store build (#3749);
@@ -208,13 +286,13 @@ extension EmbeddedBackendService {
     }
     #endif
 
-    /// Port pre-flight (#2863/#3111). Sweep our own orphans; if the port is
-    /// then STILL held by a process we can't claim, the user must choose —
-    /// but the decision now happens IN-WINDOW (`portConflict` phase), not in a
-    /// pre-window `NSAlert`. When no choice has been made yet, throw
-    /// `.portConflict(pid)` so the connection view can render Stop it / Use it /
-    /// Quit; the button sets `pendingPortConflictResolution` and retries, and
-    /// this consumes it exactly once. Never silently adopts or silently kills.
+    // Port pre-flight (#2863/#3111). Sweep our own orphans; if the port is
+    // then STILL held by a process we can't claim, the user must choose — but
+    // the decision now happens IN-WINDOW (`portConflict` phase), not in a
+    // pre-window `NSAlert`. When no choice has been made yet, throw
+    // `.portConflict(pid)` so the connection view can render Stop it / Use it /
+    // Quit; the button sets `pendingPortConflictResolution` and retries, and
+    // this consumes it exactly once. Never silently adopts or silently kills.
     // Promoted from `private` to internal: called by spawnAndAdoptEmbeddedEngine
     // in the Lifecycle extension file.
     func resolvePortConflict() throws -> PortResolution {

@@ -9,6 +9,7 @@
 //
 
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import Testing
 
@@ -16,7 +17,73 @@ import Testing
 @MainActor
 struct PortConflictDecisionTests {
 
-    // MARK: - Decision table
+    private typealias Ownership = EmbeddedBackendService.EngineOwnership
+
+    // MARK: - Engine ownership table
+
+    @Test("release embedded spawn is owned and stopped on quit")
+    func releaseEmbeddedSpawnIsOwned() {
+        #expect(
+            EmbeddedBackendService.engineOwnership(
+                strategy: .releaseEmbedded,
+                transportMode: .uds(path: "/tmp/fichero.sock"),
+                portResolution: .spawnOurs
+            ) == .ownedEmbedded
+        )
+        #expect(!Ownership.ownedEmbedded.isExternalBackend)
+    }
+
+    @Test("release embedded user-approved adoption is external and left running")
+    func releaseEmbeddedAdoptionIsExternal() {
+        #expect(
+            EmbeddedBackendService.engineOwnership(
+                strategy: .releaseEmbedded,
+                transportMode: .https,
+                portResolution: .adoptExisting
+            ) == .adoptedExternal
+        )
+        #expect(Ownership.adoptedExternal.isExternalBackend)
+    }
+
+    @Test("dev UDS engine is owned so app quit tears it down")
+    func debugUDSEngineIsOwned() {
+        #expect(
+            EmbeddedBackendService.engineOwnership(
+                strategy: .debugExternal,
+                transportMode: .uds(path: "/tmp/fichero-dev.sock"),
+                portResolution: nil
+            ) == .ownedEmbedded
+        )
+    }
+
+    @Test("adopted Debug HTTPS engine remains external")
+    func debugHTTPSEngineIsExternal() {
+        #expect(
+            EmbeddedBackendService.engineOwnership(
+                strategy: .debugExternal,
+                transportMode: .https,
+                portResolution: nil
+            ) == .adoptedExternal
+        )
+    }
+
+    @Test("configured and inert strategies never own lifecycle")
+    func nonSpawningStrategiesAreExternal() {
+        #expect(
+            EmbeddedBackendService.engineOwnership(strategy: .configuredRemote, transportMode: .https, portResolution: nil)
+                == .adoptedExternal
+        )
+        #expect(
+            EmbeddedBackendService.engineOwnership(strategy: .iosCompanion, transportMode: .https, portResolution: nil)
+                == .adoptedExternal
+        )
+        #expect(
+            EmbeddedBackendService.engineOwnership(strategy: .inert, transportMode: .https, portResolution: nil)
+                == .adoptedExternal
+        )
+    }
+
+    // MARK: - Port-conflict decision table
 
     @Test("port free → spawn (no conflict)")
     func freePortSpawns() {

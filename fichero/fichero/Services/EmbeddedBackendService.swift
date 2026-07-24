@@ -40,8 +40,20 @@ final class EmbeddedBackendService {
     // Promoted from `private` to internal: read/written by stop()/deinit/launch
     // across the Lifecycle and Spawn extension files.
     @ObservationIgnored nonisolated(unsafe) var backendPID: pid_t?
-    // Promoted from `private` to internal: referenced by the Lifecycle / Spawn extensions.
-    var isExternalBackend = false  // Track if using external vs embedded backend
+    // Ownership inputs captured at start; `isExternalBackend` is derived by
+    // `EmbeddedBackendService.engineOwnership(...)` in Ports.swift (#4057), not
+    // hand-set at each lifecycle branch.
+    @ObservationIgnored var lastTransportMode: TransportMode?
+    @ObservationIgnored var lastPortResolution: PortResolution?
+    var currentEngineOwnership: EngineOwnership {
+        guard let lastProvisioningStrategy, let lastTransportMode else { return .ownedEmbedded }
+        return Self.engineOwnership(
+            strategy: lastProvisioningStrategy,
+            transportMode: lastTransportMode,
+            portResolution: lastPortResolution
+        )
+    }
+    var isExternalBackend: Bool { currentEngineOwnership.isExternalBackend }
     var isUsingExternalBackend: Bool { isExternalBackend }
     /// The FICHERO_LAUNCH_NONCE we passed to the engine we spawned (#2862).
     /// Readiness verifies /api/health echoes this exact value, proving the

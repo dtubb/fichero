@@ -111,7 +111,6 @@ extension EmbeddedBackendService {
 
         // Store PID and process reference
         backendPID = pid
-        isExternalBackend = false
         logger.info("Tracking embedded backend PID: \(pid)")
     }
 
@@ -130,9 +129,9 @@ extension EmbeddedBackendService {
             // Debug builds skip the "Embed Fichero Engine" phase (it only runs in
             // Release), so in a Debug ⌘R the engine is expected to be running
             // externally on :8765. If it isn't, that's this path.
-            logger.error(
-                "Debug: start the engine first — fichero-engine/scripts/start_backend.sh. Release: briefcase build macOS --app engine (in fichero-engine/), then rebuild."
-            )
+            let message = "Debug: start the engine first — fichero-engine/scripts/start_backend.sh. "
+                + "Release: briefcase build macOS --app engine (in fichero-engine/), then rebuild."
+            logger.error("\(message, privacy: .public)")
             throw BackendError.backendAppNotFound
         }
         return backendAppPath

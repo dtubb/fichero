@@ -54,6 +54,8 @@ extension EmbeddedBackendService {
         // mode (they live in launchEmbeddedBackend / the readiness probe).
         let strategy = EngineConfig.engineProvisioningStrategy()
         lastProvisioningStrategy = strategy
+        lastTransportMode = EngineConfig.transportMode
+        lastPortResolution = nil
         logger.info("Engine provisioning strategy: \(String(describing: strategy), privacy: .public) (#3109)")
 
         switch strategy {
@@ -91,7 +93,6 @@ extension EmbeddedBackendService {
             logger.info("No external backend; host runs without managing one")
         }
         status = .running
-        isExternalBackend = true
     }
 
     /// `configuredRemote` / `iosCompanion`: connect to the explicit/paired host,
@@ -103,7 +104,6 @@ extension EmbeddedBackendService {
         do {
             try await waitForBackend(timeout: 5)
             status = .running
-            isExternalBackend = true
             logger.info("Connected to configured external backend")
         } catch {
             status = .failed
@@ -134,9 +134,12 @@ extension EmbeddedBackendService {
         logger.info("DEBUG mode: adopting external engine over \(dialTarget, privacy: .public) (engine not bundled in Debug)")
         do {
             try await waitForBackend(timeout: debugExternalReadinessTimeout)
+            if currentEngineOwnership == .ownedEmbedded {
+                backendPID = Self.ownedDebugEnginePID(transportMode: lastTransportMode ?? EngineConfig.transportMode)
+            }
             status = .running
-            isExternalBackend = true
-            logger.info("Connected to external backend over \(dialTarget, privacy: .public) (will not manage lifecycle)")
+            let ownership = String(describing: currentEngineOwnership)
+            logger.info("Connected to external backend over \(dialTarget, privacy: .public) (ownership: \(ownership, privacy: .public))")
         } catch {
             status = .failed
             // Distinguish "engine unreachable" from "engine reachable but rejected
@@ -144,11 +147,17 @@ extension EmbeddedBackendService {
             // false (and misleading) when the engine answered 401/403. lastReadiness
             // holds the final probe verdict.
             if lastReadiness == .authRejected {
-                logger.error("Engine IS reachable over \(dialTarget, privacy: .public) but rejected our credentials (401/403) — token/.api-key mismatch, NOT a missing engine")
-                errorMessage = "The engine is running but rejected the app's credentials (401). The app's token doesn't match the engine's — this is an auth/.api-key mismatch, not a missing engine."
+                logger.error(
+                    "Engine is reachable over \(dialTarget, privacy: .public) but rejected credentials — token/.api-key mismatch"
+                )
+                errorMessage = "The engine is running but rejected the app's credentials (401). "
+                    + "The app's token doesn't match the engine's — this is an auth/.api-key "
+                    + "mismatch, not a missing engine."
                 throw BackendError.authenticationRequired
             }
-            logger.error("No external engine reachable over \(dialTarget, privacy: .public) in Debug — start it with start_backend.sh")
+            logger.error(
+                "No external engine reachable over \(dialTarget, privacy: .public) in Debug — start it with start_backend.sh"
+            )
             throw BackendError.backendAppNotFound
         }
     }
@@ -166,7 +175,7 @@ extension EmbeddedBackendService {
         // reject our token and leave a blank window.
         switch try resolvePortConflict() {
         case .adoptExisting:
-            isExternalBackend = true
+            lastPortResolution = .adoptExisting
             expectedLaunchNonce = nil
             // Adoption is gated on the authenticated probe: if the existing
             // engine rejects our token, waitForBackend throws and we surface
@@ -175,6 +184,7 @@ extension EmbeddedBackendService {
             status = .running
             logger.info("Adopted user-approved existing engine on port 8765")
         case .spawnOurs:
+            lastPortResolution = .spawnOurs
             try await launchEmbeddedBackend()
             // Bounded by the child, not a clock (#3930) — we spawned this engine,
             // so its liveness is knowable and a fixed budget is just the app
