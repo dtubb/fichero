@@ -115,6 +115,43 @@ struct StartupWorkGateTests {
         )
     }
 
+    /// #3362/#3945: a macOS window is an observation surface, not an engine
+    /// lifecycle trigger. Mounting another window or tab must compose the shared
+    /// UI root only; its Scene closure cannot start or reconnect the backend.
+    @Test("main WindowGroup observes UI without owning backend lifecycle")
+    func mainWindowDoesNotOwnBackendLifecycle() throws {
+        let source = try Self.appSource("FicheroApp.swift")
+        let mainWindow = try Self.functionBody(
+            containing: "WindowGroup(\"Fichero\", id: \"main\")", in: source
+        )
+
+        #expect(
+            mainWindow.contains("libraryWindowRoot(seed: nil)"),
+            "the main WindowGroup should compose the shared UI root (#3362)"
+        )
+        for forbiddenWork in [
+            ".task",
+            "controller.start()",
+            "controller.retry()",
+            "backendService.start()",
+            "connectBackend(",
+            "shouldReuseExistingConnection("
+        ] {
+            #expect(
+                !mainWindow.contains(forbiddenWork),
+                "the main WindowGroup must not invoke \(forbiddenWork) (#3362)"
+            )
+        }
+
+        try Self.expectEnclosedBy(
+            source,
+            anchor: "controller.start()",
+            by: "applicationDidFinishLaunching",
+            within: 600,
+            "the AppDelegate retains startup ownership (#3362)"
+        )
+    }
+
     /// #3936: the TLS-prep subprocess spawns the ~1 GB engine and blocks on
     /// `waitUntilExit()` for ~2.7s on every first/dev launch. It must run OFF the
     /// main actor — the cache lookup stays on main, the subprocess is `Task.detached`.
