@@ -44,8 +44,8 @@ Reporting:
   --json        always also writes a machine-readable failure report to
                 build/verify_all_report.json (the file is written regardless;
                 this flag is accepted for explicitness)
-  --self-check  run an internal pass+fail probe and assert the JSON report has
-                exactly one failure record, then exit
+  --self-check  run an internal pass+fail probe, assert the JSON report has
+                exactly one failure record, then exit with the aggregated status
   --file-issues on failure, invoke scripts/verify_to_issues.sh --apply to file
                 de-duped GitHub issues into the right milestones, write the
                 manager-flag build/verify_all_needs_fixing.json, and print a
@@ -397,12 +397,13 @@ if [[ "$selfcheck" -eq 1 ]]; then
   echo "verify_all tier: selfcheck"
   run_check "selfcheck pass" true
   run_check "selfcheck fail" false
+  run_check "selfcheck after failure" true
   write_report
   count="$("${PYTHON_BIN}" -c \
     "import json;print(len(json.load(open('${REPORT_JSON}'))['checks']))" 2>/dev/null)"
   if [[ "$count" == "1" ]]; then
     echo "self-check OK: exactly 1 failure record in ${REPORT_JSON}"
-    exit 0
+    exit "$fail"
   fi
   echo "self-check FAILED: expected 1 record, got '${count}'" >&2
   exit 1

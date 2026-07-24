@@ -1,5 +1,8 @@
 """Regression tests for verify_all platform wiring (#1939, #3960)."""
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -27,3 +30,23 @@ def test_full_ios_gate_is_generic_simulator_compile_only() -> None:
     assert '-derivedDataPath "${VERIFY_ALL_DERIVED_ROOT}/ios-simulator"' in verify_all
     assert "simulator_udid" not in verify_all
     assert "xcrun" not in verify_all
+
+
+def test_selfcheck_returns_failure_status_after_running_later_checks() -> None:
+    env = os.environ.copy()
+    env["PYTHON_BIN"] = sys.executable
+
+    result = subprocess.run(
+        ["bash", "scripts/verify_all.sh", "--self-check"],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "PASS selfcheck pass" in result.stdout
+    assert "FAIL selfcheck fail" in result.stdout
+    assert "PASS selfcheck after failure" in result.stdout
+    assert "self-check OK: exactly 1 failure record" in result.stdout
