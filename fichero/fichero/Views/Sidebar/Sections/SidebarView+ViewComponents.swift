@@ -19,9 +19,9 @@ extension SidebarView {
             // Activity, etc. (sidebar-persistence fix).
             unifiedContent
 
-            sidebarFilterBar
-
-            // Bottom toolbar.
+            // Bottom toolbar — owns the sidebar filter field + sidebar-scoped
+            // actions as one unified bottom toolbar (#4061). No standalone
+            // filter chrome above the bar.
             if shouldShowBottomToolbar {
                 SidebarBottomToolbar(
                     createSearch: createNewSearch,
@@ -33,7 +33,8 @@ extension SidebarView {
                     createSchedule: createNewSchedule,
                     createTrigger: createNewTrigger,
                     deleteItem: handleDeleteSelectedItem,
-                    hasSelection: selectedItem != nil
+                    hasSelection: selectedItem != nil,
+                    sidebarFilterText: $sidebarFilterText
                 )
             }
         }
@@ -42,27 +43,6 @@ extension SidebarView {
     /// Whether to show the bottom toolbar.
     var shouldShowBottomToolbar: Bool {
         true
-    }
-
-    private var sidebarFilterBar: some View {
-        PaneFilterBar {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Filter", text: $sidebarFilterText)
-                .textFieldStyle(.plain)
-                .accessibilityIdentifier("sidebarFilterField")
-            if !sidebarFilterText.isEmpty {
-                Button {
-                    sidebarFilterText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Clear filter")
-                .accessibilityLabel("Clear filter")
-            }
-        }
     }
 
     /// Unified sidebar content with feature-gated sections per library.

@@ -22,6 +22,13 @@ struct SidebarBottomToolbar: View {
     // Selection-dependent actions (#2309)
     var deleteItem: (() -> Void)?
     var hasSelection: Bool = false
+    /// Sidebar filter text (#4061). The filter field lives inside this bottom
+    /// toolbar — one unified bottom toolbar owns the filter + the
+    /// sidebar-scoped actions — so there is no standalone filter chrome above
+    /// the bar. Bound straight to `SidebarView.sidebarFilterText`, which
+    /// drives `filteredLibraryHeaders`; rows keep stable identity so the list
+    /// updates in place rather than re-rendering wholesale on filter change.
+    var sidebarFilterText: Binding<String>
 
     private var metrics: MiniToolbarMetrics {
         #if os(macOS)
@@ -60,9 +67,42 @@ struct SidebarBottomToolbar: View {
         }
     }
 
-    /// Essential verbs — always inline (#3058): the New-item menu + Delete.
+    /// The sidebar filter field, integrated into the bottom toolbar's essential
+    /// tier (#4061). Replaces the old standalone `sidebarFilterBar` so the
+    /// sidebar has one unified bottom toolbar owning the filter + actions,
+    /// matching the shared Surface Chrome pattern. The clear button appears
+    /// only when there's text to clear — a small in-place update, no list
+    /// re-render (rows keep stable identity via `filteredLibraryHeaders`).
+    private var filterField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Filter", text: sidebarFilterText)
+                .textFieldStyle(.plain)
+                .accessibilityIdentifier("sidebarFilterField")
+            if !sidebarFilterText.wrappedValue.isEmpty {
+                Button {
+                    sidebarFilterText.wrappedValue = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Clear filter")
+                .accessibilityLabel("Clear filter")
+            }
+        }
+    }
+
+    /// Essential verbs — always inline (#3058): the filter field, then the
+    /// New-item menu + Delete. The leading `Spacer` separates the filter from
+    /// the actions so the filter sits on the left and the verbs on the right.
     @ViewBuilder
     private var essentialButtons: some View {
+        filterField
+
+        Spacer(minLength: 12)
+
         // New item menu (dropdown)
         Menu {
                 if featureManager.isSearchEnabled {
@@ -137,8 +177,6 @@ struct SidebarBottomToolbar: View {
             .disabled(!hasSelection)
             .help("Remove selected item")
             .accessibilityLabel("Remove selected item")
-
-            Spacer()
     }
 
     /// Secondary verbs — inline when they fit, else the '…' overflow (macOS narrow)
