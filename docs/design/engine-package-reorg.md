@@ -14,18 +14,10 @@ consolidation) — sequenced at the end of this doc.
 Three facts discovered while surveying the tree change the risk calculus:
 
 1. **The pattern is already proven in-repo.** The entire `importers/` domain has
-   *already* been moved into `fichero/importers/` and each old top-level path
-   left as a **module-aliasing shim**. Example — `fichero-engine/src/fichero/ingest.py`
-   is one line:
-
-   ```python
-   from fichero.importers.ingest import *; import sys; sys.modules[__name__] = sys.modules["fichero.importers.ingest"]  # noqa
-   ```
-
-   This is the **canonical shim** for this reorg (see §3). It is domain-agnostic:
-   the `sys.modules[__name__] = …` reassignment makes `fichero.ingest` an *alias
-   for the same module object*, so `import *`-missed names, `isinstance`/identity
-   checks, and `fichero.ingest.submodule` access all keep working.
+   *already* been moved into `fichero/importers/`. Example —
+   `fichero-engine/src/fichero/importers/ingest.py` is the canonical implementation
+   path for ingest now. The old top-level compatibility shim has since been removed,
+   so new documentation and imports should name the package path directly.
 
 2. **A second, weaker shim style is also present — do not copy it.**
    `knowledge_models.py` (blast **291**) and `hermeneutics_models.py` (blast 17)

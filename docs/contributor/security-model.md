@@ -30,7 +30,7 @@ FICHERO_MULTIUSER=1 PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.
 
 When enabled:
 
-- Per-library and per-folder access control is enforced in `fichero-engine/src/fichero/authz.py`.
+- Per-library and per-folder access control is enforced in `fichero-engine/src/fichero/security/authz.py`.
 - Enforcement happens at two points: `registry.invoke` (for all mutations) and the read path (for queries).
 - The authz layer is fail-closed: an unknown or missing permission is treated as a denial, not a pass-through.
 - Permissions are stored per library and per folder. A user with library-level read cannot write to a folder unless they also hold folder-level write.
@@ -102,7 +102,7 @@ This exposes the API only to devices on your Tailscale tailnet. It is not public
 
 Do not use `tailscale funnel`. Funnel exposes the service to the public internet.
 
-Tailscale is transport. It provides network-level access control (tailnet vs. internet). User-vs-user authorization is a separate concern, handled by the `FICHERO_MULTIUSER` / `authz.py` layer. The two concerns are independent.
+Tailscale is transport. It provides network-level access control (tailnet vs. internet). User-vs-user authorization is a separate concern, handled by the `FICHERO_MULTIUSER` / `fichero-engine/src/fichero/security/authz.py` layer. The two concerns are independent.
 
 `FICHERO_BIND_HOST` is loopback-only by default. Binding the engine directly to
 a non-loopback address requires the explicit escape hatch
@@ -122,7 +122,7 @@ Summary of what each layer does:
 | `127.0.0.1` binding | Prevents other machines reaching the API directly |
 | Shared-secret token | Prevents other apps on the same Mac from calling the API |
 | `tailscale serve` | Extends local access to trusted tailnet devices |
-| `FICHERO_MULTIUSER` / `authz.py` | Per-library/folder access control between user accounts |
+| `FICHERO_MULTIUSER` / `fichero-engine/src/fichero/security/authz.py` | Per-library/folder access control between user accounts |
 
 ## Audit Chain
 
@@ -134,5 +134,5 @@ An HMAC-keyed tamper-evidence chain across `action_audit` rows is in progress (#
 
 - No mutation should bypass `registry.invoke`. Route handlers must not write to DuckDB directly.
 - No auth check should trust client-supplied identity. Always use `request.state.user`.
-- New routes that need multi-user access control must call into `authz.py` at the read path. `registry.invoke` handles the write path automatically.
+- New routes that need multi-user access control must call into `fichero-engine/src/fichero/security/authz.py` at the read path. `registry.invoke` handles the write path automatically.
 - Do not expose the engine on `0.0.0.0` for any reason, including local development. `127.0.0.1` plus `tailscale serve` covers every legitimate remote-access need.

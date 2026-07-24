@@ -156,7 +156,7 @@ This ties directly to the follow-up platform-shim work the user referenced (`#20
 The engine already thinks in per-library terms:
 
 - `db_manager.py` manages per-library database instances.
-- authz is per-library (`fichero-engine/src/fichero/authz.py`).
+- authz is per-library (`fichero-engine/src/fichero/security/authz.py`).
 - change/activity streams are per-library.
 - the Swift app already carries per-library/remote library concepts (`LibraryManager`, `LibraryReference`, `LibraryLocationDescriptor`).
 

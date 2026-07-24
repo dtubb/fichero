@@ -74,7 +74,8 @@ The image-editing surface is **already built and working**, not greenfield:
   This is the existing seam for #1385's AI tools; it is not a new mechanism.
 - **The gap (#3218) is real and precisely scoped.** `resolve_source()` is the
   one function that returns the *original, unedited* file bytes, and it is
-  called from: `storage.py` (thumbnails/display cache), `api/routes/storage.py`
+  called from: `fichero-engine/src/fichero/db/storage.py` (thumbnails/display cache),
+  `fichero-engine/src/fichero/api/routes/storage.py`
   (`get_source_file`, display), `export_service.py`
   (`_require_image_source` for Markdown/DOCX export), and
   `vision_base.py`/Apple Vision OCR (`apple_vision_ocr_with_geometry` opens
@@ -145,7 +146,8 @@ across process restarts. Change to:
 
 - Key the cache file by a hash of `(document_id, page, chain.updated_at)`,
   mirroring the existing **mtime-keyed thumbnail cache** pattern already in
-  `storage.py` (`_thumbnail_cache_path` keyed off `source_mtime_ns`). This
+  `fichero-engine/src/fichero/db/storage.py` (`_thumbnail_cache_path` keyed off
+  `source_mtime_ns`). This
   gives cheap invalidation without touching the DB schema.
 - Treat the on-disk derived file purely as a render cache the same way
   thumbnails are — deletable/regeneratable, never authoritative. The
@@ -203,14 +205,14 @@ The fix is **one new choke point**, not a rewrite of every caller of
 `resolve_source`.
 
 1. **Add `resolve_edited_source(doc, db, *, page=1) -> Path`** next to
-   `resolve_source()` in `fichero-engine/src/fichero/storage.py`. It:
+   `resolve_source()` in `fichero-engine/src/fichero/db/storage.py`. It:
    - Calls `resolve_source()` for the raw bytes (unchanged).
    - Looks up `ImageEditChain` for `doc.id`; if empty, returns the raw path
      unchanged (zero-cost for the common no-edits case).
    - If non-empty, replays the chain via the *existing* `_apply_operation`
      logic (move that helper — already private in `image_editing.py` — into a
-     shared module, e.g. `fichero-engine/src/fichero/image_ops.py`, so both the route and
-     `storage.py` import the same replay code; **iterate, don't duplicate**)
+     shared module, e.g. `fichero-engine/src/fichero/media/image_ops.py`, so both the route and
+     `fichero-engine/src/fichero/db/storage.py` import the same replay code; **iterate, don't duplicate**)
      and writes/returns the cached derived path from the new mtime-keyed
      cache described above.
 2. **Route call sites through it, one at a time, by consumer priority:**
@@ -224,8 +226,8 @@ The fix is **one new choke point**, not a rewrite of every caller of
      `resolve_source`** — this is explicitly "get me the original file," used
      by import/checksum/provenance flows that must never see edits. Do not
      touch it.
-   - Thumbnail/display generation (`storage.py` `ensure_thumbnail`,
-     `get_display`) — becomes edited by switching their internal `source =
+   - Thumbnail/display generation (`fichero-engine/src/fichero/db/storage.py`
+     `ensure_thumbnail`, `get_display`) — becomes edited by switching their internal `source =
      resolve_source(...)` line to `resolve_edited_source(...)`; this also
      fixes the existing "canvas outside edit mode still shows the original"
      inconsistency for good, once `StorageDisplayImageCanvas` calls the same
@@ -278,7 +280,7 @@ not building new infrastructure:
 
 - **Images**: port legacy ML tools (denoise, deskew-via-ML, super-resolution,
   auto-crop-border-detection, colorization) as new `_apply_operation` cases in
-  the shared `image_ops.py` module (from the #3218 refactor above), each
+  the shared `fichero-engine/src/fichero/media/image_ops.py` module (from the #3218 refactor above), each
   exposed as:
   1. A new `op` name in the chain vocabulary (parametric, reversible-by-removal
      — same shape as `enhance`/`fuzzy_clean` today), for interactive use from
@@ -310,7 +312,7 @@ existing pattern):
   thumbnail-display through it. This is the highest-value fix; everything
   else in this doc is either already built or downstream of this.
 - **#1176** — mostly already built (the parametric chain IS this); close as
-  "verify and document" once the shared `image_ops.py` extraction lands, or
+  "verify and document" once the shared `fichero-engine/src/fichero/media/image_ops.py` extraction lands, or
   re-scope narrowly to the cache-key-by-`updated_at` fix described above.
 - Any small ML-tool port under #1385 that fits the existing `op` vocabulary
   shape (e.g. denoise, auto-crop-border) — grind these one at a time using
@@ -326,7 +328,7 @@ design pass)**:
 
 - **#3213** — resolved by this doc: hybrid client-preview/server-truth
   architecture, no rewrite. Once approved, split into small PRs: (a) shared
-  `image_ops.py` extraction (mechanical, low-risk, unblocks #3218 too), (b)
+  `fichero-engine/src/fichero/media/image_ops.py` extraction (mechanical, low-risk, unblocks #3218 too), (b)
   `LiveEditPreview` Core Image compositor (net-new, needs its own tests for
   drift-vs-server-render), (c) cache-key-by-chain-`updated_at`.
 - **#1174** — resolved by this doc: the panel exists, keep it in the Preview

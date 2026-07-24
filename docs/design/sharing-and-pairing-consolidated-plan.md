@@ -24,7 +24,7 @@ audit):
 **Both are still valuable references** — most of their concrete recommendations shipped (see
 milestone #263 below: 15 of 17 issues closed in the week since). But one central recommendation
 was **not adopted**: the 07-14 doc's step 5 ("the flip") proposed making `multiuser_enabled()`
-return `True` unconditionally. Current code does the opposite. `fichero-engine/src/fichero/multiuser.py`
+return `True` unconditionally. Current code does the opposite. `fichero-engine/src/fichero/security/multiuser.py`
 today reads:
 
 ```python

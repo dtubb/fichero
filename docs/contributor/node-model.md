@@ -27,7 +27,7 @@ an alias node with `node_kind="alias"` and `prototype_key="bookmark"`.
 ## Prototype definitions and inheritance
 
 Prototype resolution is implemented in
-`fichero-engine/src/fichero/node_prototypes.py`, and the built-in prototype
+`fichero-engine/src/fichero/models/node_prototypes.py`, and the built-in prototype
 definitions are seeded from `_BUILTIN_DOCUMENT_PROTOTYPE_SEEDS` in
 `fichero-engine/src/fichero/db/`. The current shipped behavior is attribute
 inheritance, not a full behavior system.
@@ -62,7 +62,7 @@ Prototype assignment is also shipped as part of the documents API:
 ## Aliases
 
 Alias nodes are implemented in
-`fichero-engine/src/fichero/node_aliases.py`.
+`fichero-engine/src/fichero/models/node_aliases.py`.
 
 - An alias is a `Document` with `node_kind == "alias"` and a non-empty
   `alias_target_id`.
@@ -264,8 +264,9 @@ Folded into the node model now:
   updates or removes the folded node, so filing is represented through normal
   document containment.
 - P5 folder and room prototypes: built-in prototype seeds now include `folder`
-  and `room`, and `node_prototypes.py` resolves inherited attributes through
-  the parent chain rather than hard-coding per-type behavior.
+  and `room`, and `fichero-engine/src/fichero/models/node_prototypes.py`
+  resolves inherited attributes through the parent chain rather than
+  hard-coding per-type behavior.
 - F5 slice 1 room-node bridge: `Database.save(SpatialRoom)` mirrors each room
   into a `Document` with `node_kind="room"` and `prototype_key="room"`, while
   the existing `/api/mind-palace/rooms*` routes keep reading and writing the
@@ -282,9 +283,9 @@ Intentionally not folded:
   nodes.
 - The action registry in `fichero-engine/src/fichero/actions/registry.py`
   remains the audited write path for mutations; it is not a node fold.
-- Provider configuration in `fichero-engine/src/fichero/providers.py` remains
-  backend/provider infrastructure, not document content.
-- Authorization and ACL enforcement in `fichero-engine/src/fichero/authz.py`
+- Provider configuration in `fichero-engine/src/fichero/llm/providers.py`
+  remains backend/provider infrastructure, not document content.
+- Authorization and ACL enforcement in `fichero-engine/src/fichero/security/authz.py`
   remain access-control infrastructure, not part of the node hierarchy.
 
 Still in progress or pending:
