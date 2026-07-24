@@ -46,6 +46,14 @@ class ActionContext:
     keyed by library); routes populate it from the ``X-Fichero-Library-Path``
     header. ``actor``/``origin_window`` flow straight into the audit + change
     event. ``run_id`` ties the action to an AI run (#1832).
+
+    ``on_progress`` / ``on_document`` are OPTIONAL streaming hooks a route can
+    attach so a long-running action (folder ingest) can report progress and
+    per-item results back to the caller WHILE it runs — not only in the trailing
+    ``ChangeSpec``. The action layer stays the one audited write path; these
+    callbacks are read-only side-channels for live UI updates (#4065/#4067).
+    Default ``None`` so chat-tools / App Intents / tests that don't care about
+    streaming are untouched.
     """
 
     actor: str = "system"
@@ -53,6 +61,8 @@ class ActionContext:
     run_id: str | None = None
     library_path: str | None = None
     is_bootstrap: bool = False
+    on_progress: "Callable[[int, int], None] | None" = None
+    on_document: "Callable[[Any], None] | None" = None
 
 
 @dataclass

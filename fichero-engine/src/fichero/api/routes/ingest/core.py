@@ -46,11 +46,19 @@ def _require_ingest_owner(request: Request, library_path: str) -> None:
         raise HTTPException(status_code=403, detail="Owner access required for server-path ingest") from exc
 
 
-def _ingest_action_context(request: Request, library_path: str) -> ActionContext:
+def _ingest_action_context(
+    request: Request,
+    library_path: str,
+    *,
+    on_progress=None,
+    on_document=None,
+) -> ActionContext:
     return ActionContext(
         actor=actor_from_request(request),
         library_path=library_path,
         is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),
+        on_progress=on_progress,
+        on_document=on_document,
     )
 
 
@@ -184,12 +192,19 @@ def import_folder_impl(
     request: IngestFolderRequest,
     package_path: Path,
     on_progress=None,
+    on_document=None,
 ) -> list[Document]:
     """Validate + synchronously ingest a folder. Returns the created Documents.
 
     The ``POST /folder`` route runs this in a BackgroundTask (returning a
     task_id); the ``import.folder`` action runs it synchronously so it can audit
     the created doc ids. Both share this one validated ingest.
+
+    ``on_progress(current, total)`` fires after every file (advance a progress
+    bar); ``on_document(doc)`` fires once per successfully ingested file so the
+    route can emit a per-file ``document.created`` change event and the sidebar
+    populates incrementally (#4065 — folder-of-folders no longer shows a
+    blocking spinner until the whole import finishes).
     """
     from fichero.importers.ingest import ingest_folder as do_ingest, IngestMode
 
@@ -213,6 +228,7 @@ def import_folder_impl(
         extract_text=request.extract_text,
         auto_embed=request.auto_embed,
         on_progress=on_progress,
+        on_document=on_document,
         db=db,
         package_path=package_path,
     )
@@ -297,6 +313,34 @@ async def ingest_folder(
             _tasks[task_id]["processed"] = current
             _tasks[task_id]["progress"] = current / total if total > 0 else 1.0
 
+        # Progressive sidebar population (#4065): for each successfully ingested
+        # document, accumulate its id in the task's running ``document_ids``
+        # (so a status poll returns the growing list, not an empty one until
+        # completion) AND emit a per-file ``document.created`` change event so
+        # the DocumentStore's change stream patches the sidebar incrementally
+        # — the spinner stops being the only signal and items appear as they
+        # land. Completion is still signalled explicitly below + by the
+        # action's trailing bulk event, so a lost per-file event is recovered
+        # at the end (#4067).
+        def on_document(doc):
+            try:
+                _tasks[task_id]["document_ids"].append(doc.id)
+            except Exception:  # pragma: no cover - defensive
+                pass
+            try:
+                from fichero.api.change_stream import emit_change
+
+                emit_change(
+                    x_fichero_library_path,
+                    type="document.created",
+                    document_ids=[doc.id],
+                    actor=actor_from_request(http_request),
+                    origin_window=getattr(http_request.state, "origin_window", None),
+                    origin_user=actor_from_request(http_request),
+                )
+            except Exception as exc:  # pragma: no cover - best-effort
+                logger.debug("per-file emit_change failed (ignored): %s", exc)
+
         try:
             _tasks[task_id]["status"] = "running"
             # Route through the shared impl so the background task and the
@@ -305,7 +349,12 @@ async def ingest_folder(
                 bg_db,
                 "import.folder",
                 request.model_dump(mode="json"),
-                _ingest_action_context(http_request, x_fichero_library_path),
+                _ingest_action_context(
+                    http_request,
+                    x_fichero_library_path,
+                    on_progress=on_progress,
+                    on_document=on_document,
+                ),
             )
             doc_ids = result.result["document_ids"]
             _tasks[task_id]["status"] = "completed"
@@ -544,7 +593,15 @@ def _action_import_folder(
     # The route ingests in a BackgroundTask; the action ingests SYNCHRONOUSLY so
     # the audit can record the created doc ids in ``after``.
     package_path = Path(ctx.library_path) if ctx.library_path else Path(db.path).parent
-    docs = import_folder_impl(db, params, package_path)
+    # Forward the route's streaming hooks (#4065) so per-file progress + the
+    # ``on_document`` callback fire DURING the ingest, not only at completion.
+    docs = import_folder_impl(
+        db,
+        params,
+        package_path,
+        on_progress=ctx.on_progress,
+        on_document=ctx.on_document,
+    )
     doc_ids = [d.id for d in docs]
     spec = ChangeSpec(
         domains=["document"],

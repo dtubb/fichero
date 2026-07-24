@@ -945,6 +945,7 @@ def ingest_folder(
     extract_text: bool = True,
     auto_embed: bool = True,
     on_progress: Callable[[int, int], None] | None = None,
+    on_document: "Callable[[Document], None] | None" = None,
     db: "Database | None" = None,
     package_path: Path | None = None,
 ) -> list[Document]:
@@ -958,7 +959,15 @@ def ingest_folder(
         create_collection: If True, create a collection for the folder
         extract_text: Extract text content using loaders
         auto_embed: Create embeddings for search
-        on_progress: Progress callback (current, total)
+        on_progress: Progress callback (current, total) — invoked after every
+            file (successful, skipped, or failed) so the caller can advance a
+            progress bar.
+        on_document: Per-document callback invoked once for each successfully
+            ingested file, with the created :class:`Document`. The folder
+            ingest route uses this to emit a ``document.created`` change event
+            per file so the sidebar populates incrementally instead of waiting
+            for the whole import to finish (#4065). Skipped (unchanged hash)
+            and failed files do NOT fire ``on_document`` — only real creates.
         db: Database instance (required)
         package_path: Library package path for COPY mode
 
@@ -1137,6 +1146,17 @@ def ingest_folder(
             if err is None and doc is not None:
                 ordered_docs[i] = doc
                 existing_hashes.add((source_key, checksum))
+                # Progressive streaming (#4065): notify the caller of each
+                # successfully ingested document as soon as it lands, so the
+                # route can emit a per-file ``document.created`` change event
+                # and the sidebar patches incrementally instead of waiting for
+                # the whole batch. Guarded so a callback failure can never
+                # corrupt the ingest.
+                if on_document is not None:
+                    try:
+                        on_document(doc)
+                    except Exception as exc:  # pragma: no cover - defensive
+                        logger.warning("on_document callback failed: %s", exc)
             else:
                 logger.warning(f"Failed to ingest {file_path}: {err}")
                 try:

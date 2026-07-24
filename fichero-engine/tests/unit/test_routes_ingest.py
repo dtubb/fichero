@@ -190,6 +190,56 @@ class TestIngestFolder:
         assert r.status_code == 200
         assert seen.get("db") is fresh_db
 
+    def test_background_ingest_streams_per_file_created_events(self, client, tmp_path, monkeypatch):
+        """#4065/#4067: folder ingest emits one ``document.created`` change event
+        per successfully ingested file (and accumulates ids in the task's
+        ``document_ids``) so the sidebar populates incrementally instead of
+        waiting for the whole import to finish, and the completion event
+        carries the full set so the store refreshes promptly when it stops."""
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / "b.txt").write_text("b")
+        emitted: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.change_stream.emit_change",
+            lambda *args, **kwargs: emitted.append(kwargs),
+        )
+
+        def _fake_ingest_folder(*_args, **kwargs):
+            on_document = kwargs.get("on_document")
+            docs = [
+                Document(id="doc-a", name="a.txt"),
+                Document(id="doc-b", name="b.txt"),
+            ]
+            # Mirror the real ingest_folder: fire on_document per successful
+            # file AS it lands — the streaming hook the route uses to emit
+            # per-file change events.
+            for doc in docs:
+                if on_document is not None:
+                    on_document(doc)
+            return docs
+
+        with patch("fichero.importers.ingest.ingest_folder", side_effect=_fake_ingest_folder), \
+             patch("fichero.importers.ingest.count_files", return_value=2), \
+             patch("fichero.importers.ingest.IngestMode"), \
+             patch("fichero.api.routes.ingest.db_manager.get_database", return_value=MagicMock()):
+            r = client.post("/api/ingest/folder", json={"path": str(tmp_path)})
+
+        assert r.status_code == 200
+        task_id = r.json()["task_id"]
+
+        created = [e for e in emitted if e.get("type") == "document.created"]
+        # One per-file event for each document (progressive streaming), plus
+        # the action's trailing bulk completion event with the full set.
+        per_file = [e for e in created if len(e["document_ids"]) == 1]
+        assert {e["document_ids"][0] for e in per_file} == {"doc-a", "doc-b"}
+        # The bulk completion event carries both ids and fires last.
+        assert created[-1]["document_ids"] == ["doc-a", "doc-b"]
+
+        # The task's document_ids accumulated the full set by completion.
+        status = client.get(f"/api/ingest/status/{task_id}").json()
+        assert status["status"] == "completed"
+        assert set(status["document_ids"]) == {"doc-a", "doc-b"}
+
 
 # ---------------------------------------------------------------------------
 # GET /api/ingest/status/{task_id}
