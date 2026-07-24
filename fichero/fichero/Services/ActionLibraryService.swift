@@ -15,9 +15,9 @@ import OSLog
 /// with `ActionsService` reduced to a thin subclass that only carries the
 /// label/return-shape variants its existing call sites depend on.
 ///
-/// Like `IntegrationsService`/`ModelComparisonService`, the localhost client is
-/// used purely to carry auth; `LibraryPathMiddleware` injects
-/// `X-Fichero-Library-Path` centrally for library-scoped paths (#1710).
+/// Production callers inject the library's real generated client; previews create
+/// an explicit client through `EngineConfig.transportMode`. `LibraryPathMiddleware`
+/// injects `X-Fichero-Library-Path` centrally for library-scoped paths (#1710).
 @MainActor
 @Observable
 class ActionLibraryService {
@@ -43,11 +43,9 @@ class ActionLibraryService {
     /// - Parameter client: The generated client to route `/api/actions/*` through.
     ///   Required (no default): production injects the library's real client via
     ///   `LibraryManager` (which honors `EngineConfig.transportMode` — UDS /
-    ///   in-process / HTTPS). A `.localhost` default here would silently pin every
+    ///   in-process / HTTPS). A localhost default here would silently pin every
     ///   accidental no-arg construction to HTTPS `127.0.0.1:8765`, which fails with
-    ///   a bare `-1004` under an embedded (UDS) engine — so callers that genuinely
-    ///   want the localhost HTTPS client (previews, unit tests) must now opt in
-    ///   explicitly with `.localhost`.
+    ///   a bare `-1004` under an embedded (UDS) engine.
     init(client: FicheroClient) {
         self.client = client
     }

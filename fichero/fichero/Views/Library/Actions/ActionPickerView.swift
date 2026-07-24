@@ -338,6 +338,8 @@ struct CompactActionRow: View {
 
 #Preview {
     ActionPickerView()
-        .environment(ActionStore(service: ActionsService(client: .localhost)))
+        .environment(ActionStore(service: ActionsService(
+            client: FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+        )))
         .frame(width: 300, height: 500)
 }

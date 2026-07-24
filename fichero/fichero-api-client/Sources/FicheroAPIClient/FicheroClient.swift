@@ -99,7 +99,7 @@ public final class FicheroClient: ObservableObject {
 
     /// Creates a new Fichero API client.
     /// - Parameters:
-    ///   - baseURL: The base URL of the Fichero backend (default: localhost:8765 over HTTPS)
+    ///   - baseURL: The base URL of the Fichero backend (defaults to local HTTPS for explicit callers).
     ///   - libraryPath: Optional library path header value
     ///   - session: Optional URL session override, used by callers that need
     ///     a custom transport such as certificate-pinned pairing probes.
@@ -191,11 +191,6 @@ public final class FicheroClient: ObservableObject {
         guard self.baseURL != baseURL else { return }
         self.baseURL = baseURL
         rebuildClient()
-    }
-
-    /// Default client pointing to localhost:8765
-    public static var localhost: FicheroClient {
-        FicheroClient()
     }
 
     /// Process-wide `HTTPClient` for the `.uds` transport, pinned to a **NIOPosix**

@@ -60,14 +60,18 @@ final class ConnectionErrorTests: XCTestCase {
         XCTAssertEqual(classified.kind, .tlsFailure)
     }
 
-    func testTimedOutClassifiesAsTimedOut() {
+    func testTimedOutClassifiesAsTimedOutAndRetryable() {
         let classified = ConnectionError.classify(URLError(.timedOut), transport: .https)
         XCTAssertEqual(classified.kind, .timedOut)
+        XCTAssertEqual(classified.failureClass, .retryable)
+        XCTAssertTrue(classified.isRetryable)
     }
 
-    func testURLErrorCancelledClassifiesAsCancelled() {
+    func testURLErrorCancelledClassifiesAsCancelledAndNotRetryable() {
         let classified = ConnectionError.classify(URLError(.cancelled), transport: .https)
         XCTAssertEqual(classified.kind, .cancelled)
+        XCTAssertEqual(classified.failureClass, .cancelled)
+        XCTAssertFalse(classified.isRetryable)
     }
 
     func testBareCancellationErrorClassifiesAsCancelled() {
@@ -83,10 +87,21 @@ final class ConnectionErrorTests: XCTestCase {
         XCTAssertEqual(classified.kind, .transportUnavailable)
     }
 
+    func testDecodingErrorClassifiesAsMalformedAndFatal() {
+        let classified = ConnectionError.classify(
+            DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "bad JSON")),
+            transport: .https
+        )
+        XCTAssertEqual(classified.kind, .malformedResponse)
+        XCTAssertEqual(classified.failureClass, .fatal)
+        XCTAssertFalse(classified.isRetryable)
+    }
+
     func testUnknownErrorClassifiesAsOther() {
         struct Weird: Error {}
         let classified = ConnectionError.classify(Weird(), transport: .https)
         XCTAssertEqual(classified.kind, .other)
+        XCTAssertEqual(classified.failureClass, .fatal)
     }
 
     func testAlreadyClassifiedIsReturnedUnchanged() {
@@ -95,6 +110,42 @@ final class ConnectionErrorTests: XCTestCase {
         // Untouched: same kind + operation, not re-wrapped under the new transport.
         XCTAssertEqual(reclassified.kind, .timedOut)
         XCTAssertEqual(reclassified.operationID, "op")
+    }
+
+    func testHTTP5xxClassifiesAsServerErrorAndRetryable() throws {
+        let classified = try XCTUnwrap(ConnectionError.httpStatus(
+            503,
+            transport: .https,
+            operationID: "list_documents",
+            endpointPath: "/api/documents"
+        ))
+        XCTAssertEqual(classified.kind, .serverError)
+        XCTAssertEqual(classified.failureClass, .retryable)
+        XCTAssertTrue(classified.isRetryable)
+        XCTAssertEqual((classified.underlying as? ConnectionError.HTTPStatusFailure)?.statusCode, 503)
+    }
+
+    func testHTTPAuthNotFoundAndMalformedAreFatal() throws {
+        let unauthorized = try XCTUnwrap(ConnectionError.httpStatus(401, transport: .https))
+        XCTAssertEqual(unauthorized.kind, .unauthorized)
+        XCTAssertEqual(unauthorized.failureClass, .fatal)
+
+        let forbidden = try XCTUnwrap(ConnectionError.httpStatus(403, transport: .https))
+        XCTAssertEqual(forbidden.kind, .unauthorized)
+        XCTAssertEqual(forbidden.failureClass, .fatal)
+
+        let notFound = try XCTUnwrap(ConnectionError.httpStatus(404, transport: .https))
+        XCTAssertEqual(notFound.kind, .notFound)
+        XCTAssertEqual(notFound.failureClass, .fatal)
+
+        let badRequest = try XCTUnwrap(ConnectionError.httpStatus(400, transport: .https))
+        XCTAssertEqual(badRequest.kind, .malformedResponse)
+        XCTAssertEqual(badRequest.failureClass, .fatal)
+    }
+
+    func testHTTPSuccessAndRedirectDoNotCreateConnectionError() {
+        XCTAssertNil(ConnectionError.httpStatus(200, transport: .https))
+        XCTAssertNil(ConnectionError.httpStatus(302, transport: .https))
     }
 
     // MARK: - description

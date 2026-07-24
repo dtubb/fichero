@@ -42,10 +42,42 @@ public struct ConnectionError: Error, CustomStringConvertible {
         /// The transport itself couldn't be established or used (e.g. an
         /// unassemblable request target, or the in-process engine failing to boot).
         case transportUnavailable
-        /// Response decoding failed (`DecodingError`).
+        /// The endpoint returned a retryable 5xx server failure.
+        case serverError
+        /// The response or request shape was malformed (bad 4xx request,
+        /// malformed response body, or `DecodingError`).
+        case malformedResponse
+        /// Response decoding failed (`DecodingError`). Kept for source
+        /// compatibility; new classification uses ``malformedResponse``.
         case decoding
         /// Anything not matched above; inspect ``underlying``.
         case other
+    }
+
+    /// Coarse failure policy for retry loops and UI messaging.
+    public enum FailureClass: String, Sendable, Equatable {
+        /// The operation may succeed on a later attempt (network, timeout,
+        /// transport unavailable, or HTTP 5xx).
+        case retryable
+        /// The operation was cancelled by caller/task teardown; not a fault and
+        /// not a retry signal.
+        case cancelled
+        /// Retrying the same request without a state/configuration change should
+        /// not help (auth, 404, TLS/pinning, malformed payloads, unknown errors).
+        case fatal
+    }
+
+    /// Synthetic underlying error for classified HTTP status failures.
+    public struct HTTPStatusFailure: Error, CustomStringConvertible, Sendable, Equatable {
+        public let statusCode: Int
+        public let endpointPath: String?
+
+        public var description: String {
+            if let endpointPath {
+                return "HTTP \(statusCode) from \(endpointPath)"
+            }
+            return "HTTP \(statusCode)"
+        }
     }
 
     /// Which transport the failed call dialed with.
@@ -58,6 +90,22 @@ public struct ConnectionError: Error, CustomStringConvertible {
     public let kind: Kind
     /// The original error, preserved verbatim for deep debugging.
     public let underlying: any Error
+
+    /// Whether callers should retry this failure, treat it as benign
+    /// cancellation, or surface it as fatal.
+    public var failureClass: FailureClass {
+        switch kind {
+        case .connectionRefused, .timedOut, .transportUnavailable, .serverError:
+            return .retryable
+        case .cancelled:
+            return .cancelled
+        case .tlsFailure, .notFound, .unauthorized, .malformedResponse, .decoding, .other:
+            return .fatal
+        }
+    }
+
+    /// Convenience boolean for retry loops at the API-client boundary.
+    public var isRetryable: Bool { failureClass == .retryable }
 
     /// Creates a classified connection error. Prefer
     /// ``classify(_:transport:operationID:)`` over calling this directly.
@@ -84,7 +132,7 @@ public struct ConnectionError: Error, CustomStringConvertible {
     ///   `path`, then classifying its `underlyingError`,
     /// - `URLError` — mapping the transport code to a ``Kind``,
     /// - `CancellationError` / any cancellation-shaped error → ``Kind/cancelled``,
-    /// - `DecodingError` → ``Kind/decoding``,
+    /// - `DecodingError` → ``Kind/malformedResponse``,
     /// - `FicheroStreamingError` → ``Kind/transportUnavailable``.
     ///
     /// - Parameters:
@@ -124,6 +172,43 @@ public struct ConnectionError: Error, CustomStringConvertible {
         )
     }
 
+    /// Classify an HTTP response status at the API-client boundary.
+    ///
+    /// HTTP 5xx is retryable server-side/transient failure. Auth failures, 404,
+    /// and malformed 4xx requests are fatal for the same request.
+    public static func classifyHTTPStatus(_ statusCode: Int) -> Kind? {
+        switch statusCode {
+        case 500...599:
+            return .serverError
+        case 401, 403:
+            return .unauthorized
+        case 404:
+            return .notFound
+        case 400...499:
+            return .malformedResponse
+        default:
+            return nil
+        }
+    }
+
+    /// Build a classified HTTP status failure while preserving the status as the
+    /// underlying error for diagnostics.
+    public static func httpStatus(
+        _ statusCode: Int,
+        transport: TransportMode,
+        operationID: String? = nil,
+        endpointPath: String? = nil
+    ) -> ConnectionError? {
+        guard let kind = classifyHTTPStatus(statusCode) else { return nil }
+        return ConnectionError(
+            transport: transport,
+            operationID: operationID,
+            endpointPath: endpointPath,
+            kind: kind,
+            underlying: HTTPStatusFailure(statusCode: statusCode, endpointPath: endpointPath)
+        )
+    }
+
     /// Map a leaf error to a ``Kind``. Unwraps a nested `ClientError` first, so
     /// callers that hand us either layer get the same answer.
     private static func classifyKind(_ error: any Error) -> Kind {
@@ -144,7 +229,7 @@ public struct ConnectionError: Error, CustomStringConvertible {
         }
 
         if error is DecodingError {
-            return .decoding
+            return .malformedResponse
         }
 
         if let urlError = error as? URLError {
@@ -230,6 +315,8 @@ private extension ConnectionError.Kind {
         case .notFound: return "not found"
         case .unauthorized: return "unauthorized"
         case .transportUnavailable: return "transport unavailable"
+        case .serverError: return "server error"
+        case .malformedResponse: return "malformed response"
         case .decoding: return "decoding failure"
         case .other: return "error"
         }
