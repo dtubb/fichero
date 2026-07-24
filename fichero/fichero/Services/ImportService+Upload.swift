@@ -30,4 +30,27 @@ extension ImportService {
             body: makeImportUploadBody(data: data, filename: filename)
         )
     }
+
+    /// Build the error thrown when EVERY file in a batch import failed —
+    /// surfacing the per-file reasons, not one opaque "All imports failed"
+    /// (#4068, prefer-raise-over-silent-fallback). The per-file descriptions
+    /// ride in `NSLocalizedRecoverySuggestionErrorKey` (the alert's
+    /// informative text) and the first underlying error in
+    /// `NSUnderlyingErrorKey`, so the user can see WHICH files failed and WHY.
+    /// Exposed static so a test can verify the shape without a live network.
+    static func makeAllImportsFailedError(errors: [ImportError]) -> Error {
+        let details = errors.map { error in
+            "• \(error.url.lastPathComponent): \(error.error.localizedDescription)"
+        }.joined(separator: "\n")
+        return NSError(
+            domain: "ImportService",
+            code: -1,
+            userInfo: [
+                NSLocalizedDescriptionKey: "All \(errors.count) import(s) failed",
+                NSLocalizedRecoverySuggestionErrorKey: details,
+                NSUnderlyingErrorKey: errors.first?.error
+                    ?? NSError(domain: "ImportService", code: -1),
+            ]
+        )
+    }
 }

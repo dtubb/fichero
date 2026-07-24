@@ -116,13 +116,13 @@ class ImportService {
             lastError = errors.first
             logger.warning("Import completed with \(errors.count) errors")
             if imported.isEmpty {
+                // Surface EVERY per-file failure, not one opaque "All imports
+                // failed" — the previous blanket NSError discarded the
+                // collected `errors` and left the user with no idea which files
+                // failed or why (#4068, prefer-raise-over-silent-fallback).
                 throw ImportError(
                     url: urls.first ?? URL(fileURLWithPath: ""),
-                    error: NSError(
-                        domain: "ImportService",
-                        code: -1,
-                        userInfo: [NSLocalizedDescriptionKey: "All imports failed"]
-                    )
+                    error: Self.makeAllImportsFailedError(errors: errors)
                 )
             }
         }
@@ -148,6 +148,9 @@ class ImportService {
 
         let doc: Components.Schemas.Document
         if mode == .copy {
+            // .copy: the app reads the file data and uploads it via multipart —
+            // the engine never reads `url.path`, so no engine security-scoped
+            // grant is needed (the app-side startAccessing above is enough).
             let fileData = try Data(contentsOf: url)
             let response = try await client.api.importFileApiDocumentsImportPost(
                 Self.makeImportUploadInput(
@@ -166,31 +169,54 @@ class ImportService {
                 throw ImportServiceError.unexpectedResponse(statusCode)
             }
         } else {
-            let response = try await client.api.ingestFileApiIngestFilePost(
-                body: .json(.init(
-                    path: url.path,
-                    parentId: parentId,
-                    copyMode: mode == .copy,
-                    // Send the explicit ingest mode so .move is honoured instead of
-                    // silently resolving to link (#3270 — data-loss: original never
-                    // moved, library links to a file the user then deletes). Mapped
-                    // by CASE to the generated lowercase enum, NOT `rawValue` (which
-                    // is uppercase "MOVE" and would 422 the backend's
-                    // Literal["link","copy","move"], the #3288 trap).
-                    mode: mode == .copy ? .copy : (mode == .move ? .move : .link),
-                    extractText: extractText,
-                    autoEmbed: autoEmbed
-                ))
+            // .link / .move: the engine reads (and for .move, deletes) the file
+            // at `url.path`. The sandboxed engine (App Store build) cannot read
+            // a path the Powerbox granted to the APP — that grant is
+            // process-local and not inherited by the child engine. Mint a
+            // security-scoped bookmark for the file's PARENT directory and hand
+            // it to the running engine BEFORE the ingest call, mirroring the
+            // folder seam (`grantThenEngineWork` / `saveBookmarkIfDirectory`,
+            // #3773). Without it a single-file image drag from Finder errors
+            // "All imports failed" in the sandboxed release build (#4068). For
+            // .move the parent grant also authorises the delete (move = copy +
+            // unlink, the unlink needs write access to the parent).
+            //
+            // `saveBookmarkIfDirectory` is a no-op for paths the engine can
+            // already reach (non-sandboxed DMG build, transient temp paths the
+            // app owns) and throws when a live grant is refused — the caller
+            // surfaces the failure rather than letting the ingest race the
+            // grant and fail with an inscrutable permission error.
+            let parent = url.deletingLastPathComponent()
+            return try await FolderAccessManager.grantThenEngineWork(
+                grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(parent) },
+                engineWork: {
+                    let response = try await self.client.api.ingestFileApiIngestFilePost(
+                        body: .json(.init(
+                            path: url.path,
+                            parentId: parentId,
+                            copyMode: mode == .copy,
+                            // Send the explicit ingest mode so .move is honoured instead of
+                            // silently resolving to link (#3270 — data-loss: original never
+                            // moved, library links to a file the user then deletes). Mapped
+                            // by CASE to the generated lowercase enum, NOT `rawValue` (which
+                            // is uppercase "MOVE" and would 422 the backend's
+                            // Literal["link","copy","move"], the #3288 trap).
+                            mode: mode == .copy ? .copy : (mode == .move ? .move : .link),
+                            extractText: extractText,
+                            autoEmbed: autoEmbed
+                        ))
+                    )
+                    switch response {
+                    case .ok(let okResponse):
+                        return try self.convertToDocument(try okResponse.body.json)
+                    case .unprocessableContent(let error):
+                        let detail = try? error.body.json
+                        throw ImportServiceError.serverError(detail?.detail?.description ?? "Validation error")
+                    case .undocumented(let statusCode, _):
+                        throw ImportServiceError.unexpectedResponse(statusCode)
+                    }
+                }
             )
-            switch response {
-            case .ok(let okResponse):
-                doc = try okResponse.body.json
-            case .unprocessableContent(let error):
-                let detail = try? error.body.json
-                throw ImportServiceError.serverError(detail?.detail?.description ?? "Validation error")
-            case .undocumented(let statusCode, _):
-                throw ImportServiceError.unexpectedResponse(statusCode)
-            }
         }
         return try convertToDocument(doc)
     }

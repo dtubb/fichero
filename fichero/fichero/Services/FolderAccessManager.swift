@@ -126,20 +126,20 @@ class FolderAccessManager {
         return String(data: data, encoding: .utf8)
     }
 
-    /// Mint + persist a security-scoped bookmark for `url` and register it in
-    /// `accessedFolders`. Returns the bookmark data (to hand to the engine), or nil
-    /// when the path is transient or minting failed. Does NOT contact the engine —
-    /// callers choose sync fire-and-forget (`saveBookmark`) or awaited
-    /// (`saveBookmarkIfDirectory`) handoff.
-    private func mintAndStoreBookmark(for url: URL) -> Data? {
-        // Never bookmark transient temp paths — they're cleaned up after ingest
-        // and will always fail to resolve on next launch, producing noisy errors.
-        guard !url.path.contains("/fichero-drop-"),
-              !url.path.hasPrefix("/var/folders/"),
-              !url.path.hasPrefix("/tmp/") else {
-            logger.debug("Skipping bookmark for transient path: \(url.path)")
-            return nil
-        }
+    /// Mint a security-scoped bookmark for `url` and, unless it's a transient
+    /// path, persist it to UserDefaults + register it in `accessedFolders`.
+    /// Always returns the bookmark data (when minting succeeds) so the caller
+    /// can hand it to the RUNNING engine — transient folders the app created
+    /// via `loadFileRepresentation` (`/fichero-drop-UUID`, `/var/folders/…`)
+    /// still need the engine to read them for the ONE ingest in flight, so we
+    /// mint + grant even for transient paths and only skip PERSISTING them
+    /// (a stored bookmark for a path that's deleted after ingest would fail to
+    /// resolve on next launch and spam the log, #4068). Minting a
+    /// `.withSecurityScope` bookmark for a non-security-scoped path throws and
+    /// is caught → nil → no grant, which is the correct fallback for paths the
+    /// engine can already reach (same-sandbox temp it inherits from the app).
+    private func mintBookmark(for url: URL) -> Data? {
+        let transient = isTransientPath(url)
         do {
             // Start accessing to create bookmark
             _ = url.startAccessingSecurityScopedResource()
@@ -150,23 +150,37 @@ class FolderAccessManager {
                 relativeTo: nil
             )
 
-            // Save to UserDefaults
-            var bookmarks = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
-            bookmarks[url.path] = bookmarkData
-            UserDefaults.standard.set(bookmarks, forKey: bookmarksKey)
+            if transient {
+                logger.debug("Minted transient bookmark (not persisted) for live engine grant: \(url.path)")
+            } else {
+                // Save to UserDefaults
+                var bookmarks = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
+                bookmarks[url.path] = bookmarkData
+                UserDefaults.standard.set(bookmarks, forKey: bookmarksKey)
 
-            // Add to accessed folders
-            if !accessedFolders.contains(url) {
-                accessedFolders.append(url)
+                // Add to accessed folders
+                if !accessedFolders.contains(url) {
+                    accessedFolders.append(url)
+                }
+                logger.info("Saved bookmark for: \(url.path)")
             }
-
-            logger.info("Saved bookmark for: \(url.path)")
             // Don't stop accessing - we need it throughout the app session
             return bookmarkData
         } catch {
-            logger.error("Failed to save bookmark: \(error.localizedDescription)")
+            logger.error("Failed to mint bookmark for \(url.path): \(error.localizedDescription)")
             return nil
         }
+    }
+
+    /// Transient paths are short-lived temp dirs created by the drag-drop
+    /// `loadFileRepresentation` path (`/fichero-drop-UUID`) or the system temp
+    /// containers (`/var/folders/`, `/tmp/`). They must NOT be persisted as
+    /// bookmarks (deleted after ingest → stale on next launch) but CAN be
+    /// granted to the live engine for the one ingest in flight (#4068).
+    private func isTransientPath(_ url: URL) -> Bool {
+        url.path.contains("/fichero-drop-")
+            || url.path.hasPrefix("/var/folders/")
+            || url.path.hasPrefix("/tmp/")
     }
 
     /// Save a security-scoped bookmark, handing it to the RUNNING engine
@@ -179,7 +193,7 @@ class FolderAccessManager {
     /// Callers that DO read the path through the engine right after (folder import,
     /// opening a package) must use `saveBookmarkIfDirectory`, which AWAITS the grant.
     func saveBookmark(for url: URL) {
-        guard let bookmarkData = mintAndStoreBookmark(for: url) else { return }
+        guard let bookmarkData = mintBookmark(for: url) else { return }
         handOffToEngine(path: url.path, bookmark: bookmarkData)
     }
 
@@ -245,7 +259,11 @@ class FolderAccessManager {
         guard exists, isDirectory.boolValue else {
             return
         }
-        guard let bookmarkData = mintAndStoreBookmark(for: url) else { return }
+        // Mint + grant even for transient paths (live grant only, no persist)
+        // so the engine can read a `fichero-drop-UUID` folder for the one ingest
+        // in flight (#4068). Returns nil when minting isn't possible — the
+        // engine either inherits same-sandbox access or the grant is a no-op.
+        guard let bookmarkData = mintBookmark(for: url) else { return }
         try await grantEngineAccess(path: url.path, bookmark: bookmarkData)
     }
 

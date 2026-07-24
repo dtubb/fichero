@@ -62,4 +62,32 @@ struct ImportServiceTests {
         #expect(request.extractText == true)
         #expect(request.autoEmbed == false)
     }
+
+    @Test("all-imports-failed error surfaces per-file names and reasons, not a blanket message (#4068)")
+    func allImportsFailedErrorSurfacesPerFileFailures() throws {
+        let errors = [
+            ImportError(
+                url: URL(fileURLWithPath: "/Photos/a.jpg"),
+                error: NSError(domain: "Ingest", code: 1, userInfo: [NSLocalizedDescriptionKey: "permission denied"])
+            ),
+            ImportError(
+                url: URL(fileURLWithPath: "/Photos/b.jpg"),
+                error: NSError(domain: "Ingest", code: 2, userInfo: [NSLocalizedDescriptionKey: "unsupported type"])
+            ),
+        ]
+        let nsError = try #require(ImportService.makeAllImportsFailedError(errors: errors) as? NSError)
+
+        // Top-level description summarises the count, NOT a blanket "All imports failed".
+        #expect(nsError.localizedDescription.contains("2"))
+        // The recovery suggestion carries EVERY per-file name + reason so the
+        // user can see which files failed and why.
+        let suggestion = try #require(nsError.userInfo[NSLocalizedRecoverySuggestionErrorKey] as? String)
+        #expect(suggestion.contains("a.jpg"))
+        #expect(suggestion.contains("permission denied"))
+        #expect(suggestion.contains("b.jpg"))
+        #expect(suggestion.contains("unsupported type"))
+        // The first underlying error is attached for callers that walk the chain.
+        let underlying = try #require(nsError.userInfo[NSUnderlyingErrorKey] as? NSError)
+        #expect(underlying.localizedDescription.contains("permission denied"))
+    }
 }
