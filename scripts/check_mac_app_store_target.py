@@ -90,17 +90,27 @@ def main() -> int:
     mas, dmg = found[MAS_TARGET], found[DMG_TARGET]
 
     # Both macOS channels copy the Briefcase bundle during their Xcode build.
-    # Precompile only after that copy: running Briefcase update afterwards replaces
-    # the bundle and silently discards its .pyc files.
+    # Xcode must refresh that Briefcase input first: the embed phase is a plain
+    # copy, and `briefcase build` does not re-copy Python source unless the
+    # update step has run. Without this preflight, a direct Xcode build can ship
+    # the newest Swift app with an hours-old engine bundle (#3956).
     for target in (mas, dmg):
         embed_phase = phase_named(objects, target, "Embed Fichero Engine")
         if embed_phase is None:
             fail(f"{target['name']} has no 'Embed Fichero Engine' phase")
             continue
         embed_script = shell_of(embed_phase)
+        preflight_at = embed_script.find("preflight-embedded-engine.sh")
         copy_at = embed_script.find('cp -R "$ENGINE_SRC" "$ENGINE_DST"')
         cleanup_at = embed_script.find("clean-embedded-engine.sh")
-        if copy_at < 0 or cleanup_at < copy_at:
+        if copy_at < 0:
+            fail(f"{target['name']} must copy the Briefcase engine into the app bundle")
+        if preflight_at < 0 or copy_at < preflight_at:
+            fail(
+                f"{target['name']} must run preflight-embedded-engine.sh before copying the engine. "
+                "The preflight rebuilds or fails when the staged Briefcase bundle is stale (#3956)."
+            )
+        if cleanup_at < copy_at:
             fail(
                 f"{target['name']} must precompile the copied engine after `cp -R` and before signing. "
                 "Briefcase updates replace earlier .pyc files."

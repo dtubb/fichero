@@ -59,10 +59,7 @@ def test_engine_entitlements_have_no_get_task_allow() -> None:
     assert "com.apple.security.get-task-allow" not in keys
 
 
-def test_embed_phase_asserts_no_get_task_allow() -> None:
-    """The MAS 'Embed Fichero Engine' build phase must reject get-task-allow on
-    the signed engine (#3952). The build-time codesign never injects it, but the
-    assertion is the backstop that proves the two-key set landed on the bytes."""
+def _embed_phase_script(target_name: str) -> str:
     body = subprocess.run(
         ["plutil", "-convert", "json", "-o", "-",
          str(REPO_ROOT / "fichero" / "fichero.xcodeproj" / "project.pbxproj")],
@@ -71,24 +68,44 @@ def test_embed_phase_asserts_no_get_task_allow() -> None:
     ).stdout
     import json
     objects = json.loads(body)["objects"]
-    mas = next(
+    target = next(
         t for t in objects.values()
-        if t.get("isa") == "PBXNativeTarget" and t.get("name") == "Fichero (App Store)"
+        if t.get("isa") == "PBXNativeTarget" and t.get("name") == target_name
     )
     embed = None
-    for p in mas["buildPhases"]:
+    for p in target["buildPhases"]:
         if objects[p].get("name") == "Embed Fichero Engine":
             embed = objects[p]
             break
-    assert embed is not None, "no 'Embed Fichero Engine' phase on the MAS target"
+    assert embed is not None, f"no 'Embed Fichero Engine' phase on the {target_name} target"
     script = embed.get("shellScript", "")
-    script = "\n".join(script) if isinstance(script, list) else script
+    return "\n".join(script) if isinstance(script, list) else script
+
+
+def test_embed_phase_asserts_no_get_task_allow() -> None:
+    """The MAS 'Embed Fichero Engine' build phase must reject get-task-allow on
+    the signed engine (#3952). The build-time codesign never injects it, but the
+    assertion is the backstop that proves the two-key set landed on the bytes."""
+    script = _embed_phase_script("Fichero (App Store)")
     assert "com.apple.security.get-task-allow" in script, (
         "the embed phase must assert the signed engine does NOT carry get-task-allow (#3952)"
     )
     # It must be a rejection (error + exit 1), not a comment mentioning the key.
     assert "get-task-allow" in script
     assert "exit 1" in script
+
+
+def test_embed_phases_preflight_briefcase_bundle_before_copying() -> None:
+    """Direct Xcode embedded builds must refresh/fail the Briefcase input before
+    copying it. Otherwise the newest Swift app can ship an hours-old Python
+    engine while source-level tests stay green (#3956)."""
+    for target_name in ("Fichero", "Fichero (App Store)"):
+        script = _embed_phase_script(target_name)
+        preflight_at = script.find("preflight-embedded-engine.sh")
+        copy_at = script.find('cp -R "$ENGINE_SRC" "$ENGINE_DST"')
+        assert preflight_at != -1, f"{target_name} embed phase must run preflight-embedded-engine.sh"
+        assert copy_at != -1, f"{target_name} embed phase must copy the Briefcase engine"
+        assert preflight_at < copy_at, f"{target_name} must preflight before copying the engine"
 
 
 def test_resign_engine_script_rejects_get_task_allow() -> None:
