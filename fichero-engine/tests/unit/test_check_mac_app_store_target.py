@@ -34,6 +34,7 @@ VALIDATE_MAS = SCRIPTS_DIR / "validate_mas_bundle.sh"
 RESIGN_ENGINE = SCRIPTS_DIR / "resign_engine_in_archive.sh"
 RELEASE_ALL = SCRIPTS_DIR / "release-all.sh"
 ENGINE_ENTITLEMENTS = REPO_ROOT / "fichero" / "fichero" / "FicheroEngineAppStore.entitlements"
+ENGINE_EMBED_INPUTS = REPO_ROOT / "fichero" / "fichero.xcodeproj" / "xcshareddata" / "FicheroEngineEmbedInputs.xcfilelist"
 
 
 def test_guardrail_passes_on_current_repo() -> None:
@@ -59,7 +60,7 @@ def test_engine_entitlements_have_no_get_task_allow() -> None:
     assert "com.apple.security.get-task-allow" not in keys
 
 
-def _embed_phase_script(target_name: str) -> str:
+def _embed_phase(target_name: str) -> dict:
     body = subprocess.run(
         ["plutil", "-convert", "json", "-o", "-",
          str(REPO_ROOT / "fichero" / "fichero.xcodeproj" / "project.pbxproj")],
@@ -78,7 +79,11 @@ def _embed_phase_script(target_name: str) -> str:
             embed = objects[p]
             break
     assert embed is not None, f"no 'Embed Fichero Engine' phase on the {target_name} target"
-    script = embed.get("shellScript", "")
+    return embed
+
+
+def _embed_phase_script(target_name: str) -> str:
+    script = _embed_phase(target_name).get("shellScript", "")
     return "\n".join(script) if isinstance(script, list) else script
 
 
@@ -106,6 +111,54 @@ def test_embed_phases_preflight_briefcase_bundle_before_copying() -> None:
         assert preflight_at != -1, f"{target_name} embed phase must run preflight-embedded-engine.sh"
         assert copy_at != -1, f"{target_name} embed phase must copy the Briefcase engine"
         assert preflight_at < copy_at, f"{target_name} must preflight before copying the engine"
+
+
+def test_embed_phases_are_dependency_aware_not_always_out_of_date() -> None:
+    """Both engine embed phases must give Xcode conservative dependencies so
+    unchanged builds do not rerun the expensive copy/signing phase (#3991)."""
+    input_file_list = "$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
+    staged_engine_input = "$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app"
+    expected_outputs = {
+        "Fichero": "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app",
+        "Fichero (App Store)": "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app",
+    }
+    for target_name, expected_output in expected_outputs.items():
+        phase = _embed_phase(target_name)
+        assert str(phase.get("alwaysOutOfDate", "0")) != "1", (
+            f"{target_name} Embed Fichero Engine must not set alwaysOutOfDate=1 (#3991)"
+        )
+        assert input_file_list in set(phase.get("inputFileListPaths", [])), (
+            f"{target_name} Embed Fichero Engine must declare the engine source xcfilelist (#3991)"
+        )
+        assert staged_engine_input in set(phase.get("inputPaths", [])), (
+            f"{target_name} Embed Fichero Engine must declare the staged Briefcase app input (#3991)"
+        )
+        assert expected_output in set(phase.get("outputPaths", [])), (
+            f"{target_name} Embed Fichero Engine must declare its copied app output (#3991)"
+        )
+    assert "$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements" in set(
+        _embed_phase("Fichero (App Store)").get("inputPaths", [])
+    )
+
+
+def test_engine_embed_input_file_list_tracks_source_and_preflight_files() -> None:
+    """The Xcode file list must include source-level engine dependencies plus the
+    scripts that can change the copied bundle (#3991/#3956)."""
+    assert ENGINE_EMBED_INPUTS.is_file(), f"missing: {ENGINE_EMBED_INPUTS}"
+    entries = {
+        line.strip()
+        for line in ENGINE_EMBED_INPUTS.read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    required_entries = {
+        "$(SRCROOT)/../fichero-engine/pyproject.toml",
+        "$(SRCROOT)/../scripts/clean-embedded-engine.sh",
+        "$(SRCROOT)/../scripts/preflight-embedded-engine.sh",
+        "$(SRCROOT)/../fichero-engine/src/fichero/api/main.py",
+        "$(SRCROOT)/../fichero-engine/src/fichero/resources/bin/.gitignore",
+    }
+    assert required_entries <= entries
+    assert any(entry.startswith("$(SRCROOT)/../fichero-engine/src/fichero/") for entry in entries)
 
 
 def test_resign_engine_script_rejects_get_task_allow() -> None:

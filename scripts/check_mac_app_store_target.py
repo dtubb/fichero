@@ -26,6 +26,7 @@ REPO = Path(__file__).resolve().parent.parent
 PROJ = REPO / "fichero/fichero.xcodeproj/project.pbxproj"
 SCHEME = REPO / "fichero/fichero.xcodeproj/xcshareddata/xcschemes/Fichero (App Store).xcscheme"
 ENGINE_ENTITLEMENTS = REPO / "fichero/fichero/FicheroEngineAppStore.entitlements"
+ENGINE_EMBED_INPUTS = REPO / "fichero/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
 
 MAS_TARGET = "Fichero (App Store)"
 DMG_TARGET = "Fichero"
@@ -116,6 +117,29 @@ def main() -> int:
                 "Briefcase updates replace earlier .pyc files."
             )
 
+        if str(embed_phase.get("alwaysOutOfDate", "0")) == "1":
+            fail(
+                f"{target['name']} Embed Fichero Engine must not set alwaysOutOfDate=1. "
+                "Use conservative input/output metadata so Xcode can skip unchanged engine embeds (#3991)."
+            )
+        input_paths = set(embed_phase.get("inputPaths", []))
+        input_file_lists = set(embed_phase.get("inputFileListPaths", []))
+        output_paths = set(embed_phase.get("outputPaths", []))
+        input_list = "$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
+        if input_list not in input_file_lists:
+            fail(f"{target['name']} Embed Fichero Engine must use {input_list!r} as an inputFileListPath")
+        if "$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app" not in input_paths:
+            fail(f"{target['name']} Embed Fichero Engine must list the staged Briefcase app as an inputPath")
+        expected_output = (
+            "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app"
+            if target["name"] == MAS_TARGET
+            else "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app"
+        )
+        if expected_output not in output_paths:
+            fail(f"{target['name']} Embed Fichero Engine is missing outputPath {expected_output!r}")
+        if target["name"] == MAS_TARGET and "$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements" not in input_paths:
+            fail("the MAS Embed Fichero Engine phase must list FicheroEngineAppStore.entitlements as an input")
+
     # 1. Sparkle: absent from MAS at the LINK level, present in the DMG.
     # A #if does not help — a linked framework still ships, and the reviewer sees it.
     if any(p == "Sparkle" for p in spm_products(objects, mas)):
@@ -175,6 +199,30 @@ def main() -> int:
             )
     else:
         fail(f"{ENGINE_ENTITLEMENTS.name} is missing — the nested engine would ship unsandboxed (ITMS-90296)")
+
+    if ENGINE_EMBED_INPUTS.is_file():
+        entries = {
+            line.strip()
+            for line in ENGINE_EMBED_INPUTS.read_text().splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+        required_file_list_entries = {
+            "$(SRCROOT)/../fichero-engine/pyproject.toml",
+            "$(SRCROOT)/../scripts/clean-embedded-engine.sh",
+            "$(SRCROOT)/../scripts/preflight-embedded-engine.sh",
+            "$(SRCROOT)/../fichero-engine/src/fichero/api/main.py",
+            "$(SRCROOT)/../fichero-engine/src/fichero/resources/bin/.gitignore",
+        }
+        missing_entries = sorted(required_file_list_entries - entries)
+        if missing_entries:
+            fail(
+                f"{ENGINE_EMBED_INPUTS.name} is missing conservative engine inputs: "
+                + ", ".join(missing_entries)
+            )
+        if not any(entry.startswith("$(SRCROOT)/../fichero-engine/src/fichero/") for entry in entries):
+            fail(f"{ENGINE_EMBED_INPUTS.name} must list engine source files, not just scripts")
+    else:
+        fail(f"{ENGINE_EMBED_INPUTS.name} is missing — Xcode cannot track engine source dependencies (#3991)")
 
     # 4. The engine embed phase: Helpers (a designated code location), signed with the
     #    two-key entitlements, and never --deep (which re-signs nested code with the

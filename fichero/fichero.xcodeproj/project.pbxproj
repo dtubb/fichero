@@ -353,8 +353,16 @@
 		};
 		CC0011223344556677889903 /* Embed Fichero Engine */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
+			inputFileListPaths = (
+				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
+			);
+			inputPaths = (
+				"$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app",
+			);
 			name = "Embed Fichero Engine";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app",
+			);
 			shellPath = /bin/sh;
 			shellScript = (
 				"# Embed the briefcase-built engine into Fichero.app/Contents/Resources/.",
@@ -457,8 +465,17 @@
 		};
 		FEED00000000000000000256 /* Embed Fichero Engine */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
+			inputFileListPaths = (
+				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
+			);
+			inputPaths = (
+				"$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app",
+				"$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements",
+			);
 			name = "Embed Fichero Engine";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app",
+			);
 			shellPath = /bin/sh;
 			shellScript = (
 				"# Embed the briefcase-built engine into the App Store app bundle — SANDBOXED.",
