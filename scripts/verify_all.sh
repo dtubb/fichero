@@ -4,7 +4,8 @@
 #   --fast      Swift lint + cheap guardrails + version-date + OpenAPI model sync
 #   --standard  fast + backend unit tests
 #   --full      standard + requested platform legs; defaults to both macOS and
-#               iPhone/iPad simulator legs when no platform flags are given
+#               the generic iOS Simulator compile gate when no platform flags
+#               are given
 #   VERIFY_ALL_MACOS=1 / VERIFY_ALL_IOS=1 can request platform legs without
 #   changing the tier.
 #
@@ -33,11 +34,11 @@ Tiers:
 
 Platforms:
   --macos     run only the macOS Xcode build/test leg
-  --ios       run only the iPhone/iPad simulator build legs (plus visionOS when supported)
+  --ios       run only the generic iOS Simulator compile gate
 
 Environment overrides:
   VERIFY_ALL_MACOS=1  request the macOS Xcode build/test leg
-  VERIFY_ALL_IOS=1    request the iPhone/iPad simulator build legs (plus visionOS when supported)
+  VERIFY_ALL_IOS=1    request the generic iOS Simulator compile gate
 
 Reporting:
   --json        always also writes a machine-readable failure report to
@@ -259,54 +260,8 @@ XCODE_PROJECT="fichero/fichero.xcodeproj"
 # the macOS and iOS build legs must target different schemes.
 XCODE_SCHEME_MACOS="Fichero (Dev Local)"
 XCODE_SCHEME_IOS="Fichero (Dev Local iOS)"
-VISION_SUPPORTED=0
-
-if rg -q 'SUPPORTED_PLATFORMS = ".*xros' "${XCODE_PROJECT}/project.pbxproj"; then
-  VISION_SUPPORTED=1
-fi
-
-simulator_udid() {
-  local idiom="$1"
-  SIMULATOR_IDIOM="$idiom" "${PYTHON_BIN}" - <<'PY'
-import json
-import os
-import subprocess
-import sys
-
-idiom = os.environ["SIMULATOR_IDIOM"]
-
-if idiom == "iphone":
-    runtime_tags = ("iOS",)
-    name_tags = ("iPhone",)
-elif idiom == "ipad":
-    runtime_tags = ("iOS",)
-    name_tags = ("iPad",)
-elif idiom == "vision":
-    runtime_tags = ("xrOS", "visionOS")
-    name_tags = ("Vision",)
-else:
-    raise SystemExit(f"unsupported simulator idiom: {idiom}")
-
-output = subprocess.check_output(
-    ["xcrun", "simctl", "list", "devices", "available", "--json"],
-    text=True,
-)
-devices_by_runtime = json.loads(output).get("devices", {})
-
-for runtime, devices in devices_by_runtime.items():
-    if not any(tag in runtime for tag in runtime_tags):
-        continue
-    for device in devices:
-        if not device.get("isAvailable"):
-            continue
-        name = device.get("name", "")
-        if any(tag in name for tag in name_tags):
-            print(device["udid"])
-            raise SystemExit(0)
-
-raise SystemExit(1)
-PY
-}
+IOS_SIMULATOR_DESTINATION="generic/platform=iOS Simulator"
+VERIFY_ALL_DERIVED_ROOT="${VERIFY_ALL_DERIVED_ROOT:-build/verify-all-derived}"
 
 run_xcode_build() {
   local label="$1"
@@ -423,49 +378,11 @@ run_platform_checks() {
   fi
 
   if [[ "$run_ios" -eq 1 ]]; then
-    local iphone_udid
-    local ipad_udid
-
-    iphone_udid="$(simulator_udid iphone)" || {
-      echo "FAIL xcodebuild iPhone Simulator build"
-      fail=1
-      FAILED_CHECKS+=("xcodebuild iPhone Simulator build")
-      record_failure "xcodebuild iPhone Simulator build" "" "simulator_udid iphone (no available iPhone simulator)"
-      return
-    }
-
-    ipad_udid="$(simulator_udid ipad)" || {
-      echo "FAIL xcodebuild iPad Simulator build"
-      fail=1
-      FAILED_CHECKS+=("xcodebuild iPad Simulator build")
-      record_failure "xcodebuild iPad Simulator build" "" "simulator_udid ipad (no available iPad simulator)"
-      return
-    }
-
-    run_xcode_build "xcodebuild iPhone Simulator build" \
+    run_xcode_build "xcodebuild iOS Simulator compile gate" \
       -project "${XCODE_PROJECT}" \
       -scheme "${XCODE_SCHEME_IOS}" \
-      -destination "id=${iphone_udid}"
-
-    run_xcode_build "xcodebuild iPad Simulator build" \
-      -project "${XCODE_PROJECT}" \
-      -scheme "${XCODE_SCHEME_IOS}" \
-      -destination "id=${ipad_udid}"
-
-    if [[ "${VISION_SUPPORTED}" -eq 1 ]]; then
-      local vision_udid
-      vision_udid="$(simulator_udid vision || true)"
-      if [[ -n "${vision_udid}" ]]; then
-        run_xcode_build "xcodebuild visionOS Simulator build" \
-          -project "${XCODE_PROJECT}" \
-          -scheme "${XCODE_SCHEME_IOS}" \
-          -destination "id=${vision_udid}"
-      else
-        skip_check "xcodebuild visionOS Simulator build" "no available visionOS simulator"
-      fi
-    else
-      skip_check "xcodebuild visionOS Simulator build" "project target does not support visionOS yet"
-    fi
+      -destination "${IOS_SIMULATOR_DESTINATION}" \
+      -derivedDataPath "${VERIFY_ALL_DERIVED_ROOT}/ios-simulator"
   fi
 }
 

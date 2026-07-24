@@ -192,9 +192,9 @@ One gate, tiered. Run from the repo root:
 
 - `bash scripts/verify_all.sh --fast` — swiftlint + ruff + `scripts/check_*.py` guardrails + version-date + OpenAPI model sync. Cheap; workers can run it.
 - `--standard` — fast + backend pytest unit tests.
-- `--full` — standard + platform legs (macOS Xcode build/test + the launch-stress UX tests; `--macos` / `--ios` to select). The manager owns `--full`.
+- `--full` — standard + platform legs (macOS Xcode build/test + the generic iOS Simulator compile gate; `--macos` / `--ios` to select). The manager owns `--full`.
 
-Backend pytest needs `PYTHONPATH=fichero-engine/src`; write-suites need their `FICHERO_RUN_*` flag. Parse the summary — merge only on **0 failed**. The macOS/UI leg needs a live window server (screen unlocked + `caffeinate -d`); a locked screen makes XCUITest time out.
+Backend pytest needs `PYTHONPATH=fichero-engine/src`; write-suites need their `FICHERO_RUN_*` flag. Parse the summary — merge only on **0 failed**. The macOS/UI leg needs a live window server (screen unlocked + `caffeinate -d`); a locked screen makes XCUITest time out. The iOS leg is compile-only and device-less: `bash scripts/verify_all.sh --standard --ios` uses `-destination 'generic/platform=iOS Simulator'` and isolated derived data under `build/verify-all-derived/ios-simulator`, so CI/manager gates iOS compilation without booting or naming a simulator.
 
 ## Releasing
 
