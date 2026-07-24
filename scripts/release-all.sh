@@ -10,6 +10,11 @@ set -euo pipefail
 #   scripts/release-all.sh [--skip-dmg] [--skip-notarize]
 #                          [--skip-testflight | --skip-mac-testflight | --skip-ios-testflight]
 #                          [--mac-only | --ios-only] [--github] [--draft]
+#                          [--dev | --tier <release|beta|alpha|dev>]
+# --dev / --tier build the requested feature tier (default: release). `--dev`
+# bakes ALL dev features into the archive (Dev Embedded mac config + dev
+# FICHERO_FEATURE_TIER on iOS) so internal TestFlight/DMG builds expose the
+# full alpha-grade surface, not just the stripped release features (#3365).
 #
 # See docs/contributor/release/release-lane.md for required certificates/profiles and the
 # repeatable DMG, Sparkle/GitHub, and Mac TestFlight release cycle.
@@ -46,7 +51,8 @@ DEV_IDENTITY="${FICHERO_DEV_IDENTITY:-Developer ID Application: DANIEL GAVIN LIV
 APP_BUNDLE_ID="${FICHERO_APP_BUNDLE_ID:-app.fichero.fichero}"
 
 # Keep archive schemes aligned with the feature-tier build map.
-source "$ROOT_DIR/scripts/tier_build_map.sh"
+# Sourced AFTER arg parsing below so --dev/--tier can set FICHERO_RELEASE_TIER
+# before tier_build_map.sh resolves (scheme, config) from it.
 
 project_setting() {
   local name="$1"
@@ -169,8 +175,8 @@ GITHUB_ARGS=()
 # fastlane/pilot). Opt-in because it needs a valid ASC API key.
 WAIT_FOR_PROCESSING=false
 
-for arg in "$@"; do
-  case "$arg" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     --skip-dmg) SKIP_DMG=true ;;
     --skip-notarize) SKIP_NOTARIZE=true ;;
     --skip-testflight)
@@ -185,16 +191,27 @@ for arg in "$@"; do
     --draft) GITHUB_ARGS+=("--draft") ;;
     --prerelease) GITHUB_ARGS+=("--prerelease") ;;
     --wait-for-processing) WAIT_FOR_PROCESSING=true ;;
+    --dev) FICHERO_RELEASE_TIER=dev ;;
+    --tier)
+      shift
+      FICHERO_RELEASE_TIER="${1:?--tier requires a value: release|beta|alpha|dev}"
+      ;;
+    --tier=*) FICHERO_RELEASE_TIER="${1#--tier=}" ;;
     --help|-h)
-      sed -n '2,15p' "$0"
+      sed -n '2,16p' "$0"
       exit 0
       ;;
     *)
-      echo "error: unknown argument: $arg" >&2
+      echo "error: unknown argument: $1" >&2
       exit 2
       ;;
   esac
+  shift
 done
+
+# Resolve the (scheme, configuration) build map from the selected feature tier.
+# Done after arg parsing so --dev/--tier above take effect.
+source "$ROOT_DIR/scripts/tier_build_map.sh"
 
 mkdir -p "$RELEASE_DIR"
 

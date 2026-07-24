@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# merge-integration-to-main.sh — fast-forward the `integration` lane into
+# `main` and push, as the pre-step before scripts/release-all.sh.
+#
+# release-all.sh builds from the MAIN checkout on `main`, but integration work
+# lands on the `integration` branch in its own worktree and release-all.sh never
+# merges it. Run THIS first so the release actually ships integration's work:
+#
+#   cd <main checkout>          # e.g. ~/code/fichero
+#   scripts/merge-integration-to-main.sh
+#   scripts/release-all.sh --github --dev
+#
+# Refuses anything that isn't a clean fast-forward — no merge commits. A
+# diverged `integration` means its worktree needs rebasing onto main first; fix
+# that in the integration worktree, not here.
+#
+# Usage:
+#   scripts/merge-integration-to-main.sh [--dry-run] [--source <branch>]
+#
+# --dry-run   resolve + verify but do not merge or push.
+# --source    branch to merge in (default: integration).
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+SOURCE_BRANCH="integration"
+DRY_RUN=false
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY_RUN=true ;;
+    --source) shift; SOURCE_BRANCH="${1:?--source requires a branch name}" ;;
+    --help|-h) sed -n '2,22p' "$0"; exit 0 ;;
+    *) echo "error: unknown argument: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$BRANCH" != "main" ]; then
+  echo "error: not on 'main' (on '$BRANCH'). Run from the main checkout:" >&2
+  echo "  cd $ROOT_DIR && git checkout main" >&2
+  exit 1
+fi
+
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "error: working tree dirty — commit or stash before merging." >&2
+  git status --short >&2
+  exit 1
+fi
+
+echo "── Fetch origin ──"
+git fetch origin --quiet
+
+if ! git show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
+  echo "error: branch '$SOURCE_BRANCH' not found locally." >&2
+  echo "  Its worktree must exist and be on $SOURCE_BRANCH." >&2
+  exit 1
+fi
+
+echo "── Verify $SOURCE_BRANCH is a clean fast-forward over main ──"
+if ! git merge-base --is-ancestor HEAD "$SOURCE_BRANCH"; then
+  echo "error: '$SOURCE_BRANCH' has diverged from main — not a fast-forward." >&2
+  echo "  Rebase $SOURCE_BRANCH onto main in its worktree first:" >&2
+  echo "    git -C <${SOURCE_BRANCH}-worktree> rebase main" >&2
+  exit 1
+fi
+
+AHEAD="$(git rev-list --count "HEAD..$SOURCE_BRANCH")"
+if [ "$AHEAD" -eq 0 ]; then
+  echo "main is already at $SOURCE_BRANCH ($(git rev-parse --short HEAD)) — nothing to merge."
+else
+  echo "  $SOURCE_BRANCH is $AHEAD commit(s) ahead of main:"
+  git log --oneline "HEAD..$SOURCE_BRANCH" | sed 's/^/    /'
+fi
+
+if [ "$DRY_RUN" = true ]; then
+  echo
+  echo "[DRY RUN] would: git merge --ff-only $SOURCE_BRANCH && git push origin main"
+  exit 0
+fi
+
+if [ "$AHEAD" -eq 0 ]; then
+  echo "Nothing to push."
+else
+  echo
+  echo "── Fast-forward main to $SOURCE_BRANCH ──"
+  git merge --ff-only "$SOURCE_BRANCH"
+  echo
+  echo "── Push main to origin ──"
+  git push origin main
+fi
+
+echo
+echo "✓ main is now at $(git rev-parse --short HEAD)."
+echo "  Next: scripts/release-all.sh --github --dev"
