@@ -49,11 +49,18 @@ final class SidebarLibraryBucketsTests: XCTestCase {
 
     /// Slice 0: workflow nodes/folders now render inside the library tree (they
     /// were bucketed but never rendered — only counted). The render is gated on
-    /// the workflows feature flag, consistent with the search/automation blocks.
+    /// the workflows feature flag, consistent with the search/automation blocks,
+    /// AND on the Global library (#4060 — Default Workflows is global-only).
     func testWorkflowItemsAreRenderedGatedOnFlag() throws {
         let source = try appSource("Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
-        XCTAssertTrue(source.contains("if FeatureManager.shared.isWorkflowsEnabled {"))
+        XCTAssertTrue(source.contains("FeatureManager.shared.isWorkflowsEnabled"))
         XCTAssertTrue(source.contains("unifiedRows(buckets.workflowItems, libraryId: libraryId)"))
+        // #4060: the gate must also check isGlobalLibrary so Default Workflows
+        // only renders under the Global library, not every individual library.
+        XCTAssertTrue(
+            source.contains("libraryId == LibraryManager.globalLibraryId"),
+            "workflowItems render must be gated on libraryId == globalLibraryId (#4060)"
+        )
     }
 
     private func appSource(_ relativePath: String) throws -> String {

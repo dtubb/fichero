@@ -160,7 +160,12 @@ extension SidebarView {
             unifiedRows(buckets.searchItems, libraryId: libraryId)
         }
 
-        if FeatureManager.shared.isWorkflowsEnabled {
+        // Default Workflows is a global-only destination, same as chains/
+        // schedules/ triggers above: the "Default Workflows" folder ships in
+        // every library's DB (each library is self-contained) but the sidebar
+        // only surfaces it under the Global library so it isn't duplicated
+        // across every individual library (#4060).
+        if FeatureManager.shared.isWorkflowsEnabled && libraryId == LibraryManager.globalLibraryId {
             unifiedRows(buckets.workflowItems, libraryId: libraryId)
         }
     }
