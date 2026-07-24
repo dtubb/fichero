@@ -135,6 +135,17 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         guard let host = URL(string: trimmed)?.host?.lowercased() else {
             return false
         }
+        // The in-process `.inMemory` transport dials the engine via PythonKit —
+        // the request never leaves the process, so it is inherently loopback and
+        // must authenticate with the bootstrap `.api-key` exactly like localhost
+        // / UDS. `FicheroClient.makeServerURL` pins its server URL to the
+        // placeholder host `asgi.local`; without this recognition every
+        // authenticated call through `FicheroClient(transportMode: .inMemory)`
+        // would attach no token (or a remote session token) and 401 — the
+        // in-memory harness couldn't drive authenticated endpoints. #4052.
+        if host == "asgi.local" {
+            return true
+        }
         return isLoopbackHostLiteral(host)
     }
 

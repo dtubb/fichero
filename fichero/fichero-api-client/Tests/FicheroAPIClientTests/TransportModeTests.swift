@@ -142,4 +142,21 @@ final class TransportModeTests: XCTestCase {
             )
         )
     }
+
+    #if os(macOS)
+    func testInMemoryHostPrefersBootstrapToken() {
+        // #4052: the in-process `.inMemory` transport uses the placeholder host
+        // `asgi.local` (see FicheroClient.makeServerURL). It is inherently
+        // loopback — the request never leaves the process — so the full
+        // `FicheroClient(transportMode: .inMemory)` path must attach the
+        // bootstrap token. Without this, every authenticated in-process call
+        // would 401 and the in-memory harness couldn't drive auth endpoints.
+        XCTAssertTrue(
+            AuthTokenMiddleware.prefersLocalhostEngineToken(
+                hostString: "http://asgi.local"
+            ),
+            "`.inMemory` (asgi.local) must prefer the bootstrap token like loopback"
+        )
+    }
+    #endif
 }
