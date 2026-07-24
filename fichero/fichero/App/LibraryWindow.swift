@@ -45,6 +45,10 @@ struct LibraryWindow: View {
     @SceneStorage("viewModeItemId") var sceneViewModeItemId: String?
 
     @Environment(\.openWindow) var openWindow
+    // #4064: the app-scoped retry entry point threaded down from the app root
+    // (see FicheroApp.libraryWindowRoot). The Retry/Quit modal reuses it so a
+    // mid-session drop never re-implements the connect sequence.
+    @Environment(\.engineRetry) private var engineRetry
 
     /// Seed handed to a window opened via `openWindow(value: WindowSeed)`
     /// (Duplicate Window, #2262). `nil` for the primary / File ▸ New Window
@@ -143,6 +147,34 @@ struct LibraryWindow: View {
         )) {
             FirstRunWindow()
                 .environment(appState)
+        }
+        // #4064: the supervised backend dropped AND auto-restart ran out — show a
+        // MODAL Retry/Quit over the live main GUI (the toolbar popover stays for
+        // the in-flight failure, but a mid-session drop that exhausted restarts
+        // needs a blocking decision, not a quiet toolbar item). Retry reuses the
+        // one `engineRetry` entry point; Quit is user-chosen terminate (only an
+        // app-chosen terminate is banned, #3042). Never shown in the release/
+        // embedded build's normal path — the spawn supervisor auto-restarts
+        // transparently before this flag ever flips.
+        .alert(
+            "Fichero Engine Couldn't Restart",
+            isPresented: Binding(
+                get: { appState.showBackendDropModal },
+                set: { appState.showBackendDropModal = $0 }
+            )
+        ) {
+            Button("Retry") {
+                appState.showBackendDropModal = false
+                Task { await engineRetry?() }
+            }
+            Button("Quit Fichero", role: .destructive) {
+                appState.showBackendDropModal = false
+                #if canImport(AppKit)
+                NSApplication.shared.terminate(nil)
+                #endif
+            }
+        } message: {
+            Text("The Fichero engine stopped and couldn't restart automatically. Retry to try again, or quit.")
         }
     }
 

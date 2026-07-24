@@ -54,6 +54,16 @@ final class EngineLifecycleController {
         // probe. Both properties are this controller's own, so wiring them here
         // keeps the process and connection halves pointed at one client.
         backendService.readinessClient = appState.ficheroClient
+        // #4064: route a mid-session supervised-engine drop back here so the
+        // supervisor can auto-restart the embedded backend (bounded retries +
+        // backoff) before ever surfacing a manual-CLI diagnosis. The heartbeat
+        // detects the drop; this controller owns the only spawn path (#2611),
+        // so the hook is the seam between "I lost the backend" and "respawn it".
+        // `[weak self]` so the controller's lifetime stays app-scoped, not
+        // retained by AppState through the closure.
+        appState.onSupervisedBackendDropped = { [weak self] in
+            await self?.handleSupervisedBackendDropped()
+        }
     }
 
     /// Kick the engine once at app launch. Called from
@@ -67,6 +77,87 @@ final class EngineLifecycleController {
     /// `start()`.
     func retry() async {
         await connect(restart: true)
+    }
+
+    /// Auto-restart the supervised embedded backend after a mid-session drop
+    /// (#4064), REUSING the existing spawn supervisor (#2611) — never a new
+    /// spawn mechanism. Bounded retries with backoff; only when they run out
+    /// (or the crash-loop budget is spent) does the Retry/Quit modal surface
+    /// over the live main GUI. The release/embedded build never shows a manual
+    /// CLI: a drop here means "respawn it", not "run it by hand". Re-entrant
+    /// guard so a second drop detected while a restart is already in flight is
+    /// a no-op (the heartbeat can't re-fire the hook through `markStarting`).
+    private var isHandlingSupervisedDrop = false
+    static let supervisedAutoRestartAttempts = 3
+
+    func handleSupervisedBackendDropped() async {
+        // Only the spawning strategy can auto-restart. A debugExternal /
+        // configuredRemote / iosCompanion drop has no local process to respawn
+        // — those surface their existing diagnosis and the user retries by
+        // hand. The heartbeat's `supervisedDropOutcome` already gates this, but
+        // double-check here so a mis-routed call can't spawn in the wrong build.
+        guard EngineConfig.engineProvisioningStrategy().spawnsBundledEngine else {
+            logger.info("Supervised backend drop: strategy doesn't spawn — skipping auto-restart (#4064)")
+            return
+        }
+        guard !isHandlingSupervisedDrop else {
+            logger.info("Supervised backend drop: already handling — ignoring re-entrant call (#4064)")
+            return
+        }
+        isHandlingSupervisedDrop = true
+        defer { isHandlingSupervisedDrop = false }
+
+        let maxAttempts = Self.supervisedAutoRestartAttempts
+        var attemptsUsed = 0
+        for attempt in 1...maxAttempts {
+            // Crash-loop guard (#18): stop restarting a hot-crashing engine.
+            let budgetRemaining = backendService.shouldAutoRestartAfterCrash()
+            attemptsUsed = attempt
+            guard budgetRemaining else {
+                logger.error("Supervised backend drop: crash-loop budget exhausted before attempt \(attempt) — surfacing Retry/Quit modal (#4064)")
+                // The engine is still down (we crashed) and the spawn supervisor
+                // refused another restart — surface the modal; prefer-raise over
+                // silent fallback (#4064).
+                if !appState.isBackendRunning {
+                    appState.showBackendDropModal = true
+                }
+                return
+            }
+            logger.warning("Supervised backend dropped — auto-restart attempt \(attempt)/\(maxAttempts) (#4064)")
+            // `.starting` so the toolbar popover shows the booting splash
+            // instead of the dead-engine diagnosis while we respawn; the
+            // heartbeat's next `.ready` flips it back the moment the engine
+            // answers.
+            appState.engine.markStarting()
+            await retry() // reuses the single connect sequence (#3108)
+            if appState.isBackendRunning {
+                logger.info("Supervised backend drop: auto-restart recovered on attempt \(attempt) (#4064)")
+                return // recovered — no modal
+            }
+            // Backoff before the next attempt: 1s, 2s, 4s.
+            if attempt < maxAttempts {
+                let backoffSeconds = 1 << (attempt - 1)
+                logger.info("Supervised backend drop: backing off for \(backoffSeconds)s before retry (#4064)")
+                try? await Task.sleep(for: .seconds(backoffSeconds))
+            }
+        }
+        logger.error("Supervised backend drop: auto-restart exhausted after \(attemptsUsed) attempts — surfacing Retry/Quit modal (#4064)")
+        appState.showBackendDropModal = true
+    }
+
+    /// Pure: should the Retry/Quit modal be shown after a supervised
+    /// auto-restart attempt (#4064)? True only when the engine is STILL not
+    /// ready AND either the crash-loop budget is spent OR the bounded retry
+    /// count is exhausted. Pure so the modal-gating decision is unit-testable
+    /// without spawning a real engine.
+    static func shouldShowBackendDropModal(
+        isReady: Bool,
+        crashBudgetExhausted: Bool,
+        attemptsUsed: Int,
+        maxAttempts: Int = supervisedAutoRestartAttempts
+    ) -> Bool {
+        if isReady { return false }
+        return crashBudgetExhausted || attemptsUsed >= maxAttempts
     }
 
     /// Stop the engine. Called from `applicationWillTerminate`.

@@ -83,19 +83,44 @@ extension AppState {
 
         } catch let error as URLError where error.code == .cannotConnectToHost {
             backendAccessError = .engineUnreachable
-            engine.markUnreachable("""
-                Cannot connect to API server.
-
-                Please start the API first:
-
-                PYTHONPATH=src python -m fichero.api
-                """)
+            // #4064: the manual-CLI hint is a Debug-external-only affordance —
+            // the release/embedded build spawns its own engine and must NEVER
+            // tell the user to run one by hand. The debug dev runs the engine
+            // themselves, so they keep the actionable `PYTHONPATH=src python -m
+            // fichero.api` hint; every other strategy gets the generic
+            // "couldn't connect" diagnosis.
+            engine.markUnreachable(Self.cannotConnectDiagnosis(
+                for: EngineConfig.engineProvisioningStrategy()
+            ))
             logger.error("Backend not reachable: \(error.localizedDescription)")
         } catch {
             let accessError = AccessError.classify(error)
             backendAccessError = accessError
             engine.markUnreachable(Self.diagnosis(for: accessError))
             logger.error("Backend health check failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Pure: the `cannotConnectToHost` diagnosis for the active provisioning
+    /// strategy (#4064). The release/embedded build must NEVER show a manual
+    /// CLI — it spawns its own engine — so only `.debugExternal` (the dev
+    /// runs the engine by hand) keeps the `PYTHONPATH=src python -m fichero.api`
+    /// hint. Pure so the release-vs-debug gating is unit-testable without an
+    /// engine / AppKit.
+    static func cannotConnectDiagnosis(
+        for strategy: EngineConfig.EngineProvisioningStrategy
+    ) -> String {
+        switch strategy {
+        case .debugExternal:
+            return """
+                Cannot connect to API server.
+
+                Please start the API first:
+
+                PYTHONPATH=src python -m fichero.api
+                """
+        case .releaseEmbedded, .configuredRemote, .iosCompanion, .inert:
+            return "Cannot connect to the Fichero engine. The engine didn't come up; try restarting the app."
         }
     }
 }

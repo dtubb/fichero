@@ -69,6 +69,24 @@ class AppState {
     /// banner flips only after the count crosses `offlineFlipThreshold`.
     var heartbeatFailureCount: Int = 0
     let offlineFlipThreshold: Int = 2
+
+    /// Route a mid-session supervised-engine drop back to the app-scoped
+    /// lifecycle controller (#4064). Set by `EngineLifecycleController` at
+    /// launch; the heartbeat calls it instead of surfacing a manual-CLI
+    /// diagnosis — the controller reuses the existing spawn supervisor (#2611)
+    /// to auto-restart the embedded backend with bounded retries + backoff,
+    /// and only shows a Retry/Quit modal once those retries run out. nil in
+    /// previews / tests / the inert host (no controller wired) — the heartbeat
+    /// then falls through to a generic, dev-command-free diagnosis.
+    /// Plumbing, not observed UI state: exclude from @Observable tracking.
+    @ObservationIgnored var onSupervisedBackendDropped: (@MainActor () async -> Void)?
+
+    /// True when the supervised backend dropped AND auto-restart attempts
+    /// were exhausted — the Retry/Quit modal is presented over the live main
+    /// GUI (#4064), never a full-window takeover. Cleared by Retry (re-run the
+    /// connect sequence) or Quit (terminate). Observed by the main window's
+    /// `.alert`, so it lives on the @Observable surface.
+    var showBackendDropModal: Bool = false
     // Plumbing, not observed UI state — exclude from @Observable tracking, and
     // `nonisolated(unsafe)` so `deinit` (nonisolated in Swift 6) can cancel it
     // (only mutated on the main actor; `Task.cancel()` is safe from anywhere).

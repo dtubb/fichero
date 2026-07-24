@@ -54,7 +54,7 @@ extension AppState {
         }
     }
 
-    private func noteHeartbeatFailure(reason: String) async {
+    func noteHeartbeatFailure(reason: String) async {
         heartbeatFailureCount += 1
         guard heartbeatFailureCount >= offlineFlipThreshold else { return }
         // The active endpoint has stopped answering. Before declaring the paired
@@ -69,18 +69,76 @@ extension AppState {
         case .noAlternates:
             break // single-endpoint host: fall through to the generic diagnosis.
         }
-        if isBackendRunning {
+        guard isBackendRunning else { return }
+        // #4064: the supervised (embedded) engine drop is routed back to the
+        // app-scoped lifecycle controller, which reuses the existing spawn
+        // supervisor (#2611) to auto-restart with bounded retries + backoff
+        // and only surfaces a Retry/Quit modal once those run out. The
+        // release/embedded build NEVER tells the user to run the engine by
+        // hand; the manual-CLI hint is gated to `.debugExternal` (below).
+        switch Self.supervisedDropOutcome(for: EngineConfig.engineProvisioningStrategy()) {
+        case .autoRestart:
+            if let onDropped = onSupervisedBackendDropped {
+                logger.warning(
+                    "Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures — invoking supervised auto-restart (#4064, \(reason))"
+                )
+                await onDropped()
+                return
+            }
+            // No controller wired (preview / test / inert host): fall through to
+            // a generic, dev-command-free diagnosis rather than a dead hook.
             logger.warning(
                 "Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures — flipping offline (\(reason))"
             )
-            engine.markUnreachable("""
+            engine.markUnreachable(
+                "Lost connection to the Fichero engine. The backend stopped responding mid-session."
+            )
+        case .surfaceDiagnosis(let message):
+            logger.warning(
+                "Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures — flipping offline (\(reason))"
+            )
+            engine.markUnreachable(message)
+        }
+    }
+
+    /// Pure decision for a mid-session backend drop on the active host (#4064).
+    /// `.autoRestart` routes the supervised (embedded) engine through the
+    /// app-scoped spawn supervisor (bounded retries + backoff, then a Retry/Quit
+    /// modal); `.surfaceDiagnosis` carries the message shown otherwise. The
+    /// release/embedded build never surfaces a manual CLI here — `.autoRestart`
+    /// carries no string at all, and the `.debugExternal` diagnosis is the only
+    /// one that keeps the dev hint (the dev path runs the engine by hand).
+    /// Pure so the release-vs-debug gating is unit-testable without an engine.
+    static func supervisedDropOutcome(
+        for strategy: EngineConfig.EngineProvisioningStrategy
+    ) -> SupervisedDropOutcome {
+        switch strategy {
+        case .releaseEmbedded:
+            return .autoRestart
+        case .debugExternal:
+            return .surfaceDiagnosis("""
                 Lost connection to the Fichero engine.
 
                 The backend stopped responding mid-session. Restart it with:
 
                 PYTHONPATH=src python -m fichero.api
                 """)
+        case .configuredRemote, .iosCompanion, .inert:
+            return .surfaceDiagnosis(
+                "Lost connection to the Fichero engine. The backend stopped responding mid-session."
+            )
         }
+    }
+
+    /// Outcome of a mid-session supervised-engine drop (#4064).
+    enum SupervisedDropOutcome: Equatable {
+        /// The spawn supervisor should auto-restart the embedded backend
+        /// (bounded retries + backoff); no diagnosis is surfaced unless the
+        /// retries run out, at which point a Retry/Quit modal is shown.
+        case autoRestart
+        /// Surface the carried diagnosis immediately (no local process to
+        /// respawn). Never contains a manual CLI in the release/embedded path.
+        case surfaceDiagnosis(String)
     }
 
     /// Outcome of walking a paired host's alternate endpoints (#3098).
