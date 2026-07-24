@@ -332,6 +332,23 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
     exit 1
   fi
 
+  # Re-sign the embedded engine in the archive with the DISTRIBUTION identity
+  # and the two-key entitlements BEFORE export (#3952). The engine is embedded
+  # by a shell-script phase, not the standard "Embed Helper Tools" phase, so
+  # `xcodebuild -exportArchive` for TestFlight can re-sign it with the parent's
+  # distribution entitlements — which include get-task-allow for TestFlight —
+  # and get-task-allow is incompatible with com.apple.security.inherit, aborting
+  # the engine child on launch. Pre-signing with distribution + the two-key set
+  # makes the export's re-sign preserve the clean entitlements. The script
+  # fails the release if get-task-allow is present after re-signing.
+  if ! "$ROOT_DIR/scripts/resign_engine_in_archive.sh" \
+    "$MAC_ARCHIVE_PATH" \
+    "$MAC_APP_STORE_SIGNING_CERT" \
+    "$ROOT_DIR/fichero/fichero/FicheroEngineAppStore.entitlements"; then
+    echo "error: pre-export engine re-sign failed — the TestFlight build would abort the engine child (#3952)" >&2
+    exit 1
+  fi
+
   cat > "$MAC_EXPORT_OPTIONS" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

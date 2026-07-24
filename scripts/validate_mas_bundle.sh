@@ -152,6 +152,15 @@ while IFS= read -r exe; do
     if ! printf '%s' "$ENTS" | grep -q "com.apple.security.inherit"; then
       fail "nested executable lacks com.apple.security.inherit: ${exe#"$APP"/}"
     fi
+    # get-task-allow is also incompatible with inherit (Apple Entitlement Key
+    # Reference) and aborts the sandboxed engine child on launch. TestFlight
+    # export injects it into nested code when the helper is not recognised as
+    # an Embed-Helper-Tools target — exactly the Fichero engine's case (#3952).
+    # The build phase and scripts/resign_engine_in_archive.sh strip it; this is
+    # the local gate that proves they did, on a built bundle or a .xcarchive.
+    if printf '%s' "$ENTS" | grep -q "com.apple.security.get-task-allow"; then
+      fail "nested executable carries get-task-allow (aborts the sandboxed child at launch, #3952): ${exe#"$APP"/}"
+    fi
   fi
 done <<EOF
 $EXECS

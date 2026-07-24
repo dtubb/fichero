@@ -152,6 +152,17 @@ def main() -> int:
                 f"{ENGINE_ENTITLEMENTS.name} must hold EXACTLY {sorted(expected)}, got {sorted(keys)}. "
                 "Any other App Sandbox key alongside `inherit` makes the system abort the engine."
             )
+        # Explicit because of #3952: get-task-allow is the key TestFlight export
+        # injects into nested code, and it is incompatible with inherit. The
+        # two-key check above already rejects it; this names the failure so a
+        # future editor who widens the set sees the specific reason, not a
+        # generic "wrong key set" message.
+        if "com.apple.security.get-task-allow" in keys:
+            fail(
+                f"{ENGINE_ENTITLEMENTS.name} carries com.apple.security.get-task-allow. It is incompatible "
+                "with com.apple.security.inherit and aborts the sandboxed engine child on launch (#3952). "
+                "TestFlight export injects it into nested code; the engine's entitlements must never list it."
+            )
     else:
         fail(f"{ENGINE_ENTITLEMENTS.name} is missing — the nested engine would ship unsandboxed (ITMS-90296)")
 
@@ -208,6 +219,47 @@ def main() -> int:
             if "codesign" in stripped and "--deep" in stripped:
                 fail(f"the MAS embed phase runs `codesign --deep`: {stripped!r}. It re-signs nested code with the "
                      "PARENT's entitlements, replacing the engine's two-key set.")
+        # 3952: the embed phase must reject get-task-allow on the engine after
+        # signing. The build-time codesign does not inject it (the CLI never
+        # does; CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO keeps Xcode's phase from
+        # doing so), but the assertion is the cheap backstop that proves the
+        # two-key set actually landed on the signed bytes, not just in the file.
+        if "com.apple.security.get-task-allow" not in body:
+            fail(
+                "the MAS embed phase must assert the signed engine does NOT carry "
+                "com.apple.security.get-task-allow. get-task-allow is incompatible with "
+                "com.apple.security.inherit and aborts the sandboxed engine child on launch (#3952); "
+                "TestFlight export can inject it into nested code, so the build phase must fail the "
+                "build if it appears on the engine after signing."
+            )
+
+    # 4a-bis. The TestFlight export re-signs nested code, and a shell-script
+    # embed is not a recognised "Embed Helper Tools" phase, so the export can
+    # stamp the parent's distribution entitlements (which include get-task-allow
+    # for TestFlight) onto the engine. release-all.sh must re-sign the engine in
+    # the archive with the distribution identity + the two-key entitlements
+    # BEFORE export, and that re-sign must fail if get-task-allow survives (#3952).
+    resign = REPO / "scripts" / "resign_engine_in_archive.sh"
+    if not resign.is_file():
+        fail("scripts/resign_engine_in_archive.sh is missing — the TestFlight export is not guarded against "
+             "get-task-allow injection into the engine (#3952).")
+    else:
+        rbody = resign.read_text()
+        if "com.apple.security.get-task-allow" not in rbody:
+            fail("scripts/resign_engine_in_archive.sh must assert the re-signed engine does NOT carry "
+                 "com.apple.security.get-task-allow (#3952).")
+        if "--entitlements" not in rbody:
+            fail("scripts/resign_engine_in_archive.sh must sign the engine with --entitlements (the two-key "
+                 "FicheroEngineAppStore set), not plain signing (#3952).")
+    release = REPO / "scripts" / "release-all.sh"
+    if release.is_file():
+        rtext = release.read_text()
+        if "resign_engine_in_archive.sh" not in rtext:
+            fail("scripts/release-all.sh must call resign_engine_in_archive.sh between archive and export so the "
+                 "engine enters the TestFlight export distribution-signed with clean two-key entitlements (#3952).")
+        if "FicheroEngineAppStore.entitlements" not in rtext:
+            fail("scripts/release-all.sh must pass FicheroEngineAppStore.entitlements to resign_engine_in_archive.sh "
+                 "so the engine is re-signed with the two-key set, not the parent's entitlements (#3952).")
 
     # 4b. The strips must run against a REAL path, and must be able to fail.
     #
