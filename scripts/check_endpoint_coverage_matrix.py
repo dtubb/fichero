@@ -38,6 +38,14 @@ CLI_SOURCES = sorted((ROOT / "fichero-engine" / "src" / "fichero" / "cli").rglob
 KNOWN_GAPS = load_known_gaps(
     Path(__file__).with_name("check_endpoint_coverage_matrix_known_gaps.json")
 )
+SWIFT_OPERATION_WITNESSES = {
+    "GET /api/citation-usages": "listCitationUsagesApiCitationUsagesGet",
+    "GET /api/libraries/{lib}/entity-types": "listLibraryEntityTypesApiLibrariesLibEntityTypesGet",
+    "POST /api/libraries/{lib}/entity-types": "addLibraryEntityTypeApiLibrariesLibEntityTypesPost",
+    "DELETE /api/libraries/{lib}/entity-types/{entity_type_key}": (
+        "removeLibraryEntityTypeApiLibrariesLibEntityTypesEntityTypeKeyDelete"
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -65,10 +73,12 @@ def scan() -> list[Row]:
                 continue
             endpoint = endpoint_key(method, path)
             normalized = normalize_path(path)
+            swift_witness = SWIFT_OPERATION_WITNESSES.get(endpoint)
             rows.append(
                 Row(
                     endpoint=endpoint,
-                    store=normalized in swift_blob,
+                    store=normalized in swift_blob
+                    or (swift_witness is not None and swift_witness in swift_blob),
                     cli=normalized in cli_blob,
                 )
             )
