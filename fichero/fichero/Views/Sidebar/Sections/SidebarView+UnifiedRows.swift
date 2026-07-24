@@ -3,6 +3,58 @@ import SwiftUI
 // MARK: - Unified Rows
 
 extension SidebarView {
+    static func sidebarUnifiedRowsReorderKind(
+        items: [SidebarItem],
+        source: IndexSet,
+        destination: Int
+    ) -> SidebarItemKind? {
+        let sourceItems = source.compactMap { index -> SidebarItem? in
+            guard items.indices.contains(index) else { return nil }
+            return items[index]
+        }
+        guard sourceItems.count == source.count else { return nil }
+        guard let movedKind = sourceItems.first.map(unifiedRowsReorderKind(for:)) else { return nil }
+        guard sourceItems.allSatisfy({ unifiedRowsReorderKind(for: $0) == movedKind }) else { return nil }
+        guard movedKind != .unknown else { return nil }
+
+        let kindPositions = items.indices.filter { unifiedRowsReorderKind(for: items[$0]) == movedKind }
+        guard let firstKindPosition = kindPositions.first,
+              let lastKindPosition = kindPositions.last else { return nil }
+        guard kindPositions == Array(firstKindPosition...lastKindPosition) else { return nil }
+        guard source.allSatisfy({ kindPositions.contains($0) }) else { return nil }
+
+        var reordered = items
+        reordered.move(fromOffsets: source, toOffset: destination)
+        let reorderedKindPositions = reordered.indices.filter { unifiedRowsReorderKind(for: reordered[$0]) == movedKind }
+        guard reorderedKindPositions == kindPositions else { return nil }
+
+        return movedKind
+    }
+
+    static func unifiedRowsReorderKind(for item: SidebarItem) -> SidebarItemKind {
+        switch item.itemType {
+        case .document:
+            return .document
+        case .savedSearch:
+            return .savedSearch
+        case .workflow:
+            return .workflow
+        case .folder:
+            switch item.category {
+            case .folder:
+                return .document
+            case .search:
+                return .savedSearch
+            case .workflow:
+                return .workflow
+            default:
+                return .unknown
+            }
+        default:
+            return .unknown
+        }
+    }
+
     @ViewBuilder
     func unifiedRows(
         _ items: [SidebarItem],
@@ -43,7 +95,7 @@ extension SidebarView {
         )
 
         // Defensive Inbox guard (belt + suspenders with `.moveDisabled`).
-        if source.contains(where: { items[$0].icon == "tray.fill" }) {
+        if source.contains(where: { items.indices.contains($0) && items[$0].icon == "tray.fill" }) {
             sidebarRowLogger.debug("unifiedRows .onMove BAILED — Inbox guard")
             return
         }
@@ -52,18 +104,28 @@ extension SidebarView {
             return
         }
 
-        // Dispatch by section kind — documents, saved searches, and workflows
-        // each have their own reorder endpoint (#611).
+        guard let kind = Self.sidebarUnifiedRowsReorderKind(
+            items: items,
+            source: source,
+            destination: destination
+        ) else {
+            sidebarRowLogger.debug("unifiedRows .onMove BAILED — invalid cross-kind reorder")
+            return
+        }
+
+        // Dispatch by the moved row's actual kind — documents, saved searches,
+        // and workflows each have their own reorder endpoint (#611). The
+        // flattened library list intentionally rejects cross-kind moves instead
+        // of routing them through whichever kind happens to be first in the list.
         var reordered = items
         reordered.move(fromOffsets: source, toOffset: destination)
-        let kind = items.first.map { SidebarItemKind(prefixedId: $0.id) } ?? .unknown
 
         switch kind {
-        case .document, .folder:
+        case .document:
             reorderDocumentRows(items: items, source: source, destination: destination, library: library)
         case .savedSearch:
             reorderSavedSearchRows(reordered, library: library)
-        case .workflow, .chain:
+        case .workflow:
             reorderWorkflowRows(reordered, library: library)
         default:
             return

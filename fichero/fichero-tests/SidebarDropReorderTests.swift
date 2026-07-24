@@ -151,6 +151,16 @@ struct SidebarReorderedDocIdsTests {
         ))
         #expect(result == ["c", "d", "a", "b"])
     }
+
+    @Test("Unified row reorder dispatches by moved kind and rejects cross-kind moves")
+    func unifiedRowReorderDispatchUsesMovedKindAndRejectsCrossKindMoves() throws {
+        let rows = [doc("a", name: "A"), doc("b", name: "B"), savedSearch("s1", name: "S1"), savedSearch("s2", name: "S2")]
+        let kind = try #require(SidebarView.sidebarUnifiedRowsReorderKind(items: rows, source: IndexSet(integer: 2), destination: 4))
+
+        #expect(kind == .savedSearch)
+        #expect(SidebarView.sidebarUnifiedRowsReorderKind(items: rows, source: IndexSet(integer: 2), destination: 1) == nil)
+        #expect(SidebarView.sidebarUnifiedRowsReorderKind(items: rows, source: IndexSet([1, 2]), destination: 4) == nil)
+    }
 }
 
 // MARK: - Cross-Hierarchy Insertion Tests

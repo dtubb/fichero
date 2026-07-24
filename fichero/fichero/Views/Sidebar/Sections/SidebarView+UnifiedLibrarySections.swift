@@ -137,10 +137,10 @@ extension SidebarView {
     /// source-of-truth tree; saved searches and automation are node tools over
     /// it, so they follow the document tree in one continuous list.
     ///
-    /// Rendered as separate `unifiedRows` blocks (not one concatenated array) on
-    /// purpose: `handleUnifiedRowsMove` dispatches reorder/drop by the kind of
-    /// the block's first item, so keeping each kind in its own block preserves
-    /// correct per-kind reorder. Empty blocks render nothing — no empty headers.
+    /// A single flattened array backs the library rows. Documents always lead;
+    /// schedule / trigger, saved-search, and workflow items append only under
+    /// their existing feature gates. Empty arrays render nothing — no empty
+    /// headers, no separate move/drop dispatch surface.
     ///
     /// Workflows / Batches / Activity are app-level destinations (fixed tags, no
     /// library scope) and stay pinned once at the bottom — see
@@ -150,14 +150,22 @@ extension SidebarView {
         libraryId: UUID,
         buckets: UnifiedLibraryBuckets
     ) -> some View {
-        unifiedRows(buckets.documentItems, libraryId: libraryId)
+        let libraryItems = flattenedLibraryItems(libraryId: libraryId, buckets: buckets)
+        unifiedRows(libraryItems, libraryId: libraryId)
+    }
+
+    private func flattenedLibraryItems(
+        libraryId: UUID,
+        buckets: UnifiedLibraryBuckets
+    ) -> [SidebarItem] {
+        var items = buckets.documentItems
 
         if FeatureManager.shared.isAutomationEnabled {
-            unifiedRows(buckets.scheduleItems + buckets.triggerItems, libraryId: libraryId)
+            items.append(contentsOf: buckets.scheduleItems + buckets.triggerItems)
         }
 
         if FeatureManager.shared.isSearchEnabled {
-            unifiedRows(buckets.searchItems, libraryId: libraryId)
+            items.append(contentsOf: buckets.searchItems)
         }
 
         // Default Workflows is a global-only destination, same as chains/
@@ -166,7 +174,9 @@ extension SidebarView {
         // only surfaces it under the Global library so it isn't duplicated
         // across every individual library (#4060).
         if FeatureManager.shared.isWorkflowsEnabled && libraryId == LibraryManager.globalLibraryId {
-            unifiedRows(buckets.workflowItems, libraryId: libraryId)
+            items.append(contentsOf: buckets.workflowItems)
         }
+
+        return items
     }
 }

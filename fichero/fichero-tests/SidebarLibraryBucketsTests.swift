@@ -44,7 +44,9 @@ final class SidebarLibraryBucketsTests: XCTestCase {
         XCTAssertFalse(source.contains("func unifiedDisclosureSection"))
         XCTAssertFalse(source.contains("Label(title, systemImage: icon)"))
         XCTAssertFalse(source.contains("Divider()"))
-        XCTAssertTrue(source.contains("unifiedRows(buckets.documentItems, libraryId: libraryId)"))
+        XCTAssertTrue(source.contains("let libraryItems = flattenedLibraryItems(libraryId: libraryId, buckets: buckets)"))
+        XCTAssertTrue(source.contains("unifiedRows(libraryItems, libraryId: libraryId)"))
+        XCTAssertEqual(source.components(separatedBy: "unifiedRows(").count - 1, 1)
     }
 
     /// Slice 0: workflow nodes/folders now render inside the library tree (they
@@ -54,7 +56,7 @@ final class SidebarLibraryBucketsTests: XCTestCase {
     func testWorkflowItemsAreRenderedGatedOnFlag() throws {
         let source = try appSource("Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
         XCTAssertTrue(source.contains("FeatureManager.shared.isWorkflowsEnabled"))
-        XCTAssertTrue(source.contains("unifiedRows(buckets.workflowItems, libraryId: libraryId)"))
+        XCTAssertTrue(source.contains("items.append(contentsOf: buckets.workflowItems)"))
         // #4060: the gate must also check isGlobalLibrary so Default Workflows
         // only renders under the Global library, not every individual library.
         XCTAssertTrue(
