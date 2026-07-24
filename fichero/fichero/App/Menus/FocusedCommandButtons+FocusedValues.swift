@@ -86,7 +86,10 @@ struct NewWindowActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
-/// FocusedValue key for creating a new library and opening it in a new window
+/// FocusedValue key for creating a new library in-place in the current window
+/// (saves to a chosen location, then selects the new library in this window's
+/// sidebar — no new window). Distinct from NewWindowActionKey, which opens a
+/// fresh window on the current library. (#4062)
 struct NewLibraryActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }

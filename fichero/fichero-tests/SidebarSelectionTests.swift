@@ -169,6 +169,51 @@ struct SidebarSelectionTests {
         #expect(source.contains("newWindow.tabbingMode = .disallowed"))
     }
 
+    @Test("#4062 New Tab does not flash a transient window")
+    func newTabDoesNotCreateTransientWindow() throws {
+        // The host's tabbingMode must be set to .preferred BEFORE the openWindow
+        // call so macOS merges the new window directly into the tab group as it's
+        // created — instead of flashing a separate window first, then merging.
+        let source = try appSource("Views/Shell/OpenAffordances.swift")
+        let tabModeSet = try #require(
+            source.range(of: "hostWindow?.tabbingMode = .preferred")
+        )
+        let openCall = try #require(source.range(of: "\n            openWindow(id: \"main\")"))
+
+        #expect(tabModeSet.lowerBound < openCall.lowerBound)
+        // The belt-and-suspenders merge must remain for cases where auto-tab didn't fire.
+        #expect(source.contains("hostWindow.addTabbedWindow(newWindow, ordered: .above)"))
+    }
+
+    @Test("#4062 New Library creates in-place, does not open a new window")
+    func newLibraryDoesNotOpenNewWindow() throws {
+        // handleNewLibrary must switch the CURRENT window to the new library
+        // (assignLibrary), not open a fresh window via WindowOpener. New Window
+        // is the only new-window path; New Library is an in-place create.
+        let source = try appSource("App/LibraryWindow+Actions.swift")
+        let functionStart = try #require(source.range(of: "func handleNewLibrary() {"))
+        let nextFunction = try #require(
+            source.range(of: "func handleSaveLibrary() {", range: functionStart.lowerBound..<source.endIndex)
+        )
+        let functionBody = String(source[functionStart.lowerBound..<nextFunction.lowerBound])
+
+        #expect(functionBody.contains("assignLibrary(id: newLibrary.id)"))
+        #expect(!functionBody.contains("WindowOpener.open"))
+        #expect(!functionBody.contains("openWindow(id:"))
+    }
+
+    @Test("#4062 NewLibraryActionKey docstring reflects in-place create, not new window")
+    func newLibraryActionKeyDocstringReflectsInPlace() throws {
+        let source = try appSource("App/Menus/FocusedCommandButtons+FocusedValues.swift")
+        let keyStart = try #require(source.range(of: "struct NewLibraryActionKey: FocusedValueKey {"))
+        // The docstring block sits immediately above the struct declaration.
+        let sliceThroughKey = String(source[source.startIndex..<keyStart.upperBound])
+
+        #expect(sliceThroughKey.contains("in-place"))
+        #expect(sliceThroughKey.contains("no new window"))
+        #expect(!sliceThroughKey.contains("opening it in a new window"))
+    }
+
     @Test("#3364 library double-click opens in the current window")
     func libraryDoubleClickOpensInCurrentWindow() throws {
         // #4024: handleDoubleClick/handleTap moved to LibraryView+Selection.swift.

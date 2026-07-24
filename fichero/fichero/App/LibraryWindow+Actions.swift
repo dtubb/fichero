@@ -161,15 +161,18 @@ extension LibraryWindow {
             let finalURL = withExtension.nfcNormalizedLastComponent
 
             // Create unsaved library, immediately save to chosen location, then
-            // open it in a NEW window (New Library… is distinct from New Window,
-            // which reuses the current library). Reuses the same pending-library
-            // → openWindow("main") affordance as every other open-in-new-window
-            // path (WindowOpener), so the fresh scene picks the library up on init.
+            // switch THIS window to it in-place — no new window (#4062). New
+            // Library… is distinct from New Window (which reuses the current
+            // library): it creates a fresh library and selects it in the
+            // current window's sidebar, mirroring Finder's "New Folder" flow.
+            // Keeping it in-window also preserves the current window's
+            // connection/store, so we don't re-trigger #3362's new-window
+            // re-auth path.
             let newLibrary = libraryManager.createNewLibrary()
             do {
                 try libraryManager.saveLibrary(newLibrary.id, to: finalURL)
-                WindowOpener.open(libraryId: newLibrary.id, asTab: false, using: openWindow)
-                libraryWindowLogger.info("Created and saved new library: \(finalURL.lastPathComponent)")
+                assignLibrary(id: newLibrary.id)
+                libraryWindowLogger.info("Created and saved new library in-place: \(finalURL.lastPathComponent)")
             } catch {
                 libraryWindowLogger.error("Failed to create new library: \(error.localizedDescription)")
             }

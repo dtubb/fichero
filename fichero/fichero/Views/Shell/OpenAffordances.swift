@@ -69,6 +69,12 @@ enum WindowOpener {
         // This is the direct native-tab path (`addTabbedWindow` is the only macOS
         // API for it), not a new-window-then-hide workaround (#3407).
         if asTab {
+            // Mark the host as preferring tabs BEFORE opening so macOS merges
+            // the new window directly into the host's tab group as it's
+            // materialised — no transient separate-window flash (#4062).
+            // `addTabbedWindow` below is a belt-and-suspenders fallback for
+            // cases where the system didn't auto-tab.
+            hostWindow?.tabbingMode = .preferred
             openWindow(id: "main")
         } else {
             openWindowDisallowingAutomaticTabs(using: openWindow, before: before)
