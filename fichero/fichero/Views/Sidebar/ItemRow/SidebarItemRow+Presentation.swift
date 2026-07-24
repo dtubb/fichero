@@ -27,14 +27,16 @@ extension SidebarItemRow {
                 onCancel: onAutomationCancel
             )
 
-            if case .document(let doc) = item.itemType,
-               let workflows = workflowStore?.workflows, !workflows.isEmpty {
+            let workflowTargetIDs = resolvedWorkflowTargetIDs
+            if let workflows = workflowStore?.workflows,
+               !workflows.isEmpty,
+               !workflowTargetIDs.isEmpty {
                 Divider()
                 Menu("Run Workflow") {
                     workflowMenuItems(workflows: workflows) { workflowId, providerOverride, modelOverride in
-                        runWorkflowOnDocument(
+                        runWorkflowOnDocuments(
                             workflowId: workflowId,
-                            docId: doc.id,
+                            docIds: workflowTargetIDs,
                             providerOverride: providerOverride,
                             modelOverride: modelOverride
                         )
@@ -49,11 +51,36 @@ extension SidebarItemRow {
         }
     }
 
+    private var resolvedWorkflowTargetIDs: [String] {
+        guard let clickedTarget = workflowRunTarget(for: item),
+              let documents = documentStore?.sidebarDocuments else {
+            return []
+        }
+        return WorkflowRunTargetResolver.resolve(
+            clicked: clickedTarget,
+            selection: Set(selectedDestinations.compactMap(workflowRunTarget(for:))),
+            documents: documents
+        )
+    }
+
+    private func workflowRunTarget(for item: SidebarItem) -> WorkflowRunTarget? {
+        guard case .document(let document) = item.itemType else { return nil }
+        return document.docType == .folder ? .folder(document.id) : .file(document.id)
+    }
+
+    private func workflowRunTarget(for destination: SidebarDestination) -> WorkflowRunTarget? {
+        guard case .document = destination,
+              let item = findItemById(destination.serializedID, in: allCachedItems) else {
+            return nil
+        }
+        return workflowRunTarget(for: item)
+    }
+
     @ViewBuilder
     private var compactTouchActions: some View {
         if horizontalSizeClass == .compact,
-           case .document(let doc) = item.itemType {
-            let folders = moveDestinationFolders(for: doc) ?? []
+           case .document(let document) = item.itemType {
+            let folders = moveDestinationFolders(for: document) ?? []
 
             if let onOpenChatWithCurrentScope {
                 Button {
@@ -72,7 +99,7 @@ extension SidebarItemRow {
                         Button(folder.name) {
                             // Same executor as drag-drop (#3014) — store call +
                             // error surfacing shared via moveDocumentToFolder.
-                            Task { await moveDocumentToFolder(documentId: doc.id, folderId: folder.id) }
+                            Task { await moveDocumentToFolder(documentId: document.id, folderId: folder.id) }
                         }
                     }
                 }

@@ -1,5 +1,13 @@
 import SwiftUI
 
+private struct SidebarWorkflowRequest {
+    let workflowId: String
+    let docIds: [String]
+    let workflowName: String
+    let providerOverride: String?
+    let modelOverride: String?
+}
+
 extension SidebarItemRow {
     /// Run a workflow on this sidebar document via the same SSE path that
     /// ContentView's toolbar/menubar/grid-context-menu use. Previously this
@@ -14,8 +22,23 @@ extension SidebarItemRow {
         providerOverride: String? = nil,
         modelOverride: String? = nil
     ) {
-        guard let library = library else {
-            sidebarRowLogger.error("runWorkflowOnDocument: no library reference")
+        runWorkflowOnDocuments(
+            workflowId: workflowId,
+            docIds: [docId],
+            providerOverride: providerOverride,
+            modelOverride: modelOverride
+        )
+    }
+
+    /// Runs one sidebar workflow request over the exact resolved file IDs.
+    func runWorkflowOnDocuments(
+        workflowId: String,
+        docIds: [String],
+        providerOverride: String? = nil,
+        modelOverride: String? = nil
+    ) {
+        guard !docIds.isEmpty, let library else {
+            sidebarRowLogger.error("runWorkflowOnDocuments: no documents or library reference")
             return
         }
         let workflowName = workflowStore?.workflows
@@ -23,13 +46,16 @@ extension SidebarItemRow {
         let stream = library.workflowStreamService
         let observer = executionObserver
         let store = library.documentStore
+        let request = SidebarWorkflowRequest(
+            workflowId: workflowId,
+            docIds: docIds,
+            workflowName: workflowName,
+            providerOverride: providerOverride,
+            modelOverride: modelOverride
+        )
         Task { @MainActor in
             await executeSidebarWorkflow(
-                workflowId: workflowId,
-                docId: docId,
-                workflowName: workflowName,
-                providerOverride: providerOverride,
-                modelOverride: modelOverride,
+                request,
                 stream: stream,
                 store: store,
                 observer: observer
@@ -41,28 +67,24 @@ extension SidebarItemRow {
     // execution, pumps events until completion, and reports the final
     // status. Same order/side effects as before — pure extraction.
     private func executeSidebarWorkflow(
-        workflowId: String,
-        docId: String,
-        workflowName: String,
-        providerOverride: String?,
-        modelOverride: String?,
+        _ request: SidebarWorkflowRequest,
         stream: WorkflowStreamService,
         store: DocumentStore,
         observer: WorkflowExecutionObserver
     ) async {
         var executionThreadId = "pending:\(UUID().uuidString)"
         observer.startExecution(
-            workflowId: workflowId,
-            name: workflowName,
+            workflowId: request.workflowId,
+            name: request.workflowName,
             threadId: executionThreadId
         )
         var streamCompleted = false
         do {
             _ = try await stream.execute(
-                workflowId: workflowId,
-                inputs: ["selected_doc_ids": [docId]],
-                providerOverride: providerOverride,
-                modelOverride: modelOverride,
+                workflowId: request.workflowId,
+                inputs: ["selected_doc_ids": request.docIds],
+                providerOverride: request.providerOverride,
+                modelOverride: request.modelOverride,
                 onAccepted: { acceptedResponse in
                     let threadId = acceptedResponse.threadId
                     observer.promoteExecution(

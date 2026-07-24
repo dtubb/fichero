@@ -82,6 +82,7 @@ struct SidebarItemRow: View {
     let allCachedItems: [SidebarItem]
     @Binding var expandedItems: Set<String>
     @Binding var selectedItemId: String?
+    let selectedDestinations: Set<SidebarDestination>
     @Bindable var renameState: RenameStateManager
     @Bindable var deleteState: DeleteStateManager
     @Bindable var sidebarState: SidebarState

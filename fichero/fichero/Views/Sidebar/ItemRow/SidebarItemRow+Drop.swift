@@ -122,6 +122,7 @@ extension SidebarItemRow {
                 allCachedItems: allCachedItems,
                 expandedItems: $expandedItems,
                 selectedItemId: $selectedItemId,
+                selectedDestinations: selectedDestinations,
                 renameState: renameState,
                 deleteState: deleteState,
                 sidebarState: sidebarState,

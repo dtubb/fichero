@@ -187,6 +187,7 @@ extension SidebarView {
                 get: { selectionState.selectedItemId },
                 set: { selectionState.selectedItemId = $0 }
             ),
+            selectedDestinations: selectionState.selectedDestinations,
             renameState: renameState,
             deleteState: deleteState,
             sidebarState: sidebarState,
