@@ -6,6 +6,44 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.07.23</title>
+            <pubDate>Thu, 23 Jul 2026 22:05:36 -0300</pubDate>
+            <sparkle:version>2026072301</sparkle:version>
+            <sparkle:shortVersionString>2026.07.23</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h3>Dev build</h3>
+<p>Internal TestFlight + DMG dev prerelease cut from green <code>integration</code>. Not
+promoted to production.</p>
+<h3>Under The Hood</h3>
+<p><strong>Connection hygiene complete.</strong> Every app↔engine call now routes through the
+centralized <code>FicheroClient</code> transport (UDS / HTTPS-when-sharing / in-memory) —
+no remaining hand-rolled <code>URLSession</code> bypasses. <code>EntityService</code> (the inspector's
+"0 entities" bug), <code>ImageEditingService</code> preview, the knowledge-graph web pane,
+and the workflow diagram were all migrated. The KG web pane works over UDS via a
+<code>WKURLSchemeHandler</code> bridge (no new network listener), and the workflow diagram
+now renders live mermaid (<code>mermaid.js</code> in a <code>WKWebView</code>) instead of a broken
+JSON-as-image.</p>
+<p><strong>Legible failures.</strong> A typed <code>ConnectionError</code> classifies transport failures by
+<code>{transport, operation, cause}</code> so an error names itself instead of a bare
+<code>NSURLErrorDomain -1004</code>. A wrapped-cancellation fix (<code>Error.isCancellationError</code>
+across ~60 sites) stops superseded inspector/store loads from mislogging as
+failures.</p>
+<p><strong>Fixes.</strong> Sidebar folder-node click (workflow/search/chat folders showed
+nothing) now navigates correctly.</p>
+<p><strong>Engine cleanup + speed.</strong> The 61 flat re-export shims left by the package reorg
+were removed and 487 callers repointed to the restructured paths; <code>cryptography</code>
+was deferred off the startup import graph (−50 modules). ModelComparison moved to
+an <code>@Observable</code> store (#1863). Full engine suite green (7955 passed / 0 failed).</p>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.07.23/Fichero.dmg"
+                length="508358932"
+                type="application/octet-stream"
+                sparkle:edSignature="mXzxO3Ll70FTocPJNpO6Kgf4WpvojaqrI8o81zKYAgQ6p8a3SVkBO412b+r80Rn+HeTrLeiN3D/NOHwa4E5cDw=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.07.20-beta</title>
             <pubDate>Mon, 20 Jul 2026 15:13:56 -0300</pubDate>
             <sparkle:version>2026072001</sparkle:version>
