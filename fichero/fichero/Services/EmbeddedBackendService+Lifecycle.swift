@@ -6,6 +6,14 @@ import Security
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "EmbeddedBackend")
 
+/// Debug-external readiness budget (#4056). The developer-run engine (Debug,
+/// not bundled — #3042) can take longer than 5s to bind the UDS socket / HTTPS
+/// listener and answer the authenticated probe, especially on a cold
+/// `start_backend.sh` under a contended machine. 15s gives headroom without
+/// loosening the Release/embedded budgets (see `spawnAndAdoptEmbeddedEngine`).
+/// Pinned by `EmbeddedBackendDebugReadinessBudgetTests`.
+private let debugExternalReadinessTimeout: TimeInterval = 15
+
 extension EmbeddedBackendService {
     /// Whether a `connectBackend` trigger should ATTACH to the already-established
     /// app-level connection instead of re-running the connect+auth sequence
@@ -125,7 +133,7 @@ extension EmbeddedBackendService {
         }
         logger.info("DEBUG mode: adopting external engine over \(dialTarget, privacy: .public) (engine not bundled in Debug)")
         do {
-            try await waitForBackend(timeout: 5)
+            try await waitForBackend(timeout: debugExternalReadinessTimeout)
             status = .running
             isExternalBackend = true
             logger.info("Connected to external backend over \(dialTarget, privacy: .public) (will not manage lifecycle)")
