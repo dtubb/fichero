@@ -273,6 +273,25 @@ enum EngineHarness {
         return try JSONDecoder().decode(HarnessTLSMaterial.self, from: output)
     }
 
+    /// Stop a spawned contract engine before running nested Python gates.
+    ///
+    /// #4026: `CrossLanguageGateTests` shells out to `verify_python.sh`, whose pytest
+    /// process may inherit the same app-DB base path as this harness. Leaving the
+    /// spawned uvicorn alive lets DuckDB's exclusive app.duckdb lock block that nested
+    /// process before it can run. External engines are deliberately not terminated.
+    static func terminateSpawnedEngineForNestedVerifier() {
+        guard let process = _spawnedEngineProcess else {
+            if cached?.spawned == true { cached = nil }
+            return
+        }
+        if process.isRunning {
+            process.terminate()
+            process.waitUntilExit()
+        }
+        _spawnedEngineProcess = nil
+        if cached?.spawned == true { cached = nil }
+    }
+
     // MARK: - Health
 
     private static func isHealthy(_ base: URL) async -> Bool {

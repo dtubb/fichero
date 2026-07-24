@@ -31,6 +31,7 @@ final class CrossLanguageGateTests: XCTestCase {
         guard FileManager.default.fileExists(atPath: script.path) else {
             throw XCTSkip("verify_python.sh not found — skipping Python gate.")
         }
+        EngineHarness.terminateSpawnedEngineForNestedVerifier()
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
