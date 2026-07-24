@@ -30,6 +30,8 @@ struct StartupWorkGateTests {
     private static func embeddedBackendServiceSource() throws -> String {
         try [
             "Services/EmbeddedBackendService.swift",
+            "Services/EmbeddedBackendService+Lifecycle.swift",
+            "Services/EmbeddedBackendService+Ports.swift",
             "Services/EmbeddedBackendService+TLS.swift"
         ]
         .map { try Self.appSource($0) }
@@ -149,5 +151,48 @@ struct StartupWorkGateTests {
             body.contains("process.waitUntilExit()"),
             "the TLS subprocess wait must stay inside the nonisolated function (#3928/#3936)"
         )
+    }
+
+    /// #3928: Release embedded launch enters `spawnAndAdoptEmbeddedEngine` on the
+    /// main actor before a first frame, then preflights :8765 via `resolvePortConflict`.
+    /// The helpers shell out to pgrep/ps/lsof and wait for ports to clear, so the
+    /// caller must await async/off-main work rather than doing synchronous sleeps or
+    /// `waitUntilExit()` on the main actor.
+    @Test("launch port preflight is async and keeps blocking probes off main")
+    func portPreflightBlockingWorkIsOffMain() throws {
+        let source = try Self.embeddedBackendServiceSource()
+        let spawnBody = try Self.functionBody(
+            containing: "private func spawnAndAdoptEmbeddedEngine", in: source
+        )
+        #expect(
+            spawnBody.contains("try await resolvePortConflict()"),
+            "releaseEmbedded launch must await async port preflight instead of blocking @MainActor (#3928)"
+        )
+
+        #expect(
+            source.contains("func resolvePortConflict() async throws"),
+            "resolvePortConflict is reached from the main-actor launch path and must remain async (#3928)"
+        )
+        let preflightBody = try Self.functionBody(
+            containing: "func resolvePortConflict() async throws", in: source
+        )
+        #expect(
+            preflightBody.contains("Task.detached") && preflightBody.contains("terminateOrphanEngines()"),
+            "the orphan sweep shells out and must run off the main actor (#3928)"
+        )
+        #expect(
+            preflightBody.contains("await Self.waitForPortToClear"),
+            "port-clear waits must suspend instead of sleeping the main actor (#3928)"
+        )
+    }
+
+    @Test("launch port wait uses Task.sleep, not Thread.sleep")
+    func portWaitDoesNotThreadSleepOnLaunchPath() throws {
+        let source = try Self.embeddedBackendServiceSource()
+        let body = try Self.functionBody(
+            containing: "nonisolated static func waitForPortToClear", in: source
+        )
+        #expect(!body.contains("Thread.sleep"), "launch port wait must not block a thread (#3928)")
+        #expect(body.contains("Task.sleep"), "launch port wait should suspend cooperatively (#3928)")
     }
 }

@@ -95,8 +95,8 @@ extension EmbeddedBackendService {
     #if !FICHERO_APP_STORE
     /// SIGTERM a "Fichero Engine" subprocess left over from a previous run of
     /// **this** app that didn't get a chance to call .stop() (e.g. SIGKILL,
-    /// crash, or force-quit). Called before spawning a new engine so the new
-    /// spawn can bind port 8765 cleanly.
+    /// crash, or force-quit). Called off the main actor before spawning a new engine
+    /// so the new spawn can bind port 8765 cleanly.
     ///
     /// SAFETY (#2079): a host can BOTH serve a shared engine (for remote users)
     /// AND run the app. Killing local engines by name pattern would SIGTERM that
@@ -115,7 +115,7 @@ extension EmbeddedBackendService {
     /// Correctness over aggressiveness: it is better to leave a real orphan
     /// running (the user can kill it) than to SIGTERM a shared engine others
     /// depend on. When in doubt we spare.
-    static func terminateOrphanEngines() {
+    nonisolated static func terminateOrphanEngines() {
         if EngineConfig.usesCustomHost {
             logger.info("Custom/remote engine host configured — skipping orphan sweep (no local engine is ours to kill)")
             return
@@ -154,7 +154,7 @@ extension EmbeddedBackendService {
     /// process's environment to its command-line output, so we can recover the
     /// owner without a pidfile. Returns nil when the var is absent (engine
     /// started independently of any app) or the environment can't be read.
-    private static func engineParentPID(_ pid: pid_t) -> pid_t? {
+    nonisolated private static func engineParentPID(_ pid: pid_t) -> pid_t? {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/ps")
         task.arguments = ["-E", "-ww", "-o", "command=", "-p", String(pid)]
@@ -174,21 +174,24 @@ extension EmbeddedBackendService {
     /// user we lack permission to signal. `kill(_, 0)` returns 0 when the
     /// process exists and is signalable, or fails with EPERM when it exists but
     /// belongs to a different owner. Both mean "alive" for orphan-kill purposes.
-    private static func isProcessAlive(_ pid: pid_t) -> Bool {
+    nonisolated private static func isProcessAlive(_ pid: pid_t) -> Bool {
         if pid <= 0 { return false }
         return kill(pid, 0) == 0 || errno == EPERM
     }
     #endif  // !FICHERO_APP_STORE — end of the non-child process machinery
 
-    static func waitForPortToClear(_ port: UInt16, timeout: TimeInterval) {
+    nonisolated static func waitForPortToClear(_ port: UInt16, timeout: TimeInterval) async {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if !portInUse(port) { return }
-            Thread.sleep(forTimeInterval: 0.1)
+            let inUse = await Task.detached(priority: .userInitiated) {
+                Self.portInUse(port)
+            }.value
+            if !inUse { return }
+            try? await Task.sleep(for: .milliseconds(100))
         }
     }
 
-    private static func portInUse(_ port: UInt16) -> Bool {
+    nonisolated private static func portInUse(_ port: UInt16) -> Bool {
         #if FICHERO_APP_STORE
         return portIsAcceptingConnections(port)
         #else
@@ -206,7 +209,7 @@ extension EmbeddedBackendService {
     /// one thing we actually need ("is the port taken?"), and tells us nothing
     /// about WHO holds it — which is correct, because a sandboxed app has no
     /// business knowing, and cannot signal them anyway.
-    static func portIsAcceptingConnections(_ port: UInt16) -> Bool {
+    nonisolated static func portIsAcceptingConnections(_ port: UInt16) -> Bool {
         let sock = socket(AF_INET, SOCK_STREAM, 0)
         guard sock >= 0 else { return false }
         defer { close(sock) }
@@ -227,13 +230,13 @@ extension EmbeddedBackendService {
     /// PID of the owned Debug-local engine, if ownership says this app must tear
     /// it down. UDS dev engines are started by the Xcode pre-action, not
     /// `launchEmbeddedBackend()`, so this bridges that adopted-but-owned path.
-    static func ownedDebugEnginePID(transportMode: TransportMode) -> pid_t? {
+    static func ownedDebugEnginePID(transportMode: TransportMode) async -> pid_t? {
         #if FICHERO_APP_STORE
         return nil
         #else
         switch transportMode {
         case .uds(let path):
-            return pidOnUnixSocket(path)
+            return await pidOnUnixSocket(path)
         #if os(macOS)
         case .inMemory:
             return nil
@@ -245,7 +248,13 @@ extension EmbeddedBackendService {
     }
 
     #if !FICHERO_APP_STORE
-    private static func pidOnUnixSocket(_ path: String) -> pid_t? {
+    private static func pidOnUnixSocket(_ path: String) async -> pid_t? {
+        await Task.detached(priority: .userInitiated) {
+            pidOnUnixSocketSync(path)
+        }.value
+    }
+
+    nonisolated private static func pidOnUnixSocketSync(_ path: String) -> pid_t? {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         task.arguments = ["-t", path]
@@ -268,7 +277,7 @@ extension EmbeddedBackendService {
     /// the sandbox permits no view of other processes' descriptors. MAS uses
     /// portIsAcceptingConnections() above, which answers "is it taken?" without
     /// asking "by whom?".
-    private static func pidOnPort(_ port: UInt16) -> pid_t? {
+    nonisolated private static func pidOnPort(_ port: UInt16) -> pid_t? {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         task.arguments = ["-i", ":\(port)", "-sTCP:LISTEN", "-t"]
@@ -295,7 +304,7 @@ extension EmbeddedBackendService {
     // this consumes it exactly once. Never silently adopts or silently kills.
     // Promoted from `private` to internal: called by spawnAndAdoptEmbeddedEngine
     // in the Lifecycle extension file.
-    func resolvePortConflict() throws -> PortResolution {
+    func resolvePortConflict() async throws -> PortResolution {
         #if FICHERO_APP_STORE
         // App Sandbox (#3749): we manage ONLY our own child. There is no orphan
         // sweep, no holder PID and no kill, for two independent reasons:
@@ -323,9 +332,13 @@ extension EmbeddedBackendService {
         pendingPortConflictResolution = nil
         throw BackendError.portConflict(pid: nil)
         #else
-        Self.terminateOrphanEngines()
-        Self.waitForPortToClear(8765, timeout: 3.0)
-        let holder = Self.pidOnPort(8765).map(Int.init)
+        await Task.detached(priority: .userInitiated) {
+            Self.terminateOrphanEngines()
+        }.value
+        await Self.waitForPortToClear(8765, timeout: 3.0)
+        let holder = await Task.detached(priority: .userInitiated) {
+            Self.pidOnPort(8765).map(Int.init)
+        }.value
 
         switch Self.portConflictAction(holderPID: holder, pendingChoice: pendingPortConflictResolution) {
         case .surfacePhase(let pid):
@@ -343,10 +356,10 @@ extension EmbeddedBackendService {
             // Skipped when the port was already free (no pending choice).
             if pendingPortConflictResolution == .stopIt, let pid = holder.map({ pid_t($0) }) {
                 kill(pid, SIGTERM)
-                Self.waitForPortToClear(8765, timeout: 5.0)
-                if Self.portInUse(8765) {
+                await Self.waitForPortToClear(8765, timeout: 5.0)
+                if await Task.detached(priority: .userInitiated, operation: { Self.portInUse(8765) }).value {
                     kill(pid, SIGKILL)
-                    Self.waitForPortToClear(8765, timeout: 2.0)
+                    await Self.waitForPortToClear(8765, timeout: 2.0)
                 }
             }
             pendingPortConflictResolution = nil

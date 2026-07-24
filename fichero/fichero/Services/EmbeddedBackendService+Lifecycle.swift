@@ -135,7 +135,7 @@ extension EmbeddedBackendService {
         do {
             try await waitForBackend(timeout: debugExternalReadinessTimeout)
             if currentEngineOwnership == .ownedEmbedded {
-                backendPID = Self.ownedDebugEnginePID(transportMode: lastTransportMode ?? EngineConfig.transportMode)
+                backendPID = await Self.ownedDebugEnginePID(transportMode: lastTransportMode ?? EngineConfig.transportMode)
             }
             status = .running
             let ownership = String(describing: currentEngineOwnership)
@@ -173,7 +173,7 @@ extension EmbeddedBackendService {
         // is STILL held by a process we can't claim, ask the user (Stop it /
         // Use it / Quit) rather than silently adopting an engine that may
         // reject our token and leave a blank window.
-        switch try resolvePortConflict() {
+        switch try await resolvePortConflict() {
         case .adoptExisting:
             lastPortResolution = .adoptExisting
             expectedLaunchNonce = nil
