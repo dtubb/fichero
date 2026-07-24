@@ -362,14 +362,26 @@ final class AdaptiveShellPolicyTests: XCTestCase {
     }
 
     func testBottomEdgeFiltersStayPaneScoped() throws {
-        let sidebarSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
+        // #4061: the sidebar filter moved out of a standalone `sidebarFilterBar`
+        // in `SidebarView+ViewComponents` and into the shared bottom
+        // `SidebarBottomToolbar`. The filter is still pane-scoped (it still
+        // drives `filteredLibraryHeaders`); it just lives in the unified
+        // bottom toolbar chrome now.
+        let sidebarComponentsSource = try Self.appSource(
+            "Views/Sidebar/Sections/SidebarView+ViewComponents.swift"
+        )
+        let sidebarBottomToolbarSource = try Self.appSource(
+            "Views/Sidebar/Sections/SidebarBottomToolbar.swift"
+        )
         let sidebarHelpersSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+Helpers.swift")
         let annotationsSource = try Self.appSource(
             "Views/Inspector/Notes/DocumentInspectorAnnotationsTab.swift"
         )
 
-        XCTAssertTrue(sidebarSource.contains("sidebarFilterBar"))
-        XCTAssertTrue(sidebarSource.contains("TextField(\"Filter\", text: $sidebarFilterText)"))
+        XCTAssertFalse(sidebarComponentsSource.contains("sidebarFilterBar"),
+                       "standalone sidebarFilterBar is gone — filter lives in the bottom toolbar (#4061)")
+        XCTAssertTrue(sidebarBottomToolbarSource.contains("TextField(\"Filter\", text: sidebarFilterText)"),
+                      "sidebar filter TextField lives in the shared bottom toolbar (#4061)")
         XCTAssertTrue(sidebarHelpersSource.contains("var filteredLibraryHeaders: [SidebarItem]"))
         XCTAssertTrue(annotationsSource.contains("annotationFilterBar"))
         XCTAssertTrue(annotationsSource.contains("TextField(\"Search notes, tags, claim id…\", text: $searchText)"))
