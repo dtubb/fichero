@@ -23,10 +23,12 @@ enum WorkflowRunTargetResolver {
         selection: Set<WorkflowRunTarget>,
         documents: [Document]
     ) -> [String] {
-        let targets = selection.contains(clicked) ? selection : [clicked]
-        let directFiles = targets.flatMap { target in
+        let targets = selection.contains(clicked) ? Array(selection) : [clicked]
+        let targetFileIDs = Set(targets.flatMap { target in
             target.directFileIDs(from: documents)
-        }
-        return Array(NSOrderedSet(array: directFiles)) as? [String] ?? []
+        })
+        let documentOrderedIDs = documents.map(\.id).filter(targetFileIDs.contains)
+        let unknownFileIDs = targetFileIDs.subtracting(documentOrderedIDs).sorted()
+        return documentOrderedIDs + unknownFileIDs
     }
 }

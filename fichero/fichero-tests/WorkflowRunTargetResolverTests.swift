@@ -47,6 +47,17 @@ final class WorkflowRunTargetResolverTests: XCTestCase {
         )
     }
 
+    func testSelectedFilesFollowDocumentOrder() {
+        XCTAssertEqual(
+            WorkflowRunTargetResolver.resolve(
+                clicked: .file("b"),
+                selection: [.file("a"), .file("b")],
+                documents: documents
+            ),
+            ["a", "b"]
+        )
+    }
+
     func testUnselectedClickIgnoresUnrelatedSelection() {
         XCTAssertEqual(
             WorkflowRunTargetResolver.resolve(
