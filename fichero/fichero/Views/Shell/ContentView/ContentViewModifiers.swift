@@ -119,27 +119,14 @@ struct DropTargetModifiers: ViewModifier {
             } isTargeted: { isTargeted in
                 self.isDropTargeted = isTargeted
             }
-            // No full-window highlight overlay — sidebar folder rows show their own
-            // per-folder drop targeting via SidebarItemRow's isDropTargeted state.
-            .overlay {
-                if isImporting {
-                    ZStack {
-                        Color.black.opacity(0.3)
-                        VStack(spacing: 12) {
-                            ProgressView()
-                                .scaleEffect(1.2)
-                            if let progress = importProgress {
-                                Text(progress)
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .padding(20)
-                        .background(Color(platformColor: .controlBackgroundColor))
-                        .cornerRadius(8)
-                    }
-                    .allowsHitTesting(false)
-                }
-            }
+            // No full-window import overlay — a folder-of-folders import runs
+            // long and the dimmed spinner covered the sidebar so nothing
+            // appeared until the WHOLE ingest finished (#4065). Progress now
+            // streams per-file through the DocumentStore change stream (items
+            // populate incrementally) and the trailing status lives in the
+            // toolbar's ActivityStatusToolbarItem (#4036), keeping the
+            // sidebar visible the whole time. The drop-target highlight stays
+            // on the per-row sidebar state.
             .alert("Import Error", isPresented: .constant(importError != nil)) {
                 Button("OK") {
                     importError = nil

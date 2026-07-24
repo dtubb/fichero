@@ -272,11 +272,13 @@ extension SidebarItemRow {
                         "Imported \(fileURLs.count) external file(s) to library root (no Inbox found)"
                     )
                 }
-                // Refresh twice: once immediately, again after 500ms to catch
-                // the race where the backend hasn't finished indexing new
-                // documents when the first refresh fires.
-                await documentStore?.refresh()
-                try? await Task.sleep(for: .milliseconds(500))
+                // The engine emits a per-file ``document.created`` change event
+                // as each file is ingested, so the DocumentStore patches the
+                // sidebar incrementally while the import runs (#4065). This
+                // trailing refresh is the prompt completion signal the store
+                // observes even if a per-file event was lost in flight, and
+                // replaces the old double-refresh + 500ms sleep that made the
+                // sidebar lag the spinner stop (#4067).
                 await documentStore?.refresh()
             } catch {
                 sidebarRowLogger.error("External drop import failed: \(error.localizedDescription)")

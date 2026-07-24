@@ -85,6 +85,48 @@ final class ObservableDomainStoreTests: XCTestCase {
         XCTAssertEqual(store.changeDomains, ["document"])
     }
 
+    // MARK: - DocumentStore granular apply (document.created) — #4065/#4067
+
+    /// A ``document.created`` event records the affected ids in
+    /// ``pendingPatchIds`` so the debounced flush fetches + splices each one
+    /// in place — the progressive-population contract the folder ingest relies
+    /// on (#4065). The engine now emits one created event per ingested file;
+    /// each event lands here and patches the sidebar incrementally rather than
+    /// waiting for the whole import to finish. The debounced network flush is
+    /// cancelled so this stays a synchronous, network-free test.
+    func testApplyCreatedRecordsPendingPatchIdsForProgressiveStreaming() throws {
+        let store = DocumentStore(apiClient: APIClient())
+        let docA = makeDoc(id: "a", name: "Alpha")
+        let docB = makeDoc(id: "b", name: "Beta")
+        store.collections = [docA]
+        store.currentDocuments = [docA]
+
+        // First file lands → only "b" is new to the stream.
+        store.apply(try makeEvent(type: "document.created", documentIds: ["b"]))
+        // Cancel the scheduled network flush so the test stays synchronous.
+        store.reloadDebouncer.cancel()
+        XCTAssertEqual(Set(store.pendingPatchIds), ["b"])
+
+        // Second event (another file mid-import) accumulates alongside.
+        store.apply(try makeEvent(type: "document.created", documentIds: ["c"]))
+        store.reloadDebouncer.cancel()
+        XCTAssertEqual(Set(store.pendingPatchIds), ["b", "c"])
+    }
+
+    /// The completion event (the action's trailing bulk ``document.created``
+    /// carrying every created id) records the FULL set in ``pendingPatchIds``
+    /// so the store refreshes promptly when the spinner stops (#4067) — even if
+    /// every per-file streaming event had been lost in flight, the bulk event
+    /// alone arms a single debounced flush that re-splices every row.
+    func testApplyCreatedCompletionEventRecordsFullIdSet() throws {
+        let store = DocumentStore(apiClient: APIClient())
+
+        store.apply(try makeEvent(type: "document.created", documentIds: ["a", "b", "c", "d"]))
+        store.reloadDebouncer.cancel()
+
+        XCTAssertEqual(Set(store.pendingPatchIds), ["a", "b", "c", "d"])
+    }
+
     // MARK: - Helpers
 
     /// Tiny actor so the `@Sendable` debouncer closure can count fires safely.
