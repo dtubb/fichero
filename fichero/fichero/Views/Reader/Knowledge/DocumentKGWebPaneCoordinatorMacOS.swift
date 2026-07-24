@@ -164,10 +164,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
 
     private func loadUnavailableIfEngineLoad(_ webView: WKWebView, error: any Error) {
         if error.isCancellationError { return }
-        // Failures the scheme handler raises carry no failing-URL key; a genuine
-        // network failure carries one — only fall back for our engine loads (or
-        // the key-less handler errors), never for the `about:blank` unavailable
-        // page, so it can't loop.
+        // Scheme-handler failures lack a failing URL, while transport failures include one.
+        // Limit fallback to engine-origin loads so the standalone unavailable page cannot loop.
         let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLStringErrorKey] as? String
         guard failingURL == nil || failingURL?.hasPrefix(EngineWebViewURL.scheme) == true else { return }
         webView.loadHTMLString(DocumentKGPaneRoute.unavailableHTML(), baseURL: nil)

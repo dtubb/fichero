@@ -51,6 +51,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
     @AppStorage(ReaderTextWrap.storageKey)
     var readerTextWrap = ReaderTextWrap.tidy
     @Environment(KGFocusState.self) var kgFocusState
+    @Environment(LibraryManager.self) var libraryManager
     /// Per-window source-navigation bus (#3437). Captured into the coordinator
     /// in `updateNSView` — a WKScriptMessageHandler callback fires async, outside
     /// view evaluation, where reading `@Environment` directly is unsafe.
@@ -69,7 +70,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         // subresource through the transport-agnostic `FicheroClient` — making the
         // pane work over `.uds`/in-memory, not just HTTPS (a raw `https://…:8765`
         // navigation fails `-1004` when WKWebView can't dial the socket).
-        if let client = DocumentKGPaneRoute.webViewClient(libraryPath: libraryPath) {
+        if let client = DocumentKGPaneRoute.webViewClient(libraryPath: libraryPath, libraryManager: libraryManager) {
             config.setURLSchemeHandler(EngineWebViewSchemeHandler(client: client), forURLScheme: EngineWebViewURL.scheme)
         }
         // Storage images referenced as `fichero-res://…` inside KG HTML resolve
@@ -169,6 +170,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
     @AppStorage(ReaderTextWrap.storageKey)
     var readerTextWrap = ReaderTextWrap.tidy
     @Environment(KGFocusState.self) var kgFocusState
+    @Environment(LibraryManager.self) var libraryManager
     /// Per-window source-navigation bus (#3437); captured into the coordinator
     /// in `updateUIView` for the async bridge callback.
     @Environment(ClaimSourceNavigationState.self) var claimSourceNavigationState: ClaimSourceNavigationState?
@@ -184,7 +186,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
         // See the macOS pane: the whole KG page loads over `fichero-engine://` so
         // `EngineWebViewSchemeHandler` routes it through the transport-agnostic
         // `FicheroClient`, and `fichero-res://` storage assets resolve the same way.
-        if let client = DocumentKGPaneRoute.webViewClient(libraryPath: libraryPath) {
+        if let client = DocumentKGPaneRoute.webViewClient(libraryPath: libraryPath, libraryManager: libraryManager) {
             config.setURLSchemeHandler(EngineWebViewSchemeHandler(client: client), forURLScheme: EngineWebViewURL.scheme)
         }
         config.setURLSchemeHandler(StorageResourceSchemeHandler(), forURLScheme: StorageResourceURL.scheme)

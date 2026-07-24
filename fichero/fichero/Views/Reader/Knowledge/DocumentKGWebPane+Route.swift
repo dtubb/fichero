@@ -26,11 +26,11 @@ extension DocumentKGPaneRoute {
     /// Global library. Its `currentLibraryPath` is already set to `libraryPath`,
     /// so `requestData` applies the correct library scoping automatically.
     @MainActor
-    static func webViewClient(libraryPath: String) -> FicheroClient? {
-        if let match = LibraryManager.shared.openLibraries.first(where: { $0.url.path == libraryPath }) {
+    static func webViewClient(libraryPath: String, libraryManager: LibraryManager) -> FicheroClient? {
+        if let match = libraryManager.openLibraries.first(where: { $0.url.path == libraryPath }) {
             return match.ficheroClient
         }
-        return LibraryManager.shared.globalLibrary?.ficheroClient
+        return libraryManager.globalLibrary?.ficheroClient
     }
 
     static func supportsAuthenticatedWebView() -> Bool {
