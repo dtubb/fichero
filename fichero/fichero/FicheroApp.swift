@@ -182,10 +182,18 @@ struct FicheroApp: App {
     /// duplicate path reuses it rather than introducing a parallel one.
     @ViewBuilder
     private func libraryWindowRoot(seed: WindowSeed?) -> some View {
-        // #2864: the root switches on backend usability. Until the engine is
-        // running AND authenticated, the window shows BackendConnectionView
-        // (full-window, with diagnosis) instead of LibraryWindow — never a
-        // blank window with silent 401s behind the chrome.
+        // #2864/#3107: the root switches on the single `engine.phase` sum
+        // type — one authoritative "is the backend usable" decision, not
+        // ANDed booleans. `.setupNeeded` (iOS first-run pairing; never on
+        // macOS, where the engine is embedded) renders BackendConnectionView.
+        // Every other phase — `.starting`, `.ready`, and all failure phases
+        // (`.portConflict` / `.authRejected` / `.unreachable` / `.failed`) —
+        // renders LibraryWindow content immediately; per #4036 those
+        // failures surface as toolbar chrome (`EngineStatusToolbarItem`),
+        // not a full-window takeover, and a mid-session drop that exhausts
+        // restarts raises the `appState.showBackendDropModal` alert (#4064).
+        // The full-window BackendConnectionView is no longer the failure
+        // surface, so the real UI is never hidden behind a connect splash.
         BackendRootGate(
             appState: appState,
             // The connection view's Retry runs the SAME connect sequence as
