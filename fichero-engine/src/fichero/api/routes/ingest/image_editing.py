@@ -1344,6 +1344,7 @@ async def delete_edit_chain(
 
 @router.get(
     "/{document_id}/preview",
+    response_class=Response,
     responses={
         200: {
             "content": {

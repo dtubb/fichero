@@ -61,6 +61,10 @@ def test_image_preview_route_declares_binary_response() -> None:
     content = _binary_media_types("get", "/api/images/{document_id}/preview")
     for media in ("image/png", "image/jpeg"):
         assert content[media]["schema"] == {"type": "string", "format": "binary"}, media
+    # No spurious application/json content — FastAPI adds an empty-schema
+    # application/json entry by default for Response return types, which makes
+    # swift-openapi-generator emit a JSON-decoding case for binary bytes (#4050).
+    assert "application/json" not in content, content
 
 
 def test_thread_diagram_png_route_declares_binary_response() -> None:
@@ -70,6 +74,7 @@ def test_thread_diagram_png_route_declares_binary_response() -> None:
         "get", "/api/workflow-execution/threads/{thread_id}/diagram.png"
     )
     assert content["image/png"]["schema"] == {"type": "string", "format": "binary"}
+    assert "application/json" not in content, content
 
 
 def test_hermeneutics_list_routes_have_typed_item_envelopes() -> None:

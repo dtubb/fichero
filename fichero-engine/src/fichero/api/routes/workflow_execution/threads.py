@@ -821,6 +821,7 @@ async def get_workflow_run(
 
 @router.get(
     "/threads/{thread_id}/diagram.png",
+    response_class=Response,
     responses={
         200: {
             "content": {

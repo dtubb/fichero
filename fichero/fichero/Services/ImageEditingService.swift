@@ -185,16 +185,13 @@ final class ImageEditingService {
         switch response {
         case .ok(let okResponse):
             // The server renders PNG for images with transparency, otherwise
-            // JPEG; both are binary bodies. A `.json` body would mean the spec /
-            // handler drifted back to the old JSON modelling.
+            // JPEG; both generated cases are binary bodies.
             let body: OpenAPIRuntime.HTTPBody
             switch okResponse.body {
             case .png(let png):
                 body = png
             case .jpeg(let jpeg):
                 body = jpeg
-            case .json:
-                throw ImageEditingError.invalidResponse
             }
             let data = try await Data(collecting: body, upTo: Self.maxPreviewBytes)
             return try await Self.decodePreview(from: data)

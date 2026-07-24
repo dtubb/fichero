@@ -12448,9 +12448,6 @@
           "200": {
             "description": "Rendered preview image bytes (PNG for images with transparency, otherwise JPEG)",
             "content": {
-              "application/json": {
-                "schema": {}
-              },
               "image/png": {
                 "schema": {
                   "type": "string",
@@ -19535,9 +19532,6 @@
           "200": {
             "description": "PNG image of the workflow diagram",
             "content": {
-              "application/json": {
-                "schema": {}
-              },
               "image/png": {
                 "schema": {
                   "type": "string",
