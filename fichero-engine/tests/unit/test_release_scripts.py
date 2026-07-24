@@ -163,6 +163,18 @@ def test_release_all_always_rebuilds_engine_before_packaging() -> None:
     assert '--skip-backend) SKIP_BACKEND=true' not in text
 
 
+def test_release_all_cleans_only_macos_archive_before_macos_archive() -> None:
+    text = _script_text(RELEASE_ALL)
+    cleanup = text.index('rm -rf "$MAC_ARCHIVE_PATH"')
+    archive = text.index('xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj"')
+    ios_cleanup = text.index('rm -rf "$IOS_ARCHIVE_PATH"')
+
+    assert cleanup < archive < ios_cleanup
+    assert 'MAC_ARCHIVE_PATH="$RELEASE_DIR/Fichero-macOS.xcarchive"' in text
+    assert 'rm -rf "$RELEASE_DIR"' not in text
+    assert 'rm -rf "$ROOT_DIR/build"' not in text
+
+
 def test_preflight_accepts_distribution_signed_fm_bridge() -> None:
     text = _script_text(REPO_ROOT / "scripts" / "preflight-embedded-engine.sh")
 

@@ -311,6 +311,7 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
   echo "  TestFlight version: $TESTFLIGHT_MARKETING_VERSION ($TESTFLIGHT_BUILD_VERSION)"
   install_mac_app_store_profile
 
+  rm -rf "$MAC_ARCHIVE_PATH"
   if ! xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj" \
     -scheme "$MAC_APP_STORE_SCHEME" \
     -configuration "$MAC_APP_STORE_CONFIG" \
