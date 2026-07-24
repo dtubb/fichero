@@ -2,6 +2,38 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.24
+
+### Dev build
+
+Internal TestFlight + DMG dev prerelease cut from green `integration` after
+fast-forwarding it into `main` via the new `scripts/merge-integration-to-main.sh`
+pre-step. Not promoted to production.
+
+> **Note:** the `v2026.07.23` tag was cut from `main@d141bc139` (the
+> 2026.07.22-beta code) before the `integration` lane was merged, so its build
+> did **not** contain the workflow sidebar nodes or the chat-tools agent loop.
+> `2026.07.24` is the first release that actually ships that work.
+
+### New
+
+**Workflow nodes in the library sidebar.** Workflows now render as real nodes
+under their folders in the library sidebar tree (#4 / #2081) — previously only
+the folders showed.
+
+**Read-only chat-tools agent loop.** A read-only agentic chat loop
+(`chat_tools.py`) is wired into `/api/chat` behind the `FICHERO_CHAT_TOOLS`
+flag (#3 / #1847 / #1848). The model acts as a user issuing audited MCP tools.
+
+### Under The Hood
+
+**Release infra.** `scripts/release-all.sh` now takes `--dev` / `--tier
+<release|beta|alpha|dev>` to bake the full dev feature surface (Dev Embedded
+mac config + dev `FICHERO_FEATURE_TIER` on iOS), not just stripped release
+features. `scripts/merge-integration-to-main.sh` fast-forwards `integration`
+into `main` and pushes as the pre-step before a release — so releases no longer
+ship without the lane's work.
+
 ## 2026.07.23
 
 ### Dev build
