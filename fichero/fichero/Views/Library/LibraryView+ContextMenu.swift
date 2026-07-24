@@ -43,7 +43,7 @@ extension LibraryView {
         organizeMenuItems(for: document)
         stackMenuItems(for: document)
         excludeFromProcessingMenuItem(excludeTargets: excludeTargets)
-        runWorkflowMenuItem()
+        runWorkflowMenuItem(for: document)
     }
 
     // Finder-style open affordances (#1685). "Open" reuses the existing
@@ -144,15 +144,16 @@ extension LibraryView {
     // as nested submenus matching the context menu in the sidebar
     // (#722).
     @ViewBuilder
-    private func runWorkflowMenuItem() -> some View {
+    private func runWorkflowMenuItem(for clickedDocument: Document) -> some View {
         let availableWorkflows = libraryWorkflows
-        if !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled
-            && !availableWorkflows.isEmpty {
-            let docIds = Array(selection)
+        let workflowTargetIDs = resolvedWorkflowTargetIDs(for: clickedDocument)
+        if featureManager.isWorkflowRunOnSelectionEnabled,
+           !availableWorkflows.isEmpty,
+           !workflowTargetIDs.isEmpty {
             Menu {
                 workflowSubmenuItems(workflows: availableWorkflows) { workflowId, providerOverride, modelOverride in
-                    selectedDocumentIdsForBatch = docIds
-                    Task {
+                    Task { @MainActor in
+                        selectedDocumentIdsForBatch = workflowTargetIDs
                         await runBatchWorkflow(
                             workflowId: workflowId,
                             providerOverride: providerOverride,
@@ -173,6 +174,24 @@ extension LibraryView {
                 }
             }
         }
+    }
+
+    private func resolvedWorkflowTargetIDs(for clickedDocument: Document) -> [String] {
+        let clickedTarget = workflowRunTarget(for: clickedDocument)
+        let selectedTargets = Set(
+            documents
+                .filter { selection.contains($0.id) }
+                .map(workflowRunTarget(for:))
+        )
+        return WorkflowRunTargetResolver.resolve(
+            clicked: clickedTarget,
+            selection: selectedTargets,
+            documents: documents
+        )
+    }
+
+    private func workflowRunTarget(for document: Document) -> WorkflowRunTarget {
+        document.docType == .folder ? .folder(document.id) : .file(document.id)
     }
 
     /// Render a Run-Workflow menu body that groups workflows by their
