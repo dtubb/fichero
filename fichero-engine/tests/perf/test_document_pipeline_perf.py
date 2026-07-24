@@ -20,6 +20,7 @@ regression (e.g. an accidental nested scan) not normal machine jitter.
 
 from __future__ import annotations
 
+import inspect
 import time
 from datetime import datetime
 
@@ -45,21 +46,21 @@ CACHE_KEY_ITERS = 200
 def _seed_pipeline_library(db) -> str:
     """Seed N_ENTITIES entities + N_CLAIMS claims across N_DOCS docs.
 
+    Uses db.save_many so KG fixture setup does not schedule real embeddings.
     Returns one document id for scoped benchmarks.
     """
     now = datetime.now()
-    docs = []
-    for i in range(N_DOCS):
-        doc = Document(
+    docs = [
+        Document(
             name=f"Image {i:04d}.jpg",
             doc_type=DocType.file,
         )
-        db.save(doc)
-        docs.append(doc)
+        for i in range(N_DOCS)
+    ]
+    assert db.save_many(docs) == N_DOCS
 
-    entities = []
-    for i in range(N_ENTITIES):
-        ent = KnowledgeEntity(
+    entities = [
+        KnowledgeEntity(
             canonical_name=f"Person {i}",
             entity_type=EntityType.person,
             aliases=[f"p{i}"],
@@ -67,11 +68,12 @@ def _seed_pipeline_library(db) -> str:
             created_at=now,
             updated_at=now,
         )
-        db.save(ent)
-        entities.append(ent)
+        for i in range(N_ENTITIES)
+    ]
+    assert db.save_many(entities) == N_ENTITIES
 
-    for i in range(N_CLAIMS):
-        claim = KnowledgeClaim(
+    claims = [
+        KnowledgeClaim(
             text=f"Claim text number {i} from source document.",
             source_document_id=docs[i % N_DOCS].id,
             entity_ids=[entities[i % N_ENTITIES].id],
@@ -80,9 +82,18 @@ def _seed_pipeline_library(db) -> str:
             created_at=now,
             updated_at=now,
         )
-        db.save(claim)
+        for i in range(N_CLAIMS)
+    ]
+    assert db.save_many(claims) == N_CLAIMS
 
     return docs[0].id
+
+
+def test_seed_pipeline_library_uses_bulk_save_path():
+    """Perf fixture seeding must not schedule per-row KG embeddings."""
+    source = inspect.getsource(_seed_pipeline_library)
+    assert "save_many" in source
+    assert ".save(" not in source
 
 
 def test_document_list_100_images(client, db):
