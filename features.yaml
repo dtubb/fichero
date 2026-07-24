@@ -82,11 +82,11 @@
   notes: Import and export workflow definitions.
 - key: workflowRunOnSelection
   name: Workflow run on selection
-  tier: dev
+  tier: release
   swift_flag: fichero.features.workflow_run_on_selection
   routes: []
   ux_group: Processing
-  notes: Run the active workflow on the selected documents.
+  notes: Run the active workflow on the selected documents from the library contextual menu.
 - key: workflowLangGraphPreview
   name: Workflow LangGraph preview
   tier: dev

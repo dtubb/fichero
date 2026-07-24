@@ -160,10 +160,10 @@ enum FeatureTiers {
         ),
         .workflowRunOnSelection: .init(
             name: "Workflow run on selection",
-            tier: .dev,
+            tier: .release,
             swiftFlag: "fichero.features.workflow_run_on_selection",
             uxGroup: "Processing",
-            notes: "Run the active workflow on the selected documents."
+            notes: "Run the active workflow on the selected documents from the library contextual menu."
         ),
         .workflowLangGraphPreview: .init(
             name: "Workflow LangGraph preview",

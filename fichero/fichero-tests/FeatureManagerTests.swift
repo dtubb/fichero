@@ -117,6 +117,32 @@ final class FeatureManagerTests: XCTestCase {
         }
     }
 
+    /// #4063: the library contextual menu's "Run Workflow" item is gated by
+    /// `isWorkflowRunOnSelectionEnabled`, which is `isVisible(.workflowRunOnSelection)`
+    /// gated. The flag's tier was `.dev`, so the menu item was hidden in the release
+    /// build while the dev build showed it. Promote the tier to `.release` so the
+    /// apply-workflow contextual menu appears in release (dead-simple-UX: turn the
+    /// feature ON, don't add a new toggle). The menu still only renders when the
+    /// selection is non-empty AND the library has workflows — the gate is the only
+    /// fix; no new mechanism.
+    func testWorkflowRunOnSelectionEnabledInRelease() {
+        let featureManager = FeatureManager.shared
+
+        withFeatureTier("release") {
+            featureManager.resetToV001()
+
+            XCTAssertEqual(
+                FeatureTiers.map[.workflowRunOnSelection]!.tier,
+                .release,
+                "workflowRunOnSelection must be tier .release so the contextual-menu item appears in release (#4063)"
+            )
+            XCTAssertTrue(
+                featureManager.isWorkflowRunOnSelectionEnabled,
+                "Run-Workflow-on-Selection contextual menu must be visible in release builds (#4063)"
+            )
+        }
+    }
+
     // The Engine & Access panes (Engine/Backend + Library Access: People /
     // Devices+QR / Capture) hold real, keepable capabilities, so their EXISTENCE
     // must not hang off the `.alpha`-tier `settings_*_tab` flags — those hid the QR

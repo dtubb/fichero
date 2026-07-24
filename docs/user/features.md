@@ -19,6 +19,7 @@ Build-tier visibility uses a maturity floor:
 | Library | `release` | - | - | Core | Import, organize, and browse a hierarchy of documents. |
 | Reader | `release` | - | - | Core | PDFs, page images, extracted text, artifacts, and inspector. |
 | Search | `release` | `fichero.features.search` | `/api/search` | Core | Keyword and semantic search across the library. |
+| Workflow run on selection | `release` | `fichero.features.workflow_run_on_selection` | - | Processing | Run the active workflow on the selected documents from the library contextual menu. |
 | CLI | `beta` | - | - | Clients | Typed CLI over the same HTTP API surface. |
 | MCP server | `beta` | - | `/api/mcp` | Clients | MCP server surface backed by the engine. |
 | Library advanced views | `beta` | `fichero.features.library_advanced_views` | - | Core | Grid, list, table, and map views in the library. |
@@ -57,7 +58,6 @@ Build-tier visibility uses a maturity floor:
 | Workflow editor advanced views | `dev` | `fichero.features.workflow_editor_advanced_views` | - | Processing | Extra presentation modes in the workflow editor. |
 | Workflow import and export | `dev` | `fichero.features.workflow_import_export` | - | Processing | Import and export workflow definitions. |
 | Workflow LangGraph preview | `dev` | `fichero.features.workflow_langgraph_preview` | - | Processing | Inspect the compiled LangGraph form of a workflow. |
-| Workflow run on selection | `dev` | `fichero.features.workflow_run_on_selection` | - | Processing | Run the active workflow on the selected documents. |
 | Workflow tools agents | `dev` | `fichero.features.workflow_tools_agents` | - | Processing | Agent-backed workflow tools still under review. |
 | Workflow tools audio | `dev` | `fichero.features.workflow_tools_audio` | - | Processing | Audio workflow tools still under review. |
 | Workflow tools convert | `dev` | `fichero.features.workflow_tools_convert` | - | Processing | Convert workflow tools still under review. |
