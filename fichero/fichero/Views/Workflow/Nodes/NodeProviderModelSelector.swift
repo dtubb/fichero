@@ -141,6 +141,7 @@ struct NodeProviderModelSelector: View {
                 .onChange(of: selectedProviderId) { _, newValue in
                     if newValue.isEmpty {
                         // Default selected — clear explicit provider/model so the runtime uses its default
+                        node.config?.removeValue(forKey: "vision_mode")
                         node.providerName = nil
                         node.modelName = nil
                         node.usesLLM = false
@@ -161,6 +162,7 @@ struct NodeProviderModelSelector: View {
                                 || newValue == largeAliasProviderId {
                         // Tier alias — runtime fills provider+model. Model
                         // picker is hidden via isAliasSelected.
+                        node.config?.removeValue(forKey: "vision_mode")
                         node.providerName = newValue
                         node.modelName = nil
                         node.usesLLM = true
