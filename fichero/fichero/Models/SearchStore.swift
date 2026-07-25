@@ -3,6 +3,27 @@ import Foundation
 import Observation
 import OSLog
 
+enum SearchFailure: Equatable {
+    /// The search request itself failed. `detail` is diagnostic text for the
+    /// disclosure affordance (tooltip/log) — the UI never renders it inline
+    /// (error-presentation convention: icon + generic message, detail on
+    /// demand).
+    case requestFailed(detail: String)
+
+    /// The stable user-facing message for this failure.
+    var message: String {
+        switch self {
+        case .requestFailed: "Search failed"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .requestFailed(let detail): detail
+        }
+    }
+}
+
 /// Observable domain store for semantic search (#1903, mirrors `NoteStore`).
 ///
 /// The single endpoint accessor for search-result data. A view never holds
@@ -23,7 +44,7 @@ final class SearchStore: ChangeEventConsumer {
     private(set) var results: [SearchResult] = []
     private(set) var searchStats: SearchResponse?
     private(set) var isSearching = false
-    private(set) var searchError: String?
+    private(set) var searchFailure: SearchFailure?
     private(set) var indexedCount: Int?
     private(set) var isReindexing = false
     private(set) var keywordCloud: [KeywordCloudEntryDTO] = []
@@ -63,11 +84,11 @@ final class SearchStore: ChangeEventConsumer {
         guard !trimmed.isEmpty else {
             results = []
             searchStats = nil
-            searchError = nil
+            searchFailure = nil
             return
         }
         isSearching = true
-        searchError = nil
+        searchFailure = nil
         defer { isSearching = false }
         do {
             let response = try await searchService.searchCompatible(
@@ -97,7 +118,7 @@ final class SearchStore: ChangeEventConsumer {
             log.info("Search '\(trimmed, privacy: .public)' → \(response.count, privacy: .public) results")
         } catch {
             if error.isCancellationError { return }   // superseded search — keep results, no log
-            searchError = error.localizedDescription
+            searchFailure = .requestFailed(detail: error.localizedDescription)
             results = []
             searchStats = nil
             log.error("Search failed: \(error.localizedDescription)")

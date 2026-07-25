@@ -19,7 +19,7 @@ struct SearchStoreTests {
 
         #expect(store.results.isEmpty)
         #expect(store.searchStats == nil)
-        #expect(store.searchError == nil)
+        #expect(store.searchFailure == nil)
         #expect(!store.isSearching)
     }
 

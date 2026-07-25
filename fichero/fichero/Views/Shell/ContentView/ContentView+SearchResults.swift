@@ -275,11 +275,14 @@ extension ContentView {
     @ViewBuilder
     private func searchResultsHeaderRow(query: String, store: SearchStore) -> some View {
         HStack(spacing: 12) {
-            if let error = store.searchError {
-                Label(error, systemImage: "exclamationmark.triangle")
+            if let failure = store.searchFailure {
+                // Typed failure: stable message inline, raw detail only on
+                // demand (error-presentation convention — never dump error
+                // text in chrome).
+                Label(failure.message, systemImage: "exclamationmark.triangle")
                     .font(.callout)
                     .foregroundStyle(.red)
-                    .lineLimit(2)
+                    .help(failure.detail)
             } else if store.isSearching {
                 ProgressView()
                     .controlSize(.small)
@@ -350,7 +353,7 @@ extension ContentView {
                 .controlSize(.small)
             }
 
-            if !store.results.isEmpty && store.searchError == nil {
+            if !store.results.isEmpty && store.searchFailure == nil {
                 // Chat the search (#4117): the result set becomes the
                 // conversation's document scope.
                 Button {
