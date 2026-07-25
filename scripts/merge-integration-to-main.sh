@@ -12,12 +12,58 @@
 #
 # Refuses anything that isn't a clean fast-forward — no merge commits. A
 # diverged `integration` means its worktree needs rebasing onto main first; fix
-# that in the integration worktree, not here.
-#
+# that in the integration worktree, not here. It discards only the generated
+# OpenAPI copies on main; integration and the release build recreate them.
+
+OPENAPI_GENERATED_FILES=(
+  "docs/contributor/api-reference/openapi.json"
+  "fichero-engine/tests/contracts/openapi.json"
+  "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
+)
+
+is_generated_openapi_file() {
+  local path="$1"
+  local generated
+  for generated in "${OPENAPI_GENERATED_FILES[@]}"; do
+    [ "$path" = "$generated" ] && return 0
+  done
+  return 1
+}
+
+restore_generated_openapi_files() {
+  local status path
+  local other_changes=()
+  while IFS= read -r status; do
+    path="${status:3}"
+    if ! is_generated_openapi_file "$path" \
+      && { [ "$path" != "scripts/merge-integration-to-main.sh" ] \
+        || ! git diff --quiet "$SOURCE_BRANCH" -- "$path"; }; then
+      other_changes+=("$status")
+    fi
+  done < <(git status --short)
+
+  if [ "${#other_changes[@]}" -gt 0 ]; then
+    echo "error: working tree has changes outside generated OpenAPI files:" >&2
+    printf '  %s\n' "${other_changes[@]}" >&2
+    exit 1
+  fi
+
+  if [ -z "$(git status --short)" ]; then
+    return
+  fi
+
+  if [ "$DRY_RUN" = true ]; then
+    echo "[DRY RUN] would restore generated OpenAPI files from HEAD"
+  else
+    echo "── Restore generated OpenAPI files ──"
+    git restore --staged --worktree -- "${OPENAPI_GENERATED_FILES[@]}"
+  fi
+}
+
 # Usage:
 #   scripts/merge-integration-to-main.sh [--dry-run] [--source <branch>]
 #
-# --dry-run   resolve + verify but do not merge or push.
+# --dry-run   resolve + verify but do not restore, merge, or push.
 # --source    branch to merge in (default: integration).
 
 set -euo pipefail
@@ -31,7 +77,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=true ;;
     --source) shift; SOURCE_BRANCH="${1:?--source requires a branch name}" ;;
-    --help|-h) sed -n '2,22p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,65p' "$0"; exit 0 ;;
     *) echo "error: unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -47,8 +93,10 @@ fi
 echo "── Fetch origin ──"
 git fetch origin --quiet
 
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "error: working tree dirty — commit or stash before updating main." >&2
+restore_generated_openapi_files
+
+if [ "$DRY_RUN" = false ] && { ! git diff --quiet || ! git diff --cached --quiet; }; then
+  echo "error: generated OpenAPI restore did not leave a clean working tree." >&2
   git status --short >&2
   exit 1
 fi
@@ -101,6 +149,19 @@ else
   echo
   echo "── Fast-forward main to $SOURCE_BRANCH ──"
   git merge --ff-only "$SOURCE_BRANCH"
+  echo
+  echo "── Sync generated OpenAPI contracts ──"
+  ./fichero-engine/scripts/sync_openapi_schema.sh
+  if ! git diff --quiet; then
+    git add docs/contributor/api-reference/openapi.json \
+      fichero-engine/src/fichero/cli/openapi_surface_generated.py \
+      fichero-engine/tests/contracts/endpoints.json \
+      fichero-engine/tests/contracts/openapi.json \
+      fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json
+    git commit --author='Claude (GPT-5.6 Terra) <noreply@anthropic.com>' \
+      -m 'chore(openapi): sync generated contracts' \
+      -m 'Co-Authored-By: Claude <noreply@anthropic.com>'
+  fi
   echo
   echo "── Push main to origin ──"
   git push origin main
