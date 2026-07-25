@@ -12,7 +12,14 @@ class StateManagerTests: XCTestCase {
         let search = SavedSearch(id: "search-1", name: "Saved")
         let documentItem = SidebarItem.fromDocument(document, libraryId: UUID())
         let searchItem = SidebarItem.fromSearch(search, libraryId: UUID())
-        let selectedDocumentItem = SidebarItem(
+
+        XCTAssertEqual(documentItem.sidebarTint, .accent)
+        XCTAssertEqual(searchItem.sidebarTint, .teal)
+    }
+
+    func testSidebarItemTintUsesItemTypeRatherThanCategory() {
+        let search = SavedSearch(id: "search-1", name: "Saved")
+        let item = SidebarItem(
             id: "search:selected",
             name: search.name,
             icon: search.icon,
@@ -26,9 +33,7 @@ class StateManagerTests: XCTestCase {
             isFolder: false
         )
 
-        XCTAssertEqual(documentItem.sidebarTint, .accent)
-        XCTAssertEqual(searchItem.sidebarTint, .teal)
-        XCTAssertEqual(selectedDocumentItem.sidebarTint, .teal)
+        XCTAssertEqual(item.sidebarTint, .teal)
     }
 
     func testSidebarItemCategoryTintsRemainDistinctForAgenticTypes() {
