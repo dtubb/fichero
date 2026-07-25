@@ -6,6 +6,7 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 import inspect
+import subprocess
 import sys
 
 import pytest
@@ -30,6 +31,22 @@ from fichero.loaders.xmp_loader import (
     parse_xmp_sidecar,
     xmp_sidecar_path,
 )
+
+
+def test_public_loader_exports_survive_specialized_imports() -> None:
+    """Specialized loaders may import before the package's lazy public exports."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import fichero.loaders.document_loader; import fichero.loaders.pdf_loader; "
+            "from fichero.loaders import UnifiedLoader, load_media",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 class DummyLoader(MediaLoader):

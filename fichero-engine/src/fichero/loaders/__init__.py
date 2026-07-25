@@ -31,7 +31,6 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - import-time typing only
     from fichero.loaders.base import MediaContent, MediaLoader
-    from fichero.loaders.unified import load_media, UnifiedLoader
 
 # Which submodule owns each re-exported name. Resolved on first access (#3985).
 #
