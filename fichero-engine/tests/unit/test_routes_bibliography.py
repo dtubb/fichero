@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from fichero.models import Document
-from fichero.api.routes.bibliography import _parse_bibliography
+from fichero.api.routes.citation.bibliography import _parse_bibliography
 
 
 def test_parse_bibliography_rejects_unknown_format_without_writing():

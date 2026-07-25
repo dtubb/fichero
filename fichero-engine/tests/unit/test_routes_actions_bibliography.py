@@ -24,8 +24,8 @@ from pydantic import ValidationError
 from fastapi import HTTPException
 
 # Importing the route modules registers their actions via @action at import time.
-import fichero.api.routes.bibliography  # noqa: F401
-import fichero.api.routes.references  # noqa: F401
+import fichero.api.routes.citation.bibliography  # noqa: F401
+import fichero.api.routes.citation.references  # noqa: F401
 import fichero.api.routes.sources  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
 from fichero.models.knowledge import (

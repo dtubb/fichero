@@ -16,7 +16,7 @@ import json
 import pytest
 from fastapi import HTTPException
 
-from fichero.api.routes.bibliography import (
+from fichero.api.routes.citation.bibliography import (
     _attach_record_impl,
     _parse_bibliography,
     _patch_metadata_impl,

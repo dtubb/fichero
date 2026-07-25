@@ -8,7 +8,7 @@ parse, then fall back to the most-recent claim, else None.
 
 from __future__ import annotations
 
-from fichero.api.routes.citation_rendering import _metadata_for_document
+from fichero.api.routes.citation.rendering import _metadata_for_document
 from fichero.models.knowledge import KnowledgeClaim, SourceMetadata
 from fichero.models import Document
 

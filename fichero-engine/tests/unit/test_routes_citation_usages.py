@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
-from fichero.api.routes.citation_usages import list_citation_usages
+from fichero.api.routes.citation.usages import list_citation_usages
 from fichero.knowledge.knowledge_models import DocumentCitation, KnowledgeClaim
 
 
