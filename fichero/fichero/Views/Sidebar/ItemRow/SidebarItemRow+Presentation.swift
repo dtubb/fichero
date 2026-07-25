@@ -19,6 +19,10 @@ extension SidebarItemRow {
 
             SidebarItemContextMenu(
                 item: item,
+                deleteTargets: sidebarContextDeleteTargets(
+                    clicked: item,
+                    selection: resolvedSelectionItems
+                ),
                 renameState: renameState,
                 deleteState: deleteState,
                 onPause: onAutomationPause,
@@ -48,6 +52,14 @@ extension SidebarItemRow {
                     }
                 }
             }
+        }
+    }
+
+    /// Every highlighted row resolved to its SidebarItem — mirrors
+    /// `SidebarView.selectedItems` for row-level batch actions.
+    private var resolvedSelectionItems: [SidebarItem] {
+        selectedDestinations.compactMap {
+            findItemById($0.serializedID, in: allCachedItems)
         }
     }
 

@@ -37,6 +37,19 @@ func sidebarDeletableItems(_ items: [SidebarItem]) -> [SidebarItem] {
     items.filter { $0.itemType.canBeDeleted }
 }
 
+/// Items the context-menu Delete acts on. Right-clicking a row inside the
+/// current multi-selection targets the whole deletable selection (Finder
+/// semantics); a row outside the selection targets itself alone. Falls back
+/// to the clicked row when nothing in the selection is deletable so the
+/// menu item's enabled state still reflects the row under the pointer.
+func sidebarContextDeleteTargets(clicked: SidebarItem, selection: [SidebarItem]) -> [SidebarItem] {
+    guard selection.count > 1, selection.contains(where: { $0.id == clicked.id }) else {
+        return [clicked]
+    }
+    let deletable = sidebarDeletableItems(selection)
+    return deletable.isEmpty ? [clicked] : deletable
+}
+
 // MARK: - View Extensions (Apple's recommended pattern over ViewModifiers)
 
 extension View {

@@ -15,13 +15,6 @@ final class SidebarStateTests: XCTestCase {
         "test-\(UUID().uuidString)"
     }
 
-    override func tearDown() {
-        super.tearDown()
-        // Clean up any leaked sidebar.* keys from this test class. We
-        // can't enumerate by prefix on iOS, but we can clear obvious
-        // ones if a future test starts using a sticky id.
-    }
-
     // MARK: - Item expansion
 
     func testItemExpansionStartsEmpty() {

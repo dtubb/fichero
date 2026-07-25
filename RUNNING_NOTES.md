@@ -18,11 +18,29 @@ Do NOT duplicate unintegrated workflow-node commits `6d20ae6c4` / `621c060b9`.
 - SourceKit "cannot find type" diagnostics on single-file edits = known noise, ignore.
 
 ## Commits (this session)
-- (pending) chore(sidebar): retire dead unified-section expansion persistence
+- `511b3a0b9` chore(sidebar): retire dead unified-section expansion persistence
+- (pending) feat(sidebar): make context-menu Delete selection-aware
+
+## Selection-aware context-menu Delete (SIDEBAR_STATUS "deferred" item, logic half)
+- #3390 PDF drop: ALREADY FIXED on this branch (`dropTypes` includes `.fileURL`/`.data`).
+- Rows already have VoiceOver label/hint/value (#584) — good a11y baseline.
+- New pure helper `sidebarContextDeleteTargets(clicked:selection:)` in
+  SidebarViewExtensions.swift: click inside multi-selection → whole deletable
+  selection ("Delete N Items"); outside → clicked row only; all-non-deletable
+  batch → falls back to clicked row (keeps disabled state honest).
+- `SidebarItemContextMenu` gains `deleteTargets` (default [] → [item]), so the
+  preview/other call sites are unaffected. Downstream confirm dialog +
+  performDelete loop were already batch-capable (Delete-key path).
+- Batch open-in-tabs half remains deferred (window-opening, build-in-the-loop).
 
 ## Validations
-- `swiftc -parse` on both edited files: no syntax errors.
+- `swiftc -parse` on all edited files: no syntax errors.
+- swiftlint at fichero/ root (real config): 0 violations on edited files.
 - grep: zero remaining `unifiedSectionExpansionStates` references.
+- SourceKit single-file "cannot find type" diagnostics = known noise.
+- 5 new unit tests for `sidebarContextDeleteTargets` (inside/outside/single/
+  mixed-deletability/all-non-deletable) + stale-key purge test. NOT run here
+  (no xcodebuild per mandate) — manager runs FicheroTests at the gate.
 
 ## Active / next
 - NEXT candidates (from SIDEBAR_STATUS "Still open"): #3390 PDF-drop UTType fix
