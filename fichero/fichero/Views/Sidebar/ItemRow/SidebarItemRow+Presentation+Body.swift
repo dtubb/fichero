@@ -8,6 +8,25 @@ func sidebarNeedsDeferredDisclosureContent(_ item: SidebarItem) -> Bool {
     item.isExpandable && item.children == nil
 }
 
+/// VoiceOver hint for a sidebar row. Kept terse so users don't hear a long
+/// recitation each time they land on a row; power actions like export /
+/// duplicate stay discoverable via the context menu itself. Wording is
+/// per-platform: pointer gestures ("Right-click") mean nothing to touch
+/// VoiceOver users, who reach the context menu via double-tap-and-hold.
+func sidebarRowAccessibilityHint(canBeRenamed: Bool) -> String {
+    #if os(macOS)
+    if canBeRenamed {
+        return "Double-click to rename. Drag to reorder or move to a folder. Right-click for more actions."
+    }
+    return "Right-click for actions."
+    #else
+    if canBeRenamed {
+        return "Double tap and hold for actions, including rename. Drag to reorder or move to a folder."
+    }
+    return "Double tap and hold for actions."
+    #endif
+}
+
 extension SidebarItemRow {
     var body: some View {
         bodyContent
@@ -75,15 +94,8 @@ extension SidebarItemRow {
         }
     }
 
-    /// Available actions callable via the context menu. Kept terse so
-    /// VoiceOver users don't hear a long recitation each time they land
-    /// on a row; power actions like export/duplicate stay discoverable
-    /// via `.accessibilityAction` on the context menu itself.
     private var accessibilityHint: String {
-        if item.itemType.canBeRenamed {
-            return "Double-click to rename. Drag to reorder or move to a folder. Right-click for more actions."
-        }
-        return "Right-click for actions."
+        sidebarRowAccessibilityHint(canBeRenamed: item.itemType.canBeRenamed)
     }
 
     /// Expansion state for folder rows — read as "expanded"/"collapsed"

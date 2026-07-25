@@ -19,7 +19,11 @@ Do NOT duplicate unintegrated workflow-node commits `6d20ae6c4` / `621c060b9`.
 
 ## Commits (this session)
 - `511b3a0b9` chore(sidebar): retire dead unified-section expansion persistence
-- (pending) feat(sidebar): make context-menu Delete selection-aware
+- `0b2b4a832` feat(sidebar): make context-menu Delete selection-aware
+- (pending) fix(sidebar): speak touch-appropriate VoiceOver hints on iOS
+  (`sidebarRowAccessibilityHint` platform-conditional; rows previously told
+  iOS VoiceOver users to "Right-click"/"Double-click"; new
+  SidebarRowAccessibilityTests locks both branches)
 
 ## Selection-aware context-menu Delete (SIDEBAR_STATUS "deferred" item, logic half)
 - #3390 PDF drop: ALREADY FIXED on this branch (`dropTypes` includes `.fileURL`/`.data`).
