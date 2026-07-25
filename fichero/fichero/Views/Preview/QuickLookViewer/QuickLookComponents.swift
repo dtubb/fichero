@@ -152,32 +152,117 @@ struct QuickLookDownloadView: View {
     }
 }
 
+#elseif os(iOS)
+
+struct QuickLookDownloadView: View {
+    let document: Document
+
+    @State private var fileURL: URL?
+    @State private var isLoading = true
+    @State private var error: String?
+
+    @Environment(StorageService.self) private var storageService
+
+    private var downloadService: PreviewDownloadService {
+        PreviewDownloadService(storage: storageService)
+    }
+
+    var body: some View {
+        Group {
+            if let fileURL {
+                SmartPreviewView(url: fileURL, documentId: document.id)
+            } else if isLoading {
+                ProgressView("Loading preview...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error {
+                ContentUnavailableView(
+                    "Preview unavailable",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(error)
+                ) {
+                    Button("Retry") {
+                        Task { await loadFile() }
+                    }
+                }
+            }
+        }
+        .task(id: document.id) {
+            await loadFile()
+        }
+        .onDisappear {
+            downloadService.removePreviewFile(fileURL)
+        }
+    }
+
+    private func loadFile() async {
+        isLoading = true
+        error = nil
+        downloadService.removePreviewFile(fileURL)
+        fileURL = nil
+
+        let outcome = await downloadService.download(.init(
+            documentId: document.id,
+            fallbackFileName: fileNameWithExtension(),
+            documentPath: document.path
+        ))
+        switch outcome {
+        case .success(let url):
+            fileURL = url
+        case .failure(let message):
+            error = message
+        case .cancelled:
+            break
+        }
+        isLoading = false
+    }
+
+    private func fileNameWithExtension() -> String {
+        let name = document.name
+        if name.contains(".") {
+            return name
+        }
+        if let path = document.path {
+            let ext = (path as NSString).pathExtension
+            if !ext.isEmpty {
+                return "\(name).\(ext)"
+            }
+        }
+        if let fileType = document.fileType {
+            return "\(name).\(fallbackExtension(for: fileType))"
+        }
+        return name
+    }
+
+    private func fallbackExtension(for fileType: FileType) -> String {
+        switch fileType {
+        case .image: return "jpg"
+        case .pdf: return "pdf"
+        case .audio: return "mp3"
+        case .video: return "mp4"
+        case .text: return "txt"
+        case .json: return "json"
+        case .word: return "docx"
+        case .epub: return "epub"
+        case .spreadsheet: return "xlsx"
+        case .presentation: return "pptx"
+        case .csv: return "csv"
+        case .rtf: return "rtf"
+        case .mobi: return "mobi"
+        case .other: return "bin"
+        }
+    }
+}
 #else
 
-// iOS fallback: QuickLookDownloadView is referenced by EditorView; provide a
-// placeholder that prompts the user until a native UIDocumentInteractionController
-// or QLPreviewController replacement lands.
 struct QuickLookDownloadView: View {
     let document: Document
 
     var body: some View {
         ContentUnavailableView(
             document.name,
-            systemImage: docTypeIcon,
-            description: Text("Preview is not available on iOS yet.")
+            systemImage: "doc.richtext",
+            description: Text("Preview is not available on this platform.")
         )
     }
-
-    private var docTypeIcon: String {
-        switch document.fileType {
-        case .image: return "photo"
-        case .pdf: return "doc.richtext"
-        case .audio: return "waveform"
-        case .video: return "film"
-        case .text, .json, .csv, .rtf: return "doc.text"
-        default: return "doc"
-        }
-    }
 }
-
 #endif
