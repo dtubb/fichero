@@ -217,6 +217,131 @@ if the selective filters skip everything, and record the actual result here.)
    UI-side `canBeRenamed/canBeDeleted/moveDisabled` for
    `prototype_key=="workflow"`+`read_only` rows.
 
+## Session 6 — full-row hit-testing + multi-selection drag audit (read-only)
+
+### Click selection hit-testing — SOLID
+- Selection = native `List(selection: Set)` + `.tag(item.destination)`
+  (SidebarView+UnifiedRows.swift:204); row container has
+  `.contentShape(Rectangle())` (UnifiedRows:197) and the label is
+  full-width + `.contentShape` (`fullWidthLabel`, SidebarItemRow.swift:235).
+  Text/Image are `.allowsHitTesting(false)` (#713) so no sub-region steals
+  clicks; #645/#1165 tap fallback bails on ⌘/⇧ (Presentation+Body:44) so
+  modifier selection stays native. ⌥-click is reserved by the chevron path
+  (expand-subtree) and falls through to plain select on the row body. OK.
+
+### Drag source — per-row `.draggable(SidebarDragID)`
+- `.draggable` sits on the ROW CONTAINER (UnifiedRows:198, childrenList
+  Drop.swift:139), not inside the label — NSTableView row-drag arms across
+  the whole row (#711). Inbox rows advertise a sentinel `SidebarDragID(id:"")`.
+- Multi-selection drag: plumbing is array-shaped end-to-end —
+  `.dropDestination(for: SidebarDragID.self)` receives `[ids]`, the
+  NSItemProvider row-drop path iterates all providers
+  (handleRowDrop → internalTextOnly collects every string id), and all four
+  handlers take id arrays. Payload order = AppKit's row enumeration (visual
+  top-to-bottom, not click order) feeding `sidebarReorderedDocIdsWithInsert`
+  order-preserving. DEVICE CHECK (cannot verify statically): dragging a
+  SELECTED row actually lifts the whole selected set with per-row
+  Transferables, and drag from an UNSELECTED row lifts only that row
+  without disturbing the selection (expected NSTableView default).
+- Inbox-in-multi-drag is safe by construction: the "" sentinel is filtered
+  at every consumer (`hasPrefix("doc:")` in both insertion handlers;
+  `SidebarItemKind("")==.unknown` → skipped in drop-into/beside). Verified.
+
+### Mixed / protected / non-movable selections
+- Reorder (`.onMove`): `sidebarUnifiedRowsReorderKind` (UnifiedRows:6)
+  requires uniform kind + contiguous kind-block, else BAILS silently —
+  mixed-kind multi-reorder shows the system insertion indicator then snaps
+  back with no feedback (log only). `.moveDisabled` blocks non-reorderable
+  KINDS but cannot block mixed SELECTIONS.
+- Drop-into-folder (`handleDropIntoFolder`, DropHandlers.swift:389): per-item
+  filters (cross-section, self, cycle) → PARTIAL APPLICATION: valid subset
+  moves, rest silently skipped, no aggregate "N of M moved" feedback.
+- Protected: workflow mirrors/Default Workflows have no drag/move block
+  (session 5 gap #2 — unchanged).
+
+### Intra-parent reorder vs cross-parent move — correctly split
+- Same list: `.onMove` → kind-specific reorder endpoints (sortOrder only).
+- Cross-parent: `.dropDestination` insertion (root UnifiedRows:72 / nested
+  Drop.swift:142) → `moveSidebarDocumentsTransactionally` + optimistic
+  reorder; onto-folder drops → `routeMove` (no ordering). Same-parent drag
+  via insertion path self-heals: insert helper dedupes, backend gets a
+  same-parent move (no-op) + reorder.
+
+### Failure / no-op feedback
+- Failures surface via `sidebarState.dropErrorMessage` alert everywhere
+  (moves #3027, transactional batches, external imports #2384). GOOD.
+- Silent no-ops (log-only, by design but unreviewed UX): mixed-kind reorder
+  bail; cross-section/cycle/self skips; chain/schedule/trigger routeMove
+  (no handler); rename failures (session 5).
+
+### ⚠️ FINDING (code/comment divergence — reported, NOT fixed)
+- `sidebarDropHighlight`'s doc comment (SidebarItemRow.swift:51-58) says it
+  is "placed on the OUTER expression of a SidebarItemRow body branch so it
+  covers the full List row — including the DisclosureGroup chevron/indent
+  area that fullWidthLabel alone can't reach". In current code the highlight
+  AND `.onDrop` AND `.contextMenu` are attached to `folderLabel`/`leafLabel`
+  INSIDE the DisclosureGroup label (Presentation+Body.swift:166-192) — so
+  for expandable rows the chevron/indent strip is likely NOT a drop target,
+  shows no highlight, and has no context menu on right-click. Either a
+  refactor moved the modifiers inward (regression vs stated intent) or the
+  comment is stale. Minimal fix candidate: move highlight+onDrop to the
+  DisclosureGroup branch of `bodyContent` — but that makes the EXPANDED
+  children region part of the parent's drop/context surface (child rows'
+  own handlers win, but the gaps between them may not), so it needs a build
+  to eyeball. DEVICE CHECK first: drag a file over a folder row's chevron
+  area and right-click the indent strip; fix only if confirmed dead.
+
+## Session 7 — Option-drag duplicate + Make Alias capability matrix
+
+### CORRECTION to session 5, gap #2
+Workflow WRITE routes DO enforce the Default Workflows lock:
+`_reject_if_read_only` (workflows.py:911) → 403 "Default workflows are
+read-only; duplicate to edit" on update/delete. The db/__init__.py:2630
+docstring ("nothing in the write API enforces it") is STALE for workflow
+routes. What remains unenforced is the DOCUMENT-tree side: document.move/
+rename/delete on the mirror rows and the container itself (gap #1's
+move_document_impl does no lock check). Gap #2 narrows to: enforce
+`attributes.read_only` in DOCUMENT actions (or UI-block those rows).
+
+### Capability matrix (source-backed)
+| Capability | Engine/API | Client service | Sidebar UI |
+|---|---|---|---|
+| Duplicate document/folder | ❌ none (no `document.duplicate` action/route) | ❌ | ❌ |
+| Duplicate workflow | ✅ `workflow_store.duplicate` + route; presets: "duplicate to edit" is the BLESSED path (403 message) | ✅ `WorkflowStore.duplicateWorkflow` | ❌ (only WorkflowListView menus, not sidebar rows) |
+| Duplicate saved search | ✅ `duplicate_saved_search` (search/core.py:1428) | ❌ not wrapped | ❌ |
+| Duplicate conversation | ✅ `duplicate_conversation_impl` (chat.py:1091) | ❌ not wrapped | ❌ |
+| Alias / reference node | ✅ full model: `node_aliases.py` — `Document(node_kind="alias", alias_target_id:)`, `make_alias`/`resolve_alias`; stable target id; dangling → raises (no silent fallback); no content copy; no cycle risk (no parent-edge to target). REST surface = bookmarks only (`POST /api/bookmarks`, prototype_key="bookmark"; list/resolve; `bookmark.create` action) | ✅ `BookmarkService.createBookmark(targetId:name:parentId:)` | ❌ sidebar has no Make Alias; client `Document` model is ALIAS-UNAWARE (no `node_kind`/`alias_target_id` fields decoded) — an alias row would render/behave as a plain doc and select the alias, not resolve to its target |
+| Alias semantics on target rename | Name is COPIED at creation (`make_alias`), not live-synced — matches Finder (alias keeps its own name) | — | — |
+| Alias semantics on target delete | `resolve_alias` → `DanglingAliasError` → bookmark resolve 404 (loud, correct) ; alias row itself deletable as a normal Document | — | — |
+| Option-drag copy (cursor + payload) | n/a | n/a | ❌ SwiftUI `.draggable`/`.dropDestination` exposes NO modifier/operation-mask API — the green ⊕ copy cursor requires NSDraggingSession's sourceOperationMask (custom drag stack, FORBIDDEN). Half-native variant (read `NSApp.currentEvent.modifierFlags` in the drop handler) gives copy BEHAVIOR without the cursor affordance — and documents have no duplicate endpoint anyway |
+
+### Minimal gaps per operation
+- **Duplicate document/folder**: needs a NEW engine action (`document.duplicate`
+  — deep-copy row ± artifacts policy decision) before ANY UI. Not a wiring job.
+- **Duplicate workflow (sidebar)**: pure wiring — context-menu "Duplicate" on
+  `.workflow` rows → existing `workflowStore.duplicateWorkflow`. Also the
+  correct UX answer for read-only Default presets (engine's own 403 says so).
+- **Make Alias**: engine+service exist; blocked by client alias-UNAWARENESS —
+  wiring a menu item would create alias rows the sidebar renders as broken
+  plain docs (select alias-doc, no target resolution, no alias badge). Needs:
+  decode `node_kind`/`alias_target_id` on client `Document`, alias-aware row
+  (Finder alias badge — `ingestBadge` pattern already does exactly this),
+  selection resolves to target (route via `alias_target_id`; dangling → error
+  surface). Medium slice, NOT sidebar-only emulation — it uses the real model.
+- **Option-drag copy**: no native SwiftUI path to the copy cursor; defer until
+  either Apple API or an approved AppKit introspection layer; behavior-only
+  variant possible but violates "cursor affordance" expectation — NOT proposed.
+
+### PROPOSAL (awaiting manager direction, per instructions — no code touched)
+1. **Smallest high-confidence wiring**: sidebar context-menu "Duplicate" for
+   workflow rows (existing `duplicateWorkflow` store call, mirrors
+   WorkflowListView+Views.swift:180). One menu item + focused test. Also
+   surfaces the blessed duplicate-to-edit path for locked presets.
+2. Next (medium, needs design nod): client alias-awareness + "Make Alias" via
+   `bookmark.create` (real alias nodes, no sidebar-only emulation).
+3. Engine `document.duplicate` and Option-drag copy: file as engine/UX design
+   work respectively — out of sidebar-lane scope.
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:
