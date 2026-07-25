@@ -379,6 +379,121 @@ Daniel's explicit confirmation in-conversation; nothing implemented.)
   expanded-children interaction — queued for the gate, NOT changed now per
   instructions.
 
+## MILESTONE-READY SOURCE LIST (for manager triage — no GitHub state touched)
+Every confirmed finding / proposed follow-up, classified under exactly one of
+SIDEBAR / ENGINE / LIBRARY. "Safe for sidebar worker" = this lane, commit-only,
+lightweight checks; otherwise needs the named owner.
+
+### ENGINE
+1. **Cycle guard on document.move** (audit gap #1)
+   - Outcome: raw API/client bug can no longer orphan a subtree (move into
+     self/descendant currently succeeds; orphan cleanup then DELETES it).
+   - Layer: `fichero-engine/src/fichero/api/routes/document/documents.py`
+     `move_document_impl` (:1831) + `tests/unit/test_document_actions.py`.
+   - Prereq: none. ~15 lines, no contract change.
+   - Acceptance: move(doc→self) → 400; move(folder→own descendant) → 400;
+     move(child→its current parent) still 200; existing move tests green.
+   - Owner: ENGINE (sidebar worker must not touch; full guardrail suite).
+2. **Enforce Default Workflows lock on DOCUMENT actions** (gap #2, verified
+   across update/delete/move — workflow routes already 403 via
+   `_reject_if_read_only`)
+   - Outcome: mirrors + container can't be renamed/moved/soft-deleted via the
+     document tree; container move no longer persists across reopen.
+   - Layer: same documents.py impls; check `attributes.read_only` /
+     `node_kind`; decide 403-vs-silent for subtree delete cascade.
+   - Prereq: decision — enforce in engine only, or also UI-block (see
+     SIDEBAR #4). Engine wins either way (UI can't protect the raw API).
+   - Acceptance: rename/move/delete on container + one mirror → 403; normal
+     doc rows unaffected; re-open keeps container at root.
+   - Owner: ENGINE.
+3. **document.duplicate action/route** (capability matrix: absent)
+   - Outcome: documents/folders can be duplicated at all (prereq for any
+     sidebar Duplicate/Option-drag-copy for docs).
+   - Layer: new audited action in documents.py (+ artifacts/children copy
+     policy decision), OpenAPI regen, client service wrapper.
+   - Prereq: design decision on deep-copy scope. Acceptance: duplicate leaf →
+     new id, same content, same parent, name "copy" suffix; duplicate folder →
+     policy-defined; undo restores; contract tests.
+   - Owner: ENGINE (client wrapper = LIBRARY follow-on).
+
+### LIBRARY (client shared model/store layer)
+4. **Real alias support in the client** (capability matrix)
+   - Outcome: Finder-style aliases work: alias rows render with an alias
+     badge, selecting one opens its TARGET, dangling aliases surface an error
+     (engine model `node_aliases.py` + `POST /api/bookmarks` +
+     `BookmarkService` all exist; client `Document` is alias-unaware).
+   - Layer: `fichero/fichero/Models/Document.swift` (decode `node_kind`,
+     `alias_target_id`), selection routing (SidebarView+SelectionHandling /
+     ContentView), row badge (reuse `ingestBadge` pattern in
+     SidebarItemRow+Label.swift), then a "Make Alias" context-menu item.
+   - Prereq: none technically; design nod on badge + dangling-alias UX.
+   - Acceptance: alias row shows badge; click routes to target; target
+     deleted → visible error not silent no-op; rename alias ≠ rename target;
+     unit tests on routing helper + source-locked badge test.
+   - Owner: LIBRARY owner (model is shared app-wide); the final context-menu
+     item alone is safe for the sidebar worker AFTER the model lands.
+
+### SIDEBAR (safe for this lane unless noted)
+5. **Workflow-row "Duplicate" context-menu wiring** (PAUSED for Daniel's
+   explicit OK)
+   - Outcome: right-click a workflow → Duplicate; also the blessed
+     duplicate-to-edit path for locked presets (engine 403 message).
+   - Layer: `SidebarItemContextMenu.swift` / `SidebarItemRow+Presentation.swift`
+     → existing `WorkflowStore.duplicateWorkflow` (mirrors
+     WorkflowListView+Views.swift:180).
+   - Prereq: Daniel's confirmation. Acceptance: menu item on `.workflow` rows
+     only; duplicate appears after store reload; focused test on menu factory/
+     source-lock. Safe for sidebar worker.
+6. **Whole-row drop/context target — chevron-strip regression** (#571
+   regression, confirmed via abfe523ef → pre-#1703 refactor)
+   - Outcome: drop highlight, drop target, and right-click work on the full
+     row of expandable folders including chevron/indent strip.
+   - Layer: `SidebarItemRow+Presentation+Body.swift` — re-hoist
+     `sidebarDropHighlight`/`.onDrop`/`.contextMenu` to the outer
+     `bodyContent` branch.
+   - Prereq: BUILD-IN-THE-LOOP — must eyeball expanded-children region
+     (parent surface vs child rows' own handlers). Acceptance: drag-over
+     chevron highlights + drops; right-click indent shows menu; drops on an
+     expanded child still hit the child; #571 stays fixed.
+   - Owner: sidebar worker AT THE GATE (not blind).
+7. **Multi-item drag policy — feedback for partial/no-op drops**
+   - Outcome: mixed-kind reorder snap-backs and partially-applied folder
+     drops (valid subset moved, rest skipped) stop being silent; user sees
+     "moved N of M" / a reason, per prefer-raise-over-silent-fallback.
+   - Layer: `SidebarView+UnifiedRows.swift` (`handleUnifiedRowsMove` bail),
+     `SidebarItemRow+DropHandlers.swift` (`handleDropIntoFolder` skips) →
+     `sidebarState.dropErrorMessage` (existing surface).
+   - Prereq: none. Acceptance: unit tests on a pure skip-summary helper;
+     mixed drop surfaces a message; clean drops stay silent.
+   - Safe for sidebar worker.
+8. **Focus handoff — keyboard path OUT of the sidebar**
+   - Outcome: keyboard-only users can move focus sidebar → content (today:
+     into-sidebar exists via library edge-arrows; outbound path unverified).
+   - Layer: `SidebarView+ViewComponents.swift` + a callback threaded from
+     `ContentView` (`cyclePaneFocus`), mirroring LibraryView's
+     onRequestNext/PreviousPaneFocus.
+   - Prereq: DEVICE CHECK FIRST (Tab / right-arrow-on-leaf may already work
+     natively); `.onMoveCommand` on the List risks the #560 arrow-nav
+     regression class — build-in-the-loop.
+   - Owner: sidebar worker AT THE GATE.
+9. **Option-drag copy** (capability matrix: no native path)
+   - Outcome (if ever): ⌥-drag shows copy cursor and duplicates into target.
+   - Layer: blocked — SwiftUI exposes no drag operation-mask API; the copy
+     cursor needs a custom AppKit drag stack (forbidden); docs also lack a
+     duplicate endpoint (ENGINE #3 prereq).
+   - Recommendation: DEFER (park as design/platform-watch; behavior-only
+     modifier sniffing rejected — no cursor affordance). Not for any worker.
+10. **Device-only validation bundle** (run at the manager's build gate)
+    - Live PDF drag: row highlight + import (#3390; optionally retest `.item`
+      alone). Folder double-click vs disclosure toggle. Container double-tap
+      not delaying single clicks. Hover affordance: no relayout, no
+      drag/selection fight. Double-click on empty sidebar area. Multi-select
+      drag lifts whole set / unselected row lifts only itself; payload order.
+      Sidebar Tab/right-arrow focus exit (feeds #8). Chevron-strip dead zone
+      repro (feeds #6). Shift-range across library boundaries (old handoff).
+    - Owner: manager + sidebar worker together at the gate; these gate #6/#8
+      and close #3390.
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:
