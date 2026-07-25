@@ -55,10 +55,27 @@ struct SidebarDropProviderClassificationTests {
 
     @Test("#3390 sidebar rows accept file-url drops (not just .item)")
     func rowsAcceptFileURLDrops() {
-        // A Finder file drag (e.g. a PDF) advertises public.file-url, which does
-        // NOT conform to public.item — so accepting `.item` alone left file drops
-        // dead. The row must accept `.fileURL` like the library header does.
+        // A Finder file drag (e.g. a PDF) advertises public.file-url. It DOES
+        // conform to public.item, but live drags showed no targeting with
+        // `.item` alone — rows accept `.fileURL` explicitly, like the library
+        // header does. Keep both explicit entries locked.
         #expect(SidebarItemRow.dropTypes.contains(.fileURL))
         #expect(SidebarItemRow.dropTypes.contains(.utf8PlainText))
+    }
+
+    @Test("#3390 payload: a Finder PDF drag classifies as external files")
+    func pdfFinderDragRoutesExternal() {
+        // The exact provider shape a Finder PDF drag presents: loadable URL,
+        // no string, file-url + pdf UTIs registered. Must route to the
+        // external-file import path, never the internal text-move path.
+        let route = classifySidebarDropProviders([
+            SidebarDropProviderCapabilities(
+                canLoadURL: true,
+                canLoadString: false,
+                registeredTypeIdentifiers: [UTType.fileURL.identifier, UTType.pdf.identifier]
+            )
+        ])
+
+        #expect(route == .externalFiles)
     }
 }

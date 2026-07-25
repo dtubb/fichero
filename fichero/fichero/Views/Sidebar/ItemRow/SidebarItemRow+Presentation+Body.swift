@@ -152,11 +152,13 @@ extension SidebarItemRow {
     ///
     /// UTTypes a sidebar row accepts as drop targets.
     ///
-    /// `.utf8PlainText` handles internal sidebar drags. `.item` is the root
-    /// physical-hierarchy type, but a Finder file drag (e.g. a PDF) advertises
-    /// `public.file-url`, which does NOT conform to `public.item` — so `.item`
-    /// alone left `isTargeted` (and the drop) dead for file drags (#3390).
-    /// Accept `.fileURL` (and `.data` as a belt) so file drops light up and land.
+    /// `.utf8PlainText` handles internal sidebar drags. `.fileURL` and `.data`
+    /// are listed EXPLICITLY even though `public.file-url` conforms to
+    /// `public.item` (verified via `UTType.conforms(to:)`): Finder file drags
+    /// (e.g. a PDF, #3390) showed no `isTargeted` feedback with `.item` alone,
+    /// and the library-header drop target already accepts `.fileURL` directly.
+    /// Explicit acceptance beats relying on conformance walking here; whether
+    /// `.item` alone would now suffice is only verifiable with a live drag.
     static let dropTypes: [UTType] = [.utf8PlainText, .item, .fileURL, .data]
 
     /// Folder row: drop target always; drag source EXCEPT for the
