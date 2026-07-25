@@ -42,7 +42,7 @@ struct AboutView: View {
     private let tagline = "A document workbench for researchers — read, organize, "
         + "search, and make things from your sources."
     private let credit = "Created by Daniel Tubb"
-    private let fallbackCopyright = "© 2025 Daniel Tubb · MIT License"
+    private let fallbackCopyright = "© 2025–2026 Daniel Tubb · MIT License"
 
     private var versionLine: String {
         AboutInfo.versionLine(

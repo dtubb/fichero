@@ -49,9 +49,10 @@ final class AboutInfoTests: XCTestCase {
     }
 
     func testCopyrightLineFallsBackWhenBundleValueMissing() {
+        let fallback = "© 2025–2026 Daniel Tubb · MIT License"
         XCTAssertEqual(
-            AboutInfo.copyrightLine(bundleValue: " ", fallback: "fallback"),
-            "fallback"
+            AboutInfo.copyrightLine(bundleValue: " ", fallback: fallback),
+            fallback
         )
     }
 }
