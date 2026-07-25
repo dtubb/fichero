@@ -32,7 +32,7 @@ extension SidebarView {
                     createComparison: createNewComparison,
                     createSchedule: createNewSchedule,
                     createTrigger: createNewTrigger,
-                    deleteItem: handleDeleteSelectedItem,
+                    deleteItem: handleDeleteSelection,
                     hasSelection: selectedItem != nil,
                     sidebarFilterText: $sidebarFilterText
                 )

@@ -119,6 +119,31 @@ struct SidebarDeleteAlertsTests {
         #expect(targets.map(\.id) == ["lib:x"])
     }
 
+    /// Every delete entry point — Delete key, Edit ▸ Delete (⌘⌫), and the
+    /// bottom-toolbar remove button — must share ONE batch path. A previous
+    /// split (menu/toolbar → single-item delete, key → batch) silently
+    /// narrowed a multi-selection delete to just the primary row.
+    @Test("menu, toolbar, and Delete key share one batch delete path")
+    func allDeleteEntryPointsShareBatchPath() throws {
+        let actions = try appSource("Views/Sidebar/Components/SidebarActions.swift")
+        #expect(!actions.contains("func handleDeleteSelectedItem"))
+
+        let focusedConfig = try appSource("Views/Sidebar/SidebarView.swift")
+        #expect(focusedConfig.contains("deleteItem: handleDeleteSelection,"))
+
+        let toolbarConfig = try appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
+        #expect(toolbarConfig.contains("deleteItem: handleDeleteSelection,"))
+    }
+
+    private func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     @MainActor
     @Test("DeleteStateManager batch confirmation sets items and shows dialog")
     func deleteStateBatchConfirmation() {

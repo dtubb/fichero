@@ -113,6 +113,35 @@ the class-style prefix if -only-testing doesn't match; fall back to running
 the FicheroTests scheme filtered with `-only-testing:FicheroTests` whole-bundle
 if the selective filters skip everything, and record the actual result here.)
 
+## Session 4 — focus-order + menu-routing audit
+### Focus architecture (traced, read-only)
+- `ContentView.focusedPane: @FocusState<PaneFocus?>` (.sidebar/.content/
+  .preview/.inspector); `cyclePaneFocus` skips hidden panes. Sidebar is
+  `.focusable().focused($focusedPane, equals: .sidebar).focusEffectDisabled()`
+  (arrow-key row nav depends on it, #560). Entry points INTO panes: library
+  edge arrows (left at column edge → sidebar), clicks (`onRequestFocus`),
+  AppleScript panel commands, inspector events.
+- GAP (deliberately NOT blind-fixed): no keyboard path OUT of the sidebar
+  into content — LibraryView has onRequestNext/PreviousPaneFocus, SidebarView
+  has no counterpart. The native fix would be `.onMoveCommand(.right)` on the
+  sidebar List, but that risks intercepting the native up/down row navigation
+  (#560 regression class) — build-in-the-loop only. GATE CHECK: with sidebar
+  focused, try Tab / right-arrow-on-leaf; if neither reaches content, thread
+  an `onRequestNextPaneFocus` callback like LibraryView's and eyeball #560.
+### Menu routing gap FOUND + FIXED (this commit)
+- Delete key used batch `handleDeleteSelection`, but Edit ▸ Delete (⌘⌫) and
+  the bottom-toolbar minus used single-item `handleDeleteSelectedItem` → a
+  multi-selection delete via menu/toolbar silently deleted ONLY the primary
+  row. All three entry points now share `handleDeleteSelection`;
+  `handleDeleteSelectedItem` removed. Source-locked test.
+- Minor (noted, not churned): `SidebarSelectionInfo.canDelete/canRename` gate
+  on the PRIMARY row only — a multi-selection with a non-deletable primary
+  disables Edit ▸ Delete even though the Delete key would delete the rest.
+### Header a11y / tooltip edges — audit CLOSED
+- `LibrarySharingBadge`: has `.help` + `.accessibilityLabel` (role-aware). OK.
+- Bottom toolbar: every icon-only control has `.help` + a11y label. OK.
+- Location badge, header value/hint/tooltips: done in sessions 1–3. No edges left.
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:

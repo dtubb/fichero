@@ -79,19 +79,12 @@ extension SidebarView {
         renameState.startRename(itemId: item.id, currentName: item.name)
     }
 
-    /// Delete the selected item
-    func handleDeleteSelectedItem() {
-        guard let item = selectedItem else { return }
-        switch item.itemType {
-        case .libraryHeader:
-            logger.warning("Cannot delete library header")
-        default:
-            deleteState.showDeleteConfirmation(for: item)
-        }
-    }
-
-    /// Delete the whole multi-selection (Delete key / batch). Confirms once for
-    /// every deletable row in the selection; a no-op if nothing is deletable.
+    /// Delete the whole (deletable) multi-selection, confirming once. The ONE
+    /// delete path for every entry point — Delete key, Edit ▸ Delete (⌘⌫), and
+    /// the bottom-toolbar remove button — so a multi-selection is never
+    /// silently narrowed to just the primary row by the menu/toolbar variants.
+    /// A single selection resolves to exactly the primary, unchanged. No-op if
+    /// nothing in the selection is deletable (headers etc. are filtered).
     func handleDeleteSelection() {
         let items = sidebarDeletableItems(selectedItems)
         guard !items.isEmpty else { return }

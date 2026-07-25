@@ -242,7 +242,7 @@ struct SidebarView: View {
                 createFolder: handleCreateNewFolder,
                 importFiles: importFiles,
                 renameItem: handleRenameSelectedItem,
-                deleteItem: handleDeleteSelectedItem,
+                deleteItem: handleDeleteSelection,
                 createSearch: createNewSearch,
                 createChat: createNewChat,
                 createWorkflow: createNewWorkflow,
