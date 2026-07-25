@@ -134,7 +134,9 @@ struct EditorView: View {
     // MARK: - Preview Content
 
     enum PreviewRoute: Equatable {
-        case container
+        /// A selected container has no previewable source asset. Present the same
+        /// centered no-selection state as an empty selection (#1855).
+        case noSelection
         case storageDisplay(documentId: String)
         case imageEditor(documentId: String)
         case text(content: String)
@@ -199,7 +201,7 @@ struct EditorView: View {
         if doc.fileType == .pdf {
             return .storageDisplay(documentId: doc.id)
         }
-        return .container
+        return .noSelection
     }
 
     private static func pagePreviewRoute(
@@ -215,8 +217,8 @@ struct EditorView: View {
     @ViewBuilder
     private func previewContent(_ doc: Document) -> some View {
         switch Self.previewRoute(for: doc, isEditing: isEditing) {
-        case .container:
-            containerPlaceholder(doc)
+        case .noSelection:
+            emptyState
         case .storageDisplay(let documentId):
             let supportsFolderNav = doc.fileType == .image || doc.docType == .page
             // Image editing is only meaningful for image-backed previews. Passing
@@ -245,14 +247,6 @@ struct EditorView: View {
         case .quickLook:
             QuickLookDownloadView(document: doc)
         }
-    }
-
-    private func containerPlaceholder(_ doc: Document) -> some View {
-        ContentUnavailableView(
-            doc.name,
-            systemImage: doc.docType.icon,
-            description: Text("No selection")
-        )
     }
 
     // MARK: - Edit-mode Toggle

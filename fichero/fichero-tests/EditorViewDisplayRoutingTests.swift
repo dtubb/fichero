@@ -52,7 +52,7 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
         XCTAssertEqual(route, .storageDisplay(documentId: "pdf-page-1"))
     }
 
-    func testPlainFolderRoutesToContainerPlaceholder() {
+    func testPlainFolderRoutesToNoSelectionState() {
         let doc = Document(
             id: "folder-1",
             docType: .folder,
@@ -62,7 +62,7 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
 
         let route = EditorView.previewRoute(for: doc, isEditing: false)
 
-        XCTAssertEqual(route, .container)
+        XCTAssertEqual(route, .noSelection)
     }
 
     func testMediaBackedFolderCanPreviewItsRepresentativeImage() {
