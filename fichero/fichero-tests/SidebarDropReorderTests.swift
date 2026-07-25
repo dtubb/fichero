@@ -271,6 +271,20 @@ struct SidebarReorderedDocIdsWithInsertTests {
         #expect(result == ["a", "c", "new", "b"])
     }
 
+    @Test("Moving multiple existing IDs preserves the dropped order")
+    func moveMultipleExistingIdsPreservesDroppedOrder() throws {
+        let children = [
+            doc("a", name: "A"), doc("b", name: "B"),
+            doc("c", name: "C"), doc("d", name: "D")
+        ]
+        let result = try #require(sidebarReorderedDocIdsWithInsert(
+            children: children,
+            inserting: ["b", "a"],
+            at: 4
+        ))
+        #expect(result == ["c", "d", "b", "a"])
+    }
+
     @Test("Offset beyond count clamps to end")
     func offsetClampedToEnd() throws {
         let children = [doc("a", name: "A"), doc("b", name: "B")]
