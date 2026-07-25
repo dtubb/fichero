@@ -142,6 +142,81 @@ if the selective filters skip everything, and record the actual result here.)
 - Bottom toolbar: every icon-only control has `.help` + a11y label. OK.
 - Location badge, header value/hint/tooltips: done in sessions 1–3. No edges left.
 
+## Session 5 — rename/move behavior audit (read-only, Daniel's 4 questions)
+
+### Q1 — Rename: which types?
+- Gate: `SidebarItem.ItemType.canBeRenamed` (SidebarItemContextMenu.swift:131):
+  YES = document(+folder), savedSearch, conversation, workflow, chain,
+  schedule, trigger, libraryHeader. NO = comparison, batch, activityRun.
+- Entry points: context menu → `RenameStateManager.startRename`; Return key
+  (FocusedRenameButton, plain Return, Finder convention); NO double-click
+  rename (removed, #612).
+- Execution: `SidebarItemRow+Rename.swift` `performRename` → per-type service
+  (documents → `documentStore.renameDocument`; search/chat/workflow/chain/
+  schedule/trigger → respective services; libraryHeader →
+  `libraryManager.renameLibrary`). Validation: trimmed non-empty, ≤
+  `SidebarConstants.maxNameLength`; failures LOGGED ONLY (no user alert).
+
+### Q2 — Move: which types, which interactions?
+- Reorder drag (same list): `.moveDisabled(icon=="tray.fill" ||
+  !supportsSidebarReorder)` (SidebarView+UnifiedRows.swift:203).
+  `supportsSidebarReorder` (SidebarItem.swift:128): document/savedSearch/
+  workflow/chain/folder = yes; conversation/comparison/schedule/trigger/
+  batch/activityRun/libraryHeader = no. Inbox (tray.fill) never drags.
+- Re-parent drop onto folder rows: `routeMove` (SidebarItemRow+Helpers.swift:295)
+  dispatches by id prefix — document → `moveDocumentToFolder` (shared #3014
+  executor), savedSearch → `updateSavedSearch(folderPath:)`, conversation →
+  `moveToFolder`, workflow → `workflowStore.moveWorkflow`. chain/schedule/
+  trigger: NO move handler (debug log, silent no-op).
+- Compact (iPhone) context menu "Move to Folder" shares the same executor +
+  `SidebarMovePolicy` filter. Library-header drop = reparent to root.
+  Errors surface via `sidebarState.dropErrorMessage` alert (#3027).
+
+### Q3 — No-op / cycle moves
+- UI: `SidebarMovePolicy.isValidTarget` (SidebarItemRow+Helpers.swift:15)
+  rejects self and any descendant target (ancestor-chain walk, bounded);
+  unit-locked in SidebarMovePolicyTests. Moving a child UP to its immediate
+  parent is ALLOWED and re-issues the same-parent move → backend re-save
+  (parent unchanged, `updated_at` churn; "Move to Folder" menu also LISTS the
+  current parent). Reorder no-ops return nil (`sidebarReorderedDocIds*`).
+- ENGINE: `move_document_impl` (documents.py:1831) checks ONLY parent-exists.
+  ⚠️ NO self-parent check, NO descendant-cycle check, NO no-op short-circuit,
+  NO lock check. Engine tests (test_document_actions.py:276-320) cover happy/
+  root/404/400 only — no cycle case.
+
+### Q4 — Protected items (Default Workflows + mirrors)
+- Engine mirrors every workflow into the doc tree (`db/__init__.py:2616` area,
+  `node_kind` workflow, `prototype_key="workflow"`); system presets sit under
+  the seeded "Default Workflows" container (`_seed_default_workflows_container`,
+  deterministic id) with `attributes.read_only=true, scope=global`.
+- ⚠️ Engine docstring (db/__init__.py:2630): "read_only is descriptive only in
+  Phase 1 — nothing in the write API enforces it yet (see report to Daniel)."
+  KNOWN gap, re-confirmed: move/rename/delete of the container or mirrors is
+  NOT refused by the engine. Re-seed re-asserts the container's NAME on next
+  open ("a user rename shouldn't stick") but does NOT reset `parent_id` — a
+  user MOVE of the container PERSISTS across reopens.
+- UI on this branch: mirrors/container are ordinary `.document` rows —
+  `canBeRenamed`/`canBeDeleted` = true, draggable (only Inbox is drag-blocked).
+  The unintegrated `fix/4058-sidebar-workflow-nodes` commits (6d20ae6c4/
+  621c060b9) add mirror RENDERING under Default Workflows; they do not add
+  move/rename protection either.
+
+### ⚠️ CONFIRMED INVARIANT GAPS — reported, NOT fixed (per instructions)
+1. **Engine accepts cycle-creating moves**: `PUT /documents/{id}/move` with
+   `parent_id == doc_id` (or any descendant) succeeds — the subtree becomes
+   unreachable, and `cleanup_orphan_documents_impl` (documents.py:1636) DELETES
+   unreachable rows → a client bug or raw API call can silently destroy a
+   subtree. UI's SidebarMovePolicy is the only guard, and it is client-side
+   only. Proposed fix (awaiting go-ahead): ancestor-walk guard in
+   `move_document_impl` raising 400, + regression tests mirroring
+   SidebarMovePolicyTests; ~15 lines, no contract change.
+2. **Default Workflows lock unenforced** (known Phase-1, engine docstring says
+   a report to Daniel exists): mirrors + container accept move/rename/delete
+   from both UI and API; container moves persist. Decision needed: enforce
+   `attributes.read_only` in document.move/rename/delete actions, and/or
+   UI-side `canBeRenamed/canBeDeleted/moveDisabled` for
+   `prototype_key=="workflow"`+`read_only` rows.
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:
