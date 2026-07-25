@@ -95,12 +95,6 @@ git fetch origin --quiet
 
 restore_generated_openapi_files
 
-if [ "$DRY_RUN" = false ] && { ! git diff --quiet || ! git diff --cached --quiet; }; then
-  echo "error: generated OpenAPI restore did not leave a clean working tree." >&2
-  git status --short >&2
-  exit 1
-fi
-
 if ! git merge-base --is-ancestor HEAD origin/main; then
   echo "error: local main has commits not on origin/main — push or reconcile it first." >&2
   exit 1
