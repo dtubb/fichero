@@ -342,6 +342,43 @@ move_document_impl does no lock check). Gap #2 narrows to: enforce
 3. Engine `document.duplicate` and Option-drag copy: file as engine/UX design
    work respectively — out of sidebar-lane scope.
 
+## Session 8 — read-only verification of the two open findings
+(Proposal 1 — sidebar workflow Duplicate wiring — remains PAUSED pending
+Daniel's explicit confirmation in-conversation; nothing implemented.)
+
+### Mirror-row document-action gap: VERIFIED across all three write paths
+- `update_document_impl` (documents.py:1756) — rename via `name` field; no
+  `attributes.read_only` / `node_kind` / `prototype_key` check.
+- `delete_document_impl` (documents.py:1966) — soft-deletes the WHOLE subtree
+  (`_descendant_document_ids`); no lock check. Consequence sharpened: deleting
+  the Default Workflows CONTAINER soft-deletes every mirror row inside it in
+  one call. The Workflow objects themselves live in separate storage and
+  survive; whether re-seeding resurrects soft-deleted mirror rows (does
+  `_save_workflow_document`'s `self.get` see deleted rows / clear
+  `deleted_at`?) is runtime behavior — engine-lane question, untested.
+- `move_document_impl` (documents.py:1831) — verified session 5.
+- Contrast: workflow ROUTES enforce the lock (`_reject_if_read_only`, 403).
+  The document-tree surface is the only unprotected side. Gap #2 stands,
+  precisely scoped.
+
+### Chevron-strip finding: CONFIRMED REGRESSION (not a stale comment)
+- `abfe523ef` (Daniel, 2026-04-16, "drop-highlight covers full List row, not
+  just label width (#571)") deliberately moved `sidebarDropHighlight` to the
+  OUTER expression of each `bodyContent` branch — commit message explicitly:
+  "covering the full row including chevron area". The comment I flagged is
+  that commit's documentation.
+- By the `df1286369` file-split (#1703), the highlight (+ `.onDrop`,
+  `.contextMenu`) was back INSIDE the DisclosureGroup label (`folderLabel`) —
+  i.e. a refactor between #571 and #1703 regressed the placement; the comment
+  survived. Practical impact today is narrower than the original #571 bug
+  (fullWidthLabel is maxWidth-infinity inside the label), but the
+  chevron/indent strip of expandable rows is a dead zone for drop highlight,
+  drop target, and right-click.
+- Status: confirmed real regression of documented intent. Fix (re-hoist the
+  three modifiers to the outer branch) still needs a build to eyeball the
+  expanded-children interaction — queued for the gate, NOT changed now per
+  instructions.
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:
