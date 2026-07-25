@@ -25,8 +25,9 @@ enum AboutInfo {
         "Version \(displayValue(shortVersion)) (\(displayValue(build)))"
     }
 
-    static func engineVersionLine(_ version: String?) -> String {
-        "Engine \(displayValue(version))"
+    static func engineVersionLine(_ version: String?) -> String? {
+        guard displayValue(version) != "—" else { return nil }
+        return "Engine \(displayValue(version))"
     }
 
     static func copyrightLine(bundleValue: String?, fallback: String) -> String {
@@ -75,10 +76,12 @@ struct AboutView: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
 
-            Text(engineVersionLine)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
+            if let engineVersionLine {
+                Text(engineVersionLine)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
 
             Text(tagline)
                 .font(.body)

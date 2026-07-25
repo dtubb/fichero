@@ -33,12 +33,12 @@ final class AboutInfoTests: XCTestCase {
         XCTAssertEqual(AboutInfo.engineVersionLine("2026.7.8b2"), "Engine 2026.7.8b2")
     }
 
-    func testEngineVersionLineFallsBackToDash() {
-        XCTAssertEqual(AboutInfo.engineVersionLine(nil), "Engine —")
+    func testEngineVersionLineIsOmittedWhenMissing() {
+        XCTAssertNil(AboutInfo.engineVersionLine(nil))
     }
 
-    func testEngineVersionLineTreatsEmptyAsMissing() {
-        XCTAssertEqual(AboutInfo.engineVersionLine(" "), "Engine —")
+    func testEngineVersionLineIsOmittedWhenEmpty() {
+        XCTAssertNil(AboutInfo.engineVersionLine(" "))
     }
 
     func testCopyrightLineUsesBundleValue() {
