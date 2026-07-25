@@ -118,6 +118,13 @@ struct SearchView: View {
                     sortBy = search.sortBy
                     sortDirection = search.sortDirection
                     queryText = search.query
+                }
+                // Transient searches (#4086) arrive with savedSearch == nil and
+                // the query already sitting in the shared toolbar field, so run
+                // whatever query is present — not only saved ones. Without this
+                // a toolbar submit would land on an empty results panel because
+                // `queryText` never *changes* after the view appears.
+                if !queryText.trimmingCharacters(in: .whitespaces).isEmpty {
                     performSearch()
                 }
                 // Pull index health so the empty state can surface

@@ -7,41 +7,20 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Sidebar
 // MARK: - Creation Methods Extension
 
 extension SidebarView {
-    /// Create a new search - defaults to Global library
+    /// Open a blank search.
+    ///
+    /// Persists nothing (#4086): this used to write a "New Search" placeholder
+    /// row into the library before the user had typed anything. A search only
+    /// becomes a stored object via the explicit "Save Search" action.
     func createNewSearch() {
         guard FeatureManager.shared.isSearchEnabled else {
             logger.debug("Search feature is gated off; skipping createNewSearch()")
             return
         }
 
-        guard let globalLibrary = libraryManager.globalLibrary else {
-            logger.error("Global library not available")
-            return
-        }
-
-        Task {
-            do {
-                let savedSearch = try await globalLibrary.savedSearchService.saveSearch(
-                    query: "New Search",
-                    isSmartSearch: true
-                )
-                try await globalLibrary.savedSearchService.loadSavedSearches()
-                rebuildCaches()
-                selectedItemId = "search:\(savedSearch.id)"
-                let newSearch = SavedSearch(
-                    id: savedSearch.id,
-                    name: savedSearch.query,
-                    query: savedSearch.query,
-                    isSmartSearch: savedSearch.isSmartSearch,
-                    folderPath: savedSearch.folderPath,
-                    sortOrder: savedSearch.sortOrder
-                )
-                sidebarMode = .search  // Switch to search sidebar
-                viewMode = .search(newSearch)
-            } catch {
-                logger.error("Failed to create search: \(error.localizedDescription)")
-            }
-        }
+        selectedItemId = nil
+        sidebarMode = .search  // Switch to search sidebar
+        viewMode = .search(nil)
     }
 
     /// Create a new chat - defaults to Global library
