@@ -53,10 +53,11 @@ restore_generated_openapi_files() {
   fi
 
   if [ "$DRY_RUN" = true ]; then
-    echo "[DRY RUN] would restore generated OpenAPI files from HEAD"
+    echo "[DRY RUN] would restore generated OpenAPI files and installed helper from HEAD"
   else
     echo "── Restore generated OpenAPI files ──"
-    git restore --staged --worktree -- "${OPENAPI_GENERATED_FILES[@]}"
+    git restore --staged --worktree -- "${OPENAPI_GENERATED_FILES[@]}" \
+      scripts/merge-integration-to-main.sh
   fi
 }
 
