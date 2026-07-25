@@ -36,6 +36,24 @@ final class PreviewDownloadFileNameTests: XCTestCase {
         XCTAssertEqual((name("inline; filename=\"notes.md\"") as NSString).pathExtension, "md")
     }
 
+    func testFallbackFileNamePreservesStoredPathExtension() {
+        XCTAssertEqual(
+            PreviewDownloadService.fallbackFileName(
+                name: "Scan",
+                path: "sources/scan.tiff",
+                fileType: .image
+            ),
+            "Scan.tiff"
+        )
+    }
+
+    func testFallbackFileNameUsesFileTypeWhenNoPathExists() {
+        XCTAssertEqual(
+            PreviewDownloadService.fallbackFileName(name: "Notes", path: nil, fileType: .text),
+            "Notes.txt"
+        )
+    }
+
     // MARK: - A server-supplied name can never escape the cache directory
 
     func testPathTraversalIsStrippedToItsLeaf() {

@@ -37,6 +37,51 @@ struct PreviewDownloadService: Sendable {
     /// service owns only the preview-cache lifecycle and the filename rules.
     let storage: StorageService
 
+    /// Issues monotonically increasing request tokens so a completed download
+    /// cannot replace the state for a newer document selection.
+    @MainActor
+    final class RequestGate {
+        private var generation = 0
+        private var documentId: String?
+
+        func begin(for documentId: String) -> Int {
+            generation += 1
+            self.documentId = documentId
+            return generation
+        }
+
+        func isCurrent(documentId: String, generation: Int) -> Bool {
+            self.documentId == documentId && self.generation == generation
+        }
+
+        func invalidate() {
+            generation += 1
+            documentId = nil
+        }
+    }
+
+    /// Build the cache filename handed to Quick Look. Keep the document's own
+    /// extension when present, otherwise infer it from its stored path or type.
+    static func fallbackFileName(name: String, path: String?, fileType: FileType?) -> String {
+        if name.contains(".") { return name }
+        if let path {
+            let ext = (path as NSString).pathExtension
+            if !ext.isEmpty { return "\(name).\(ext)" }
+        }
+        if let fileType { return "\(name).\(fallbackExtension(for: fileType))" }
+        return name
+    }
+
+    static func fallbackExtension(for fileType: FileType) -> String {
+        [
+            FileType.image: "jpg", FileType.pdf: "pdf", FileType.audio: "mp3",
+            FileType.video: "mp4", FileType.text: "txt", FileType.json: "json",
+            FileType.word: "docx", FileType.epub: "epub", FileType.spreadsheet: "xlsx",
+            FileType.presentation: "pptx", FileType.csv: "csv", FileType.rtf: "rtf",
+            FileType.mobi: "mobi", FileType.other: "bin"
+        ][fileType] ?? "bin"
+    }
+
     /// Download the source file to `FicheroPreview/<id>_<name>` and return it,
     /// or a human error message. Any non-2xx surfaces the engine's JSON `detail`
     /// (not the body handed to a viewer); a `/` or `..` in the server filename is
@@ -81,11 +126,11 @@ struct PreviewDownloadService: Sendable {
 
     /// Remove a previously-downloaded preview file, guarded to the preview root
     /// so a stray URL can never delete outside the cache.
-    func removePreviewFile(_ fileURL: URL?) {
+    static func removePreviewFile(_ fileURL: URL?) {
         guard let fileURL else { return }
         let previewRoot = Self.previewCacheDirectory.standardizedFileURL
         let candidate = fileURL.standardizedFileURL
-        guard candidate.path.hasPrefix(previewRoot.path) else { return }
+        guard candidate.path.hasPrefix(previewRoot.path + "/") else { return }
         try? FileManager.default.removeItem(at: candidate)
     }
 

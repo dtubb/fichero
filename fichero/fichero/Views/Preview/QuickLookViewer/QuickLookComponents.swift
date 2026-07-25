@@ -20,6 +20,7 @@ struct QuickLookDownloadView: View {
     @State private var fileURL: URL?
     @State private var isLoading = true
     @State private var error: String?
+    @State private var requestGate = PreviewDownloadService.RequestGate()
 
     @Environment(StorageService.self) var storageService
 
@@ -81,74 +82,43 @@ struct QuickLookDownloadView: View {
             await loadFile()
         }
         .onDisappear {
-            downloadService.removePreviewFile(fileURL)
+            requestGate.invalidate()
+            PreviewDownloadService.removePreviewFile(fileURL)
         }
     }
 
     private func loadFile() async {
+        let documentId = document.id
+        let generation = requestGate.begin(for: documentId)
         isLoading = true
         error = nil
-        downloadService.removePreviewFile(fileURL)
+        PreviewDownloadService.removePreviewFile(fileURL)
         fileURL = nil
-        logger.info("Loading file from API for document: \(document.id)")
+        logger.info("Loading file from API for document: \(documentId)")
 
         let outcome = await downloadService.download(.init(
-            documentId: document.id,
-            fallbackFileName: fileNameWithExtension(),
+            documentId: documentId,
+            fallbackFileName: PreviewDownloadService.fallbackFileName(
+                name: document.name,
+                path: document.path,
+                fileType: document.fileType
+            ),
             documentPath: document.path
         ))
+        guard !Task.isCancelled, requestGate.isCurrent(documentId: documentId, generation: generation) else {
+            if case .success(let url) = outcome { PreviewDownloadService.removePreviewFile(url) }
+            return
+        }
+
         switch outcome {
         case .success(let url):
             fileURL = url
         case .failure(let message):
             error = message
         case .cancelled:
-            // Superseded reload — keep current state, surface no error.
             break
         }
         isLoading = false
-    }
-
-    // Get filename with proper extension
-    private func fileNameWithExtension() -> String {
-        let name = document.name
-        if name.contains(".") {
-            return name
-        }
-
-        if let path = document.path {
-            let ext = (path as NSString).pathExtension
-            if !ext.isEmpty {
-                return "\(name).\(ext)"
-            }
-        }
-
-        if let fileType = document.fileType {
-            return "\(name).\(fallbackExtension(for: fileType))"
-        }
-
-        return name
-    }
-
-    // Default extension per file type, used only when the document has neither
-    // a dotted name nor a path to infer one from.
-    private func fallbackExtension(for fileType: FileType) -> String {
-        switch fileType {
-        case .image: return "jpg"
-        case .pdf: return "pdf"
-        case .audio: return "mp3"
-        case .video: return "mp4"
-        case .text: return "txt"
-        case .json: return "json"
-        case .word: return "docx"
-        case .epub: return "epub"
-        case .spreadsheet: return "xlsx"
-        case .presentation: return "pptx"
-        case .csv: return "csv"
-        case .rtf: return "rtf"
-        case .mobi: return "mobi"
-        case .other: return "bin"
-        }
     }
 }
 
@@ -160,6 +130,7 @@ struct QuickLookDownloadView: View {
     @State private var fileURL: URL?
     @State private var isLoading = true
     @State private var error: String?
+    @State private var requestGate = PreviewDownloadService.RequestGate()
 
     @Environment(StorageService.self) private var storageService
 
@@ -190,21 +161,33 @@ struct QuickLookDownloadView: View {
             await loadFile()
         }
         .onDisappear {
-            downloadService.removePreviewFile(fileURL)
+            requestGate.invalidate()
+            PreviewDownloadService.removePreviewFile(fileURL)
         }
     }
 
     private func loadFile() async {
+        let documentId = document.id
+        let generation = requestGate.begin(for: documentId)
         isLoading = true
         error = nil
-        downloadService.removePreviewFile(fileURL)
+        PreviewDownloadService.removePreviewFile(fileURL)
         fileURL = nil
 
         let outcome = await downloadService.download(.init(
-            documentId: document.id,
-            fallbackFileName: fileNameWithExtension(),
+            documentId: documentId,
+            fallbackFileName: PreviewDownloadService.fallbackFileName(
+                name: document.name,
+                path: document.path,
+                fileType: document.fileType
+            ),
             documentPath: document.path
         ))
+        guard !Task.isCancelled, requestGate.isCurrent(documentId: documentId, generation: generation) else {
+            if case .success(let url) = outcome { PreviewDownloadService.removePreviewFile(url) }
+            return
+        }
+
         switch outcome {
         case .success(let url):
             fileURL = url
@@ -214,42 +197,6 @@ struct QuickLookDownloadView: View {
             break
         }
         isLoading = false
-    }
-
-    private func fileNameWithExtension() -> String {
-        let name = document.name
-        if name.contains(".") {
-            return name
-        }
-        if let path = document.path {
-            let ext = (path as NSString).pathExtension
-            if !ext.isEmpty {
-                return "\(name).\(ext)"
-            }
-        }
-        if let fileType = document.fileType {
-            return "\(name).\(fallbackExtension(for: fileType))"
-        }
-        return name
-    }
-
-    private func fallbackExtension(for fileType: FileType) -> String {
-        switch fileType {
-        case .image: return "jpg"
-        case .pdf: return "pdf"
-        case .audio: return "mp3"
-        case .video: return "mp4"
-        case .text: return "txt"
-        case .json: return "json"
-        case .word: return "docx"
-        case .epub: return "epub"
-        case .spreadsheet: return "xlsx"
-        case .presentation: return "pptx"
-        case .csv: return "csv"
-        case .rtf: return "rtf"
-        case .mobi: return "mobi"
-        case .other: return "bin"
-        }
     }
 }
 #else

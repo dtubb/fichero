@@ -53,6 +53,43 @@ final class QuickLookDownloadErrorTests: XCTestCase {
         XCTAssertEqual(result, "gone")
     }
 
+    // MARK: - Selection and cache lifecycle
+
+    @MainActor
+    func testRequestGateRejectsAnOldSelectionAfterReplacement() {
+        let gate = PreviewDownloadService.RequestGate()
+        let firstRequest = gate.begin(for: "document-a")
+        let secondRequest = gate.begin(for: "document-b")
+
+        XCTAssertFalse(gate.isCurrent(documentId: "document-a", generation: firstRequest))
+        XCTAssertTrue(gate.isCurrent(documentId: "document-b", generation: secondRequest))
+    }
+
+    @MainActor
+    func testRequestGateRejectsCompletionAfterDisappearance() {
+        let gate = PreviewDownloadService.RequestGate()
+        let request = gate.begin(for: "document-a")
+
+        gate.invalidate()
+
+        XCTAssertFalse(gate.isCurrent(documentId: "document-a", generation: request))
+    }
+
+    func testStalePreviewCacheFileIsRemoved() throws {
+        let cacheFile = PreviewDownloadService.previewCacheDirectory
+            .appendingPathComponent("stale-selection.pdf")
+        try FileManager.default.createDirectory(
+            at: PreviewDownloadService.previewCacheDirectory,
+            withIntermediateDirectories: true
+        )
+        try Data("stale".utf8).write(to: cacheFile)
+        defer { try? FileManager.default.removeItem(at: cacheFile) }
+
+        PreviewDownloadService.removePreviewFile(cacheFile)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cacheFile.path))
+    }
+
     // MARK: - sanitizedFileName (#3207 path-injection guard)
 
     func testSanitizePassesCleanNames() {
