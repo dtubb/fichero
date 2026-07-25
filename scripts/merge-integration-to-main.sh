@@ -12,30 +12,41 @@
 #
 # Refuses anything that isn't a clean fast-forward — no merge commits. A
 # diverged `integration` means its worktree needs rebasing onto main first; fix
-# that in the integration worktree, not here. It discards only the generated
-# OpenAPI copies on main; integration and the release build recreate them.
+# that in the integration worktree, not here.
+#
+# It discards only files that a later step deterministically recreates:
+#   * the generated OpenAPI copies — integration's committed spec plus the
+#     post-merge sync_openapi_schema.sh run rewrite them;
+#   * the dated release stamps — release-all.sh runs set-release-version.sh up
+#     front, which rewrites exactly these three paths (and only renames
+#     RELEASE_NOTES.md's top `## ` heading, refusing if none matches, so no
+#     hand-written note text is at risk).
+# Every other dirty path is still a hard error.
 
-OPENAPI_GENERATED_FILES=(
+REGENERATED_FILES=(
   "docs/contributor/api-reference/openapi.json"
   "fichero-engine/tests/contracts/openapi.json"
   "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
+  "RELEASE_NOTES.md"
+  "fichero-engine/pyproject.toml"
+  "fichero/fichero.xcodeproj/project.pbxproj"
 )
 
-is_generated_openapi_file() {
+is_regenerated_file() {
   local path="$1"
   local generated
-  for generated in "${OPENAPI_GENERATED_FILES[@]}"; do
+  for generated in "${REGENERATED_FILES[@]}"; do
     [ "$path" = "$generated" ] && return 0
   done
   return 1
 }
 
-restore_generated_openapi_files() {
+restore_regenerated_files() {
   local status path
   local other_changes=()
   while IFS= read -r status; do
     path="${status:3}"
-    if ! is_generated_openapi_file "$path" \
+    if ! is_regenerated_file "$path" \
       && { [ "$path" != "scripts/merge-integration-to-main.sh" ] \
         || ! git diff --quiet "$SOURCE_BRANCH" -- "$path"; }; then
       other_changes+=("$status")
@@ -43,7 +54,7 @@ restore_generated_openapi_files() {
   done < <(git status --short)
 
   if [ "${#other_changes[@]}" -gt 0 ]; then
-    echo "error: working tree has changes outside generated OpenAPI files:" >&2
+    echo "error: working tree has changes outside regenerated files:" >&2
     printf '  %s\n' "${other_changes[@]}" >&2
     exit 1
   fi
@@ -53,10 +64,10 @@ restore_generated_openapi_files() {
   fi
 
   if [ "$DRY_RUN" = true ]; then
-    echo "[DRY RUN] would restore generated OpenAPI files and installed helper from HEAD"
+    echo "[DRY RUN] would restore regenerated files and installed helper from HEAD"
   else
-    echo "── Restore generated OpenAPI files ──"
-    git restore --staged --worktree -- "${OPENAPI_GENERATED_FILES[@]}" \
+    echo "── Restore regenerated files (OpenAPI + release stamps) ──"
+    git restore --staged --worktree -- "${REGENERATED_FILES[@]}" \
       scripts/merge-integration-to-main.sh
   fi
 }
@@ -94,7 +105,7 @@ fi
 echo "── Fetch origin ──"
 git fetch origin --quiet
 
-restore_generated_openapi_files
+restore_regenerated_files
 
 if ! git merge-base --is-ancestor HEAD origin/main; then
   echo "error: local main has commits not on origin/main — push or reconcile it first." >&2
