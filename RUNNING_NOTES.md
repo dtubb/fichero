@@ -20,7 +20,7 @@ Do NOT duplicate unintegrated workflow-node commits `6d20ae6c4` / `621c060b9`.
 ## Commits (this session)
 - `511b3a0b9` chore(sidebar): retire dead unified-section expansion persistence
 - `0b2b4a832` feat(sidebar): make context-menu Delete selection-aware
-- (pending) fix(sidebar): speak touch-appropriate VoiceOver hints on iOS
+- `57bc7e03d` fix(sidebar): speak touch-appropriate VoiceOver hints on iOS
   (`sidebarRowAccessibilityHint` platform-conditional; rows previously told
   iOS VoiceOver users to "Right-click"/"Double-click"; new
   SidebarRowAccessibilityTests locks both branches)
@@ -47,9 +47,13 @@ Do NOT duplicate unintegrated workflow-node commits `6d20ae6c4` / `621c060b9`.
   (no xcodebuild per mandate) — manager runs FicheroTests at the gate.
 
 ## Active / next
-- NEXT candidates (from SIDEBAR_STATUS "Still open"): #3390 PDF-drop UTType fix
-  (build-in-the-loop — diagnosis says add `.fileURL` to accepted `.onDrop` types;
-  risky blind), #2496 trailing affordance (visual, build-in-the-loop),
-  #2397 cross-library drag, #2498 iOS/iPad parity (device-in-the-loop).
-- Continue audit: contextual menus, keyboard nav, VoiceOver/accessibility,
-  tooltips, macOS/iOS differences — not yet swept in this worktree.
+- Audit swept so far: state persistence, delete paths, contextual menus,
+  row accessibility (label/hint/value), drop UTTypes. NOT yet swept:
+  keyboard navigation beyond Delete/Escape, tooltips coverage on truncated
+  rows, section-header a11y, macOS/iOS structural differences.
+- Deferred (needs build/device at manager gate, per mandate no xcodebuild):
+  #2496 trailing hover affordance, #2397 cross-library drag,
+  #2498 iOS/iPad library parity, batch open-in-tabs (window-opening).
+- MANAGER: `.help("Export (not yet wired)")` in SidebarBottomToolbar.swift:196
+  is a shipped-looking dead button — worth an issue/triage decision (I won't
+  touch GitHub state).
