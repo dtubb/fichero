@@ -169,7 +169,12 @@ class WorkflowStreamService {
             try await consumeStreamLines(lines, onEvent: onEvent)
         } catch {
             if !Task.isCancelled {
-                await handleStreamFailure(error, streamUrl: streamUrl)
+                handleStreamFailure(
+                    error,
+                    streamUrl: streamUrl,
+                    threadId: threadId,
+                    onEvent: onEvent
+                )
             }
         }
 
@@ -237,16 +242,20 @@ class WorkflowStreamService {
     }
 
     /// Handle a failure from the SSE byte stream (non-cancellation only).
-    private func handleStreamFailure(_ error: Error, streamUrl: URL) async {
+    private func handleStreamFailure(
+        _ error: Error,
+        streamUrl: URL,
+        threadId: String,
+        onEvent: ((WorkflowStreamEvent) -> Void)?
+    ) {
         let message = WorkflowStreamError.streamFailureDescription(error: error, streamURL: streamUrl)
         logger.error("Stream error: \(message)")
-        await MainActor.run {
-            self.error = message
-            self.isStreaming = false
-            // Events stopped mid-run — surface a "live updates paused"
-            // pill rather than leaving the run looking stalled (F7).
-            self.liveUpdatesUnavailable = true
-        }
+        self.error = message
+        self.isStreaming = false
+        // Events stopped mid-run — surface a "live updates paused"
+        // pill rather than leaving the run looking stalled (F7).
+        self.liveUpdatesUnavailable = true
+        onEvent?(.error(threadId: threadId, error: message))
     }
 
     /// Cancel the current stream
