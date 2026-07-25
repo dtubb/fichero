@@ -27,6 +27,32 @@ enum ItemCategory: String, CaseIterable, Identifiable {
         case .library: return "book.closed"
         }
     }
+
+    /// A restrained category cue for sidebar glyphs. The label stays primary so
+    /// the native selected-row treatment remains responsible for legibility.
+    var sidebarTint: SidebarItem.Tint {
+        switch self {
+        case .folder, .library: return .accent
+        case .search: return .teal
+        case .chat: return .indigo
+        case .workflow: return .purple
+        case .automation: return .orange
+        case .batch: return .blue
+        case .activity: return .green
+        }
+    }
+}
+
+extension SidebarItem {
+    enum Tint: Equatable {
+        case accent
+        case teal
+        case indigo
+        case purple
+        case orange
+        case blue
+        case green
+    }
 }
 
 /// Generic sidebar item that can be a document, search, chat, or workflow
@@ -77,6 +103,21 @@ struct SidebarItem: Identifiable, Hashable {
 
     var destination: SidebarDestination {
         SidebarDestination(serializedID: id) ?? .document(id)
+    }
+
+    /// The icon tint is intentionally isolated to the glyph so List can retain
+    /// its native selected-row contrast and accessibility behavior.
+    var sidebarTint: Tint {
+        switch itemType {
+        case .document, .folder, .libraryHeader:
+            return category.sidebarTint
+        case .savedSearch: return .teal
+        case .conversation, .comparison: return .indigo
+        case .workflow, .chain: return .purple
+        case .schedule, .trigger: return .orange
+        case .batch: return .blue
+        case .activityRun: return .green
+        }
     }
 
     /// Whether this row can actually be reordered by dragging in the sidebar.

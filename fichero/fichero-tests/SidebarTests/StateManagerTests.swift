@@ -1,9 +1,42 @@
-import XCTest
 @testable import Fichero
+import XCTest
 
 /// Simple unit tests for sidebar state managers
 @MainActor
 class StateManagerTests: XCTestCase {
+
+    // MARK: - Sidebar Item Presentation Tests
+
+    func testSidebarItemUsesTypeSpecificTint() {
+        let document = Document(id: "doc-1", docType: .file, name: "Test")
+        let search = SavedSearch(id: "search-1", name: "Saved")
+        let documentItem = SidebarItem.fromDocument(document, libraryId: UUID())
+        let searchItem = SidebarItem.fromSearch(search, libraryId: UUID())
+        let selectedDocumentItem = SidebarItem(
+            id: "search:selected",
+            name: search.name,
+            icon: search.icon,
+            category: .folder,
+            itemType: .savedSearch(search),
+            children: nil,
+            progress: nil,
+            libraryId: UUID(),
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: false
+        )
+
+        XCTAssertEqual(documentItem.sidebarTint, .accent)
+        XCTAssertEqual(searchItem.sidebarTint, .teal)
+        XCTAssertEqual(selectedDocumentItem.sidebarTint, .teal)
+    }
+
+    func testSidebarItemCategoryTintsRemainDistinctForAgenticTypes() {
+        XCTAssertEqual(ItemCategory.chat.sidebarTint, .indigo)
+        XCTAssertEqual(ItemCategory.workflow.sidebarTint, .purple)
+        XCTAssertEqual(ItemCategory.automation.sidebarTint, .orange)
+        XCTAssertEqual(ItemCategory.activity.sidebarTint, .green)
+    }
 
     // MARK: - RenameStateManager Tests
 

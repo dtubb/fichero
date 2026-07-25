@@ -90,6 +90,7 @@ extension SidebarItemRow {
                 // every render. Fall back to a generic doc icon when an
                 // upstream factory forgets to set one. (#1015)
                 Image(systemName: item.icon.isEmpty ? "doc" : item.icon)
+                    .foregroundStyle(iconTint)
                 Image(systemName: badge.symbol.isEmpty ? "questionmark.circle" : badge.symbol)
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white, badge.color)
@@ -104,7 +105,23 @@ extension SidebarItemRow {
         } else {
             // Defensive empty-icon guard — see comment above. (#1015)
             Image(systemName: item.icon.isEmpty ? "doc" : item.icon)
+                .foregroundStyle(iconTint)
                 .frame(width: 16, alignment: .center)
+        }
+    }
+
+    /// Color only the glyph. Text remains `.primary`, and selected rows revert
+    /// to the system foreground so SwiftUI keeps its native contrast treatment.
+    private var iconTint: Color {
+        guard !selectedDestinations.contains(item.destination) else { return .primary }
+        switch item.sidebarTint {
+        case .accent: return .accentColor
+        case .teal: return .teal
+        case .indigo: return .indigo
+        case .purple: return .purple
+        case .orange: return .orange
+        case .blue: return .blue
+        case .green: return .green
         }
     }
 
