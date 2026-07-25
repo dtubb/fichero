@@ -149,11 +149,11 @@ struct QuickLookDownloadView: View {
                 ProgressView("Loading preview...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error {
-                ContentUnavailableView(
-                    "Preview unavailable",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(error)
-                ) {
+                ContentUnavailableView {
+                    Label("Preview unavailable", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(error)
+                } actions: {
                     Button("Retry") {
                         Task { await loadFile() }
                     }
