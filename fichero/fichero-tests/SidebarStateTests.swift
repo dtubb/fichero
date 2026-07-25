@@ -106,6 +106,18 @@ final class SidebarStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "sidebar.libraries.\(windowId)")
     }
 
+    func testStaleUnifiedSectionsKeyPurgedOnInit() {
+        // The unified-section headers were retired; any persisted expansion
+        // dictionary from old builds must be removed at init.
+        let windowId = freshWindowId()
+        let staleKey = "sidebar.unified.sections.\(windowId)"
+        UserDefaults.standard.set(["lib:documents": false], forKey: staleKey)
+
+        _ = SidebarState(windowId: windowId)
+
+        XCTAssertNil(UserDefaults.standard.object(forKey: staleKey))
+    }
+
     // MARK: - Transient state defaults
 
     func testTransientDefaultsAreClean() {
@@ -150,7 +162,6 @@ final class SidebarStateTests: XCTestCase {
 
         XCTAssertTrue(state.expandedItems.isEmpty)
         XCTAssertTrue(state.libraryExpansionStates.isEmpty)
-        XCTAssertTrue(state.unifiedSectionExpansionStates.isEmpty)
         XCTAssertFalse(state.isChatDropTargeted)
         XCTAssertNil(state.renamingItemId)
         XCTAssertEqual(state.newFolderName, "")
