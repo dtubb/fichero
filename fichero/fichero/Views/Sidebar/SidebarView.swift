@@ -249,7 +249,9 @@ struct SidebarView: View {
                 createChain: createNewChain,
                 createComparison: createNewComparison,
                 createSchedule: createNewSchedule,
-                createTrigger: createNewTrigger
+                createTrigger: createNewTrigger,
+                openSelectionInNewTab: handleOpenSelectionInNewTab,
+                openSelectionInNewWindow: handleOpenSelectionInNewWindow
             ))
             .sidebarDeleteAlerts(
                 deleteState: deleteState,

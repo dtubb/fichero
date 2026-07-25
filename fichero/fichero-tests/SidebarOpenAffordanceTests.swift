@@ -85,4 +85,36 @@ struct SidebarOpenAffordanceTests {
         // default (documented on the helper).
         #expect(!sidebarOpenPrefersTab(.inFullScreen))
     }
+
+    // MARK: - Menu-command discoverability (source-locked: @FocusedValue
+    // buttons can't be instantiated in a unit test without a focus system)
+
+    @Test("File menu surfaces Open in New Tab/Window for the sidebar selection")
+    func fileMenuContainsSelectionOpenCommands() throws {
+        let source = try appSource("App/Menus/FileMenuCommands.swift")
+        #expect(source.contains("FocusedOpenInNewTabButton()"))
+        #expect(source.contains("FocusedOpenInNewWindowButton()"))
+    }
+
+    @Test("selection-open commands use the ⌘⌥O family and disable without a selection")
+    func selectionOpenCommandsShortcutsAndDisabling() throws {
+        let source = try appSource("App/Menus/FocusedCommandButtons+SidebarActions.swift")
+        // ⌘O is Open Library; selection-opens must stay on the ⌘⌥O family.
+        #expect(source.contains(#".keyboardShortcut("o", modifiers: [.command, .option])"#))
+        #expect(source.contains(#".keyboardShortcut("o", modifiers: [.command, .option, .shift])"#))
+        // Both buttons gate on an actual sidebar selection, not just sidebar focus.
+        let disabledGates = source.components(
+            separatedBy: ".disabled(selectionInfo?.selectedItem == nil)"
+        ).count - 1
+        #expect(disabledGates == 2)
+    }
+
+    private func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
 }

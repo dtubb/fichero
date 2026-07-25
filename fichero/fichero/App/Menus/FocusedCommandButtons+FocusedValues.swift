@@ -41,6 +41,10 @@ struct SidebarActions: Equatable {
     let createComparison: () -> Void
     let createSchedule: () -> Void
     let createTrigger: () -> Void
+    /// Open the primary selected row in a new tab / new window (#2496) —
+    /// keyboard/menu parity with double-click and the trailing affordance.
+    let openSelectionInNewTab: () -> Void
+    let openSelectionInNewWindow: () -> Void
 
     static func == (lhs: SidebarActions, rhs: SidebarActions) -> Bool {
         true

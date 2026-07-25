@@ -105,6 +105,8 @@ struct SidebarFocusedValuesConfig {
     let createComparison: () -> Void     // No longer optional
     let createSchedule: () -> Void       // No longer optional
     let createTrigger: () -> Void        // No longer optional
+    let openSelectionInNewTab: () -> Void
+    let openSelectionInNewWindow: () -> Void
 }
 
 extension View {
@@ -122,7 +124,9 @@ extension View {
                 createChain: config.createChain,
                 createComparison: config.createComparison,
                 createSchedule: config.createSchedule,
-                createTrigger: config.createTrigger
+                createTrigger: config.createTrigger,
+                openSelectionInNewTab: config.openSelectionInNewTab,
+                openSelectionInNewWindow: config.openSelectionInNewWindow
             ))
             .focusedValue(\.sidebarSelectionInfo, SidebarSelectionInfo(
                 selectedItem: config.selectedItem,

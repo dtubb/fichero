@@ -103,9 +103,13 @@ extension SidebarView {
     /// new tab or window via the shared `WindowOpener` path, honoring the
     /// system "Prefer tabs" setting. Single click keeps its existing
     /// select-in-place semantics; multi-selection is untouched (the primary
-    /// is the routed anchor). Keyboard/VoiceOver equivalent: the row context
-    /// menu's Open in New Tab / Open in New Window.
+    /// is the routed anchor). Keyboard/VoiceOver equivalents: the row context
+    /// menu and the File-menu Open in New Tab / New Window commands.
     func handleSidebarDoubleClick() {
+        openPrimarySelection(asTab: sidebarOpenPrefersTab(NSWindow.userTabbingPreference))
+    }
+
+    private func openPrimarySelection(asTab: Bool) {
         guard let target = sidebarAuxiliaryOpenTarget(
             item: selectedItem,
             fallbackLibraryId: libraryManager.currentLibraryId
@@ -113,11 +117,27 @@ extension SidebarView {
         WindowOpener.open(
             libraryId: target.libraryId,
             documentId: target.documentId,
-            asTab: sidebarOpenPrefersTab(NSWindow.userTabbingPreference),
+            asTab: asTab,
             using: openWindow
         )
     }
     #endif
+
+    /// File-menu / keyboard paths (#2496): an EXPLICIT tab or window choice,
+    /// unlike double-click which follows the system tabbing preference.
+    /// No-ops on iOS, where `WindowOpener` (macOS window/tab management)
+    /// doesn't exist — the menu commands are macOS-only anyway.
+    func handleOpenSelectionInNewTab() {
+        #if os(macOS)
+        openPrimarySelection(asTab: true)
+        #endif
+    }
+
+    func handleOpenSelectionInNewWindow() {
+        #if os(macOS)
+        openPrimarySelection(asTab: false)
+        #endif
+    }
 
     // Perform the actual deletion
     func performDelete(item: SidebarItem) async {
