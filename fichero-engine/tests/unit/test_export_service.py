@@ -2,6 +2,7 @@ import pytest
 
 from fichero.export_service import (
     export_eleventy_site,
+    export_jsonl,
     export_markdown_folder,
     export_word_docx,
     iter_export_records,
@@ -123,6 +124,49 @@ def test_iter_export_records_box_granularity_uses_top_collection_scope(db):
     assert {r["scope_id"] for r in document_records} == {box.id}
     assert {r["scope_name"] for r in document_records} == {box.name}
     assert {r["found_in_page_id"] for r in document_records} == {page.id, "page-2"}
+
+
+def test_export_jsonl_writes_canonical_unicode_records(db, tmp_path):
+    import json
+
+    root, _, _, _, _, _, _ = _seed_export_library(db)
+    result = export_jsonl(db, tmp_path / "records", target_id=root.id)
+
+    records = [json.loads(line) for line in (tmp_path / "records.jsonl").read_text(encoding="utf-8").splitlines()]
+
+    assert result.output_path == str(tmp_path / "records.jsonl")
+    assert result.document_count == 2
+    assert result.entity_count == 2
+    assert result.claim_count == 1
+    assert result.bytes_written > 0
+    assert [record["record_type"] for record in records] == [
+        "document",
+        "document",
+        "entity",
+        "entity",
+        "claim",
+    ]
+    assert records[-1]["found_in_page_label"] == "1r"
+
+
+def test_export_jsonl_honors_recursive_and_overwrite(db, tmp_path):
+    root, _, _, _, _, _, _ = _seed_export_library(db)
+    output_path = tmp_path / "records.jsonl"
+    output_path.write_text("keep\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        export_jsonl(db, output_path, target_id=root.id)
+
+    result = export_jsonl(
+        db,
+        output_path,
+        target_id=root.id,
+        recursive=False,
+        overwrite=True,
+    )
+
+    assert result.document_count == 0
+    assert output_path.read_text(encoding="utf-8") == ""
 
 
 def test_export_eleventy_site_output_stays_document_only(db, tmp_path):

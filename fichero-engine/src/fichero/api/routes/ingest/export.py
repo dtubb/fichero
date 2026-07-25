@@ -11,6 +11,7 @@ from fichero.db import Database
 from fichero.export_service import (
     export_eleventy_site,
     export_excel_xlsx,
+    export_jsonl,
     export_markdown_folder,
     export_word_docx,
 )
@@ -94,6 +95,26 @@ class ExcelExportResponse(BaseModel):
     bytes_written: int
 
 
+class JsonlExportRequest(BaseModel):
+    """Request body for JSON Lines export."""
+
+    output_path: str = Field(..., description="Destination .jsonl path")
+    target_id: str | None = Field(
+        default=None,
+        description="Optional document/folder id to export; omitted exports library",
+    )
+    recursive: bool = Field(default=True, description="Include descendants of folders")
+    overwrite: bool = Field(default=False, description="Overwrite existing .jsonl")
+
+
+class JsonlExportResponse(BaseModel):
+    output_path: str
+    document_count: int
+    entity_count: int
+    claim_count: int
+    bytes_written: int
+
+
 class EleventySiteExportRequest(BaseModel):
     """Request body for 11ty/Netlify static-site export."""
 
@@ -119,6 +140,30 @@ class EleventySiteExportResponse(BaseModel):
     collection_count: int
     files: list[ExportedFileResponse]
     assets: list[ExportedFileResponse]
+
+
+@router.post("/jsonl", response_model=JsonlExportResponse)
+async def export_jsonl_route(
+    request: JsonlExportRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> JsonlExportResponse:
+    """Export canonical records as a JSON Lines file."""
+    try:
+        result = export_jsonl(
+            db=db,
+            output_path=Path(request.output_path),
+            target_id=request.target_id,
+            recursive=request.recursive,
+            overwrite=request.overwrite,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return JsonlExportResponse(**result.__dict__)
 
 
 @router.post("/eleventy-site", response_model=EleventySiteExportResponse)

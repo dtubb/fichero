@@ -351,6 +351,48 @@ class TestExcelExport:
         assert r.status_code == 409
 
 
+class TestJsonlExport:
+    def test_exports_scoped_records_with_unicode(self, client, db, tmp_path):
+        folder = Document(id="jsonl-folder", name="Archivo", doc_type=DocType.folder)
+        doc = Document(
+            id="jsonl-doc",
+            name="Carta Bogotá",
+            parent_id=folder.id,
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Señora María escribió.",
+        )
+        db.save(folder)
+        db.save(doc)
+
+        output_path = tmp_path / "records"
+        response = client.post(
+            "/api/export/jsonl",
+            json={"target_id": folder.id, "output_path": str(output_path)},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["document_count"] == 1
+        assert response.json()["bytes_written"] > 0
+        body = (tmp_path / "records.jsonl").read_text(encoding="utf-8")
+        assert "Bogotá" in body
+        assert "Señora María escribió." in body
+        assert json.loads(body)["document_id"] == doc.id
+
+    def test_rejects_existing_file_and_missing_target(self, client, tmp_path):
+        output_path = tmp_path / "records.jsonl"
+        output_path.write_text("keep\n", encoding="utf-8")
+
+        conflict = client.post("/api/export/jsonl", json={"output_path": str(output_path)})
+        missing = client.post(
+            "/api/export/jsonl",
+            json={"target_id": "nope", "output_path": str(tmp_path / "missing")},
+        )
+
+        assert conflict.status_code == 409
+        assert missing.status_code == 404
+
+
 class TestEleventySiteExport:
     def test_route_forwards_library_header_and_surfaces_oserror(
         self, client, monkeypatch, tmp_path

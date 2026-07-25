@@ -3353,6 +3353,16 @@
       },
       {
         "method": "POST",
+        "path": "/export/jsonl",
+        "operation_id": "export_jsonl_route_api_export_jsonl_post",
+        "summary": "Export Jsonl Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "JsonlExportRequest",
+        "response_model": "JsonlExportResponse"
+      },
+      {
+        "method": "POST",
         "path": "/export/markdown-folder",
         "operation_id": "export_markdown_folder_route_api_export_markdown_folder_post",
         "summary": "Export Markdown Folder Route",

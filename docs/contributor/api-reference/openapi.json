@@ -10828,6 +10828,49 @@
         }
       }
     },
+    "/api/export/jsonl": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Export Jsonl Route",
+        "description": "Export canonical records as a JSON Lines file.",
+        "operationId": "export_jsonl_route_api_export_jsonl_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonlExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonlExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/export/eleventy-site": {
       "post": {
         "tags": [
@@ -46909,6 +46952,72 @@
           "name"
         ],
         "title": "InvokeActionRequest"
+      },
+      "JsonlExportRequest": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path",
+            "description": "Destination .jsonl path"
+          },
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id",
+            "description": "Optional document/folder id to export; omitted exports library"
+          },
+          "recursive": {
+            "type": "boolean",
+            "title": "Recursive",
+            "description": "Include descendants of folders",
+            "default": true
+          },
+          "overwrite": {
+            "type": "boolean",
+            "title": "Overwrite",
+            "description": "Overwrite existing .jsonl",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path"
+        ],
+        "title": "JsonlExportRequest",
+        "description": "Request body for JSON Lines export."
+      },
+      "JsonlExportResponse": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path"
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count"
+          },
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "bytes_written": {
+            "type": "integer",
+            "title": "Bytes Written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path",
+          "document_count",
+          "entity_count",
+          "claim_count",
+          "bytes_written"
+        ],
+        "title": "JsonlExportResponse"
       },
       "KGEntityGroup": {
         "properties": {

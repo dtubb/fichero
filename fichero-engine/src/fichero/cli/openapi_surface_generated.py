@@ -4739,6 +4739,32 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("jsonl-route")
+    def export_jsonl_route_post(
+        ctx: typer.Context,
+        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
+        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
+        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
+        target_id: Optional[str] = typer.Option(None, "--target-id", help="Request field: target_id."),
+    ) -> None:
+        """Export Jsonl Route (POST /api/export/jsonl)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/export/jsonl"
+            params = None
+            payload = _build_json_payload({
+                "output_path": output_path,
+                "overwrite": overwrite,
+                "recursive": recursive,
+                "target_id": target_id,
+            }, {
+                "output_path": {'type': 'string', 'title': 'Output Path', 'description': 'Destination .jsonl path', 'x-cli-required': True},
+                "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Overwrite existing .jsonl', 'default': False, 'x-cli-required': False},
+                "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
+                "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("markdown-folder-route")
     def export_markdown_folder_route_post(
         ctx: typer.Context,

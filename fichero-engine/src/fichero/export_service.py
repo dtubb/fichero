@@ -80,6 +80,17 @@ class ExcelExportResult:
 
 
 @dataclass
+class JsonlExportResult:
+    """Result metadata for a JSON Lines export."""
+
+    output_path: str
+    document_count: int
+    entity_count: int
+    claim_count: int
+    bytes_written: int
+
+
+@dataclass
 class EleventySiteExportResult:
     """Result metadata for an 11ty/Netlify static-site export."""
 
@@ -1174,6 +1185,37 @@ def export_excel_xlsx(
         document_count=len(document_rows),
         entity_count=len(entity_rows),
         claim_count=len(claim_rows),
+        bytes_written=output_file.stat().st_size,
+    )
+
+
+def export_jsonl(
+    db: Database,
+    output_path: str | Path,
+    target_id: str | None = None,
+    recursive: bool = True,
+    overwrite: bool = False,
+) -> JsonlExportResult:
+    """Export canonical document, entity, and claim records as JSON Lines."""
+    output_file = Path(output_path).expanduser()
+    if output_file.suffix.lower() != ".jsonl":
+        output_file = output_file.with_suffix(".jsonl")
+    if output_file.exists() and not overwrite:
+        raise FileExistsError(f"Export file already exists: {output_file}")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    counts = {"document": 0, "entity": 0, "claim": 0}
+    with output_file.open("w", encoding="utf-8") as export_file:
+        for record in iter_export_records(db, target_id=target_id, recursive=recursive):
+            export_file.write(json.dumps(record, ensure_ascii=False, default=str))
+            export_file.write("\n")
+            counts[record["record_type"]] += 1
+
+    return JsonlExportResult(
+        output_path=str(output_file),
+        document_count=counts["document"],
+        entity_count=counts["entity"],
+        claim_count=counts["claim"],
         bytes_written=output_file.stat().st_size,
     )
 
