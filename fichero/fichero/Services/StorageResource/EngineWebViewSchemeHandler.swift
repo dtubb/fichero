@@ -31,9 +31,18 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "EngineW
 /// main-actor isolated.
 @MainActor
 final class EngineWebViewSchemeHandler: NSObject, WKURLSchemeHandler {
-    /// Upper bound on a single buffered response, mirroring `StorageResourceLoader`
-    /// so a hostile/huge page or asset can't grow memory without limit.
+    /// Maximum response delivered to WebKit. `requestData` is already buffered;
+    /// transport-level allocation bounds require a future streaming client API.
     private static let maxResponseBytes = 100 * 1024 * 1024
+
+    static func validateResponseSize(byteCount: Int) throws {
+        guard byteCount <= maxResponseBytes else {
+            throw EngineWebViewError.responseTooLarge(
+                actualBytes: byteCount,
+                limitBytes: maxResponseBytes
+            )
+        }
+    }
 
     private let client: FicheroClient
     /// Tasks in flight keyed by object identity so `stop` cancels the right one.
@@ -70,6 +79,7 @@ final class EngineWebViewSchemeHandler: NSObject, WKURLSchemeHandler {
                     // error rather than rendering error-page bytes as content.
                     throw EngineWebViewError.httpStatus(status, path: enginePath)
                 }
+                try Self.validateResponseSize(byteCount: data.count)
                 let response = HTTPURLResponse(
                     url: url,
                     statusCode: status,
@@ -89,7 +99,10 @@ final class EngineWebViewSchemeHandler: NSObject, WKURLSchemeHandler {
                     // a stopped task.
                     return
                 }
-                logger.error("fichero-engine load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                logger.error(
+                    "fichero-engine load failed for \(url.absoluteString, privacy: .public): "
+                        + "\(error.localizedDescription, privacy: .public)"
+                )
                 guard self.tasks[key] != nil else { return }
                 urlSchemeTask.didFailWithError(error)
                 self.tasks[key] = nil
@@ -126,6 +139,7 @@ final class EngineWebViewSchemeHandler: NSObject, WKURLSchemeHandler {
 enum EngineWebViewError: Error, LocalizedError {
     case malformedURL(URL?)
     case httpStatus(Int, path: String)
+    case responseTooLarge(actualBytes: Int, limitBytes: Int)
 
     var errorDescription: String? {
         switch self {
@@ -133,6 +147,8 @@ enum EngineWebViewError: Error, LocalizedError {
             return "Malformed fichero-engine URL: \(url?.absoluteString ?? "nil")"
         case .httpStatus(let status, let path):
             return "Engine returned HTTP \(status) for \(path)"
+        case .responseTooLarge(let actualBytes, let limitBytes):
+            return "Engine response of \(actualBytes) bytes exceeds the \(limitBytes)-byte limit"
         }
     }
 }

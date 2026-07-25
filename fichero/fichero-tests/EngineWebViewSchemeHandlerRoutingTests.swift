@@ -73,6 +73,22 @@ final class EngineWebViewSchemeHandlerRoutingTests: XCTestCase {
         )
     }
 
+    func testHandlerAcceptsLimitAndRejectsOneByteOverBeforeWebKitReceivesData() throws {
+        let limit = 100 * 1024 * 1024
+        XCTAssertNoThrow(try EngineWebViewSchemeHandler.validateResponseSize(byteCount: limit))
+        XCTAssertThrowsError(try EngineWebViewSchemeHandler.validateResponseSize(byteCount: limit + 1)) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Engine response of \(limit + 1) bytes exceeds the \(limit)-byte limit"
+            )
+        }
+
+        let source = try Self.source("Services/StorageResource/EngineWebViewSchemeHandler.swift")
+        let checkIndex = try XCTUnwrap(source.range(of: "try Self.validateResponseSize"))
+        let receiveIndex = try XCTUnwrap(source.range(of: "urlSchemeTask.didReceive(response)"))
+        XCTAssertLessThan(checkIndex.lowerBound, receiveIndex.lowerBound)
+    }
+
     // MARK: - Pane wires the handler to the library's FicheroClient (both platforms)
 
     /// macOS: the KG pane registers `EngineWebViewSchemeHandler` keyed to the
