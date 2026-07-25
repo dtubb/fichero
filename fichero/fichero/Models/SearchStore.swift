@@ -113,16 +113,33 @@ final class SearchStore: ChangeEventConsumer {
                 // re-runs and live paths never pay the latency.
                 compile: compile
             )
-            results = response.results
-            searchStats = response
+            applySearchResponse(response)
             log.info("Search '\(trimmed, privacy: .public)' → \(response.count, privacy: .public) results")
         } catch {
-            if error.isCancellationError { return }   // superseded search — keep results, no log
-            searchFailure = .requestFailed(detail: error.localizedDescription)
-            results = []
-            searchStats = nil
-            log.error("Search failed: \(error.localizedDescription)")
+            handleSearchError(error)
         }
+    }
+
+    /// Handles a request error while preserving the prior state for cancellation.
+    func handleSearchError(_ error: Error) {
+        guard !error.isCancellationError else { return }  // superseded search — keep results, no log
+        applySearchFailure(detail: error.localizedDescription)
+        log.error("Search failed: \(error.localizedDescription)")
+    }
+
+    /// Applies a completed request's response to the observable search state.
+    func applySearchResponse(_ response: SearchResponse) {
+        results = response.results
+        searchStats = response
+        searchFailure = nil
+    }
+
+    /// Applies a terminal request failure. The transport detail rides on the
+    /// typed case for the disclosure affordance only — never inline UI text.
+    func applySearchFailure(detail: String) {
+        searchFailure = .requestFailed(detail: detail)
+        results = []
+        searchStats = nil
     }
 
     /// Fetch index statistics (indexed doc count). Cheap; call on appear.
