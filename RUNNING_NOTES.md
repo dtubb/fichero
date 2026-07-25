@@ -95,7 +95,36 @@ Do NOT duplicate unintegrated workflow-node commits `6d20ae6c4` / `621c060b9`.
   full-name `.help` tooltips on library headers and item rows (rows disable
   the tooltip during inline rename via the empty-string idiom).
 
-### Focused test command (RUN WHEN MANAGER FREES THE HEAVY SLOT — not before)
+### Focused test RUN RESULT (2026-07-25, manager-authorized)
+Command run verbatim (from `fichero/`, slot verified free — no competing
+xcodebuild/pytest):
+```
+xcodebuild test -scheme FicheroTests -destination 'platform=macOS' \
+  -only-testing:FicheroTests/SidebarOpenAffordanceTests \
+  -only-testing:FicheroTests/SidebarRowAccessibilityTests \
+  -only-testing:FicheroTests/SidebarDeleteAlertsTests \
+  -only-testing:FicheroTests/SidebarStateTests \
+  -only-testing:FicheroTests/SidebarDropProviderClassificationTests \
+  -only-testing:FicheroTests/SidebarSelectionTests \
+  -only-testing:FicheroTests/SidebarMovePolicyTests
+```
+**RESULT: exit 65 — BLOCKED AT COMPILE, zero sidebar assertions executed.**
+The FicheroTests bundle fails to build on an UNRELATED pre-existing file:
+```
+fichero-tests/LastActionScopingTests.swift:20:54: error: type 'FicheroClient' has no member 'localhost'
+fichero-tests/LastActionScopingTests.swift:21:54: error: type 'FicheroClient' has no member 'localhost'
+```
+Root cause (traced, not fixed — manager directed this lane NOT to repair):
+`ee20b94fd` ("kill .localhost footgun", #4051/#4049) removed
+`FicheroClient.localhost` (removal even source-locked by
+`FicheroClientLocalhostRemovalTests.swift`) but left these two call sites in
+`LastActionScopingTests.swift` — the commit-only-worker-never-compiled
+failure mode. This blocks EVERY FicheroTests run, not just the sidebar
+selection. Sidebar suites remain unexecuted; re-run the same command after
+the owning lane repairs that file (likely fix: construct
+`FicheroClient(libraryPath:)`/`(baseURL:)` like sibling tests do).
+
+### Focused test command (for re-run after the blocker is repaired)
 From `fichero/` (test bundle target = FicheroTests, scheme = FicheroTests):
 ```
 xcodebuild test -scheme FicheroTests -destination 'platform=macOS' \
