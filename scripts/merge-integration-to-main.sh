@@ -44,14 +44,28 @@ if [ "$BRANCH" != "main" ]; then
   exit 1
 fi
 
+echo "── Fetch origin ──"
+git fetch origin --quiet
+
 if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "error: working tree dirty — commit or stash before merging." >&2
+  echo "error: working tree dirty — commit or stash before updating main." >&2
   git status --short >&2
   exit 1
 fi
 
-echo "── Fetch origin ──"
-git fetch origin --quiet
+if ! git merge-base --is-ancestor HEAD origin/main; then
+  echo "error: local main has commits not on origin/main — push or reconcile it first." >&2
+  exit 1
+fi
+
+if ! git merge-base --is-ancestor origin/main HEAD; then
+  if [ "$DRY_RUN" = true ]; then
+    echo "[DRY RUN] would: git merge --ff-only origin/main"
+  else
+    echo "── Fast-forward main to origin/main ──"
+    git merge --ff-only origin/main
+  fi
+fi
 
 if ! git show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
   echo "error: branch '$SOURCE_BRANCH' not found locally." >&2
@@ -59,20 +73,20 @@ if ! git show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
   exit 1
 fi
 
-echo "── Verify $SOURCE_BRANCH is a clean fast-forward over main ──"
-if ! git merge-base --is-ancestor HEAD "$SOURCE_BRANCH"; then
+echo "── Verify $SOURCE_BRANCH is a clean fast-forward over origin/main ──"
+if ! git merge-base --is-ancestor origin/main "$SOURCE_BRANCH"; then
   echo "error: '$SOURCE_BRANCH' has diverged from main — not a fast-forward." >&2
   echo "  Rebase $SOURCE_BRANCH onto main in its worktree first:" >&2
   echo "    git -C <${SOURCE_BRANCH}-worktree> rebase main" >&2
   exit 1
 fi
 
-AHEAD="$(git rev-list --count "HEAD..$SOURCE_BRANCH")"
+AHEAD="$(git rev-list --count "origin/main..$SOURCE_BRANCH")"
 if [ "$AHEAD" -eq 0 ]; then
-  echo "main is already at $SOURCE_BRANCH ($(git rev-parse --short HEAD)) — nothing to merge."
+  echo "main is already at $SOURCE_BRANCH ($(git rev-parse --short origin/main)) — nothing to merge."
 else
-  echo "  $SOURCE_BRANCH is $AHEAD commit(s) ahead of main:"
-  git log --oneline "HEAD..$SOURCE_BRANCH" | sed 's/^/    /'
+  echo "  $SOURCE_BRANCH is $AHEAD commit(s) ahead of origin/main:"
+  git log --oneline "origin/main..$SOURCE_BRANCH" | sed 's/^/    /'
 fi
 
 if [ "$DRY_RUN" = true ]; then
