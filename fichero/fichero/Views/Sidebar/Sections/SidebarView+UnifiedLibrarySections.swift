@@ -55,9 +55,10 @@ extension SidebarView {
         if let libraryId = libraryHeader.libraryId,
            let library = libraryManager.getLibrary(id: libraryId) {
             let buckets = unifiedLibraryBuckets(for: libraryHeader, library: library, libraryId: libraryId)
-            let totalCount = buckets.documentItems.count + buckets.searchItems.count + buckets.workflowItems.count +
-                buckets.chainItems.count + buckets.scheduleItems.count + buckets.triggerItems.count +
-                buckets.activityItems.count
+            // Match the header's count to the rows actually rendered below. In
+            // particular, workflow nodes are intentionally global-only and must
+            // not inflate an individual library's disclosure label.
+            let totalCount = flattenedLibraryItems(libraryId: libraryId, buckets: buckets).count
 
             if library.id == LibraryManager.globalLibraryId {
                 // Global library is headless — with a single library in

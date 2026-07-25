@@ -65,6 +65,17 @@ final class SidebarLibraryBucketsTests: XCTestCase {
         )
     }
 
+    /// A library header's count must reflect the same flattened rows that its
+    /// disclosure content renders. Workflow mirrors are global-only, so summing
+    /// every bucket would make a non-global library advertise hidden rows.
+    func testLibraryHeaderCountUsesFlattenedVisibleRows() throws {
+        let source = try appSource("Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
+        XCTAssertTrue(
+            source.contains("let totalCount = flattenedLibraryItems(libraryId: libraryId, buckets: buckets).count")
+        )
+        XCTAssertFalse(source.contains("buckets.documentItems.count + buckets.searchItems.count + buckets.workflowItems.count"))
+    }
+
     private func appSource(_ relativePath: String) throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
