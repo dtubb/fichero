@@ -68,6 +68,14 @@ struct SidebarOpenAffordanceTests {
         )
     }
 
+    @Test("trailing affordance shows only on hover, outside rename, with a library")
+    func trailingAffordanceVisibilityRules() {
+        #expect(sidebarRowShowsOpenAffordance(isHovered: true, isRenaming: false, hasLibrary: true))
+        #expect(!sidebarRowShowsOpenAffordance(isHovered: false, isRenaming: false, hasLibrary: true))
+        #expect(!sidebarRowShowsOpenAffordance(isHovered: true, isRenaming: true, hasLibrary: true))
+        #expect(!sidebarRowShowsOpenAffordance(isHovered: true, isRenaming: false, hasLibrary: false))
+    }
+
     @Test("only the system 'always prefer tabs' setting opens a tab")
     func tabPreferenceHonorsSystemSetting() {
         #expect(sidebarOpenPrefersTab(.always))

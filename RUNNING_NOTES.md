@@ -46,6 +46,45 @@ Do NOT duplicate unintegrated workflow-node commits `6d20ae6c4` / `621c060b9`.
   mixed-deletability/all-non-deletable) + stale-key purge test. NOT run here
   (no xcodebuild per mandate) — manager runs FicheroTests at the gate.
 
+## Session 2 — authorized deferred slices (Daniel)
+- `daf864672` #3390 PDF drop: RUNTIME-VERIFIED that public.file-url DOES conform
+  to public.item — the in-code root-cause comment was wrong and is corrected.
+  Explicit `.fileURL`/`.data` acceptance kept (library-header precedent); added
+  the exact Finder-PDF provider-shape regression test.
+- `7d2d2fc4c` double-click → open primary selected row in new tab/window via
+  WindowOpener (#1685), honoring system "Prefer tabs"
+  (`NSWindow.userTabbingPreference == .always`). Gesture on the List CONTAINER
+  (per-row TapGesture(count:2) breaks selection, #612); mirrors the library
+  table's shipped contract (#3364). Pure helpers `sidebarAuxiliaryOpenTarget` +
+  `sidebarOpenPrefersTab`, unit-tested.
+- (pending) #2496 trailing hover open-affordance: always-in-layout button
+  (opacity/hit-test gated → no hover relayout), same action as double-click,
+  `.help` tooltip, `accessibilityHidden` (VO/keyboard equivalent = context-menu
+  Open items). Visibility rule `sidebarRowShowsOpenAffordance` unit-tested.
+
+### Native-power audit (this batch)
+- VoiceOver: row label/hint/value unchanged; new button hidden with documented
+  equivalent (context-menu Open in New Tab/Window); double-click likewise.
+- Tooltips: new icon-only button has `.help` (dynamic Tab/Window wording).
+- Keyboard: Delete/Escape unchanged. GAP (follow-up): no ⌘-shortcut/menu-bar
+  command for Open in New Tab/Window — would need FocusedCommandButtons wiring.
+- Multi-selection: double-click acts on the routed primary only; selection set
+  untouched. Drag/drop: unchanged; affordance is hover-gated hit-testing over
+  a ~16pt frame only.
+
+### MANAGER build-gate eyeball list (device-only validations — not guessed)
+1. Live PDF drag onto a row: isTargeted highlight + import lands (#3390).
+   Optional: retest whether `.item` alone now suffices (comment corrected).
+2. Double-click a FOLDER row: check interplay with DisclosureGroup
+   expand-toggle (NSOutlineView double-click default) — if it both expands and
+   opens a window, gate the handler to non-expandable rows.
+3. Container-level double-tap must not delay/steal single-click selection
+   (library-table precedent #3364 suggests it's fine).
+4. Hover affordance: no row relayout/re-truncation on hover, button clicks
+   don't fight row selection/drag, visual weight OK (Every-Frame-Perfect).
+5. Double-click on empty sidebar area below rows fires for the current primary
+   selection (library table has the same trait) — confirm acceptable.
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:

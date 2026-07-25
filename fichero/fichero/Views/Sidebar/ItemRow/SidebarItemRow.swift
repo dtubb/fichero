@@ -11,6 +11,14 @@ func sidebarSelectionFallback(current: String?, tapped: String) -> String? {
     current == tapped ? nil : tapped
 }
 
+/// Visibility rule for the trailing hover open-affordance (#2496): only while
+/// the pointer is over the row, never during an inline rename (the field owns
+/// the trailing space), and only for rows that can actually be opened
+/// (rows without a library have nowhere to route).
+func sidebarRowShowsOpenAffordance(isHovered: Bool, isRenaming: Bool, hasLibrary: Bool) -> Bool {
+    isHovered && !isRenaming && hasLibrary
+}
+
 /// Whether a restored/persisted sidebar selection still needs to be driven into
 /// the view mode (#2548). `selectedItemId` is restored from `@SceneStorage` at
 /// launch, but `SidebarView.onChange(of: selectedItemId)` only fires on a
@@ -108,6 +116,8 @@ struct SidebarItemRow: View {
     var importService: ImportService? { library?.importService }
 
     @State var isDropTargeted = false
+    /// Pointer-over state driving the trailing open affordance (#2496).
+    @State var isRowHovered = false
     @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
     @FocusState var isRenameFocused: Bool
     @State var isCommittingRename = false
@@ -237,6 +247,9 @@ struct SidebarItemRow: View {
             .padding(.vertical, 1)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
+            #if os(macOS)
+            .onHover { isRowHovered = $0 }
+            #endif
     }
 
     /// Document id when this sidebar row represents a document or folder —
