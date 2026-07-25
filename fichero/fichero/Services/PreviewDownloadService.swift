@@ -17,6 +17,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Preview
 struct PreviewDownloadService: Sendable {
     struct Request {
         let documentId: String
+        /// Makes concurrent attempts for one document use separate cache artifacts.
+        let cacheKey: String
         /// Name used when the server sends no (safe) Content-Disposition filename.
         let fallbackFileName: String
         /// Document path, for the linked-external-drive hint in the error message.
@@ -82,7 +84,7 @@ struct PreviewDownloadService: Sendable {
         ][fileType] ?? "bin"
     }
 
-    /// Download the source file to `FicheroPreview/<id>_<name>` and return it,
+    /// Download the source file to `FicheroPreview/<cache-key>_<name>` and return it,
     /// or a human error message. Any non-2xx surfaces the engine's JSON `detail`
     /// (not the body handed to a viewer); a `/` or `..` in the server filename is
     /// sanitized away before it can touch the cache path.
@@ -100,7 +102,7 @@ struct PreviewDownloadService: Sendable {
 
             let cacheDir = Self.previewCacheDirectory
             try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
-            let destURL = cacheDir.appendingPathComponent("\(request.documentId)_\(fileName)")
+            let destURL = Self.previewCacheFileURL(cacheKey: request.cacheKey, fileName: fileName)
 
             if FileManager.default.fileExists(atPath: destURL.path) {
                 try FileManager.default.removeItem(at: destURL)
@@ -122,6 +124,10 @@ struct PreviewDownloadService: Sendable {
             logger.error("Download error: \(error.localizedDescription)")
             return .failure(message: "Failed to load: \(error.localizedDescription)")
         }
+    }
+
+    static func previewCacheFileURL(cacheKey: String, fileName: String) -> URL {
+        previewCacheDirectory.appendingPathComponent("\(cacheKey)_\(fileName)")
     }
 
     /// Remove a previously-downloaded preview file, guarded to the preview root

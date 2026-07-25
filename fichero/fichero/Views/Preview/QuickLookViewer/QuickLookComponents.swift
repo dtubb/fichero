@@ -5,6 +5,7 @@ import AppKit
 import Quartz
 #endif
 import FicheroAPIClient
+import Foundation
 import OSLog
 import SwiftUI
 
@@ -90,6 +91,7 @@ struct QuickLookDownloadView: View {
     private func loadFile() async {
         let documentId = document.id
         let generation = requestGate.begin(for: documentId)
+        let cacheKey = "\(documentId)-\(UUID().uuidString)"
         isLoading = true
         error = nil
         PreviewDownloadService.removePreviewFile(fileURL)
@@ -98,6 +100,7 @@ struct QuickLookDownloadView: View {
 
         let outcome = await downloadService.download(.init(
             documentId: documentId,
+            cacheKey: cacheKey,
             fallbackFileName: PreviewDownloadService.fallbackFileName(
                 name: document.name,
                 path: document.path,
@@ -169,6 +172,7 @@ struct QuickLookDownloadView: View {
     private func loadFile() async {
         let documentId = document.id
         let generation = requestGate.begin(for: documentId)
+        let cacheKey = "\(documentId)-\(UUID().uuidString)"
         isLoading = true
         error = nil
         PreviewDownloadService.removePreviewFile(fileURL)
@@ -176,6 +180,7 @@ struct QuickLookDownloadView: View {
 
         let outcome = await downloadService.download(.init(
             documentId: documentId,
+            cacheKey: cacheKey,
             fallbackFileName: PreviewDownloadService.fallbackFileName(
                 name: document.name,
                 path: document.path,

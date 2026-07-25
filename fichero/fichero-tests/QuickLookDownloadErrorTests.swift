@@ -75,19 +75,32 @@ final class QuickLookDownloadErrorTests: XCTestCase {
         XCTAssertFalse(gate.isCurrent(documentId: "document-a", generation: request))
     }
 
-    func testStalePreviewCacheFileIsRemoved() throws {
-        let cacheFile = PreviewDownloadService.previewCacheDirectory
-            .appendingPathComponent("stale-selection.pdf")
+    func testStalePreviewCacheFileIsRemovedWithoutDeletingCurrentAttempt() throws {
+        let staleFile = PreviewDownloadService.previewCacheFileURL(
+            cacheKey: "document-a-old-attempt",
+            fileName: "scan.pdf"
+        )
+        let currentFile = PreviewDownloadService.previewCacheFileURL(
+            cacheKey: "document-a-current-attempt",
+            fileName: "scan.pdf"
+        )
+        XCTAssertNotEqual(staleFile, currentFile)
+
         try FileManager.default.createDirectory(
             at: PreviewDownloadService.previewCacheDirectory,
             withIntermediateDirectories: true
         )
-        try Data("stale".utf8).write(to: cacheFile)
-        defer { try? FileManager.default.removeItem(at: cacheFile) }
+        try Data("stale".utf8).write(to: staleFile)
+        try Data("current".utf8).write(to: currentFile)
+        defer {
+            try? FileManager.default.removeItem(at: staleFile)
+            try? FileManager.default.removeItem(at: currentFile)
+        }
 
-        PreviewDownloadService.removePreviewFile(cacheFile)
+        PreviewDownloadService.removePreviewFile(staleFile)
 
-        XCTAssertFalse(FileManager.default.fileExists(atPath: cacheFile.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staleFile.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: currentFile.path))
     }
 
     // MARK: - sanitizedFileName (#3207 path-injection guard)
