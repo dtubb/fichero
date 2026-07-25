@@ -361,7 +361,7 @@
 			);
 			name = "Embed Fichero Engine";
 			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app",
+				"$(FICHERO_ENGINE_EMBED_OUTPUT_PATH)",
 			);
 			shellPath = /bin/sh;
 			shellScript = (
@@ -474,7 +474,7 @@
 			);
 			name = "Embed Fichero Engine";
 			outputPaths = (
-				"$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app",
+				"$(FICHERO_ENGINE_EMBED_OUTPUT_PATH)",
 			);
 			shellPath = /bin/sh;
 			shellScript = (
@@ -1273,6 +1273,8 @@
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = dev;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1345,6 +1347,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = release;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1424,6 +1428,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = alpha;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1503,6 +1509,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = beta;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1652,6 +1660,8 @@
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = dev;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1724,6 +1734,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = alpha;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1803,6 +1815,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = beta;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1882,6 +1896,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = release;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2194,6 +2210,8 @@
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = dev;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2268,6 +2286,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = alpha;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2349,6 +2369,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = beta;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2430,6 +2452,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = release;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2503,6 +2527,8 @@
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = dev;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2577,6 +2603,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = alpha;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2658,6 +2686,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = beta;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2739,6 +2769,8 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
+				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
 				FICHERO_FEATURE_TIER = release;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
