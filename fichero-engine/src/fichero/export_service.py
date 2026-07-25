@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import re
 import shutil
+import tempfile
 import zipfile
 import json
 import os
 import logging
+
+import duckdb
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -84,6 +87,19 @@ class JsonlExportResult:
     """Result metadata for a JSON Lines export."""
 
     output_path: str
+    document_count: int
+    entity_count: int
+    claim_count: int
+    bytes_written: int
+
+
+@dataclass
+class ParquetExportResult:
+    """Result metadata for a canonical Parquet bundle."""
+
+    output_path: str
+    files: list[str]
+    manifest_path: str
     document_count: int
     entity_count: int
     claim_count: int
@@ -1218,6 +1234,149 @@ def export_jsonl(
         claim_count=counts["claim"],
         bytes_written=output_file.stat().st_size,
     )
+
+
+def export_parquet(
+    db: Database,
+    output_path: str | Path,
+    target_id: str | None = None,
+    recursive: bool = True,
+    overwrite: bool = False,
+) -> ParquetExportResult:
+    """Export canonical records as a typed Parquet bundle and manifest."""
+    output_dir = Path(output_path).expanduser()
+    if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
+        raise FileExistsError(
+            f"Export folder already exists and is not empty: {output_dir}"
+        )
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    records_by_type = {"document": [], "entity": [], "claim": []}
+    for record in iter_export_records(db, target_id=target_id, recursive=recursive):
+        records_by_type[record["record_type"]].append(record)
+
+    paths_by_type = {
+        record_type: output_dir / f"{file_stem}.parquet"
+        for record_type, file_stem in {
+            "document": "documents",
+            "entity": "entities",
+            "claim": "claims",
+        }.items()
+    }
+    for record_type, records in records_by_type.items():
+        _write_parquet_records(paths_by_type[record_type], records, record_type)
+
+    files = list(paths_by_type.values())
+
+    manifest_path = output_dir / "manifest.json"
+    manifest = {
+        "format": "fichero-parquet",
+        "schema_version": 1,
+        "target_id": target_id,
+        "recursive": recursive,
+        "files": {
+            f"{record_type}s": {
+                "path": path.name,
+                "record_count": len(records_by_type[record_type]),
+                "bytes_written": path.stat().st_size,
+            }
+            for record_type, path in paths_by_type.items()
+        },
+    }
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    return ParquetExportResult(
+        output_path=str(output_dir),
+        files=[str(path) for path in files],
+        manifest_path=str(manifest_path),
+        document_count=len(records_by_type["document"]),
+        entity_count=len(records_by_type["entity"]),
+        claim_count=len(records_by_type["claim"]),
+        bytes_written=sum(path.stat().st_size for path in [*files, manifest_path]),
+    )
+
+
+def _write_parquet_records(
+    output_file: Path,
+    records: list[dict[str, Any]],
+    record_type: str,
+) -> None:
+    """Write one homogeneous record type without requiring PyArrow."""
+    common_fields = {
+        "granularity": None,
+        "scope_id": None,
+        "scope_name": None,
+        "scope_kind": None,
+        "found_in_document_id": None,
+        "found_in_document_name": None,
+        "found_in_page_id": None,
+        "found_in_page_label": None,
+        "found_in_expediente_id": None,
+        "found_in_expediente_name": None,
+        "found_in_box_collection_id": None,
+        "found_in_box_collection_name": None,
+        "id": None,
+        "metadata": None,
+    }
+    empty_records = {
+        "document": {
+            **common_fields,
+            "record_type": "document",
+            "document_id": None,
+            "name": None,
+            "doc_type": None,
+            "file_type": None,
+            "path": None,
+            "parent_id": None,
+            "sequence": None,
+            "page_content": None,
+            "provenance_chain": None,
+            "workflow_runs": None,
+        },
+        "entity": {
+            **common_fields,
+            "record_type": "entity",
+            "entity_id": None,
+            "canonical_name": None,
+            "entity_type": None,
+            "aliases": None,
+            "description": None,
+            "source_document_ids": None,
+        },
+        "claim": {
+            **common_fields,
+            "record_type": "claim",
+            "found_in_excerpt": None,
+            "claim_id": None,
+            "text": None,
+            "claim_type": None,
+            "epistemic_status": None,
+            "entity_ids": None,
+            "source_document_id": None,
+            "source_page_label": None,
+            "source_excerpt": None,
+        },
+    }
+    escaped_output = str(output_file).replace("'", "''")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", encoding="utf-8") as source:
+        for record in records or [empty_records[record_type]]:
+            source.write(
+                json.dumps(
+                    {**empty_records[record_type], **record},
+                    ensure_ascii=False,
+                    default=str,
+                )
+            )
+            source.write("\n")
+        source.flush()
+        with duckdb.connect() as connection:
+            relation = "read_json_auto(?)"
+            if not records:
+                relation = f"(SELECT * FROM {relation} WHERE FALSE)"
+            connection.execute(
+                f"COPY (SELECT * FROM {relation}) TO '{escaped_output}' (FORMAT PARQUET)",
+                [source.name],
+            )
 
 
 @dataclass(frozen=True)

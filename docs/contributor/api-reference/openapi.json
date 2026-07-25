@@ -10871,6 +10871,49 @@
         }
       }
     },
+    "/api/export/parquet": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Export Parquet Route",
+        "description": "Export canonical records as a typed Parquet bundle.",
+        "operationId": "export_parquet_route_api_export_parquet_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParquetExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParquetExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/export/eleventy-site": {
       "post": {
         "tags": [
@@ -53311,6 +53354,85 @@
         ],
         "title": "ParagraphStyle",
         "description": "Supported paragraph render styles."
+      },
+      "ParquetExportRequest": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path",
+            "description": "Destination folder for Parquet files"
+          },
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id",
+            "description": "Optional document/folder id to export; omitted exports library"
+          },
+          "recursive": {
+            "type": "boolean",
+            "title": "Recursive",
+            "description": "Include descendants of folders",
+            "default": true
+          },
+          "overwrite": {
+            "type": "boolean",
+            "title": "Overwrite",
+            "description": "Allow writing into a non-empty folder",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path"
+        ],
+        "title": "ParquetExportRequest",
+        "description": "Request body for a Parquet bundle export."
+      },
+      "ParquetExportResponse": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "manifest_path": {
+            "type": "string",
+            "title": "Manifest Path"
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count"
+          },
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "bytes_written": {
+            "type": "integer",
+            "title": "Bytes Written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path",
+          "files",
+          "manifest_path",
+          "document_count",
+          "entity_count",
+          "claim_count",
+          "bytes_written"
+        ],
+        "title": "ParquetExportResponse"
       },
       "PathResponse": {
         "properties": {

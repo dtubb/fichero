@@ -393,6 +393,48 @@ class TestJsonlExport:
         assert missing.status_code == 404
 
 
+class TestParquetExport:
+    def test_exports_parquet_bundle_and_manifest(self, client, db, tmp_path):
+        folder = Document(id="parquet-folder", name="Archivo", doc_type=DocType.folder)
+        doc = Document(
+            id="parquet-doc",
+            name="Carta Bogotá",
+            parent_id=folder.id,
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Señora María escribió.",
+        )
+        db.save(folder)
+        db.save(doc)
+
+        output_path = tmp_path / "records"
+        response = client.post(
+            "/api/export/parquet",
+            json={"target_id": folder.id, "output_path": str(output_path)},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["document_count"] == 1
+        assert (output_path / "documents.parquet").exists()
+        assert (output_path / "entities.parquet").exists()
+        assert (output_path / "claims.parquet").exists()
+        assert (output_path / "manifest.json").exists()
+
+    def test_rejects_non_empty_folder_and_missing_target(self, client, tmp_path):
+        output_path = tmp_path / "records"
+        output_path.mkdir()
+        (output_path / "keep.txt").write_text("keep", encoding="utf-8")
+
+        conflict = client.post("/api/export/parquet", json={"output_path": str(output_path)})
+        missing = client.post(
+            "/api/export/parquet",
+            json={"target_id": "nope", "output_path": str(tmp_path / "missing")},
+        )
+
+        assert conflict.status_code == 409
+        assert missing.status_code == 404
+
+
 class TestEleventySiteExport:
     def test_route_forwards_library_header_and_surfaces_oserror(
         self, client, monkeypatch, tmp_path

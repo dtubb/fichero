@@ -3373,6 +3373,16 @@
       },
       {
         "method": "POST",
+        "path": "/export/parquet",
+        "operation_id": "export_parquet_route_api_export_parquet_post",
+        "summary": "Export Parquet Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ParquetExportRequest",
+        "response_model": "ParquetExportResponse"
+      },
+      {
+        "method": "POST",
         "path": "/export/word",
         "operation_id": "export_word_route_api_export_word_post",
         "summary": "Export Word Route",

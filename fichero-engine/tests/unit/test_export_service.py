@@ -3,6 +3,7 @@ import pytest
 from fichero.export_service import (
     export_eleventy_site,
     export_jsonl,
+    export_parquet,
     export_markdown_folder,
     export_word_docx,
     iter_export_records,
@@ -167,6 +168,102 @@ def test_export_jsonl_honors_recursive_and_overwrite(db, tmp_path):
 
     assert result.document_count == 0
     assert output_path.read_text(encoding="utf-8") == ""
+
+
+def test_export_parquet_writes_typed_files_and_manifest(db, tmp_path):
+    import duckdb
+    import json
+
+    root, _, _, page, _, _, _ = _seed_export_library(db)
+    result = export_parquet(db, tmp_path / "records", target_id=root.id)
+    output_dir = tmp_path / "records"
+
+    manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
+    with duckdb.connect() as connection:
+        documents = connection.execute(
+            "SELECT document_id, page_content FROM read_parquet(?)",
+            [str(output_dir / "documents.parquet")],
+        ).fetchall()
+        claims = connection.execute(
+            "SELECT claim_id, found_in_page_label FROM read_parquet(?)",
+            [str(output_dir / "claims.parquet")],
+        ).fetchall()
+
+    assert result.document_count == 2
+    assert result.entity_count == 2
+    assert result.claim_count == 1
+    assert result.bytes_written > 0
+    assert documents[0] == (page.id, page.page_content)
+    assert claims == [("claim-pedro", "1r")]
+    assert manifest["schema_version"] == 1
+    assert manifest["files"]["documents"]["record_count"] == 2
+    assert manifest["files"]["claims"]["path"] == "claims.parquet"
+
+
+def test_export_parquet_empty_partitions_keep_canonical_columns(db, tmp_path):
+    import duckdb
+
+    root = Document(id="empty-root", name="Empty", doc_type=DocType.folder)
+    db.save(root)
+    export_parquet(db, tmp_path / "empty", target_id=root.id)
+
+    page = Document(
+        id="claim-page",
+        name="Folio 1",
+        doc_type=DocType.file,
+        file_type=FileType.text,
+    )
+    claim = KnowledgeClaim(
+        id="claim-without-excerpt",
+        text="Claim without an excerpt.",
+        source_document_id=page.id,
+        claim_type=ClaimType.fact,
+    )
+    db.save(page)
+    db.save(claim)
+    export_parquet(db, tmp_path / "populated", target_id=page.id)
+
+    with duckdb.connect() as connection:
+        def columns(output_dir):
+            return {
+                path.stem: {
+                    row[0]
+                    for row in connection.execute(
+                        "DESCRIBE SELECT * FROM read_parquet(?)", [str(path)]
+                    ).fetchall()
+                }
+                for path in output_dir.glob("*.parquet")
+            }
+
+        empty_columns = columns(tmp_path / "empty")
+        populated_columns = columns(tmp_path / "populated")
+
+    assert {"document_id", "page_content", "metadata"} <= empty_columns["documents"]
+    assert {"entity_id", "canonical_name", "source_document_ids"} <= empty_columns["entities"]
+    assert {"claim_id", "source_document_id", "source_excerpt"} <= empty_columns["claims"]
+    assert empty_columns["claims"] == populated_columns["claims"]
+    assert "found_in_excerpt" in populated_columns["claims"]
+
+
+def test_export_parquet_honors_non_recursive_and_overwrite(db, tmp_path):
+    root, _, _, _, _, _, _ = _seed_export_library(db)
+    output_dir = tmp_path / "records"
+    output_dir.mkdir()
+    (output_dir / "keep.txt").write_text("keep", encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        export_parquet(db, output_dir, target_id=root.id)
+
+    result = export_parquet(
+        db,
+        output_dir,
+        target_id=root.id,
+        recursive=False,
+        overwrite=True,
+    )
+
+    assert result.document_count == 0
+    assert (output_dir / "keep.txt").read_text(encoding="utf-8") == "keep"
 
 
 def test_export_eleventy_site_output_stays_document_only(db, tmp_path):
