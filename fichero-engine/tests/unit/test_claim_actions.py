@@ -28,9 +28,9 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 # Importing the route modules registers the claim.* actions at import time.
-import fichero.api.routes.claims  # noqa: F401
-import fichero.api.routes.claim_links  # noqa: F401
-import fichero.api.routes.claim_curation  # noqa: F401
+import fichero.api.routes.claim.claims  # noqa: F401
+import fichero.api.routes.claim.links  # noqa: F401
+import fichero.api.routes.claim.curation  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
 from fichero.models import ActionAudit, Document, DocType
 from fichero.models.knowledge import (
@@ -57,7 +57,7 @@ def spy_emit(monkeypatch):
     def spy(*a, **k):
         calls.append((a, k))
 
-    monkeypatch.setattr("fichero.api.routes.claims.emit_change", spy)
+    monkeypatch.setattr("fichero.api.routes.claim.claims.emit_change", spy)
     monkeypatch.setattr("fichero.api.change_stream.emit_change", spy)
     return calls
 

@@ -61,7 +61,7 @@ async def test_library_and_folder_scopes_apply_rules_and_rejected_state(tmp_path
     db = Database(path=tmp_path / "library.fichero" / "fichero.duckdb")
     first, _ = _seed_graph_pair(db)
     monkeypatch.setattr("fichero.kg.graph.build_full_cooccurrence", _graph)
-    monkeypatch.setattr("fichero.api.routes.claims._descendant_doc_ids", lambda *_: {"page"})
+    monkeypatch.setattr("fichero.api.routes.claim.claims._descendant_doc_ids", lambda *_: {"page"})
     try:
         assert (await _candidates(db, scope="library")).count == 1
         assert (await _candidates(db, scope="folder", folder_id="folder")).count == 1

@@ -37,7 +37,7 @@ from starlette.requests import Request
 
 # Importing the route modules registers the relevant @action decorators AND the
 # generic undo / audit-log endpoint handlers under test.
-import fichero.api.routes.claims  # noqa: F401
+import fichero.api.routes.claim.claims  # noqa: F401
 import fichero.api.routes.documents  # noqa: F401
 import fichero.api.routes.entities  # noqa: F401
 import fichero.api.routes.kg_entity_curation  # noqa: F401

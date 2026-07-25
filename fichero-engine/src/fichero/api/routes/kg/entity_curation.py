@@ -859,7 +859,7 @@ async def candidate_pairs(
     if scope == "folder":
         if not folder_id:
             raise HTTPException(status_code=422, detail="folder_id is required for folder scope")
-        from fichero.api.routes.claims import _descendant_doc_ids
+        from fichero.api.routes.claim.claims import _descendant_doc_ids
 
         doc_ids = _descendant_doc_ids(db, folder_id)
         entity_ids = {

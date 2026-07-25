@@ -297,7 +297,7 @@ class TestCustomEntityPerChildScope:
 
         # Read-side: selecting a single child shows only that child's custom
         # entity; the parent/folder compiles the union across descendants.
-        from fichero.api.routes.claims import _descendant_doc_ids
+        from fichero.api.routes.claim.claims import _descendant_doc_ids
 
         page1_scope = _descendant_doc_ids(db, page1.id)
         folder_scope = _descendant_doc_ids(db, folder.id)

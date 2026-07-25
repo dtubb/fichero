@@ -7,7 +7,7 @@ current bypasses as strict xfails for manager follow-up.
 from __future__ import annotations
 
 import fichero.api.routes.bookmarks  # noqa: F401
-import fichero.api.routes.claims  # noqa: F401
+import fichero.api.routes.claim.claims  # noqa: F401
 import fichero.api.routes.documents  # noqa: F401
 import fichero.api.routes.entities  # noqa: F401
 import fichero.api.routes.notes  # noqa: F401

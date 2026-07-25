@@ -40,7 +40,7 @@ def emit_calls(monkeypatch):
     monkeypatch.setattr("fichero.api.change_stream.emit_change", spy)
     monkeypatch.setattr("fichero.api.routes.notes.emit_change", spy)
     monkeypatch.setattr("fichero.api.routes.documents.emit_change", spy)
-    monkeypatch.setattr("fichero.api.routes.claims.emit_change", spy)
+    monkeypatch.setattr("fichero.api.routes.claim.claims.emit_change", spy)
     monkeypatch.setattr("fichero.api.routes.entities.emit_change", spy)
     return calls
 

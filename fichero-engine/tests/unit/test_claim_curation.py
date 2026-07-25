@@ -11,7 +11,7 @@ Tests cover:
 import pytest
 from fastapi import HTTPException
 
-from fichero.api.routes.claim_curation import (
+from fichero.api.routes.claim.curation import (
     _validate_curation_state,
     ClaimTransitionRequest,
     BatchClaimTransitionRequest,

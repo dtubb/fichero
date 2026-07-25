@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from fichero.api.routes.claims import _descendant_doc_ids
+from fichero.api.routes.claim.claims import _descendant_doc_ids
 
 
 def _make_db(tree: dict[str, list[str]]) -> MagicMock:

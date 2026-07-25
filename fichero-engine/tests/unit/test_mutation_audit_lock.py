@@ -12,7 +12,7 @@ from collections.abc import Callable
 
 import pytest
 
-import fichero.api.routes.claims  # noqa: F401
+import fichero.api.routes.claim.claims  # noqa: F401
 import fichero.api.routes.documents  # noqa: F401
 import fichero.api.routes.entities  # noqa: F401
 import fichero.api.routes.notes  # noqa: F401
@@ -33,7 +33,7 @@ def _install_emit_recorder(monkeypatch, emit_calls: list[tuple[tuple, dict]]) ->
         emit_calls.append((args, kwargs))
 
     monkeypatch.setattr("fichero.api.routes.notes.emit_change", _record)
-    monkeypatch.setattr("fichero.api.routes.claims.emit_change", _record)
+    monkeypatch.setattr("fichero.api.routes.claim.claims.emit_change", _record)
     monkeypatch.setattr("fichero.api.routes.entities.emit_change", _record)
     monkeypatch.setattr("fichero.api.routes.documents.emit_change", _record)
     monkeypatch.setattr("fichero.api.change_stream.emit_change", _record)

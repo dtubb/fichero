@@ -388,7 +388,7 @@ class TestClaimMutationsEmitChange:
     def test_create_claim_calls_emit_change(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.claims.emit_change",
+            "fichero.api.routes.claim.claims.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -412,7 +412,7 @@ class TestClaimMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.claims.emit_change",
+            "fichero.api.routes.claim.claims.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -441,7 +441,7 @@ class TestClaimMutationsEmitChange:
     def test_patch_claim_calls_emit_change(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.claims.emit_change",
+            "fichero.api.routes.claim.claims.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -460,7 +460,7 @@ class TestClaimMutationsEmitChange:
     def test_delete_claim_calls_emit_change(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero.api.routes.claims.emit_change",
+            "fichero.api.routes.claim.claims.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),

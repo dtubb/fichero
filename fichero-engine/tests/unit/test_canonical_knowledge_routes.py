@@ -21,7 +21,7 @@ from fichero.api.routes.entities import (
     get_entity,
     add_entity_aliases,
 )
-from fichero.api.routes.claims import (
+from fichero.api.routes.claim.claims import (
     ClaimCreateRequest,
     ClaimPatchRequest,
     create_claim,
@@ -29,7 +29,7 @@ from fichero.api.routes.claims import (
     get_claim,
     patch_claim,
 )
-from fichero.api.routes.claim_links import (
+from fichero.api.routes.claim.links import (
     ClaimLinkCreateRequest,
     ClaimLinkUpdateRequest,
     create_claim_link,

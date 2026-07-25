@@ -324,7 +324,7 @@ async def merge_dedup_only(
         if not absorbed:
             continue
         # Imported here rather than at module scope: cycle via api.main (#3950).
-        from fichero.api.routes.claim_curation import ClaimMergeRequest, merge_claims
+        from fichero.api.routes.claim.curation import ClaimMergeRequest, merge_claims
 
         await merge_claims(
             ClaimMergeRequest(
