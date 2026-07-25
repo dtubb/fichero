@@ -203,6 +203,15 @@ structured biography as an attachment. `entity_id` is required. The optional
 response is the corresponding attachment with a filesystem-safe filename.
 Unknown entity ids return `404`.
 
+### Record-bundle exports
+
+`POST /api/export/jsonl` writes a JSON Lines record bundle for a required
+`target_id` to the requested `output_path`. `POST /api/export/parquet` writes
+the same target's typed Parquet bundle to its requested `output_path`. Both
+routes return a conflict rather than replacing an existing destination, and
+return `404` when the target does not exist. They are engine/CLI automation
+surfaces today; the native save/export workflow is not wired to them yet.
+
 ### Live library handles
 
 `GET /api/registry/open`

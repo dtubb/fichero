@@ -279,12 +279,12 @@
     },
     {
       "domain": "export",
-      "total": 4,
+      "total": 6,
       "swiftui_wired": 1,
-      "swiftui_unwired": 3,
-      "swiftui_allowlisted": 3,
-      "swiftui_coverage": 0.25,
-      "cli_wired": 4,
+      "swiftui_unwired": 5,
+      "swiftui_allowlisted": 5,
+      "swiftui_coverage": 0.1667,
+      "cli_wired": 6,
       "cli_untested": 0,
       "cli_allowlisted": 0,
       "cli_coverage": 1.0
