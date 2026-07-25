@@ -55,4 +55,24 @@ final class AboutInfoTests: XCTestCase {
             fallback
         )
     }
+
+    func testAcknowledgementsHaveUniqueNamesAndHTTPSLinks() {
+        let acknowledgements = AboutAcknowledgements.entries
+        XCTAssertEqual(Set(acknowledgements.map(\.name)).count, acknowledgements.count)
+
+        for acknowledgement in acknowledgements {
+            XCTAssertFalse(acknowledgement.name.isEmpty)
+            XCTAssertFalse(acknowledgement.license.isEmpty)
+            XCTAssertEqual(acknowledgement.url.scheme, "https")
+            XCTAssertFalse(acknowledgement.url.host?.isEmpty ?? true)
+        }
+    }
+
+    func testAboutLinksUseCanonicalRepositoryURLs() {
+        XCTAssertEqual(AboutLinks.repository.absoluteString, "https://github.com/dtubb/fichero")
+        XCTAssertEqual(
+            AboutLinks.license.absoluteString,
+            "https://github.com/dtubb/fichero/blob/main/LICENSE"
+        )
+    }
 }

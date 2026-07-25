@@ -35,8 +35,34 @@ enum AboutInfo {
     }
 }
 
+struct Acknowledgement: Identifiable, Hashable {
+    let name: String
+    let license: String
+    let url: URL
+
+    var id: String { name }
+}
+
+enum AboutLinks {
+    static let repository = URL(string: "https://github.com/dtubb/fichero")!
+    static let license = URL(string: "https://github.com/dtubb/fichero/blob/main/LICENSE")!
+}
+
+enum AboutAcknowledgements {
+    static let entries: [Acknowledgement] = [
+        Acknowledgement(name: "DuckDB", license: "MIT License", url: URL(string: "https://duckdb.org")!),
+        Acknowledgement(name: "FastAPI", license: "MIT License", url: URL(string: "https://fastapi.tiangolo.com")!),
+        Acknowledgement(name: "LanceDB", license: "Apache License 2.0", url: URL(string: "https://lancedb.com")!),
+        Acknowledgement(name: "LangChain", license: "MIT License", url: URL(string: "https://www.langchain.com")!),
+        Acknowledgement(name: "LangGraph", license: "MIT License", url: URL(string: "https://langchain-ai.github.io/langgraph")!),
+        Acknowledgement(name: "Pydantic", license: "MIT License", url: URL(string: "https://docs.pydantic.dev")!),
+        Acknowledgement(name: "Sparkle", license: "MIT License", url: URL(string: "https://sparkle-project.org")!)
+    ]
+}
+
 struct AboutView: View {
     @Environment(AppState.self) private var appState
+    @State private var isAcknowledgementsPresented = false
 
     private let appName = "Fichero"
     private let tagline = "A document workbench for researchers — read, organize, "
@@ -51,7 +77,7 @@ struct AboutView: View {
         )
     }
 
-    private var engineVersionLine: String {
+    private var engineVersionLine: String? {
         AboutInfo.engineVersionLine(appState.backendVersion)
     }
 
@@ -100,10 +126,22 @@ struct AboutView: View {
                     .foregroundStyle(.secondary)
             }
             .textSelection(.enabled)
+
+            HStack(spacing: 12) {
+                Link("Fichero on GitHub", destination: AboutLinks.repository)
+                Link("MIT License", destination: AboutLinks.license)
+                Button("Acknowledgements") {
+                    isAcknowledgementsPresented = true
+                }
+            }
+            .font(.caption)
         }
         .padding(28)
         .frame(width: 360)
         .frame(minHeight: 360)
+        .sheet(isPresented: $isAcknowledgementsPresented) {
+            AcknowledgementsView(entries: AboutAcknowledgements.entries)
+        }
     }
 
     @ViewBuilder
@@ -141,6 +179,37 @@ struct AboutView: View {
             return nil
         }
         return name
+    }
+}
+
+private struct AcknowledgementsView: View {
+    let entries: [Acknowledgement]
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(entries) { acknowledgement in
+                Link(destination: acknowledgement.url) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(acknowledgement.name)
+                            .font(.body.weight(.medium))
+                        Text(acknowledgement.license)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Acknowledgements")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 320, minHeight: 360)
     }
 }
 
