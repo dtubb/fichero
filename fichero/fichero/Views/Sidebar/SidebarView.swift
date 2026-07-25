@@ -21,6 +21,9 @@ struct SidebarView: View {
     @Environment(AppState.self) var appState
     @Environment(WindowState.self) var windowState
     @Environment(\.undoManager) var undoManager
+    /// Double-click / trailing-affordance opens reuse the shared Finder-style
+    /// new-window path (`WindowOpener`, #1685).
+    @Environment(\.openWindow) var openWindow
 
     // API client for service calls
     @Environment(APIClient.self) var apiClient
@@ -313,4 +316,3 @@ struct SidebarView: View {
     .environment(apiClient)
     .environment(WorkflowExecutionObserver())
 }
-

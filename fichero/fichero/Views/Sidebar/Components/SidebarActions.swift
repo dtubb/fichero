@@ -98,6 +98,27 @@ extension SidebarView {
         deleteState.showDeleteConfirmation(for: items)
     }
 
+    #if os(macOS)
+    /// Finder-style double-click (#2496): open the primary selected row in a
+    /// new tab or window via the shared `WindowOpener` path, honoring the
+    /// system "Prefer tabs" setting. Single click keeps its existing
+    /// select-in-place semantics; multi-selection is untouched (the primary
+    /// is the routed anchor). Keyboard/VoiceOver equivalent: the row context
+    /// menu's Open in New Tab / Open in New Window.
+    func handleSidebarDoubleClick() {
+        guard let target = sidebarAuxiliaryOpenTarget(
+            item: selectedItem,
+            fallbackLibraryId: libraryManager.currentLibraryId
+        ) else { return }
+        WindowOpener.open(
+            libraryId: target.libraryId,
+            documentId: target.documentId,
+            asTab: sidebarOpenPrefersTab(NSWindow.userTabbingPreference),
+            using: openWindow
+        )
+    }
+    #endif
+
     // Perform the actual deletion
     func performDelete(item: SidebarItem) async {
         logger.info("performDelete for: \(item.name)")

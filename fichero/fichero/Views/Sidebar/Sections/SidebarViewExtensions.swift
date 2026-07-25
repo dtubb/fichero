@@ -1,5 +1,8 @@
 import OSLog
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 private let sidebarExtLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarExtensions")
 
@@ -49,6 +52,33 @@ func sidebarContextDeleteTargets(clicked: SidebarItem, selection: [SidebarItem])
     let deletable = sidebarDeletableItems(selection)
     return deletable.isEmpty ? [clicked] : deletable
 }
+
+/// Where a sidebar double-click (or trailing open affordance) routes: the
+/// row's own library, focusing the row when it is a document/folder; other
+/// row kinds open their library without a focused document (matching the
+/// row context menu's Open in New Tab/Window, #1685). Returns nil when
+/// there is nothing to open — no row, and no library to fall back to.
+func sidebarAuxiliaryOpenTarget(
+    item: SidebarItem?,
+    fallbackLibraryId: UUID?
+) -> (libraryId: UUID, documentId: String?)? {
+    guard let item else { return nil }
+    guard let libraryId = item.libraryId ?? fallbackLibraryId else { return nil }
+    if case .document(let doc) = item.itemType {
+        return (libraryId, doc.id)
+    }
+    return (libraryId, nil)
+}
+
+#if os(macOS)
+/// Whether an app-initiated open should join the key window's tab group,
+/// honoring the user's system-wide "Prefer tabs" setting (Finder parity).
+/// `.inFullScreen` stays a window here: the sidebar can't cheaply know the
+/// key window's full-screen state, and a separate window is the safe default.
+func sidebarOpenPrefersTab(_ preference: NSWindow.UserTabbingPreference) -> Bool {
+    preference == .always
+}
+#endif
 
 // MARK: - View Extensions (Apple's recommended pattern over ViewModifiers)
 
