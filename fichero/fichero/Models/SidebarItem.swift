@@ -171,8 +171,13 @@ struct SidebarItem: Identifiable, Hashable {
             name: doc.pageThumbnailLabel ?? doc.name,
             // Prefer the file-type-specific icon (e.g. "doc.richtext" for PDFs)
             // over the generic docType icon ("doc" for any .file) — makes
-            // PDFs visually distinct in the sidebar (#574).
-            icon: doc.fileType?.icon ?? doc.docType.icon,
+            // PDFs visually distinct in the sidebar (#574). Workflow mirror
+            // nodes carry no fileType, so name them explicitly rather than let
+            // them fall through to the generic "doc" glyph (#4058) — they must
+            // match `fromWorkflow`'s icon to read as workflows.
+            icon: doc.isWorkflowNode
+                ? ItemCategory.workflow.icon
+                : (doc.fileType?.icon ?? doc.docType.icon),
             category: .folder,
             itemType: .document(doc),
             children: children,

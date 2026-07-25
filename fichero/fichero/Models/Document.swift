@@ -391,4 +391,10 @@ extension Document {
         if fileType == .pdf { return true }
         return false
     }
+
+    /// True for the workflow rows the engine MIRRORS into the document tree to
+    /// sit under the seeded "Default Workflows" folder (#11 Phase 1 — the
+    /// `workflows` table stays source of truth). A mirror is a plain `.file`
+    /// doc with NO `fileType` — see `SidebarItemBuilder.isSidebarVisible`.
+    var isWorkflowNode: Bool { prototypeKey == "workflow" }
 }

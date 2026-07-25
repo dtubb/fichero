@@ -69,16 +69,32 @@ enum SidebarItemBuilder {
     ///   - Image files and page documents as leaf rows under their parent folder/PDF
     ///   - Structured PDF outline rows; when an outline exists, it still replaces
     ///     flat page rows for now pending the chapter-vs-page product decision (#3172).
+    ///   - Workflow mirror nodes, the engine-side rows under "Default Workflows"
+    ///     (#4058) — `.file` docs with no `fileType`, so without an explicit
+    ///     case they were filtered out and took their container's chevron too.
     ///
     /// **Not** included in the sidebar:
     ///   - Text/docx/other generic files — stay in the main grid only.
     ///
     /// The sidebar is for containers, one level of drill-in at a time, like
     /// Finder.
+    ///
+    /// NOTE: this predicate runs BEFORE the parent→children map is built, so a
+    /// kind omitted here doesn't merely hide its own row — it also strips its
+    /// parent's `children`, and a parent built with `children == nil` reports
+    /// `isExpandable == false` (the backend sends no `child_count` on
+    /// `getRoots`/`getChildren`) so it renders with no disclosure chevron at
+    /// all. Add new sidebar-visible node kinds here (#4058).
+    static func isSidebarVisible(_ doc: Document) -> Bool {
+        if doc.isNavigableContainer { return true }
+        if doc.docType == .page { return true }
+        if doc.fileType == .image { return true }
+        if doc.isWorkflowNode { return true }
+        return false
+    }
+
     static func buildLibraryHierarchy(from documents: [Document], libraryId: UUID) -> [SidebarItem] {
-        let visibleDocs = documents.filter {
-            $0.isNavigableContainer || $0.docType == .page || $0.fileType == .image
-        }
+        let visibleDocs = documents.filter(isSidebarVisible)
 
         // Build a map of parentId -> children
         var childrenMap: [String: [Document]] = [:]
