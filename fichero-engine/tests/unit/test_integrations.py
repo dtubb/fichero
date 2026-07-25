@@ -2,9 +2,12 @@
 Unit tests for app integrations module.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+import subprocess
+import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from fichero.integrations.base import (
     IntegrationRegistry,
@@ -73,6 +76,21 @@ class TestImportedItem:
             metadata={"key": "value"}
         )
         assert item.metadata == {"key": "value"}
+
+
+def test_integration_implementations_import_before_base() -> None:
+    """Implementations remain importable before the package base contract."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import fichero.integrations.devonthink; import fichero.integrations.base",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 class TestIntegrationRegistry:
