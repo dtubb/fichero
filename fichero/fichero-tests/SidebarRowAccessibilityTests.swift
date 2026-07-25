@@ -37,6 +37,25 @@ final class SidebarRowAccessibilityTests: XCTestCase {
         XCTAssertFalse(touchBranch.contains("Double-click"))
     }
 
+    // MARK: - Library header current-state exposure + tooltips
+
+    func testCurrentLibraryStateIsSpokenNotJustTinted() {
+        XCTAssertEqual(sidebarLibraryHeaderAccessibilityValue(isCurrent: true), "current library")
+        XCTAssertEqual(sidebarLibraryHeaderAccessibilityValue(isCurrent: false), "")
+    }
+
+    /// Truncated names have no other way to reveal themselves: the row and the
+    /// library header must both carry a full-name `.help` tooltip, and the
+    /// row's must disable (empty string idiom) during inline rename.
+    func testTruncatedNameTooltipsArePresent() throws {
+        let row = try appSource("Views/Sidebar/ItemRow/SidebarItemRow.swift")
+        XCTAssertTrue(row.contains(#".help(renameState.renamingItemId == item.id ? "" : item.name)"#))
+
+        let header = try appSource("Views/Sidebar/Sections/SidebarSectionHeader.swift")
+        XCTAssertTrue(header.contains(".help(libraryName)"))
+        XCTAssertTrue(header.contains("sidebarLibraryHeaderAccessibilityValue(isCurrent: isCurrentLibrary)"))
+    }
+
     private func appSource(_ relativePath: String) throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

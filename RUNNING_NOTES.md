@@ -85,6 +85,34 @@ Do NOT duplicate unintegrated workflow-node commits `6d20ae6c4` / `621c060b9`.
 5. Double-click on empty sidebar area below rows fires for the current primary
    selection (library table has the same trait) — confirm acceptable.
 
+## Session 3 — keyboard/menu discoverability + header a11y + tooltips
+- `aae876669` File > Open in New Tab (⌘⌥O) / Open in New Window (⌘⌥⇧O) for the
+  focused sidebar's primary selection, via SidebarActions focused values +
+  WindowOpener. File-menu window region folded into one Group (10-arity #3347).
+  Closes the keyboard GAP flagged in session 2's audit.
+- (pending) header a11y + tooltips: `isCurrentLibrary` was accent-tint-only →
+  now spoken via accessibilityValue ("current library"), pure helper tested;
+  full-name `.help` tooltips on library headers and item rows (rows disable
+  the tooltip during inline rename via the empty-string idiom).
+
+### Focused test command (RUN WHEN MANAGER FREES THE HEAVY SLOT — not before)
+From `fichero/` (test bundle target = FicheroTests, scheme = FicheroTests):
+```
+xcodebuild test -scheme FicheroTests -destination 'platform=macOS' \
+  -only-testing:FicheroTests/SidebarOpenAffordanceTests \
+  -only-testing:FicheroTests/SidebarRowAccessibilityTests \
+  -only-testing:FicheroTests/SidebarDeleteAlertsTests \
+  -only-testing:FicheroTests/SidebarStateTests \
+  -only-testing:FicheroTests/SidebarDropProviderClassificationTests \
+  -only-testing:FicheroTests/SidebarSelectionTests \
+  -only-testing:FicheroTests/SidebarMovePolicyTests
+```
+(Last two are pre-existing suites adjacent to my changes — cheap insurance.
+NOTE: swift-testing suites (`struct` + @Test) may need the suite name without
+the class-style prefix if -only-testing doesn't match; fall back to running
+the FicheroTests scheme filtered with `-only-testing:FicheroTests` whole-bundle
+if the selective filters skip everything, and record the actual result here.)
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:

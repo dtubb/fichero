@@ -247,6 +247,11 @@ struct SidebarItemRow: View {
             .padding(.vertical, 1)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
+            // Full name on hover — row names truncate (`lineLimit(1)`) with no
+            // other way to reveal themselves. Empty string disables the tooltip
+            // during inline rename (same idiom as the read-only library help).
+            // The trailing affordance's own `.help` wins over its frame.
+            .help(renameState.renamingItemId == item.id ? "" : item.name)
             #if os(macOS)
             .onHover { isRowHovered = $0 }
             #endif
