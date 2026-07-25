@@ -99,9 +99,10 @@ final class EngineWebViewSchemeHandler: NSObject, WKURLSchemeHandler {
                     // a stopped task.
                     return
                 }
+                // One OSLogMessage literal: `Logger` takes a literal, so `+`-joining
+                // two interpolated fragments does not type-check.
                 logger.error(
-                    "fichero-engine load failed for \(url.absoluteString, privacy: .public): "
-                        + "\(error.localizedDescription, privacy: .public)"
+                    "fichero-engine load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)"
                 )
                 guard self.tasks[key] != nil else { return }
                 urlSchemeTask.didFailWithError(error)
