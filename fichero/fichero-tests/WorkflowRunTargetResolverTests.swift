@@ -36,6 +36,31 @@ final class WorkflowRunTargetResolverTests: XCTestCase {
         )
     }
 
+    func testFolderResolvesCachedDirectChildrenOutsideParentViewDocuments() {
+        let parentViewDocuments = [
+            Document(id: "/archive", docType: .folder, name: "Archive")
+        ]
+        let currentLibraryDocuments = parentViewDocuments + [
+            Document(id: "letter", parentId: "/archive/letters", name: "Letter")
+        ]
+
+        XCTAssertTrue(
+            WorkflowRunTargetResolver.resolve(
+                clicked: .folder("/archive/letters"),
+                selection: [],
+                documents: parentViewDocuments
+            ).isEmpty
+        )
+        XCTAssertEqual(
+            WorkflowRunTargetResolver.resolve(
+                clicked: .folder("/archive/letters"),
+                selection: [],
+                documents: currentLibraryDocuments
+            ),
+            ["letter"]
+        )
+    }
+
     func testSelectedFileAndFolderUnionIsDeduplicated() {
         XCTAssertEqual(
             WorkflowRunTargetResolver.resolve(
@@ -66,6 +91,17 @@ final class WorkflowRunTargetResolverTests: XCTestCase {
                 documents: documents
             ),
             ["a", "b"]
+        )
+    }
+
+    func testSelectedForeignFileIsExcludedFromCurrentLibraryTargets() {
+        XCTAssertEqual(
+            WorkflowRunTargetResolver.resolve(
+                clicked: .file("a"),
+                selection: [.file("a"), .file("foreign-library-document")],
+                documents: documents
+            ),
+            ["a"]
         )
     }
 

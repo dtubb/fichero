@@ -7,7 +7,7 @@ enum WorkflowRunTarget: Hashable {
     fileprivate func directFileIDs(from documents: [Document]) -> [String] {
         switch self {
         case let .file(id):
-            [id]
+            documents.contains { $0.id == id } ? [id] : []
         case let .folder(path):
             documents
                 .filter { $0.docType == .file && $0.parentId == path }
@@ -27,8 +27,6 @@ enum WorkflowRunTargetResolver {
         let targetFileIDs = Set(targets.flatMap { target in
             target.directFileIDs(from: documents)
         })
-        let documentOrderedIDs = documents.map(\.id).filter(targetFileIDs.contains)
-        let unknownFileIDs = targetFileIDs.subtracting(documentOrderedIDs).sorted()
-        return documentOrderedIDs + unknownFileIDs
+        return documents.map(\.id).filter(targetFileIDs.contains)
     }
 }

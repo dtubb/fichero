@@ -177,16 +177,17 @@ extension LibraryView {
     }
 
     private func resolvedWorkflowTargetIDs(for clickedDocument: Document) -> [String] {
+        let currentLibraryDocuments = documentStore.sidebarDocuments
         let clickedTarget = workflowRunTarget(for: clickedDocument)
         let selectedTargets = Set(
-            documents
+            currentLibraryDocuments
                 .filter { selection.contains($0.id) }
                 .map(workflowRunTarget(for:))
         )
         return WorkflowRunTargetResolver.resolve(
             clicked: clickedTarget,
             selection: selectedTargets,
-            documents: documents
+            documents: currentLibraryDocuments
         )
     }
 
