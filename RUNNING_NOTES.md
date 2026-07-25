@@ -494,6 +494,25 @@ lightweight checks; otherwise needs the named owner.
     - Owner: manager + sidebar worker together at the gate; these gate #6/#8
       and close #3390.
 
+### READY-TO-FILE ISSUE TITLES (manager creates/updates GitHub — NOT this lane)
+Numbers reference the entries above (full outcome/files/acceptance there).
+| # | Proposed issue title | Suggested labels / milestone | Depends on |
+|---|---|---|---|
+| 1 | Engine: reject cycle-creating document.move (self/descendant parent → 400) | engine, type:bug, P1 (data-loss vector) / Engine hardening | — |
+| 2 | Engine: enforce Default Workflows read_only on document update/delete/move | engine, type:bug / Engine hardening | decision: delete-cascade 403 vs skip |
+| 3 | Engine: add audited document.duplicate action (deep-copy policy + contract) | engine, type:feature / post-decision | design: copy scope |
+| 4 | Library: alias-aware client Document + target-resolving selection + alias badge | client:swiftui, type:feature / Library View | design nod (badge + dangling UX) |
+| 5 | Sidebar: workflow-row context-menu Duplicate (reuse WorkflowStore.duplicateWorkflow) | client:swiftui, type:feature / Sidebar View | Daniel's explicit OK (paused) |
+| 6 | Sidebar: restore full-row drop/context target incl. chevron strip (#571 regression) | client:swiftui, type:bug / Sidebar View | build gate (#10) |
+| 7 | Sidebar: surface partial/no-op multi-item drop results ("moved N of M") | client:swiftui, type:bug / Sidebar View | — |
+| 8 | Sidebar: keyboard focus handoff out of sidebar (thread cyclePaneFocus callback) | client:swiftui, type:bug / Sidebar View | device check (#10); #560 risk |
+| 9 | Design: Option-drag copy — parked (no native SwiftUI operation-mask API) | type:design, deferred | #3; platform watch |
+| 10 | Gate: sidebar device-validation bundle (PDF drop, dbl-click, hover, multi-drag, focus, chevron) | type:test / next build gate | gates #6, #8; closes #3390 |
+
+Dependency spine: #3 → any document Duplicate UI / #9 · #4 → "Make Alias"
+menu item · #10 → #6, #8 · #5 → only Daniel's confirmation.
+Dispatchable immediately in this lane: #7 (and #5 once confirmed).
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:
