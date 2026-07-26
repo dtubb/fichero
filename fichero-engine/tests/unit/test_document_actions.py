@@ -319,6 +319,37 @@ class TestDocumentMoveAction:
         with pytest.raises(ValidationError):
             registry.invoke(db, "document.move", {"parent_id": None}, _ctx())
 
+    def test_move_into_self_rejected(self, db):
+        # A self-parent detaches the doc from the root; orphan cleanup would
+        # then delete it. Mirrors the client-side SidebarMovePolicy guard.
+        folder = _save_doc(db, name="f", doc_type=DocType.folder)
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "document.move", {"doc_id": folder.id, "parent_id": folder.id}, _ctx()
+            )
+        assert exc.value.status_code == 400
+        assert db.get(Document, folder.id).parent_id is None  # unchanged
+
+    def test_move_into_descendant_rejected(self, db):
+        top = _save_doc(db, name="top", doc_type=DocType.folder)
+        mid = _save_doc(db, name="mid", doc_type=DocType.folder, parent_id=top.id)
+        leaf = _save_doc(db, name="leaf", doc_type=DocType.folder, parent_id=mid.id)
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db, "document.move", {"doc_id": top.id, "parent_id": leaf.id}, _ctx()
+            )
+        assert exc.value.status_code == 400
+        assert db.get(Document, top.id).parent_id is None  # unchanged
+
+    def test_move_to_current_parent_still_allowed(self, db):
+        # Ancestors are legal targets — only self/descendants form cycles.
+        parent = _save_doc(db, name="p", doc_type=DocType.folder)
+        doc = _save_doc(db, name="c", parent_id=parent.id)
+        registry.invoke(
+            db, "document.move", {"doc_id": doc.id, "parent_id": parent.id}, _ctx()
+        )
+        assert db.get(Document, doc.id).parent_id == parent.id
+
 
 # ===========================================================================
 # document.reorder

@@ -1828,6 +1828,25 @@ def update_document_impl(
     return doc, before, list(update_data.keys())
 
 
+def _move_would_create_cycle(db: Database, doc_id: str, parent_id: str) -> bool:
+    """True when re-parenting ``doc_id`` under ``parent_id`` forms a cycle.
+
+    Walks the target parent's ancestor chain; if ``doc_id`` appears, the target
+    sits inside the document being moved and the move would detach the subtree
+    from the root — after which orphan cleanup would silently delete it. The
+    walk is bounded so a pre-existing malformed (cyclic) chain terminates.
+    """
+    current: str | None = parent_id
+    guard = 0
+    while current is not None and guard <= 10_000:
+        if current == doc_id:
+            return True
+        row = _get_document_row(db, current)
+        current = row.parent_id if row is not None else None
+        guard += 1
+    return False
+
+
 def move_document_impl(
     db: Database, doc_id: str, parent_id: str | None
 ) -> tuple[Document, dict[str, Any]]:
@@ -1840,6 +1859,18 @@ def move_document_impl(
         if not parent:
             raise HTTPException(
                 status_code=400, detail=f"Parent not found: {parent_id}"
+            )
+        # Reject self/descendant parents: the UI's SidebarMovePolicy guards
+        # its own drags, but the API must hold the no-cycle invariant for
+        # every client — a cycled subtree becomes unreachable and orphan
+        # cleanup then deletes it.
+        if _move_would_create_cycle(db, doc_id, parent_id):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Cannot move {doc_id} into itself or its own descendant "
+                    f"({parent_id})"
+                ),
             )
 
     before = doc.model_dump(mode="json")
