@@ -2627,9 +2627,11 @@ class Database(DatabaseEmbeddingMixin):
         dict (no new `workflows` table column): every system-seeded preset
         (``is_system=True``) is placed under the locked "Default Workflows"
         container and marked ``read_only``; everything else is a normal
-        library-scoped, writable node at the tree root. NOTE: ``read_only``
-        is descriptive only in Phase 1 — nothing in the write API enforces
-        it yet (see report to Daniel).
+        library-scoped, writable node at the tree root. ``read_only`` is
+        ENFORCED on both write surfaces: workflow routes via
+        ``_reject_if_read_only`` (403) and document update/move/delete via
+        ``_reject_if_document_read_only`` in ``routes/document/documents.py``.
+        Seeding bypasses both (direct ``db.save``), so re-seeds still work.
         """
         from fichero.models import DocType, Document
 

@@ -1763,6 +1763,7 @@ def update_document_impl(
     ``document.restore``.
     """
     doc = _document_or_404(db, doc_id)
+    _reject_if_document_read_only(doc, "edited")
 
     before = doc.model_dump(mode="json")
 
@@ -1828,6 +1829,24 @@ def update_document_impl(
     return doc, before, list(update_data.keys())
 
 
+def _reject_if_document_read_only(doc: Document, operation: str) -> None:
+    """Raise 403 when ``doc`` is a locked node (#11 Phase 1 enforcement).
+
+    The Default Workflows container and its preset mirrors carry
+    ``attributes.read_only=True`` (see ``Database._save_workflow_document``).
+    The workflow routes already enforce this via ``_reject_if_read_only``;
+    this closes the document-tree side, where move/rename/delete previously
+    succeeded — a moved container even persisted across reopens. Seeding
+    itself uses ``db.save`` directly, so re-seeds are unaffected.
+    """
+    attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+    if attrs.get("read_only"):
+        raise HTTPException(
+            status_code=403,
+            detail=f"{doc.name or doc.id} is read-only and cannot be {operation}",
+        )
+
+
 def _move_would_create_cycle(db: Database, doc_id: str, parent_id: str) -> bool:
     """True when re-parenting ``doc_id`` under ``parent_id`` forms a cycle.
 
@@ -1852,6 +1871,7 @@ def move_document_impl(
 ) -> tuple[Document, dict[str, Any]]:
     """Re-parent a document. Returns ``(doc, before_snapshot)``."""
     doc = _document_or_404(db, doc_id)
+    _reject_if_document_read_only(doc, "moved")
 
     # Verify new parent exists if specified
     if parent_id:
@@ -1860,6 +1880,9 @@ def move_document_impl(
             raise HTTPException(
                 status_code=400, detail=f"Parent not found: {parent_id}"
             )
+        # Locked containers don't accept new children either — nothing may
+        # be filed into Default Workflows except the seeder (db.save path).
+        _reject_if_document_read_only(parent, "added to")
         # Reject self/descendant parents: the UI's SidebarMovePolicy guards
         # its own drags, but the API must hold the no-cycle invariant for
         # every client — a cycled subtree becomes unreachable and orphan
@@ -1999,6 +2022,10 @@ def delete_document_impl(
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """Soft-delete a document subtree, preserving rows for trash / restore."""
     doc = _document_or_404(db, doc_id)
+    # 403 (not a silent skip): a delete aimed at a locked node — the Default
+    # Workflows container or a preset mirror — must fail loudly. Deleting the
+    # container would soft-delete every mirror inside it in one call.
+    _reject_if_document_read_only(doc, "deleted")
     to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
 
     deleted_at = datetime.now()

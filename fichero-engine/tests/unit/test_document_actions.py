@@ -341,6 +341,32 @@ class TestDocumentMoveAction:
         assert exc.value.status_code == 400
         assert db.get(Document, top.id).parent_id is None  # unchanged
 
+    def test_locked_nodes_reject_document_writes(self, db):
+        # Default Workflows container / preset mirrors carry
+        # attributes.read_only=True; the document write surface must refuse
+        # them just like the workflow routes do (403, #11 Phase 1).
+        locked = _save_doc(
+            db,
+            name="Default Workflows",
+            doc_type=DocType.folder,
+            attributes={"read_only": True, "scope": "global", "system": True},
+        )
+        normal = _save_doc(db, name="normal")
+
+        for action, params in [
+            ("document.move", {"doc_id": locked.id, "parent_id": None}),
+            ("document.update", {"doc_id": locked.id, "update": {"name": "renamed"}}),
+            ("document.delete", {"doc_id": locked.id}),
+            # Locked containers accept no new children via the API either.
+            ("document.move", {"doc_id": normal.id, "parent_id": locked.id}),
+        ]:
+            with pytest.raises(HTTPException) as exc:
+                registry.invoke(db, action, params, _ctx())
+            assert exc.value.status_code == 403, action
+
+        assert db.get(Document, locked.id).name == "Default Workflows"
+        assert db.get(Document, normal.id).parent_id is None
+
     def test_move_to_current_parent_still_allowed(self, db):
         # Ancestors are legal targets — only self/descendants form cycles.
         parent = _save_doc(db, name="p", doc_type=DocType.folder)
