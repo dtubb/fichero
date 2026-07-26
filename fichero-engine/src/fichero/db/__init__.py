@@ -2767,6 +2767,22 @@ class Database(DatabaseEmbeddingMixin):
             {"kind": _WORKFLOW_CONTAINER_NODE_KIND},
         )
 
+    def delete_default_workflow_container_nodes(self) -> None:
+        """Drop the locked "Default Workflows" container and its subfolders.
+
+        Used when healing a non-global library that was seeded with the
+        presets before they became global-only (#4102). Scoped to the
+        system container node kind, so a user's own workflow folders are
+        untouched.
+        """
+        if not hasattr(self.conn, "execute"):
+            return
+
+        self._execute(
+            "DELETE FROM documents WHERE node_kind = $kind",
+            {"kind": _WORKFLOW_CONTAINER_NODE_KIND},
+        )
+
     def _ensure_default_workflows_subfolder(self, folder_path: str | None) -> str:
         """Get-or-create the locked subfolder for a preset's ``folder_path``.
 

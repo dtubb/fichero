@@ -266,3 +266,58 @@ def _expand_provider_sentinels(
         else:
             expanded.append(node)
     return expanded
+
+
+def prune_default_workflows(db: "Database") -> int:
+    """Remove system-seeded preset workflows from a NON-global library.
+
+    Default workflows belong to the global library only (#4102): a
+    per-library copy meant every library grew its own "Default Workflows"
+    container, so the same presets appeared N times across the sidebar.
+    Libraries opened before this rule was introduced already hold seeded
+    copies, so opening one heals it here.
+
+    Only rows the seeder itself created are touched — ``is_system`` /
+    ``is_template`` workflows whose name matches a shipped preset. A
+    user-authored or renamed workflow is never removed, so a library's own
+    custom workflows are untouched.
+
+    Returns the number of workflows removed.
+    """
+    from fichero.models import Workflow
+
+    presets = _load_preset_files()
+    preset_names = {preset.get("name") for preset in presets if preset.get("name")}
+    preset_names |= _DEPRECATED_PRESET_NAMES
+    if not preset_names:
+        return 0
+
+    try:
+        existing = list(db.all(Workflow))
+    except Exception as exc:
+        logger.warning(f"prune_default_workflows: cannot list workflows: {exc}")
+        return 0
+
+    removed = 0
+    for workflow in existing:
+        if workflow.name not in preset_names:
+            continue
+        if not (
+            getattr(workflow, "is_template", False) or getattr(workflow, "is_system", False)
+        ):
+            continue
+        try:
+            # Database.delete removes the mirrored document node too.
+            db.delete(workflow)
+            removed += 1
+        except Exception as exc:
+            logger.warning(f"Could not prune default workflow '{workflow.name}': {exc}")
+
+    # The locked container + its subfolders are created lazily whenever a
+    # system workflow is saved; with the presets gone they'd linger as empty
+    # system folders, so drop them in the same pass.
+    db.delete_default_workflow_container_nodes()
+
+    if removed:
+        logger.info(f"Pruned {removed} default workflow(s) from non-global library")
+    return removed

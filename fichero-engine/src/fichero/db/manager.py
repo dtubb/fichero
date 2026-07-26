@@ -70,7 +70,11 @@ class DatabaseManager:
             migrate_workflow_table,
         )
         from fichero.db.library_bootstrap import ensure_inbox_folder
-        from fichero.workflows.default_workflows import seed_default_workflows
+        from fichero.db.paths import is_global_library_package
+        from fichero.workflows.default_workflows import (
+            prune_default_workflows,
+            seed_default_workflows,
+        )
 
         package_path = Path(nfc_path(package_path))
         package_str = str(package_path)
@@ -91,16 +95,25 @@ class DatabaseManager:
                     migrate_activity_tables(db.conn)
                     migrate_checkpoint_tables(db.conn)
 
-                    # Seed default workflow presets (Transcribe, Catalogue). Idempotent
-                    # by workflow name — a user who deleted a preset doesn't get it back.
-                    # Tests set FICHERO_SKIP_DEFAULT_WORKFLOWS=1 so fixtures that assert
-                    # on "empty library" keep working without per-test cleanup.
+                    # Seed default workflow presets (Transcribe, Catalogue) into
+                    # the GLOBAL library only (#4102) — they're app-level presets,
+                    # and a per-library copy made the same "Default Workflows"
+                    # folder appear under every library in the sidebar. A library
+                    # keeps its own custom workflows; it just doesn't get the
+                    # shipped ones. Seeding is idempotent by workflow name, so a
+                    # user who deleted a preset doesn't get it back. Non-global
+                    # libraries seeded before this rule are healed by the prune.
+                    # Tests set FICHERO_SKIP_DEFAULT_WORKFLOWS=1 so fixtures that
+                    # assert on "empty library" keep working without per-test cleanup.
                     import os
 
                     if os.environ.get("FICHERO_SKIP_DEFAULT_WORKFLOWS") != "1":
-                        seeded = seed_default_workflows(db)
-                        if seeded:
-                            logger.info(f"Seeded {seeded} default workflow preset(s)")
+                        if is_global_library_package(package_path):
+                            seeded = seed_default_workflows(db)
+                            if seeded:
+                                logger.info(f"Seeded {seeded} default workflow preset(s)")
+                        else:
+                            prune_default_workflows(db)
 
                     ensure_inbox_folder(db)
                 except Exception as exc:

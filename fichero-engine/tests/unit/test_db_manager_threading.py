@@ -73,7 +73,9 @@ def test_initialization_failure_is_loud_and_does_not_leave_a_cached_handle(
     tmp_path, monkeypatch
 ):
     """A failed default-workflow seed must not leave a partial library open."""
-    pkg = tmp_path / "lib.fichero"
+    # Must be the GLOBAL package: default workflows only seed there (#4102),
+    # so a plain library never reaches the seeder this test is failing.
+    pkg = tmp_path / "global.fichero"
     pkg.mkdir()
     mgr = DatabaseManager()
     monkeypatch.delenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", raising=False)
@@ -154,3 +156,53 @@ def test_cross_thread_writes_are_immediately_visible(tmp_path):
         assert "from-worker" in names
     finally:
         mgr.close_all()
+
+
+def test_default_workflows_seed_only_into_the_global_library(tmp_path, monkeypatch):
+    """#4102: presets are app-level. A normal library must not grow its own
+    copy (which put a duplicate "Default Workflows" folder under every library
+    in the sidebar); the global library still gets them."""
+    from fichero.models import Workflow
+
+    monkeypatch.delenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", raising=False)
+    mgr = DatabaseManager()
+    try:
+        plain = tmp_path / "Marshall.fichero"
+        plain.mkdir()
+        assert list(mgr.get_database(plain).all(Workflow)) == []
+
+        glob = tmp_path / "global.fichero"
+        glob.mkdir()
+        assert len(list(mgr.get_database(glob).all(Workflow))) > 0
+    finally:
+        mgr.close_all()
+
+
+def test_reopening_a_seeded_library_prunes_the_presets(tmp_path, monkeypatch):
+    """A library seeded before the global-only rule heals on next open: the
+    shipped presets and their locked container go, the user's own stay."""
+    from fichero.models import Document, Workflow
+    from fichero.workflows.default_workflows import seed_default_workflows
+
+    monkeypatch.delenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", raising=False)
+    pkg = tmp_path / "Marshall.fichero"
+    pkg.mkdir()
+
+    mgr = DatabaseManager()
+    try:
+        db = mgr.get_database(pkg)
+        seed_default_workflows(db)  # simulate the pre-#4102 per-library seed
+        db.save(Workflow(name="My Own Pipeline", is_template=False))
+        assert len(list(db.all(Workflow))) > 1
+    finally:
+        mgr.close_all()
+
+    mgr2 = DatabaseManager()
+    try:
+        db2 = mgr2.get_database(pkg)
+        names = [w.name for w in db2.all(Workflow)]
+        assert names == ["My Own Pipeline"]
+        containers = db2.query(Document, node_kind="workflow_container")
+        assert list(containers) == []
+    finally:
+        mgr2.close_all()

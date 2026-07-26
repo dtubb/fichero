@@ -15,9 +15,25 @@ _LEGACY_APP_SUPPORT_DIRS = (
 )
 
 
+GLOBAL_LIBRARY_PACKAGE_NAME = "global.fichero"
+
+
 def engine_state_dir(home: Path | None = None) -> Path:
     base_home = home or Path.home()
     return base_home / "Library" / "Application Support" / "Fichero"
+
+
+def is_global_library_package(package_path: Path | str) -> bool:
+    """Whether this package is the engine's global library.
+
+    Matched by package NAME rather than by comparing against
+    ``settings.global_library_path`` because the global library lives under
+    ``Path.home()``, and the app's home differs between a sandboxed (App
+    Store) container and an unsandboxed build — a path comparison would call
+    the container's own ``global.fichero`` a normal library. The name is the
+    stable identity across both.
+    """
+    return Path(package_path).name == GLOBAL_LIBRARY_PACKAGE_NAME
 
 
 def migrate_legacy_engine_state(home: Path | None = None) -> int:

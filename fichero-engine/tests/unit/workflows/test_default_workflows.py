@@ -1774,3 +1774,64 @@ def test_every_default_preset_passes_execution_gate(
     assert errors == [], (
         f"preset {preset_name!r} fails the /execute validation gate: {errors}"
     )
+
+
+class TestGlobalOnlyDefaultWorkflows:
+    """Default workflows are app-level presets that belong to the global
+    library only (#4102). Seeding them per-library made the same locked
+    "Default Workflows" folder appear under every library in the sidebar.
+    """
+
+    def test_only_the_global_package_is_global(self):
+        from fichero.db.paths import is_global_library_package
+
+        assert is_global_library_package("/anywhere/global.fichero")
+        # Sandboxed container home has its own global.fichero — still global.
+        assert is_global_library_package(
+            "/Users/x/Library/Containers/app.fichero.fichero/Data/"
+            "Library/Application Support/Fichero/global.fichero"
+        )
+        assert not is_global_library_package("/Users/x/Marshall.fichero")
+        assert not is_global_library_package("/Users/x/global.fichero.bak")
+
+    def _prune_db(self, workflows):
+        db = MagicMock()
+        db.all.return_value = workflows
+        db.delete = MagicMock()
+        db.delete_default_workflow_container_nodes = MagicMock()
+        return db
+
+    def test_prune_removes_seeded_presets_and_container(self):
+        from fichero.models import Workflow
+        from fichero.workflows.default_workflows import prune_default_workflows
+
+        seeded = Workflow(name="Transcribe", is_template=True)
+        db = self._prune_db([seeded])
+
+        removed = prune_default_workflows(db)
+
+        assert removed == 1
+        assert db.delete.call_args_list[0].args[0].name == "Transcribe"
+        db.delete_default_workflow_container_nodes.assert_called_once()
+
+    def test_prune_leaves_user_workflows_alone(self):
+        from fichero.models import Workflow
+        from fichero.workflows.default_workflows import prune_default_workflows
+
+        # A user's own workflow, and a user COPY that kept a preset name but
+        # isn't a template — neither is ours to delete.
+        mine = Workflow(name="My Pipeline", is_template=False)
+        copy_of_preset = Workflow(name="Transcribe", is_template=False)
+        db = self._prune_db([mine, copy_of_preset])
+
+        assert prune_default_workflows(db) == 0
+        db.delete.assert_not_called()
+
+    def test_prune_also_retires_deprecated_preset_names(self):
+        from fichero.models import Workflow
+        from fichero.workflows.default_workflows import prune_default_workflows
+
+        stale = Workflow(name="Catalogue (composable)", is_system=True)
+        db = self._prune_db([stale])
+
+        assert prune_default_workflows(db) == 1
