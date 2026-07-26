@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from fichero.export_service import (
@@ -198,6 +200,27 @@ def test_export_parquet_writes_typed_files_and_manifest(db, tmp_path):
     assert manifest["schema_version"] == 1
     assert manifest["files"]["documents"]["record_count"] == 2
     assert manifest["files"]["claims"]["path"] == "claims.parquet"
+
+
+def test_export_parquet_uses_database_parquet_writer(db, tmp_path, monkeypatch):
+    root, _, _, _, _, _, _ = _seed_export_library(db)
+    calls = []
+    real_export_jsonl_as_parquet = db.export_jsonl_as_parquet
+
+    def recording_export_jsonl_as_parquet(jsonl_path, output_path, *, empty=False):
+        calls.append((jsonl_path, output_path, empty))
+        return real_export_jsonl_as_parquet(jsonl_path, output_path, empty=empty)
+
+    monkeypatch.setattr(db, "export_jsonl_as_parquet", recording_export_jsonl_as_parquet)
+
+    export_parquet(db, tmp_path / "records", target_id=root.id)
+
+    assert len(calls) == 3
+    assert {Path(output_path).name for _, output_path, _ in calls} == {
+        "documents.parquet",
+        "entities.parquet",
+        "claims.parquet",
+    }
 
 
 def test_export_parquet_empty_partitions_keep_canonical_columns(db, tmp_path):

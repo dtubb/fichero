@@ -630,22 +630,12 @@ def _claims_referencing_entity_ids(
     if not ids:
         return []
 
-    sql_table = db._sql_table_name(KnowledgeClaim)
-    where = " OR ".join("entity_ids LIKE ?" for _ in ids)
-    rows, columns = db._execute_fetch_with_columns(
-        f"SELECT * FROM {sql_table} WHERE {where}",
-        tuple(f'%"{entity_id}"%' for entity_id in ids),
-    )
-
     wanted = set(ids)
-    claims: list[KnowledgeClaim] = []
-    for row in rows:
-        hydrated = db._hydrate_row(KnowledgeClaim, columns, row)
-        if hydrated is None:
-            continue
-        if wanted.intersection(hydrated.entity_ids or []):
-            claims.append(hydrated)
-    return claims
+    return [
+        claim
+        for claim in db.query_json_list_intersects(KnowledgeClaim, "entity_ids", ids)
+        if wanted.intersection(claim.entity_ids or [])
+    ]
 
 
 @action(

@@ -10,7 +10,6 @@ import json
 import os
 import logging
 
-import duckdb
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -1264,7 +1263,12 @@ def export_parquet(
         }.items()
     }
     for record_type, records in records_by_type.items():
-        _write_parquet_records(paths_by_type[record_type], records, record_type)
+        _write_parquet_records(
+            db,
+            paths_by_type[record_type],
+            records,
+            record_type,
+        )
 
     files = list(paths_by_type.values())
 
@@ -1297,6 +1301,7 @@ def export_parquet(
 
 
 def _write_parquet_records(
+    db: Database,
     output_file: Path,
     records: list[dict[str, Any]],
     record_type: str,
@@ -1357,7 +1362,6 @@ def _write_parquet_records(
             "source_excerpt": None,
         },
     }
-    escaped_output = str(output_file).replace("'", "''")
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", encoding="utf-8") as source:
         for record in records or [empty_records[record_type]]:
             source.write(
@@ -1369,14 +1373,7 @@ def _write_parquet_records(
             )
             source.write("\n")
         source.flush()
-        with duckdb.connect() as connection:
-            relation = "read_json_auto(?)"
-            if not records:
-                relation = f"(SELECT * FROM {relation} WHERE FALSE)"
-            connection.execute(
-                f"COPY (SELECT * FROM {relation}) TO '{escaped_output}' (FORMAT PARQUET)",
-                [source.name],
-            )
+        db.export_jsonl_as_parquet(source.name, output_file, empty=not records)
 
 
 @dataclass(frozen=True)

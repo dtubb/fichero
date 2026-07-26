@@ -2138,6 +2138,36 @@ class Database(DatabaseEmbeddingMixin):
             )
         return out
 
+    def workflow_rows_for_list(self, folder_path: str | None = None) -> list["Workflow"]:
+        """Load valid workflows, skipping legacy rows that no longer validate."""
+        from fichero.models import Workflow
+
+        sql_table = self._sql_table_name(Workflow)
+        self._ensure_table(Workflow)
+        if folder_path is None:
+            rows, columns = self._execute_fetch_with_columns(f"SELECT * FROM {sql_table}")
+        else:
+            rows, columns = self._execute_fetch_with_columns(
+                f"SELECT * FROM {sql_table} WHERE folder_path = ?",
+                (folder_path,),
+            )
+
+        workflows: list[Workflow] = []
+        for row in rows:
+            raw = dict(zip(columns, row))
+            if raw.get("id") is None:
+                logger.warning("Skipping invalid workflow row with NULL id during list")
+                continue
+            try:
+                workflows.append(Workflow(**self._parse_json_fields(Workflow, raw)))
+            except Exception as exc:
+                logger.warning(
+                    "Skipping invalid workflow %s during list: %s",
+                    raw.get("id", "<unknown>"),
+                    exc,
+                )
+        return workflows
+
     def query_page(self, model: Type[T], *, limit: int, offset: int = 0) -> list[T]:
         """Return a stable, bounded page without hydrating the whole table."""
         if limit < 1 or offset < 0:
@@ -4483,6 +4513,23 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
         self.conn.execute(f"COPY {sql_table} TO '{path}' (FORMAT PARQUET)")
+
+    def export_jsonl_as_parquet(
+        self,
+        jsonl_path: str | Path,
+        output_path: str | Path,
+        *,
+        empty: bool = False,
+    ) -> None:
+        """Convert JSON Lines to Parquet through the managed DuckDB connection."""
+        destination_path = str(output_path).replace("'", "''")
+        relation = "read_json_auto(?)"
+        if empty:
+            relation = f"(SELECT * FROM {relation} WHERE FALSE)"
+        self.execute(
+            f"COPY (SELECT * FROM {relation}) TO '{destination_path}' (FORMAT PARQUET)",
+            (str(jsonl_path),),
+        )
 
     def import_parquet(self, model: Type[T], path: str | Path) -> int:
         """Import from Parquet file, returns count of imported rows."""

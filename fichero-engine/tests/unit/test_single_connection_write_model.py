@@ -15,11 +15,9 @@ Phase 2 of #2508 collapses this to ONE connection + ONE lock per package. After
 that flip the *existing* locks become globally effective and read-after-write is
 deterministic — phantom-404 / transient-None become structurally impossible.
 
-This module is the RED→GREEN proof:
-  * ``test_get_database_returns_same_instance_across_threads`` is xfail(strict)
-    TODAY (per-thread instancing → distinct objects) and will XPASS the moment
-    Phase 2 lands — at which point the xfail marker is removed so it guards the
-    invariant permanently.
+This module is the regression proof:
+  * ``test_get_database_returns_same_instance_across_threads`` guards the
+    single-connection invariant permanently.
   * the concurrent write/read soak asserts robustness (no lost writes, no
     crashes) under both models.
 
@@ -71,9 +69,7 @@ def _make_doc(doc_id: str):
 
 
 def test_get_database_returns_same_instance_across_threads(temp_library):
-    """The single-connection invariant: one Database (and one DuckDB conn) per
-    package, shared across every thread. RED today (per-thread), GREEN at Phase 2.
-    """
+    """One Database and DuckDB connection serve every thread for a package."""
     library_path, db_manager = temp_library
 
     main = db_manager.get_database(library_path)

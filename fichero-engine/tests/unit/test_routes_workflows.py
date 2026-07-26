@@ -103,6 +103,25 @@ class TestListWorkflows:
         names = {w["name"] for w in r.json()["items"]}
         assert names == {"Cat"}
 
+    def test_list_uses_database_workflow_reader_for_folder_filter(self, client, db, monkeypatch):
+        db.save(Workflow(name="Root", format="nodes", steps=[], folder_path="/"))
+        catalogue = Workflow(name="Cat", format="nodes", steps=[], folder_path="/Catalogue")
+        db.save(catalogue)
+        calls = []
+        real_workflow_rows_for_list = db.workflow_rows_for_list
+
+        def recording_workflow_rows_for_list(folder_path=None):
+            calls.append(folder_path)
+            return real_workflow_rows_for_list(folder_path)
+
+        monkeypatch.setattr(db, "workflow_rows_for_list", recording_workflow_rows_for_list)
+
+        response = client.get("/api/workflows", params={"folder_path": "/Catalogue"})
+
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json()["items"]] == [catalogue.id]
+        assert calls == ["/Catalogue"]
+
     def test_list_marks_system_preset_untested_unless_config_opted_in(self, client, db):
         _make_workflow(
             db,

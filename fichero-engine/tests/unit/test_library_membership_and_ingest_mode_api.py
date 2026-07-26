@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import quote
@@ -10,20 +9,7 @@ from fastapi.testclient import TestClient
 
 from fichero.security import accounts
 from fichero.security import authz
-from fichero.api.main import app
 from fichero.models import AccountUser, Document
-
-
-def _route_exists(fragment: str) -> bool:
-    return any(fragment in getattr(route, "path", "") for route in app.routes)
-
-
-_LIBRARY_MEMBERS_ROUTE_PRESENT = _route_exists("/api/authz/libraries/") and _route_exists(
-    "/members"
-)
-_MY_ROLE_ROUTE_PRESENT = _route_exists("/api/authz/libraries/") and _route_exists(
-    "/my-role"
-)
 
 
 @pytest.fixture
@@ -103,11 +89,6 @@ def _headers(auth_headers: dict[str, str], library_path: str | Path) -> dict[str
     }
 
 
-@pytest.mark.xfail(
-    condition=not _LIBRARY_MEMBERS_ROUTE_PRESENT,
-    reason="GET /api/authz/libraries/{id}/members is not present on current main",
-    strict=True,
-)
 def test_library_membership_owner_sees_members_and_roles(
     app_db, users, multiuser_client
 ):
@@ -117,22 +98,19 @@ def test_library_membership_owner_sees_members_and_roles(
     _grant(app_db, users.viewer, library_path, "viewer")
 
     response = client.get(
-        f"/api/authz/libraries/{quote(library_path, safe='/')}/members",
+        "/api/authz/members",
         headers=_headers(login("owner"), library_path),
     )
 
     assert response.status_code == 200
-    payload = json.dumps(response.json())
-    assert "owner" in payload
-    assert "editor" in payload
-    assert "viewer" in payload
+    members = response.json()["members"]
+    assert {member["username"]: member["role"] for member in members} == {
+        "owner": "owner",
+        "editor": "editor",
+        "viewer": "viewer",
+    }
 
 
-@pytest.mark.xfail(
-    condition=not _LIBRARY_MEMBERS_ROUTE_PRESENT,
-    reason="GET /api/authz/libraries/{id}/members is not present on current main",
-    strict=True,
-)
 def test_library_membership_non_member_gets_403_without_leak(
     app_db, users, multiuser_client
 ):
@@ -141,20 +119,15 @@ def test_library_membership_non_member_gets_403_without_leak(
     _grant(app_db, users.editor, library_path, "editor")
 
     denied = client.get(
-        f"/api/authz/libraries/{quote(library_path, safe='/')}/members",
+        "/api/authz/members",
         headers=_headers(login("stranger"), library_path),
     )
 
     assert denied.status_code == 403
-    assert "owner" not in denied.text
-    assert "editor" not in denied.text
+    assert users.owner.id not in denied.text
+    assert users.editor.id not in denied.text
 
 
-@pytest.mark.xfail(
-    condition=not _MY_ROLE_ROUTE_PRESENT,
-    reason="GET /api/authz/libraries/{id}/my-role is not present on current main",
-    strict=True,
-)
 def test_library_membership_my_role_endpoint_returns_current_role(
     app_db, users, multiuser_client
 ):
@@ -162,13 +135,12 @@ def test_library_membership_my_role_endpoint_returns_current_role(
     _grant(app_db, users.editor, library_path, "editor")
 
     response = client.get(
-        f"/api/authz/libraries/{quote(library_path, safe='/')}/my-role",
+        "/api/authz/library",
         headers=_headers(login("editor"), library_path),
     )
 
     assert response.status_code == 200
-    payload = json.dumps(response.json())
-    assert "editor" in payload
+    assert response.json()["current_user_role"] == "editor"
 
 
 def test_ingest_file_mode_link_copy_move_apply(client, db, test_package, tmp_path):

@@ -557,34 +557,7 @@ def _workflow_rows_for_list(
     db: Database,
     folder_path: str | None,
 ) -> list["Workflow"]:  # noqa: F821
-    from fichero.models import Workflow
-
-    sql_table = db._sql_table_name(Workflow)
-    db._ensure_table(Workflow)
-
-    if folder_path is None:
-        rows, columns = db._execute_fetch_with_columns(f"SELECT * FROM {sql_table}")
-    else:
-        rows, columns = db._execute_fetch_with_columns(
-            f"SELECT * FROM {sql_table} WHERE folder_path = ?",
-            (folder_path,),
-        )
-
-    workflows: list[Workflow] = []
-    for row in rows:
-        raw = dict(zip(columns, row))
-        if raw.get("id") is None:
-            logger.warning("Skipping invalid workflow row with NULL id during list")
-            continue
-        try:
-            workflows.append(Workflow(**db._parse_json_fields(Workflow, raw)))
-        except Exception as exc:
-            logger.warning(
-                "Skipping invalid workflow %s during list: %s",
-                raw.get("id", "<unknown>"),
-                exc,
-            )
-    return workflows
+    return db.workflow_rows_for_list(folder_path)
 
 
 @router.post("")

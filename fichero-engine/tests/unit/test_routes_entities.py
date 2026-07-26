@@ -489,6 +489,22 @@ class TestDeleteEntity:
         matches = _claims_referencing_entity_ids(db, [entity_a.id, entity_b.id])
         assert [row.id for row in matches] == [claim.id]
 
+    def test_claim_lookup_delegates_json_membership_to_database(self, db, monkeypatch):
+        from fichero.api.routes.entities import _claims_referencing_entity_ids
+        from fichero.models.knowledge import KnowledgeClaim
+
+        claim = KnowledgeClaim(id="claim-1", text="linked", entity_ids=["entity-1"])
+        calls = []
+
+        def query_json_list_intersects(model, column, values):
+            calls.append((model, column, values))
+            return [claim]
+
+        monkeypatch.setattr(db, "query_json_list_intersects", query_json_list_intersects)
+
+        assert _claims_referencing_entity_ids(db, ["entity-1"]) == [claim]
+        assert calls == [(KnowledgeClaim, "entity_ids", ["entity-1"])]
+
 
 # ---------------------------------------------------------------------------
 # POST /api/entities/{entity_id}/aliases

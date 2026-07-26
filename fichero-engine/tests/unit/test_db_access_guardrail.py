@@ -57,9 +57,8 @@ ALLOWLIST: frozenset[str] = frozenset(
         "db/storage_snapshots.py",
         # Workflow-subsystem persistence stores (each is the DB layer for its
         # own concern: checkpointing, scheduling, caching, activity, tasks,
-        # actions). Consolidating these behind db.py is future work (#1876).
-        # execution/batch.py is the same shape: BatchManager owns the batches/
-        # batch_items/batch_progress_snapshots tables (#2711).
+        # and actions). Consolidating these behind db.py is future work (#1876).
+        # BatchManager similarly owns its batch tables and persistence contract.
         "execution/batch.py",
         "workflows/action_store.py",
         "workflows/cache.py",
@@ -180,7 +179,6 @@ _RULE_REMINDER = (
 )
 
 
-@pytest.mark.xfail(reason="#2711: execution/batch.py raw-DB access (#1876) pending refactor; guardrail correctly red until fixed", strict=False)
 def test_no_new_raw_db_access_outside_persistence_layer() -> None:
     flagged = _scan_source_tree()
     new_violations = {
