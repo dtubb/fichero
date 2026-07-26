@@ -8,7 +8,7 @@ struct FocusedRunWorkflowOnSelectionButton: View {
     var body: some View {
         if featureManager.isWorkflowRunOnSelectionEnabled {
             Button("Run Workflow on Selection...") {
-                runWorkflowOnSelection?()
+                runWorkflowOnSelection?.run()
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
             .disabled(runWorkflowOnSelection == nil)

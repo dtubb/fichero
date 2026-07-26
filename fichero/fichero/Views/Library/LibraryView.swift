@@ -553,11 +553,15 @@ extension LibraryView {
     private var canvasItemStore: CanvasItemStore? { scopedLibraryReference?.canvasItemStore }
 
     /// Extracted from `.focusedSceneValue` so the Swift type-checker doesn't
-    /// time out on the inline ternary-with-closure expression.
-    private var runWorkflowOnSelectionAction: (() -> Void)? {
+    /// time out on the inline ternary-with-closure expression. Wrapped in
+    /// `FocusedLibraryAction` (Equatable, keyed on `isEnabled` only) so the
+    /// focus system short-circuits across body passes — publishing a raw
+    /// closure here caused an AttributeGraph invalidation storm on launch
+    /// whenever a persisted selection restored (hang / AG compare crash).
+    private var runWorkflowOnSelectionAction: FocusedLibraryAction? {
         guard !isShowingEntitiesCollection, !selection.isEmpty,
               featureManager.isWorkflowRunOnSelectionEnabled else { return nil }
-        return {
+        return FocusedLibraryAction(isEnabled: true) {
             selectedDocumentIdsForBatch = Array(selection)
             showWorkflowPicker = true
         }

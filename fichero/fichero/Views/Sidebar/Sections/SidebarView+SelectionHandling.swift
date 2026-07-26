@@ -41,6 +41,15 @@ extension SidebarView {
             return
         default:
             let item = findItemById(destination.serializedID, in: allCachedItems)
+            if item == nil {
+                // Launch-restore can arrive before the sidebar caches are
+                // built; the id resolves to nothing yet. Un-stamp the
+                // destination so `reconcileRestoredSelection()` (#2548)
+                // re-drives it once caches exist — otherwise the restored
+                // selection is marked handled without ever being applied
+                // and the highlighted row never matches the detail view.
+                lastHandledSelectionDestination = nil
+            }
             handleSelection(item)
         }
     }

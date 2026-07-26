@@ -298,6 +298,47 @@ struct SidebarSelectionTests {
         #expect(iconModeSource.contains(".padding(.leading, browserLeadingInset)"))
         #expect(tableSource.contains(".padding(.leading, browserLeadingInset)"))
     }
+
+    @Test("FocusedLibraryAction equality ignores the closure so focus republish short-circuits")
+    func focusedLibraryActionEqualityShortCircuits() {
+        // Distinct closure instances must not defeat equality — a raw closure
+        // focused value caused an AttributeGraph invalidation storm (launch
+        // hang / AG::LayoutDescriptor::Compare crash) when a persisted
+        // selection restored.
+        var hits = 0
+        let first = FocusedLibraryAction(isEnabled: true) { hits += 1 }
+        let second = FocusedLibraryAction(isEnabled: true) { hits += 2 }
+        #expect(first == second)
+        #expect(FocusedLibraryAction(isEnabled: true) {} != FocusedLibraryAction(isEnabled: false) {})
+        second.run()
+        #expect(hits == 2)
+    }
+
+    @Test("no FocusedValueKey publishes a raw closure Value")
+    func noRawClosureFocusedValueKeys() throws {
+        // Every focused value must be an Equatable wrapper. A bare
+        // `typealias Value = () -> Void` key is byte-compared by AttributeGraph
+        // and re-invalidates every body pass (RunWorkflowOnSelectionKey was the
+        // one outlier; keep it at zero).
+        let focusedValuesSource = try appSource("App/Menus/FocusedCommandButtons+FocusedValues.swift")
+        #expect(!focusedValuesSource.contains("typealias Value = () -> Void"))
+        #expect(!focusedValuesSource.contains("typealias Value = (() -> Void)"))
+    }
+
+    @Test("failed selection resolution un-stamps lastHandled so restore reconciles (#2548)")
+    func failedResolutionUnstampsForReconcile() throws {
+        // Launch-restore resolves before caches exist; if the destination
+        // stays stamped as handled, reconcileRestoredSelection() never
+        // re-drives it and the restored row never routes to its detail view.
+        let handlingSource = try appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
+        let defaultCase = try #require(
+            handlingSource.range(of: "let item = findItemById(destination.serializedID, in: allCachedItems)")
+        )
+        let afterLookup = handlingSource[defaultCase.upperBound...]
+        #expect(afterLookup.contains("lastHandledSelectionDestination = nil"))
+        // And the retry itself stays live: an un-stamped selection reconciles.
+        #expect(sidebarShouldReconcileSelection(selectedId: "doc:1", lastHandled: nil))
+    }
 }
 
 private func appSource(_ relativePath: String) throws -> String {

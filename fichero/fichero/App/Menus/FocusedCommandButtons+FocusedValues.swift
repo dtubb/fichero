@@ -120,9 +120,15 @@ struct CloseLibraryActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
-/// FocusedValue key for running a workflow on selected documents
+/// FocusedValue key for running a workflow on selected documents.
+///
+/// `FocusedLibraryAction` (not a raw closure) is load-bearing: a bare
+/// `() -> Void` is non-Equatable, so AttributeGraph byte-compares the fresh
+/// closure minted on every `LibraryView.body` pass, always sees a change, and
+/// cascades focus invalidations — an unbounded update storm that hangs the
+/// main thread and can crash inside `AG::LayoutDescriptor::Compare`.
 struct RunWorkflowOnSelectionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for navigating to the current folder's parent. Bound to
