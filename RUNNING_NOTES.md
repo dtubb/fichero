@@ -617,6 +617,28 @@ UI code is SwiftUI; platform bits stay `#if os(macOS)`-gated).
 - Optional follow-ups (not queued): ⌥-copy on insertion drops; "Duplicate"
   on document-row context menus (trivial now via invokeAction).
 
+## Session 11 — insertion-line grammar + independent bug review (FINAL)
+- `8a24b677c` full Finder drag grammar at the insertion line (⌥ copy /
+  ⌘⌥ alias / plain move, positioned via snapshot-diff; engine to_root;
+  purple alias tint; document-row Duplicate menu).
+- `b85c102e8` self-review hardening (MainActor helpers, monitor teardown on
+  disappear, alias-of-alias flattening ×3 paths, stale-selection guard,
+  refresh-on-partial-failure).
+- `0848c696e` independent code-review findings applied:
+  1. mirror resurrection GATED on is_system (user deletes stay deleted);
+  2. folder-drop banner counts REAL awaited copy/alias outcomes
+     ("Dropped N of M (… K failed)" + specific error appended);
+  3. iterative subtree copy (recursion-limit-proof, test at limit+50).
+  Reviewer verified clean: monitor lifecycle, duplicate cycle guard,
+  to_root wiring, insertion-drop error paths; its alias-race finding was
+  already fixed in b85c102e8.
+- Validation: engine 191 green (document actions + db) + 142 (routes batch
+  earlier); build-for-testing green at every commit (final run at
+  0848c696e pending at write time — recorded below when landed).
+- STATUS: all requested features implemented; all identified bugs fixed.
+  Remaining = manager gate items only (#3902 test execution, eyeball list,
+  merges, OpenAPI regen, pre-existing guardrail failures).
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:
