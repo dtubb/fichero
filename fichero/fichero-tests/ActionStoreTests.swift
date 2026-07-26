@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import Testing
 
@@ -8,9 +9,13 @@ import Testing
 @Suite("ActionStore")
 struct ActionStoreTests {
 
+    private static func client() -> FicheroClient {
+        FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+    }
+
     @Test("registers only the action change domain")
     func changeDomain() {
-        let store = ActionStore(service: ActionsService(client: .localhost))
+        let store = ActionStore(service: ActionsService(client: Self.client()))
 
         #expect(store.changeDomain == "action")
         #expect(store.changeDomains == ["action"])
@@ -18,7 +23,7 @@ struct ActionStoreTests {
 
     @Test("every action event advances the change token")
     func actionEventsAdvanceChangeToken() throws {
-        let store = ActionStore(service: ActionsService(client: .localhost))
+        let store = ActionStore(service: ActionsService(client: Self.client()))
 
         for verb in ["created", "updated", "deleted", "used"] {
             store.apply(try event(verb))
@@ -31,7 +36,7 @@ struct ActionStoreTests {
 
     @Test("change events do not synchronously replace cached actions")
     func changeEventsLeaveCachedActionsUntilReload() throws {
-        let store = ActionStore(service: ActionsService(client: .localhost))
+        let store = ActionStore(service: ActionsService(client: Self.client()))
 
         store.apply(try event("created"))
         store.reloadDebouncer.cancel()

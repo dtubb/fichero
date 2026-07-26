@@ -15,6 +15,7 @@ import XCTest
 /// URL or a hand-rolled URLSession fails here, complementing the round-trip
 /// coverage in `EngineWebViewRoutingTests` (FicheroAPIClientTests) over the
 /// `.uds` and `.inMemory` transports.
+@MainActor
 final class EngineWebViewSchemeHandlerRoutingTests: XCTestCase {
 
     private static func source(_ relativePath: String) throws -> String {
@@ -92,15 +93,18 @@ final class EngineWebViewSchemeHandlerRoutingTests: XCTestCase {
     // MARK: - Pane wires the handler to the library's FicheroClient (both platforms)
 
     /// macOS: the KG pane registers `EngineWebViewSchemeHandler` keyed to the
-    /// library's `FicheroClient` from `DocumentKGPaneRoute.webViewClient`. That
-    /// client's `transportMode` follows provisioning — `.uds` for the
+    /// library's `FicheroClient` from `DocumentKGPaneRoute.webViewClient`, using
+    /// the active `LibraryManager`. That client's `transportMode` follows
+    /// provisioning — `.uds` for the
     /// release-embedded spawn, `.inMemory` for the python-kit load — so the
     /// pane rides the right transport automatically.
     func testMacOSPaneRegistersHandlerWithLibraryClient() throws {
         let source = try Self.source("Views/Reader/Knowledge/DocumentKGWebPane.swift")
         XCTAssertTrue(
-            source.contains("DocumentKGPaneRoute.webViewClient(libraryPath: libraryPath)"),
-            "macOS pane must resolve the library's FicheroClient via webViewClient"
+            source.contains(
+                "DocumentKGPaneRoute.webViewClient(libraryPath: libraryPath, libraryManager: libraryManager)"
+            ),
+            "macOS pane must resolve the library's FicheroClient through the active LibraryManager"
         )
         XCTAssertTrue(
             source.contains("EngineWebViewSchemeHandler(client: client)"),

@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import XCTest
 
 /// LastAction is now a per-library holder owned by ActionLibraryService (#3444),
@@ -17,8 +18,12 @@ final class LastActionScopingTests: XCTestCase {
     }
 
     func testEachServiceOwnsAnIndependentHolder() {
-        let libraryA = ActionLibraryService(client: .localhost)
-        let libraryB = ActionLibraryService(client: .localhost)
+        let libraryA = ActionLibraryService(
+            client: FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+        )
+        let libraryB = ActionLibraryService(
+            client: FicheroClient(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+        )
         // Distinct instances — no shared global carrying undo state across libraries.
         XCTAssertFalse(libraryA.lastAction === libraryB.lastAction)
 
