@@ -1294,10 +1294,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -1368,10 +1364,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -1449,10 +1441,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -1530,10 +1518,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -1565,10 +1549,6 @@
 				CURRENT_PROJECT_VERSION = 2026072401;
 				GENERATE_INFOPLIST_FILE = YES;
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -1588,10 +1568,6 @@
 				CURRENT_PROJECT_VERSION = 2026072401;
 				GENERATE_INFOPLIST_FILE = YES;
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -1681,10 +1657,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -1755,10 +1727,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -1836,10 +1804,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -1917,10 +1881,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -2231,10 +2191,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -2307,10 +2263,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -2390,10 +2342,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -2473,10 +2421,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -2548,10 +2492,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -2624,10 +2564,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -2707,10 +2643,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
@@ -2790,10 +2722,6 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2026.07.24;
