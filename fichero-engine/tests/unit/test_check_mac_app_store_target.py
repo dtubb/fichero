@@ -23,6 +23,7 @@ suite (`pytest fichero-engine/tests/unit/test_check_mac_app_store_target.py`).
 
 from __future__ import annotations
 
+import os
 import plistlib
 import subprocess
 from pathlib import Path
@@ -159,6 +160,51 @@ def test_engine_embed_input_file_list_tracks_source_and_preflight_files() -> Non
     }
     assert required_entries <= entries
     assert any(entry.startswith("$(SRCROOT)/../fichero-engine/src/fichero/") for entry in entries)
+
+
+def test_resign_engine_script_ignores_plistbuddy_root_dictionary(tmp_path: Path) -> None:
+    """A real script run treats PlistBuddy's ``Dict {`` as structure, not a key."""
+    app = tmp_path / "Fichero.app"
+    (app / "Contents" / "Helpers" / "Fichero Engine.app").mkdir(parents=True)
+    entitlements = tmp_path / "FicheroEngineAppStore.entitlements"
+    entitlements.write_text("placeholder")
+
+    plistbuddy = tmp_path / "PlistBuddy"
+    plistbuddy.write_text(
+        "#!/bin/bash\n"
+        "cat <<'EOF'\n"
+        "Dict {\n"
+        "    com.apple.security.app-sandbox = true\n"
+        "    com.apple.security.inherit = true\n"
+        "}\n"
+        "EOF\n"
+    )
+    plistbuddy.chmod(0o755)
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    codesign = bin_dir / "codesign"
+    codesign.write_text(
+        "#!/bin/bash\n"
+        "if [[ \" $* \" == *\" --display \"* ]]; then\n"
+        "  printf '%s\\n' com.apple.security.app-sandbox com.apple.security.inherit\n"
+        "fi\n"
+    )
+    codesign.chmod(0o755)
+
+    result = subprocess.run(
+        ["bash", str(RESIGN_ENGINE), str(app), "identity", str(entitlements)],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "PLISTBUDDY": str(plistbuddy),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "engine re-signed for distribution" in result.stdout
 
 
 def test_resign_engine_script_rejects_get_task_allow() -> None:

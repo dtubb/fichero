@@ -90,10 +90,13 @@ if [ ! -f "$ENGINE_ENTITLEMENTS" ]; then
 fi
 
 # The two-key rule is the whole point. Refuse to sign with anything else.
-ENT_KEYS="$(/usr/libexec/PlistBuddy -c "Print" "$ENGINE_ENTITLEMENTS" 2>/dev/null | awk '/^[[:space:]]*[A-Za-z]/{print $1}' | sort -u || true)"
-ENT_COUNT="$(printf '%s\n' "$ENT_KEYS" | grep -c . || true)"
-if [ "$ENT_COUNT" -ne 2 ]; then
-  echo "error: $ENGINE_ENTITLEMENTS must hold exactly two keys (app-sandbox + inherit), got $ENT_COUNT:" >&2
+# PlistBuddy prints the dictionary root as `Dict {`; only entitlement identifiers
+# followed by `=` are keys.
+PLISTBUDDY="${PLISTBUDDY:-/usr/libexec/PlistBuddy}"
+ENT_KEYS="$("$PLISTBUDDY" -c "Print" "$ENGINE_ENTITLEMENTS" 2>/dev/null | awk '/^[[:space:]]*com\.apple\.[[:alnum:].-]+[[:space:]]*=/ {print $1}' | sort -u || true)"
+EXPECTED_ENT_KEYS=$'com.apple.security.app-sandbox\ncom.apple.security.inherit'
+if [ "$ENT_KEYS" != "$EXPECTED_ENT_KEYS" ]; then
+  echo "error: $ENGINE_ENTITLEMENTS must hold exactly app-sandbox + inherit:" >&2
   printf '%s\n' "$ENT_KEYS" | sed 's/^/      /' >&2
   exit 1
 fi
