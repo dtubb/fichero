@@ -60,9 +60,17 @@ struct EngineStatusToolbarItem: View {
             case .setupNeeded, .ready:
                 // `.setupNeeded` never actually reaches this view (the root
                 // gate routes it to `setup()`, not `content()`); `.ready`
-                // means nothing to show. Both render nothing — the stable
-                // `ToolbarItem` just goes empty, it is never removed.
-                EmptyView()
+                // shows a subtle persistent glyph so the status island always
+                // has its left button — click for connection details.
+                Button {
+                    showPopover = true
+                } label: {
+                    Image(systemName: "bolt.horizontal.circle")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Engine status")
+                .help("Engine connection — click for details")
             }
         }
         .popover(isPresented: $showPopover) {

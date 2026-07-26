@@ -278,14 +278,23 @@ final class LibraryManagerTests: XCTestCase {
 
         libraryManager.restoreSavedLibraries()
 
-        XCTAssertTrue(
-            libraryManager.openLibraries.isEmpty,
-            "Saved-library restoration must not issue registry work before the backend is ready"
+        // New contract (launch-speed, #4036): restore MATERIALIZES the library
+        // pre-ready so the first window frame shows the shell — but per-library
+        // DATA loads still defer until the backend flips ready.
+        XCTAssertEqual(
+            libraryManager.openLibraries.map(\.url), [savedLibrary],
+            "Saved libraries must materialize before the backend is ready"
+        )
+        let restoredId = try XCTUnwrap(libraryManager.openLibraries.first?.id)
+        XCTAssertFalse(
+            libraryManager.loadedLibraryIds.contains(restoredId),
+            "Per-library data must not load before the backend is ready"
         )
 
         libraryManager.backendIsReady = true
         libraryManager.restoreSavedLibraries()
 
+        // Idempotent: the ready-path re-run must not duplicate the entry.
         XCTAssertEqual(libraryManager.openLibraries.map(\.url), [savedLibrary])
     }
 

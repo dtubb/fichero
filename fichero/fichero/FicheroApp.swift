@@ -29,6 +29,7 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         // The unit-test host must never start a real engine (#3902).
         guard !isRunningXCTests() else { return }
         logger.info("App did finish launching — starting engine app-scoped (#3945)")
+        LaunchProfile.milestone("applicationDidFinishLaunching")
         // The engine's async startup lives here, not in a scene `.task`: `@main
         // App.init` is synchronous and `.task` is per-scene, so the delegate is the
         // one app-level hook that fires exactly once, independent of any window.
@@ -127,8 +128,14 @@ struct FicheroApp: App {
             return
         }
 
-        // Saved libraries are restored only after the embedded engine completes
-        // its authenticated health probe. Restoring here races its :8765 bind.
+        // Materialize saved libraries BEFORE the scene graph builds (launch
+        // speed, #4036): the first window frame then mounts the real library
+        // shell instead of `noLibraryView`. This no longer races the engine
+        // bind — restore is local-only now; data loads and registry writes
+        // defer/fail-soft until the authenticated probe flips ready (see
+        // `restoreSavedLibraries`'s doc comment).
+        LibraryManager.shared.restoreSavedLibraries()
+        LaunchProfile.milestone("saved libraries materialized (pre-ready)")
     }
 
     // MARK: - File Opening

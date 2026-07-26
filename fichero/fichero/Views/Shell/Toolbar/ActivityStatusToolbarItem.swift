@@ -69,9 +69,19 @@ struct ActivityStatusToolbarItem: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Active tasks")
                 .help("Active tasks — click to view")
+            } else {
+                // Idle: subtle persistent glyph so the status island always
+                // has its right button — the popover shows "Nothing running."
+                Button {
+                    showPopover = true
+                } label: {
+                    Image(systemName: "list.bullet.circle")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Activity")
+                .help("Background activity — click to view")
             }
-            // Idle (no error, nothing active): render nothing. The
-            // ToolbarItem itself stays declared — only its content is empty.
         }
         .popover(isPresented: $showPopover) {
             popoverContent

@@ -217,50 +217,21 @@ struct ContentView: View {
         // projected binding — @Bindable gives `$errorService.currentAlert`.
         @Bindable var errorService = errorService
         return Group {
-            if appState.isCheckingBackend {
-                // Show loading while checking API
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                    Text("Connecting to backend...")
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if !appState.isBackendRunning {
-                // API not running - show error
-                VStack(spacing: 20) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 64))
-                        .foregroundColor(.orange)
-
-                    Text("Backend Not Running")
-                        .font(.title)
-                        .fontWeight(.bold)
-
-                    Text(appState.backendError ?? "Cannot connect to the Fichero API server.")
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: 400)
-
-                    HStack(spacing: 16) {
-                        Button("Retry") {
-                            Task { @MainActor in
-                                await appState.checkBackendHealth()
-                            }
-                        }
-                        .keyboardShortcut("r", modifiers: [.command])
-
-                        #if canImport(AppKit)
-                        Button("Quit") {
-                            NSApplication.shared.terminate(nil)
-                        }
-                        .keyboardShortcut("q", modifiers: [.command])
-                        #endif
-                    }
-                    .padding(.top, 10)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if !appState.sessionStore.allowsLibraryAccess
+            // #4036/startup-transport-ux S1: NO full-window backend gate here.
+            // `isCheckingBackend` / `!isBackendRunning` used to render a
+            // full-window spinner / error screen, which held the real UI off
+            // screen until the health check answered (~1s of a warm launch).
+            // Engine phase — starting, connecting, every failure — is toolbar
+            // chrome (`EngineStatusToolbarItem`), so real content mounts on
+            // the first frame and data streams in when the engine answers.
+            // Auth-gate ONLY once the backend has answered: pre-ready the
+            // session phase is `.checking` (undetermined), and showing the
+            // login wall then flashes it on every launch — loopback+bootstrap
+            // is owner and must never see a login wall (#3941). A genuine
+            // multiuser needs-login resolves right after the session refresh
+            // and gates then.
+            if appState.isBackendRunning,
+                !appState.sessionStore.allowsLibraryAccess
                 || appState.sessionStore.pendingInviteToken != nil {
                 // Multi-user is on and there's no valid session yet — present the
                 // login / first-run owner-setup screen instead of the library

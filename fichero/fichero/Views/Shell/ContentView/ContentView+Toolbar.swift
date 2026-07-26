@@ -14,6 +14,7 @@ enum ContentToolbarID {
     static let previewPaneToggle = "fichero.previewPane.toggle"
     static let readingPaneToggle = "fichero.readingPane.toggle"
     static let breadcrumb = "fichero.breadcrumb"
+    static let statusIsland = "fichero.statusIsland"
 }
 
 // MARK: - Toolbar Content
@@ -46,15 +47,9 @@ extension ContentView {
     /// content-column toolbar.
     @ToolbarContentBuilder
     private var leadingToolbarContent: some ToolbarContent {
-        // Xcode-style engine connection status (startup-transport-ux S1).
-        // Declared unconditionally — its CONTENT varies by
-        // `appState.engine.phase` (nothing while `.ready`, a spinner while
-        // `.starting`, a tappable warning glyph on failure), the item itself
-        // never appears/disappears (#3163 guard, see the view's doc comment).
-        ToolbarItem(id: ContentToolbarID.engineStatus, placement: .navigation) {
-            EngineStatusToolbarItem()
-        }
-
+        // Engine status now lives in the center status island
+        // (`ContentToolbarID.statusIsland`, principal zone) beside the title,
+        // not here in the leading zone.
         ToolbarItem(id: ContentToolbarID.navigationBack, placement: .navigation) {
             Button {
                 navigateBack()
@@ -92,18 +87,8 @@ extension ContentView {
         }
         #endif
 
-        // Activity / error status — sits between the title and the inspector
-        // section. Aggregates running workflows + backend-work + the
-        // in-window import into one tap-for-detail popover
-        // (startup-transport-ux S1) instead of growing a pill per source.
-        ToolbarItem(id: ContentToolbarID.activityStatus, placement: .automatic) {
-            ActivityStatusToolbarItem(
-                isImporting: isImporting,
-                importProgress: importProgress,
-                importError: $importError
-            )
-        }
-
+        // Activity status now lives in the center status island
+        // (`ContentToolbarID.statusIsland`, principal zone) beside the title.
         // Show/hide-panes + view-mode control on every platform's toolbar,
         // including Mac (previously menu-bar only) so it matches iPad/iOS (#2493).
         ToolbarItem(id: ContentToolbarID.viewMenu, placement: .primaryAction) {
@@ -238,6 +223,18 @@ extension ContentView {
                 // bar (ToolbarSearchableModifier). The breadcrumb lozenge above
                 // stays as the principal-zone context chrome.
                 }
+            }
+
+            // Xcode-style status island to the RIGHT of the breadcrumb path:
+            // engine button + what's-going-on message + activity button.
+            // Declared unconditionally within this zone (#3163: content
+            // varies, the item never appears/disappears).
+            ToolbarItem(id: ContentToolbarID.statusIsland, placement: .principal) {
+                StatusIslandToolbarItem(
+                    isImporting: isImporting,
+                    importProgress: importProgress,
+                    importError: $importError
+                )
             }
         }
     }

@@ -205,6 +205,7 @@ struct LibraryWindow: View {
         .onAppear {
             guard !hasInitialized else { return }
             hasInitialized = true
+            LaunchProfile.milestone("LibraryWindow first onAppear")
             initializeWindow()
             syncHostWindowMetadata()
         }

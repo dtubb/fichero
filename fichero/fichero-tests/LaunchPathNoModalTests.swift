@@ -52,4 +52,40 @@ struct LaunchPathNoModalTests {
         let source = try Self.appSource("Services/EngineLifecycleController.swift")
         #expect(source.contains("try await backendService.start()"))
     }
+
+    /// A modal is not the only way to hold the window hostage: a full-window
+    /// "Connecting to backend…" spinner (or a "Backend Not Running" error
+    /// screen) does the same thing for as long as the health probe takes, and
+    /// it is worse because it looks like the app. Engine state belongs in
+    /// toolbar chrome; content mounts on the first frame regardless (#4036).
+    @Test("no full-window backend gate holds the content off screen")
+    func noFullWindowBackendGate() throws {
+        let source = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
+        #expect(!source.contains("Backend Not Running"))
+        #expect(!source.contains("Connecting to backend"))
+        #expect(
+            !source.contains("if appState.isCheckingBackend {"),
+            "a checking-backend branch here gates the whole window on the probe"
+        )
+    }
+
+    /// The auth gate must wait for the backend to answer. Pre-ready the session
+    /// phase is `.checking` (undetermined, so `allowsLibraryAccess` is false),
+    /// and gating on it flashes the login wall on every launch — which loopback
+    /// bootstrap, always the owner, must never see (#3941).
+    @Test("the auth gate waits for the backend to answer")
+    func authGateWaitsForBackend() throws {
+        let source = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
+        #expect(source.contains("if appState.isBackendRunning,"))
+    }
+
+    /// Restoring saved libraries is local work (UserDefaults paths + security
+    /// scope), so it runs BEFORE the scene graph builds — the first frame then
+    /// mounts the real library shell instead of `noLibraryView` (#4036). Data
+    /// loading still defers; see `restoreSavedLibraries`.
+    @Test("saved libraries materialize before the scene graph builds")
+    func savedLibrariesMaterializeEarly() throws {
+        let source = try Self.appSource("FicheroApp.swift")
+        #expect(source.contains("LibraryManager.shared.restoreSavedLibraries()"))
+    }
 }

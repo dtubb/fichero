@@ -182,6 +182,7 @@ final class EngineLifecycleController {
         }
         isConnecting = true
         defer { isConnecting = false }
+        LaunchProfile.milestone("connect() entry — main actor reached")
 
         // Consume the single provisioning decision (#3109) instead of re-deriving
         // the mode here. `connectsToRemoteHost` is the old

@@ -22,9 +22,12 @@ import Foundation
 @MainActor
 @Observable
 final class EngineSession {
-    /// The engine's usability, as one value. Only `ready` renders real content;
-    /// every other case renders the full-window connection/diagnosis UI (or, for
-    /// `setupNeeded` on iOS, the pairing prompt).
+    /// The engine's usability, as one value. Only `ready` serves data; every
+    /// other case is reported as toolbar chrome (the status island's message
+    /// and the engine popover's Retry) while the real UI stays on screen —
+    /// a bad connection is visible, not blocking (#4036). The one exception is
+    /// `setupNeeded` on iOS, which still routes to the pairing prompt because
+    /// there is no host to talk to yet.
     enum Phase: Equatable {
         /// No host is configured/paired yet — first-run pairing (iOS).
         case setupNeeded
