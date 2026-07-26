@@ -21,7 +21,6 @@ from fastapi.testclient import TestClient
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from fichero.api.main import app
 
 
 # Path to contract files

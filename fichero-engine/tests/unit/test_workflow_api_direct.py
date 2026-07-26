@@ -93,7 +93,7 @@ def test_workflow_registry():
 
     try:
         sys.path.insert(0, str(SRC_DIR))
-        from fichero.workflows.registry import list_tools, get_tool_def
+        from fichero.workflows.registry import list_tools
 
         # Test that we can list tools
         tools = list_tools()

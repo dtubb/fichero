@@ -4,11 +4,9 @@ Unit tests for workflow node caching.
 Tests the NodeCache class and cache key computation.
 """
 
-import json
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 

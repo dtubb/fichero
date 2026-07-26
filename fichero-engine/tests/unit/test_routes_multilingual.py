@@ -6,7 +6,6 @@ cross-language entity search. Routes live at /api/multilingual/...
 transliteration functions are mocked to avoid needing real NLP models.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 

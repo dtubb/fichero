@@ -7,7 +7,6 @@ Tests document security requirements - some will fail until fixes are implemente
 import pickle
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -40,7 +39,6 @@ class TestPyKEENSecurity:
         try:
             # Currently no signature verification
             # This test documents the vulnerability
-            from fichero.api.routes.kg_predictions import _prediction_artifacts_dir
 
             # The vulnerability: pykeen.models.Model.load_directory()
             # uses pickle without verification
@@ -57,15 +55,14 @@ class TestPyKEENSecurity:
         Expected: FAIL (path not validated)
         Fixed: Should block paths outside artifacts directory.
         """
-        from fichero.api.routes.kg_predictions import _prediction_artifacts_dir
 
         # Test path validation
         traversal_path = "../../../etc/passwd"
         validated = Path(traversal_path).resolve()
 
         # Should be restricted to allowed directory
-        artifacts_base = Path("/tmp/fichero/artifacts")
-        is_allowed = str(validated).startswith(str(Path("/tmp")))
+        Path("/tmp/fichero/artifacts")
+        str(validated).startswith(str(Path("/tmp")))
 
         # This test documents the need for path validation
         assert True  # Placeholder - actual validation not implemented
@@ -180,7 +177,7 @@ class TestMetadataValidation:
 
         import time
         start = time.time()
-        match = doi_pattern.match(malicious_input)
+        doi_pattern.match(malicious_input)
         elapsed = time.time() - start
 
         # Should complete quickly (no catastrophic backtracking)
@@ -200,7 +197,7 @@ class TestMetadataValidation:
 
         for field, value in test_cases:
             try:
-                metadata = SourceMetadata(**{field: value})
+                SourceMetadata(**{field: value})
                 # Should either validate successfully or raise ValueError
                 assert True
             except ValueError:

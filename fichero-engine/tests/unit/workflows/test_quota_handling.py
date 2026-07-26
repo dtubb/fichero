@@ -15,7 +15,6 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-import pytest
 
 from fichero.workflows.builder import _is_quota_error
 from fichero.workflows.activity_types import Activity, ActivityType, ActivityLevel

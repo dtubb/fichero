@@ -16,7 +16,6 @@ from fichero.models.knowledge import (
     KnowledgeClaim,
     KnowledgeClaimLink,
     ClaimType,
-    ClaimRelationType,
 )
 from fichero.models import Document, DocType
 

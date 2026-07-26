@@ -12,11 +12,8 @@ These tests verify:
 - Key is stable when file list order is shuffled
 """
 
-import hashlib
-import json
 import os
 import tempfile
-from pathlib import Path
 
 import pytest
 

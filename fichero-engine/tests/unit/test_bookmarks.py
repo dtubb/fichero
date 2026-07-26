@@ -1,8 +1,6 @@
 """Unit tests for macOS bookmarks module."""
 import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import sys
 
 
 # Skip entire module on non-macOS

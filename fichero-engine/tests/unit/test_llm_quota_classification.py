@@ -1,6 +1,5 @@
 """Tests for #2227: _is_provider_quota_error must not misclassify context-length errors."""
 
-import pytest
 
 from fichero.llm import _is_provider_quota_error
 

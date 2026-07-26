@@ -84,7 +84,7 @@ def test_workflow_registry():
     print("\nTesting workflow registry...")
 
     try:
-        from fichero.workflows.registry import list_tools, get_tool_def
+        from fichero.workflows.registry import list_tools
 
         # Test that we can list tools
         tools = list_tools()

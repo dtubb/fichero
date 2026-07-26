@@ -4,13 +4,11 @@ Tests for workflow rename/duplicate functionality.
 """
 import sys
 from pathlib import Path
-import uuid
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from fichero.models import Workflow
-from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
 
 
 def test_workflow_rename():
@@ -63,7 +61,7 @@ def test_workflow_rename():
         assert original_workflow.nodes == original_nodes, "Nodes should remain unchanged"
         assert original_workflow.edges == original_edges, "Edges should remain unchanged"
 
-        print(f"✅ Original name: 'Original Workflow Name'")
+        print("✅ Original name: 'Original Workflow Name'")
         print(f"✅ Renamed to: '{original_workflow.name}'")
         print("✅ Only name changed during rename operation")
         print("✅ All other properties preserved during rename")

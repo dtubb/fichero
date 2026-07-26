@@ -9,7 +9,6 @@ the full route -> registry.invoke -> patch_metadata chain runs.
 
 from __future__ import annotations
 
-import pytest
 
 import fichero.bibliography.doi_lookup as doi_lookup
 from fichero.bibliography.importers import read_bibtex

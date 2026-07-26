@@ -8,7 +8,6 @@ Tests cover:
 - Error handling
 """
 
-from datetime import datetime
 
 import pytest
 from fastapi import HTTPException
@@ -26,7 +25,6 @@ from fichero.api.routes.claim.claims import (
     ClaimPatchRequest,
     create_claim,
     list_claims,
-    get_claim,
     patch_claim,
 )
 from fichero.api.routes.claim.links import (
@@ -34,7 +32,6 @@ from fichero.api.routes.claim.links import (
     ClaimLinkUpdateRequest,
     create_claim_link,
     list_claim_links,
-    get_claim_link,
     update_claim_link,
     delete_claim_link,
 )
@@ -42,11 +39,7 @@ from fichero.models.knowledge import (
     EntityType,
     ClaimType,
     ClaimCurationState,
-    EpistemicStatus,
     SourceType,
-    KnowledgeEntity,
-    KnowledgeClaim,
-    KnowledgeClaimLink,
     ClaimRelationType,
 )
 from fichero.models import Document

@@ -6,7 +6,6 @@ prefix="/integrations" mounted at "/api"). The integration registry is
 mocked to avoid requiring installed Mac applications.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 

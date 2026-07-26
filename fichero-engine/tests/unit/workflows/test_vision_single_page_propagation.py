@@ -12,7 +12,7 @@ observable effect that was previously skipped.
 from __future__ import annotations
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from fichero.models import DocType, Document
 from fichero.workflows.tools.vision_base import _propagate_to_page_children

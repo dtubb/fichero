@@ -12,7 +12,7 @@ These tests use real workflow execution with mocked LLM calls.
 import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 

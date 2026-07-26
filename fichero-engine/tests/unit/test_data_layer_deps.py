@@ -12,8 +12,6 @@ This module validates that all data layer dependencies work correctly:
 import pytest
 import tempfile
 import os
-import shutil
-from pathlib import Path
 from datetime import datetime
 
 
@@ -129,7 +127,6 @@ class TestPydantic:
     def test_model_dump(self):
         """Test Pydantic model serialization."""
         from pydantic import BaseModel, Field
-        from datetime import datetime
 
         class Collection(BaseModel):
             id: str
@@ -252,7 +249,6 @@ class TestLangGraph:
 
     def test_import(self):
         """Test LangGraph imports correctly."""
-        import langgraph
         from langgraph.graph import StateGraph
         assert StateGraph is not None
 
@@ -296,7 +292,6 @@ class TestIntegration:
         """Test storing Pydantic models in DuckDB."""
         import duckdb
         from pydantic import BaseModel, Field
-        from datetime import datetime
 
         class Item(BaseModel):
             id: str

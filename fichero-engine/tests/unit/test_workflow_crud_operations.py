@@ -2,18 +2,14 @@
 """
 Comprehensive tests for workflow CRUD operations.
 """
-import asyncio
 import sys
 from pathlib import Path
-import tempfile
-import json
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from fichero.models import Workflow
 from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
-from fichero.workflows.registry import get_tool_def
 
 
 def test_workflow_model_crud():

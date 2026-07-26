@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, MagicMock
 
 from fichero.models import Document, DocType, FileType
 from fichero.llm import LLMConfig
@@ -244,7 +244,7 @@ async def test_folder_tool_pdf_with_page_children_expands_to_per_page_entries():
         id="pg2", name="Page 2", doc_type=DocType.page, path=None,
         parent_id="pdf1", sequence=2,
     )
-    db = _StubDB([pdf_doc, page1, page2])
+    _StubDB([pdf_doc, page1, page2])
 
     def _fake_db_query(_model, **kwargs):
         all_docs = [pdf_doc, page1, page2]

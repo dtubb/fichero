@@ -23,10 +23,8 @@ Fix contract (asserted by tests below):
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from fichero.importers.ingest import ingest_file, ingest_folder, IngestMode
 from fichero.models import Status

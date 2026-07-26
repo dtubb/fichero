@@ -131,7 +131,7 @@ async def test_unknown_value_no_needs_human_branch_still_falls_back(monkeypatch)
 
     from fichero.workflows.builder import build_graph
 
-    final_state = await build_graph(workflow, enable_parallel=False).ainvoke(
+    await build_graph(workflow, enable_parallel=False).ainvoke(
         {"workflow_id": "wf-2238-b", "library_path": ""}
     )
 

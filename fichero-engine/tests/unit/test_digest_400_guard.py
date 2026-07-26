@@ -12,10 +12,7 @@ so that `_digest_library_database` runs its real implementation.
 
 from __future__ import annotations
 
-import os
-import tempfile
 
-import pytest
 
 
 def _make_raw_client():

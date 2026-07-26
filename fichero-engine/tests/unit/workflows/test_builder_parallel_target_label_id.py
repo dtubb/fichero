@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import pathlib
 
-import pytest
 
 from fichero.workflows.builder import build_graph
 from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef

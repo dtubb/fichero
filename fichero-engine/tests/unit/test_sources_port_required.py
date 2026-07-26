@@ -12,7 +12,6 @@ errors for nodes that leave the Query port unmapped.
 
 from __future__ import annotations
 
-import pytest
 
 from fichero.workflows.types import NodeDef
 from fichero.workflows.validation import validate_node_connections

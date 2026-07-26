@@ -306,7 +306,7 @@ class TestPerPageProvenance:
                 "library_path": str(test_package),
                 "selected_doc_ids": [container_doc.id],
             }
-            result = await _run_extractor(
+            await _run_extractor(
                 people_section, {"text": aggregated}, state, llm_config
             )
 

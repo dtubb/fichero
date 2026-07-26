@@ -7,8 +7,6 @@ that vulnerabilities exist) and should PASS after security fixes.
 To run: pytest fichero-engine/tests/unit/test_research_ssrf_security.py -v
 """
 
-import ipaddress
-import socket
 from unittest.mock import patch, AsyncMock, MagicMock, Mock
 import pytest
 import httpx
@@ -60,7 +58,7 @@ class TestSSRFRedirectBypass:
         mock_async_client.get = AsyncMock(side_effect=mock_get)
         
         with patch("httpx.AsyncClient", return_value=mock_async_client):
-            resp = client.post(
+            client.post(
                 "/api/research/tools/web-search",
                 json={"query": "test", "max_results": 5},
             )

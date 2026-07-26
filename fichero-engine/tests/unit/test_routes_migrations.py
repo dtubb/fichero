@@ -7,7 +7,6 @@ Note: router uses prefix="/migrations" mounted at "/api/migrations",
 so actual paths are /api/migrations/migrations/...
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 from datetime import datetime
 

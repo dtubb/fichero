@@ -40,7 +40,7 @@ def _login(client: TestClient, username: str, password: str = "password") -> str
 
 
 def test_non_owner_can_pair_own_device_and_owner_can_revoke(pairing_client, app_db):
-    owner = app_db.create_user(
+    app_db.create_user(
         username="owner",
         display_name="Owner",
         password_hash=accounts.hash_password("password"),

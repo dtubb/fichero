@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import threading
 
-import pytest
 
 from fichero.security import accounts
 from fichero.security import authz

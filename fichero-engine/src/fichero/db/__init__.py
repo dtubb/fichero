@@ -42,7 +42,10 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
 from types import UnionType
-from typing import TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
+from typing import TYPE_CHECKING, TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
+
+if TYPE_CHECKING:
+    from fichero.models import Workflow
 from dataclasses import dataclass, field
 from datetime import datetime
 import difflib

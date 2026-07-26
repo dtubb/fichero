@@ -10,7 +10,6 @@ import json
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from fichero.models import Workflow
-from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
 
 
 def test_workflow_export():

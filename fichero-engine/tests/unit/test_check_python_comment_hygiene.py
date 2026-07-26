@@ -124,8 +124,8 @@ def test_repo_python_source_has_no_new_violations():
     known = set(_mod.KNOWN_VIOLATIONS)
     new = set(found) - known
     assert not new, (
-        f"New Python comment hygiene violations found (add to KNOWN_VIOLATIONS "
-        f"or fix the source):\n" + "\n".join(f"  {k}: {found[k]}" for k in sorted(new))
+        "New Python comment hygiene violations found (add to KNOWN_VIOLATIONS "
+        "or fix the source):\n" + "\n".join(f"  {k}: {found[k]}" for k in sorted(new))
     )
 
 

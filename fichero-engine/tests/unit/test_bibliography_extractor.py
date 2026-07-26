@@ -14,7 +14,6 @@ import asyncio
 from types import SimpleNamespace
 
 import fitz
-import pytest
 
 import fichero.bibliography.extractor as ex
 from fichero.bibliography.extractor import (

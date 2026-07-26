@@ -377,7 +377,6 @@ class TestZombieRunRecovery:
         """
         import asyncio
         from datetime import datetime, timezone, timedelta
-        from unittest.mock import patch
 
         from fichero.workflows.activity_store import ActivityStore
         import fichero.workflows.activity as activity_module
@@ -629,7 +628,7 @@ class TestZombieRowIndexCrash:
         # unit-test DB.  What we assert here: the guard UPDATE runs cleanly,
         # the index statements complete, and __init__ returns without raising.
         try:
-            store = ActivityStore(db_path)
+            ActivityStore(db_path)
         except Exception as exc:
             pytest.fail(
                 f"#1362: ActivityStore.__init__ raised on DB with zombie rows: {exc}"

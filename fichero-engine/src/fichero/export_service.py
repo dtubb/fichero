@@ -1744,7 +1744,9 @@ def _xlsx_package_rels() -> str:
 
 def _xlsx_workbook(sheet_items: list[tuple[str, list[dict[str, Any]]]]) -> str:
     sheets = "".join(
-        f'<sheet name="{escape(name, {"\"": "&quot;"})}" sheetId="{index}" r:id="rId{index}"/>'
+        '<sheet name="{}" sheetId="{}" r:id="rId{}"/>'.format(
+            escape(name, {'"': "&quot;"}), index, index
+        )
         for index, (name, _) in enumerate(sheet_items, start=1)
     )
     return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

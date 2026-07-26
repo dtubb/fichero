@@ -69,6 +69,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Settings/AI/AISettingsView+Helpers.swift": "#1945 — candidate dead file: TierCapability",
     "Views/Sidebar/State/ActivityDataProcessing.swift": "#1945 — candidate dead file: ActivityWorkflowGroup",
     "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": "#2955 — file stays live via SidebarItemRow drop-handling extension; primary helper types are local-only",
+    "Views/Sidebar/ItemRow/SidebarItemRow+DropHandlers.swift": "#2955 — live but scanner-blind: FolderDropItemOutcome is a local result bundle; the extension's handleProvidersDrop/handleDropIntoFolder are called from SidebarItemRow+Drop.swift",
     "Views/Sidebar/ItemRow/SidebarItemRow+Workflow.swift": "live but scanner-blind: SidebarWorkflowRequest is a private same-file parameter bundle used by runWorkflowOnDocuments/executeSidebarWorkflow; the extension is called from SidebarItemRow+Presentation.swift",
     "Views/Components/MiniToolbarComponents.swift": "#2955 — live but scanner-blind: WorkflowMiniToolbarButton exercised by #2415 tests",
     "Views/Workflow/Nodes/DynamicConfigView+FieldRendering.swift": "#1945 — candidate dead file: DynamicFolderPickerOption",

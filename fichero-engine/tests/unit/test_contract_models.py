@@ -17,7 +17,6 @@ from fichero.workflows.types import (
     NodeDef,
     EdgeDef,
     PortDef,
-    InputMapping,
 )
 
 

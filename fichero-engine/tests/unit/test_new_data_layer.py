@@ -6,13 +6,11 @@ Verifies:
 - Document hierarchy queries
 """
 import pytest
-from datetime import datetime
 from pathlib import Path
 import tempfile
 
 from fichero.models import (
-    Document, Artifact, Workflow, Run, Trace, Note, Event,
-    DocType, FileType, Status, RunStatus
+    Document, Artifact, Workflow, Run, DocType, FileType, Status, RunStatus
 )
 from fichero.db import Database
 

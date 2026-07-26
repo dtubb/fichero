@@ -11,7 +11,6 @@ write path. Without this, paragraph composition with citation arrows
 
 from __future__ import annotations
 
-import pytest
 
 from fichero.workflows.tools.extractors import _synthesize_svo_fallback
 

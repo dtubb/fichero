@@ -5,7 +5,6 @@ MCP tools provide thin REST wrappers around canonical Knowledge API operations
 /api/mcp/tools. Tests use the real in-memory DB via the client fixture.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 
 from fichero.security import accounts
@@ -17,7 +16,6 @@ from fichero.models.knowledge import (
     ClaimType,
     EpistemicStatus,
     ClaimCurationState,
-    SourceType,
     EntityType,
 )
 

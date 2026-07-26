@@ -7,7 +7,6 @@ components (weights, thresholds, directions) and the rank assignment. No network
 
 from __future__ import annotations
 
-import pytest
 
 from fichero.llm.model_recommendations import (
     ModelRecommendationCandidate as Candidate,

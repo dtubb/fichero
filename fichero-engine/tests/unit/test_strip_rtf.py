@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from fichero.loaders.document_loader import _strip_rtf
 

@@ -2,8 +2,7 @@
 import logging
 import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import tempfile
+from unittest.mock import patch, MagicMock
 
 
 def _make_pdf(tmp_path: Path, name: str, page_count: int, *, page_labels=None) -> Path:
@@ -478,7 +477,7 @@ class TestIngestFile:
     @patch("fichero.bookmarks.create_bookmark")
     def test_sets_parent_id(self, mock_bookmark, mock_db, tmp_path):
         """Should set parent_id when provided."""
-        from fichero.importers.ingest import ingest_file, IngestMode
+        from fichero.importers.ingest import ingest_file
 
         file = tmp_path / "test.jpg"
         file.write_bytes(b"fake")
@@ -536,7 +535,7 @@ class TestIngestFolder:
 
         mock_bookmark.return_value = None
 
-        docs = ingest_folder(tmp_path, create_collection=True)
+        ingest_folder(tmp_path, create_collection=True)
 
         # Should have saved collection
         calls = mock_db.save.call_args_list
@@ -1165,7 +1164,7 @@ class TestContentAccess:
         file = tmp_path / "test.pdf"
         
         # Create a simple PDF with text
-        writer = PdfWriter()
+        PdfWriter()
         from io import BytesIO
         from reportlab.pdfgen import canvas
         
@@ -1261,7 +1260,7 @@ class TestIntegration:
     def test_complete_ingestion_workflow(self, tmp_path):
         """Should complete full ingestion workflow successfully."""
         from fichero.importers.ingest import ingest_file
-        from fichero.models import Document, FileType
+        from fichero.models import FileType
         
         # Create a test file
         file = tmp_path / "test_ingestion.jpg"
@@ -1297,7 +1296,7 @@ class TestIntegration:
     def test_ingestion_with_text_extraction(self, tmp_path):
         """Should ingest file with text extraction enabled."""
         from fichero.importers.ingest import ingest_file
-        from fichero.models import Document, FileType
+        from fichero.models import FileType
         
         # Create a text file
         file = tmp_path / "test_text.txt"
@@ -1324,7 +1323,7 @@ class TestIntegration:
                 assert result.name == "test_text.txt"
                 assert result.file_type == FileType.text
                 # Text content should be extracted
-                assert result.metadata.get("text_extracted") == True
+                assert result.metadata.get("text_extracted")
                 assert "Test content for extraction" in result.page_content
 
 
@@ -1349,7 +1348,7 @@ class TestTextExtraction:
                 
                 assert doc.name == "sample.txt"
                 assert doc.file_type == FileType.text
-                assert doc.metadata.get("text_extracted") == True
+                assert doc.metadata.get("text_extracted")
                 assert "Plain Text Sample" in doc.page_content
                 assert "Línea en español" in doc.page_content
                 assert len(doc.page_content) > 50  # Should have substantial content
@@ -1372,7 +1371,7 @@ class TestTextExtraction:
                 
                 assert doc.name == "sample.md"
                 assert doc.file_type == FileType.text
-                assert doc.metadata.get("text_extracted") == True
+                assert doc.metadata.get("text_extracted")
                 assert "Sample Document" in doc.page_content
                 assert "Fichero loaders" in doc.page_content
                 assert "Sección 2" in doc.page_content
@@ -1397,7 +1396,7 @@ class TestTextExtraction:
                 
                 assert doc.name == "sample.docx"
                 assert doc.file_type == FileType.word
-                assert doc.metadata.get("text_extracted") == True
+                assert doc.metadata.get("text_extracted")
                 assert len(doc.page_content) > 0  # Should have some content
                 # Check for expected content from the DOCX file
                 assert "Sample" in doc.page_content or "Document" in doc.page_content
@@ -1447,7 +1446,7 @@ class TestTextExtraction:
                 
                 assert doc.name == "sample.pdf"
                 assert doc.file_type == FileType.pdf
-                assert doc.metadata.get("text_extracted") == True
+                assert doc.metadata.get("text_extracted")
                 assert len(doc.page_content) > 0  # Should have some content
 
     def test_pdf_creates_page_children_with_named_page_labels(self, tmp_path):
@@ -1631,7 +1630,7 @@ class TestTextExtraction:
                 assert doc.name == "sample.txt"
                 assert doc.file_type == FileType.text
                 # Should not have text extraction metadata
-                assert doc.metadata.get("text_extracted") != True
+                assert not doc.metadata.get("text_extracted")
                 # Should not have page_content
                 assert doc.page_content is None or len(doc.page_content) == 0
 
@@ -1653,7 +1652,7 @@ class TestTextExtraction:
                 
                 assert doc.name == "sample.txt"
                 assert doc.file_type == FileType.text
-                assert doc.metadata.get("text_extracted") == True
+                assert doc.metadata.get("text_extracted")
                 assert "text_length" in doc.metadata
                 assert doc.metadata["text_length"] > 0
                 assert doc.metadata["text_length"] == len(doc.page_content)
@@ -1676,7 +1675,7 @@ class TestTextExtraction:
                 
                 assert doc.name == "sample.txt"
                 assert doc.file_type == FileType.text
-                assert doc.metadata.get("text_extracted") == True
+                assert doc.metadata.get("text_extracted")
                 # Check for Spanish text with accents
                 assert "Línea en español con acentos" in doc.page_content
                 assert "áéíóú" in doc.page_content
@@ -1702,7 +1701,7 @@ class TestTextExtraction:
                 assert doc.name == "sample.jpg"
                 assert doc.file_type == FileType.image
                 # Should not have text extraction for images
-                assert doc.metadata.get("text_extracted") != True
+                assert not doc.metadata.get("text_extracted")
                 assert doc.page_content is None or len(doc.page_content) == 0
 
     def test_text_extraction_error_handling(self):
@@ -1729,7 +1728,7 @@ class TestTextExtraction:
                     assert doc.name == "sample.txt"
                     assert doc.file_type == FileType.text
                     # Should handle error gracefully
-                    assert doc.metadata.get("text_extracted") == False
+                    assert not doc.metadata.get("text_extracted")
                     assert doc.page_content is None or len(doc.page_content) == 0
 
 
@@ -1739,7 +1738,6 @@ class TestPerformance:
     def test_multiple_file_ingestion(self, tmp_path):
         """Should handle ingestion of multiple files efficiently."""
         from fichero.importers.ingest import ingest_file
-        from fichero.models import FileType
         import time
         
         # Create multiple test files
@@ -1849,7 +1847,6 @@ class TestTouchAncestorDocumentsCycleGuard:
         """A->B->A cycle must stop (visited guard) without hanging."""
         from fichero.importers.ingest import _touch_ancestor_documents
         from fichero.models import Document, DocType
-        from datetime import datetime
 
         # Build two docs with a cyclic parent relationship: A.parent=B, B.parent=A
         doc_a = Document(id="doc-a", name="A", doc_type=DocType.folder, parent_id="doc-b")

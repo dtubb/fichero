@@ -5,7 +5,6 @@ They represent bibliographic sources (books, papers) that claims cite.
 Tests verify the upsert/CRUD contract and the source-vs-document boundary.
 """
 
-import pytest
 from fichero.models import Document, DocType
 
 
