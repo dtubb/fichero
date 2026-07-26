@@ -18,7 +18,7 @@ struct SidebarOpenAffordanceTests {
             // `fromDocument` requires a library; a nil-library document row can
             // still exist transiently, so build one directly for the fallback case.
             return SidebarItem(
-                id: "doc:\(id)", name: id, icon: "doc", category: .documents,
+                id: "doc:\(id)", name: id, icon: "doc", category: .folder,
                 itemType: .document(doc), children: nil, libraryId: nil,
                 folderPath: "/", sortOrder: 0, isFolder: false
             )
