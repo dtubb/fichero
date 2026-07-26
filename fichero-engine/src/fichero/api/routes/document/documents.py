@@ -1630,6 +1630,25 @@ async def move_document(
     return doc
 
 
+@router.post("/{doc_id}/duplicate")
+async def duplicate_document(
+    doc_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> Document:
+    """Deep-copy a document (subtree included) beside the original."""
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.duplicate",
+        {"doc_id": doc_id},
+        ctx,
+    )
+    doc = Document.model_validate(result.result)
+    logger.info(f"Duplicated document: {doc_id} -> {doc.id}")
+    return doc
+
+
 def cleanup_orphan_documents_impl(
     db: Database, *, library_path: str
 ) -> tuple[OrphanCleanupResponse, list[str]]:
@@ -1901,6 +1920,43 @@ def move_document_impl(
     doc.updated_at = datetime.now()
     db.save(doc)
     return doc, before
+
+
+def duplicate_document_impl(db: Database, doc_id: str) -> tuple[Document, list[str]]:
+    """Deep-copy a document subtree. Returns ``(root copy, all new ids)``.
+
+    Finder semantics: the root copy lands beside the original (same parent)
+    named "<name> copy"; descendants keep their names. Copies get fresh ids
+    and timestamps; ``page_content``/metadata/attributes ride along, but
+    derived artifact rows are NOT copied (they regenerate on demand) and
+    copies are not re-embedded here — a reindex covers search. Locked nodes
+    (Default Workflows container/mirrors) refuse — duplicate the workflow
+    via the workflow route instead.
+    """
+    src = _document_or_404(db, doc_id)
+    _reject_if_document_read_only(src, "duplicated")
+
+    new_ids: list[str] = []
+
+    def copy_node(node: Document, parent_id: str | None, name: str | None) -> Document:
+        data = node.model_dump(mode="json")
+        for field in ("id", "created_at", "updated_at"):
+            data.pop(field, None)
+        dup = Document(**data)
+        dup.parent_id = parent_id
+        if name is not None:
+            dup.name = name
+        now = datetime.now()
+        dup.created_at = now
+        dup.updated_at = now
+        db.save(dup)
+        new_ids.append(dup.id)
+        for child in _list_documents(db, parent_id=node.id, include_deleted=False):
+            copy_node(child, dup.id, None)
+        return dup
+
+    root_copy = copy_node(src, src.parent_id, f"{src.name} copy")
+    return root_copy, new_ids
 
 
 def reorder_documents_impl(
@@ -2191,6 +2247,12 @@ class DocumentMoveParams(BaseModel):
     )
 
 
+class DocumentDuplicateParams(BaseModel):
+    """Params for document.duplicate."""
+
+    doc_id: str = Field(description="Document id to deep-copy (subtree included)")
+
+
 class DocumentReorderParams(BaseModel):
     """Params for document.reorder."""
 
@@ -2396,6 +2458,41 @@ def _action_move_document(
         emit_fn=_emit_document_change_spec,
     )
     return doc.model_dump(mode="json"), spec
+
+
+def _invert_duplicate_document(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    # Undo of a duplicate deletes the root copy — document.delete cascades
+    # to the copied subtree.
+    if not after:
+        return None
+    root_id = after.get("document_id")
+    if not root_id:
+        return None
+    return ("document.delete", {"doc_id": root_id})
+
+
+@action(
+    "document.duplicate",
+    DocumentDuplicateParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_duplicate_document,
+)
+def _action_duplicate_document(
+    db: Database, params: DocumentDuplicateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    root_copy, new_ids = duplicate_document_impl(db, params.doc_id)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=new_ids,
+        after={"document_id": root_copy.id, "duplicated_ids": new_ids},
+        emit_type="document.created",
+        document_ids=new_ids,
+        emit_fn=_emit_document_change_spec,
+    )
+    return root_copy.model_dump(mode="json"), spec
 
 
 @action(

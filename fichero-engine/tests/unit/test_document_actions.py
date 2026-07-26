@@ -378,6 +378,73 @@ class TestDocumentMoveAction:
 
 
 # ===========================================================================
+# document.duplicate
+# ===========================================================================
+
+
+class TestDocumentDuplicateAction:
+    def test_duplicate_leaf_lands_beside_original(self, db):
+        parent = _save_doc(db, name="p", doc_type=DocType.folder)
+        doc = _save_doc(db, name="Paper", parent_id=parent.id, page_content="hello")
+
+        result = registry.invoke(
+            db, "document.duplicate", {"doc_id": doc.id}, _ctx()
+        )
+        copy = Document.model_validate(result.result)
+
+        assert copy.id != doc.id
+        assert copy.name == "Paper copy"
+        assert copy.parent_id == parent.id
+        assert db.get(Document, copy.id).page_content == "hello"
+        # Original untouched.
+        assert db.get(Document, doc.id).name == "Paper"
+
+    def test_duplicate_folder_deep_copies_subtree(self, db):
+        folder = _save_doc(db, name="F", doc_type=DocType.folder)
+        child = _save_doc(db, name="c1", parent_id=folder.id)
+        grand = _save_doc(
+            db, name="g1", doc_type=DocType.folder, parent_id=child.id
+        )
+
+        result = registry.invoke(
+            db, "document.duplicate", {"doc_id": folder.id}, _ctx()
+        )
+        copy = Document.model_validate(result.result)
+
+        assert copy.name == "F copy"
+        copy_children = [d for d in db.query(Document, parent_id=copy.id)]
+        assert [c.name for c in copy_children] == ["c1"]
+        copy_grand = [d for d in db.query(Document, parent_id=copy_children[0].id)]
+        assert [g.name for g in copy_grand] == ["g1"]
+        # Fresh ids everywhere — the copy shares no rows with the original.
+        original_ids = {folder.id, child.id, grand.id}
+        assert {copy.id, copy_children[0].id, copy_grand[0].id}.isdisjoint(original_ids)
+
+    def test_duplicate_locked_node_rejected(self, db):
+        locked = _save_doc(
+            db, name="Default Workflows", doc_type=DocType.folder,
+            attributes={"read_only": True},
+        )
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(db, "document.duplicate", {"doc_id": locked.id}, _ctx())
+        assert exc.value.status_code == 403
+
+    def test_duplicate_undo_deletes_the_copy_subtree(self, db):
+        folder = _save_doc(db, name="F", doc_type=DocType.folder)
+        _save_doc(db, name="c1", parent_id=folder.id)
+        ctx = _ctx()
+
+        result = registry.invoke(db, "document.duplicate", {"doc_id": folder.id}, ctx)
+        copy = Document.model_validate(result.result)
+
+        inv = _invoke_inverse(db, result.audit_id, ctx)
+        assert inv == "document.delete"
+        assert db.get(Document, copy.id).deleted_at is not None
+        # Original survives the undo.
+        assert db.get(Document, folder.id).deleted_at is None
+
+
+# ===========================================================================
 # document.reorder
 # ===========================================================================
 
