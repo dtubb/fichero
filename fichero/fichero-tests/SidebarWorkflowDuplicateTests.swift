@@ -8,19 +8,21 @@ import XCTest
 /// surfaces failures instead of logging them away.
 final class SidebarWorkflowDuplicateTests: XCTestCase {
 
-    func testDuplicateMenuItemIsWorkflowGated() throws {
+    func testDuplicateMenuItemIsKindGated() throws {
         let menu = try appSource("Views/Sidebar/ItemRow/SidebarItemContextMenu.swift")
-        // Shown only when a workflow row provides the callback.
-        XCTAssertTrue(menu.contains("if let onDuplicate, case .workflow = item.itemType {"))
+        // Shown only for kinds with a backend duplicate endpoint.
+        XCTAssertTrue(menu.contains("if let onDuplicate, itemTypeSupportsDuplicate {"))
+        XCTAssertTrue(menu.contains("case .workflow, .savedSearch, .conversation:"))
         XCTAssertTrue(menu.contains(#"Label("Duplicate", systemImage: "plus.square.on.square")"#))
     }
 
-    func testRowWiresDuplicateThroughWorkflowStore() throws {
+    func testRowWiresDuplicateThroughExistingEndpoints() throws {
         let row = try appSource("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
-        // Non-workflow rows get nil (menu item hidden), workflow rows call the
-        // one existing store endpoint and surface errors on the drop banner.
-        XCTAssertTrue(row.contains("guard case .workflow(let workflow) = item.itemType,"))
+        // Each duplicable kind calls its one existing endpoint; failures
+        // surface on the drop banner.
         XCTAssertTrue(row.contains("try await store.duplicateWorkflow(workflow.id)"))
+        XCTAssertTrue(row.contains("try await service.duplicateSavedSearch(search.id)"))
+        XCTAssertTrue(row.contains("try await service.duplicateConversation(conversation.id)"))
         XCTAssertTrue(row.contains("sidebarState.dropErrorMessage = error.localizedDescription"))
     }
 

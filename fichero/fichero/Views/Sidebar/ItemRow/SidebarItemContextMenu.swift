@@ -41,7 +41,7 @@ struct SidebarItemContextMenu: View {
             })
             .disabled(!item.itemType.canBeRenamed)
 
-            if let onDuplicate, case .workflow = item.itemType {
+            if let onDuplicate, itemTypeSupportsDuplicate {
                 Button(action: onDuplicate, label: {
                     Label("Duplicate", systemImage: "plus.square.on.square")
                 })
@@ -55,6 +55,17 @@ struct SidebarItemContextMenu: View {
             })
             .keyboardShortcut(.delete, modifiers: .command)
             .disabled(!resolvedDeleteTargets.contains { $0.itemType.canBeDeleted })
+        }
+    }
+
+    /// Kinds with a backend duplicate endpoint. Documents get theirs once
+    /// the client wraps the new document.duplicate route.
+    private var itemTypeSupportsDuplicate: Bool {
+        switch item.itemType {
+        case .workflow, .savedSearch, .conversation:
+            return true
+        default:
+            return false
         }
     }
 
