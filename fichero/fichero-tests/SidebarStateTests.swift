@@ -212,4 +212,58 @@ final class SidebarStateTests: XCTestCase {
 
         UserDefaults.standard.removeObject(forKey: "sidebar.expanded.\(id1)")
     }
+
+    // MARK: - Retired-key purge must not write when nothing to purge (#4104)
+
+    /// SidebarState.init runs on every SidebarView.init (State(wrappedValue:)
+    /// re-evaluates each parent body pass). An unguarded removeObject posts
+    /// UserDefaults.didChangeNotification even for an absent key, which
+    /// invalidated every @AppStorage/@SceneStorage in the window and spun the
+    /// AttributeGraph at 100% CPU. These lock the guard.
+    func testPurgeRetiredDefaultsIsNoOpWhenKeyAbsent() throws {
+        let suite = "test.purge.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertFalse(
+            SidebarState.purgeRetiredDefaults(windowId: "w", defaults: defaults),
+            "absent key must not be written (a write re-dirties the AttributeGraph)"
+        )
+    }
+
+    func testPurgeRetiredDefaultsRemovesOnceThenGoesQuiet() throws {
+        let suite = "test.purge.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set(["stale"], forKey: "sidebar.unified.sections.w")
+
+        XCTAssertTrue(SidebarState.purgeRetiredDefaults(windowId: "w", defaults: defaults))
+        XCTAssertNil(defaults.object(forKey: "sidebar.unified.sections.w"))
+        XCTAssertFalse(
+            SidebarState.purgeRetiredDefaults(windowId: "w", defaults: defaults),
+            "second call must be a pure read"
+        )
+    }
+
+    /// End-to-end guard: constructing SidebarState twice (as SwiftUI does on
+    /// every body pass) must not post defaults-change notifications after the
+    /// first pass — the exact per-frame write that caused the CPU spin.
+    func testRepeatedInitDoesNotWriteDefaults() {
+        let id = freshWindowId()
+        _ = SidebarState(windowId: id)  // first pass may purge
+
+        var changes = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: UserDefaults.standard,
+            queue: nil
+        ) { _ in changes += 1 }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        _ = SidebarState(windowId: id)
+        _ = SidebarState(windowId: id)
+
+        XCTAssertEqual(changes, 0, "re-init must be read-only — writes here loop the AttributeGraph")
+    }
 }

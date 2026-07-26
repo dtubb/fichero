@@ -79,7 +79,24 @@ class SidebarState {
 
         // Purge stale persistence from the retired unified-section headers
         // (removed when the per-library sub-sections collapsed into one node list).
-        UserDefaults.standard.removeObject(forKey: "sidebar.unified.sections.\(windowId)")
+        Self.purgeRetiredDefaults(windowId: windowId)
+    }
+
+    /// One-time purge of the retired unified-section key. MUST stay guarded:
+    /// this init runs on every `SidebarView.init` (`State(wrappedValue:)` is
+    /// re-evaluated each parent body pass), and an unconditional
+    /// `removeObject` posts `UserDefaults.didChangeNotification` even when
+    /// the key is absent — which invalidates every @AppStorage/@SceneStorage
+    /// in the window and spun the AttributeGraph at 100% CPU (#4104).
+    @discardableResult
+    static func purgeRetiredDefaults(
+        windowId: String,
+        defaults: UserDefaults = .standard
+    ) -> Bool {
+        let key = "sidebar.unified.sections.\(windowId)"
+        guard defaults.object(forKey: key) != nil else { return false }
+        defaults.removeObject(forKey: key)
+        return true
     }
 
     // MARK: - State Management
