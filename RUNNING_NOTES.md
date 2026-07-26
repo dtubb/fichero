@@ -542,6 +542,57 @@ Dependency spine: #3 → any document Duplicate UI / #9 · #4 → "Make Alias"
 menu item · #10 → #6, #8 · #5 → only Daniel's confirmation.
 Dispatchable immediately in this lane: #7 (and #5 once confirmed).
 
+## Session 9 — full implementation pass (Daniel: "implement all of this")
+Decisions from Daniel: folder duplicate = DEEP COPY; focus exit =
+right-arrow-on-leaf. AppKit allowed but iOS/visionOS must compile (all new
+UI code is SwiftUI; platform bits stay `#if os(macOS)`-gated).
+
+### Commits (in order)
+- `1650dae5e`/`4dada8eeb`/`ee55e0c57`/pieces of `6d3761f21`+`1ad9f06cb` —
+  FicheroTests bundle compile blockers repaired (.localhost sweep ×4 files,
+  main-actor test, ItemCategory case, SidebarActions constructors).
+- `5c311c4c8` workflow Duplicate + multi-item drop feedback ("Moved N of M").
+- `759b3a1b9` ENGINE cycle guard on document.move (400 self/descendant).
+- `6d3761f21` ENGINE Default Workflows lock on document update/move/delete
+  (403; locked containers refuse new children; stale docstring fixed).
+- `1ad9f06cb` #571 restoration: drop/context/highlight on outer
+  DisclosureGroup (chevron strip live again).
+- `66426f94e` AppKit-import guardrail fix (SwiftUI re-exports AppKit).
+- `49e26bb72` ENGINE document.duplicate (deep subtree copy, "<name> copy",
+  locked nodes 403, undo = delete copy). Client wrapper deferred until the
+  release-flow OpenAPI regen (route not yet in committed spec — parity check
+  green; contracts 9/9 tolerate app>spec).
+- `89a23835c` ENGINE re-seed resurrects soft-deleted workflow mirrors
+  (red→green test; pre-lock DBs healed on next open).
+- `d65b562ad` Edit ▸ Delete count-aware ("Delete N Items", any-deletable
+  gate) + rename failures alert.
+- `a0cd2bcb0` right-arrow-on-leaf focus handoff via .onKeyPress pass-through
+  (NOT .onMoveCommand — #560 class).
+- `95d253b32` Duplicate menu parity: saved searches + conversations.
+- `77f7981ec` Finder aliases: Document decodes node_kind/alias_target_id,
+  alias badge, selection resolves target via backend fetch (dangling →
+  "Alias Can't Be Opened" alert), Make Alias via bookmarks surface.
+
+### Test evidence
+- FicheroTests EXECUTION blocked by pre-existing #3902 (test-plan/scheme
+  mismatch; runner hung, needs GUI session): compile-stage is fully GREEN as
+  of run 7 (all earlier blockers were compile errors, now cleared) and a
+  final `xcodebuild build-for-testing` validates the head commit. Suite
+  EXECUTION must happen at the manager's GUI gate (#3902 fix first).
+- Engine: test_document_actions + test_db + test_routes_documents =
+  275 passed; contracts suite 9 passed; test_fresh_launch_authz +
+  test_contract_models green (153 batch).
+- Guardrails: 4 pre-existing failures only (dead_files:+Workflow.swift,
+  docs_publication, mac_app_store_target outputPath — looks release-critical,
+  unmerged_work). Nothing new from this branch.
+
+### Gate eyeball additions (on top of the session-2/6 lists)
+- Alias: badge legibility; alias click opens target; dangling alert; Make
+  Alias lands beside original (bookmark node visibility in tree).
+- Duplicate menu on workflow/search/chat rows; duplicated item appears.
+- Right-arrow on leaf moves focus to content; folder arrows unchanged (#560).
+- Edit ▸ Delete title/count with mixed selections; Rename-failure alert.
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:
