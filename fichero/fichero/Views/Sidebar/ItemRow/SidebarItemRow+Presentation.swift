@@ -101,10 +101,12 @@ extension SidebarItemRow {
     /// sidebar-only copy. The tree republishes on the store refresh.
     private var makeAliasAction: (() -> Void)? {
         guard case .document(let doc) = item.itemType, let library else { return nil }
+        // Aliasing an alias targets the ORIGINAL (Finder: no alias chains).
+        let targetId = doc.isAlias ? (doc.aliasTargetId ?? doc.id) : doc.id
         return {
             Task { @MainActor in
                 let created = await library.bookmarkService.createBookmark(
-                    targetId: doc.id,
+                    targetId: targetId,
                     name: "\(doc.name) alias",
                     parentId: doc.parentId
                 )

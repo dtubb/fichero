@@ -53,6 +53,11 @@ extension SidebarItemRow {
             .onChange(of: isDropTargeted) { _, targeted in
                 updateOptionMonitor(targeted: targeted)
             }
+            // A targeted row removed mid-drag (list rebuild) never gets the
+            // onChange(false) — tear the monitor down on disappear too.
+            .onDisappear {
+                updateOptionMonitor(targeted: false)
+            }
             #endif
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)

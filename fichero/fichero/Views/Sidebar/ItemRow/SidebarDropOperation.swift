@@ -88,6 +88,7 @@ struct DocumentDuplicateActionParams: Encodable {
 /// Every document in the store's caches (roots, current folder, expanded
 /// children). Built stepwise — one big concatenation expression trips the
 /// type-checker's time limit (LibraryWindow.body lesson).
+@MainActor
 func sidebarAllCachedDocuments(in store: DocumentStore) -> [Document] {
     var docs: [Document] = store.collections
     docs.append(contentsOf: store.currentDocuments)
@@ -99,6 +100,7 @@ func sidebarAllCachedDocuments(in store: DocumentStore) -> [Document] {
 
 /// Find a document anywhere in the store's caches — used to read a drag
 /// source's name/parent for the Finder alias-naming rule.
+@MainActor
 func sidebarFindDocument(id: String, in store: DocumentStore) -> Document? {
     sidebarAllCachedDocuments(in: store).first { $0.id == id }
 }
@@ -152,6 +154,7 @@ func sidebarApplyInsertionDropOperation(
                 )
             } catch {
                 sidebarState.dropErrorMessage = error.localizedDescription
+                await store.refresh()   // show any copies made before the failure
                 return
             }
         case .alias:
@@ -161,11 +164,14 @@ func sidebarApplyInsertionDropOperation(
                 sourceParentId: source?.parentId,
                 targetParentId: parentId
             )
+            // Aliasing an alias targets the ORIGINAL (no alias chains).
+            let targetId = (source?.isAlias == true ? source?.aliasTargetId : nil) ?? id
             let created = await library.bookmarkService.createBookmark(
-                targetId: id, name: name, parentId: parentId
+                targetId: targetId, name: name, parentId: parentId
             )
             guard created else {
                 sidebarState.dropErrorMessage = "Couldn’t create the alias."
+                await store.refresh()   // show any rows created before the failure
                 return
             }
         case .move:
@@ -214,8 +220,10 @@ extension SidebarItemRow {
             sourceParentId: source?.parentId,
             targetParentId: folderId
         )
+        // Aliasing an alias targets the ORIGINAL (no alias chains).
+        let targetId = (source?.isAlias == true ? source?.aliasTargetId : nil) ?? documentId
         let created = await library.bookmarkService.createBookmark(
-            targetId: documentId, name: name, parentId: folderId
+            targetId: targetId, name: name, parentId: folderId
         )
         if created {
             await store.refresh()

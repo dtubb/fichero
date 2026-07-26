@@ -94,10 +94,14 @@ extension SidebarView {
         Task { @MainActor in
             do {
                 let target = try await library.documentService.getDocument(targetId)
+                // The user may have selected something else while the fetch
+                // was in flight — never clobber the newer selection.
+                guard selectedItemId == "doc:\(doc.id)" else { return }
                 sidebarViewLogger.info("Alias \(doc.id) resolved to target \(target.id)")
                 sidebarMode = .library
                 viewMode = .library(target)
             } catch {
+                guard selectedItemId == "doc:\(doc.id)" else { return }
                 sidebarViewLogger.error(
                     "Dangling alias \(doc.id): target \(targetId) unavailable — \(error.localizedDescription)"
                 )
