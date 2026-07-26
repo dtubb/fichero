@@ -103,7 +103,9 @@ struct LibraryWindow: View {
         // Plain `.focusedValue` left ⌘N / "New Library…" disabled until some
         // inner control happened to be focused (#2042). Matches the rest of the
         // app's menu plumbing (sidebarMode, showInspector, librarySelectAll…).
-        .focusedSceneValue(\.openLibraryAction, FocusedLibraryAction(isEnabled: true, run: { showingFileImporter = true }))
+        .focusedSceneValue(
+            \.openLibraryAction, FocusedLibraryAction(isEnabled: true, run: { showingFileImporter = true })
+        )
         .focusedSceneValue(\.newWindowAction, FocusedLibraryAction(isEnabled: true, run: { handleNewWindow() }))
         .focusedSceneValue(\.duplicateWindowAction, duplicateWindowAction)
         .focusedSceneValue(\.newLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleNewLibrary() }))

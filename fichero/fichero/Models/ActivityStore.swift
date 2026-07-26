@@ -212,11 +212,13 @@ final class ActivityStore: ChangeEventConsumer {
         if let metadata = activity.metadataStrings,
            let change = ChangeEvent(activityMetadata: metadata) {
             changeRouter?(change)
-            log.debug("ActivityStore: folded change \(change.type, privacy: .public) routed=\(self.changeRouter != nil, privacy: .public)")
+            let routed = self.changeRouter != nil
+            log.debug("ActivityStore: folded change \(change.type, privacy: .public) routed=\(routed, privacy: .public)")
             return
         }
         refreshToken += 1
-        log.debug("ActivityStore: activity event \(activity.type, privacy: .public), refreshToken → \(self.refreshToken, privacy: .public)")
+        let token = self.refreshToken
+        log.debug("ActivityStore: activity event \(activity.type, privacy: .public), refreshToken → \(token, privacy: .public)")
     }
 
     /// Drive the live backend-work indicator from a decoded signal (#2279).
@@ -227,7 +229,9 @@ final class ActivityStore: ChangeEventConsumer {
         switch signal {
         case .libraryOpened(let opened):
             lastLibraryOpened = opened
-            log.debug("ActivityStore: library.opened \(opened.libraryName, privacy: .public) via \(opened.source, privacy: .public)")
+            log.debug(
+                "ActivityStore: library.opened \(opened.libraryName, privacy: .public) via \(opened.source, privacy: .public)"
+            )
         case .work(let status):
             if status.isTerminal {
                 // Only clear if the finishing task is the one we're showing —
@@ -238,7 +242,9 @@ final class ActivityStore: ChangeEventConsumer {
             } else {
                 backendWork = status
             }
-            log.debug("ActivityStore: backend.work \(status.phase.rawValue, privacy: .public) \(status.taskName, privacy: .public)")
+            log.debug(
+                "ActivityStore: backend.work \(status.phase.rawValue, privacy: .public) \(status.taskName, privacy: .public)"
+            )
         }
     }
 }

@@ -80,7 +80,10 @@ extension AppState {
         case .autoRestart:
             if let onDropped = onSupervisedBackendDropped {
                 logger.warning(
-                    "Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures — invoking supervised auto-restart (#4064, \(reason))"
+                    """
+                    Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures \
+                    — invoking supervised auto-restart (#4064, \(reason))
+                    """
                 )
                 await onDropped()
                 return
