@@ -178,13 +178,19 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("viewMode = .library(nil)"))
     }
 
-    func testEntitiesSidebarEntryPointIsPinnedAndFeatureGated() throws {
+    func testPinnedBottomNavigationRowsAreRetired() throws {
+        // #4102: everything in the sidebar is a node under its library; the
+        // pinned Workflows / Chat with Docs / Research / Workspaces / Entities
+        // bottom rows are gone. App-level surfaces route via the View menu.
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+PinnedNavigationRows.swift")
 
-        XCTAssertTrue(source.contains("tag: .browser(.entities)"))
-        XCTAssertTrue(source.contains("systemImage: SidebarMode.knowledgeGraph.icon"))
-        XCTAssertTrue(source.contains("FeatureManager.shared.isKnowledgeGraphEnabled"))
-        XCTAssertTrue(source.contains("entitiesNavigationRow()"))
+        XCTAssertFalse(source.contains("tag: .browser(.entities)"))
+        XCTAssertFalse(source.contains("Chat with Docs"))
+        XCTAssertFalse(source.contains("tag: .browser(.workflows)"))
+        XCTAssertFalse(source.contains("tag: .browser(.research)"))
+        XCTAssertFalse(source.contains("Text(\"Workspaces\")"))
+        // The automation load-error surface is the one thing that stays.
+        XCTAssertTrue(source.contains("Automation Unavailable"))
     }
 
     func testEntityLibrarySelectionLocksDisplayModeToList() throws {
@@ -221,18 +227,6 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(navigationSource.contains("contentCollection: isEntityLibrarySelection ? .entities : .documents"))
     }
 
-    func testSidebarPinnedRowsExposeMindPalaceResearchAndComparison() throws {
-        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+PinnedNavigationRows.swift")
-
-        // Model Comparison folded into the Chat surface's Compare facet (#3532/#3540)
-        // — the standalone comparison sidebar row is retired.
-        XCTAssertTrue(source.contains("Model Comparison is no longer a standalone top-level mode"))
-        XCTAssertTrue(source.contains("if FeatureManager.shared.isChatEnabled {"))
-        XCTAssertFalse(source.contains("comparisonNavigationRow()"))
-        XCTAssertTrue(source.contains("tag: .browser(.research)"))
-        XCTAssertTrue(source.contains("FeatureManager.shared.isResearchEnabled"))
-    }
-
     func testPinnedSidebarEntryPointsRouteToExpectedSurfaces() throws {
         // Typed SidebarDestination routing (SidebarView+SelectionHandling.swift);
         // the `case .browser(...)` mappings themselves live in SidebarStateManagers.swift.
@@ -247,13 +241,11 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("sidebarMode = .research"))
     }
 
-    func testSidebarDisclosureRowsDisableNestedInsertionAnimation() throws {
-        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
-
-        XCTAssertTrue(source.contains(".transaction { transaction in"))
-        XCTAssertTrue(source.contains("transaction.animation = nil"))
-        XCTAssertTrue(source.contains("wrong lateral origin"))
-    }
+    // testSidebarDisclosureRowsDisableNestedInsertionAnimation retired: the
+    // nested-insertion animation suppression (#3165) was consciously dropped
+    // when per-library sub-sections collapsed into one flat unified row list
+    // (edd399fbe / #4059) — rows now insert at the top level, so the lateral
+    // reveal-origin artifact it guarded against can no longer occur.
 
     func testDeferredDisclosureContentNeededForExpandableLazyFolder() {
         let folder = makeDoc(id: "folder-1", name: "Folder", childCount: 2)
@@ -443,18 +435,24 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testBackendRetryRunsSameReadinessSideEffectsAsStartup() throws {
-        let tabSource = try Self.appSource("Views/Shell/DocumentTabView.swift")
+        // Retry and startup converge on one path: EngineLifecycleController.retry()
+        // re-enters connect(restart:) and success always runs the single
+        // finishSuccessfulConnect readiness block (#3108/#3113). The UI reaches
+        // it via the engineRetry environment entry point.
+        let lifecycleSource = try Self.appSource("Services/EngineLifecycleController.swift")
+        let appSource = try Self.appSource("FicheroApp.swift")
         let connectionSource = try [
             Self.appSource("Views/Components/BackendConnection/BackendConnectionView.swift"),
             Self.appSource("Views/Components/BackendConnection/BackendConnectionView+Actions.swift")
         ].joined(separator: "\n")
 
-        XCTAssertTrue(tabSource.contains("BackendConnectionView(appState: appState, onRetry: retryBackendConnection)"))
-        XCTAssertTrue(tabSource.contains("private func retryBackendConnection() async"))
-        XCTAssertTrue(tabSource.contains("private func completeBackendRetryReadiness() async"))
-        XCTAssertTrue(tabSource.contains("appState.startBackendHeartbeat()"))
-        XCTAssertTrue(tabSource.contains("await KnownLibraryRegistryStore.shared.refresh()"))
-        XCTAssertTrue(tabSource.contains("await libraryManager.backendDidBecomeReady()"))
+        XCTAssertTrue(lifecycleSource.contains("func retry() async {"))
+        XCTAssertTrue(lifecycleSource.contains("await connect(restart: true)"))
+        XCTAssertTrue(lifecycleSource.contains("private func finishSuccessfulConnect(backendStart: Date) async"))
+        XCTAssertTrue(lifecycleSource.contains("appState.startBackendHeartbeat()"))
+        XCTAssertTrue(lifecycleSource.contains("await libraryManager.refreshAfterBackendBecameReady()"))
+
+        XCTAssertTrue(appSource.contains(".environment(\\.engineRetry, { await appDelegate.controller.retry() })"))
 
         XCTAssertTrue(connectionSource.contains("var onRetry: (@MainActor () async -> Void)?"))
         XCTAssertTrue(connectionSource.contains("await onRetry?()"))

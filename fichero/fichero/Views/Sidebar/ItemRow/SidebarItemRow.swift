@@ -214,7 +214,7 @@ struct SidebarItemRow: View {
                     expandedItems.insert(item.id)
                     guard case .document(let document) = item.itemType,
                           let store = documentStore else { return }
-                    // NOTE: the old guard required `document.childCount > 0`, but
+                    // NOTE: the old guard required a positive child count, but
                     // the backend never sends child_count on getRoots/getChildren
                     // (it decodes to 0), so that guard was dead and children only
                     // ever loaded as a side-effect of SELECTING the folder — the
