@@ -65,18 +65,22 @@ extension View {
     /// `.overlay` + `.allowsHitTesting(false)` so the wash renders on top of
     /// whatever chrome the sidebar-style List draws, without blocking drops.
     @ViewBuilder
-    func sidebarDropHighlight(_ active: Bool, stronger: Bool) -> some View {
+    func sidebarDropHighlight(_ active: Bool, stronger: Bool, copying: Bool = false) -> some View {
+        // Copy mode (⌥ held over the target) tints green — the closest native
+        // stand-in for AppKit's copy-cursor badge, which SwiftUI's row drag
+        // doesn't expose (no sourceOperationMask hook).
+        let tint = copying ? Color.green : Color.accentColor
         self.overlay(
             RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
                 .fill(
                     active
-                        ? Color.accentColor.opacity(stronger ? 0.45 : 0.25)
+                        ? tint.opacity(stronger ? 0.45 : 0.25)
                         : Color.clear
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
                         .stroke(
-                            active ? Color.accentColor : Color.clear,
+                            active ? tint : Color.clear,
                             lineWidth: active ? 2 : 0
                         )
                 )
@@ -118,6 +122,13 @@ struct SidebarItemRow: View {
     @State var isDropTargeted = false
     /// Pointer-over state driving the trailing open affordance (#2496).
     @State var isRowHovered = false
+    /// ⌥ held while this row is a drop target → copy-mode highlight tint.
+    /// Tracked by a flagsChanged monitor installed ONLY while targeted
+    /// (macOS; one row is targeted at a time so at most one monitor lives).
+    @State var isOptionHeldOverTarget = false
+    #if os(macOS)
+    @State private var optionMonitor: Any?
+    #endif
     @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
     @FocusState var isRenameFocused: Bool
     @State var isCommittingRename = false
@@ -263,6 +274,29 @@ struct SidebarItemRow: View {
         if case .document(let doc) = item.itemType { return doc.id }
         return nil
     }
+
+    #if os(macOS)
+    /// Track ⌥ while this row is targeted so the highlight can tint to copy
+    /// mode live. Note: whether flagsChanged reaches a local monitor during
+    /// an active drag session needs a gate eyeball; the drop BEHAVIOR reads
+    /// the key again at drop time regardless (`sidebarOptionKeyIsHeld`).
+    func updateOptionMonitor(targeted: Bool) {
+        if targeted {
+            isOptionHeldOverTarget = NSEvent.modifierFlags.contains(.option)
+            guard optionMonitor == nil else { return }
+            optionMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+                isOptionHeldOverTarget = event.modifierFlags.contains(.option)
+                return event
+            }
+        } else {
+            if let optionMonitor {
+                NSEvent.removeMonitor(optionMonitor)
+            }
+            optionMonitor = nil
+            isOptionHeldOverTarget = false
+        }
+    }
+    #endif
 
     /// In-window "Open": select this row (drives navigation/preview).
     func openInWindow() {

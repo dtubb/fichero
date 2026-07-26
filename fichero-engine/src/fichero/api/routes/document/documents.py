@@ -1633,15 +1633,17 @@ async def move_document(
 @router.post("/{doc_id}/duplicate")
 async def duplicate_document(
     doc_id: str,
+    parent_id: Optional[str] = Query(None),
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> Document:
-    """Deep-copy a document (subtree included) beside the original."""
+    """Deep-copy a document (subtree included) — beside the original, or
+    into ``parent_id`` when given (Option-drag copy)."""
     result = await _run_document_write(
         registry.invoke,
         db,
         "document.duplicate",
-        {"doc_id": doc_id},
+        {"doc_id": doc_id, "parent_id": parent_id},
         ctx,
     )
     doc = Document.model_validate(result.result)
@@ -1922,19 +1924,45 @@ def move_document_impl(
     return doc, before
 
 
-def duplicate_document_impl(db: Database, doc_id: str) -> tuple[Document, list[str]]:
+def duplicate_document_impl(
+    db: Database, doc_id: str, parent_id: str | None = None
+) -> tuple[Document, list[str]]:
     """Deep-copy a document subtree. Returns ``(root copy, all new ids)``.
 
-    Finder semantics: the root copy lands beside the original (same parent)
-    named "<name> copy"; descendants keep their names. Copies get fresh ids
-    and timestamps; ``page_content``/metadata/attributes ride along, but
-    derived artifact rows are NOT copied (they regenerate on demand) and
-    copies are not re-embedded here — a reindex covers search. Locked nodes
-    (Default Workflows container/mirrors) refuse — duplicate the workflow
-    via the workflow route instead.
+    Finder semantics: with no ``parent_id`` the root copy lands beside the
+    original named "<name> copy"; with a ``parent_id`` (Option-drag copy) it
+    lands in that folder keeping its name — Finder only suffixes same-folder
+    copies. Descendants keep their names. Copies get fresh ids and
+    timestamps; ``page_content``/metadata/attributes ride along, but derived
+    artifact rows are NOT copied (they regenerate on demand) and copies are
+    not re-embedded here — a reindex covers search. Locked nodes (Default
+    Workflows container/mirrors) refuse — duplicate the workflow via the
+    workflow route instead — and locked targets accept no copies.
     """
     src = _document_or_404(db, doc_id)
     _reject_if_document_read_only(src, "duplicated")
+
+    if parent_id is not None:
+        parent = _get_document_row(db, parent_id)
+        if not parent:
+            raise HTTPException(
+                status_code=400, detail=f"Parent not found: {parent_id}"
+            )
+        _reject_if_document_read_only(parent, "added to")
+        # A target inside the source subtree would make the recursion copy
+        # its own output (runaway growth) — same ancestor walk as move.
+        if _move_would_create_cycle(db, doc_id, parent_id):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Cannot copy {doc_id} into itself or its own descendant "
+                    f"({parent_id})"
+                ),
+            )
+
+    target_parent_id = parent_id if parent_id is not None else src.parent_id
+    lands_beside_original = target_parent_id == src.parent_id
+    root_name = f"{src.name} copy" if lands_beside_original else src.name
 
     new_ids: list[str] = []
 
@@ -1955,7 +1983,7 @@ def duplicate_document_impl(db: Database, doc_id: str) -> tuple[Document, list[s
             copy_node(child, dup.id, None)
         return dup
 
-    root_copy = copy_node(src, src.parent_id, f"{src.name} copy")
+    root_copy = copy_node(src, target_parent_id, root_name)
     return root_copy, new_ids
 
 
@@ -2251,6 +2279,13 @@ class DocumentDuplicateParams(BaseModel):
     """Params for document.duplicate."""
 
     doc_id: str = Field(description="Document id to deep-copy (subtree included)")
+    parent_id: str | None = Field(
+        default=None,
+        description=(
+            "Folder the copy lands in (Option-drag copy). Omitted: beside "
+            "the original with a ' copy' name suffix."
+        ),
+    )
 
 
 class DocumentReorderParams(BaseModel):
@@ -2483,7 +2518,9 @@ def _invert_duplicate_document(
 def _action_duplicate_document(
     db: Database, params: DocumentDuplicateParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    root_copy, new_ids = duplicate_document_impl(db, params.doc_id)
+    root_copy, new_ids = duplicate_document_impl(
+        db, params.doc_id, parent_id=params.parent_id
+    )
     spec = ChangeSpec(
         domains=["document"],
         target_ids=new_ids,

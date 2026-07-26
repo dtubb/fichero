@@ -48,6 +48,12 @@ extension SidebarItemRow {
             // drag arena so the row's `.draggable` is the sole drag
             // source (#711).
             .textSelection(.disabled)
+            #if os(macOS)
+            // Copy-mode tint lifecycle: monitor lives only while targeted.
+            .onChange(of: isDropTargeted) { _, targeted in
+                updateOptionMonitor(targeted: targeted)
+            }
+            #endif
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
@@ -141,7 +147,7 @@ extension SidebarItemRow {
             } label: {
                 fullWidthLabel
             }
-            .sidebarDropHighlight(isDropTargeted, stronger: isFolder)
+            .sidebarDropHighlight(isDropTargeted, stronger: isFolder, copying: isOptionHeldOverTarget)
             .onDrop(
                 of: Self.dropTypes,
                 isTargeted: $isDropTargeted
@@ -179,7 +185,7 @@ extension SidebarItemRow {
     @ViewBuilder
     private var folderLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: true)
+            .sidebarDropHighlight(isDropTargeted, stronger: true, copying: isOptionHeldOverTarget)
             .onDrop(
                 of: Self.dropTypes,
                 isTargeted: $isDropTargeted
@@ -194,7 +200,7 @@ extension SidebarItemRow {
     /// SwiftUI's tap-vs-drag disambiguation (#711 follow-up).
     private var leafLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: false)
+            .sidebarDropHighlight(isDropTargeted, stronger: false, copying: isOptionHeldOverTarget)
             .onDrop(
                 of: Self.dropTypes,
                 isTargeted: $isDropTargeted

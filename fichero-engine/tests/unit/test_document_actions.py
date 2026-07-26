@@ -420,6 +420,52 @@ class TestDocumentDuplicateAction:
         original_ids = {folder.id, child.id, grand.id}
         assert {copy.id, copy_children[0].id, copy_grand[0].id}.isdisjoint(original_ids)
 
+    def test_duplicate_into_target_folder_keeps_name(self, db):
+        # Option-drag copy: cross-folder copies keep their name — Finder only
+        # suffixes copies landing beside the original.
+        source_parent = _save_doc(db, name="src", doc_type=DocType.folder)
+        target = _save_doc(db, name="dst", doc_type=DocType.folder)
+        doc = _save_doc(db, name="Paper", parent_id=source_parent.id)
+
+        result = registry.invoke(
+            db,
+            "document.duplicate",
+            {"doc_id": doc.id, "parent_id": target.id},
+            _ctx(),
+        )
+        copy = Document.model_validate(result.result)
+        assert copy.parent_id == target.id
+        assert copy.name == "Paper"
+
+    def test_duplicate_into_own_subtree_rejected(self, db):
+        # Copying a folder into its own descendant would make the recursion
+        # copy its own output.
+        folder = _save_doc(db, name="F", doc_type=DocType.folder)
+        child = _save_doc(db, name="c", doc_type=DocType.folder, parent_id=folder.id)
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.duplicate",
+                {"doc_id": folder.id, "parent_id": child.id},
+                _ctx(),
+            )
+        assert exc.value.status_code == 400
+
+    def test_duplicate_into_locked_target_rejected(self, db):
+        locked = _save_doc(
+            db, name="Default Workflows", doc_type=DocType.folder,
+            attributes={"read_only": True},
+        )
+        doc = _save_doc(db, name="Paper")
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.duplicate",
+                {"doc_id": doc.id, "parent_id": locked.id},
+                _ctx(),
+            )
+        assert exc.value.status_code == 403
+
     def test_duplicate_locked_node_rejected(self, db):
         locked = _save_doc(
             db, name="Default Workflows", doc_type=DocType.folder,
