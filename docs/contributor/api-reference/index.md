@@ -210,8 +210,8 @@ Unknown entity ids return `404`.
 `output_path`. `POST /api/export/parquet` writes the same target's typed
 Parquet bundle, or the whole library when `target_id` is omitted, to its
 requested `output_path`. Both routes return a conflict rather than replacing
-an existing destination, and return `404` when a supplied target does not
-exist. Their requested destinations are engine-local filesystem paths, so
+an existing destination unless the request sets `overwrite` (default `false`),
+and return `404` when a supplied target does not exist. Their requested destinations are engine-local filesystem paths, so
 these are CLI/backend-only surfaces: no SwiftUI save/export workflow may call
 them.
 
