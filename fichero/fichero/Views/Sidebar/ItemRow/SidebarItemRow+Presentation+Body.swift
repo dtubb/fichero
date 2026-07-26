@@ -129,15 +129,26 @@ extension SidebarItemRow {
     @ViewBuilder
     private var bodyContent: some View {
         if isExpandable {
+            // #571 (restored): highlight, drop target, and context menu sit on
+            // the OUTER DisclosureGroup so the chevron/indent strip is part of
+            // the row's drop and right-click surface — a refactor before the
+            // #1703 file split had moved them inside the label, leaving that
+            // strip dead. The label here is bare `fullWidthLabel` (NOT
+            // folderLabel/leafLabel) so the modifiers aren't doubled. Child
+            // rows attach their own handlers, which win within their bounds.
             DisclosureGroup(isExpanded: isExpanded) {
                 disclosureContent
             } label: {
-                if isFolder {
-                    folderLabel
-                } else {
-                    leafLabel
-                }
+                fullWidthLabel
             }
+            .sidebarDropHighlight(isDropTargeted, stronger: isFolder)
+            .onDrop(
+                of: Self.dropTypes,
+                isTargeted: $isDropTargeted
+            ) { providers in
+                handleRowDrop(providers)
+            }
+            .contextMenu { rowContextMenu }
         } else if isFolder {
             folderLabel
         } else {

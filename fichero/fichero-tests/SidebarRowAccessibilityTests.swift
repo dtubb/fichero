@@ -56,6 +56,24 @@ final class SidebarRowAccessibilityTests: XCTestCase {
         XCTAssertTrue(header.contains("sidebarLibraryHeaderAccessibilityValue(isCurrent: isCurrentLibrary)"))
     }
 
+    /// #571 restoration: on expandable rows the drop highlight, drop target,
+    /// and context menu must sit on the OUTER DisclosureGroup (covering the
+    /// chevron/indent strip), with a bare label so nothing is doubled.
+    func testExpandableRowModifiersSitOnOuterDisclosureGroup() throws {
+        let source = try appSource("Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift")
+        guard let disclosureRange = source.range(of: "DisclosureGroup(isExpanded: isExpanded)") else {
+            return XCTFail("expected the expandable-row DisclosureGroup")
+        }
+        let afterDisclosure = source[disclosureRange.upperBound...]
+        // The bare label — folderLabel/leafLabel (which carry their own copies
+        // for non-expandable rows) must not appear inside this branch's label.
+        XCTAssertTrue(afterDisclosure.contains("} label: {\n                fullWidthLabel\n            }"))
+        // And the three modifiers hang off the group itself.
+        XCTAssertTrue(
+            afterDisclosure.contains(".sidebarDropHighlight(isDropTargeted, stronger: isFolder)")
+        )
+    }
+
     private func appSource(_ relativePath: String) throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
