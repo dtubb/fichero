@@ -1,8 +1,5 @@
 import OSLog
 import SwiftUI
-#if canImport(AppKit)
-import AppKit
-#endif
 
 private let sidebarExtLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarExtensions")
 
