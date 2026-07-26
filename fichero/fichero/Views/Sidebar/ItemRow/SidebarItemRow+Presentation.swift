@@ -19,12 +19,18 @@ extension SidebarItemRow {
 
             SidebarItemContextMenu(
                 item: item,
+                deleteTargets: sidebarContextDeleteTargets(
+                    clicked: item,
+                    selection: resolvedSelectionItems
+                ),
                 renameState: renameState,
                 deleteState: deleteState,
                 onPause: onAutomationPause,
                 onResume: onAutomationResume,
                 onTrigger: onAutomationTrigger,
-                onCancel: onAutomationCancel
+                onCancel: onAutomationCancel,
+                onDuplicate: workflowDuplicateAction,
+                onMakeAlias: makeAliasAction
             )
 
             let workflowTargetIDs = resolvedWorkflowTargetIDs
@@ -48,6 +54,88 @@ extension SidebarItemRow {
                     }
                 }
             }
+        }
+    }
+
+    /// Duplicate action for the kinds with a backend duplicate endpoint —
+    /// workflows, saved searches, conversations (nil hides the menu item).
+    /// Backend owns id/naming; the store/service reload republishes the
+    /// sidebar. Failures surface via the shared drop-error banner rather
+    /// than vanishing into the log (prefer-raise-over-silent-fallback).
+    private var workflowDuplicateAction: (() -> Void)? {
+        switch item.itemType {
+        case .document(let doc):
+            // Audited document.duplicate (deep copy beside the original) via
+            // the same invokeAction path document.delete uses. Locked mirror
+            // rows get the engine's 403 on the banner.
+            guard let library else { return nil }
+            return duplicateTask {
+                _ = try await library.actionsService.invokeAction(
+                    name: "document.duplicate",
+                    params: DocumentDuplicateActionParams(docId: doc.id, parentId: nil)
+                )
+                await library.documentStore.refresh()
+            }
+        case .workflow(let workflow):
+            guard let store = workflowStore else { return nil }
+            return duplicateTask { _ = try await store.duplicateWorkflow(workflow.id) }
+        case .savedSearch(let search):
+            guard let service = savedSearchService else { return nil }
+            return duplicateTask {
+                _ = try await service.duplicateSavedSearch(search.id)
+                try await service.loadSavedSearches()
+            }
+        case .conversation(let conversation):
+            guard let service = conversationService else { return nil }
+            return duplicateTask {
+                _ = try await service.duplicateConversation(conversation.id)
+                try await service.loadConversations()
+            }
+        default:
+            return nil
+        }
+    }
+
+    /// Finder-style Make Alias for document rows (#2591): a real engine alias
+    /// node (via the bookmarks surface) beside the original — never a
+    /// sidebar-only copy. The tree republishes on the store refresh.
+    private var makeAliasAction: (() -> Void)? {
+        guard case .document(let doc) = item.itemType, let library else { return nil }
+        // Aliasing an alias targets the ORIGINAL (Finder: no alias chains).
+        let targetId = doc.isAlias ? (doc.aliasTargetId ?? doc.id) : doc.id
+        return {
+            Task { @MainActor in
+                let created = await library.bookmarkService.createBookmark(
+                    targetId: targetId,
+                    name: "\(doc.name) alias",
+                    parentId: doc.parentId
+                )
+                if created {
+                    await library.documentStore.refresh()
+                } else {
+                    sidebarState.dropErrorMessage = "Couldn’t create the alias."
+                }
+            }
+        }
+    }
+
+    private func duplicateTask(_ body: @escaping () async throws -> Void) -> () -> Void {
+        {
+            Task { @MainActor in
+                do {
+                    try await body()
+                } catch {
+                    sidebarState.dropErrorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    /// Every highlighted row resolved to its SidebarItem — mirrors
+    /// `SidebarView.selectedItems` for row-level batch actions.
+    private var resolvedSelectionItems: [SidebarItem] {
+        selectedDestinations.compactMap {
+            findItemById($0.serializedID, in: allCachedItems)
         }
     }
 

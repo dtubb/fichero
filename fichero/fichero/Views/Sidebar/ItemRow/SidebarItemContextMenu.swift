@@ -10,6 +10,10 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Sidebar
 /// Actions are disabled based on item capabilities (see `SidebarItem.ItemType` extensions).
 struct SidebarItemContextMenu: View {
     let item: SidebarItem
+    /// What Delete acts on: `[item]` for a lone row, the whole deletable
+    /// selection when the clicked row is part of a multi-selection
+    /// (see `sidebarContextDeleteTargets`). Empty means "just the item".
+    var deleteTargets: [SidebarItem] = []
     @Bindable var renameState: RenameStateManager
     @Bindable var deleteState: DeleteStateManager
 
@@ -18,6 +22,13 @@ struct SidebarItemContextMenu: View {
     var onResume: (() -> Void)?
     var onTrigger: (() -> Void)?  // For schedules - "Run Now"
     var onCancel: (() -> Void)?   // For batches - "Cancel"
+    /// Workflow rows only: duplicate via the backend endpoint — also the
+    /// blessed path for editing locked Default presets ("Default workflows
+    /// are read-only; duplicate to edit", engine 403).
+    var onDuplicate: (() -> Void)?
+    /// Document rows: create a Finder-style alias (engine alias node via
+    /// the bookmarks surface, #2591) beside the original.
+    var onMakeAlias: (() -> Void)?
 
     var body: some View {
         Group {
@@ -33,15 +44,46 @@ struct SidebarItemContextMenu: View {
             })
             .disabled(!item.itemType.canBeRenamed)
 
+            if let onDuplicate, itemTypeSupportsDuplicate {
+                Button(action: onDuplicate, label: {
+                    Label("Duplicate", systemImage: "plus.square.on.square")
+                })
+            }
+
+            if let onMakeAlias, case .document = item.itemType {
+                Button(action: onMakeAlias, label: {
+                    Label("Make Alias", systemImage: "arrowshape.turn.up.right")
+                })
+            }
+
             Divider()
 
-            Button(action: { deleteItem(item) }, label: {
-                Label("Delete", systemImage: "trash")
+            Button(action: { deleteItems(resolvedDeleteTargets) }, label: {
+                Label(deleteButtonTitle, systemImage: "trash")
                     .foregroundColor(.red)
             })
             .keyboardShortcut(.delete, modifiers: .command)
-            .disabled(!item.itemType.canBeDeleted)
+            .disabled(!resolvedDeleteTargets.contains { $0.itemType.canBeDeleted })
         }
+    }
+
+    /// Kinds with a backend duplicate endpoint.
+    private var itemTypeSupportsDuplicate: Bool {
+        switch item.itemType {
+        case .document, .workflow, .savedSearch, .conversation:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var resolvedDeleteTargets: [SidebarItem] {
+        deleteTargets.isEmpty ? [item] : deleteTargets
+    }
+
+    private var deleteButtonTitle: String {
+        let count = resolvedDeleteTargets.count
+        return count > 1 ? "Delete \(count) Items" : "Delete"
     }
 
     @ViewBuilder
@@ -118,10 +160,9 @@ struct SidebarItemContextMenu: View {
         logger.debug("   - Set renameState.renamingItemId to: \(item.id)")
     }
 
-    private func deleteItem(_ item: SidebarItem) {
-        logger.debug(" deleteItem called for: \(item.name) (id: \(item.id))")
-        deleteState.showDeleteConfirmation(for: item)
-        logger.debug("   - Set deleteState.itemToDelete to: \(item.name)")
+    private func deleteItems(_ items: [SidebarItem]) {
+        logger.debug(" deleteItems called for \(items.count) item(s), clicked: \(item.name)")
+        deleteState.showDeleteConfirmation(for: items)
     }
 }
 

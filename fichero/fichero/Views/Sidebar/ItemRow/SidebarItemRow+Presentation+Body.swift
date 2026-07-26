@@ -8,6 +8,25 @@ func sidebarNeedsDeferredDisclosureContent(_ item: SidebarItem) -> Bool {
     item.isExpandable && item.children == nil
 }
 
+/// VoiceOver hint for a sidebar row. Kept terse so users don't hear a long
+/// recitation each time they land on a row; power actions like export /
+/// duplicate stay discoverable via the context menu itself. Wording is
+/// per-platform: pointer gestures ("Right-click") mean nothing to touch
+/// VoiceOver users, who reach the context menu via double-tap-and-hold.
+func sidebarRowAccessibilityHint(canBeRenamed: Bool) -> String {
+    #if os(macOS)
+    if canBeRenamed {
+        return "Double-click to rename. Drag to reorder or move to a folder. Right-click for more actions."
+    }
+    return "Right-click for actions."
+    #else
+    if canBeRenamed {
+        return "Double tap and hold for actions, including rename. Drag to reorder or move to a folder."
+    }
+    return "Double tap and hold for actions."
+    #endif
+}
+
 extension SidebarItemRow {
     var body: some View {
         bodyContent
@@ -29,6 +48,17 @@ extension SidebarItemRow {
             // drag arena so the row's `.draggable` is the sole drag
             // source (#711).
             .textSelection(.disabled)
+            #if os(macOS)
+            // Copy-mode tint lifecycle: monitor lives only while targeted.
+            .onChange(of: isDropTargeted) { _, targeted in
+                updateOptionMonitor(targeted: targeted)
+            }
+            // A targeted row removed mid-drag (list rebuild) never gets the
+            // onChange(false) — tear the monitor down on disappear too.
+            .onDisappear {
+                updateOptionMonitor(targeted: false)
+            }
+            #endif
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
@@ -75,15 +105,8 @@ extension SidebarItemRow {
         }
     }
 
-    /// Available actions callable via the context menu. Kept terse so
-    /// VoiceOver users don't hear a long recitation each time they land
-    /// on a row; power actions like export/duplicate stay discoverable
-    /// via `.accessibilityAction` on the context menu itself.
     private var accessibilityHint: String {
-        if item.itemType.canBeRenamed {
-            return "Double-click to rename. Drag to reorder or move to a folder. Right-click for more actions."
-        }
-        return "Right-click for actions."
+        sidebarRowAccessibilityHint(canBeRenamed: item.itemType.canBeRenamed)
     }
 
     /// Expansion state for folder rows — read as "expanded"/"collapsed"
@@ -117,15 +140,26 @@ extension SidebarItemRow {
     @ViewBuilder
     private var bodyContent: some View {
         if isExpandable {
+            // #571 (restored): highlight, drop target, and context menu sit on
+            // the OUTER DisclosureGroup so the chevron/indent strip is part of
+            // the row's drop and right-click surface — a refactor before the
+            // #1703 file split had moved them inside the label, leaving that
+            // strip dead. The label here is bare `fullWidthLabel` (NOT
+            // folderLabel/leafLabel) so the modifiers aren't doubled. Child
+            // rows attach their own handlers, which win within their bounds.
             DisclosureGroup(isExpanded: isExpanded) {
                 disclosureContent
             } label: {
-                if isFolder {
-                    folderLabel
-                } else {
-                    leafLabel
-                }
+                fullWidthLabel
             }
+            .sidebarDropHighlight(isDropTargeted, stronger: isFolder, operation: targetedDropOperation)
+            .onDrop(
+                of: Self.dropTypes,
+                isTargeted: $isDropTargeted
+            ) { providers in
+                handleRowDrop(providers)
+            }
+            .contextMenu { rowContextMenu }
         } else if isFolder {
             folderLabel
         } else {
@@ -140,11 +174,13 @@ extension SidebarItemRow {
     ///
     /// UTTypes a sidebar row accepts as drop targets.
     ///
-    /// `.utf8PlainText` handles internal sidebar drags. `.item` is the root
-    /// physical-hierarchy type, but a Finder file drag (e.g. a PDF) advertises
-    /// `public.file-url`, which does NOT conform to `public.item` — so `.item`
-    /// alone left `isTargeted` (and the drop) dead for file drags (#3390).
-    /// Accept `.fileURL` (and `.data` as a belt) so file drops light up and land.
+    /// `.utf8PlainText` handles internal sidebar drags. `.fileURL` and `.data`
+    /// are listed EXPLICITLY even though `public.file-url` conforms to
+    /// `public.item` (verified via `UTType.conforms(to:)`): Finder file drags
+    /// (e.g. a PDF, #3390) showed no `isTargeted` feedback with `.item` alone,
+    /// and the library-header drop target already accepts `.fileURL` directly.
+    /// Explicit acceptance beats relying on conformance walking here; whether
+    /// `.item` alone would now suffice is only verifiable with a live drag.
     static let dropTypes: [UTType] = [.utf8PlainText, .item, .fileURL, .data]
 
     /// Folder row: drop target always; drag source EXCEPT for the
@@ -154,7 +190,7 @@ extension SidebarItemRow {
     @ViewBuilder
     private var folderLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: true)
+            .sidebarDropHighlight(isDropTargeted, stronger: true, operation: targetedDropOperation)
             .onDrop(
                 of: Self.dropTypes,
                 isTargeted: $isDropTargeted
@@ -169,7 +205,7 @@ extension SidebarItemRow {
     /// SwiftUI's tap-vs-drag disambiguation (#711 follow-up).
     private var leafLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: false)
+            .sidebarDropHighlight(isDropTargeted, stronger: false, operation: targetedDropOperation)
             .onDrop(
                 of: Self.dropTypes,
                 isTargeted: $isDropTargeted

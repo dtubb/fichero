@@ -75,21 +75,32 @@ struct FileMenuCommands: View {
 
             Divider()
 
-            Button("New Window") {
-                newWindowAction?.run()
-            }
-            .keyboardShortcut("t", modifiers: [.command])
-            .disabled(newWindowAction == nil)
+            // Window-opening region, folded into one Group: the outer Group is
+            // at @ViewBuilder's 10-entry arity limit, so new entries must join
+            // an existing slot rather than add one.
+            Group {
+                Button("New Window") {
+                    newWindowAction?.run()
+                }
+                .keyboardShortcut("t", modifiers: [.command])
+                .disabled(newWindowAction == nil)
 
-            // Duplicate Window (#2262): clones the current window's library +
-            // selection + active lens into a new window via openWindow(value:).
-            // Gated on supportsMultipleWindows so it disables where multiple
-            // windows aren't available.
-            Button("Duplicate Window") {
-                duplicateWindowAction?.run()
+                // Duplicate Window (#2262): clones the current window's library +
+                // selection + active lens into a new window via openWindow(value:).
+                // Gated on supportsMultipleWindows so it disables where multiple
+                // windows aren't available.
+                Button("Duplicate Window") {
+                    duplicateWindowAction?.run()
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
+                .disabled(duplicateWindowAction == nil || !supportsMultipleWindows)
+
+                // Open the focused sidebar's selected row (#2496): keyboard/menu
+                // parity with double-click, the trailing affordance, and the row
+                // context menu. Disabled (not hidden) without a sidebar selection.
+                FocusedOpenInNewTabButton()
+                FocusedOpenInNewWindowButton()
             }
-            .keyboardShortcut("t", modifiers: [.command, .shift])
-            .disabled(duplicateWindowAction == nil || !supportsMultipleWindows)
 
             Divider()
 

@@ -161,6 +161,25 @@ extension SidebarItemRow {
         }
     }
 
+    /// ⌥/⌘⌥ insertion handling — true when the drop was consumed as a
+    /// copy/alias (see `sidebarApplyInsertionDropOperation`).
+    private func handleNonMoveInsertion(
+        bareIds: [String], parentId: String, offset: Int, children: [SidebarItem]
+    ) -> Bool {
+        let operation = sidebarDropOperation(modifiers: .current(), kind: .document)
+        guard operation != .move, let library else { return false }
+        let request = SidebarInsertionDropRequest(
+            operation: operation, bareIds: bareIds, parentId: parentId,
+            offset: offset, children: children
+        )
+        Task {
+            await sidebarApplyInsertionDropOperation(
+                request, library: library, sidebarState: sidebarState
+            )
+        }
+        return true
+    }
+
     /// Cross-hierarchy insert into THIS folder's children at `offset`.
     /// Cycle-prevented: any dropped item that is an ancestor of this
     /// folder is silently skipped (can't make a folder a child of its
@@ -182,6 +201,16 @@ extension SidebarItemRow {
             .filter { bareId in
                 !isDescendant(item.id, of: "doc:\(bareId)")
             }
+
+        guard !bareIds.isEmpty else { return }
+        // Finder modifier grammar at the insertion line: ⌥ copies, ⌘⌥ makes
+        // aliases into THIS folder at this offset; plain drops keep the
+        // transactional move below.
+        if handleNonMoveInsertion(
+            bareIds: bareIds, parentId: parentDoc.id, offset: offset, children: children
+        ) {
+            return
+        }
 
         guard let newOrder = sidebarReorderedDocIdsWithInsert(
             children: children,

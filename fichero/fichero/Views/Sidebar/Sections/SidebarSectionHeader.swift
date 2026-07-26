@@ -9,6 +9,12 @@ import UniformTypeIdentifiers
 // this file focused on `LibrarySectionHeader` below, which IS used as the
 // library-name row and now accepts Finder URL drops (#582).
 
+/// VoiceOver value for a library header row: the current-library state is
+/// otherwise only conveyed by the accent icon tint (#584 follow-up).
+func sidebarLibraryHeaderAccessibilityValue(isCurrent: Bool) -> String {
+    isCurrent ? "current library" : ""
+}
+
 // MARK: - Library Section Header
 
 /// Section header specifically for library grouping across sidebar modes.
@@ -82,9 +88,15 @@ struct LibrarySectionHeader: View {
             // "Global, library, 42 documents". Hint guides users toward the
             // Finder-drop behaviour that isn't obvious without visual cues.
             .accessibilityLabel(accessibilityLabel)
+            // The accent-tinted icon is the only VISUAL "this is the current
+            // library" signal — expose the same state non-visually.
+            .accessibilityValue(sidebarLibraryHeaderAccessibilityValue(isCurrent: isCurrentLibrary))
             .accessibilityHint(
                 "Drag files from Finder to import, or drop a sidebar item to move to the library root."
             )
+            // Full name on hover — the name Text can truncate in a narrow
+            // sidebar and has no other way to reveal itself.
+            .help(libraryName)
     }
 
     /// Display name for this library row. "Global" for the global library,

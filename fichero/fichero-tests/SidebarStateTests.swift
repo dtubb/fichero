@@ -15,13 +15,6 @@ final class SidebarStateTests: XCTestCase {
         "test-\(UUID().uuidString)"
     }
 
-    override func tearDown() {
-        super.tearDown()
-        // Clean up any leaked sidebar.* keys from this test class. We
-        // can't enumerate by prefix on iOS, but we can clear obvious
-        // ones if a future test starts using a sticky id.
-    }
-
     // MARK: - Item expansion
 
     func testItemExpansionStartsEmpty() {
@@ -106,6 +99,18 @@ final class SidebarStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "sidebar.libraries.\(windowId)")
     }
 
+    func testStaleUnifiedSectionsKeyPurgedOnInit() {
+        // The unified-section headers were retired; any persisted expansion
+        // dictionary from old builds must be removed at init.
+        let windowId = freshWindowId()
+        let staleKey = "sidebar.unified.sections.\(windowId)"
+        UserDefaults.standard.set(["lib:documents": false], forKey: staleKey)
+
+        _ = SidebarState(windowId: windowId)
+
+        XCTAssertNil(UserDefaults.standard.object(forKey: staleKey))
+    }
+
     // MARK: - Transient state defaults
 
     func testTransientDefaultsAreClean() {
@@ -128,6 +133,7 @@ final class SidebarStateTests: XCTestCase {
         XCTAssertFalse(state.isProcessingDrop)
         XCTAssertEqual(state.dropProgress, 0.0)
         XCTAssertNil(state.dropErrorMessage)
+        XCTAssertNil(state.renameErrorMessage)
         XCTAssertEqual(state.dropSuccessCount, 0)
         XCTAssertEqual(state.dropFailureCount, 0)
     }
@@ -142,6 +148,7 @@ final class SidebarStateTests: XCTestCase {
         state.isChatDropTargeted = true
         state.renamingItemId = "id"
         state.newFolderName = "x"
+        state.renameErrorMessage = "boom"
         state.dropProgress = 0.5
         state.dropSuccessCount = 5
         state.dropFailureCount = 2
@@ -150,12 +157,12 @@ final class SidebarStateTests: XCTestCase {
 
         XCTAssertTrue(state.expandedItems.isEmpty)
         XCTAssertTrue(state.libraryExpansionStates.isEmpty)
-        XCTAssertTrue(state.unifiedSectionExpansionStates.isEmpty)
         XCTAssertFalse(state.isChatDropTargeted)
         XCTAssertNil(state.renamingItemId)
         XCTAssertEqual(state.newFolderName, "")
         XCTAssertFalse(state.isProcessingDrop)
         XCTAssertEqual(state.dropProgress, 0.0)
+        XCTAssertNil(state.renameErrorMessage)
         XCTAssertEqual(state.dropSuccessCount, 0)
         XCTAssertEqual(state.dropFailureCount, 0)
     }

@@ -166,6 +166,12 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     var sortOrder: Int
     /// Document prototype/class assigned via /api/documents/{id}/prototype (#1377).
     var prototypeKey: String?
+    /// Node-model kind (#2591): "alias" marks a reference node whose reads
+    /// resolve to `aliasTargetId` (engine `node_aliases.py`).
+    var nodeKind: String?
+    /// Target node id when `nodeKind == "alias"` — stable across target
+    /// renames/moves; a deleted target makes the alias dangling.
+    var aliasTargetId: String?
     var createdAt: Date
     var updatedAt: Date
     // Computed fields from backend (ignored on encode)
@@ -191,6 +197,8 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         case childCount = "child_count"
         case sortOrder = "sort_order"
         case prototypeKey = "prototype_key"
+        case nodeKind = "node_kind"
+        case aliasTargetId = "alias_target_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case expectedThumbnailPath = "expected_thumbnail_path"
@@ -216,6 +224,8 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         childCount: Int = 0,
         sortOrder: Int = 0,
         prototypeKey: String? = nil,
+        nodeKind: String? = nil,
+        aliasTargetId: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         expectedThumbnailPath: String? = nil,
@@ -239,6 +249,8 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.childCount = childCount
         self.sortOrder = sortOrder
         self.prototypeKey = prototypeKey
+        self.nodeKind = nodeKind
+        self.aliasTargetId = aliasTargetId
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.expectedThumbnailPath = expectedThumbnailPath
@@ -268,6 +280,8 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.childCount = try container.decodeIfPresent(Int.self, forKey: .childCount) ?? 0
         self.sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         self.prototypeKey = try container.decodeIfPresent(String.self, forKey: .prototypeKey)
+        self.nodeKind = try container.decodeIfPresent(String.self, forKey: .nodeKind)
+        self.aliasTargetId = try container.decodeIfPresent(String.self, forKey: .aliasTargetId)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         self.expectedThumbnailPath = try container.decodeIfPresent(String.self, forKey: .expectedThumbnailPath)
@@ -371,6 +385,12 @@ extension Document {
 
     /// True when this document was imported via LINK mode (bookmark reference; original stays on disk).
     var isLinked: Bool { ingestMode == .link }
+
+    /// Reference (alias) node, Finder-style (#2591): renders with an alias
+    /// badge and selection resolves to `aliasTargetId` instead of itself.
+    var isAlias: Bool {
+        nodeKind == "alias" && !(aliasTargetId ?? "").isEmpty
+    }
 
     /// True when this document was imported via MOVE mode (relocated; original deleted).
     /// MOVE deletes are terminal; the delete-confirmation should reflect that.

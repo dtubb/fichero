@@ -40,6 +40,9 @@ extension ContentView {
             windowPersistenceId: sidebarWindowPersistenceId,
             onOpenChatWithCurrentScope: {
                 openChatWithCurrentScope()
+            },
+            onRequestNextPaneFocus: {
+                cyclePaneFocus(reverse: false)
             }
         )
         .environment(savedSearchService)

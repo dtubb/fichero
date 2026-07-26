@@ -110,6 +110,10 @@ extension SidebarView {
             destination: destination
         ) else {
             sidebarRowLogger.debug("unifiedRows .onMove BAILED — invalid cross-kind reorder")
+            // The system shows an insertion indicator, then the rows snap
+            // back — say why instead of leaving a silent no-op (#7).
+            sidebarState.dropErrorMessage =
+                "Rows of different kinds can't be reordered together — drag rows of one kind at a time."
             return
         }
 
@@ -226,6 +230,24 @@ extension SidebarView {
         let bareIds = droppedIds
             .filter { $0.hasPrefix("doc:") }
             .map { extractActualId(from: $0) }
+        guard !bareIds.isEmpty else { return }
+
+        // Finder modifier grammar at the insertion line: ⌥ copies, ⌘⌥ makes
+        // aliases — both land at exactly this offset; plain drops keep the
+        // existing transactional move below.
+        let operation = sidebarDropOperation(modifiers: .current(), kind: .document)
+        if operation != .move {
+            let request = SidebarInsertionDropRequest(
+                operation: operation, bareIds: bareIds, parentId: nil,
+                offset: offset, children: items
+            )
+            Task {
+                await sidebarApplyInsertionDropOperation(
+                    request, library: library, sidebarState: sidebarState
+                )
+            }
+            return
+        }
 
         guard let newOrder = sidebarReorderedDocIdsWithInsert(
             children: items,

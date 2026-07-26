@@ -11,6 +11,14 @@ func sidebarSelectionFallback(current: String?, tapped: String) -> String? {
     current == tapped ? nil : tapped
 }
 
+/// Visibility rule for the trailing hover open-affordance (#2496): only while
+/// the pointer is over the row, never during an inline rename (the field owns
+/// the trailing space), and only for rows that can actually be opened
+/// (rows without a library have nowhere to route).
+func sidebarRowShowsOpenAffordance(isHovered: Bool, isRenaming: Bool, hasLibrary: Bool) -> Bool {
+    isHovered && !isRenaming && hasLibrary
+}
+
 /// Whether a restored/persisted sidebar selection still needs to be driven into
 /// the view mode (#2548). `selectedItemId` is restored from `@SceneStorage` at
 /// launch, but `SidebarView.onChange(of: selectedItemId)` only fires on a
@@ -57,18 +65,28 @@ extension View {
     /// `.overlay` + `.allowsHitTesting(false)` so the wash renders on top of
     /// whatever chrome the sidebar-style List draws, without blocking drops.
     @ViewBuilder
-    func sidebarDropHighlight(_ active: Bool, stronger: Bool) -> some View {
+    func sidebarDropHighlight(
+        _ active: Bool, stronger: Bool, operation: SidebarDropOperation = .move
+    ) -> some View {
+        // Modifier-drag tint — the closest native stand-in for AppKit's
+        // drag-cursor badges, which SwiftUI's row drag doesn't expose (no
+        // sourceOperationMask hook): ⌥ copy = green, ⌘⌥ alias = purple.
+        let tint: Color = switch operation {
+        case .move: Color.accentColor
+        case .copy: Color.green
+        case .alias: Color.purple
+        }
         self.overlay(
             RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
                 .fill(
                     active
-                        ? Color.accentColor.opacity(stronger ? 0.45 : 0.25)
+                        ? tint.opacity(stronger ? 0.45 : 0.25)
                         : Color.clear
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
                         .stroke(
-                            active ? Color.accentColor : Color.clear,
+                            active ? tint : Color.clear,
                             lineWidth: active ? 2 : 0
                         )
                 )
@@ -108,6 +126,16 @@ struct SidebarItemRow: View {
     var importService: ImportService? { library?.importService }
 
     @State var isDropTargeted = false
+    /// Pointer-over state driving the trailing open affordance (#2496).
+    @State var isRowHovered = false
+    /// ⌥/⌘ held while this row is a drop target → copy/alias highlight tint.
+    /// Tracked by a flagsChanged monitor installed ONLY while targeted
+    /// (macOS; one row is targeted at a time so at most one monitor lives).
+    @State var isOptionHeldOverTarget = false
+    @State var isCommandHeldOverTarget = false
+    #if os(macOS)
+    @State private var optionMonitor: Any?
+    #endif
     @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
     @FocusState var isRenameFocused: Bool
     @State var isCommittingRename = false
@@ -237,6 +265,14 @@ struct SidebarItemRow: View {
             .padding(.vertical, 1)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
+            // Full name on hover — row names truncate (`lineLimit(1)`) with no
+            // other way to reveal themselves. Empty string disables the tooltip
+            // during inline rename (same idiom as the read-only library help).
+            // The trailing affordance's own `.help` wins over its frame.
+            .help(renameState.renamingItemId == item.id ? "" : item.name)
+            #if os(macOS)
+            .onHover { isRowHovered = $0 }
+            #endif
     }
 
     /// Document id when this sidebar row represents a document or folder —
@@ -244,6 +280,42 @@ struct SidebarItemRow: View {
     var openableDocumentId: String? {
         if case .document(let doc) = item.itemType { return doc.id }
         return nil
+    }
+
+    #if os(macOS)
+    /// Track ⌥ while this row is targeted so the highlight can tint to copy
+    /// mode live. Note: whether flagsChanged reaches a local monitor during
+    /// an active drag session needs a gate eyeball; the drop BEHAVIOR reads
+    /// the key again at drop time regardless (`sidebarOptionKeyIsHeld`).
+    func updateOptionMonitor(targeted: Bool) {
+        if targeted {
+            isOptionHeldOverTarget = NSEvent.modifierFlags.contains(.option)
+            isCommandHeldOverTarget = NSEvent.modifierFlags.contains(.command)
+            guard optionMonitor == nil else { return }
+            optionMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+                isOptionHeldOverTarget = event.modifierFlags.contains(.option)
+                isCommandHeldOverTarget = event.modifierFlags.contains(.command)
+                return event
+            }
+        } else {
+            if let optionMonitor {
+                NSEvent.removeMonitor(optionMonitor)
+            }
+            optionMonitor = nil
+            isOptionHeldOverTarget = false
+            isCommandHeldOverTarget = false
+        }
+    }
+    #endif
+
+    /// The operation the CURRENT modifiers would perform on this drop target —
+    /// drives the highlight tint only; the drop re-reads the keys itself.
+    var targetedDropOperation: SidebarDropOperation {
+        sidebarDropOperation(
+            optionHeld: isOptionHeldOverTarget,
+            commandHeld: isCommandHeldOverTarget,
+            kind: .document
+        )
     }
 
     /// In-window "Open": select this row (drives navigation/preview).

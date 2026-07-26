@@ -404,40 +404,128 @@ extension SidebarItemRow {
 
         sidebarRowLogger.debug("Target \(targetFolder.name) is a \(String(describing: targetKind)) folder")
 
-        for itemID in itemIDs {
-            let sourceKind = SidebarItemKind(prefixedId: itemID)
-            sidebarRowLogger.debug(" Processing drop of item ID: \(itemID) (kind=\(String(describing: sourceKind)))")
-
-            // Cross-section drops aren't meaningful — e.g. dropping a
-            // document onto a search folder has no backend contract. Reject
-            // silently so the user can try again rather than getting a
-            // spurious success toast.
-            guard sourceKind == targetKind else {
-                let src = String(describing: sourceKind)
-                let tgt = String(describing: targetKind)
-                sidebarRowLogger.debug(" Drop rejected: source (\(src)) and target (\(tgt)) sections differ")
-                continue
+        var movedCount = 0
+        var asyncOps: [(SidebarDropOperation, String)] = []
+        var skips = SidebarDropSkipSummary()
+        // Sampled ONCE at the drop moment: ⌥-drop copies document payloads,
+        // ⌘⌥-drop makes aliases at the target (Finder modifier grammar).
+        let modifiersAtDrop = SidebarDropModifiers.current()
+        // The Inbox drag sentinel is an empty id — never a real row, so it
+        // must not count as a "skipped item" in the user-facing summary.
+        for itemID in itemIDs where !itemID.isEmpty {
+            switch processFolderDropItem(
+                itemID,
+                targetKind: targetKind,
+                targetFolder: targetFolder,
+                modifiers: modifiersAtDrop,
+                skips: &skips
+            ) {
+            case .moved:
+                movedCount += 1
+            case .asyncOp(let operation, let bareId):
+                asyncOps.append((operation, bareId))
+            case .skipped:
+                break
             }
+        }
+        finishFolderDrop(
+            targetFolder: targetFolder,
+            movedCount: movedCount,
+            asyncOps: asyncOps,
+            skips: skips
+        )
+        sidebarRowLogger.debug(" ========== DROP COMPLETED ==========")
+        return true
+    }
 
-            guard itemID != targetFolder.id else {
-                sidebarRowLogger.debug(" Drop rejected: cannot drop item onto itself")
-                continue
+    /// The banner reports REAL outcomes: moves are optimistic (as they always
+    /// were), but copies/aliases are awaited before anything claims success —
+    /// a review finding: the old banner counted dispatched Tasks as applied,
+    /// then contradicted itself when they failed.
+    private func finishFolderDrop(
+        targetFolder: SidebarItem,
+        movedCount: Int,
+        asyncOps: [(SidebarDropOperation, String)],
+        skips: SidebarDropSkipSummary
+    ) {
+        let folderId = extractActualId(from: targetFolder.id)
+        Task {
+            var applied = movedCount
+            var failed = 0
+            for (operation, bareId) in asyncOps {
+                let succeeded: Bool
+                switch operation {
+                case .copy:
+                    succeeded = await copyDocumentIntoFolder(documentId: bareId, folderId: folderId)
+                case .alias:
+                    succeeded = await aliasDocumentIntoFolder(documentId: bareId, folderId: folderId)
+                case .move:
+                    succeeded = true
+                }
+                if succeeded { applied += 1 } else { failed += 1 }
             }
-
-            if isDescendant(targetFolder.id, of: itemID) {
-                sidebarRowLogger.debug(" Drop rejected: circular reference detected")
-                continue
+            if let message = sidebarDropOutcomeMessage(
+                applied: applied, failed: failed, skips: skips
+            ) {
+                // Keep the last specific executor error visible alongside the
+                // aggregate ("... 2 failed. <reason>").
+                let specific = failed > 0 ? sidebarState.dropErrorMessage : nil
+                await MainActor.run {
+                    sidebarState.dropErrorMessage = [message, specific]
+                        .compactMap { $0 }
+                        .joined(separator: " ")
+                }
             }
+        }
+    }
 
-            sidebarRowLogger.debug(" Validation passed, calling routeMove")
-            sidebarRowLogger.debug("    Source ID: \(itemID)")
-            sidebarRowLogger.debug("    Target ID: \(targetFolder.id)")
+    enum FolderDropItemOutcome {
+        case moved
+        case asyncOp(SidebarDropOperation, bareId: String)
+        case skipped
+    }
+
+    /// Validate one dropped item against the target: moves dispatch
+    /// optimistically (.moved); copies/aliases are RETURNED for the caller's
+    /// aggregate Task so the summary can report real outcomes; skip reasons
+    /// accumulate in `skips`.
+    private func processFolderDropItem(
+        _ itemID: String,
+        targetKind: SidebarItemKind,
+        targetFolder: SidebarItem,
+        modifiers: SidebarDropModifiers,
+        skips: inout SidebarDropSkipSummary
+    ) -> FolderDropItemOutcome {
+        let sourceKind = SidebarItemKind(prefixedId: itemID)
+        sidebarRowLogger.debug(" Processing drop of item ID: \(itemID) (kind=\(String(describing: sourceKind)))")
+
+        // Cross-section drops aren't meaningful — e.g. dropping a
+        // document onto a search folder has no backend contract.
+        guard sourceKind == targetKind else {
+            skips.crossSection += 1
+            return .skipped
+        }
+        guard itemID != targetFolder.id else {
+            skips.selfDrop += 1
+            return .skipped
+        }
+        if isDescendant(targetFolder.id, of: itemID) {
+            skips.circular += 1
+            return .skipped
+        }
+
+        let operation = sidebarDropOperation(modifiers: modifiers, kind: sourceKind)
+        switch operation {
+        case .copy, .alias:
+            sidebarRowLogger.debug(" modifier-drop (\(String(describing: operation))): \(itemID) → \(targetFolder.id)")
+            return .asyncOp(operation, bareId: extractActualId(from: itemID))
+        case .move:
+            sidebarRowLogger.debug(" Validation passed, routeMove \(itemID) → \(targetFolder.id)")
             Task {
                 await routeMove(itemId: itemID, targetFolder: targetFolder)
             }
+            return .moved
         }
-        sidebarRowLogger.debug(" ========== DROP COMPLETED ==========")
-        return true
     }
 
 }

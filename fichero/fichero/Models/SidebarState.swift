@@ -18,11 +18,6 @@ class SidebarState {
         didSet { saveLibraryExpansionStates() }
     }
 
-    /// Unified sidebar section expansion states (library+section key -> expanded)
-    var unifiedSectionExpansionStates: [String: Bool] {
-        didSet { saveUnifiedSectionExpansionStates() }
-    }
-
     // MARK: - Transient State (not persisted)
 
     var isChatDropTargeted: Bool = false
@@ -47,6 +42,10 @@ class SidebarState {
     var isProcessingDrop: Bool = false
     var dropProgress: Double = 0.0
     var dropErrorMessage: String?
+    /// Rename failures were log-only; surface them like drop failures do.
+    var renameErrorMessage: String?
+    /// A selected alias whose target no longer exists (dangling, #2591).
+    var aliasErrorMessage: String?
     var dropSuccessCount: Int = 0
     var dropFailureCount: Int = 0
 
@@ -58,7 +57,6 @@ class SidebarState {
     private let windowId: String
     private var expandedItemsKey: String { "sidebar.expanded.\(windowId)" }
     private var libraryExpansionKey: String { "sidebar.libraries.\(windowId)" }
-    private var unifiedSectionsKey: String { "sidebar.unified.sections.\(windowId)" }
 
     init(windowId: String = "main") {
         self.windowId = windowId
@@ -79,13 +77,9 @@ class SidebarState {
             self.libraryExpansionStates = [:]
         }
 
-        // Load persisted unified section expansion states (default: all expanded)
-        let unifiedKey = "sidebar.unified.sections.\(windowId)"
-        if let saved = UserDefaults.standard.dictionary(forKey: unifiedKey) as? [String: Bool] {
-            self.unifiedSectionExpansionStates = saved
-        } else {
-            self.unifiedSectionExpansionStates = [:]
-        }
+        // Purge stale persistence from the retired unified-section headers
+        // (removed when the per-library sub-sections collapsed into one node list).
+        UserDefaults.standard.removeObject(forKey: "sidebar.unified.sections.\(windowId)")
     }
 
     // MARK: - State Management
@@ -121,7 +115,6 @@ class SidebarState {
     func reset() {
         expandedItems = []
         libraryExpansionStates = [:]
-        unifiedSectionExpansionStates = [:]
 
         // Reset transient state
         isChatDropTargeted = false
@@ -137,6 +130,8 @@ class SidebarState {
         isProcessingDrop = false
         dropProgress = 0.0
         dropErrorMessage = nil
+        renameErrorMessage = nil
+        aliasErrorMessage = nil
         dropSuccessCount = 0
         dropFailureCount = 0
         scrollViewProxy = nil
@@ -161,9 +156,5 @@ class SidebarState {
 
     private func saveLibraryExpansionStates() {
         UserDefaults.standard.set(libraryExpansionStates, forKey: libraryExpansionKey)
-    }
-
-    private func saveUnifiedSectionExpansionStates() {
-        UserDefaults.standard.set(unifiedSectionExpansionStates, forKey: unifiedSectionsKey)
     }
 }

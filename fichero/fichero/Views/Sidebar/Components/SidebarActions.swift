@@ -79,23 +79,57 @@ extension SidebarView {
         renameState.startRename(itemId: item.id, currentName: item.name)
     }
 
-    /// Delete the selected item
-    func handleDeleteSelectedItem() {
-        guard let item = selectedItem else { return }
-        switch item.itemType {
-        case .libraryHeader:
-            logger.warning("Cannot delete library header")
-        default:
-            deleteState.showDeleteConfirmation(for: item)
-        }
-    }
-
-    /// Delete the whole multi-selection (Delete key / batch). Confirms once for
-    /// every deletable row in the selection; a no-op if nothing is deletable.
+    /// Delete the whole (deletable) multi-selection, confirming once. The ONE
+    /// delete path for every entry point — Delete key, Edit ▸ Delete (⌘⌫), and
+    /// the bottom-toolbar remove button — so a multi-selection is never
+    /// silently narrowed to just the primary row by the menu/toolbar variants.
+    /// A single selection resolves to exactly the primary, unchanged. No-op if
+    /// nothing in the selection is deletable (headers etc. are filtered).
     func handleDeleteSelection() {
         let items = sidebarDeletableItems(selectedItems)
         guard !items.isEmpty else { return }
         deleteState.showDeleteConfirmation(for: items)
+    }
+
+    #if os(macOS)
+    /// Finder-style double-click (#2496): open the primary selected row in a
+    /// new tab or window via the shared `WindowOpener` path, honoring the
+    /// system "Prefer tabs" setting. Single click keeps its existing
+    /// select-in-place semantics; multi-selection is untouched (the primary
+    /// is the routed anchor). Keyboard/VoiceOver equivalents: the row context
+    /// menu and the File-menu Open in New Tab / New Window commands.
+    func handleSidebarDoubleClick() {
+        openPrimarySelection(asTab: sidebarOpenPrefersTab(NSWindow.userTabbingPreference))
+    }
+
+    private func openPrimarySelection(asTab: Bool) {
+        guard let target = sidebarAuxiliaryOpenTarget(
+            item: selectedItem,
+            fallbackLibraryId: libraryManager.currentLibraryId
+        ) else { return }
+        WindowOpener.open(
+            libraryId: target.libraryId,
+            documentId: target.documentId,
+            asTab: asTab,
+            using: openWindow
+        )
+    }
+    #endif
+
+    /// File-menu / keyboard paths (#2496): an EXPLICIT tab or window choice,
+    /// unlike double-click which follows the system tabbing preference.
+    /// No-ops on iOS, where `WindowOpener` (macOS window/tab management)
+    /// doesn't exist — the menu commands are macOS-only anyway.
+    func handleOpenSelectionInNewTab() {
+        #if os(macOS)
+        openPrimarySelection(asTab: true)
+        #endif
+    }
+
+    func handleOpenSelectionInNewWindow() {
+        #if os(macOS)
+        openPrimarySelection(asTab: false)
+        #endif
     }
 
     // Perform the actual deletion

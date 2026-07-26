@@ -1462,6 +1462,45 @@ class TestWorkflowFold:
         assert container.attributes["scope"] == "global"
         assert container.attributes["read_only"] is True
 
+    def test_reseeding_resurrects_soft_deleted_mirror(self, temp_db):
+        """Pre-lock databases may hold soft-deleted mirror rows (deletes were
+        only blocked once documents enforced read_only). Re-saving the
+        workflow must bring its mirror back to life, or presets silently
+        vanish from the tree forever."""
+        workflow = Workflow(name="Preset", is_system=True)
+        temp_db.save(workflow)
+
+        mirror = temp_db.get(Document, workflow.id)
+        assert mirror is not None
+        from datetime import datetime as _dt
+        mirror.deleted_at = _dt.now()
+        mirror.deleted_by = "human"
+        temp_db.save(mirror)
+
+        temp_db.save(workflow)
+
+        resurrected = temp_db.get(Document, workflow.id)
+        assert resurrected is not None
+        assert resurrected.deleted_at is None
+        assert resurrected.deleted_by is None
+
+    def test_reseeding_does_not_resurrect_user_workflow_mirror(self, temp_db):
+        """A USER's deleted workflow mirror must STAY deleted: any save of the
+        workflow (e.g. a run stamping updated_at) re-mirrors, and resurrecting
+        here would silently reverse the user's delete (review finding)."""
+        workflow = Workflow(name="Mine", is_system=False)
+        temp_db.save(workflow)
+
+        mirror = temp_db.get(Document, workflow.id)
+        from datetime import datetime as _dt
+        mirror.deleted_at = _dt.now()
+        mirror.deleted_by = "human"
+        temp_db.save(mirror)
+
+        temp_db.save(workflow)
+
+        assert temp_db.get(Document, workflow.id).deleted_at is not None
+
     def test_save_workflow_mirrors_to_document_node(self, temp_db):
         workflow = Workflow(
             name="Transcribe Letters",

@@ -21,6 +21,9 @@ struct SidebarView: View {
     @Environment(AppState.self) var appState
     @Environment(WindowState.self) var windowState
     @Environment(\.undoManager) var undoManager
+    /// Double-click / trailing-affordance opens reuse the shared Finder-style
+    /// new-window path (`WindowOpener`, #1685).
+    @Environment(\.openWindow) var openWindow
 
     // API client for service calls
     @Environment(APIClient.self) var apiClient
@@ -30,6 +33,10 @@ struct SidebarView: View {
     @Environment(WorkspaceStore.self) var workspaceStore: WorkspaceStore?
 
     var onOpenChatWithCurrentScope: (() -> Void)?
+
+    /// Keyboard focus handoff OUT of the sidebar (right-arrow on a leaf row) —
+    /// mirrors LibraryView's onRequestPreviousPaneFocus path back in.
+    var onRequestNextPaneFocus: (() -> Void)?
 
     // Item type registry for extensible item creation (injected from ContentView)
     @Bindable var itemRegistry: ItemTypeRegistry
@@ -88,7 +95,8 @@ struct SidebarView: View {
         itemRegistry: ItemTypeRegistry,
         apiClient: APIClient,
         windowPersistenceId: String,
-        onOpenChatWithCurrentScope: (() -> Void)? = nil
+        onOpenChatWithCurrentScope: (() -> Void)? = nil,
+        onRequestNextPaneFocus: (() -> Void)? = nil
     ) {
         self._sidebarMode = sidebarMode
         self._viewMode = viewMode
@@ -96,6 +104,7 @@ struct SidebarView: View {
         self.libraryManager = libraryManager
         self.itemRegistry = itemRegistry
         self.onOpenChatWithCurrentScope = onOpenChatWithCurrentScope
+        self.onRequestNextPaneFocus = onRequestNextPaneFocus
         self._sidebarState = State(
             wrappedValue: SidebarState(windowId: windowPersistenceId)
         )
@@ -239,14 +248,17 @@ struct SidebarView: View {
                 createFolder: handleCreateNewFolder,
                 importFiles: importFiles,
                 renameItem: handleRenameSelectedItem,
-                deleteItem: handleDeleteSelectedItem,
+                deleteItem: handleDeleteSelection,
                 createSearch: createNewSearch,
                 createChat: createNewChat,
                 createWorkflow: createNewWorkflow,
                 createChain: createNewChain,
                 createComparison: createNewComparison,
                 createSchedule: createNewSchedule,
-                createTrigger: createNewTrigger
+                createTrigger: createNewTrigger,
+                openSelectionInNewTab: handleOpenSelectionInNewTab,
+                openSelectionInNewWindow: handleOpenSelectionInNewWindow,
+                deletableSelectionCount: sidebarDeletableItems(selectedItems).count
             ))
             .sidebarDeleteAlerts(
                 deleteState: deleteState,
@@ -313,4 +325,3 @@ struct SidebarView: View {
     .environment(apiClient)
     .environment(WorkflowExecutionObserver())
 }
-

@@ -46,13 +46,33 @@ struct SidebarActionsEqualityTests {
             createChain: {},
             createComparison: {},
             createSchedule: {},
-            createTrigger: {}
+            createTrigger: {},
+            openSelectionInNewTab: {},
+            openSelectionInNewWindow: {}
         )
     }
 
     @Test("Two freshly-constructed SidebarActions instances compare equal")
     func freshInstancesCompareEqual() {
         #expect(makeActions() == makeActions())
+    }
+
+    @Test("SelectionInfo equality includes the deletable-selection count")
+    func selectionInfoEqualityTracksDeletableCount() {
+        // Edit ▸ Delete retitles on the count ("Delete N Items"), so a count
+        // change must republish the focused value — equality can't ignore it.
+        let one = SidebarSelectionInfo(
+            selectedItem: nil, canRename: false, canDelete: true, deletableCount: 1
+        )
+        let three = SidebarSelectionInfo(
+            selectedItem: nil, canRename: false, canDelete: true, deletableCount: 3
+        )
+        #expect(one != three)
+        #expect(
+            one == SidebarSelectionInfo(
+                selectedItem: nil, canRename: false, canDelete: true, deletableCount: 1
+            )
+        )
     }
 
     @Test("SidebarActions with different closures still compare equal")
@@ -73,7 +93,9 @@ struct SidebarActionsEqualityTests {
             createChain: { counterA += 1 },
             createComparison: { counterA += 1 },
             createSchedule: { counterA += 1 },
-            createTrigger: { counterA += 1 }
+            createTrigger: { counterA += 1 },
+            openSelectionInNewTab: { counterA += 1 },
+            openSelectionInNewWindow: { counterA += 1 }
         )
         let actions2 = SidebarActions(
             createFolder: { counterB += 1 },
@@ -86,7 +108,9 @@ struct SidebarActionsEqualityTests {
             createChain: { counterB += 1 },
             createComparison: { counterB += 1 },
             createSchedule: { counterB += 1 },
-            createTrigger: { counterB += 1 }
+            createTrigger: { counterB += 1 },
+            openSelectionInNewTab: { counterB += 1 },
+            openSelectionInNewWindow: { counterB += 1 }
         )
         #expect(actions1 == actions2)
     }

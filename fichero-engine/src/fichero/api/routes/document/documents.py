@@ -1630,6 +1630,27 @@ async def move_document(
     return doc
 
 
+@router.post("/{doc_id}/duplicate")
+async def duplicate_document(
+    doc_id: str,
+    parent_id: Optional[str] = Query(None),
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> Document:
+    """Deep-copy a document (subtree included) — beside the original, or
+    into ``parent_id`` when given (Option-drag copy)."""
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.duplicate",
+        {"doc_id": doc_id, "parent_id": parent_id},
+        ctx,
+    )
+    doc = Document.model_validate(result.result)
+    logger.info(f"Duplicated document: {doc_id} -> {doc.id}")
+    return doc
+
+
 def cleanup_orphan_documents_impl(
     db: Database, *, library_path: str
 ) -> tuple[OrphanCleanupResponse, list[str]]:
@@ -1763,6 +1784,7 @@ def update_document_impl(
     ``document.restore``.
     """
     doc = _document_or_404(db, doc_id)
+    _reject_if_document_read_only(doc, "edited")
 
     before = doc.model_dump(mode="json")
 
@@ -1828,11 +1850,49 @@ def update_document_impl(
     return doc, before, list(update_data.keys())
 
 
+def _reject_if_document_read_only(doc: Document, operation: str) -> None:
+    """Raise 403 when ``doc`` is a locked node (#11 Phase 1 enforcement).
+
+    The Default Workflows container and its preset mirrors carry
+    ``attributes.read_only=True`` (see ``Database._save_workflow_document``).
+    The workflow routes already enforce this via ``_reject_if_read_only``;
+    this closes the document-tree side, where move/rename/delete previously
+    succeeded — a moved container even persisted across reopens. Seeding
+    itself uses ``db.save`` directly, so re-seeds are unaffected.
+    """
+    attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+    if attrs.get("read_only"):
+        raise HTTPException(
+            status_code=403,
+            detail=f"{doc.name or doc.id} is read-only and cannot be {operation}",
+        )
+
+
+def _move_would_create_cycle(db: Database, doc_id: str, parent_id: str) -> bool:
+    """True when re-parenting ``doc_id`` under ``parent_id`` forms a cycle.
+
+    Walks the target parent's ancestor chain; if ``doc_id`` appears, the target
+    sits inside the document being moved and the move would detach the subtree
+    from the root — after which orphan cleanup would silently delete it. The
+    walk is bounded so a pre-existing malformed (cyclic) chain terminates.
+    """
+    current: str | None = parent_id
+    guard = 0
+    while current is not None and guard <= 10_000:
+        if current == doc_id:
+            return True
+        row = _get_document_row(db, current)
+        current = row.parent_id if row is not None else None
+        guard += 1
+    return False
+
+
 def move_document_impl(
     db: Database, doc_id: str, parent_id: str | None
 ) -> tuple[Document, dict[str, Any]]:
     """Re-parent a document. Returns ``(doc, before_snapshot)``."""
     doc = _document_or_404(db, doc_id)
+    _reject_if_document_read_only(doc, "moved")
 
     # Verify new parent exists if specified
     if parent_id:
@@ -1841,12 +1901,109 @@ def move_document_impl(
             raise HTTPException(
                 status_code=400, detail=f"Parent not found: {parent_id}"
             )
+        # Locked containers don't accept new children either — nothing may
+        # be filed into Default Workflows except the seeder (db.save path).
+        _reject_if_document_read_only(parent, "added to")
+        # Reject self/descendant parents: the UI's SidebarMovePolicy guards
+        # its own drags, but the API must hold the no-cycle invariant for
+        # every client — a cycled subtree becomes unreachable and orphan
+        # cleanup then deletes it.
+        if _move_would_create_cycle(db, doc_id, parent_id):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Cannot move {doc_id} into itself or its own descendant "
+                    f"({parent_id})"
+                ),
+            )
 
     before = doc.model_dump(mode="json")
     doc.parent_id = parent_id
     doc.updated_at = datetime.now()
     db.save(doc)
     return doc, before
+
+
+def duplicate_document_impl(
+    db: Database,
+    doc_id: str,
+    parent_id: str | None = None,
+    to_root: bool = False,
+) -> tuple[Document, list[str]]:
+    """Deep-copy a document subtree. Returns ``(root copy, all new ids)``.
+
+    Finder semantics: with no ``parent_id`` the root copy lands beside the
+    original named "<name> copy"; with a ``parent_id`` (Option-drag copy) it
+    lands in that folder keeping its name — Finder only suffixes same-folder
+    copies. Descendants keep their names. Copies get fresh ids and
+    timestamps; ``page_content``/metadata/attributes ride along, but derived
+    artifact rows are NOT copied (they regenerate on demand) and copies are
+    not re-embedded here — a reindex covers search. Locked nodes (Default
+    Workflows container/mirrors) refuse — duplicate the workflow via the
+    workflow route instead — and locked targets accept no copies.
+    """
+    src = _document_or_404(db, doc_id)
+    _reject_if_document_read_only(src, "duplicated")
+
+    if parent_id is not None:
+        parent = _get_document_row(db, parent_id)
+        if not parent:
+            raise HTTPException(
+                status_code=400, detail=f"Parent not found: {parent_id}"
+            )
+        _reject_if_document_read_only(parent, "added to")
+        # A target inside the source subtree would make the recursion copy
+        # its own output (runaway growth) — same ancestor walk as move.
+        if _move_would_create_cycle(db, doc_id, parent_id):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Cannot copy {doc_id} into itself or its own descendant "
+                    f"({parent_id})"
+                ),
+            )
+
+    # ``parent_id=None`` is ambiguous between "beside the original" and
+    # "into the library root" — ``to_root`` disambiguates (Option-drop on a
+    # root insertion line copies to root explicitly).
+    if to_root:
+        target_parent_id: str | None = None
+    elif parent_id is not None:
+        target_parent_id = parent_id
+    else:
+        target_parent_id = src.parent_id
+    lands_beside_original = target_parent_id == src.parent_id
+    root_name = f"{src.name} copy" if lands_beside_original else src.name
+
+    new_ids: list[str] = []
+
+    def copy_one(node: Document, parent_id: str | None, name: str | None) -> Document:
+        data = node.model_dump(mode="json")
+        for field in ("id", "created_at", "updated_at"):
+            data.pop(field, None)
+        dup = Document(**data)
+        dup.parent_id = parent_id
+        if name is not None:
+            dup.name = name
+        now = datetime.now()
+        dup.created_at = now
+        dup.updated_at = now
+        db.save(dup)
+        new_ids.append(dup.id)
+        return dup
+
+    # Iterative walk (explicit stack): a pathologically deep tree must not
+    # blow Python's recursion limit mid-copy and strand partial rows
+    # (review suggestion). Order within a level doesn't matter — children
+    # keep their own sort_order values.
+    root_copy = copy_one(src, target_parent_id, root_name)
+    stack: list[tuple[str, str]] = [(src.id, root_copy.id)]
+    while stack:
+        source_id, copy_parent_id = stack.pop()
+        for child in _list_documents(db, parent_id=source_id, include_deleted=False):
+            child_copy = copy_one(child, copy_parent_id, None)
+            stack.append((child.id, child_copy.id))
+    return root_copy, new_ids
 
 
 def reorder_documents_impl(
@@ -1968,6 +2125,10 @@ def delete_document_impl(
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """Soft-delete a document subtree, preserving rows for trash / restore."""
     doc = _document_or_404(db, doc_id)
+    # 403 (not a silent skip): a delete aimed at a locked node — the Default
+    # Workflows container or a preset mirror — must fail loudly. Deleting the
+    # container would soft-delete every mirror inside it in one call.
+    _reject_if_document_read_only(doc, "deleted")
     to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
 
     deleted_at = datetime.now()
@@ -2130,6 +2291,26 @@ class DocumentMoveParams(BaseModel):
     doc_id: str = Field(description="Document id to re-parent")
     parent_id: str | None = Field(
         default=None, description="New parent id (None moves to root)"
+    )
+
+
+class DocumentDuplicateParams(BaseModel):
+    """Params for document.duplicate."""
+
+    doc_id: str = Field(description="Document id to deep-copy (subtree included)")
+    parent_id: str | None = Field(
+        default=None,
+        description=(
+            "Folder the copy lands in (Option-drag copy). Omitted: beside "
+            "the original with a ' copy' name suffix."
+        ),
+    )
+    to_root: bool = Field(
+        default=False,
+        description=(
+            "Copy to the library root (Option-drop on a root insertion "
+            "line) — disambiguates from the beside-the-original default."
+        ),
     )
 
 
@@ -2338,6 +2519,43 @@ def _action_move_document(
         emit_fn=_emit_document_change_spec,
     )
     return doc.model_dump(mode="json"), spec
+
+
+def _invert_duplicate_document(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    # Undo of a duplicate deletes the root copy — document.delete cascades
+    # to the copied subtree.
+    if not after:
+        return None
+    root_id = after.get("document_id")
+    if not root_id:
+        return None
+    return ("document.delete", {"doc_id": root_id})
+
+
+@action(
+    "document.duplicate",
+    DocumentDuplicateParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_duplicate_document,
+)
+def _action_duplicate_document(
+    db: Database, params: DocumentDuplicateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    root_copy, new_ids = duplicate_document_impl(
+        db, params.doc_id, parent_id=params.parent_id, to_root=params.to_root
+    )
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=new_ids,
+        after={"document_id": root_copy.id, "duplicated_ids": new_ids},
+        emit_type="document.created",
+        document_ids=new_ids,
+        emit_fn=_emit_document_change_spec,
+    )
+    return root_copy.model_dump(mode="json"), spec
 
 
 @action(

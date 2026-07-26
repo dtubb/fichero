@@ -2657,9 +2657,11 @@ class Database(DatabaseEmbeddingMixin):
         dict (no new `workflows` table column): every system-seeded preset
         (``is_system=True``) is placed under the locked "Default Workflows"
         container and marked ``read_only``; everything else is a normal
-        library-scoped, writable node at the tree root. NOTE: ``read_only``
-        is descriptive only in Phase 1 — nothing in the write API enforces
-        it yet (see report to Daniel).
+        library-scoped, writable node at the tree root. ``read_only`` is
+        ENFORCED on both write surfaces: workflow routes via
+        ``_reject_if_read_only`` (403) and document update/move/delete via
+        ``_reject_if_document_read_only`` in ``routes/document/documents.py``.
+        Seeding bypasses both (direct ``db.save``), so re-seeds still work.
         """
         from fichero.models import DocType, Document
 
@@ -2697,6 +2699,15 @@ class Database(DatabaseEmbeddingMixin):
         })
 
         doc = existing or Document(id=workflow.id, name=workflow.name)
+        # SYSTEM presets must always render: pre-lock databases can hold
+        # soft-deleted preset mirror rows (document deletes only started
+        # refusing read_only nodes later), and without this a preset stays
+        # invisible forever. Gated on is_system — resurrecting USER workflow
+        # mirrors here would silently reverse a user's delete whenever any
+        # save touches the workflow (e.g. a run updating updated_at).
+        if is_system:
+            doc.deleted_at = None
+            doc.deleted_by = None
         doc.parent_id = (
             container_parent_id
             if is_system

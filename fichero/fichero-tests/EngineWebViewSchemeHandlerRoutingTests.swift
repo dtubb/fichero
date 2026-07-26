@@ -74,6 +74,10 @@ final class EngineWebViewSchemeHandlerRoutingTests: XCTestCase {
         )
     }
 
+    // @MainActor: validateResponseSize is main-actor-isolated (the handler
+    // class is); calling it from a nonisolated test broke the whole
+    // FicheroTests bundle at compile.
+    @MainActor
     func testHandlerAcceptsLimitAndRejectsOneByteOverBeforeWebKitReceivesData() throws {
         let limit = 100 * 1024 * 1024
         XCTAssertNoThrow(try EngineWebViewSchemeHandler.validateResponseSize(byteCount: limit))

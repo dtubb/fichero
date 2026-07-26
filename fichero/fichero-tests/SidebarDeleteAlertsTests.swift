@@ -68,6 +68,82 @@ struct SidebarDeleteAlertsTests {
         #expect(deletable.map(\.id) == ["doc:a"])
     }
 
+    // MARK: - Context-menu delete targets (Finder semantics)
+
+    @Test("right-click inside a multi-selection targets the whole selection")
+    func contextDeleteInsideSelectionTargetsAll() {
+        let alpha = makeItem("a", "Alpha")
+        let beta = makeItem("b", "Beta")
+        let targets = sidebarContextDeleteTargets(clicked: alpha, selection: [alpha, beta])
+        #expect(targets.map(\.id) == ["doc:a", "doc:b"])
+    }
+
+    @Test("right-click outside the selection targets only the clicked row")
+    func contextDeleteOutsideSelectionTargetsClicked() {
+        let alpha = makeItem("a", "Alpha")
+        let beta = makeItem("b", "Beta")
+        let gamma = makeItem("c", "Gamma")
+        let targets = sidebarContextDeleteTargets(clicked: gamma, selection: [alpha, beta])
+        #expect(targets.map(\.id) == ["doc:c"])
+    }
+
+    @Test("single-row selection behaves like a lone row")
+    func contextDeleteSingleSelection() {
+        let alpha = makeItem("a", "Alpha")
+        let targets = sidebarContextDeleteTargets(clicked: alpha, selection: [alpha])
+        #expect(targets.map(\.id) == ["doc:a"])
+    }
+
+    @Test("non-deletable rows are dropped from a batch target")
+    func contextDeleteFiltersNonDeletable() {
+        let alpha = makeItem("a", "Alpha")
+        let header = SidebarItem(
+            id: "lib:x", name: "Lib", icon: "book", category: .library, itemType: .libraryHeader,
+            children: nil, libraryId: UUID(), folderPath: "/", sortOrder: 0, isFolder: false
+        )
+        let targets = sidebarContextDeleteTargets(clicked: alpha, selection: [alpha, header])
+        #expect(targets.map(\.id) == ["doc:a"])
+    }
+
+    @Test("all-non-deletable selection falls back to the clicked row")
+    func contextDeleteAllNonDeletableFallsBack() {
+        let headerA = SidebarItem(
+            id: "lib:x", name: "LibX", icon: "book", category: .library, itemType: .libraryHeader,
+            children: nil, libraryId: UUID(), folderPath: "/", sortOrder: 0, isFolder: false
+        )
+        let headerB = SidebarItem(
+            id: "lib:y", name: "LibY", icon: "book", category: .library, itemType: .libraryHeader,
+            children: nil, libraryId: UUID(), folderPath: "/", sortOrder: 0, isFolder: false
+        )
+        let targets = sidebarContextDeleteTargets(clicked: headerA, selection: [headerA, headerB])
+        #expect(targets.map(\.id) == ["lib:x"])
+    }
+
+    /// Every delete entry point — Delete key, Edit ▸ Delete (⌘⌫), and the
+    /// bottom-toolbar remove button — must share ONE batch path. A previous
+    /// split (menu/toolbar → single-item delete, key → batch) silently
+    /// narrowed a multi-selection delete to just the primary row.
+    @Test("menu, toolbar, and Delete key share one batch delete path")
+    func allDeleteEntryPointsShareBatchPath() throws {
+        let actions = try appSource("Views/Sidebar/Components/SidebarActions.swift")
+        #expect(!actions.contains("func handleDeleteSelectedItem"))
+
+        let focusedConfig = try appSource("Views/Sidebar/SidebarView.swift")
+        #expect(focusedConfig.contains("deleteItem: handleDeleteSelection,"))
+
+        let toolbarConfig = try appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
+        #expect(toolbarConfig.contains("deleteItem: handleDeleteSelection,"))
+    }
+
+    private func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     @MainActor
     @Test("DeleteStateManager batch confirmation sets items and shows dialog")
     func deleteStateBatchConfirmation() {

@@ -44,6 +44,10 @@ extension SidebarItemRow {
                 // Rename is still reachable via right-click → Rename (see
                 // SidebarItemContextMenu).
             }
+            #if os(macOS)
+            Spacer(minLength: 4)
+            trailingOpenAffordance
+            #endif
         }
         .onChange(of: workflowIsRunning) { _, isRunning in
             isPulsing = isRunning
@@ -54,6 +58,40 @@ extension SidebarItemRow {
             }
         }
     }
+
+    #if os(macOS)
+    /// Trailing hover affordance (#2496): a small "open" button that appears
+    /// while the pointer is over the row and performs the same action as
+    /// double-click — open this row in a new tab or window, honoring the
+    /// system "Prefer tabs" setting. The button is ALWAYS in the layout
+    /// (opacity-toggled, hit-testing gated) so hovering never relayouts or
+    /// re-truncates the row name (Every-Frame-Perfect). Hidden from
+    /// accessibility: VoiceOver and keyboard users reach the identical
+    /// action via the row context menu's Open in New Tab / New Window.
+    @ViewBuilder
+    var trailingOpenAffordance: some View {
+        if item.libraryId != nil {
+            let prefersTab = sidebarOpenPrefersTab(NSWindow.userTabbingPreference)
+            let visible = sidebarRowShowsOpenAffordance(
+                isHovered: isRowHovered,
+                isRenaming: renameState.renamingItemId == item.id,
+                hasLibrary: item.libraryId != nil
+            )
+            Button {
+                openInNewWindow(asTab: prefersTab)
+            } label: {
+                Image(systemName: "arrow.up.forward.square")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .opacity(visible ? 1 : 0)
+            .allowsHitTesting(visible)
+            .help(prefersTab ? "Open in New Tab" : "Open in New Window")
+            .accessibilityHidden(true)
+        }
+    }
+    #endif
 
     @ViewBuilder
     private var iconView: some View {
@@ -129,6 +167,11 @@ extension SidebarItemRow {
     /// (default mode shows no badge — matches Finder where copies don't get
     /// alias decoration). #603 part 2.
     private func ingestBadge(for doc: Document) -> (symbol: String, color: Color)? {
+        // Finder-style alias badge takes precedence — the reference arrow is
+        // the node's identity, not an ingest annotation (#2591).
+        if doc.isAlias {
+            return ("arrowshape.turn.up.right.fill", Color.gray)
+        }
         switch doc.ingestMode {
         case .link:
             return ("arrow.up.forward.square.fill", Color.accentColor)

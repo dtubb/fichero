@@ -61,7 +61,8 @@ extension SidebarItemRow {
             let updated = try await documentStore.renameDocument(document, to: newName)
             sidebarRowLogger.debug(" Renamed document to '\(updated.name)'")
         } catch {
-            sidebarRowLogger.debug(" Failed to rename document: \(error.localizedDescription)")
+            sidebarRowLogger.error(" Failed to rename document: \(error.localizedDescription)")
+            sidebarState.renameErrorMessage = error.localizedDescription
         }
     }
 
@@ -116,6 +117,7 @@ extension SidebarItemRow {
             }
         } catch {
             sidebarRowLogger.error(" Failed to rename item: \(error.localizedDescription)")
+            sidebarState.renameErrorMessage = error.localizedDescription
         }
     }
 }

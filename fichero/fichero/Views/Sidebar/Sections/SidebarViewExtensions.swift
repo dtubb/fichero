@@ -37,6 +37,56 @@ func sidebarDeletableItems(_ items: [SidebarItem]) -> [SidebarItem] {
     items.filter { $0.itemType.canBeDeleted }
 }
 
+/// Items the context-menu Delete acts on. Right-clicking a row inside the
+/// current multi-selection targets the whole deletable selection (Finder
+/// semantics); a row outside the selection targets itself alone. Falls back
+/// to the clicked row when nothing in the selection is deletable so the
+/// menu item's enabled state still reflects the row under the pointer.
+func sidebarContextDeleteTargets(clicked: SidebarItem, selection: [SidebarItem]) -> [SidebarItem] {
+    guard selection.count > 1, selection.contains(where: { $0.id == clicked.id }) else {
+        return [clicked]
+    }
+    let deletable = sidebarDeletableItems(selection)
+    return deletable.isEmpty ? [clicked] : deletable
+}
+
+/// Whether a right-arrow keypress should hand keyboard focus to the content
+/// pane instead of being left to the List: only when a NON-expandable leaf is
+/// selected. Folder rows keep right-arrow = native expand; no selection keeps
+/// native behavior too. Uses `.onKeyPress` pass-through (`.ignored`), never
+/// `.onMoveCommand` — that would swallow ALL arrow keys (#560 regression class).
+func sidebarShouldExitFocusRight(selectedItem: SidebarItem?) -> Bool {
+    guard let selectedItem else { return false }
+    return !selectedItem.isExpandable
+}
+
+/// Where a sidebar double-click (or trailing open affordance) routes: the
+/// row's own library, focusing the row when it is a document/folder; other
+/// row kinds open their library without a focused document (matching the
+/// row context menu's Open in New Tab/Window, #1685). Returns nil when
+/// there is nothing to open — no row, and no library to fall back to.
+func sidebarAuxiliaryOpenTarget(
+    item: SidebarItem?,
+    fallbackLibraryId: UUID?
+) -> (libraryId: UUID, documentId: String?)? {
+    guard let item else { return nil }
+    guard let libraryId = item.libraryId ?? fallbackLibraryId else { return nil }
+    if case .document(let doc) = item.itemType {
+        return (libraryId, doc.id)
+    }
+    return (libraryId, nil)
+}
+
+#if os(macOS)
+/// Whether an app-initiated open should join the key window's tab group,
+/// honoring the user's system-wide "Prefer tabs" setting (Finder parity).
+/// `.inFullScreen` stays a window here: the sidebar can't cheaply know the
+/// key window's full-screen state, and a separate window is the safe default.
+func sidebarOpenPrefersTab(_ preference: NSWindow.UserTabbingPreference) -> Bool {
+    preference == .always
+}
+#endif
+
 // MARK: - View Extensions (Apple's recommended pattern over ViewModifiers)
 
 extension View {
@@ -62,6 +112,10 @@ struct SidebarFocusedValuesConfig {
     let createComparison: () -> Void     // No longer optional
     let createSchedule: () -> Void       // No longer optional
     let createTrigger: () -> Void        // No longer optional
+    let openSelectionInNewTab: () -> Void
+    let openSelectionInNewWindow: () -> Void
+    /// Deletable rows in the current multi-selection (drives Edit ▸ Delete).
+    var deletableSelectionCount: Int = 0
 }
 
 extension View {
@@ -79,12 +133,15 @@ extension View {
                 createChain: config.createChain,
                 createComparison: config.createComparison,
                 createSchedule: config.createSchedule,
-                createTrigger: config.createTrigger
+                createTrigger: config.createTrigger,
+                openSelectionInNewTab: config.openSelectionInNewTab,
+                openSelectionInNewWindow: config.openSelectionInNewWindow
             ))
             .focusedValue(\.sidebarSelectionInfo, SidebarSelectionInfo(
                 selectedItem: config.selectedItem,
                 canRename: config.selectedItem?.itemType.canBeRenamed ?? false,
-                canDelete: config.selectedItem?.itemType.canBeDeleted ?? false
+                canDelete: config.deletableSelectionCount > 0,
+                deletableCount: config.deletableSelectionCount
             ))
     }
 }
@@ -169,6 +226,58 @@ private struct SidebarDropAlertsModifier: ViewModifier {
             } message: {
                 Text(sidebarState.dropErrorMessage ?? "The move could not be completed.")
             }
+            .modifier(sidebarMessageAlert(
+                title: "Rename Failed",
+                fallback: "The rename could not be completed.",
+                message: Binding(
+                    get: { sidebarState.renameErrorMessage },
+                    set: { sidebarState.renameErrorMessage = $0 }
+                )
+            ))
+            .modifier(sidebarMessageAlert(
+                title: "Alias Can’t Be Opened",
+                fallback: "The original item can’t be found.",
+                message: Binding(
+                    get: { sidebarState.aliasErrorMessage },
+                    set: { sidebarState.aliasErrorMessage = $0 }
+                )
+            ))
+    }
+}
+
+/// One-line dismissable error alert bound to an optional message — shared by
+/// the rename and alias failure surfaces (and any future one-message alert).
+private func sidebarMessageAlert(
+    title: String,
+    fallback: String,
+    message: Binding<String?>
+) -> SidebarMessageAlertModifier {
+    SidebarMessageAlertModifier(title: title, fallback: fallback, message: message)
+}
+
+private struct SidebarMessageAlertModifier: ViewModifier {
+    let title: String
+    let fallback: String
+    @Binding var message: String?
+
+    func body(content: Content) -> some View {
+        content.alert(
+            title,
+            isPresented: Binding(
+                get: { message != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        message = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                message = nil
+            }
+        } message: {
+            Text(message ?? fallback)
+        }
     }
 }
 
