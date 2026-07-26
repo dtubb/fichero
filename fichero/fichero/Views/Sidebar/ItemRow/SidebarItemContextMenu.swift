@@ -26,6 +26,9 @@ struct SidebarItemContextMenu: View {
     /// blessed path for editing locked Default presets ("Default workflows
     /// are read-only; duplicate to edit", engine 403).
     var onDuplicate: (() -> Void)?
+    /// Document rows: create a Finder-style alias (engine alias node via
+    /// the bookmarks surface, #2591) beside the original.
+    var onMakeAlias: (() -> Void)?
 
     var body: some View {
         Group {
@@ -44,6 +47,12 @@ struct SidebarItemContextMenu: View {
             if let onDuplicate, itemTypeSupportsDuplicate {
                 Button(action: onDuplicate, label: {
                     Label("Duplicate", systemImage: "plus.square.on.square")
+                })
+            }
+
+            if let onMakeAlias, case .document = item.itemType {
+                Button(action: onMakeAlias, label: {
+                    Label("Make Alias", systemImage: "arrowshape.turn.up.right")
                 })
             }
 

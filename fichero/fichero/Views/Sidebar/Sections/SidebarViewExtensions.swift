@@ -226,23 +226,58 @@ private struct SidebarDropAlertsModifier: ViewModifier {
             } message: {
                 Text(sidebarState.dropErrorMessage ?? "The move could not be completed.")
             }
-            .alert(
-                "Rename Failed",
-                isPresented: Binding(
-                    get: { sidebarState.renameErrorMessage != nil },
-                    set: { isPresented in
-                        if !isPresented {
-                            sidebarState.renameErrorMessage = nil
-                        }
-                    }
+            .modifier(sidebarMessageAlert(
+                title: "Rename Failed",
+                fallback: "The rename could not be completed.",
+                message: Binding(
+                    get: { sidebarState.renameErrorMessage },
+                    set: { sidebarState.renameErrorMessage = $0 }
                 )
-            ) {
-                Button("OK", role: .cancel) {
-                    sidebarState.renameErrorMessage = nil
+            ))
+            .modifier(sidebarMessageAlert(
+                title: "Alias Can’t Be Opened",
+                fallback: "The original item can’t be found.",
+                message: Binding(
+                    get: { sidebarState.aliasErrorMessage },
+                    set: { sidebarState.aliasErrorMessage = $0 }
+                )
+            ))
+    }
+}
+
+/// One-line dismissable error alert bound to an optional message — shared by
+/// the rename and alias failure surfaces (and any future one-message alert).
+private func sidebarMessageAlert(
+    title: String,
+    fallback: String,
+    message: Binding<String?>
+) -> SidebarMessageAlertModifier {
+    SidebarMessageAlertModifier(title: title, fallback: fallback, message: message)
+}
+
+private struct SidebarMessageAlertModifier: ViewModifier {
+    let title: String
+    let fallback: String
+    @Binding var message: String?
+
+    func body(content: Content) -> some View {
+        content.alert(
+            title,
+            isPresented: Binding(
+                get: { message != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        message = nil
+                    }
                 }
-            } message: {
-                Text(sidebarState.renameErrorMessage ?? "The rename could not be completed.")
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                message = nil
             }
+        } message: {
+            Text(message ?? fallback)
+        }
     }
 }
 

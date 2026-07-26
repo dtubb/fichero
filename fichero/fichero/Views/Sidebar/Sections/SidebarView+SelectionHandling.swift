@@ -81,6 +81,32 @@ extension SidebarView {
     }
 
     // Handle sidebar item selection and update view mode
+    /// Resolve an alias row to its live target and route the library view
+    /// there. Dangling (target deleted) → `aliasErrorMessage` alert.
+    private func resolveAliasSelection(_ doc: Document, libraryId: UUID?) {
+        guard let targetId = doc.aliasTargetId,
+              let libraryId,
+              let library = libraryManager.getLibrary(id: libraryId) else {
+            sidebarState.aliasErrorMessage =
+                "The original item for “\(doc.name)” can’t be found."
+            return
+        }
+        Task { @MainActor in
+            do {
+                let target = try await library.documentService.getDocument(targetId)
+                sidebarViewLogger.info("Alias \(doc.id) resolved to target \(target.id)")
+                sidebarMode = .library
+                viewMode = .library(target)
+            } catch {
+                sidebarViewLogger.error(
+                    "Dangling alias \(doc.id): target \(targetId) unavailable — \(error.localizedDescription)"
+                )
+                sidebarState.aliasErrorMessage =
+                    "The original item for “\(doc.name)” can’t be found."
+            }
+        }
+    }
+
     func handleSelection(_ item: SidebarItem?) {
         guard let item = item else {
             sidebarViewLogger.info("handleSelection called with nil item")
@@ -111,6 +137,12 @@ extension SidebarView {
     private func handleItemTypeSelection(_ item: SidebarItem) {
         // Update view mode based on item type
         switch item.itemType {
+        case .document(let doc) where doc.isAlias:
+            // Finder semantics (#2591): selecting an alias opens its TARGET.
+            // Resolution fetches from the backend (caches are lazy, so a
+            // cache miss is NOT proof of a dangling alias); a genuinely
+            // missing target surfaces a loud alert, never a stand-in.
+            resolveAliasSelection(doc, libraryId: item.libraryId)
         case .document(let doc):
             sidebarViewLogger.info("Switching to library view with document: \(doc.name)")
             sidebarMode = .library

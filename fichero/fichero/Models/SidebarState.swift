@@ -44,6 +44,8 @@ class SidebarState {
     var dropErrorMessage: String?
     /// Rename failures were log-only; surface them like drop failures do.
     var renameErrorMessage: String?
+    /// A selected alias whose target no longer exists (dangling, #2591).
+    var aliasErrorMessage: String?
     var dropSuccessCount: Int = 0
     var dropFailureCount: Int = 0
 
@@ -129,6 +131,7 @@ class SidebarState {
         dropProgress = 0.0
         dropErrorMessage = nil
         renameErrorMessage = nil
+        aliasErrorMessage = nil
         dropSuccessCount = 0
         dropFailureCount = 0
         scrollViewProxy = nil

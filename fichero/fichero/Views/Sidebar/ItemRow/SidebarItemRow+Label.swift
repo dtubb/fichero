@@ -167,6 +167,11 @@ extension SidebarItemRow {
     /// (default mode shows no badge — matches Finder where copies don't get
     /// alias decoration). #603 part 2.
     private func ingestBadge(for doc: Document) -> (symbol: String, color: Color)? {
+        // Finder-style alias badge takes precedence — the reference arrow is
+        // the node's identity, not an ingest annotation (#2591).
+        if doc.isAlias {
+            return ("arrowshape.turn.up.right.fill", Color.gray)
+        }
         switch doc.ingestMode {
         case .link:
             return ("arrow.up.forward.square.fill", Color.accentColor)

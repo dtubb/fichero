@@ -29,7 +29,8 @@ extension SidebarItemRow {
                 onResume: onAutomationResume,
                 onTrigger: onAutomationTrigger,
                 onCancel: onAutomationCancel,
-                onDuplicate: workflowDuplicateAction
+                onDuplicate: workflowDuplicateAction,
+                onMakeAlias: makeAliasAction
             )
 
             let workflowTargetIDs = resolvedWorkflowTargetIDs
@@ -80,6 +81,27 @@ extension SidebarItemRow {
             }
         default:
             return nil
+        }
+    }
+
+    /// Finder-style Make Alias for document rows (#2591): a real engine alias
+    /// node (via the bookmarks surface) beside the original — never a
+    /// sidebar-only copy. The tree republishes on the store refresh.
+    private var makeAliasAction: (() -> Void)? {
+        guard case .document(let doc) = item.itemType, let library else { return nil }
+        return {
+            Task { @MainActor in
+                let created = await library.bookmarkService.createBookmark(
+                    targetId: doc.id,
+                    name: "\(doc.name) alias",
+                    parentId: doc.parentId
+                )
+                if created {
+                    await library.documentStore.refresh()
+                } else {
+                    sidebarState.dropErrorMessage = "Couldn’t create the alias."
+                }
+            }
         }
     }
 
