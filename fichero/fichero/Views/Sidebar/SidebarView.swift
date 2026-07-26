@@ -34,6 +34,10 @@ struct SidebarView: View {
 
     var onOpenChatWithCurrentScope: (() -> Void)?
 
+    /// Keyboard focus handoff OUT of the sidebar (right-arrow on a leaf row) —
+    /// mirrors LibraryView's onRequestPreviousPaneFocus path back in.
+    var onRequestNextPaneFocus: (() -> Void)?
+
     // Item type registry for extensible item creation (injected from ContentView)
     @Bindable var itemRegistry: ItemTypeRegistry
 
@@ -91,7 +95,8 @@ struct SidebarView: View {
         itemRegistry: ItemTypeRegistry,
         apiClient: APIClient,
         windowPersistenceId: String,
-        onOpenChatWithCurrentScope: (() -> Void)? = nil
+        onOpenChatWithCurrentScope: (() -> Void)? = nil,
+        onRequestNextPaneFocus: (() -> Void)? = nil
     ) {
         self._sidebarMode = sidebarMode
         self._viewMode = viewMode
@@ -99,6 +104,7 @@ struct SidebarView: View {
         self.libraryManager = libraryManager
         self.itemRegistry = itemRegistry
         self.onOpenChatWithCurrentScope = onOpenChatWithCurrentScope
+        self.onRequestNextPaneFocus = onRequestNextPaneFocus
         self._sidebarState = State(
             wrappedValue: SidebarState(windowId: windowPersistenceId)
         )

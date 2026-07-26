@@ -50,6 +50,16 @@ func sidebarContextDeleteTargets(clicked: SidebarItem, selection: [SidebarItem])
     return deletable.isEmpty ? [clicked] : deletable
 }
 
+/// Whether a right-arrow keypress should hand keyboard focus to the content
+/// pane instead of being left to the List: only when a NON-expandable leaf is
+/// selected. Folder rows keep right-arrow = native expand; no selection keeps
+/// native behavior too. Uses `.onKeyPress` pass-through (`.ignored`), never
+/// `.onMoveCommand` — that would swallow ALL arrow keys (#560 regression class).
+func sidebarShouldExitFocusRight(selectedItem: SidebarItem?) -> Bool {
+    guard let selectedItem else { return false }
+    return !selectedItem.isExpandable
+}
+
 /// Where a sidebar double-click (or trailing open affordance) routes: the
 /// row's own library, focusing the row when it is a document/folder; other
 /// row kinds open their library without a focused document (matching the

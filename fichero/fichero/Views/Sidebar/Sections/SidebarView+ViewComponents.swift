@@ -79,6 +79,16 @@ extension SidebarView {
             selectionState.selectedDestinations =
                 sidebarCollapsedSelection(primary: selectionState.selectedDestination)
         }
+        // Right-arrow on a LEAF row hands keyboard focus to the content pane
+        // (Finder-column feel) — the reciprocal of LibraryView's left-arrow
+        // handoff into the sidebar. `.ignored` passes every other case
+        // (folders, no selection) through to the List's native handling.
+        .onKeyPress(.rightArrow, phases: .down) { _ in
+            guard sidebarShouldExitFocusRight(selectedItem: selectedItem),
+                  let onRequestNextPaneFocus else { return .ignored }
+            onRequestNextPaneFocus()
+            return .handled
+        }
         #endif
     }
 

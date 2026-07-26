@@ -86,6 +86,24 @@ struct SidebarOpenAffordanceTests {
         #expect(!sidebarOpenPrefersTab(.inFullScreen))
     }
 
+    // MARK: - Keyboard focus exit (right-arrow on leaf → content pane)
+
+    @Test("right-arrow exits focus only on a non-expandable leaf")
+    func focusExitOnlyOnLeafRows() {
+        let leaf = documentItem("doc-leaf", libraryId: libraryId)
+        #expect(sidebarShouldExitFocusRight(selectedItem: leaf))
+        // Expandable rows keep right-arrow = native expand.
+        let folder = SidebarItem(
+            id: "doc:f", name: "F", icon: "folder", category: .folder,
+            itemType: .document(Document(id: "f", docType: .folder, name: "F")),
+            children: [leaf], libraryId: libraryId, folderPath: "/",
+            sortOrder: 0, isFolder: true
+        )
+        #expect(!sidebarShouldExitFocusRight(selectedItem: folder))
+        // No selection: leave the event to the List.
+        #expect(!sidebarShouldExitFocusRight(selectedItem: nil))
+    }
+
     // MARK: - Menu-command discoverability (source-locked: @FocusedValue
     // buttons can't be instantiated in a unit test without a focus system)
 
