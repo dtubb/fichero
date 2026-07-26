@@ -593,6 +593,30 @@ UI code is SwiftUI; platform bits stay `#if os(macOS)`-gated).
 - Right-arrow on leaf moves focus to content; folder arrows unchanged (#560).
 - Edit ▸ Delete title/count with mixed selections; Rename-failure alert.
 
+## Session 10 — Option-drag copy (Daniel authorized AppKit/UIKit)
+- `531323ed4` Finder ⌥-drag copy, no drag-stack surgery:
+  - ⌥ sampled AT DROP TIME: `NSEvent.modifierFlags` (macOS) /
+    `GCKeyboard` hardware keyboard (iPadOS/visionOS) — SwiftUI drop
+    callbacks expose no modifiers. `SidebarDropOperation.swift`
+    (allowlisted in check_appkit_imports with rationale).
+  - Copy routes through audited `document.duplicate` via the existing
+    `invokeAction` path (no OpenAPI regen needed). ENGINE: optional
+    `parent_id` on duplicate — cross-folder copies keep their name
+    (Finder suffixes only same-folder), cycle-guard reuse (copy into own
+    subtree = recursion onto own output → 400), locked target → 403.
+  - Documents only; other kinds keep move under ⌥ (no targeted endpoint).
+  - Copy-mode affordance: scoped `flagsChanged` monitor (lives only while
+    a row is targeted) tints the drop highlight GREEN under ⌥.
+- Validation: engine 141 green (7 new duplicate cases);
+  `build-for-testing` EXIT 0 / zero errors at head; guardrails unchanged
+  (4 pre-existing); lint clean (DropHandlers file_length pre-existing).
+- GATE EYEBALL (added): ⌥-drop copies on macOS + iPad-with-keyboard; green
+  tint appears, and whether flagsChanged updates it LIVE mid-drag (behavior
+  correct regardless — key re-read at drop); ⌥ on insertion drops (between
+  rows) still MOVES — deliberate v1 scope.
+- Optional follow-ups (not queued): ⌥-copy on insertion drops; "Duplicate"
+  on document-row context menus (trivial now via invokeAction).
+
 ## Active / next
 - Audit swept so far: state persistence, delete paths, contextual menus,
   row accessibility (label/hint/value), drop UTTypes. NOT yet swept:
