@@ -18,7 +18,6 @@ extension ContentView {
             // the chrome always renders there.
             if horizontalSizeClass != .compact {
                 detailTabStrip
-                detailLocationPathBar
                 Divider()
             }
             centerContent
@@ -60,6 +59,11 @@ extension ContentView {
         .background(.bar)
     }
 
+    /// Finder-style status bar: WHAT is selected (name or "N items selected"),
+    /// never the path — the path lives only in the toolbar's principal
+    /// breadcrumb. The dedicated location path bar and the pane breadcrumb
+    /// strip were two of FOUR in-window copies of the same path; retired
+    /// (#4102 dedupe).
     private var detailStatusPathBar: some View {
         VStack(spacing: 0) {
             Divider()
@@ -67,32 +71,12 @@ extension ContentView {
                 Text(selectionStatusText)
                     .font(.caption)
                     .lineLimit(1)
-                Text(selectionPathText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 10)
             .frame(height: 24)
             .background(.bar)
         }
-    }
-
-    private var detailLocationPathBar: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
-                .foregroundStyle(.secondary)
-            Text(selectionPathText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 10)
-        .frame(height: 22)
-        .background(.bar)
-        .accessibilityIdentifier("detailLocationPathBar")
     }
 
     /// The document-canvas pane of the widescreen reading layout — a PDF page

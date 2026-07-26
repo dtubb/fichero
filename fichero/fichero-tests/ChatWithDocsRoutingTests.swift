@@ -30,7 +30,6 @@ final class ChatWithDocsRoutingTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
         ].joined(separator: "\n"))
 
         XCTAssertFalse(source.contains("withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }"))

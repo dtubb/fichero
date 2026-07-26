@@ -313,7 +313,6 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
         ].joined(separator: "\n"))
 
         XCTAssertTrue(source.contains("Keep every library/preview/reader combination inside the detail"))
@@ -467,7 +466,6 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
         ].joined(separator: "\n"))
         let requiredSnippets = [
             "@Environment(ArtifactService.self) var artifactService",

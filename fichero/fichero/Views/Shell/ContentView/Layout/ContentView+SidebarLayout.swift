@@ -103,10 +103,10 @@ extension ContentView {
 
     @ViewBuilder
     var centerContent: some View {
-        // Clickable location breadcrumb pinned above the content (#1928). The bar
-        // renders nothing at the Library root, so this inset is invisible there.
+        // The location breadcrumb lives ONLY in the window toolbar's principal
+        // lozenge — the pane-level clickable strip (#1928) was one of FOUR
+        // in-window copies of the same path and is retired (#4102 dedupe).
         centerContentRouting
-            .safeAreaInset(edge: .top, spacing: 0) { breadcrumbBar }
     }
 
     @ViewBuilder

@@ -318,7 +318,6 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
         ].joined(separator: "\n"))
         let workspaceRootSource = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
 
@@ -329,13 +328,17 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(contentSource.contains("var body: some View"))
         XCTAssertTrue(buildersSource.contains("var detailShellColumn: some View"))
         XCTAssertTrue(buildersSource.contains("detailTabStrip"))
-        XCTAssertTrue(buildersSource.contains("detailLocationPathBar"))
+        // The location path bar + pane breadcrumb strip are RETIRED (#4102
+        // dedupe): the path renders only in the toolbar's principal
+        // breadcrumb; the bottom bar is Finder-style selection status.
+        XCTAssertFalse(buildersSource.contains("detailLocationPathBar"))
+        XCTAssertFalse(buildersSource.contains("breadcrumbBar"))
         XCTAssertTrue(buildersSource.contains("detailStatusPathBar"))
         XCTAssertTrue(buildersSource.contains("WindowOpener.open(libraryId: windowState.libraryId, asTab: true"))
         XCTAssertTrue(workspaceRootSource.contains("AdaptiveAppleShellHost"))
     }
 
-    func testSelectionStatusTextKeepsCountAndPathVisible() throws {
+    func testSelectionStatusTextIsFinderStyleWithoutPath() throws {
         // file_length: ContentView+State split into ContentView+State*; read them all concatenated.
         let stateSource = try [
             Self.appSource("Views/Shell/ContentView/ContentView+StateDisplay.swift"),
@@ -347,8 +350,10 @@ final class AdaptiveShellPolicyTests: XCTestCase {
 
         XCTAssertTrue(stateSource.contains("var selectionStatusText: String"))
         XCTAssertTrue(stateSource.contains("\"\\(browserSelection.count) items selected\""))
-        XCTAssertTrue(stateSource.contains("var selectionPathText: String"))
-        XCTAssertTrue(stateSource.contains("return \"\\(breadcrumbSubtitle) › \\(leaf)\""))
+        // selectionPathText is RETIRED (#4102 dedupe): the status bar shows
+        // WHAT is selected, never the path — the path lives only in the
+        // toolbar's principal breadcrumb.
+        XCTAssertFalse(stateSource.contains("var selectionPathText: String"))
     }
 
     func testToolbarSearchStaysBesideContentTitle() throws {
@@ -401,7 +406,6 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
         ].joined(separator: "\n"))
 
         // `contentPaneToolbarContent` is declared in the toolbar file and
@@ -423,7 +427,6 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
         ].joined(separator: "\n"))
 
         XCTAssertTrue(buildersSource.contains("PDFReadingView("))
@@ -438,7 +441,6 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
         ].joined(separator: "\n"))
 
         XCTAssertTrue(buildersSource.contains("adaptiveSplittablePane(storageKey: \"library\")"))
@@ -454,7 +456,6 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
-            Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
         ].joined(separator: "\n"))
 
         XCTAssertTrue(sidebarSource.contains(".background(.bar)"))

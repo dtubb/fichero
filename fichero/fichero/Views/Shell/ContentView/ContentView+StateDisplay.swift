@@ -155,9 +155,4 @@ extension ContentView {
         return activeLocationDocument?.name ?? toolbarTitle
     }
 
-    var selectionPathText: String {
-        let leaf = activeLocationDocument?.name ?? toolbarTitle
-        guard !breadcrumbSubtitle.isEmpty else { return leaf }
-        return "\(breadcrumbSubtitle) › \(leaf)"
-    }
 }
