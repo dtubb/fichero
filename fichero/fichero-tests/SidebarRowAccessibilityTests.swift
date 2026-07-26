@@ -69,8 +69,12 @@ final class SidebarRowAccessibilityTests: XCTestCase {
         // for non-expandable rows) must not appear inside this branch's label.
         XCTAssertTrue(afterDisclosure.contains("} label: {\n                fullWidthLabel\n            }"))
         // And the three modifiers hang off the group itself.
+        // Prefix match, no closing paren: the call gained an `operation:`
+        // argument, and this test only cares that the highlight hangs off the
+        // outer group with the row's own targeting/folder state — not about
+        // the full argument list, which is free to grow.
         XCTAssertTrue(
-            afterDisclosure.contains(".sidebarDropHighlight(isDropTargeted, stronger: isFolder)")
+            afterDisclosure.contains(".sidebarDropHighlight(isDropTargeted, stronger: isFolder")
         )
     }
 

@@ -322,8 +322,11 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         ].joined(separator: "\n"))
         let workspaceRootSource = try Self.appSource("Views/Library/Workspace/LibraryWorkspaceRoot.swift")
 
-        XCTAssertTrue(contentSource.contains("NavigationSplitView("))
-        XCTAssertTrue(contentSource.contains("detailShellColumn"))
+        // The split view and its columns live in Layout/ContentView+RootLayout
+        // since 408e4ae81; ContentView.swift keeps only `body`.
+        XCTAssertTrue(buildersSource.contains("NavigationSplitView("))
+        XCTAssertTrue(buildersSource.contains("detailShellColumn"))
+        XCTAssertTrue(contentSource.contains("var body: some View"))
         XCTAssertTrue(buildersSource.contains("var detailShellColumn: some View"))
         XCTAssertTrue(buildersSource.contains("detailTabStrip"))
         XCTAssertTrue(buildersSource.contains("detailLocationPathBar"))
@@ -350,7 +353,6 @@ final class AdaptiveShellPolicyTests: XCTestCase {
 
     func testToolbarSearchStaysBesideContentTitle() throws {
         let toolbarSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         guard let principalRange = toolbarSource.range(of: "var principalToolbarContent: some ToolbarContent") else {
             XCTFail("principal toolbar content missing")
             return
@@ -358,7 +360,10 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         let principalSource = toolbarSource[principalRange.lowerBound...]
 
         XCTAssertTrue(principalSource.contains("Text(toolbarTitle)"))
-        XCTAssertTrue(contentSource.contains("ToolbarSearchableModifier"))
+        // ToolbarSearchableModifier moved out of ContentView.swift with
+        // 408e4ae81's view-builder split; it is declared in the toolbar file
+        // and applied by the root layout.
+        XCTAssertTrue(toolbarSource.contains("ToolbarSearchableModifier"))
     }
 
     func testBottomEdgeFiltersStayPaneScoped() throws {
@@ -399,8 +404,12 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+Breadcrumb.swift"),
         ].joined(separator: "\n"))
 
-        XCTAssertTrue(contentSource.contains("contentPaneToolbarContent"))
-        XCTAssertTrue(contentSource.contains("contentPaneToolbarContent"))
+        // `contentPaneToolbarContent` is declared in the toolbar file and
+        // consumed by the Layout/ builders — it left ContentView.swift with
+        // 408e4ae81's view-builder split, so assert on its real homes.
+        XCTAssertFalse(contentSource.contains("contentPaneToolbarContent"))
+        XCTAssertTrue(toolbarSource.contains("contentPaneToolbarContent"))
+        XCTAssertTrue(buildersSource.contains("contentPaneToolbarContent"))
         XCTAssertTrue(toolbarSource.contains("viewDisplayModeMenu"))
         XCTAssertTrue(toolbarSource.contains("setCanvasPaneVisible(!showDocumentCanvas)"))
         XCTAssertTrue(toolbarSource.contains("setReadingPaneVisible(!showReadingPane)"))

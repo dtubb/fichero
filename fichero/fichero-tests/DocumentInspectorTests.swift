@@ -108,7 +108,11 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testEntitySearchRoutingUsesTypedStateInsteadOfNotificationBus() throws {
-        let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
+        // The .onChange routing moved into the Layout/ view-builder split
+        // (408e4ae81); ContentView.swift keeps only `body`.
+        let contentSource = try Self.appSource(
+            "Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"
+        )
         let sharedSource = try Self.appSource("Views/Inspector/Knowledge/KnowledgeGraphSupport.swift")
         // #4024: entities tab content lives across split sibling files now.
         let entitiesSource = try Self.entitiesTabSource()
@@ -120,7 +124,11 @@ final class DocumentInspectorTests: XCTestCase {
     }
 
     func testClaimSourceRoutingUsesTypedStateInsteadOfNotificationBus() throws {
-        let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
+        // The .onChange routing moved into the Layout/ view-builder split
+        // (408e4ae81); ContentView.swift keeps only `body`.
+        let contentSource = try Self.appSource(
+            "Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"
+        )
         let sharedSource = try Self.appSource("Views/Inspector/Knowledge/KnowledgeGraphSupport.swift")
         let artifactsSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
         let searchSource = try Self.appSource("Views/Library/Search/SearchView+Helpers.swift")

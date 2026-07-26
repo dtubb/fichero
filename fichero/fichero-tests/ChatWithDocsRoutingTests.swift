@@ -36,12 +36,38 @@ final class ChatWithDocsRoutingTests: XCTestCase {
         XCTAssertFalse(source.contains("withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }"))
     }
 
-    func testSidebarPinnedRowsExposeChatWithDocsAsCommand() throws {
-        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+PinnedNavigationRows.swift")
+    /// Scoped chat is a command on a document node, not a pinned sidebar row.
+    ///
+    /// The pinned bottom rows were retired in #4102 — but the CAPABILITY must
+    /// survive the row, and on every platform: Data ▸ New Chat opens an
+    /// unscoped chat, so without a per-node command Mac loses document-scoped
+    /// chat entirely. That is exactly the regression this pins.
+    func testChatWithCurrentScopeIsANodeCommandOnEveryPlatform() throws {
+        let pinned = try Self.appSource("Views/Sidebar/Sections/SidebarView+PinnedNavigationRows.swift")
+        XCTAssertFalse(
+            pinned.contains("chatWithDocsNavigationRow"),
+            "the pinned Chat with Docs row is retired (#4102)"
+        )
 
-        XCTAssertTrue(source.contains("private func chatWithDocsNavigationRow() -> some View"))
-        XCTAssertTrue(source.contains("onOpenChatWithCurrentScope?()"))
-        XCTAssertFalse(source.contains("tag: \"chat-with-docs-browser\""))
+        let row = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
+        XCTAssertTrue(row.contains("private var chatWithScopeAction: some View"))
+        XCTAssertTrue(row.contains("onOpenChatWithCurrentScope()"))
+        XCTAssertTrue(
+            row.contains("chatWithScopeAction"),
+            "the command must be composed into rowContextMenu, not merely defined"
+        )
+
+        // The load-bearing half: the action must sit OUTSIDE the
+        // compact-only branch, or Mac has no route to a scoped chat.
+        guard let actionRange = row.range(of: "private var chatWithScopeAction: some View"),
+              let compactRange = row.range(of: "private var compactTouchActions: some View") else {
+            return XCTFail("expected both context-menu action builders")
+        }
+        let actionBody = row[actionRange.upperBound..<compactRange.lowerBound]
+        XCTAssertFalse(
+            actionBody.contains("horizontalSizeClass == .compact"),
+            "scoped chat must not be size-class gated — Mac needs it too (#4102)"
+        )
     }
 
     func testSidebarSelectionDoesNotHandleChatWithDocsAsStickyNavigation() throws {

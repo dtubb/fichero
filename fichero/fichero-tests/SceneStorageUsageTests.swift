@@ -9,8 +9,13 @@ final class SceneStorageUsageTests: XCTestCase {
 
     func testContentViewStillOwnsCurrentLayoutSceneStorage() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
+        // ContentView still DECLARES the scene storage — that ownership is the
+        // point of this test. The binding is passed down from the root layout,
+        // where 408e4ae81 moved the view-builders.
+        let rootLayout = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
         XCTAssertTrue(source.contains("@SceneStorage(\"currentLayoutMode\")"))
-        XCTAssertTrue(source.contains("currentLayoutMode: $currentLayoutMode"))
+        XCTAssertFalse(rootLayout.contains("@SceneStorage(\"currentLayoutMode\")"))
+        XCTAssertTrue(rootLayout.contains("currentLayoutMode: $currentLayoutMode"))
     }
 
     private static func appSource(_ relativePath: String) throws -> String {

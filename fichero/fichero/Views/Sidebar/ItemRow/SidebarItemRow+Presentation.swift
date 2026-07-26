@@ -3,6 +3,7 @@ import SwiftUI
 extension SidebarItemRow {
     var rowContextMenu: some View {
         Group {
+            chatWithScopeAction
             compactTouchActions
 
             // Finder-style open affordances (#1685). "Open" selects the row in
@@ -164,22 +165,36 @@ extension SidebarItemRow {
         return workflowRunTarget(for: item)
     }
 
+    /// Scoped chat, as a command on the node itself.
+    ///
+    /// Deliberately NOT size-class gated (#4102): this used to be compact-only
+    /// because Mac reached document-scoped chat through the pinned "Chat with
+    /// Docs" row at the sidebar's bottom. Retiring those rows left the
+    /// capability wired (`onOpenChatWithCurrentScope` still threads all the way
+    /// down) but unreachable on Mac — Data ▸ New Chat opens an UNSCOPED chat.
+    /// A context-menu command on the document is the node-shaped home for it.
+    @ViewBuilder
+    private var chatWithScopeAction: some View {
+        if case .document = item.itemType, let onOpenChatWithCurrentScope {
+            Button {
+                selectedItemId = item.id
+                Task { @MainActor in
+                    onOpenChatWithCurrentScope()
+                }
+            } label: {
+                Label("Add to Chat", systemImage: "plus.circle")
+            }
+            Divider()
+        }
+    }
+
+    /// Touch-only affordances. Move-to-Folder stays gated because Mac already
+    /// has it through drag-and-drop; touch has no equivalent.
     @ViewBuilder
     private var compactTouchActions: some View {
         if horizontalSizeClass == .compact,
            case .document(let document) = item.itemType {
             let folders = moveDestinationFolders(for: document) ?? []
-
-            if let onOpenChatWithCurrentScope {
-                Button {
-                    selectedItemId = item.id
-                    Task { @MainActor in
-                        onOpenChatWithCurrentScope()
-                    }
-                } label: {
-                    Label("Add to Chat", systemImage: "plus.circle")
-                }
-            }
 
             if !folders.isEmpty {
                 Menu("Move to Folder") {
@@ -193,7 +208,7 @@ extension SidebarItemRow {
                 }
             }
 
-            if onOpenChatWithCurrentScope != nil || !folders.isEmpty {
+            if !folders.isEmpty {
                 Divider()
             }
         }

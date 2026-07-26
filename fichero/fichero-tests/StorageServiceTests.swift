@@ -95,7 +95,12 @@ struct StorageServiceTests {
             try await service.thumbnailData(for: "doc-123")
             Issue.record("expected StorageServiceError.notFound")
         } catch StorageServiceError.notFound(let url, _) {
-            #expect(url.path == "/api/storage/thumbnail/doc-123")
+            // The URL carried by the error is the transport-agnostic
+            // `fichero-res://<kind>/<docId>` form, not an HTTP path — the same
+            // URL works over .https, .uds, and in-memory transports.
+            #expect(url.scheme == StorageResourceURL.scheme)
+            #expect(url.host == StorageResourceKind.thumbnail.rawValue)
+            #expect(url.path == "/doc-123")
         } catch {
             Issue.record("unexpected error: \(error)")
         }
@@ -128,8 +133,20 @@ struct StorageServiceTests {
         let display = service.displayURL(for: "doc-abc")
         let source = service.sourceURL(for: "doc-abc")
 
-        #expect(thumbnail.path == "/api/storage/thumbnail/doc-abc")
-        #expect(display.path == "/api/storage/display/doc-abc")
-        #expect(source.path == "/api/storage/source/doc-abc")
+        // `fichero-res://<kind>/<documentId>?c=<token>` — the kind is the HOST
+        // and the document id is the single path component, so the same URL
+        // resolves over .https, .uds, and in-memory transports alike. The
+        // routing token must be present or the scheme adapters can't find the
+        // client to load through.
+        for (url, kind) in [
+            (thumbnail, StorageResourceKind.thumbnail),
+            (display, StorageResourceKind.display),
+            (source, StorageResourceKind.source),
+        ] {
+            #expect(url.scheme == StorageResourceURL.scheme)
+            #expect(url.host == kind.rawValue)
+            #expect(url.path == "/doc-abc")
+            #expect(url.query?.contains("\(StorageResourceURL.tokenQueryName)=") == true)
+        }
     }
 }
