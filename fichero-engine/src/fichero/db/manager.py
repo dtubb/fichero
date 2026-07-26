@@ -72,6 +72,7 @@ class DatabaseManager:
         from fichero.db.library_bootstrap import ensure_inbox_folder
         from fichero.db.paths import is_global_library_package
         from fichero.workflows.default_workflows import (
+            heal_default_workflow_tree,
             prune_default_workflows,
             seed_default_workflows,
         )
@@ -112,6 +113,11 @@ class DatabaseManager:
                             seeded = seed_default_workflows(db)
                             if seeded:
                                 logger.info(f"Seeded {seeded} default workflow preset(s)")
+                            # Libraries seeded before the locked container hold
+                            # the preset folders at the tree ROOT — seeding is
+                            # name-idempotent so it never fixes them. Re-home
+                            # the mirrors + sweep emptied legacy folders (#4102).
+                            heal_default_workflow_tree(db)
                         else:
                             prune_default_workflows(db)
 

@@ -268,6 +268,87 @@ def _expand_provider_sentinels(
     return expanded
 
 
+def heal_default_workflow_tree(db: "Database") -> int:
+    """Re-home preset workflow mirrors under the locked container (#4102).
+
+    Libraries seeded before the "Default Workflows" container existed hold
+    the preset folders (Transcribe, Convert, …) as ROOT-level folder
+    documents with the workflow mirrors parented to them — and because
+    seeding is idempotent BY NAME it never re-saves those rows, so the
+    stale tree survives every launch. Heal explicitly:
+
+    1. Re-save every preset workflow (matched by name, only is_system /
+       is_template rows). The mirror save recomputes the parent, placing
+       the node under the container's per-folder subfolder. Legacy rows
+       that predate the ``is_system`` flag get it set first — every
+       shipped preset declares it true.
+    2. Delete legacy ROOT-level folders whose name matches a preset
+       folder segment and that are left EMPTY. A folder with any child
+       (e.g. a user's own "Books" with documents) is never touched.
+
+    Mirrors already homed under the container are skipped, so the steady
+    state costs one Workflow list + one Document query per open.
+    """
+    from fichero.db import _DEFAULT_WORKFLOWS_CONTAINER_ID
+    from fichero.models import DocType, Document, Workflow
+
+    presets = _load_preset_files()
+    preset_names = {preset.get("name") for preset in presets if preset.get("name")}
+    folder_segments = {
+        seg
+        for preset in presets
+        for seg in (preset.get("folder_path") or "/").split("/")
+        if seg
+    }
+    if not preset_names:
+        return 0
+
+    try:
+        existing = list(db.all(Workflow))
+    except Exception as exc:
+        logger.warning(f"heal_default_workflow_tree: cannot list workflows: {exc}")
+        return 0
+
+    healed = 0
+    for workflow in existing:
+        if workflow.name not in preset_names:
+            continue
+        if not (
+            getattr(workflow, "is_template", False) or getattr(workflow, "is_system", False)
+        ):
+            continue
+        mirror = db.get(Document, workflow.id)
+        parent_id = getattr(mirror, "parent_id", None) if mirror is not None else None
+        if parent_id is not None and parent_id.startswith(_DEFAULT_WORKFLOWS_CONTAINER_ID):
+            continue  # already homed
+        try:
+            workflow.is_system = True
+            db.save(workflow)
+            healed += 1
+        except Exception as exc:
+            logger.warning(f"Could not re-home preset '{workflow.name}': {exc}")
+
+    # Sweep legacy root-level preset folders that the re-homing emptied.
+    try:
+        for doc in list(db.query(Document, parent_id=None)):
+            if doc.id == _DEFAULT_WORKFLOWS_CONTAINER_ID:
+                continue
+            if getattr(doc, "doc_type", None) != DocType.folder:
+                continue
+            if doc.name not in folder_segments:
+                continue
+            if db.query(Document, parent_id=doc.id):
+                continue  # still has content — user's own folder, leave it
+            db.delete(doc)
+            logger.info(f"Removed empty legacy preset folder '{doc.name}' from root")
+    except Exception as exc:
+        logger.warning(f"heal_default_workflow_tree: folder sweep failed: {exc}")
+
+    if healed:
+        logger.info(f"Re-homed {healed} preset workflow(s) under Default Workflows")
+    return healed
+
+
 def prune_default_workflows(db: "Database") -> int:
     """Remove system-seeded preset workflows from a NON-global library.
 
