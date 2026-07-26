@@ -39,7 +39,6 @@ IDENTIFIER = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "Services/EmbeddedBackendService+Ports.swift": "#1943 — extension file; PortResolution/PortConflictAction helper enums used by EmbeddedBackendService methods in sibling extension files (service split); scanner treats the nested type as a dead primary type",
     "Services/EmbeddedBackendService+Readiness.swift": "#1943 — extension file; SpawnWaitStep used by EmbeddedBackendService readiness methods (service split)",
     "Services/EmbeddedBackendService+TLS.swift": "#1943 — extension file; DataBox/CachedTLSPaths used by EmbeddedBackendService TLS methods (service split)",
     "Models/CacheModel.swift": "#1945 — candidate dead file: CacheModel, CacheWrapper",
@@ -64,15 +63,13 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Workflow/Editor/WorkflowEditor+Actions.swift": "#1945 — candidate dead file: workflow completion helper",
     "Views/Settings/MCP/MCPToolsCatalogView.swift": "#1945 — candidate dead file: MCP tools catalog helper types",
     "Views/Settings/MCP/MCPServersSheet.swift": "#3366 — settings routing keeps legacy sheet compiled for transition/back-compat",
-    "App/Menus/AddItemMenu.swift": "#2955 — live but scanner-blind: sole toolbar-evidence for Link/Copy/Add-Files in the action-surface matrix",
-    "App/Menus/ImagePreviewMenuCommands.swift": "#1945 — candidate dead file: MagnifierLimits",
     "Views/Library/Notes/NotesBrowserView.swift": "#2955 — live but scanner-blind: source read by NoteServiceTests",
     "Views/Library/Search/SearchArrowKeyNavigation.swift": "#2955 — file stays live via View.arrowKeyResultNavigation extension; primary helper types are local-only",
     "Views/Library/Search/SearchFiltersPanel.swift": "#1945 — candidate dead file: SearchFiltersPanel",
     "Views/Settings/AI/AISettingsView+Helpers.swift": "#1945 — candidate dead file: TierCapability",
     "Views/Sidebar/State/ActivityDataProcessing.swift": "#1945 — candidate dead file: ActivityWorkflowGroup",
     "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": "#2955 — file stays live via SidebarItemRow drop-handling extension; primary helper types are local-only",
-    "Views/Sidebar/Sections/SidebarView+ActivityRows.swift": "#1945 — candidate dead file: ActivityRunGridCell",
+    "Views/Sidebar/ItemRow/SidebarItemRow+Workflow.swift": "live but scanner-blind: SidebarWorkflowRequest is a private same-file parameter bundle used by runWorkflowOnDocuments/executeSidebarWorkflow; the extension is called from SidebarItemRow+Presentation.swift",
     "Views/Components/MiniToolbarComponents.swift": "#2955 — live but scanner-blind: WorkflowMiniToolbarButton exercised by #2415 tests",
     "Views/Workflow/Nodes/DynamicConfigView+FieldRendering.swift": "#1945 — candidate dead file: DynamicFolderPickerOption",
     "Views/Workflow/Editor/SimpleWorkflowView.swift": "#1945 — candidate dead file: SimpleWorkflowView, SimpleWorkflow",

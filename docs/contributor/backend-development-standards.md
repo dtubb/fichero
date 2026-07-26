@@ -105,7 +105,7 @@ The current shipped pattern is:
 
 Grounded code paths on `main`:
 
-- `fichero-engine/src/fichero/api/routes/claims.py`
+- `fichero-engine/src/fichero/api/routes/claim/claims.py`
   `create_claim(...)`, `patch_claim(...)`, and `delete_claim(...)` all resolve
   an `ActionContext` and then call `registry.invoke(...)`
 - the corresponding `claim.create`, `claim.patch`, and `claim.delete` actions in
@@ -138,7 +138,7 @@ direct-write route:
   `fichero-engine/src/fichero/api/routes/documents.py`
 - for a claim mutation, use the `claim.create` / `claim.patch` /
   `claim.delete` route+action pairs in
-  `fichero-engine/src/fichero/api/routes/claims.py`
+  `fichero-engine/src/fichero/api/routes/claim/claims.py`
 - for a folded note or entity create, use `note.create` in
   `fichero-engine/src/fichero/api/routes/notes.py` and `entity.create` in
   `fichero-engine/src/fichero/api/routes/entities.py`
@@ -162,7 +162,7 @@ Grounded examples:
 - the same file calls `await create_claim(request, db)` and
   `await patch_claim(claim.id, patch_request, db)` directly
 
-That is why `fichero-engine/src/fichero/api/routes/claims.py` and
+That is why `fichero-engine/src/fichero/api/routes/claim/claims.py` and
 `fichero-engine/src/fichero/api/routes/entities.py` now use
 `_resolve_action_ctx(...)` and tolerate unresolved `Depends(...)` sentinels for
 `ctx`, `actor`, and library-path inputs. If you make a route audited, keep it

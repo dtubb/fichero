@@ -23,6 +23,7 @@ suite (`pytest fichero-engine/tests/unit/test_check_mac_app_store_target.py`).
 
 from __future__ import annotations
 
+import json
 import os
 import plistlib
 import subprocess
@@ -119,11 +120,18 @@ def test_embed_phases_are_dependency_aware_not_always_out_of_date() -> None:
     unchanged builds do not rerun the expensive copy/signing phase (#3991)."""
     input_file_list = "$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
     staged_engine_input = "$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app"
-    expected_outputs = {
+    expected_macos_outputs = {
         "Fichero": "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app",
         "Fichero (App Store)": "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app",
     }
-    for target_name, expected_output in expected_outputs.items():
+    project = json.loads(
+        subprocess.run(
+            ["plutil", "-convert", "json", "-o", "-", str(REPO_ROOT / "fichero" / "fichero.xcodeproj" / "project.pbxproj")],
+            capture_output=True,
+            check=True,
+        ).stdout
+    )["objects"]
+    for target_name, expected_macos_output in expected_macos_outputs.items():
         phase = _embed_phase(target_name)
         assert str(phase.get("alwaysOutOfDate", "0")) != "1", (
             f"{target_name} Embed Fichero Engine must not set alwaysOutOfDate=1 (#3991)"
@@ -134,9 +142,18 @@ def test_embed_phases_are_dependency_aware_not_always_out_of_date() -> None:
         assert staged_engine_input in set(phase.get("inputPaths", [])), (
             f"{target_name} Embed Fichero Engine must declare the staged Briefcase app input (#3991)"
         )
-        assert expected_output in set(phase.get("outputPaths", [])), (
-            f"{target_name} Embed Fichero Engine must declare its copied app output (#3991)"
+        assert set(phase.get("outputPaths", [])) == {"$(FICHERO_ENGINE_EMBED_OUTPUT_PATH)"}, (
+            f"{target_name} Embed Fichero Engine must use the platform-aware output variable (#3991)"
         )
+        target = next(
+            target for target in project.values()
+            if target.get("isa") == "PBXNativeTarget" and target.get("name") == target_name
+        )
+        for config_id in project[target["buildConfigurationList"]]["buildConfigurations"]:
+            settings = project[config_id]["buildSettings"]
+            assert settings.get("FICHERO_ENGINE_EMBED_OUTPUT_PATH") == "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop"
+            assert settings.get("FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]") == expected_macos_output
+
     assert "$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements" in set(
         _embed_phase("Fichero (App Store)").get("inputPaths", [])
     )

@@ -30,6 +30,8 @@ ENGINE_EMBED_INPUTS = REPO / "fichero/fichero.xcodeproj/xcshareddata/FicheroEngi
 
 MAS_TARGET = "Fichero (App Store)"
 DMG_TARGET = "Fichero"
+ENGINE_EMBED_OUTPUT_PATH = "$(FICHERO_ENGINE_EMBED_OUTPUT_PATH)"
+ENGINE_EMBED_NOOP_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop"
 
 failures: list[str] = []
 
@@ -130,13 +132,27 @@ def main() -> int:
             fail(f"{target['name']} Embed Fichero Engine must use {input_list!r} as an inputFileListPath")
         if "$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app" not in input_paths:
             fail(f"{target['name']} Embed Fichero Engine must list the staged Briefcase app as an inputPath")
-        expected_output = (
+        expected_macos_output = (
             "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app"
             if target["name"] == MAS_TARGET
             else "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app"
         )
-        if expected_output not in output_paths:
-            fail(f"{target['name']} Embed Fichero Engine is missing outputPath {expected_output!r}")
+        if output_paths != {ENGINE_EMBED_OUTPUT_PATH}:
+            fail(
+                f"{target['name']} Embed Fichero Engine must use {ENGINE_EMBED_OUTPUT_PATH!r} as its only "
+                "outputPath so non-macOS builds do not track a macOS app-bundle path"
+            )
+        for cfg_name, settings in configs(objects, target).items():
+            if settings.get("FICHERO_ENGINE_EMBED_OUTPUT_PATH") != ENGINE_EMBED_NOOP_PATH:
+                fail(
+                    f"{target['name']}/{cfg_name} must use {ENGINE_EMBED_NOOP_PATH!r} as the default "
+                    "engine embed output path"
+                )
+            if settings.get("FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]") != expected_macos_output:
+                fail(
+                    f"{target['name']}/{cfg_name} must resolve FICHERO_ENGINE_EMBED_OUTPUT_PATH for macOS "
+                    f"to {expected_macos_output!r}"
+                )
         if target["name"] == MAS_TARGET and "$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements" not in input_paths:
             fail("the MAS Embed Fichero Engine phase must list FicheroEngineAppStore.entitlements as an input")
 
