@@ -490,6 +490,31 @@ class TestDocumentDuplicateAction:
             )
         assert exc.value.status_code == 403
 
+    def test_duplicate_survives_trees_deeper_than_the_recursion_limit(self, db):
+        # The copy walk is iterative — a chain deeper than Python's default
+        # recursion limit (~1000) must copy completely, not strand partial
+        # rows on a RecursionError (review suggestion).
+        import sys
+        depth = sys.getrecursionlimit() + 50
+        parent_id = None
+        top_id = None
+        for i in range(depth):
+            doc = _save_doc(db, name=f"d{i}", doc_type=DocType.folder, parent_id=parent_id)
+            if top_id is None:
+                top_id = doc.id
+            parent_id = doc.id
+
+        result = registry.invoke(db, "document.duplicate", {"doc_id": top_id}, _ctx())
+        copy = Document.model_validate(result.result)
+        # Walk the copy chain to the bottom — every level must exist.
+        current = copy.id
+        copied = 0
+        while current is not None:
+            copied += 1
+            children = db.query(Document, parent_id=current)
+            current = children[0].id if children else None
+        assert copied == depth
+
     def test_duplicate_locked_node_rejected(self, db):
         locked = _save_doc(
             db, name="Default Workflows", doc_type=DocType.folder,

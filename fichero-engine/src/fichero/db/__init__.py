@@ -2669,12 +2669,15 @@ class Database(DatabaseEmbeddingMixin):
         })
 
         doc = existing or Document(id=workflow.id, name=workflow.name)
-        # A live workflow's mirror must render: pre-lock databases can hold
-        # soft-deleted mirror rows (document deletes only started refusing
-        # read_only nodes later), and without this the preset stays invisible
-        # forever no matter how often it re-seeds.
-        doc.deleted_at = None
-        doc.deleted_by = None
+        # SYSTEM presets must always render: pre-lock databases can hold
+        # soft-deleted preset mirror rows (document deletes only started
+        # refusing read_only nodes later), and without this a preset stays
+        # invisible forever. Gated on is_system — resurrecting USER workflow
+        # mirrors here would silently reverse a user's delete whenever any
+        # save touches the workflow (e.g. a run updating updated_at).
+        if is_system:
+            doc.deleted_at = None
+            doc.deleted_by = None
         doc.parent_id = (
             container_parent_id
             if is_system

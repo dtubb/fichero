@@ -1977,7 +1977,7 @@ def duplicate_document_impl(
 
     new_ids: list[str] = []
 
-    def copy_node(node: Document, parent_id: str | None, name: str | None) -> Document:
+    def copy_one(node: Document, parent_id: str | None, name: str | None) -> Document:
         data = node.model_dump(mode="json")
         for field in ("id", "created_at", "updated_at"):
             data.pop(field, None)
@@ -1990,11 +1990,19 @@ def duplicate_document_impl(
         dup.updated_at = now
         db.save(dup)
         new_ids.append(dup.id)
-        for child in _list_documents(db, parent_id=node.id, include_deleted=False):
-            copy_node(child, dup.id, None)
         return dup
 
-    root_copy = copy_node(src, target_parent_id, root_name)
+    # Iterative walk (explicit stack): a pathologically deep tree must not
+    # blow Python's recursion limit mid-copy and strand partial rows
+    # (review suggestion). Order within a level doesn't matter — children
+    # keep their own sort_order values.
+    root_copy = copy_one(src, target_parent_id, root_name)
+    stack: list[tuple[str, str]] = [(src.id, root_copy.id)]
+    while stack:
+        source_id, copy_parent_id = stack.pop()
+        for child in _list_documents(db, parent_id=source_id, include_deleted=False):
+            child_copy = copy_one(child, copy_parent_id, None)
+            stack.append((child.id, child_copy.id))
     return root_copy, new_ids
 
 

@@ -195,24 +195,28 @@ extension SidebarItemRow {
     /// action (the same invokeAction path document.delete uses). The engine
     /// enforces cycle/lock rules and keeps the name for cross-folder copies
     /// (Finder suffixes only same-folder copies).
-    func copyDocumentIntoFolder(documentId: String, folderId: String) async {
-        guard let library else { return }
+    @discardableResult
+    func copyDocumentIntoFolder(documentId: String, folderId: String) async -> Bool {
+        guard let library else { return false }
         do {
             _ = try await library.actionsService.invokeAction(
                 name: "document.duplicate",
                 params: DocumentDuplicateActionParams(docId: documentId, parentId: folderId)
             )
             await library.documentStore.refresh()
+            return true
         } catch {
             sidebarRowLogger.error("⌥-copy failed: \(error.localizedDescription)")
             sidebarState.dropErrorMessage = error.localizedDescription
+            return false
         }
     }
 
     /// ⌘⌥-drag alias executor for drops ONTO a folder: a real engine alias
     /// node (bookmarks surface, #2591) inside the target.
-    func aliasDocumentIntoFolder(documentId: String, folderId: String) async {
-        guard let library else { return }
+    @discardableResult
+    func aliasDocumentIntoFolder(documentId: String, folderId: String) async -> Bool {
+        guard let library else { return false }
         let store = library.documentStore
         let source = sidebarFindDocument(id: documentId, in: store)
         let name = sidebarAliasName(
@@ -230,5 +234,6 @@ extension SidebarItemRow {
         } else {
             sidebarState.dropErrorMessage = "Couldn’t create the alias."
         }
+        return created
     }
 }

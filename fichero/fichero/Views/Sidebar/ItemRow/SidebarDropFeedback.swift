@@ -10,10 +10,15 @@ struct SidebarDropSkipSummary: Equatable {
     var total: Int { crossSection + selfDrop + circular }
 }
 
-/// User-facing summary for a partially-applied (or fully-rejected) multi-item
-/// drop. Returns nil when nothing was skipped — clean drops stay silent.
-func sidebarDropSkipMessage(moved: Int, skips: SidebarDropSkipSummary) -> String? {
-    guard skips.total > 0 else { return nil }
+/// User-facing summary for a multi-item drop built from REAL outcomes —
+/// `applied` counts operations that actually completed (moves are optimistic,
+/// copies/aliases are awaited), `failed` counts async failures. Returns nil
+/// when everything applied cleanly — clean drops stay silent. Wording is
+/// operation-neutral ("dropped") because a drop can mix move/copy/alias.
+func sidebarDropOutcomeMessage(
+    applied: Int, failed: Int, skips: SidebarDropSkipSummary
+) -> String? {
+    guard failed > 0 || skips.total > 0 else { return nil }
     var reasons: [String] = []
     if skips.crossSection > 0 {
         reasons.append("\(skips.crossSection) in a different section")
@@ -24,11 +29,14 @@ func sidebarDropSkipMessage(moved: Int, skips: SidebarDropSkipSummary) -> String
     if skips.circular > 0 {
         reasons.append("\(skips.circular) would nest a folder inside itself")
     }
-    let reasonList = reasons.joined(separator: ", ")
-    if moved == 0 {
-        let noun = skips.total == 1 ? "item" : "items"
-        return "Nothing was moved (\(skips.total) \(noun) skipped: \(reasonList))."
+    if failed > 0 {
+        reasons.append("\(failed) failed")
     }
-    let total = moved + skips.total
-    return "Moved \(moved) of \(total) items (skipped: \(reasonList))."
+    let detail = reasons.joined(separator: ", ")
+    let total = applied + failed + skips.total
+    if applied == 0 {
+        let noun = total == 1 ? "item" : "items"
+        return "Nothing was dropped (\(total) \(noun): \(detail))."
+    }
+    return "Dropped \(applied) of \(total) items (\(detail))."
 }
