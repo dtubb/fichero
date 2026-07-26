@@ -60,33 +60,29 @@ extension SidebarView {
             // not inflate an individual library's disclosure label.
             let totalCount = flattenedLibraryItems(libraryId: libraryId, buckets: buckets).count
 
-            if library.id == LibraryManager.globalLibraryId {
-                // Global library is headless — with a single library in
-                // 0.0.2 there's nothing to switch between, so the
-                // "Global" row was dead chrome (#608). Library-root
-                // Finder drops still work via the section headers
-                // inside (Library / Saved Searches / etc.).
+            // EVERY library — including the global one — gets its own header
+            // row (#4102). The global library used to render headless, from
+            // when it was the only library and the row was dead chrome (#608).
+            // With several libraries open that made its contents look like
+            // they belonged to no library, and floated its "Default Workflows"
+            // subfolders at the sidebar's top level next to the real library
+            // rows. One consistent shape: a library is always a disclosure
+            // group you can collapse.
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { sidebarState.isLibraryExpanded(library.id) },
+                    set: { sidebarState.libraryExpansionStates[library.id.uuidString] = $0 }
+                )
+            ) {
                 unifiedLibrarySections(
                     libraryId: libraryId,
                     buckets: buckets
                 )
-            } else {
-                DisclosureGroup(
-                    isExpanded: Binding(
-                        get: { sidebarState.isLibraryExpanded(library.id) },
-                        set: { sidebarState.libraryExpansionStates[library.id.uuidString] = $0 }
-                    )
-                ) {
-                    unifiedLibrarySections(
-                        libraryId: libraryId,
-                        buckets: buckets
-                    )
-                } label: {
-                    libraryDisclosureLabel(library: library, totalCount: totalCount)
-                }
-                .tag(SidebarDestination.library(library.id))
-                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+            } label: {
+                libraryDisclosureLabel(library: library, totalCount: totalCount)
             }
+            .tag(SidebarDestination.library(library.id))
+            .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
         }
     }
 

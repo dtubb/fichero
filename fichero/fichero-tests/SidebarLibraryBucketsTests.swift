@@ -76,6 +76,25 @@ final class SidebarLibraryBucketsTests: XCTestCase {
         XCTAssertFalse(source.contains("buckets.documentItems.count + buckets.searchItems.count + buckets.workflowItems.count"))
     }
 
+    /// #4102: every library — global included — renders as its own collapsible
+    /// disclosure group. The global library used to render headless, which made
+    /// its contents (notably the Default Workflows subfolders) float at the
+    /// sidebar's top level next to the real library rows, so libraries did not
+    /// read as separate.
+    func testEveryLibraryRendersItsOwnHeaderRow() throws {
+        let source = try appSource("Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
+
+        XCTAssertFalse(
+            source.contains("if library.id == LibraryManager.globalLibraryId {"),
+            "the global library must not take a headless branch (#4102)"
+        )
+        XCTAssertTrue(source.contains("libraryDisclosureLabel(library: library, totalCount: totalCount)"))
+        XCTAssertEqual(
+            source.components(separatedBy: "DisclosureGroup(").count - 1, 1,
+            "one shared DisclosureGroup renders every library"
+        )
+    }
+
     private func appSource(_ relativePath: String) throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

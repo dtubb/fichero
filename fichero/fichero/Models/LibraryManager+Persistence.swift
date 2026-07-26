@@ -101,10 +101,14 @@ extension LibraryManager {
 
     /// Restore libraries from saved paths
     func restoreSavedLibraries() {
-        guard backendIsReady else {
-            libraryManagerLogger.info("Deferring saved-library restoration until backend ready")
-            return
-        }
+        // No backend-ready guard (launch-speed, #4036): materializing a
+        // LibraryReference is purely local (UserDefaults paths + security
+        // scope), per-library DATA loads already defer through
+        // `scheduleLoadWhenBackendReady`, and the registry write in
+        // `noteOpenedLibrary` is best-effort with a silent catch. Restoring
+        // eagerly lets the first window frame mount the library shell while
+        // the engine is still booting; `refreshAfterBackendBecameReady` calls
+        // this again (idempotent) and then loads data.
 
         // Canonicalize any legacy NFD-keyed defaults before reading them (#3076);
         // idempotent, so running on every launch is harmless.
@@ -146,6 +150,10 @@ extension LibraryManager {
                 let perLibraryStart = Date()
                 let library = openLibrary(at: url)
                 let perLibraryMs = Date().timeIntervalSince(perLibraryStart) * 1000
+                LaunchProfile.milestone(
+                    "restored library",
+                    detail: "\(library.displayName) \(Int(perLibraryMs))ms"
+                )
                 libraryManagerLogger.info(
                     "⏱ Restored \(library.displayName): \(perLibraryMs, format: .fixed(precision: 1))ms"
                 )
