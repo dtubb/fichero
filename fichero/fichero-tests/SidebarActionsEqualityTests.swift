@@ -46,7 +46,9 @@ struct SidebarActionsEqualityTests {
             createChain: {},
             createComparison: {},
             createSchedule: {},
-            createTrigger: {}
+            createTrigger: {},
+            openSelectionInNewTab: {},
+            openSelectionInNewWindow: {}
         )
     }
 
@@ -73,7 +75,9 @@ struct SidebarActionsEqualityTests {
             createChain: { counterA += 1 },
             createComparison: { counterA += 1 },
             createSchedule: { counterA += 1 },
-            createTrigger: { counterA += 1 }
+            createTrigger: { counterA += 1 },
+            openSelectionInNewTab: { counterA += 1 },
+            openSelectionInNewWindow: { counterA += 1 }
         )
         let actions2 = SidebarActions(
             createFolder: { counterB += 1 },
@@ -86,7 +90,9 @@ struct SidebarActionsEqualityTests {
             createChain: { counterB += 1 },
             createComparison: { counterB += 1 },
             createSchedule: { counterB += 1 },
-            createTrigger: { counterB += 1 }
+            createTrigger: { counterB += 1 },
+            openSelectionInNewTab: { counterB += 1 },
+            openSelectionInNewWindow: { counterB += 1 }
         )
         #expect(actions1 == actions2)
     }
