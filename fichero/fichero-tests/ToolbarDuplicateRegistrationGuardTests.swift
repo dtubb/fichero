@@ -85,8 +85,14 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
     /// that becomes reachable when all feature flags are on — re-registers
     /// `com.apple.SwiftUI.search` on the same NSToolbar and crashes (#3163).
     func testOnlyContentViewRegistersToolbarSearchable() throws {
+        // Path-keyed, so it must follow the code: `ToolbarSearchableModifier`
+        // moved out of ContentView.swift when 408e4ae81 split the view-builders
+        // into Layout/. It is still ContentView's single global search — only
+        // its file changed. The old key is NOT kept alongside this one: two
+        // allowlisted homes would permit two live registrations, which is the
+        // exact crash this guards (#3163).
         let allowlist: [String: Int] = [
-            "Views/Shell/ContentView/ContentView.swift": 1,          // ToolbarSearchableModifier (#3037)
+            "Views/Shell/ContentView/Layout/ContentView+RootLayout.swift": 1,  // ToolbarSearchableModifier (#3037)
             "Views/Components/MiniToolbar.swift": 1  // conditionalSearchable's definition
         ]
 
