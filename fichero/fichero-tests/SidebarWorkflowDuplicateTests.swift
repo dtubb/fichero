@@ -12,7 +12,7 @@ final class SidebarWorkflowDuplicateTests: XCTestCase {
         let menu = try appSource("Views/Sidebar/ItemRow/SidebarItemContextMenu.swift")
         // Shown only for kinds with a backend duplicate endpoint.
         XCTAssertTrue(menu.contains("if let onDuplicate, itemTypeSupportsDuplicate {"))
-        XCTAssertTrue(menu.contains("case .workflow, .savedSearch, .conversation:"))
+        XCTAssertTrue(menu.contains("case .document, .workflow, .savedSearch, .conversation:"))
         XCTAssertTrue(menu.contains(#"Label("Duplicate", systemImage: "plus.square.on.square")"#))
     }
 
@@ -21,6 +21,7 @@ final class SidebarWorkflowDuplicateTests: XCTestCase {
         // Each duplicable kind calls its one existing endpoint; failures
         // surface on the drop banner.
         XCTAssertTrue(row.contains("try await store.duplicateWorkflow(workflow.id)"))
+        XCTAssertTrue(row.contains(#"name: "document.duplicate""#))
         XCTAssertTrue(row.contains("try await service.duplicateSavedSearch(search.id)"))
         XCTAssertTrue(row.contains("try await service.duplicateConversation(conversation.id)"))
         XCTAssertTrue(row.contains("sidebarState.dropErrorMessage = error.localizedDescription"))

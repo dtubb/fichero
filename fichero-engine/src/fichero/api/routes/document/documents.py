@@ -1925,7 +1925,10 @@ def move_document_impl(
 
 
 def duplicate_document_impl(
-    db: Database, doc_id: str, parent_id: str | None = None
+    db: Database,
+    doc_id: str,
+    parent_id: str | None = None,
+    to_root: bool = False,
 ) -> tuple[Document, list[str]]:
     """Deep-copy a document subtree. Returns ``(root copy, all new ids)``.
 
@@ -1960,7 +1963,15 @@ def duplicate_document_impl(
                 ),
             )
 
-    target_parent_id = parent_id if parent_id is not None else src.parent_id
+    # ``parent_id=None`` is ambiguous between "beside the original" and
+    # "into the library root" — ``to_root`` disambiguates (Option-drop on a
+    # root insertion line copies to root explicitly).
+    if to_root:
+        target_parent_id: str | None = None
+    elif parent_id is not None:
+        target_parent_id = parent_id
+    else:
+        target_parent_id = src.parent_id
     lands_beside_original = target_parent_id == src.parent_id
     root_name = f"{src.name} copy" if lands_beside_original else src.name
 
@@ -2286,6 +2297,13 @@ class DocumentDuplicateParams(BaseModel):
             "the original with a ' copy' name suffix."
         ),
     )
+    to_root: bool = Field(
+        default=False,
+        description=(
+            "Copy to the library root (Option-drop on a root insertion "
+            "line) — disambiguates from the beside-the-original default."
+        ),
+    )
 
 
 class DocumentReorderParams(BaseModel):
@@ -2519,7 +2537,7 @@ def _action_duplicate_document(
     db: Database, params: DocumentDuplicateParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     root_copy, new_ids = duplicate_document_impl(
-        db, params.doc_id, parent_id=params.parent_id
+        db, params.doc_id, parent_id=params.parent_id, to_root=params.to_root
     )
     spec = ChangeSpec(
         domains=["document"],

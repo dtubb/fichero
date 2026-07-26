@@ -147,7 +147,7 @@ extension SidebarItemRow {
             } label: {
                 fullWidthLabel
             }
-            .sidebarDropHighlight(isDropTargeted, stronger: isFolder, copying: isOptionHeldOverTarget)
+            .sidebarDropHighlight(isDropTargeted, stronger: isFolder, operation: targetedDropOperation)
             .onDrop(
                 of: Self.dropTypes,
                 isTargeted: $isDropTargeted
@@ -185,7 +185,7 @@ extension SidebarItemRow {
     @ViewBuilder
     private var folderLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: true, copying: isOptionHeldOverTarget)
+            .sidebarDropHighlight(isDropTargeted, stronger: true, operation: targetedDropOperation)
             .onDrop(
                 of: Self.dropTypes,
                 isTargeted: $isDropTargeted
@@ -200,7 +200,7 @@ extension SidebarItemRow {
     /// SwiftUI's tap-vs-drag disambiguation (#711 follow-up).
     private var leafLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: false, copying: isOptionHeldOverTarget)
+            .sidebarDropHighlight(isDropTargeted, stronger: false, operation: targetedDropOperation)
             .onDrop(
                 of: Self.dropTypes,
                 isTargeted: $isDropTargeted

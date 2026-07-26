@@ -32,15 +32,39 @@ struct SidebarDropFeedbackTests {
 
     // MARK: - Option-drag copy (⌥ at drop time)
 
-    @Test("Option copies documents; everything else stays a move")
-    func optionDragCopyIsDocumentOnly() {
-        #expect(sidebarDropOperation(optionHeld: true, kind: .document) == .copy)
-        // No Option → move, always.
-        #expect(sidebarDropOperation(optionHeld: false, kind: .document) == .move)
-        // Kinds without a targeted duplicate endpoint keep move semantics.
-        #expect(sidebarDropOperation(optionHeld: true, kind: .savedSearch) == .move)
-        #expect(sidebarDropOperation(optionHeld: true, kind: .workflow) == .move)
-        #expect(sidebarDropOperation(optionHeld: true, kind: .unknown) == .move)
+    @Test("Finder modifier grammar: plain=move, ⌥=copy, ⌘⌥=alias — documents only")
+    func modifierDragGrammarIsDocumentOnly() {
+        #expect(sidebarDropOperation(optionHeld: false, commandHeld: false, kind: .document) == .move)
+        #expect(sidebarDropOperation(optionHeld: true, commandHeld: false, kind: .document) == .copy)
+        #expect(sidebarDropOperation(optionHeld: true, commandHeld: true, kind: .document) == .alias)
+        // ⌘ alone is the multi-select modifier, never a drop operation.
+        #expect(sidebarDropOperation(optionHeld: false, commandHeld: true, kind: .document) == .move)
+        // Kinds without targeted duplicate/alias endpoints keep move semantics.
+        #expect(sidebarDropOperation(optionHeld: true, commandHeld: false, kind: .savedSearch) == .move)
+        #expect(sidebarDropOperation(optionHeld: true, commandHeld: true, kind: .workflow) == .move)
+        #expect(sidebarDropOperation(optionHeld: true, commandHeld: false, kind: .unknown) == .move)
+    }
+
+    @Test("alias naming follows the Finder same-folder rule")
+    func aliasNamingRule() {
+        #expect(sidebarAliasName(sourceName: "Paper", sourceParentId: "f1", targetParentId: "f1") == "Paper alias")
+        #expect(sidebarAliasName(sourceName: "Paper", sourceParentId: "f1", targetParentId: "f2") == "Paper")
+        #expect(sidebarAliasName(sourceName: "Loose", sourceParentId: nil, targetParentId: nil) == "Loose alias")
+    }
+
+    @Test("insertion drops route ⌥/⌘⌥ through the positioned executor")
+    func insertionDropsSupportModifierGrammar() throws {
+        for path in [
+            "Views/Sidebar/Sections/SidebarView+UnifiedRows.swift",
+            "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift"
+        ] {
+            let source = try appSource(path)
+            #expect(source.contains("sidebarApplyInsertionDropOperation("), Comment(rawValue: path))
+            #expect(
+                source.contains("sidebarDropOperation(modifiers: .current(), kind: .document)"),
+                Comment(rawValue: path)
+            )
+        }
     }
 
     @Test("copy path routes through the audited document.duplicate action")

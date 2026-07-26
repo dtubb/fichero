@@ -65,11 +65,17 @@ extension View {
     /// `.overlay` + `.allowsHitTesting(false)` so the wash renders on top of
     /// whatever chrome the sidebar-style List draws, without blocking drops.
     @ViewBuilder
-    func sidebarDropHighlight(_ active: Bool, stronger: Bool, copying: Bool = false) -> some View {
-        // Copy mode (⌥ held over the target) tints green — the closest native
-        // stand-in for AppKit's copy-cursor badge, which SwiftUI's row drag
-        // doesn't expose (no sourceOperationMask hook).
-        let tint = copying ? Color.green : Color.accentColor
+    func sidebarDropHighlight(
+        _ active: Bool, stronger: Bool, operation: SidebarDropOperation = .move
+    ) -> some View {
+        // Modifier-drag tint — the closest native stand-in for AppKit's
+        // drag-cursor badges, which SwiftUI's row drag doesn't expose (no
+        // sourceOperationMask hook): ⌥ copy = green, ⌘⌥ alias = purple.
+        let tint: Color = switch operation {
+        case .move: Color.accentColor
+        case .copy: Color.green
+        case .alias: Color.purple
+        }
         self.overlay(
             RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
                 .fill(
@@ -122,10 +128,11 @@ struct SidebarItemRow: View {
     @State var isDropTargeted = false
     /// Pointer-over state driving the trailing open affordance (#2496).
     @State var isRowHovered = false
-    /// ⌥ held while this row is a drop target → copy-mode highlight tint.
+    /// ⌥/⌘ held while this row is a drop target → copy/alias highlight tint.
     /// Tracked by a flagsChanged monitor installed ONLY while targeted
     /// (macOS; one row is targeted at a time so at most one monitor lives).
     @State var isOptionHeldOverTarget = false
+    @State var isCommandHeldOverTarget = false
     #if os(macOS)
     @State private var optionMonitor: Any?
     #endif
@@ -283,9 +290,11 @@ struct SidebarItemRow: View {
     func updateOptionMonitor(targeted: Bool) {
         if targeted {
             isOptionHeldOverTarget = NSEvent.modifierFlags.contains(.option)
+            isCommandHeldOverTarget = NSEvent.modifierFlags.contains(.command)
             guard optionMonitor == nil else { return }
             optionMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
                 isOptionHeldOverTarget = event.modifierFlags.contains(.option)
+                isCommandHeldOverTarget = event.modifierFlags.contains(.command)
                 return event
             }
         } else {
@@ -294,9 +303,20 @@ struct SidebarItemRow: View {
             }
             optionMonitor = nil
             isOptionHeldOverTarget = false
+            isCommandHeldOverTarget = false
         }
     }
     #endif
+
+    /// The operation the CURRENT modifiers would perform on this drop target —
+    /// drives the highlight tint only; the drop re-reads the keys itself.
+    var targetedDropOperation: SidebarDropOperation {
+        sidebarDropOperation(
+            optionHeld: isOptionHeldOverTarget,
+            commandHeld: isCommandHeldOverTarget,
+            kind: .document
+        )
+    }
 
     /// In-window "Open": select this row (drives navigation/preview).
     func openInWindow() {

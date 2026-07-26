@@ -406,9 +406,9 @@ extension SidebarItemRow {
 
         var movedCount = 0
         var skips = SidebarDropSkipSummary()
-        // Sampled ONCE at the drop moment: ⌥-drop copies document payloads
-        // into the target instead of moving them (Finder Option-drag).
-        let optionHeldAtDrop = sidebarOptionKeyIsHeld()
+        // Sampled ONCE at the drop moment: ⌥-drop copies document payloads,
+        // ⌘⌥-drop makes aliases at the target (Finder modifier grammar).
+        let modifiersAtDrop = SidebarDropModifiers.current()
         // The Inbox drag sentinel is an empty id — never a real row, so it
         // must not count as a "skipped item" in the user-facing summary.
         for itemID in itemIDs where !itemID.isEmpty {
@@ -416,7 +416,7 @@ extension SidebarItemRow {
                 itemID,
                 targetKind: targetKind,
                 targetFolder: targetFolder,
-                optionHeld: optionHeldAtDrop,
+                modifiers: modifiersAtDrop,
                 skips: &skips
             ) {
                 movedCount += 1
@@ -438,7 +438,7 @@ extension SidebarItemRow {
         _ itemID: String,
         targetKind: SidebarItemKind,
         targetFolder: SidebarItem,
-        optionHeld: Bool,
+        modifiers: SidebarDropModifiers,
         skips: inout SidebarDropSkipSummary
     ) -> Bool {
         let sourceKind = SidebarItemKind(prefixedId: itemID)
@@ -459,11 +459,19 @@ extension SidebarItemRow {
             return false
         }
 
-        switch sidebarDropOperation(optionHeld: optionHeld, kind: sourceKind) {
+        switch sidebarDropOperation(modifiers: modifiers, kind: sourceKind) {
         case .copy:
             sidebarRowLogger.debug(" ⌥-drop: copying \(itemID) into \(targetFolder.id)")
             Task {
                 await copyDocumentIntoFolder(
+                    documentId: extractActualId(from: itemID),
+                    folderId: extractActualId(from: targetFolder.id)
+                )
+            }
+        case .alias:
+            sidebarRowLogger.debug(" ⌘⌥-drop: aliasing \(itemID) into \(targetFolder.id)")
+            Task {
+                await aliasDocumentIntoFolder(
                     documentId: extractActualId(from: itemID),
                     folderId: extractActualId(from: targetFolder.id)
                 )

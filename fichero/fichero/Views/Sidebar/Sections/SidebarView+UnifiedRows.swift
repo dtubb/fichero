@@ -230,6 +230,24 @@ extension SidebarView {
         let bareIds = droppedIds
             .filter { $0.hasPrefix("doc:") }
             .map { extractActualId(from: $0) }
+        guard !bareIds.isEmpty else { return }
+
+        // Finder modifier grammar at the insertion line: ⌥ copies, ⌘⌥ makes
+        // aliases — both land at exactly this offset; plain drops keep the
+        // existing transactional move below.
+        let operation = sidebarDropOperation(modifiers: .current(), kind: .document)
+        if operation != .move {
+            let request = SidebarInsertionDropRequest(
+                operation: operation, bareIds: bareIds, parentId: nil,
+                offset: offset, children: items
+            )
+            Task {
+                await sidebarApplyInsertionDropOperation(
+                    request, library: library, sidebarState: sidebarState
+                )
+            }
+            return
+        }
 
         guard let newOrder = sidebarReorderedDocIdsWithInsert(
             children: items,

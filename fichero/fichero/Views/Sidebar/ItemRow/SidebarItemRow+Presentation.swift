@@ -64,6 +64,18 @@ extension SidebarItemRow {
     /// than vanishing into the log (prefer-raise-over-silent-fallback).
     private var workflowDuplicateAction: (() -> Void)? {
         switch item.itemType {
+        case .document(let doc):
+            // Audited document.duplicate (deep copy beside the original) via
+            // the same invokeAction path document.delete uses. Locked mirror
+            // rows get the engine's 403 on the banner.
+            guard let library else { return nil }
+            return duplicateTask {
+                _ = try await library.actionsService.invokeAction(
+                    name: "document.duplicate",
+                    params: DocumentDuplicateActionParams(docId: doc.id, parentId: nil)
+                )
+                await library.documentStore.refresh()
+            }
         case .workflow(let workflow):
             guard let store = workflowStore else { return nil }
             return duplicateTask { _ = try await store.duplicateWorkflow(workflow.id) }

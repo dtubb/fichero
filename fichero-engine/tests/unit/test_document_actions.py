@@ -437,6 +437,30 @@ class TestDocumentDuplicateAction:
         assert copy.parent_id == target.id
         assert copy.name == "Paper"
 
+    def test_duplicate_to_root_is_explicit(self, db):
+        # to_root disambiguates "copy to root" from the beside-the-original
+        # default; a doc copied OUT of a folder to root keeps its name.
+        folder = _save_doc(db, name="F", doc_type=DocType.folder)
+        doc = _save_doc(db, name="Paper", parent_id=folder.id)
+        result = registry.invoke(
+            db,
+            "document.duplicate",
+            {"doc_id": doc.id, "to_root": True},
+            _ctx(),
+        )
+        copy = Document.model_validate(result.result)
+        assert copy.parent_id is None
+        assert copy.name == "Paper"
+        # A root doc copied to root lands beside itself → suffixed.
+        root_doc = _save_doc(db, name="Loose")
+        result2 = registry.invoke(
+            db,
+            "document.duplicate",
+            {"doc_id": root_doc.id, "to_root": True},
+            _ctx(),
+        )
+        assert Document.model_validate(result2.result).name == "Loose copy"
+
     def test_duplicate_into_own_subtree_rejected(self, db):
         # Copying a folder into its own descendant would make the recursion
         # copy its own output.

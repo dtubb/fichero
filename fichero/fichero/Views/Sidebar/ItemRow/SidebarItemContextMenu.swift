@@ -67,11 +67,10 @@ struct SidebarItemContextMenu: View {
         }
     }
 
-    /// Kinds with a backend duplicate endpoint. Documents get theirs once
-    /// the client wraps the new document.duplicate route.
+    /// Kinds with a backend duplicate endpoint.
     private var itemTypeSupportsDuplicate: Bool {
         switch item.itemType {
-        case .workflow, .savedSearch, .conversation:
+        case .document, .workflow, .savedSearch, .conversation:
             return true
         default:
             return false
