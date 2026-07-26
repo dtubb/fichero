@@ -404,37 +404,48 @@ extension SidebarItemRow {
 
         sidebarRowLogger.debug("Target \(targetFolder.name) is a \(String(describing: targetKind)) folder")
 
-        for itemID in itemIDs {
+        var movedCount = 0
+        var skips = SidebarDropSkipSummary()
+        // The Inbox drag sentinel is an empty id — never a real row, so it
+        // must not count as a "skipped item" in the user-facing summary.
+        for itemID in itemIDs where !itemID.isEmpty {
             let sourceKind = SidebarItemKind(prefixedId: itemID)
             sidebarRowLogger.debug(" Processing drop of item ID: \(itemID) (kind=\(String(describing: sourceKind)))")
 
             // Cross-section drops aren't meaningful — e.g. dropping a
-            // document onto a search folder has no backend contract. Reject
-            // silently so the user can try again rather than getting a
-            // spurious success toast.
+            // document onto a search folder has no backend contract.
             guard sourceKind == targetKind else {
                 let src = String(describing: sourceKind)
                 let tgt = String(describing: targetKind)
                 sidebarRowLogger.debug(" Drop rejected: source (\(src)) and target (\(tgt)) sections differ")
+                skips.crossSection += 1
                 continue
             }
 
             guard itemID != targetFolder.id else {
                 sidebarRowLogger.debug(" Drop rejected: cannot drop item onto itself")
+                skips.selfDrop += 1
                 continue
             }
 
             if isDescendant(targetFolder.id, of: itemID) {
                 sidebarRowLogger.debug(" Drop rejected: circular reference detected")
+                skips.circular += 1
                 continue
             }
 
             sidebarRowLogger.debug(" Validation passed, calling routeMove")
             sidebarRowLogger.debug("    Source ID: \(itemID)")
             sidebarRowLogger.debug("    Target ID: \(targetFolder.id)")
+            movedCount += 1
             Task {
                 await routeMove(itemId: itemID, targetFolder: targetFolder)
             }
+        }
+        // Partial application is never silent: say what was skipped and why
+        // (#7 from the audit; clean drops produce no banner).
+        if let message = sidebarDropSkipMessage(moved: movedCount, skips: skips) {
+            sidebarState.dropErrorMessage = message
         }
         sidebarRowLogger.debug(" ========== DROP COMPLETED ==========")
         return true

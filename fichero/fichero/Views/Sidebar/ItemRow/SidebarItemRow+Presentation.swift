@@ -28,7 +28,8 @@ extension SidebarItemRow {
                 onPause: onAutomationPause,
                 onResume: onAutomationResume,
                 onTrigger: onAutomationTrigger,
-                onCancel: onAutomationCancel
+                onCancel: onAutomationCancel,
+                onDuplicate: workflowDuplicateAction
             )
 
             let workflowTargetIDs = resolvedWorkflowTargetIDs
@@ -50,6 +51,25 @@ extension SidebarItemRow {
                     Task { @MainActor in
                         await workflowRunProviderCache.ensureLoaded(chatService: library?.chatService)
                     }
+                }
+            }
+        }
+    }
+
+    /// Duplicate action for workflow rows (nil for every other kind, which
+    /// hides the menu item). Mirrors WorkflowListView's duplicate flow —
+    /// backend owns id/naming; the store reload republishes the sidebar.
+    /// Failures surface via the shared drop-error banner rather than
+    /// vanishing into the log (prefer-raise-over-silent-fallback).
+    private var workflowDuplicateAction: (() -> Void)? {
+        guard case .workflow(let workflow) = item.itemType,
+              let store = workflowStore else { return nil }
+        return {
+            Task { @MainActor in
+                do {
+                    _ = try await store.duplicateWorkflow(workflow.id)
+                } catch {
+                    sidebarState.dropErrorMessage = error.localizedDescription
                 }
             }
         }

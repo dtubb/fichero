@@ -22,6 +22,10 @@ struct SidebarItemContextMenu: View {
     var onResume: (() -> Void)?
     var onTrigger: (() -> Void)?  // For schedules - "Run Now"
     var onCancel: (() -> Void)?   // For batches - "Cancel"
+    /// Workflow rows only: duplicate via the backend endpoint — also the
+    /// blessed path for editing locked Default presets ("Default workflows
+    /// are read-only; duplicate to edit", engine 403).
+    var onDuplicate: (() -> Void)?
 
     var body: some View {
         Group {
@@ -36,6 +40,12 @@ struct SidebarItemContextMenu: View {
                 Label("Rename", systemImage: "pencil")
             })
             .disabled(!item.itemType.canBeRenamed)
+
+            if let onDuplicate, case .workflow = item.itemType {
+                Button(action: onDuplicate, label: {
+                    Label("Duplicate", systemImage: "plus.square.on.square")
+                })
+            }
 
             Divider()
 

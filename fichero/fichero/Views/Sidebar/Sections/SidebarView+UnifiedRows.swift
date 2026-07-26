@@ -110,6 +110,10 @@ extension SidebarView {
             destination: destination
         ) else {
             sidebarRowLogger.debug("unifiedRows .onMove BAILED — invalid cross-kind reorder")
+            // The system shows an insertion indicator, then the rows snap
+            // back — say why instead of leaving a silent no-op (#7).
+            sidebarState.dropErrorMessage =
+                "Rows of different kinds can't be reordered together — drag rows of one kind at a time."
             return
         }
 
