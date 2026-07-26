@@ -89,15 +89,21 @@ struct FocusedOpenInNewWindowButton: View {
     }
 }
 
-/// Button that calls the focused sidebar's deleteItem action
+/// Button that calls the focused sidebar's deleteItem action — the same
+/// batch path as the Delete key, so the title counts the deletable
+/// selection and the enabled state matches what the key would remove.
 struct FocusedDeleteButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions
     @FocusedValue(\.sidebarSelectionInfo) private var selectionInfo
 
+    private var deletableCount: Int {
+        selectionInfo?.deletableCount ?? 0
+    }
+
     var body: some View {
-        Button("Delete") {
+        Button(deletableCount > 1 ? "Delete \(deletableCount) Items" : "Delete") {
             sidebarActions?.deleteItem()
         }
-        .disabled(!(selectionInfo?.canDelete ?? false))
+        .disabled(deletableCount == 0)
     }
 }

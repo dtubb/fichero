@@ -62,11 +62,17 @@ struct SidebarSelectionInfo: Equatable {
     let selectedItem: SidebarItem?
     let canRename: Bool
     let canDelete: Bool
+    /// How many rows of the CURRENT multi-selection are deletable. Drives the
+    /// Edit ▸ Delete title ("Delete N Items") and its enabled state, so the
+    /// menu matches what the Delete key would actually remove — previously it
+    /// gated on the primary row alone and could disable while the key worked.
+    var deletableCount: Int = 0
 
     static func == (lhs: SidebarSelectionInfo, rhs: SidebarSelectionInfo) -> Bool {
         lhs.selectedItem?.id == rhs.selectedItem?.id
             && lhs.canRename == rhs.canRename
             && lhs.canDelete == rhs.canDelete
+            && lhs.deletableCount == rhs.deletableCount
     }
 }
 

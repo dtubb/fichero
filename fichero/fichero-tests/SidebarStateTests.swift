@@ -133,6 +133,7 @@ final class SidebarStateTests: XCTestCase {
         XCTAssertFalse(state.isProcessingDrop)
         XCTAssertEqual(state.dropProgress, 0.0)
         XCTAssertNil(state.dropErrorMessage)
+        XCTAssertNil(state.renameErrorMessage)
         XCTAssertEqual(state.dropSuccessCount, 0)
         XCTAssertEqual(state.dropFailureCount, 0)
     }
@@ -147,6 +148,7 @@ final class SidebarStateTests: XCTestCase {
         state.isChatDropTargeted = true
         state.renamingItemId = "id"
         state.newFolderName = "x"
+        state.renameErrorMessage = "boom"
         state.dropProgress = 0.5
         state.dropSuccessCount = 5
         state.dropFailureCount = 2
@@ -160,6 +162,7 @@ final class SidebarStateTests: XCTestCase {
         XCTAssertEqual(state.newFolderName, "")
         XCTAssertFalse(state.isProcessingDrop)
         XCTAssertEqual(state.dropProgress, 0.0)
+        XCTAssertNil(state.renameErrorMessage)
         XCTAssertEqual(state.dropSuccessCount, 0)
         XCTAssertEqual(state.dropFailureCount, 0)
     }

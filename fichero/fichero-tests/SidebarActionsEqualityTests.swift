@@ -57,6 +57,24 @@ struct SidebarActionsEqualityTests {
         #expect(makeActions() == makeActions())
     }
 
+    @Test("SelectionInfo equality includes the deletable-selection count")
+    func selectionInfoEqualityTracksDeletableCount() {
+        // Edit ▸ Delete retitles on the count ("Delete N Items"), so a count
+        // change must republish the focused value — equality can't ignore it.
+        let one = SidebarSelectionInfo(
+            selectedItem: nil, canRename: false, canDelete: true, deletableCount: 1
+        )
+        let three = SidebarSelectionInfo(
+            selectedItem: nil, canRename: false, canDelete: true, deletableCount: 3
+        )
+        #expect(one != three)
+        #expect(
+            one == SidebarSelectionInfo(
+                selectedItem: nil, canRename: false, canDelete: true, deletableCount: 1
+            )
+        )
+    }
+
     @Test("SidebarActions with different closures still compare equal")
     func differentClosuresStillEqual() {
         // Each closure here has a distinct capture list, so under any

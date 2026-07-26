@@ -104,6 +104,8 @@ struct SidebarFocusedValuesConfig {
     let createTrigger: () -> Void        // No longer optional
     let openSelectionInNewTab: () -> Void
     let openSelectionInNewWindow: () -> Void
+    /// Deletable rows in the current multi-selection (drives Edit ▸ Delete).
+    var deletableSelectionCount: Int = 0
 }
 
 extension View {
@@ -128,7 +130,8 @@ extension View {
             .focusedValue(\.sidebarSelectionInfo, SidebarSelectionInfo(
                 selectedItem: config.selectedItem,
                 canRename: config.selectedItem?.itemType.canBeRenamed ?? false,
-                canDelete: config.selectedItem?.itemType.canBeDeleted ?? false
+                canDelete: config.deletableSelectionCount > 0,
+                deletableCount: config.deletableSelectionCount
             ))
     }
 }
@@ -212,6 +215,23 @@ private struct SidebarDropAlertsModifier: ViewModifier {
                 }
             } message: {
                 Text(sidebarState.dropErrorMessage ?? "The move could not be completed.")
+            }
+            .alert(
+                "Rename Failed",
+                isPresented: Binding(
+                    get: { sidebarState.renameErrorMessage != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            sidebarState.renameErrorMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    sidebarState.renameErrorMessage = nil
+                }
+            } message: {
+                Text(sidebarState.renameErrorMessage ?? "The rename could not be completed.")
             }
     }
 }

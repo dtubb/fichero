@@ -42,6 +42,8 @@ class SidebarState {
     var isProcessingDrop: Bool = false
     var dropProgress: Double = 0.0
     var dropErrorMessage: String?
+    /// Rename failures were log-only; surface them like drop failures do.
+    var renameErrorMessage: String?
     var dropSuccessCount: Int = 0
     var dropFailureCount: Int = 0
 
@@ -126,6 +128,7 @@ class SidebarState {
         isProcessingDrop = false
         dropProgress = 0.0
         dropErrorMessage = nil
+        renameErrorMessage = nil
         dropSuccessCount = 0
         dropFailureCount = 0
         scrollViewProxy = nil
