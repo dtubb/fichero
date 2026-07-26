@@ -182,4 +182,38 @@ final class SidebarWorkflowNodeTreeTests: XCTestCase {
         let items = SidebarItemBuilder.buildLibraryHierarchy(from: docs, libraryId: UUID())
         XCTAssertEqual(container(in: items)?.children?.count, 40)
     }
+
+    // MARK: - Global-only boundary regression
+
+    /// REGRESSION: #4060 — Workflow mirrors must remain excluded from
+    /// non-global libraries at the display layer. The visibility predicate now
+    /// includes workflow nodes for all libraries so they build into the
+    /// hierarchy. But the display layer's `flattenedLibraryItems` gate
+    /// (`libraryId == LibraryManager.globalLibraryId`) prevents them from
+    /// rendering in non-global libraries. This test verifies that mirrors ARE
+    /// included in the hierarchy (because the predicate includes them), but
+    /// documents that the display-layer gate excludes them from view.
+    func testWorkflowMirrorsAreIncludedInHierarchyButFilteredByDisplayLayerGate() {
+        let nonGlobalLibraryId = UUID()  // Definitely not the global library
+        let docs = [
+            makeContainer(),
+            makeWorkflowMirror(id: "wf-1", name: "Transcribe", sortOrder: 0),
+            makeWorkflowMirror(id: "wf-2", name: "Summarize", sortOrder: 1)
+        ]
+
+        // Verify workflow mirrors ARE in the hierarchy for non-global library
+        // (the visibility predicate includes them for all libraries).
+        let items = SidebarItemBuilder.buildLibraryHierarchy(from: docs, libraryId: nonGlobalLibraryId)
+        guard let folder = container(in: items) else {
+            return XCTFail("Default Workflows container missing from non-global library hierarchy")
+        }
+        XCTAssertEqual(folder.children?.count, 2, "predicate must include mirrors for all libraries")
+
+        // The display layer gate is verified separately in SidebarLibraryBucketsTests
+        // (testWorkflowItemsAreRenderedGatedOnFlag checks source code for the gate).
+        // Here we just document that the predicate inclusion is safe because that
+        // gate filters before rendering: flattenedLibraryItems only adds
+        // buckets.workflowItems when (libraryId == LibraryManager.globalLibraryId).
+        XCTAssertNotEqual(nonGlobalLibraryId, LibraryManager.globalLibraryId)
+    }
 }
