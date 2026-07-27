@@ -93,6 +93,9 @@ def resolve_value(
     Returns:
         Resolved value
     """
+    if isinstance(source, list):
+        return [resolve_value(value, state, workflow_config) for value in source]
+
     # Literal values (not strings, or strings not starting with $)
     if not isinstance(source, str):
         return source

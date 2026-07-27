@@ -312,6 +312,40 @@ async def test_node_defers_until_all_upstream_outputs_exist():
 
 
 @pytest.mark.asyncio
+async def test_node_collects_multiple_edges_into_one_input_port():
+    captured: dict = {}
+
+    async def tool_fn(inputs, state, llm_config):
+        captured.update(inputs)
+        return {"text": "reviewed"}
+
+    node_fn = _make_node_function(
+        NodeDef(id="review", tool="transcribe_review", config={}),
+        tool_fn,
+        LLMConfig(provider="openai", model="gpt-4o-mini"),
+        workflow_config={},
+        incoming_edges=[
+            {"source": "draft-a", "source_port": "text", "target_port": "context"},
+            {"source": "draft-b", "source_port": "text", "target_port": "context"},
+            {"source": "draft-c", "source_port": "text", "target_port": "context"},
+        ],
+    )
+
+    await node_fn(
+        {
+            "outputs": {
+                "draft-a": {"text": "A"},
+                "draft-b": {"text": "B"},
+                "draft-c": {"text": "C"},
+            },
+            "completed_nodes": [],
+        }
+    )
+
+    assert captured["context"] == ["A", "B", "C"]
+
+
+@pytest.mark.asyncio
 async def test_quality_gate_abort_raises_and_blocks_downstream(monkeypatch):
     downstream_calls: list[str] = []
 

@@ -711,9 +711,14 @@ def _make_node_function(
                     )  # Default to "files" for input
                     if source_node:
                         # Create automatic path reference: $.nodes.{source_node}.{source_port}
-                        inputs_from_mappings[target_port] = (
-                            f"$.nodes.{source_node}.{source_port}"
-                        )
+                        source_path = f"$.nodes.{source_node}.{source_port}"
+                        existing = inputs_from_mappings.get(target_port)
+                        if existing is None:
+                            inputs_from_mappings[target_port] = source_path
+                        elif isinstance(existing, list):
+                            existing.append(source_path)
+                        else:
+                            inputs_from_mappings[target_port] = [existing, source_path]
                         logger.info(
                             f"Auto-wired: {target_port} <- $.nodes.{source_node}.{source_port}"
                         )

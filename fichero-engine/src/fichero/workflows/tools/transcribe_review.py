@@ -136,6 +136,8 @@ async def transcribe_review(
     files = inputs.get("files") or state.get("input_files", [])
     documents = inputs.get("documents", [])
     prior_text = inputs.get("context")  # Prior transcription flows in via this port
+    if isinstance(prior_text, list):
+        prior_text = "\n\n---\n\n".join(str(text) for text in prior_text)
     input_metadata = inputs.get("metadata")
 
     update_page_content = inputs.get("update_page_content", True)
