@@ -491,6 +491,15 @@ class TestLoadPresetFiles:
             "translate is a text node; a $vision_* alias fails preflight"
         )
 
+    def test_paleography_ensemble_final_review_bypasses_t2_artifact(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        ensemble = presets["Transcribe Paleography (Ensemble + Deep Review)"]
+        nodes = {node["id"]: node for node in ensemble["nodes"]}
+
+        assert nodes["t2"]["config"]["provider_name"] == "$vision_medium"
+        assert nodes["t4"]["config"]["provider_name"] == "$vision_medium"
+        assert nodes["t4"]["config"]["skip_if_artifact_exists"] is False
+
     def test_spanish_script_subworkflow_ships_in_transcribe_folder(self):
         """After rationalization (#2251), the sole user-facing Spanish Script preset
         is 'Transcribe Spanish Script (19th-20th C.)' (renamed from v2 sub-workflow).

@@ -191,6 +191,28 @@ async def test_specialist_vision_tools_force_image_processing() -> None:
         assert process_vision.await_args.kwargs["force_ocr"] is True
 
 
+@pytest.mark.asyncio
+async def test_transcribe_review_can_disable_prior_artifact_reuse() -> None:
+    from fichero.workflows.tools import transcribe_review as review_module
+
+    with patch.object(
+        review_module,
+        "process_vision",
+        new=AsyncMock(return_value={"text": "final review"}),
+    ) as process_vision:
+        await review_module.transcribe_review(
+            {
+                "files": ["page.png"],
+                "skip_if_artifact_exists": False,
+            },
+            {"library_path": "/library.fichero"},
+            _make_llm_config(),
+        )
+
+    tool_config = process_vision.await_args.kwargs["tool_config"]
+    assert tool_config.skip_if_artifact_exists is False
+
+
 def test_non_retriable_provider_error_detection() -> None:
     assert _is_non_retriable_provider_error("Error code: 403 - key limit exceeded")
     assert _is_non_retriable_provider_error("401 Unauthorized")

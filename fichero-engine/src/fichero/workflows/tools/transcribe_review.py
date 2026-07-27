@@ -39,20 +39,18 @@ from fichero.workflows.tools.vision_base import (
 # =============================================================================
 
 
-TOOL_CONFIG = VisionToolConfig(
-    artifact_type="transcription_review",
-    update_page_content=True,
-    trigger_embedding=True,  # Re-embed on the corrected text
-    supports_apple_vision=False,  # Review is LLM-only by design
-)
-
-
 REVIEW_CONFIG = {
     "language": {
         "type": "string",
         "default": "auto",
         "description": "Language hint for the reviewer (es / en / auto)",
         "x-group": "primary",
+    },
+    "skip_if_artifact_exists": {
+        "type": "boolean",
+        "default": True,
+        "description": "Reuse a matching prior review artifact",
+        "x-group": "advanced",
     },
 }
 
@@ -143,14 +141,13 @@ async def transcribe_review(
     update_page_content = inputs.get("update_page_content", True)
     prompt = inputs.get("prompt") or _DEFAULT_REVIEW_PROMPT
 
-    tool_config = TOOL_CONFIG
-    if not update_page_content:
-        tool_config = VisionToolConfig(
-            artifact_type="transcription_review",
-            update_page_content=False,
-            trigger_embedding=False,
-            supports_apple_vision=False,
-        )
+    tool_config = VisionToolConfig(
+        artifact_type="transcription_review",
+        update_page_content=update_page_content,
+        trigger_embedding=update_page_content,
+        supports_apple_vision=False,
+        skip_if_artifact_exists=inputs.get("skip_if_artifact_exists", True),
+    )
 
     return await process_vision(
         files=files,
