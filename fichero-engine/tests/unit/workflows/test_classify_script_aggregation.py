@@ -21,8 +21,16 @@ _LLM = LLMConfig(provider="openai", model="gpt-4o", api_key="test-key")
 def _raw_result_for(*script_types_and_confidences):
     """Build the fake ``raw`` dict that process_vision would return."""
     results = []
-    for stype, conf in script_types_and_confidences:
-        results.append({"text": json.dumps({"script_type": stype, "confidence": conf, "notes": ""})})
+    for index, (stype, conf) in enumerate(script_types_and_confidences):
+        results.append({
+            "file": f"page-{index + 1}.png",
+            "document_id": f"page-{index + 1}",
+            "text": json.dumps({
+                "script_type": stype,
+                "confidence": conf,
+                "notes": "",
+            }),
+        })
     return {
         "results": results,
         "files": [],
@@ -84,6 +92,7 @@ async def test_mixed_batch_surfaces_mixed_type():
     assert len(profiles) == 2, "both per-item profiles must be preserved"
     types_in_profiles = {p["script_type"] for p in profiles}
     assert types_in_profiles == {"htr", "typescript"}, "both types must appear in profiles"
+    assert [profile["document_id"] for profile in profiles] == ["page-1", "page-2"]
 
 
 @pytest.mark.asyncio

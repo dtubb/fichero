@@ -169,6 +169,11 @@ async def classify_script(
         needs_human = confidence < threshold
 
         enriched.append({
+            **{
+                key: item[key]
+                for key in ("file", "document_id", "artifact_id")
+                if key in item
+            },
             "script_type": script_type,
             "confidence": confidence,
             "needs_human_selection": needs_human,
