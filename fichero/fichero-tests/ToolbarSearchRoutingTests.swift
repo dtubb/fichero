@@ -130,6 +130,22 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         XCTAssertTrue(settingsSource.contains("ContentView.searchDefaultScopeIsFolderKey"))
     }
 
+    func testRealParametersReachTheEngine() throws {
+        let storeSource = try Self.appSource("Models/SearchStore.swift")
+        let resultsSource = try Self.appSource(Self.resultsSource)
+
+        // #4112/S8: the 0.55 relevance floor is restored (minScore: 0.0
+        // defeated the engine's noise threshold, #1054), and the type/sort
+        // knobs flow from the results-bar menu into performSearch. Saved
+        // searches apply AND store their parameters.
+        XCTAssertTrue(storeSource.contains("static let defaultMinScore = 0.55"))
+        XCTAssertTrue(storeSource.contains("minScore: Self.defaultMinScore"))
+        XCTAssertFalse(storeSource.contains("minScore: 0.0"))
+        XCTAssertTrue(resultsSource.contains("searchType: transientSearchType"))
+        XCTAssertTrue(resultsSource.contains("transientSearchType = search.searchType"))
+        XCTAssertTrue(resultsSource.contains("searchType: transientSearchType,"))
+    }
+
     func testTransientResultsRerunOnLibraryChanges() throws {
         let source = try Self.appSource(Self.resultsSource)
 

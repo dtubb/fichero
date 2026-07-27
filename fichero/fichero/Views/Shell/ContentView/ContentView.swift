@@ -197,6 +197,11 @@ struct ContentView: View {
     /// Whether the active search is scoped to the context folder (true) or
     /// the whole library (false, the default).
     @State var transientSearchScopeIsFolder = false
+    /// Real search parameters (#4112/S8), driven by the results-bar Options
+    /// menu; saved searches apply their stored values. Sticky for the session.
+    @State var transientSearchType = "hybrid"
+    @State var transientSearchSortBy = "relevance"
+    @State var transientSearchSortDirection = "desc"
     @State var navigationHistory = AppNavigationHistory()
     @State var isRestoringNavigationHistory = false
 

@@ -40,6 +40,9 @@ final class SearchStore: ChangeEventConsumer {
         self.searchService = searchService
     }
 
+    /// The engine's default relevance floor (SearchRequest.min_score).
+    static let defaultMinScore = 0.55
+
     // MARK: - Named actions (map 1:1 to the audited action layer, #1848)
 
     /// Run a semantic / hybrid search and update `results`.
@@ -70,7 +73,11 @@ final class SearchStore: ChangeEventConsumer {
                 query: trimmed,
                 limit: limit,
                 include: include,
-                minScore: 0.0,
+                // 0.55 mirrors the engine's noise floor: unthresholded
+                // semantic search returns EVERY page at 42-50% cosine
+                // similarity, so 0.0 buried real hits in noise (#1054
+                // regression, fixed by #4112/S8).
+                minScore: Self.defaultMinScore,
                 searchType: searchType,
                 // Folder scope (#4107/S3): the engine expands folder_id to the
                 // folder's whole descendant set server-side.

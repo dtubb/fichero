@@ -48,6 +48,10 @@ extension ContentView {
         // Saved searches are library-wide; never inherit a stale folder scope.
         transientSearchContextFolder = nil
         transientSearchScopeIsFolder = false
+        // Apply the search's stored parameters (#4112/S8).
+        transientSearchType = search.searchType
+        transientSearchSortBy = search.sortBy
+        transientSearchSortDirection = search.sortDirection
         Task { @MainActor in
             await runTransientSearch(query)
         }
@@ -66,7 +70,14 @@ extension ContentView {
             ?? LibraryManager.shared.globalLibrary else { return }
         let store = library.searchStore
         let folderId = transientSearchScopeIsFolder ? transientSearchContextFolder?.id : nil
-        await store.performSearch(query: query, limit: transientSearchLimit, folderId: folderId)
+        await store.performSearch(
+            query: query,
+            limit: transientSearchLimit,
+            searchType: transientSearchType,
+            sortBy: transientSearchSortBy,
+            sortOrder: transientSearchSortDirection,
+            folderId: folderId
+        )
 
         // A newer query superseded this one while the request was in flight —
         // its own resolution pass owns the result state.
@@ -115,9 +126,9 @@ extension ContentView {
             _ = try await library.savedSearchService.saveSearch(
                 query: query,
                 isSmartSearch: true,
-                searchType: "hybrid",
-                sortBy: "relevance",
-                sortDirection: "desc"
+                searchType: transientSearchType,
+                sortBy: transientSearchSortBy,
+                sortDirection: transientSearchSortDirection
             )
             try await library.savedSearchService.loadSavedSearches()
         } catch {
@@ -186,6 +197,34 @@ extension ContentView {
                         }
                     }
 
+                    // Real parameters (#4112/S8): search type + sort, the
+                    // knobs the deleted mode surface used to own. One compact
+                    // menu, not a pile of chrome.
+                    Menu {
+                        Picker("Search Type", selection: $transientSearchType) {
+                            Text("Hybrid").tag("hybrid")
+                            Text("Semantic").tag("semantic")
+                            Text("Full Text").tag("fulltext")
+                        }
+                        Divider()
+                        Picker("Sort By", selection: $transientSearchSortBy) {
+                            Text("Relevance").tag("relevance")
+                            Text("Date").tag("date")
+                            Text("Name").tag("name")
+                            Text("Size").tag("size")
+                        }
+                        Picker("Order", selection: $transientSearchSortDirection) {
+                            Text("Descending").tag("desc")
+                            Text("Ascending").tag("asc")
+                        }
+                    } label: {
+                        Label("Search Options", systemImage: "slider.horizontal.3")
+                            .labelStyle(.iconOnly)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help("Search type and sort order")
+
                     if store.searchStats?.hasMore == true {
                         Button("Load More") {
                             loadMoreTransientResults()
@@ -226,6 +265,15 @@ extension ContentView {
             // results. Lives on the bar because the bar is mounted exactly
             // while a transient search is presented.
             .onChange(of: store.changeToken) { _, _ in
+                Task { @MainActor in
+                    await runTransientSearch(query)
+                }
+            }
+            // Changing type/sort re-runs the active query with a fresh page
+            // (#4112/S8) — the values are Strings, so one observed tuple
+            // keeps the modifier count down.
+            .onChange(of: [transientSearchType, transientSearchSortBy, transientSearchSortDirection]) { _, _ in
+                transientSearchLimit = Self.transientSearchPageSize
                 Task { @MainActor in
                     await runTransientSearch(query)
                 }
