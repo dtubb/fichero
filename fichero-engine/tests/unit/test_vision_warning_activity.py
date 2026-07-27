@@ -15,6 +15,7 @@ Tests here:
 
 from __future__ import annotations
 
+import asyncio
 from types import ModuleType
 from unittest.mock import MagicMock, patch
 
@@ -62,6 +63,21 @@ class TestLogVisionWarning:
 
         call_kwargs = mock_tracker.log.call_args.kwargs
         assert call_kwargs["metadata"] == {}
+
+    @pytest.mark.asyncio
+    async def test_executor_warning_uses_scoped_library_tracker(self):
+        from fichero.workflows.tools import vision_base
+
+        mock_tracker = MagicMock()
+        token = vision_base._vision_activity_db_path.set("/tmp/library.duckdb")
+        try:
+            with patch(self._TRACKER_PATCH, return_value=mock_tracker) as get_tracker:
+                await asyncio.to_thread(_log_vision_warning, "Vision warning")
+        finally:
+            vision_base._vision_activity_db_path.reset(token)
+
+        get_tracker.assert_called_once_with("/tmp/library.duckdb")
+        mock_tracker.log.assert_called_once()
 
     def test_no_tracker_does_not_raise(self):
         """When get_activity_tracker returns None, _log_vision_warning is a no-op (no raise)."""

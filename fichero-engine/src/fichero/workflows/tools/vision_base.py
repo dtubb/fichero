@@ -15,6 +15,7 @@ Provides:
 from __future__ import annotations
 
 import asyncio
+from contextvars import ContextVar
 import os
 import tempfile
 import base64
@@ -95,6 +96,9 @@ from fichero.workflows.circuit_breaker import (
 )
 
 logger = logging.getLogger(__name__)
+_vision_activity_db_path: ContextVar[str | None] = ContextVar(
+    "vision_activity_db_path", default=None
+)
 
 
 def _vision_backoff_settings() -> dict:
@@ -142,7 +146,7 @@ def _log_vision_warning(message: str, file_path: str = None):
         # Try to get activity tracker - this should work if we're in a workflow context
         from fichero.workflows.activity import get_activity_tracker
         from fichero.workflows.activity_types import ActivityType, ActivityLevel
-        tracker = get_activity_tracker()
+        tracker = get_activity_tracker(_vision_activity_db_path.get())
         if tracker:
             tracker.log(
                 type=ActivityType.SYSTEM_WARNING,
@@ -829,8 +833,7 @@ def _vision_ocr_cgimage_with_geometry(
 
 async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
     """Async wrapper for Apple Vision OCR."""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, apple_vision_ocr, image_path, language)
+    return await asyncio.to_thread(apple_vision_ocr, image_path, language)
 
 
 @lru_cache(maxsize=4)
@@ -946,8 +949,7 @@ def _apple_ocr_pdf_page(pdf_path: str, page_index: int, language: str = "en") ->
 
 async def apple_vision_ocr_pages_async(pdf_path: str, language: str = "en") -> list[str]:
     """Async per-page OCR for PDFs. Returns list[str] (one entry per page)."""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _apple_ocr_pdf_pages, pdf_path, language)
+    return await asyncio.to_thread(_apple_ocr_pdf_pages, pdf_path, language)
 
 
 async def apple_vision_ocr_pdf_page_async(
@@ -956,9 +958,7 @@ async def apple_vision_ocr_pdf_page_async(
     language: str = "en",
 ) -> str:
     """Async OCR for one PDF page by zero-based page index."""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None,
+    return await asyncio.to_thread(
         _apple_ocr_pdf_page,
         pdf_path,
         page_index,
@@ -2427,8 +2427,14 @@ async def process_vision(
     )
 
     _vision_sem = _get_vision_semaphore()
+    activity_db_path = None
+    if library_path:
+        from fichero.db import db_manager
+
+        activity_db_path = str(db_manager.get_database(library_path).path)
 
     async def _run_one(file_index: int, file_path: str) -> dict:
+        activity_scope = _vision_activity_db_path.set(activity_db_path)
         try:
             async with _vision_sem:
                 return await _process_file(file_index, file_path)
@@ -2451,6 +2457,8 @@ async def process_vision(
                 "output_files": [],
                 "page_records": [],
             }
+        finally:
+            _vision_activity_db_path.reset(activity_scope)
 
     _schedule_window = max(VISION_FAN_OUT_CONCURRENCY * 8, 32)
     for _start in range(0, len(files), _schedule_window):

@@ -61,6 +61,12 @@ class ActivityTracker:
         self._recent: deque[Activity] = deque(maxlen=max_recent)
         self._subscribers: dict[str, asyncio.Queue[Activity]] = {}
         self._running = False
+        try:
+            self._event_loop: asyncio.AbstractEventLoop | None = (
+                asyncio.get_running_loop()
+            )
+        except RuntimeError:
+            self._event_loop = None
         # Fire-and-forget DB saves scheduled by log() (see below) have no
         # ordering guarantee relative to a caller's immediate follow-up query
         # — a caller that needs durability before proceeding (tests asserting
@@ -107,18 +113,45 @@ class ActivityTracker:
         # Save to database (fire and forget). Tracked in _pending_save_tasks
         # so a caller that needs the write to have landed can await
         # wait_for_pending_saves() instead of assuming completion order.
-        save_task = asyncio.create_task(self._save_activity(activity))
-        self._pending_save_tasks.add(save_task)
-        save_task.add_done_callback(self._pending_save_tasks.discard)
-
-        # Notify subscribers
-        asyncio.create_task(self._notify_subscribers(activity))
+        self._schedule_activity(activity)
 
         # Log to Python logger as well
         log_level = getattr(logging, level.value.upper(), logging.INFO)
         logger.log(log_level, f"[{type.value}] {message}")
 
         return activity
+
+    def _schedule_activity(self, activity: Activity) -> None:
+        """Schedule persistence and delivery on the tracker's event loop."""
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if self._event_loop is None or self._event_loop.is_closed():
+            self._event_loop = running_loop
+
+        if self._event_loop is None:
+            logger.warning(
+                "Activity could not be persisted: no running event loop (%s)",
+                activity.message,
+            )
+            return
+
+        if self._event_loop is not running_loop:
+            self._event_loop.call_soon_threadsafe(self._create_activity_tasks, activity)
+            return
+
+        self._create_activity_tasks(activity)
+
+    def _create_activity_tasks(self, activity: Activity) -> None:
+        """Create activity tasks while running on the tracker event loop."""
+        save_task = asyncio.create_task(self._save_activity(activity))
+        self._pending_save_tasks.add(save_task)
+        save_task.add_done_callback(self._pending_save_tasks.discard)
+
+        # Notify subscribers
+        asyncio.create_task(self._notify_subscribers(activity))
 
     async def wait_for_pending_saves(self) -> None:
         """Wait for all in-flight fire-and-forget activity DB saves to land.
