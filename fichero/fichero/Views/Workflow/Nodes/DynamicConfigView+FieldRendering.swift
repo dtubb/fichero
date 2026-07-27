@@ -164,7 +164,7 @@ extension DynamicConfigView {
         Group {
             if key == "max_image_dimension" {
                 Picker("Max Image Size", selection: Binding(
-                    get: { intValues[key] ?? 11024 },
+                    get: { intValues[key] ?? 2048 },
                     set: { newValue in
                         intValues[key] = newValue
                         updateConfig(key: key, value: .int(newValue))
@@ -174,8 +174,7 @@ extension DynamicConfigView {
                     Text("768px (Fast)").tag(768)
                     Text("1024px (Balanced)").tag(1024)
                     Text("1536px (Detailed)").tag(1536)
-                    Text("2048px").tag(2048)
-                    Text("11024px (Default)").tag(11024)
+                    Text("2048px (Default)").tag(2048)
                     Text("Original Size (Maximum)").tag(0)
                 }
                 .pickerStyle(.menu)

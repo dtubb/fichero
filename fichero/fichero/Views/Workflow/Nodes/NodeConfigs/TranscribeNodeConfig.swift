@@ -13,6 +13,7 @@ struct TranscribeLanguageChoice: Identifiable, Hashable {
     static let defaultCode = "en-US"
 
     static let all: [TranscribeLanguageChoice] = [
+        .init(code: "auto", label: "Auto-Detect"),
         .init(code: "en-US", label: "English (United States)"),
         .init(code: "es-ES", label: "Spanish (Spain)"),
         .init(code: "es-MX", label: "Spanish (Mexico)"),
@@ -59,13 +60,15 @@ struct TranscribeLanguageChoice: Identifiable, Hashable {
 }
 
 struct TranscribeNodeConfig: View {
+    static let defaultMaxImageDimension = 2048.0
+
     @Binding var node: WorkflowNode
 
     let toolInfo: ToolInfo?
     let backendPrompt: String?
 
     @State private var language: String = TranscribeLanguageChoice.defaultCode
-    @State private var maxImageDimension: Double = 11024
+    @State private var maxImageDimension: Double = TranscribeNodeConfig.defaultMaxImageDimension
     @State private var promptText: String = ""
 
     /// Get the current default prompt - from backend if available, otherwise nil
@@ -126,8 +129,7 @@ struct TranscribeNodeConfig: View {
                         Text("768px (Fast)").tag(768.0)
                         Text("1024px (Balanced)").tag(1024.0)
                         Text("1536px (Detailed)").tag(1536.0)
-                        Text("2048px").tag(2048.0)
-                        Text("11024px (Default)").tag(11024.0)
+                        Text("2048px (Default)").tag(2048.0)
                         Text("Original Size (Maximum)").tag(0.0)
                     }
                     .pickerStyle(.menu)
