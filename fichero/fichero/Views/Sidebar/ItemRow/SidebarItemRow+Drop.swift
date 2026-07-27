@@ -20,7 +20,13 @@ func classifySidebarDropProviders(_ providers: [SidebarDropProviderCapabilities]
     let hasExternalProvider = providers.contains { provider in
         provider.canLoadURL
             || provider.registeredTypeIdentifiers.contains {
-                $0 != UTType.text.identifier && $0 != UTType.plainText.identifier
+                // utf8PlainText is REQUIRED here (#4124): `.draggable`'s
+                // String proxy registers public.utf8-plain-text — without it
+                // every internal sidebar drag classified as external files,
+                // the URL loads all failed, and row-onto-row moves never ran.
+                $0 != UTType.text.identifier
+                    && $0 != UTType.plainText.identifier
+                    && $0 != UTType.utf8PlainText.identifier
             }
     }
     if hasExternalProvider {

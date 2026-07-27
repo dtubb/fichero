@@ -79,3 +79,50 @@ struct SidebarDropProviderClassificationTests {
         #expect(route == .externalFiles)
     }
 }
+
+// MARK: - #4124 regression: the REAL internal-drag shape
+
+extension SidebarDropProviderClassificationTests {
+
+    @Test("internal .draggable string drag (utf8-plain-text only) routes to the move path")
+    func internalUTF8DragIsInternal() {
+        // The actual shape `.draggable(SidebarDragID)` produces registers
+        // ONLY public.utf8-plain-text — the classifier's exclusion list
+        // missed it, so every row-onto-row sidebar move was misrouted to
+        // the external-file importer and silently died (#4124).
+        let route = classifySidebarDropProviders([
+            SidebarDropProviderCapabilities(
+                canLoadURL: false,
+                canLoadString: true,
+                registeredTypeIdentifiers: [UTType.utf8PlainText.identifier]
+            )
+        ])
+        #expect(route == .internalTextOnly)
+    }
+
+    @Test("every plain-text UTI variant stays internal")
+    func plainTextVariantsAreInternal() {
+        for uti in [UTType.text.identifier, UTType.plainText.identifier, UTType.utf8PlainText.identifier] {
+            let route = classifySidebarDropProviders([
+                SidebarDropProviderCapabilities(
+                    canLoadURL: false,
+                    canLoadString: true,
+                    registeredTypeIdentifiers: [uti]
+                )
+            ])
+            #expect(route == .internalTextOnly, "\(uti)")
+        }
+    }
+
+    @Test("text-typed provider that can't load a string is unsupported, not external")
+    func unloadableTextProviderIsUnsupported() {
+        let route = classifySidebarDropProviders([
+            SidebarDropProviderCapabilities(
+                canLoadURL: false,
+                canLoadString: false,
+                registeredTypeIdentifiers: [UTType.plainText.identifier]
+            )
+        ])
+        #expect(route == .unsupported)
+    }
+}
