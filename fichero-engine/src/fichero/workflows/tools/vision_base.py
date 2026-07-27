@@ -2432,7 +2432,19 @@ async def process_vision(
     if library_path:
         from fichero.db import db_manager
 
-        activity_db_path = str(db_manager.get_database(library_path).path)
+        # Activity attribution is auxiliary: get_database() CREATES the
+        # library path when missing, so a bad/fake path (tests, races) must
+        # degrade to unscoped activity with a loud log — never crash the
+        # transcription fan-out or side-effect-create a library.
+        try:
+            activity_db_path = str(db_manager.get_database(library_path).path)
+        except OSError as exc:
+            logger.error(
+                "activity scoping: library db unavailable at %s (%s) — "
+                "files will log unscoped",
+                library_path,
+                exc,
+            )
 
     async def _run_one(file_index: int, file_path: str) -> dict:
         activity_scope = _vision_activity_db_path.set(activity_db_path)

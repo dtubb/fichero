@@ -319,7 +319,7 @@ extension ContentView {
                     .background(.bar)
                 } else if let compileError = store.searchStats?.compilationError {
                     HStack(spacing: 6) {
-                        Image(systemName: "sparkles.slash")
+                        Image(systemName: "sparkles")
                             .foregroundStyle(.secondary)
                         Text("AI couldn't refine this search (\(compileError)) — searched your words as typed.")
                             .font(.caption)
