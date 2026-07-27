@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.7.3b1"
+    "version": "2026.7.20b1"
   },
   "paths": {
     "/api/health": {
@@ -9187,6 +9187,69 @@
         }
       }
     },
+    "/api/documents/{doc_id}/duplicate": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Duplicate Document",
+        "description": "Deep-copy a document (subtree included) \u2014 beside the original, or\ninto ``parent_id`` when given (Option-drag copy).",
+        "operationId": "duplicate_document_api_documents__doc_id__duplicate_post",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Parent Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/cleanup-orphans": {
       "post": {
         "tags": [
@@ -15650,250 +15713,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReorderResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/search/views": {
-      "get": {
-        "tags": [
-          "search"
-        ],
-        "summary": "List Search Views",
-        "description": "List available search views and their configurations.\n\nReturns table, grid, and map view configurations.",
-        "operationId": "list_search_views_api_search_views_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SearchViewsResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/search/views/table": {
-      "get": {
-        "tags": [
-          "search"
-        ],
-        "summary": "Get Table View Data",
-        "description": "Get table view data for search results.\n\nReturns paginated table data with sortable columns.",
-        "operationId": "get_table_view_data_api_search_views_table_get",
-        "parameters": [
-          {
-            "name": "query",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "",
-              "title": "Query"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 1,
-              "title": "Page"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 20,
-              "title": "Page Size"
-            }
-          },
-          {
-            "name": "sort_by",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "relevance",
-              "title": "Sort By"
-            }
-          },
-          {
-            "name": "sort_direction",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "desc",
-              "title": "Sort Direction"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TableViewData"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/search/views/map": {
-      "get": {
-        "tags": [
-          "search"
-        ],
-        "summary": "Get Map View Data",
-        "description": "Get map view data with markers.\n\nReturns geographic markers for documents with location metadata.\nSupports bounds filtering for viewport queries.",
-        "operationId": "get_map_view_data_api_search_views_map_get",
-        "parameters": [
-          {
-            "name": "bounds",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "description": "sw_lat,sw_lng,ne_lat,ne_lng",
-              "title": "Bounds"
-            },
-            "description": "sw_lat,sw_lng,ne_lat,ne_lng"
-          },
-          {
-            "name": "query",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "",
-              "title": "Query"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1000,
-              "minimum": 1,
-              "default": 500,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MapViewData"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/search/views/grid": {
-      "get": {
-        "tags": [
-          "search"
-        ],
-        "summary": "Get Grid View Data",
-        "description": "Get grid view data for search results.\n\nReturns paginated grid items with thumbnails.",
-        "operationId": "get_grid_view_data_api_search_views_grid_get",
-        "parameters": [
-          {
-            "name": "query",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "",
-              "title": "Query"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 1,
-              "title": "Page"
-            }
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 20,
-              "title": "Page Size"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GridViewData"
                 }
               }
             }
@@ -45399,67 +45218,6 @@
         "title": "GraphMetricsResponse",
         "description": "Library-wide KG counts + averages. Drives the inspector summary."
       },
-      "GridViewData": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/GridViewItem"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "page": {
-            "type": "integer",
-            "title": "Page"
-          },
-          "page_size": {
-            "type": "integer",
-            "title": "Page Size"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "total",
-          "page",
-          "page_size"
-        ],
-        "title": "GridViewData",
-        "description": "Data for grid view."
-      },
-      "GridViewItem": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "thumbnail": {
-            "type": "string",
-            "nullable": true,
-            "title": "Thumbnail"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "title"
-        ],
-        "title": "GridViewItem",
-        "description": "Item for grid view."
-      },
       "HFModelInfo": {
         "properties": {
           "id": {
@@ -50466,84 +50224,6 @@
           "candidate_entity_id"
         ],
         "title": "ManualPairRequest"
-      },
-      "MapMarker": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "lat": {
-            "type": "number",
-            "title": "Lat"
-          },
-          "lng": {
-            "type": "number",
-            "title": "Lng"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "snippet": {
-            "type": "string",
-            "nullable": true,
-            "title": "Snippet"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Metadata"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "lat",
-          "lng",
-          "title"
-        ],
-        "title": "MapMarker",
-        "description": "Marker data for map view."
-      },
-      "MapViewData": {
-        "properties": {
-          "markers": {
-            "items": {
-              "$ref": "#/components/schemas/MapMarker"
-            },
-            "type": "array",
-            "title": "Markers"
-          },
-          "bounds": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object",
-            "nullable": true,
-            "title": "Bounds"
-          },
-          "clusters": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Clusters"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          }
-        },
-        "type": "object",
-        "required": [
-          "markers",
-          "total"
-        ],
-        "title": "MapViewData",
-        "description": "Data for map view."
       },
       "MarkdownFolderExportRequest": {
         "properties": {
@@ -58718,94 +58398,6 @@
         "title": "SearchType",
         "description": "Types of search performed."
       },
-      "SearchViewConfig": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          },
-          "view_type": {
-            "type": "string",
-            "title": "View Type"
-          },
-          "default": {
-            "type": "boolean",
-            "title": "Default",
-            "default": false
-          },
-          "columns": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Columns"
-          },
-          "filters": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Filters"
-          },
-          "sort_options": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Sort Options"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "description",
-          "view_type"
-        ],
-        "title": "SearchViewConfig",
-        "description": "Configuration for a search view."
-      },
-      "SearchViewsResponse": {
-        "properties": {
-          "views": {
-            "items": {
-              "$ref": "#/components/schemas/SearchViewConfig"
-            },
-            "type": "array",
-            "title": "Views"
-          },
-          "default_view": {
-            "type": "string",
-            "title": "Default View"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          }
-        },
-        "type": "object",
-        "required": [
-          "views",
-          "default_view",
-          "total"
-        ],
-        "title": "SearchViewsResponse",
-        "description": "Response with available search views."
-      },
       "SecurityScopedAccessRequest": {
         "properties": {
           "path": {
@@ -59939,48 +59531,6 @@
         },
         "type": "object",
         "title": "StraightenOperationRequest"
-      },
-      "TableViewData": {
-        "properties": {
-          "columns": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Columns"
-          },
-          "rows": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Rows"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "page": {
-            "type": "integer",
-            "title": "Page"
-          },
-          "page_size": {
-            "type": "integer",
-            "title": "Page Size"
-          }
-        },
-        "type": "object",
-        "required": [
-          "columns",
-          "rows",
-          "total",
-          "page",
-          "page_size"
-        ],
-        "title": "TableViewData",
-        "description": "Data for table view."
       },
       "TaskCreateRequest": {
         "properties": {

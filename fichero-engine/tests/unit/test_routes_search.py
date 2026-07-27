@@ -794,41 +794,6 @@ class TestSearchStats:
         }
 
 
-class TestSearchViews:
-    def test_table_view_filters_sorts_and_paginates(self, client, db):
-        alpha = Document(name="Alpha field note", doc_type=DocType.file, file_type=FileType.text)
-        beta = Document(name="Beta field note", doc_type=DocType.file, file_type=FileType.text)
-        gamma = Document(name="Gamma memo", doc_type=DocType.file, file_type=FileType.text)
-        db.save(alpha)
-        db.save(beta)
-        db.save(gamma)
-
-        r = client.get(
-            "/api/search/views/table",
-            params={
-                "query": "field",
-                "sort_by": "name",
-                "sort_direction": "asc",
-                "page": 1,
-                "page_size": 1,
-            },
-        )
-
-        assert r.status_code == 200
-        payload = r.json()
-        assert payload["total"] == 2
-        assert payload["page"] == 1
-        assert payload["page_size"] == 1
-        assert [row["name"] for row in payload["rows"]] == ["Alpha field note"]
-        assert [column["key"] for column in payload["columns"]] == [
-            "id",
-            "name",
-            "doc_type",
-            "created_at",
-            "relevance_score",
-        ]
-
-
 # ---------------------------------------------------------------------------
 # POST /api/search/reindex
 # ---------------------------------------------------------------------------

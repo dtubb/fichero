@@ -132,6 +132,7 @@
   "/api/documents/{doc_id}/ancestors": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
   "/api/documents/{doc_id}/annotations.jsonld": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
   "/api/documents/{doc_id}/children": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+  "/api/documents/{doc_id}/duplicate": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
   "/api/documents/{doc_id}/geo": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
   "/api/documents/{doc_id}/move": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
   "/api/documents/{doc_id}/notes": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",

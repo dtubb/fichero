@@ -4065,6 +4065,21 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("duplicate")
+    def documents_duplicate_post(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
+    ) -> None:
+        """Duplicate Document (POST /api/documents/{doc_id}/duplicate)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/duplicate"
+            params = {
+                "parent_id": parent_id,
+            }
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-geocoded-points-for-a")
     def documents_list_geocoded_points_for_a_get(
         ctx: typer.Context,
@@ -12387,75 +12402,6 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/search/stats"
             params = None
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("list-views")
-    def search_list_views_get(
-        ctx: typer.Context,
-    ) -> None:
-        """List Search Views (GET /api/search/views)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/search/views"
-            params = None
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-grid-view-data")
-    def search_get_grid_view_data_get(
-        ctx: typer.Context,
-        page: Optional[int] = typer.Option(None, "--page", help="Query parameter: page."),
-        page_size: Optional[int] = typer.Option(None, "--page-size", help="Query parameter: page_size."),
-        query: Optional[str] = typer.Option(None, "--query", help="Query parameter: query."),
-    ) -> None:
-        """Get Grid View Data (GET /api/search/views/grid)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/search/views/grid"
-            params = {
-                "page": page,
-                "page_size": page_size,
-                "query": query,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-map-view-data")
-    def search_get_map_view_data_get(
-        ctx: typer.Context,
-        bounds: Optional[str] = typer.Option(None, "--bounds", help="Query parameter: bounds."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        query: Optional[str] = typer.Option(None, "--query", help="Query parameter: query."),
-    ) -> None:
-        """Get Map View Data (GET /api/search/views/map)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/search/views/map"
-            params = {
-                "bounds": bounds,
-                "limit": limit,
-                "query": query,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-table-view-data")
-    def search_get_table_view_data_get(
-        ctx: typer.Context,
-        page: Optional[int] = typer.Option(None, "--page", help="Query parameter: page."),
-        page_size: Optional[int] = typer.Option(None, "--page-size", help="Query parameter: page_size."),
-        query: Optional[str] = typer.Option(None, "--query", help="Query parameter: query."),
-        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
-        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Query parameter: sort_direction."),
-    ) -> None:
-        """Get Table View Data (GET /api/search/views/table)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/search/views/table"
-            params = {
-                "page": page,
-                "page_size": page_size,
-                "query": query,
-                "sort_by": sort_by,
-                "sort_direction": sort_direction,
-            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
