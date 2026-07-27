@@ -47,13 +47,10 @@ class WorkflowStreamService {
     /// it false (the run ended normally, it isn't paused).
     private(set) var liveUpdatesUnavailable = false
 
-    /// Track if workflow had errors (for final status determination)
-    private var hadError = false
-
     // Plumbing, not observed UI state — exclude from @Observable tracking, and
     // `nonisolated(unsafe)` so `deinit` (nonisolated in Swift 6) can cancel it
     // (only mutated on the main actor; `Task.cancel()` is safe from anywhere).
-    @ObservationIgnored nonisolated(unsafe) private var streamTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var streamTasks: [String: Task<Void, Never>] = [:]
 
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
@@ -61,7 +58,7 @@ class WorkflowStreamService {
     }
 
     deinit {
-        streamTask?.cancel()
+        streamTasks.values.forEach { $0.cancel() }
     }
 
     // MARK: - Public Methods
@@ -86,10 +83,7 @@ class WorkflowStreamService {
         onAccepted: ((ExecuteAcceptedResponse) -> Void)? = nil,
         onEvent: ((WorkflowStreamEvent) -> Void)? = nil
     ) async throws -> ExecuteAcceptedResponse {
-        // Cancel any existing stream
-        streamTask?.cancel()
         error = nil
-        hadError = false
         liveUpdatesUnavailable = false  // fresh stream — clear any prior paused state (F7)
         isStreaming = true
 
@@ -107,12 +101,7 @@ class WorkflowStreamService {
         onAccepted?(acceptedResponse)
 
         // Step 2: Connect to the stream URL in a separate task
-        streamTask = Task { [weak self] in
-            await self?.subscribeToStream(
-                threadId: acceptedResponse.threadId,
-                onEvent: onEvent
-            )
-        }
+        startStream(threadId: acceptedResponse.threadId, onEvent: onEvent)
 
         return acceptedResponse
     }
@@ -125,15 +114,24 @@ class WorkflowStreamService {
     /// SAME live endpoint (`/api/workflow-execution/stream/{threadId}`) that
     /// `execute(...)` connects to — there is one streaming code path, not two.
     func subscribe(threadId: String, onEvent: @escaping (WorkflowStreamEvent) -> Void) {
-        streamTask?.cancel()
         error = nil
-        hadError = false
         liveUpdatesUnavailable = false  // fresh stream — clear any prior paused state (F7)
         isStreaming = true
         currentThreadId = threadId
 
-        streamTask = Task { [weak self] in
+        startStream(threadId: threadId, onEvent: onEvent)
+    }
+
+    private func startStream(
+        threadId: String,
+        onEvent: ((WorkflowStreamEvent) -> Void)?
+    ) {
+        streamTasks[threadId]?.cancel()
+        streamTasks[threadId] = Task { [weak self] in
             await self?.subscribeToStream(threadId: threadId, onEvent: onEvent)
+            guard !Task.isCancelled else { return }
+            self?.streamTasks[threadId] = nil
+            self?.isStreaming = self?.streamTasks.isEmpty == false
         }
     }
 
@@ -176,9 +174,6 @@ class WorkflowStreamService {
             }
         }
 
-        await MainActor.run {
-            self.isStreaming = false
-        }
         logger.info("Stream completed for thread: \(threadId)")
     }
 
@@ -225,17 +220,6 @@ class WorkflowStreamService {
         await MainActor.run {
             // Dispatch to callback
             onEvent?(event)
-
-            // Track errors and check for terminal events
-            switch event {
-            case .error, .systemicError:
-                self.hadError = true
-                self.isStreaming = false
-            case .complete, .pause, .cancelled:
-                self.isStreaming = false
-            default:
-                break
-            }
         }
     }
 
@@ -247,17 +231,20 @@ class WorkflowStreamService {
         let message = WorkflowStreamError.streamFailureDescription(error: error, streamURL: streamUrl)
         logger.error("Stream error: \(message)")
         self.error = message
-        self.isStreaming = false
         // Events stopped mid-run — surface a "live updates paused"
         // pill rather than leaving the run looking stalled (F7).
         self.liveUpdatesUnavailable = true
     }
 
     /// Cancel the current stream
-    func cancelStream() {
-        streamTask?.cancel()
-        streamTask = nil
-        isStreaming = false
+    func cancelStream(threadId: String? = nil) {
+        if let threadId {
+            streamTasks.removeValue(forKey: threadId)?.cancel()
+        } else {
+            streamTasks.values.forEach { $0.cancel() }
+            streamTasks.removeAll()
+        }
+        isStreaming = !streamTasks.isEmpty
         liveUpdatesUnavailable = false  // user-cancelled is not a paused stream (F7)
         logger.info("SSE stream cancelled")
     }
@@ -266,7 +253,7 @@ class WorkflowStreamService {
     /// - Parameter threadId: The thread ID to stop
     func stopWorkflow(threadId: String) async throws {
         // First cancel the local stream
-        cancelStream()
+        cancelStream(threadId: threadId)
 
         logger.info("Stopping workflow thread: \(threadId)")
         try await executionService.stopWorkflow(threadId: threadId)
@@ -287,9 +274,7 @@ class WorkflowStreamService {
         isStreaming = true
         currentThreadId = threadId
 
-        streamTask = Task { [weak self] in
-            await self?.subscribeToStream(threadId: threadId, onEvent: onEvent)
-        }
+        startStream(threadId: threadId, onEvent: onEvent)
 
         logger.info("Workflow thread resumed: \(threadId)")
     }

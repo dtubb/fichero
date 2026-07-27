@@ -26,4 +26,18 @@ final class WorkflowStreamServiceFailureTests: XCTestCase {
         XCTAssertTrue(failureBody.contains("liveUpdatesUnavailable = true"))
         XCTAssertFalse(failureBody.contains("onEvent?"))
     }
+
+    func testStartingAnotherRunDoesNotCancelExistingStream() throws {
+        let source = try Self.source()
+        let executeRange = try XCTUnwrap(source.range(of: "func execute("))
+        let subscribeRange = try XCTUnwrap(
+            source.range(of: "func subscribe(", range: executeRange.upperBound..<source.endIndex)
+        )
+        let executeBody = source[executeRange.lowerBound..<subscribeRange.lowerBound]
+
+        XCTAssertTrue(source.contains("streamTasks: [String: Task<Void, Never>]"))
+        XCTAssertFalse(executeBody.contains(".cancel()"))
+        XCTAssertTrue(executeBody.contains("startStream(threadId: acceptedResponse.threadId"))
+        XCTAssertTrue(source.contains("cancelStream(threadId: threadId)"))
+    }
 }
