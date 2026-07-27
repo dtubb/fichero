@@ -38,15 +38,41 @@ extension LibraryView {
                                 .onTapGesture {
                                     handleEntityTap(entity)
                                 }
+                                // Minimal parity with document tiles (#4160):
+                                // right-click offers Open — the same action
+                                // double-click performs.
+                                .contextMenu {
+                                    Button {
+                                        handleEntityDoubleClick(entity)
+                                    } label: {
+                                        Label("Open", systemImage: "arrow.up.forward.square")
+                                    }
+                                }
                             }
                         } else {
                             ForEach(filteredDocuments) { doc in
-                                DocumentThumbnailView(
-                                    document: doc,
+                                LibraryIconCell(
+                                    identity: IconCellIdentity(
+                                        document: doc,
+                                        scale: iconViewScale,
+                                        isRenaming: renamingDocumentId == doc.id
+                                    ),
                                     isSelected: selection.contains(doc.id),
-                                    selectedTint: selectionTint,
-                                    scale: CGFloat(iconViewScale)
-                                )
+                                    tint: selectionTint
+                                ) {
+                                    DocumentThumbnailView(
+                                        document: doc,
+                                        isSelected: selection.contains(doc.id),
+                                        selectedTint: selectionTint,
+                                        scale: CGFloat(iconViewScale),
+                                        isRenaming: renamingDocumentId == doc.id,
+                                        editingName: $editingName,
+                                        onCommitRename: commitRename,
+                                        onCancelRename: cancelRename
+                                    )
+                                }
+                                .equatable()
+                                .modifier(LibraryRowHoverWash(enabled: !selection.contains(doc.id)))
                                 .id(doc.id)
                                 .draggable(libraryItemDrag(for: doc))
                                 // Folder cells are real drop targets (#4124):
@@ -77,8 +103,19 @@ extension LibraryView {
                     .padding()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
+                // Click in the gutter/empty space deselects, like Finder
+                // (#4160). Tile taps win — their gestures are deeper.
+                .onTapGesture {
+                    selection.removeAll()
+                    selectionAnchor = nil
+                    selectionCursor = nil
+                }
                 // In icon mode, ScrollView may consume arrow keys for scrolling first.
                 // Handle them at this level so keyboard selection always works.
+                // NOTE: these deliberately DUPLICATE the body-level handlers in
+                // LibraryView+KeyboardShortcuts (#4160 audit G12): the inner
+                // set wins the key first; keep the two in sync when adding
+                // directions (home/end added below to match).
                 .onKeyPress(.upArrow, phases: .down) { _ in
                     handleArrowKey(direction: .upDir)
                 }
@@ -96,6 +133,12 @@ extension LibraryView {
                 }
                 .onKeyPress(.pageDown, phases: .down) { _ in
                     handleArrowKey(direction: .pageDown)
+                }
+                .onKeyPress(.home, phases: .down) { _ in
+                    handleArrowKey(direction: .home)
+                }
+                .onKeyPress(.end, phases: .down) { _ in
+                    handleArrowKey(direction: .end)
                 }
                 #if os(macOS)
                 .onMoveCommand { direction in
@@ -160,7 +203,7 @@ extension LibraryView {
                     // boots scrolled to the top — selected item is offscreen.
                     // Defer one tick so LazyVGrid materialises enough cells
                     // for scrollTo to find the id, then center on it.
-                    if let id = selection.first {
+                    if let id = orderedPrimarySelectionId {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 proxy.scrollTo(id, anchor: .center)
@@ -193,9 +236,12 @@ extension LibraryView {
                 // (via syncGridSelectionToPDFPage). Without this watcher,
                 // the row highlight moved but the viewport didn't follow,
                 // so the selected page could end up off-screen below or
-                // above what's rendered. (#929)
-                .onChange(of: selection.first) { _, id in
-                    guard let id else { return }
+                // above what's rendered. (#929) Watches the whole Set and
+                // follows the ORDERED cursor (#4160) — watching the Set's
+                // hash-first element could miss changes entirely when the
+                // hash-first id stayed the same.
+                .onChange(of: selection) { _, _ in
+                    guard let id = orderedPrimarySelectionId else { return }
                     withAnimation(.easeInOut(duration: 0.15)) {
                         proxy.scrollTo(id, anchor: nil)
                     }

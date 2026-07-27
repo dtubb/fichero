@@ -38,7 +38,9 @@ extension LibraryView {
     }
 
     private func handleOutlineDoubleClickSelection() {
-        guard let firstId = selection.first else { return }
+        // Ordered cursor, not Set hash order (#4160) — double-clicking a
+        // multi-selection used to open an arbitrary row.
+        guard let firstId = orderedPrimarySelectionId else { return }
         if let artifactSelection = artifactSelectionForNodeId(firstId) {
             openArtifactDetailWindow(for: artifactSelection)
             return

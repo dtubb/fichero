@@ -189,6 +189,16 @@ extension LibraryView {
             Label("Rename", systemImage: "pencil")
         }
 
+        // Discoverable Quick Look (#4160) — same fetch Space uses; folders
+        // have no source file to preview.
+        if document.docType != .folder {
+            Button {
+                quickLook(document)
+            } label: {
+                Label("Quick Look", systemImage: "eye")
+            }
+        }
+
         // Only available when the engine is local — a remote engine means
         // document.path is a server-side path, not a path on this Mac (#1861).
         #if os(macOS)

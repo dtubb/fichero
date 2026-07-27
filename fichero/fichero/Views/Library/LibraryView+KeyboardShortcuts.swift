@@ -89,6 +89,13 @@ extension LibraryView {
               let primaryId = orderedPrimarySelectionId,
               let doc = filteredDocuments.first(where: { $0.id == primaryId }),
               doc.docType != .folder else { return .ignored }
+        quickLook(doc)
+        return .handled
+    }
+
+    /// Shared Quick Look entry — Space and the context menu item (#4160)
+    /// both land here.
+    func quickLook(_ doc: Document) {
         Task { @MainActor in
             do {
                 quickLookURL = try await SidebarDragID.exportSourceFile(
@@ -100,7 +107,6 @@ extension LibraryView {
                 )
             }
         }
-        return .handled
     }
 
     @ViewBuilder

@@ -21,6 +21,34 @@ struct DocRowIdentity: Equatable, Sendable {
     var isRenaming: Bool = false
 }
 
+/// Icon-grid analogue of `DocRowIdentity` (#4160): everything a tile renders
+/// from besides its selection state, so `.equatable()` can skip unchanged
+/// tiles — a click previously re-evaluated every materialised tile body.
+struct IconCellIdentity: Equatable, Sendable {
+    let document: Document
+    let scale: Double
+    var isRenaming: Bool = false
+}
+
+/// Chrome-free equatable wrapper for grid tiles. `LibrarySelectableRow` adds
+/// row padding/background the tiles already draw themselves, so this only
+/// contributes the value-diffed skip. `tint` is compared so focus/key
+/// changes (which change `selectionTint`) still redraw selected tiles.
+struct LibraryIconCell<Identity: Equatable & Sendable, Content: View>: View, Equatable {
+    let identity: Identity
+    let isSelected: Bool
+    let tint: Color
+    @ViewBuilder let content: Content
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.identity == rhs.identity
+            && lhs.isSelected == rhs.isSelected
+            && lhs.tint == rhs.tint
+    }
+
+    var body: some View { content }
+}
+
 /// Subtle hover wash on unselected list rows (#4160), like the sidebar's
 /// hover affordance — pointer feedback without stealing the selection tint.
 /// Per-row @State so hovering re-renders ONE row, not the list.

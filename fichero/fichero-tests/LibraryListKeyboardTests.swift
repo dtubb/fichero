@@ -74,9 +74,15 @@ struct LibraryListModeGuardTests {
 
     @Test("no Set-hash-order cursor reads remain in keyboard paths")
     func noHashOrderCursor() throws {
+        // IconMode/TableView were originally EXCLUDED from this loop — which
+        // is exactly why their copies of the bug survived step 1 (audit G1/G2).
         for path in [
             "Views/Library/LibraryView+ArrowNavigation.swift",
-            "Views/Library/ViewModes/LibraryView+ListView.swift"
+            "Views/Library/ViewModes/LibraryView+ListView.swift",
+            "Views/Library/ViewModes/LibraryView+IconMode.swift",
+            "Views/Library/ViewModes/LibraryView+TableView.swift",
+            "Views/Library/LibraryView+DeleteActions.swift",
+            "Views/Library/LibraryView+KeyboardShortcuts.swift"
         ] {
             let source = try appSource(path)
             #expect(!source.contains("selection.first"), "selection.first is hash order — use LibraryKeyboardCursor (\(path))")
@@ -129,6 +135,28 @@ struct LibraryListModeGuardTests {
         let components = try appSource("Views/Library/LibraryViewComponents.swift")
         #expect(components.contains(".accessibilityElement(children: .combine)"))
         #expect(components.contains("accessibilityIdentifier(\"libraryRow."))
+    }
+
+    @Test("icon tiles match the list-row bar: rename, a11y, hover, diffing")
+    func iconTileParity() throws {
+        let tiles = try appSource("Views/Library/LibraryThumbnailViews.swift")
+        #expect(tiles.contains("EditableDocumentName("))
+        #expect(tiles.contains("accessibilityIdentifier(\"libraryTile."))
+        #expect(tiles.contains("accessibilityIdentifier(\"libraryEntityTile."))
+        let icon = try appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
+        #expect(icon.contains("LibraryIconCell("))
+        #expect(icon.contains("isRenaming: renamingDocumentId == doc.id"))
+        #expect(icon.contains("LibraryRowHoverWash"))
+        // Empty-space click deselects, like Finder.
+        #expect(icon.contains("selection.removeAll()"))
+    }
+
+    @Test("Quick Look is discoverable from the context menu")
+    func quickLookInMenu() throws {
+        let menu = try appSource("Views/Library/LibraryView+ContextMenu.swift")
+        #expect(menu.contains("Label(\"Quick Look\""))
+        let keys = try appSource("Views/Library/LibraryView+KeyboardShortcuts.swift")
+        #expect(keys.contains("func quickLook(_ doc: Document)"))
     }
 
     @Test("entity lozenge block reserves real height while loading")

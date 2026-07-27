@@ -8,6 +8,13 @@ struct DocumentThumbnailView: View {
     let isSelected: Bool
     var selectedTint: Color = .accentColor
     var scale: CGFloat = 1.0
+    /// Inline rename (#4160): the context menu's Rename set state only the
+    /// table (and now list) consumed — icon mode rendered a plain Text, so
+    /// Rename silently did nothing while still blocking type-select/Space.
+    var isRenaming: Bool = false
+    var editingName: Binding<String> = .constant("")
+    var onCommitRename: () -> Void = {}
+    var onCancelRename: () -> Void = {}
 
     #if os(macOS)
     @Environment(\.controlActiveState) private var controlActiveState
@@ -23,18 +30,6 @@ struct DocumentThumbnailView: View {
         #else
         selectedTint
         #endif
-    }
-
-    init(
-        document: Document,
-        isSelected: Bool,
-        selectedTint: Color = .accentColor,
-        scale: CGFloat = 1.0
-    ) {
-        self.document = document
-        self.isSelected = isSelected
-        self.selectedTint = selectedTint
-        self.scale = scale
     }
 
     var body: some View {
@@ -106,12 +101,26 @@ struct DocumentThumbnailView: View {
             // page_label once #2080 lands), never their internal id/filename.
             // `pageThumbnailLabel` is nil for non-page docs, so top-level
             // documents keep their name. (#2053)
-            Text(document.pageThumbnailLabel ?? document.name)
-                .font(.caption)
-                .lineLimit(2)
-                .truncationMode(.middle)
-                .multilineTextAlignment(.center)
-                .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
+            if isRenaming {
+                EditableDocumentName(
+                    document: document,
+                    isRenaming: true,
+                    editingName: editingName,
+                    font: .caption,
+                    alignment: .center,
+                    onCommit: onCommitRename,
+                    onCancel: onCancelRename
+                )
+            } else {
+                Text(document.pageThumbnailLabel ?? document.name)
+                    .font(.caption)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
+                    // Middle-truncated labels reveal in full on hover (#4160).
+                    .help(document.pageThumbnailLabel ?? document.name)
+            }
         }
         .frame(width: 100 * scale)
         .padding(6)
@@ -122,6 +131,28 @@ struct DocumentThumbnailView: View {
                 // to gray when the window isn't key / pane isn't focused.
                 .fill(isSelected ? effectiveSelectedTint.opacity(0.2) : Color.clear)
         )
+        // VoiceOver reads one coherent tile (#4160), same shape as list rows.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(tileAccessibilityLabel)
+        .accessibilityValue(document.status.rawValue.capitalized)
+        .accessibilityHint(tileAccessibilityHint)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("libraryTile.\(document.id)")
+    }
+
+    private var tileAccessibilityLabel: String {
+        let name = document.pageThumbnailLabel ?? document.name
+        if document.docType == .folder { return "\(name), folder" }
+        if let fileType = document.fileType { return "\(name), \(fileType.rawValue)" }
+        return name
+    }
+
+    private var tileAccessibilityHint: String {
+        #if os(macOS)
+        "Press Return to open, Space to preview. Right-click for actions."
+        #else
+        "Double tap and hold for actions."
+        #endif
     }
 
     @ViewBuilder
@@ -248,6 +279,12 @@ struct EntityThumbnailView: View {
                 // to gray when the window isn't key / pane isn't focused.
                 .fill(isSelected ? effectiveSelectedTint.opacity(0.2) : Color.clear)
         )
+        // VoiceOver: one coherent tile, same shape as document tiles (#4160).
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(entity.canonicalName), \(kindStyle.label)")
+        .accessibilityValue(secondaryText)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("libraryEntityTile.\(entity.stableInspectorId)")
     }
 }
 
