@@ -714,7 +714,14 @@ class TestLoadPresetFiles:
         assert len(route_edges) == 1, "auto-detect must have exactly one route_map edge"
 
         rmap = route_edges[0]["route_map"]
-        assert set(rmap.keys()) == {"typescript", "manuscript", "htr", "paleography"}
+        assert set(rmap.keys()) == {
+            "typescript",
+            "manuscript",
+            "htr",
+            "paleography",
+            "mixed",
+        }
+        assert rmap["mixed"] == rmap["paleography"]
 
         # All route_map target node IDs must exist in nodes
         node_ids = {n["id"] for n in ad["nodes"]}

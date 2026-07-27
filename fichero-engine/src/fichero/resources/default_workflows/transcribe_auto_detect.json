@@ -187,7 +187,8 @@
         "typescript": "transcribe-ts",
         "manuscript": "transcribe-ms",
         "htr": "transcribe-htr",
-        "paleography": "transcribe-paleo"
+        "paleography": "transcribe-paleo",
+        "mixed": "transcribe-paleo"
       }
     },
     {
