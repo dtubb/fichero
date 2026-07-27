@@ -17,11 +17,12 @@ final class LibraryGridDropTests: XCTestCase {
     func testFolderCellsAreDropTargetsInIconAndListModes() throws {
         for file in [
             "Views/Library/ViewModes/LibraryView+IconMode.swift",
-            "Views/Library/ViewModes/LibraryView+ListView.swift"
+            "Views/Library/ViewModes/LibraryView+ListView.swift",
+            "Views/Library/ViewModes/LibraryView+TableColumns.swift"
         ] {
             let source = try Self.appSource(file)
             XCTAssertTrue(source.contains("LibraryFolderCellDrop("), file)
-            XCTAssertTrue(source.contains("moveDraggedItems(items, into: doc)"), file)
+            XCTAssertTrue(source.contains("moveDraggedItems(items, into:"), file)
         }
     }
 

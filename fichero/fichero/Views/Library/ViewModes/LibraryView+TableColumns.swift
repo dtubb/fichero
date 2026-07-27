@@ -141,7 +141,16 @@ extension LibraryView {
     private func outlineNameCell(for node: LibraryOutlineNode) -> some View {
         switch node.kind {
         case .document:
+            // Folder name-cells accept in-app item drops (#4124) — same
+            // per-cell modifier as icon/list modes; Table scopes the
+            // dropDestination (and its highlight) to this cell.
             tableCellView(for: "name", document: node.document)
+                .modifier(LibraryFolderCellDrop(
+                    isFolder: node.document.docType == .folder,
+                    onDropItems: { items in
+                        moveDraggedItems(items, into: node.document)
+                    }
+                ))
         case .childGroup(let type):
             Label(type.groupLabel(count: node.count), systemImage: type.systemImage)
                 .font(.subheadline)
