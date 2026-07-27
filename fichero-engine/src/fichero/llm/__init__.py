@@ -2348,6 +2348,50 @@ async def vision(
     return result
 
 
+async def audio_transcription(
+    file_path: str,
+    prompt: str,
+    config: LLMConfig,
+    *,
+    language: str | None = None,
+) -> str:
+    """Transcribe audio through LangChain's OpenAI-compatible parser."""
+    from langchain_community.document_loaders.parsers.audio import OpenAIWhisperParser
+    from langchain_core.document_loaders import Blob
+
+    _enforce_local_only_provider(config, kind="audio transcription")
+    provider = config.provider.lower()
+    if provider != "openai" and provider not in _OPENAI_COMPATIBLE_BASE_URLS:
+        raise ValueError(
+            f"Remote audio transcription requires an OpenAI-compatible provider, got '{provider}'"
+        )
+
+    parser = OpenAIWhisperParser(
+        api_key=_resolve_api_key(config),
+        base_url=config.api_base or _OPENAI_COMPATIBLE_BASE_URLS.get(provider),
+        language=None if language in {None, "auto"} else language,
+        prompt=prompt,
+        model=config.model,
+    )
+
+    def parse() -> str:
+        return "\n".join(
+            document.page_content.strip()
+            for document in parser.lazy_parse(Blob.from_path(file_path))
+            if document.page_content.strip()
+        )
+
+    budget = _compute_timeout(config, "langchain")
+    try:
+        async with _remote_llm_call_slot(config):
+            return await asyncio.wait_for(asyncio.to_thread(parse), timeout=budget)
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError(
+            f"LangChain {config.provider}/{config.model} audio transcription "
+            f"exceeded {budget}s — provider hang"
+        ) from exc
+
+
 async def vision_batch(
     image_lists: list[list[str]],
     prompt: str,

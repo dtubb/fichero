@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fichero.llm import LLMConfig
+from fichero.llm import LLMConfig, audio_transcription
 from fichero.db.paths import engine_state_dir
 
 from fichero.workflows.types import PortDef, DataType
@@ -319,10 +319,9 @@ async def transcribe_with_llm(
     file_path: str,
     llm_config: LLMConfig,
     prompt: str = "Transcribe this audio accurately.",
+    language: str | None = None,
 ) -> str:
-    """Transcribe audio using a remote provider API (e.g., OpenAI Whisper API).
-
-    Uses LiteLLM's transcription interface for provider-agnostic access.
+    """Transcribe audio through Fichero's canonical LangChain boundary.
 
     Args:
         file_path: Path to audio file
@@ -332,25 +331,15 @@ async def transcribe_with_llm(
     Returns:
         Transcribed text
     """
-    try:
-        from litellm import atranscription
-    except ImportError:
-        raise ImportError(
-            "litellm is required for remote audio transcription. "
-            "Install with: pip install litellm"
-        )
-
-    model_str = f"{llm_config.provider}/{llm_config.model}"
-    logger.info(f"Remote transcription with {model_str}: {Path(file_path).name}")
-
-    with open(file_path, "rb") as audio_file:
-        result = await atranscription(
-            model=model_str,
-            file=audio_file,
-            prompt=prompt,
-        )
-
-    return result.text.strip()
+    logger.info(
+        "Remote transcription with %s/%s: %s",
+        llm_config.provider,
+        llm_config.model,
+        Path(file_path).name,
+    )
+    return (
+        await audio_transcription(file_path, prompt, llm_config, language=language)
+    ).strip()
 
 
 # =============================================================================
@@ -482,7 +471,9 @@ async def process_audio(
             else:
                 # Remote LLM transcription
                 logger.info(f"Remote LLM: {Path(file_path).name}")
-                text = await transcribe_with_llm(file_path, llm_config, prompt)
+                text = await transcribe_with_llm(
+                    file_path, llm_config, prompt, language
+                )
 
             # Parse output according to format (usually just text for transcription)
             parsed = parse_output(text, output_format, output_options)

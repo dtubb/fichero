@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
+from fichero.llm import LLMConfig
+
 from fichero.workflows.tools import audio_base
 
 
@@ -33,3 +37,32 @@ def test_whisper_model_cache_loads_once_and_sync_transcription_normalizes(monkey
     assert len(loaded) == 1
     assert loaded[0][0] == ("tiny",)
     assert model.calls == [("clip.wav", None), ("clip.wav", None)]
+
+
+@pytest.mark.asyncio
+async def test_remote_audio_uses_canonical_llm_boundary(monkeypatch):
+    captured = {}
+
+    async def transcribe(file_path, prompt, config, *, language):
+        captured.update(
+            file_path=file_path,
+            prompt=prompt,
+            config=config,
+            language=language,
+        )
+        return "  remote transcript  "
+
+    monkeypatch.setattr(audio_base, "audio_transcription", transcribe)
+    config = LLMConfig(provider="openai", model="whisper-1")
+
+    result = await audio_base.transcribe_with_llm(
+        "clip.wav", config, "Be exact", "es"
+    )
+
+    assert result == "remote transcript"
+    assert captured == {
+        "file_path": "clip.wav",
+        "prompt": "Be exact",
+        "config": config,
+        "language": "es",
+    }
