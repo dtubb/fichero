@@ -1321,3 +1321,88 @@ class TestHonestCounts:
             assert r.status_code == 200
             seen.update(hit["document_id"] for hit in r.json()["results"])
         assert len(seen) == 5
+
+
+class TestSearchQueryAction:
+    """search.query (#4115): retrieval as ONE audited, read-only action —
+    the first tool the chat agent loop (#1847) can actually call."""
+
+    @staticmethod
+    def _ctx():
+        from fichero.actions.registry import ActionContext
+
+        return ActionContext(actor="chat-agent", library_path="/tmp/library.fichero")
+
+    def test_registered_and_read_only(self):
+        from fichero.actions.registry import registry
+
+        reg = registry.get("search.query")
+        assert reg.read_only is True
+        assert reg.undoable is False
+
+    def test_appears_in_the_chat_tool_surface(self):
+        from fichero.actions.chat_tools import action_tools
+
+        tools = action_tools(read_only=True)
+        names = {t["function"]["name"] for t in tools}
+        assert any("search" in n and "query" in n for n in names), names
+
+    def test_query_returns_ranked_hits_with_honest_totals(self, db):
+        from fichero.actions.registry import registry
+
+        doc = Document(
+            name="Tool Search Hit",
+            page_content="chontaduro palm fruit harvest ledger",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+        db.embed(doc)
+
+        result = registry.invoke(
+            db,
+            "search.query",
+            {"query": "chontaduro", "search_type": "fulltext", "min_score": 0.0},
+            self._ctx(),
+        )
+        payload = result.result
+        assert payload["total_results"] >= 1
+        assert isinstance(payload["has_more"], bool)
+        assert any(r["document_id"] == doc.id for r in payload["results"])
+
+    def test_folder_scope_filters_hits(self, db):
+        from fichero.actions.registry import registry
+
+        folder = Document(name="Scope Folder", doc_type=DocType.folder)
+        db.save(folder)
+        inside = Document(
+            name="Inside",
+            parent_id=folder.id,
+            page_content="guarapo inside the folder",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        outside = Document(
+            name="Outside",
+            page_content="guarapo outside the folder",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        for d in (inside, outside):
+            db.save(d)
+            db.embed(d)
+
+        result = registry.invoke(
+            db,
+            "search.query",
+            {
+                "query": "guarapo",
+                "search_type": "fulltext",
+                "min_score": 0.0,
+                "folder_id": folder.id,
+            },
+            self._ctx(),
+        )
+        ids = {r["document_id"] for r in result.result["results"]}
+        assert inside.id in ids
+        assert outside.id not in ids

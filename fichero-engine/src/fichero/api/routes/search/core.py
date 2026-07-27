@@ -6,6 +6,7 @@ Semantic search using LanceDB vector embeddings.
 
 import asyncio
 import logging
+from dataclasses import asdict
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
@@ -1986,4 +1987,72 @@ def _action_search_reindex(
         entity_ids=list(params.entity_ids or []),
         claim_ids=list(params.claim_ids or []),
     )
+    return result, spec
+
+
+# =============================================================================
+# search.query (#4115) — search as ONE audited action
+# =============================================================================
+#
+# The chat/agent tool loop (#1847) exposes read_only actions as tools, but
+# until now search itself was not an action — the model could REINDEX the
+# library yet never RUN a search. search.query wraps the SAME retrieval
+# pipeline /api/search uses (_run_content_search_sync → Database.search:
+# hybrid vector+FTS with RRF fusion, honest total_count, typed failures), so
+# the results grid and the chat agent share one implementation with one audit
+# trail. This is the first read_only action in the registry.
+
+
+class SearchQueryParams(BaseModel):
+    """``search.query`` — run a library search and return ranked hits."""
+
+    query: str = Field(description="The search query text")
+    limit: int = Field(default=10, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
+    search_type: str = Field(
+        default="hybrid", description="'hybrid', 'semantic', or 'fulltext'"
+    )
+    # 0.55 mirrors SearchRequest.min_score — the engine's noise floor (#1054).
+    min_score: float = Field(default=0.55, ge=0.0, le=1.0)
+    folder_id: str | None = Field(
+        default=None, description="Scope to a folder (descendants included)"
+    )
+    sort_by: str = Field(default="relevance")
+    sort_direction: str = Field(default="desc")
+
+
+@action(
+    "search.query",
+    SearchQueryParams,
+    domains=["search"],
+    undoable=False,
+    read_only=True,
+)
+def _action_search_query(
+    db: Database, params: SearchQueryParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Run the library's hybrid search — the one retrieval tool (#4115)."""
+    request = SearchRequest(
+        query=params.query,
+        limit=params.limit,
+        offset=params.offset,
+        search_type=params.search_type,
+        min_score=params.min_score,
+        filters={"folder_id": params.folder_id} if params.folder_id else None,
+        sort_by=params.sort_by,
+        sort_direction=params.sort_direction,
+        include=[SearchInclude.content],
+    )
+    results, total_count, _stats = _run_content_search_sync(
+        db, request, params.query
+    )
+    # db.SearchResult is a dataclass, not a pydantic model.
+    result = {
+        "results": [asdict(r) for r in results],
+        "total_results": total_count,
+        "has_more": params.offset + len(results) < total_count,
+    }
+    # Read-only: nothing changed, nothing to emit — the audit row invoke()
+    # writes is the point (what was searched, by whom).
+    spec = ChangeSpec(domains=["search"])
     return result, spec
