@@ -143,7 +143,7 @@ extension ActivityMonitorRow {
             id: "node:\(execution.threadId):\(state.nodeId)",
             kind: .node,
             runThreadId: execution.threadId,
-            name: activityHumanNodeName(state.nodeId) ?? state.nodeId,
+            name: state.displayName ?? activityHumanNodeName(state.nodeId) ?? state.nodeId,
             statusSymbol: glyph.symbol,
             statusColor: glyph.color,
             isSpinning: glyph.spinning,

@@ -162,6 +162,7 @@ extension WorkflowExecution {
         // Skip LangGraph internal fan-out/fan-in nodes — not user-visible steps.
         guard !nodeId.hasSuffix("_aggregate"), !nodeId.hasPrefix("branch:to:") else { return }
         var state = nodeStates[nodeId] ?? NodeExecutionState(nodeId: nodeId)
+        state.displayName = nodeName
         state.status = .running
         state.progress = 0
         nodeStates[nodeId] = state

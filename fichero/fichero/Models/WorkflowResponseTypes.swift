@@ -85,6 +85,7 @@ enum NodeExecutionStatus: String, Codable {
 /// Tracks execution progress for a workflow node
 struct NodeExecutionState: Identifiable {
     let nodeId: String
+    var displayName: String?
     var status: NodeExecutionStatus = .idle
     var progress: Double = 0.0  // 0.0 to 1.0
     var fileIndex: Int = 0

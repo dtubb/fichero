@@ -75,7 +75,7 @@ struct ActivityConsoleView: View {
                     .font(.caption)
             }
 
-            Text(state.nodeId)
+            Text(state.displayName ?? state.nodeId)
                 .font(.system(.caption, design: .monospaced))
 
             if state.fileTotal > 0 {
