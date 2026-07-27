@@ -92,7 +92,11 @@ def _resolve_compiler_config(db: "Database"):
     (compilation is then simply unavailable, which the response reports)."""
     from fichero.llm import LLMConfig
     from fichero.llm.providers import get_provider_info
-    from fichero.models import ModelModel, ProviderModel
+    # NOT `ModelModel`/`ProviderModel` — those are chat.py's local import
+    # aliases, not names in fichero.models. Importing them here raised
+    # ImportError on every live compile (tests mocked this resolver).
+    from fichero.models import Model as ModelModel
+    from fichero.models import Provider as ProviderModel
 
     configured = db.query(ProviderModel, enabled=True)
     if not configured:

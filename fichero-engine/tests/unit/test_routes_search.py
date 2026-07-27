@@ -1482,6 +1482,16 @@ class TestQueryCompilation:
     LLM; the compiled query is always visible; failure is reported and the
     raw query still runs."""
 
+    def test_resolver_executes_unmocked(self, db):
+        # Regression (Daniel, live 2026-07-27): the resolver imported
+        # `ModelModel`/`ProviderModel` — chat.py's local ALIASES, not real
+        # names in fichero.models — so every live compile raised
+        # ImportError while the mocked tests stayed green. Call it for
+        # real: no providers configured → None, and the imports execute.
+        from fichero.retrieval.query_compiler import _resolve_compiler_config
+
+        assert _resolve_compiler_config(db) is None
+
     def test_natural_language_gate(self):
         from fichero.retrieval.query_compiler import looks_like_natural_language as nl
 

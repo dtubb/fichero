@@ -25,6 +25,14 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         XCTAssertTrue(source.contains("AnyView(transientSearchResultsBar)"))
     }
 
+    func testCompilationFailureDetailRemainsReadable() throws {
+        let source = try Self.appSource(Self.resultsSource)
+
+        XCTAssertTrue(source.contains(".lineLimit(4)"))
+        XCTAssertTrue(source.contains(".textSelection(.enabled)"))
+        XCTAssertTrue(source.contains(".help(compileError)"))
+    }
+
     // MARK: - Router behaviour
 
     func testToolbarSearchRoutesToATransientSearchWithNoSavedSearch() {

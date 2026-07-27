@@ -340,7 +340,8 @@ extension ContentView {
                         Text("Searched: “\(compiled.semanticQuery)”\(Self.compiledFiltersSummary(compiled))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .lineLimit(2)
+                            .help("Searched: “\(compiled.semanticQuery)”\(Self.compiledFiltersSummary(compiled))")
                         Spacer()
                     }
                     .padding(.horizontal, 12)
@@ -350,10 +351,16 @@ extension ContentView {
                     HStack(spacing: 6) {
                         Image(systemName: "sparkles")
                             .foregroundStyle(.secondary)
+                        // Readable failure (Daniel, live 2026-07-27): one
+                        // truncated line hid the actual error. Wrap up to
+                        // four lines + full text on hover — a failure detail
+                        // the user can't read is a silent failure.
                         Text("AI couldn't refine this search (\(compileError)) — searched your words as typed.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .lineLimit(4)
+                            .textSelection(.enabled)
+                            .help(compileError)
                         Spacer()
                     }
                     .padding(.horizontal, 12)
