@@ -142,12 +142,19 @@ extension WorkflowCanvasView {
         let duplicate = WorkflowNode(
             tool: original.tool,
             label: "\((original.label ?? original.tool)) Copy",
+            description: original.description,
             positionX: original.positionX + Double(nodeWidth) + 80,
             positionY: original.positionY + 30,
+            enabled: original.enabled,
             inputPorts: original.inputPorts,
             outputPorts: original.outputPorts,
+            inputMappings: original.inputMappings,
+            inputs: original.inputs,
+            config: original.config,
+            outputSchema: original.outputSchema,
             providerName: original.providerName,
-            modelName: original.modelName
+            modelName: original.modelName,
+            usesLLM: original.usesLLM
         )
         workflow.nodes.insert(duplicate, at: index + 1)
         editingNodeId = duplicate.id
