@@ -6,6 +6,11 @@ import SwiftUI
 struct MailStyleRow: View {
     let document: Document
     let isSelected: Bool
+    /// Focused selection inverts the text to white-on-accent like Finder/NNW
+    /// (#4160) — label-black on the accent fill was near-illegible. Safe with
+    /// the row's `.equatable()` diffing: focus changes also change the `tint`
+    /// LibrarySelectableRow already compares.
+    var isPaneFocused: Bool = false
     /// Entity types the parent wants rendered in the lozenge rows.
     /// Defaults to all six so callers that don't filter still see
     /// everything; LibraryView passes its `listVisibleEntityTypes`
@@ -58,6 +63,7 @@ struct MailStyleRow: View {
                     // internal id/filename. Non-page docs keep their name. (#2053)
                     Text(document.pageThumbnailLabel ?? document.name)
                         .font(.headline)
+                        .foregroundStyle(primaryTextColor)
                         .lineLimit(3)
                         .truncationMode(.middle)
                         .fixedSize(horizontal: false, vertical: true)
@@ -65,14 +71,14 @@ struct MailStyleRow: View {
                     if document.isLinked {
                         Image(systemName: "arrow.up.right.square")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(secondaryTextColor)
                     }
 
                     Spacer()
 
                     Text(document.createdAt, style: .date)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(secondaryTextColor)
                 }
 
                 // Status + Type row. Display only — earlier these were
@@ -87,11 +93,11 @@ struct MailStyleRow: View {
                     if document.docType == .folder {
                         Text("Folder")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(secondaryTextColor)
                     } else if let fileType = document.fileType {
                         Text(fileType.rawValue.capitalized)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(secondaryTextColor)
                     }
                 }
 
@@ -100,7 +106,7 @@ struct MailStyleRow: View {
                 if let content = document.pageContent, !content.isEmpty {
                     Text(content)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(secondaryTextColor)
                         .lineLimit(4)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -120,6 +126,12 @@ struct MailStyleRow: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
     }
+
+    /// White-on-accent when this row is the focused selection (the fill is
+    /// accent @0.85); normal semantic colors otherwise.
+    private var invertsText: Bool { isSelected && isPaneFocused }
+    private var primaryTextColor: Color { invertsText ? .white : .primary }
+    private var secondaryTextColor: Color { invertsText ? .white.opacity(0.85) : .secondary }
 
     private var statusColor: Color {
         switch document.status {

@@ -1,5 +1,27 @@
 import SwiftUI
 
+/// Pure cursor resolution for keyboard navigation (#4160): the position the
+/// arrows resume from. Preference order: the explicit cursor (last arrow-nav
+/// landing), the anchor (last plain click), then the TOPMOST selected row in
+/// visual order. Never `Set.first` — hash order made ↓ resume, Return open,
+/// and follow-scroll target an arbitrary row after any multi-select.
+enum LibraryKeyboardCursor {
+    static func index(
+        cursor: String?,
+        anchor: String?,
+        selection: Set<String>,
+        ids: [String]
+    ) -> Int? {
+        if let cursor, selection.contains(cursor), let idx = ids.firstIndex(of: cursor) {
+            return idx
+        }
+        if let anchor, selection.contains(anchor), let idx = ids.firstIndex(of: anchor) {
+            return idx
+        }
+        return selection.compactMap { ids.firstIndex(of: $0) }.min()
+    }
+}
+
 // MARK: - Arrow Navigation
 
 extension LibraryView {
@@ -40,6 +62,7 @@ extension LibraryView {
         guard let currentIndex = currentSelectionIndex(in: ids) else {
             selection = [ids[0]]
             selectionAnchor = ids[0]
+            selectionCursor = ids[0]
             focusSelectedEntityIfNeeded()
             return .handled
         }
@@ -58,8 +81,30 @@ extension LibraryView {
     }
 
     private func currentSelectionIndex(in ids: [String]) -> Int? {
-        guard let firstSelected = selection.first else { return nil }
-        return ids.firstIndex(of: firstSelected)
+        LibraryKeyboardCursor.index(
+            cursor: selectionCursor,
+            anchor: selectionAnchor,
+            selection: selection,
+            ids: ids
+        )
+    }
+
+    /// The id keyboard/scroll actions should treat as "the" selection, in
+    /// VISUAL order — never `.first` on the selection Set (hash order). Used
+    /// by the list watchers and Return-to-open.
+    var orderedPrimarySelectionId: String? {
+        let ids: [String]
+        if isShowingEntitiesCollection {
+            ids = filteredEntities.map { entitySelectionId(for: $0) }
+        } else {
+            ids = filteredDocuments.map(\.id)
+        }
+        return LibraryKeyboardCursor.index(
+            cursor: selectionCursor,
+            anchor: selectionAnchor,
+            selection: selection,
+            ids: ids
+        ).map { ids[$0] }
     }
 
     private func stepSize(for direction: ArrowDirection) -> Int {
@@ -84,14 +129,21 @@ extension LibraryView {
     private func applySelection(targetIndex: Int, ids: [String]) {
         let targetId = ids[targetIndex]
         #if os(macOS)
-        if NSEvent.modifierFlags.contains(.shift),
-           let anchor = selectionAnchor,
-           let anchorIndex = ids.firstIndex(of: anchor) {
-            let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
-            selection = Set(range.map { ids[$0] })
-        } else if NSEvent.modifierFlags.contains(.shift) {
-            selection.insert(targetId)
-            selectionAnchor = targetId
+        if NSEvent.modifierFlags.contains(.shift) {
+            // Finder/NNW semantics (#4160): the anchor NEVER moves during a
+            // shift-extend — only the cursor end of the range does. The old
+            // code re-anchored on the target whenever the anchor was missing,
+            // so ⇧↓ degraded to add-one-at-a-time and could never shrink.
+            let anchor = selectionAnchor.flatMap { ids.contains($0) ? $0 : nil }
+                ?? selection.compactMap { ids.firstIndex(of: $0) }.min().map { ids[$0] }
+                ?? targetId
+            selectionAnchor = anchor
+            if let anchorIndex = ids.firstIndex(of: anchor) {
+                let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
+                selection = Set(range.map { ids[$0] })
+            } else {
+                selection = [targetId]
+            }
         } else {
             selection = [targetId]
             selectionAnchor = targetId
@@ -103,12 +155,13 @@ extension LibraryView {
         selection = [targetId]
         selectionAnchor = targetId
         #endif
+        selectionCursor = targetId
     }
 
     private func focusSelectedEntityIfNeeded() {
         guard isShowingEntitiesCollection,
-              let firstId = selection.first,
-              let entity = filteredEntities.first(where: { entitySelectionId(for: $0) == firstId }) else { return }
+              let primaryId = orderedPrimarySelectionId,
+              let entity = filteredEntities.first(where: { entitySelectionId(for: $0) == primaryId }) else { return }
         focusEntityIfPossible(entity)
     }
 }

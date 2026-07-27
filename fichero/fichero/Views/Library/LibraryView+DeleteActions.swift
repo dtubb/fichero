@@ -49,16 +49,18 @@ extension LibraryView {
         await library.documentStore.refresh()
     }
 
-    /// Open the first selected document in the inspector
+    /// Return-to-open (#4160): acts on the KEYBOARD CURSOR row (visual order,
+    /// never Set hash order) and matches double-click exactly — navigate into
+    /// containers, otherwise show in the detail pane.
     func openSelectedDocument() {
-        guard let firstId = selection.first else { return }
+        guard let primaryId = orderedPrimarySelectionId else { return }
         if isShowingEntitiesCollection,
-           let entity = filteredEntities.first(where: { entitySelectionId(for: $0) == firstId }) {
+           let entity = filteredEntities.first(where: { entitySelectionId(for: $0) == primaryId }) {
             focusEntityIfPossible(entity)
             return
         }
-        guard let doc = filteredDocuments.first(where: { $0.id == firstId }) else { return }
-        detailDocument = doc
+        guard let doc = filteredDocuments.first(where: { $0.id == primaryId }) else { return }
+        openDocument(doc)
     }
 
     /// Select all visible documents

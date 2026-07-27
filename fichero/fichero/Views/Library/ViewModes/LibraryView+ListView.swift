@@ -49,6 +49,7 @@ extension LibraryView {
                                 MailStyleRow(
                                     document: doc,
                                     isSelected: selection.contains(doc.id),
+                                    isPaneFocused: isPaneFocused,
                                     visibleEntityTypes: listVisibleEntityTypes
                                 ) { tag in
                                     searchText = tag
@@ -82,24 +83,53 @@ extension LibraryView {
                     }
                 }
             }
+            // Same rationale as icon mode (#575): .focusable() so the
+            // .onKeyPress handlers on the LibraryView body actually receive
+            // arrow/Return/type-select keys — ScrollView swallows them
+            // otherwise. List mode was never patched when icon mode was, so
+            // keyboard nav only worked when a child incidentally held focus
+            // (#4160). The container focus ring is suppressed; selection is
+            // the visible focus.
+            .focusable()
+            .focusEffectDisabled()
+            // Click in the empty space below the rows deselects, like
+            // Finder/NNW (#4160). Row taps win — their own tap gestures are
+            // deeper in the hierarchy.
+            .onTapGesture {
+                selection.removeAll()
+                selectionAnchor = nil
+                selectionCursor = nil
+            }
             .onChange(of: listScrollTarget) { _, id in
                 guard let id else { return }
                 proxy.scrollTo(id, anchor: nil)
                 listScrollTarget = nil
             }
+            // Double-click / layout-change force-centers the row, mirroring
+            // icon mode — this target was previously set but never consumed
+            // in list mode, leaving a stale value that fired a spurious
+            // centering scroll on a later switch to icon mode (#4160).
+            .onChange(of: listScrollCenterTarget) { _, id in
+                guard let id else { return }
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+                listScrollCenterTarget = nil
+            }
             // PDF preview scrolling → selection updates → list scrolls to
             // keep the selected row visible. Mirrors the iconView watcher
             // for the same reason: PDF-driven selection wasn't reaching
-            // the ScrollViewReader without it. (#929)
-            .onChange(of: selection.first) { _, id in
-                guard let id else { return }
+            // the ScrollViewReader without it. (#929) Scrolls to the ORDERED
+            // primary row, not Set.first hash order (#4160).
+            .onChange(of: selection) { _, _ in
+                guard let id = orderedPrimarySelectionId else { return }
                 withAnimation(.easeInOut(duration: 0.15)) {
                     proxy.scrollTo(id, anchor: nil)
                 }
             }
             .onAppear {
                 // Restored-from-launch selection scroll for list view (#808).
-                if let id = selection.first {
+                if let id = orderedPrimarySelectionId {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             proxy.scrollTo(id, anchor: .center)

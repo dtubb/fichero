@@ -175,6 +175,11 @@ struct LibraryView: View {
 
     // Selection anchor for Shift+click range select
     @State var selectionAnchor: String?
+    // Keyboard cursor (#4160): the row arrow-nav last landed on. The old code
+    // used `selection.first` — Set hash order — so after a multi-select the
+    // arrows resumed from, Return opened, and the list scrolled to an
+    // arbitrary row.
+    @State var selectionCursor: String?
 
     // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
     @State var gridColumnCount: Int = 4

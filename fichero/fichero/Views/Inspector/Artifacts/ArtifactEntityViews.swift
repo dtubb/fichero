@@ -46,7 +46,15 @@ struct ArtifactEntitiesView: View {
                 }
             } else {
                 // Reserve space silently while the first fetch is in flight.
-                Color.clear.frame(height: style == .singleLine ? 14 : 1)
+                // multiLine reserved 1pt and then grew by up to six lozenge
+                // rows — every list row jumped as artifacts streamed in, and
+                // the whole LazyVStack reflowed under the scroll position
+                // (#4160 / Every Frame Perfect). Reserve ~two lozenge rows;
+                // rows with more or none still shift once, but the common
+                // case lands in place. ponytail: fixed 2-row estimate — a
+                // measured/persisted per-doc height if this still reads
+                // jumpy in real archives.
+                Color.clear.frame(height: style == .singleLine ? 14 : 40)
             }
         }
         .onAppear { store.ensureLoaded(documentId) }

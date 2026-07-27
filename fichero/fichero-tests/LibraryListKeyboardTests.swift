@@ -1,0 +1,110 @@
+@testable import Fichero
+import Foundation
+import Testing
+
+/// #4160 step 1: list-view keyboard/selection correctness. The old code used
+/// `selection.first` (Set hash order) as the keyboard cursor, so after any
+/// multi-select the arrows resumed from, Return opened, and the follow-scroll
+/// targeted an arbitrary row.
+struct LibraryKeyboardCursorTests {
+    private let ids = ["a", "b", "c", "d", "e"]
+
+    @Test("explicit cursor wins when still selected")
+    func cursorWins() {
+        let idx = LibraryKeyboardCursor.index(
+            cursor: "d", anchor: "b", selection: ["b", "c", "d"], ids: ids
+        )
+        #expect(idx == 3)
+    }
+
+    @Test("stale cursor (deselected) falls back to the anchor")
+    func staleCursorFallsBack() {
+        let idx = LibraryKeyboardCursor.index(
+            cursor: "e", anchor: "b", selection: ["b", "c"], ids: ids
+        )
+        #expect(idx == 1)
+    }
+
+    @Test("no cursor/anchor resolves to the TOPMOST selected row, not hash order")
+    func topmostFallback() {
+        let idx = LibraryKeyboardCursor.index(
+            cursor: nil, anchor: nil, selection: ["d", "b", "e"], ids: ids
+        )
+        #expect(idx == 1)
+    }
+
+    @Test("empty selection has no cursor")
+    func emptySelection() {
+        #expect(LibraryKeyboardCursor.index(cursor: nil, anchor: nil, selection: [], ids: ids) == nil)
+    }
+
+    @Test("ids missing from the visible list are ignored")
+    func hiddenIdsIgnored() {
+        let idx = LibraryKeyboardCursor.index(
+            cursor: "zz", anchor: "zz", selection: ["zz", "c"], ids: ids
+        )
+        #expect(idx == 2)
+    }
+}
+
+/// Source-surface guards for the list-mode fixes, mirroring
+/// `ShellLayoutGuardTests` — deterministic, no running app.
+struct LibraryListModeGuardTests {
+    private func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    @Test("list mode claims focus so onKeyPress receives keys")
+    func listModeIsFocusable() throws {
+        let source = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        #expect(source.contains(".focusable()"))
+        #expect(source.contains(".focusEffectDisabled()"))
+    }
+
+    @Test("list mode consumes the double-click center target")
+    func centerTargetConsumed() throws {
+        let source = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        #expect(source.contains("listScrollCenterTarget"))
+    }
+
+    @Test("no Set-hash-order cursor reads remain in keyboard paths")
+    func noHashOrderCursor() throws {
+        for path in [
+            "Views/Library/LibraryView+ArrowNavigation.swift",
+            "Views/Library/ViewModes/LibraryView+ListView.swift"
+        ] {
+            let source = try appSource(path)
+            #expect(!source.contains("selection.first"), "selection.first is hash order — use LibraryKeyboardCursor (\(path))")
+        }
+        // Return-to-open acts on the ordered primary and matches double-click.
+        let deleteActions = try appSource("Views/Library/LibraryView+DeleteActions.swift")
+        #expect(deleteActions.contains("orderedPrimarySelectionId"))
+        #expect(deleteActions.contains("openDocument(doc)"))
+    }
+
+    @Test("shift-extend never re-anchors on the moving end")
+    func shiftAnchorStable() throws {
+        let source = try appSource("Views/Library/LibraryView+ArrowNavigation.swift")
+        #expect(source.contains("the anchor NEVER moves during a"))
+        #expect(!source.contains("selection.insert(targetId)"))
+    }
+
+    @Test("selected+focused rows invert to white-on-accent")
+    func selectedRowsInvert() throws {
+        let source = try appSource("Views/Library/LibraryViewComponents.swift")
+        #expect(source.contains("isSelected && isPaneFocused"))
+        #expect(source.contains("primaryTextColor"))
+    }
+
+    @Test("entity lozenge block reserves real height while loading")
+    func lozengeReservation() throws {
+        let source = try appSource("Views/Inspector/Artifacts/ArtifactEntityViews.swift")
+        #expect(!source.contains("style == .singleLine ? 14 : 1)"),
+                "1pt multiLine reservation = relayout-on-load (#4160)")
+    }
+}
