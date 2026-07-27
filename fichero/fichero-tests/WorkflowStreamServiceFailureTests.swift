@@ -17,8 +17,11 @@ final class WorkflowStreamServiceFailureTests: XCTestCase {
         let source = try Self.source()
         let failureRange = try XCTUnwrap(source.range(of: "private func handleStreamFailure"))
         let cancellationRange = try XCTUnwrap(source.range(of: "if !Task.isCancelled"))
+        // Anchor matches the signature loosely — the workflows lane made
+        // cancelStream per-thread (cancelStream(threadId:)) without changing
+        // the failure-path behavior this guard protects.
         let cancelStreamRange = try XCTUnwrap(
-            source.range(of: "func cancelStream()", range: failureRange.upperBound..<source.endIndex)
+            source.range(of: "func cancelStream(", range: failureRange.upperBound..<source.endIndex)
         )
         let failureBody = source[failureRange.lowerBound..<cancelStreamRange.lowerBound]
 

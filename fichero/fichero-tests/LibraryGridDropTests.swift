@@ -82,3 +82,18 @@ final class LibraryContextMenuParityTests: XCTestCase {
         XCTAssertTrue(source.contains("selection.contains(document.id)"))
     }
 }
+
+/// Default Workflows rows read as locked (Daniel, 2026-07-27): a trailing
+/// lock badge on the container, its preset subfolders, and mirrored rows.
+final class SidebarLockedRowBadgeTests: XCTestCase {
+    func testLockedRowsShowTrailingLockBadge() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(source.contains("doc.isDefaultWorkflowFolder || doc.isWorkflowNode"))
+        XCTAssertTrue(source.contains("Image(systemName: \"lock.fill\")"))
+        XCTAssertTrue(source.contains("accessibilityLabel(\"Read-only\")"))
+    }
+}

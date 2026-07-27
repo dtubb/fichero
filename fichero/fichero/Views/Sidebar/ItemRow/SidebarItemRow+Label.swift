@@ -46,7 +46,13 @@ extension SidebarItemRow {
             }
             #if os(macOS)
             Spacer(minLength: 4)
+            lockedRowBadge
             trailingOpenAffordance
+            #else
+            if rowIsLocked {
+                Spacer(minLength: 4)
+                lockedRowBadge
+            }
             #endif
         }
         .onChange(of: workflowIsRunning) { _, isRunning in
@@ -56,6 +62,28 @@ extension SidebarItemRow {
             if workflowIsRunning {
                 isPulsing = true
             }
+        }
+    }
+
+    /// System-seeded rows are read-only — the trailing lock says so at a
+    /// glance (Xcode's locked-file convention). Covers the "Default
+    /// Workflows" container, its preset subfolders, and the mirrored
+    /// workflow rows inside them.
+    var rowIsLocked: Bool {
+        if case .document(let doc) = item.itemType {
+            return doc.isDefaultWorkflowFolder || doc.isWorkflowNode
+        }
+        return false
+    }
+
+    @ViewBuilder
+    var lockedRowBadge: some View {
+        if rowIsLocked {
+            Image(systemName: "lock.fill")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .allowsHitTesting(false)
+                .accessibilityLabel("Read-only")
         }
     }
 
