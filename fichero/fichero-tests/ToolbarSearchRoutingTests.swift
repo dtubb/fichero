@@ -146,6 +146,20 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         XCTAssertTrue(resultsSource.contains("searchType: transientSearchType,"))
     }
 
+    func testCompilationRunsOnExplicitSubmitOnlyAndIsAlwaysShown() throws {
+        let actionsSource = try Self.appSource(Self.actionsSource)
+        let resultsSource = try Self.appSource(Self.resultsSource)
+
+        // #4116 UI half: compile=true rides the explicit submit (and saved
+        // searches); re-run paths call runTransientSearch without it. The
+        // compiled query AND any compilation failure render in the results
+        // bar — AI = instrument, nothing hidden.
+        XCTAssertTrue(actionsSource.contains("runTransientSearch(route.query, compile: true)"))
+        XCTAssertTrue(resultsSource.contains("runTransientSearch(query, compile: true)"))
+        XCTAssertTrue(resultsSource.contains("store.searchStats?.compiledQuery"))
+        XCTAssertTrue(resultsSource.contains("store.searchStats?.compilationError"))
+    }
+
     func testTransientResultsRerunOnLibraryChanges() throws {
         let source = try Self.appSource(Self.resultsSource)
 

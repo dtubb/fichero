@@ -53,7 +53,8 @@ final class SearchStore: ChangeEventConsumer {
         searchType: String = "hybrid",
         sortBy: String = "relevance",
         sortOrder: String = "desc",
-        folderId: String? = nil
+        folderId: String? = nil,
+        compile: Bool = false
     ) async {
         // #4024: trim newlines/tabs too — `.whitespaces` excludes newlines, so a query of
         // only whitespace (e.g. " \n\t") stayed non-empty and reached the backend as a blank
@@ -86,7 +87,10 @@ final class SearchStore: ChangeEventConsumer {
                 sortOrder: sortOrder,
                 offset: 0,
                 useFuzzyMatch: false,
-                highlightResults: true
+                highlightResults: true,
+                // LLM query compilation (#4116): explicit submits only —
+                // re-runs and live paths never pay the latency.
+                compile: compile
             )
             results = response.results
             searchStats = response

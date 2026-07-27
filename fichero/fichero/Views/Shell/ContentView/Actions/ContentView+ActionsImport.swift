@@ -60,7 +60,10 @@ extension ContentView {
         activeSearchQuery = route.query
         transientSearchLimit = Self.transientSearchPageSize
         Task { @MainActor in
-            await runTransientSearch(route.query)
+            // Explicit submit → the LLM may compile a sentence-like query
+            // into a structured search (#4116); keyword queries skip the
+            // gate engine-side.
+            await runTransientSearch(route.query, compile: true)
         }
     }
 

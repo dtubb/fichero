@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
@@ -53,7 +54,7 @@ extension ContentView {
         transientSearchSortBy = search.sortBy
         transientSearchSortDirection = search.sortDirection
         Task { @MainActor in
-            await runTransientSearch(query)
+            await runTransientSearch(query, compile: true)
         }
     }
 
@@ -65,7 +66,7 @@ extension ContentView {
     /// fetches the rest individually — a search page is ≤`transientSearchLimit`
     /// rows, so per-id gets are fine here.
     @MainActor
-    func runTransientSearch(_ query: String) async {
+    func runTransientSearch(_ query: String, compile: Bool = false) async {
         guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId)
             ?? LibraryManager.shared.globalLibrary else { return }
         let store = library.searchStore
@@ -76,7 +77,10 @@ extension ContentView {
             searchType: transientSearchType,
             sortBy: transientSearchSortBy,
             sortOrder: transientSearchSortDirection,
-            folderId: folderId
+            folderId: folderId,
+            // #4116: compile on the explicit submit only; re-runs (options,
+            // changeToken, Load More) search the raw query without LLM latency.
+            compile: compile
         )
 
         // A newer query superseded this one while the request was in flight —
@@ -134,6 +138,25 @@ extension ContentView {
         } catch {
             searchResultsLogger.error("Save search failed: \(error.localizedDescription)")
         }
+    }
+
+    /// Human summary of a compiled query's structured filters (#4116).
+    static func compiledFiltersSummary(_ compiled: Components.Schemas.CompiledQuery) -> String {
+        var parts: [String] = []
+        if let from = compiled.dateFrom, let to = compiled.dateTo {
+            parts.append("\(from) – \(to)")
+        } else if let from = compiled.dateFrom {
+            parts.append("from \(from)")
+        } else if let to = compiled.dateTo {
+            parts.append("until \(to)")
+        }
+        if let entities = compiled.entities, !entities.isEmpty {
+            parts.append(entities.joined(separator: ", "))
+        }
+        if let docType = compiled.docType {
+            parts.append(docType)
+        }
+        return parts.isEmpty ? "" : " · \(parts.joined(separator: " · "))"
     }
 
     /// Leave transient-search presentation and return to folder browsing.
@@ -256,6 +279,37 @@ extension ContentView {
                 .padding(.vertical, 6)
                 .background(.bar)
                 .accessibilityIdentifier("library.search.resultsBar")
+
+                // What the AI actually searched (#4116) — always visible so
+                // the compiled query is inspectable; edit the toolbar field
+                // to override. Compilation failure shows too, never hidden.
+                if let compiled = store.searchStats?.compiledQuery {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(.secondary)
+                        Text("Searched: “\(compiled.semanticQuery)”\(Self.compiledFiltersSummary(compiled))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 4)
+                    .background(.bar)
+                } else if let compileError = store.searchStats?.compilationError {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles.slash")
+                            .foregroundStyle(.secondary)
+                        Text("AI couldn't refine this search (\(compileError)) — searched your words as typed.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 4)
+                    .background(.bar)
+                }
 
                 Divider()
             }

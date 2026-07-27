@@ -13,6 +13,10 @@ struct SearchResponse: Codable {
     let hasMore: Bool
     let filtersApplied: [String: String]?
     let suggestions: [String]?
+    // Query compilation (#4116): what the LLM turned a natural-language
+    // request into (always shown — AI = instrument), and any failure.
+    let compiledQuery: Components.Schemas.CompiledQuery?
+    let compilationError: String?
 
     enum CodingKeys: String, CodingKey {
         case results
@@ -26,6 +30,8 @@ struct SearchResponse: Codable {
         case hasMore = "has_more"
         case filtersApplied = "filters_applied"
         case suggestions
+        case compiledQuery = "compiled_query"
+        case compilationError = "compilation_error"
     }
 
     init(
@@ -39,7 +45,9 @@ struct SearchResponse: Codable {
         executionTimeMs: Double,
         hasMore: Bool,
         filtersApplied: [String: String]?,
-        suggestions: [String]?
+        suggestions: [String]?,
+        compiledQuery: Components.Schemas.CompiledQuery? = nil,
+        compilationError: String? = nil
     ) {
         self.results = results
         self.entityHits = entityHits
@@ -52,6 +60,8 @@ struct SearchResponse: Codable {
         self.hasMore = hasMore
         self.filtersApplied = filtersApplied
         self.suggestions = suggestions
+        self.compiledQuery = compiledQuery
+        self.compilationError = compilationError
     }
 
     init(from decoder: Decoder) throws {
@@ -73,5 +83,9 @@ struct SearchResponse: Codable {
         hasMore = try container.decode(Bool.self, forKey: .hasMore)
         filtersApplied = try container.decodeIfPresent([String: String].self, forKey: .filtersApplied)
         suggestions = try container.decodeIfPresent([String].self, forKey: .suggestions)
+        compiledQuery = try container.decodeIfPresent(
+            Components.Schemas.CompiledQuery.self, forKey: .compiledQuery
+        )
+        compilationError = try container.decodeIfPresent(String.self, forKey: .compilationError)
     }
 }

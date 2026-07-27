@@ -26,6 +26,8 @@ class SearchService {
         let sortBy: String
         let sortDirection: String
         let offset: Int
+        /// LLM query compilation opt-in (#4116) — explicit submits only.
+        var compile: Bool = false
     }
 
     private let client: FicheroClient
@@ -52,7 +54,8 @@ class SearchService {
         filters: [String: any Sendable]? = nil,
         sortBy: String = "relevance",
         sortDirection: String = "desc",
-        offset: Int = 0
+        offset: Int = 0,
+        compile: Bool = false
     ) async throws -> Components.Schemas.SearchResponse {
         let filtersPayload: Components.Schemas.SearchRequest.FiltersPayload? = try filters.map { dict in
             let container = try OpenAPIObjectContainer(unvalidatedValue: dict)
@@ -67,7 +70,8 @@ class SearchService {
             searchType: searchType,
             sortBy: sortBy,
             sortDirection: sortDirection,
-            offset: offset
+            offset: offset,
+            compile: compile
         )
 
         let searchRequest = Self.makeSearchRequest(
@@ -181,7 +185,8 @@ class SearchService {
         sortOrder: String = "desc",
         offset: Int = 0,
         useFuzzyMatch: Bool = false,
-        highlightResults: Bool = true
+        highlightResults: Bool = true,
+        compile: Bool = false
     ) async throws -> SearchResponse {
         // Convert [String: String] to [String: any Sendable] for the generated API
         let filtersAsAny: [String: any Sendable]? = filters
@@ -195,7 +200,8 @@ class SearchService {
             filters: filtersAsAny,
             sortBy: sortBy,
             sortDirection: sortOrder,  // Map sortOrder -> sortDirection
-            offset: offset
+            offset: offset,
+            compile: compile
         )
 
         return convertToManualSearchResponse(response)
@@ -214,7 +220,8 @@ class SearchService {
             filters: filtersPayload,
             sortBy: options.sortBy,
             sortDirection: options.sortDirection,
-            offset: options.offset
+            offset: options.offset,
+            compile: options.compile
         )
     }
 
@@ -248,7 +255,9 @@ class SearchService {
             executionTimeMs: generated.executionTimeMs,
             hasMore: generated.hasMore ?? false,
             filtersApplied: filtersApplied,
-            suggestions: generated.suggestions
+            suggestions: generated.suggestions,
+            compiledQuery: generated.compiledQuery,
+            compilationError: generated.compilationError
         )
     }
 
