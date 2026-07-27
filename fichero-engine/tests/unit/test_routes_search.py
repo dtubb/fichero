@@ -1209,3 +1209,96 @@ class TestDeleteSavedSearch:
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/search/saved/no-such-id")
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Failure surfacing + size sort (#4109 / S5)
+# ---------------------------------------------------------------------------
+
+
+class TestSearchFailureSurfacing:
+    """A FAILED search must never look like an empty one (#4109)."""
+
+    def test_db_search_raises_typed_error_on_internal_failure(self, db, monkeypatch):
+        from fichero.db import Database, SearchExecutionError
+
+        def _boom(self, folder_id):
+            raise ValueError("index exploded")
+
+        monkeypatch.setattr(Database, "_collect_folder_descendants", _boom)
+        with pytest.raises(SearchExecutionError):
+            db.search(
+                query="anything",
+                search_type="fulltext",
+                filters={"folder_id": "f1"},
+                min_score=0.0,
+            )
+
+    def test_failed_search_returns_500_not_empty_200(self, client, monkeypatch):
+        from fichero.db import SearchExecutionError
+        import fichero.api.routes.search.core as search_core
+
+        def _boom(db, request, retrieval_query):
+            raise SearchExecutionError("search failed: index exploded")
+
+        monkeypatch.setattr(search_core, "_run_content_search_sync", _boom)
+        r = client.post("/api/search", json={"query": "hello"})
+        assert r.status_code == 500
+        assert "index exploded" in r.json()["detail"]
+
+    def test_failed_recent_browse_returns_500_not_empty_200(self, client, db, monkeypatch):
+        def _boom(limit):
+            raise RuntimeError("duckdb offline")
+
+        monkeypatch.setattr(db, "recent_content_document_rows", _boom)
+        r = client.post("/api/search", json={"query": "   "})
+        assert r.status_code == 500
+        assert "duckdb offline" in r.json()["detail"]
+
+
+class TestSizeSort:
+    """sort_by=size was accepted-and-ignored; it must actually order by size (#4109)."""
+
+    @staticmethod
+    def _seed(db, name, size):
+        doc = Document(
+            name=name,
+            page_content="quimbaya ledger entry",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        doc.metadata = {"file_size": size}
+        db.save(doc)
+        db.embed(doc)
+        return doc
+
+    def test_sort_by_size_orders_results(self, client, db):
+        small = self._seed(db, "small.txt", 10)
+        big = self._seed(db, "big.txt", 99999)
+
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "quimbaya",
+                "search_type": "fulltext",
+                "sort_by": "size",
+                "sort_direction": "desc",
+                "min_score": 0.0,
+            },
+        )
+        assert r.status_code == 200
+        ids = [hit["document_id"] for hit in r.json()["results"]]
+        assert ids.index(big.id) < ids.index(small.id)
+
+        r_asc = client.post(
+            "/api/search",
+            json={
+                "query": "quimbaya",
+                "search_type": "fulltext",
+                "sort_by": "size",
+                "sort_direction": "asc",
+                "min_score": 0.0,
+            },
+        )
+        ids_asc = [hit["document_id"] for hit in r_asc.json()["results"]]
+        assert ids_asc.index(small.id) < ids_asc.index(big.id)

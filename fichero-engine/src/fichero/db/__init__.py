@@ -328,6 +328,15 @@ def _fold_for_search(text: str) -> str:
     ).lower()
 
 
+class SearchExecutionError(RuntimeError):
+    """A search query failed to execute (index error, bad filter, backend fault).
+
+    Raised instead of returning an empty result set (#4109): a FAILED search
+    must never be indistinguishable from a search with no hits. Routes map
+    this to HTTP 500 with the message as detail.
+    """
+
+
 @dataclass
 class SearchAnchor:
     """Stable character-position anchor within the indexed transcript text."""
@@ -4425,6 +4434,25 @@ class Database(DatabaseEmbeddingMixin):
                     key=lambda x: x["metadata"].get("name", ""),
                     reverse=(sort_order == "desc"),
                 )
+            elif sort_by == "size":
+                # sort_by="size" was validated at the route but silently fell
+                # through to insertion order (#4109). The result rows don't
+                # carry a size, so look it up per document — the candidate
+                # set is at most a few multiples of `limit`, so per-id gets
+                # are fine here. Docs without a recorded file_size sort last.
+                from fichero.models import Document as _SizeDoc
+
+                doc_sizes: dict[str, int] = {}
+                for item in combined_results:
+                    doc = self.get(_SizeDoc, item["document_id"])
+                    size = doc.file_size if doc is not None else None
+                    doc_sizes[item["document_id"]] = (
+                        size if isinstance(size, int) else -1
+                    )
+                combined_results.sort(
+                    key=lambda x: doc_sizes.get(x["document_id"], -1),
+                    reverse=(sort_order == "desc"),
+                )
 
             # Apply pagination
             total_count = len(combined_results)
@@ -4485,8 +4513,12 @@ class Database(DatabaseEmbeddingMixin):
         except EmbeddingSpaceMismatchError:
             raise
         except Exception as e:
-            logger.warning("Search failed: %s", e)
-            return [], 0, {"search_type": search_type, "error": str(e)}
+            # Prefer raise over silent fallback (#4109): returning ([], 0,
+            # {"error": ...}) made a FAILED search indistinguishable from an
+            # empty one — HTTP 200 with zero results. Raise typed so the route
+            # can answer 500 and the UI can say "search failed", not "no hits".
+            logger.error("Search failed: %s", e)
+            raise SearchExecutionError(f"search failed: {e}") from e
 
     # =========================================================================
     # Trace JSONL Export (for debug logs)

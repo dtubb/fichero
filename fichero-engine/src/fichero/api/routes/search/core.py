@@ -23,6 +23,7 @@ from fichero.api.routes.kg.entity_curation import search_entities_semantic_impl
 from fichero.search.query_parser import parse_query
 from fichero.db import (
     Database,
+    SearchExecutionError,
     SearchResult,
     _build_transcript_excerpts,
     _fold_for_search,
@@ -813,8 +814,12 @@ async def enhanced_search(
         # as a "show me what's indexed" view instead of dead-empty.
         try:
             rows = db.recent_content_document_rows(request.limit)
-        except Exception:
-            rows = []
+        except Exception as exc:
+            # Same contract as the query path (#4109): a failed browse is a
+            # 500, never a silently empty "recent" list.
+            raise HTTPException(
+                status_code=500, detail=f"recent-documents browse failed: {exc}"
+            ) from exc
         recents = [
             SearchResult(
                 document_id=row[0],
@@ -888,12 +893,16 @@ async def enhanced_search(
             {"search_type": request.search_type, "execution_time_ms": 0.0, "filters_applied": {}},
         )
     else:
-        results, total_count, search_stats = await asyncio.to_thread(
-            _run_content_search_sync,
-            db,
-            request,
-            retrieval_query,
-        )
+        try:
+            results, total_count, search_stats = await asyncio.to_thread(
+                _run_content_search_sync,
+                db,
+                request,
+                retrieval_query,
+            )
+        except SearchExecutionError as exc:
+            # A failed search is a 500, never a 200-with-zero-results (#4109).
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     # Apply NOT exclusions and required phrases. Both operate on the
     # post-retrieval result set — cheaper than rebuilding the index for
