@@ -154,6 +154,24 @@ class SearchInclude(str, Enum):
     content = "content"
     entities = "entities"
     claims = "claims"
+    # Unified-object search (#4118): workflow outputs — transcriptions,
+    # summaries, translations, catalogues — as first-class hits.
+    artifacts = "artifacts"
+
+
+def _artifact_snippet(body: str, query: str, radius: int = 80) -> str:
+    """A display window around the first query match in an artifact body."""
+    if not body:
+        return ""
+    needle = query.strip().lower()
+    index = body.lower().find(needle) if needle else -1
+    if index < 0:
+        return body[: radius * 2].strip()
+    start = max(0, index - radius)
+    end = min(len(body), index + len(needle) + radius)
+    prefix = "…" if start > 0 else ""
+    suffix = "…" if end < len(body) else ""
+    return f"{prefix}{body[start:end].strip()}{suffix}"
 
 
 def _safe_isoformat(value) -> str:
@@ -755,6 +773,15 @@ class SearchRequest(BaseModel):
     compile: bool = False
 
 
+class SearchArtifactHit(BaseModel):
+    """One artifact whose content matched the query (#4118)."""
+
+    document_id: str
+    document_name: str | None = None
+    artifact_type: str
+    snippet: str = ""
+
+
 class SearchEntityHit(KnowledgeEntity):
     similarity_score: float = 0.0
 
@@ -770,6 +797,7 @@ class SearchResponse(BaseModel):
     results: list[SearchResult]
     entity_hits: list[SearchEntityHit] = Field(default_factory=list)
     claim_hits: list[SearchClaimHit] = Field(default_factory=list)
+    artifact_hits: list[SearchArtifactHit] = Field(default_factory=list)
     count: int
     total_results: int  # Total results before pagination
     search_type: str  # Type of search performed
@@ -1154,11 +1182,46 @@ async def enhanced_search(
         is_bootstrap=_request_is_bootstrap(http_request),
     )
 
+    # Artifact leg (#4118): workflow outputs as first-class hits. Best-effort
+    # auxiliary leg like the graph leg — failure degrades with a loud log,
+    # never a 500 (the content leg owns hard failures). ACL-filtered by the
+    # owning document's visibility.
+    artifact_hits: list[SearchArtifactHit] = []
+    if SearchInclude.artifacts in include_set and request.query.strip():
+        try:
+            artifact_rows = db.artifact_content_matches(
+                query=retrieval_query or request.query, limit=request.limit
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("artifact search leg failed: %s", exc)
+            artifact_rows = []
+        if artifact_rows:
+            visible_artifact_docs = _readable_document_ids(
+                actor=getattr(getattr(http_request, "state", None), "user", None),
+                library_path=x_fichero_library_path,
+                document_ids={row[0] for row in artifact_rows if row[0]},
+                is_bootstrap=_request_is_bootstrap(http_request),
+            )
+            for doc_id, doc_name, artifact_type, body in artifact_rows:
+                if not doc_id or doc_id not in visible_artifact_docs:
+                    continue
+                artifact_hits.append(
+                    SearchArtifactHit(
+                        document_id=doc_id,
+                        document_name=doc_name,
+                        artifact_type=artifact_type,
+                        snippet=_artifact_snippet(
+                            body or "", retrieval_query or request.query
+                        ),
+                    )
+                )
+
     return SearchResponse(
         query=request.query,
         results=results,
         entity_hits=[SearchEntityHit.model_validate(item) for item in entity_hits],
         claim_hits=[SearchClaimHit.model_validate(item) for item in claim_hits],
+        artifact_hits=artifact_hits,
         count=len(results),
         total_results=total_count,
         search_type=search_stats.get("search_type", request.search_type),

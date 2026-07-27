@@ -56054,6 +56054,35 @@
         "title": "SearchAnchor",
         "description": "Stable character-position anchor within the indexed transcript text."
       },
+      "SearchArtifactHit": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "document_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Name"
+          },
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "artifact_type"
+        ],
+        "title": "SearchArtifactHit",
+        "description": "One artifact whose content matched the query (#4118)."
+      },
       "SearchClaimHit": {
         "properties": {
           "id": {
@@ -56767,7 +56796,8 @@
         "enum": [
           "content",
           "entities",
-          "claims"
+          "claims",
+          "artifacts"
         ],
         "title": "SearchInclude"
       },
@@ -56978,6 +57008,13 @@
             },
             "type": "array",
             "title": "Claim Hits"
+          },
+          "artifact_hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchArtifactHit"
+            },
+            "type": "array",
+            "title": "Artifact Hits"
           },
           "count": {
             "type": "integer",

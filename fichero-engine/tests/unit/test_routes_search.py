@@ -1593,3 +1593,60 @@ class TestQueryCompilation:
         )
         assert r1.status_code == 200 and r2.status_code == 200
         assert calls == []
+
+
+class TestArtifactLeg:
+    """#4118: workflow outputs (transcriptions, summaries…) are first-class
+    search hits via include=["artifacts"], ACL-filtered, honest snippets."""
+
+    def _seed(self, db):
+        from fichero.models import Artifact
+
+        doc = Document(
+            name="Scan 12",
+            page_content="unrelated page body",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+        )
+        db.save(doc)
+        db.save(
+            Artifact(
+                document_id=doc.id,
+                artifact_type="transcription",
+                content="The borojo harvest ledger for the Condoto claim.",
+            )
+        )
+        return doc
+
+    def test_artifact_content_matches_and_snippets(self, client, db):
+        doc = self._seed(db)
+
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "borojo",
+                "search_type": "fulltext",
+                "min_score": 0.0,
+                "include": ["content", "artifacts"],
+            },
+        )
+
+        assert r.status_code == 200
+        hits = r.json()["artifact_hits"]
+        assert any(
+            h["document_id"] == doc.id
+            and h["artifact_type"] == "transcription"
+            and "borojo" in h["snippet"]
+            for h in hits
+        )
+
+    def test_artifacts_opt_in_only(self, client, db):
+        self._seed(db)
+
+        r = client.post(
+            "/api/search",
+            json={"query": "borojo", "search_type": "fulltext", "min_score": 0.0},
+        )
+
+        assert r.status_code == 200
+        assert r.json()["artifact_hits"] == []

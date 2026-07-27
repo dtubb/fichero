@@ -2458,6 +2458,34 @@ class Database(DatabaseEmbeddingMixin):
             params,
         ).fetchall()
 
+    def artifact_content_matches(self, *, query: str, limit: int) -> list[tuple]:
+        """Artifacts whose text content or structured data contains the query.
+
+        The unified-object leg of search (#4118): transcriptions, summaries,
+        translations, catalogues — anything a workflow emitted. Returns
+        (document_id, document_name, artifact_type, body) rows; the route
+        builds the display snippet. ponytail: substring match like the entity
+        bridge — swap in FTS when artifact volume makes LIKE measurably slow.
+        """
+        if not query.strip():
+            return []
+        return self._execute(
+            """
+            SELECT a.document_id, d.name, a.artifact_type,
+                   COALESCE(a.content, CAST(a.data AS VARCHAR)) AS body
+            FROM artifacts a
+            JOIN documents d ON d.id = a.document_id
+            WHERE d.deleted_at IS NULL
+              AND (
+                lower(COALESCE(a.content, '')) LIKE $needle
+                OR lower(COALESCE(CAST(a.data AS VARCHAR), '')) LIKE $needle
+              )
+            ORDER BY a.created_at DESC
+            LIMIT $limit
+            """,
+            {"needle": f"%{query.strip().lower()}%", "limit": limit},
+        ).fetchall()
+
     def recent_content_document_rows(self, limit: int) -> list[tuple]:
         """Most recently updated documents with non-empty page content."""
         return self._execute(
