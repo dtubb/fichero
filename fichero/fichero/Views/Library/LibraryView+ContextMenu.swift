@@ -15,7 +15,11 @@ extension LibraryView {
             kind: kind,
             id: document.id,
             documentId: document.id,
-            text: document.pageContent?.isEmpty == false ? document.pageContent ?? document.name : document.name
+            text: document.pageContent?.isEmpty == false ? document.pageContent ?? document.name : document.name,
+            // File-export context (#4123): the drag can promise a real copy
+            // of the source file, named for Finder.
+            libraryId: windowState.libraryId,
+            name: document.name
         )
     }
 

@@ -121,9 +121,13 @@ struct SidebarDragID: Transferable {
         guard let storage else { throw CocoaError(.fileNoSuchFile) }
         let (tempURL, disposition) = try await storage.fetchSourceFile(documentId)
         // Prefer the server's filename (its extension picks the app that
-        // opens the copy); fall back to the row name.
+        // opens the copy); fall back to a sanitized row name — never a
+        // transcript-sized string or embedded newlines.
+        let fallback = String(
+            item.name.replacingOccurrences(of: "\n", with: " ").prefix(64)
+        ).trimmingCharacters(in: .whitespaces)
         let filename = Self.filename(fromContentDisposition: disposition)
-            ?? (item.name.isEmpty ? tempURL.lastPathComponent : item.name)
+            ?? (fallback.isEmpty ? tempURL.lastPathComponent : fallback)
         let named = FileManager.default.temporaryDirectory
             .appendingPathComponent("fichero-drag-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: named, withIntermediateDirectories: true)

@@ -126,11 +126,33 @@ struct LibraryItemDrag: Codable, Transferable {
     let id: String
     let documentId: String?
     let text: String
+    /// Library context for cross-app file export (#4123); nil = no file
+    /// promise (artifacts/notes keep the text-file fallback below).
+    var libraryId: UUID?
+    /// Display name for the exported file's fallback filename — `text` can
+    /// be a whole transcript, which must never become a filename.
+    var name: String = ""
 
     var exportText: String { "\(kind.rawValue.capitalized): \(text)" }
 
+    /// Real file export applies to rows backed by a source file.
+    var exportsSourceFile: Bool {
+        documentId != nil && (kind == .document || kind == .page || kind == .group)
+    }
+
     static var transferRepresentation: some TransferRepresentation {
         CodableRepresentation(contentType: .json)
+        // Cross-app (#4123): a COPY of the source file, fetched through the
+        // library's storage HTTP endpoint at export time — same path the
+        // sidebar's SidebarDragID uses. Never a local engine path.
+        FileRepresentation(exportedContentType: .data) { item in
+            var drag = SidebarDragID(id: item.id)
+            drag.documentId = item.documentId
+            drag.libraryId = item.libraryId
+            drag.name = item.name
+            return SentTransferredFile(try await SidebarDragID.exportSourceFile(for: drag))
+        }
+        .exportingCondition { $0.exportsSourceFile }
         ProxyRepresentation(exporting: \.text)
         FileRepresentation(exportedContentType: .plainText) { item in
             let url = FileManager.default.temporaryDirectory
