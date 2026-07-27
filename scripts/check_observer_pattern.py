@@ -54,6 +54,14 @@ PATTERN_LABELS: dict[str, str] = {
 KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
     [
         "fichero/fichero/Views/Chat/ModelComparison/ComparisonDetailView+Actions.swift",
+        # #4123: Transferable export closures run OUTSIDE the SwiftUI
+        # environment — the drag-out file promise must resolve the library
+        # via LibraryManager.shared at export time.
+        "fichero/fichero/Views/Sidebar/ItemRow/SidebarItemRow.swift",
+        # #4106: transient search resolves the ACTIVE library per window at
+        # call time (per-library stores live in LibraryManager containers);
+        # a single @Environment store cannot express that.
+        "fichero/fichero/Views/Shell/ContentView/ContentView+SearchResults.swift",
         "fichero/fichero/Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift",
         "fichero/fichero/Views/Inspector/Knowledge/EntityDigestView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/KGMapView.swift",

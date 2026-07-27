@@ -195,13 +195,8 @@ ACTION_SPECS: tuple[ActionSpec, ...] = (
         context_patterns=("Delete",),
         keyboard_patterns=("FocusedDeleteButton",),
     ),
-    ActionSpec(
-        action="New Search",
-        expected=("menu", "toolbar", "keyboard"),
-        menu_refs=("FocusedNewSearchButton",),
-        toolbar_patterns=("New Search",),
-        keyboard_patterns=("FocusedNewSearchButton",),
-    ),
+    # "New Search" retired with the search mode (#4106/#4086): searching is
+    # the toolbar field, never a created object — no surfaces expected.
     ActionSpec(
         action="New Chat",
         expected=("menu", "toolbar", "keyboard"),

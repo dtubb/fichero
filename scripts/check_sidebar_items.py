@@ -38,9 +38,15 @@ VIEW_MODE_FILE = SWIFT_ROOT / "Models" / "SidebarViewTypes.swift"
 ROUTER_FILE = SWIFT_ROOT / "Views" / "Shell" / "ContentView" / "ContentView+Navigation.swift"
 
 STRUCTURAL_ITEM_TYPES = {"folder", "libraryHeader"}
+# Item types that intentionally have NO AppViewMode destination: selecting
+# them drives another pipeline. savedSearch runs the transient toolbar
+# search (#4106/S2 — onRunSavedSearch → runToolbarSearch, view stays .library).
+TRANSIENT_ITEM_TYPES = {"savedSearch"}
 ITEM_TO_VIEW_MODE: dict[str, str] = {
     "document": "library",
-    "savedSearch": "search",
+    # savedSearch routes through the TRANSIENT search path (#4106/S2):
+    # selection stays in .library and onRunSavedSearch drives the toolbar
+    # pipeline — there is deliberately no AppViewMode case for it.
     "conversation": "chat",
     "workflow": "workflow",
     "chain": "chain",
@@ -84,6 +90,8 @@ def scan() -> dict[str, list[str]]:
     found: dict[str, list[str]] = {}
 
     for item_type in sorted(built_item_types()):
+        if item_type in TRANSIENT_ITEM_TYPES:
+            continue
         expected = ITEM_TO_VIEW_MODE.get(item_type)
         reasons: list[str] = []
         if expected is None:
