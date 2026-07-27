@@ -116,6 +116,9 @@ extension ContentView {
                 sidebarHidden: !showSidebar,
                 onToolbarSearchSubmit: { query in
                     runToolbarSearch(query)
+                },
+                onAddToChat: {
+                    openChatWithCurrentScope()
                 }
             )
             // Keep the library surface inside the content column across every

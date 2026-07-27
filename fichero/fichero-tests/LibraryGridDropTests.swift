@@ -61,3 +61,24 @@ final class PDFFirstPinchTests: XCTestCase {
         XCTAssertTrue(source.contains("let view = PinchOwningPDFView()"))
     }
 }
+
+/// #4121 parity: the same document offers the same actions in the grid menu
+/// as in the sidebar row menu.
+final class LibraryContextMenuParityTests: XCTestCase {
+    func testGridMenuGainsSidebarParityActions() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views/Library/LibraryView+ContextMenu.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(source.contains("Label(\"Add to Chat\""))
+        XCTAssertTrue(source.contains("Label(\"Duplicate\""))
+        XCTAssertTrue(source.contains("Label(\"Make Alias\""))
+        XCTAssertTrue(source.contains("Label(\"Delete\""))
+        // Same audited action + alias semantics as the sidebar row.
+        XCTAssertTrue(source.contains("name: \"document.duplicate\""))
+        XCTAssertTrue(source.contains("document.isAlias ? (document.aliasTargetId ?? document.id) : document.id"))
+        // Delete honors the multi-selection when the clicked row is in it.
+        XCTAssertTrue(source.contains("selection.contains(document.id)"))
+    }
+}

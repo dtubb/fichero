@@ -1,5 +1,10 @@
 import FicheroAPIClient
+import OSLog
 import SwiftUI
+
+private let contextMenuLogger = Logger(
+    subsystem: "app.fichero.fichero", category: "LibraryContextMenu"
+)
 
 // MARK: - Context Menu, Drag, and Workflow Menu
 
@@ -43,11 +48,109 @@ extension LibraryView {
     func documentContextMenu(for document: Document) -> some View {
         let excludeTargets = excludeToggleTargets(for: document)
 
+        // Parity with the sidebar row menu (#4121): the same document gets
+        // the same actions in every surface.
+        addToChatMenuItem(for: document)
         openAndRenameMenuItems(for: document)
+        duplicateAndAliasMenuItems(for: document)
         organizeMenuItems(for: document)
         stackMenuItems(for: document)
         excludeFromProcessingMenuItem(excludeTargets: excludeTargets)
+        deleteMenuItem(for: document)
         runWorkflowMenuItem(for: document)
+    }
+
+    // MARK: - Sidebar-parity items (#4121)
+
+    @ViewBuilder
+    private func addToChatMenuItem(for document: Document) -> some View {
+        if let onAddToChat, document.docType != .folder {
+            Button {
+                // Right-click acts on the clicked item unless it's part of
+                // the current selection (Finder semantics).
+                if !selection.contains(document.id) {
+                    selection = [document.id]
+                }
+                onAddToChat()
+            } label: {
+                Label("Add to Chat", systemImage: "bubble.left.and.text.bubble.right")
+            }
+            Divider()
+        }
+    }
+
+    @ViewBuilder
+    private func duplicateAndAliasMenuItems(for document: Document) -> some View {
+        Button {
+            duplicateDocument(document)
+        } label: {
+            Label("Duplicate", systemImage: "plus.square.on.square")
+        }
+        Button {
+            makeAlias(for: document)
+        } label: {
+            Label("Make Alias", systemImage: "arrowshape.turn.up.right")
+        }
+    }
+
+    @ViewBuilder
+    private func deleteMenuItem(for document: Document) -> some View {
+        Divider()
+        Button(role: .destructive) {
+            promptDelete(for: document)
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+    }
+
+    /// Audited document.duplicate — the SAME action path the sidebar row uses.
+    func duplicateDocument(_ document: Document) {
+        guard let library = activeLibraryReference else { return }
+        Task { @MainActor in
+            do {
+                _ = try await library.actionsService.invokeAction(
+                    name: "document.duplicate",
+                    params: DocumentDuplicateActionParams(docId: document.id, parentId: nil)
+                )
+                await library.documentStore.refresh()
+            } catch {
+                contextMenuLogger.error(
+                    "duplicate \(document.id, privacy: .public) failed: \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    /// Finder-style alias beside the original — aliasing an alias targets the
+    /// ORIGINAL (no alias chains), mirroring the sidebar's makeAliasAction.
+    func makeAlias(for document: Document) {
+        guard let library = activeLibraryReference else { return }
+        let targetId = document.isAlias ? (document.aliasTargetId ?? document.id) : document.id
+        Task { @MainActor in
+            let created = await library.bookmarkService.createBookmark(
+                targetId: targetId,
+                name: "\(document.name) alias",
+                parentId: document.parentId
+            )
+            if created {
+                await library.documentStore.refresh()
+            } else {
+                contextMenuLogger.error(
+                    "make alias for \(document.id, privacy: .public) failed"
+                )
+            }
+        }
+    }
+
+    /// Delete via the existing confirm dialog: the clicked item, or the whole
+    /// selection when the clicked item is part of it (Finder semantics).
+    func promptDelete(for document: Document) {
+        let targets = selection.contains(document.id)
+            ? filteredDocuments.filter { selection.contains($0.id) }
+            : [document]
+        guard !targets.isEmpty else { return }
+        documentsToDelete = targets
+        showDeleteConfirmation = true
     }
 
     // Finder-style open affordances (#1685). "Open" reuses the existing

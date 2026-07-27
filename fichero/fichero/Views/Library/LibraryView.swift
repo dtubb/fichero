@@ -45,6 +45,9 @@ struct LibraryView: View {
     /// a global search and switches the sidebar into search mode —
     /// matches the behaviour of every other mode-specific .searchable.
     var onToolbarSearchSubmit: (String) -> Void = { _ in }
+    /// Sidebar-parity Add to Chat (#4121): the host opens chat scoped to the
+    /// current selection; nil hides the menu item (previews, non-chat hosts).
+    var onAddToChat: (() -> Void)?
 
     @State var searchText: String = ""
     /// Precomputed lowercased ⌘F search keys per docId (#3865). Rebuilt only when
