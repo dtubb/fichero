@@ -295,3 +295,41 @@ control chrome once. Then S8 (real params through the mini-toolbar) which V3
 extends. V7 is independent of everything and can interleave. V2→V3→V4 is the
 dependency chain for the AI path; V6 rides with S6's normalisation work.
 V1 and V5 are independent engine+UI slices.
+
+### Status update 2026-07-27 (later)
+
+DONE: S1–S5, S7–S9 all landed; #4106/#4107/#4108/#4111/#4112/#4120 closed.
+V7 (#4120) shipped as the Related inspector facet. V2's tool half shipped:
+`search.query` is the registry's FIRST read_only action (5d1e673a2) — the
+chat tool loop previously had ZERO tools. Endpoint cleanup: 19 dead paths
+deleted, /api/migrations stutter fixed (1a79445bf).
+
+**V2 graph-leg design (next engine slice).** `GraphAwareRetriever._augment_with_kg`
+already does claim-seeded, hop-limited entity↔claim expansion for chat/researcher
+context. The search-grid leg reuses those seams, direction REVERSED:
+
+1. Entity leg of /api/search already returns entity hits (include=entities).
+2. New: for the top-N entity hits (N≈5), pull
+   `db.knowledge_claim_source_document_ids_for_entity(eid)` (the seam #4120's
+   related-docs uses), score each doc as
+   `entity_similarity × 0.8^hop` (1 hop only to start), and merge into the
+   content results via the SAME RRF fusion, tagged `via: "graph"` so the UI
+   can badge graph-found hits with provenance.
+3. Honest counts: graph-leg hits join BEFORE pagination (the S9 lesson —
+   never append after the page is cut).
+4. Exposed through the same one pipeline: /api/search, search.query,
+   and therefore chat, all get it at once.
+
+**V3 (#4116) design sketch.** Compiler in the engine
+(`fichero/retrieval/query_compiler.py`): heuristic gate (≥5 words OR
+question-mark OR question-word start) → langchain structured-output call
+(local-first MLX per llm-routing policy) emitting a
+`CompiledQuery{semantic_query, entities[], date_from/to, doc_types[],
+filters}` → mapped onto SearchRequest. The compiled query is RETURNED in
+SearchResponse (new optional `compiled_query` field) so the UI shows and
+lets the user edit what was actually searched (AI = instrument). Keyword-ish
+queries skip the LLM entirely — no latency tax on 'cacao'.
+
+**Held for Daniel:** the 7 /api/agents/write* + /api/policies/orchestration*
+endpoints (real logic, process-memory state, overlaps #1848) — delete or
+DB-back before wiring.

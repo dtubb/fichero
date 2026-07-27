@@ -331,10 +331,13 @@ def _make_read_write_registry() -> ActionRegistry:
 
 
 class TestReadOnlyGate:
-    def test_registered_actions_default_to_mutating(self):
-        # Every real action registered by the route modules is a write path —
-        # none opts into read_only, so the safe subset is empty by default.
-        assert action_tools(read_only=True) == []
+    def test_read_only_subset_is_exactly_the_retrieval_tools(self):
+        # Every mutating action stays OUT of the chat-safe subset. The subset
+        # is no longer empty: search.query (#4115) is deliberately the first
+        # read_only action — the chat agent's retrieval tool. Any NEW name
+        # appearing here must be a consciously flagged read-only action.
+        safe = {t["function"]["name"] for t in action_tools(read_only=True)}
+        assert safe == {"search_query"}
 
     def test_action_tools_read_only_filters_to_flagged_actions(self):
         reg = _make_read_write_registry()

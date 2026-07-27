@@ -11549,6 +11549,7 @@ def register_generated_openapi_commands(
     @target_app.command("enhanced")
     def search_enhanced_post(
         ctx: typer.Context,
+        compile: Optional[bool] = typer.Option(None, "--compile/--no-compile", help="Request field: compile."),
         filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
         highlight_results: Optional[bool] = typer.Option(None, "--highlight-results/--no-highlight-results", help="Request field: highlight_results."),
         include: Optional[str] = typer.Option(None, "--include", help="Request field: include."),
@@ -11566,6 +11567,7 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/search"
             params = None
             payload = _build_json_payload({
+                "compile": compile,
                 "filters": filters,
                 "highlight_results": highlight_results,
                 "include": include,
@@ -11578,6 +11580,7 @@ def register_generated_openapi_commands(
                 "sort_direction": sort_direction,
                 "use_fuzzy_match": use_fuzzy_match,
             }, {
+                "compile": {'type': 'boolean', 'title': 'Compile', 'default': False, 'x-cli-required': False},
                 "filters": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Filters', 'x-cli-required': False},
                 "highlight_results": {'type': 'boolean', 'title': 'Highlight Results', 'default': True, 'x-cli-required': False},
                 "include": {'items': {'$ref': '#/components/schemas/SearchInclude'}, 'type': 'array', 'title': 'Include', 'x-cli-required': False},

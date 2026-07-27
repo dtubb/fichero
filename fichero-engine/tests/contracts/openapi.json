@@ -39001,6 +39001,47 @@
         ],
         "title": "ComparisonToolInfo"
       },
+      "CompiledQuery": {
+        "properties": {
+          "semantic_query": {
+            "type": "string",
+            "title": "Semantic Query",
+            "description": "Dense retrieval query, filter words stripped"
+          },
+          "entities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entities",
+            "description": "Person/place/organization names the request mentions"
+          },
+          "date_from": {
+            "type": "string",
+            "nullable": true,
+            "title": "Date From",
+            "description": "ISO date lower bound, if the request implies one"
+          },
+          "date_to": {
+            "type": "string",
+            "nullable": true,
+            "title": "Date To",
+            "description": "ISO date upper bound, if the request implies one"
+          },
+          "doc_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Doc Type",
+            "description": "Restrict to one document type ('file'/'folder'/'page') only if explicitly requested"
+          }
+        },
+        "type": "object",
+        "required": [
+          "semantic_query"
+        ],
+        "title": "CompiledQuery",
+        "description": "What the LLM compiled a natural-language request into."
+      },
       "ConnectionTestResponse": {
         "properties": {
           "success": {
@@ -56897,6 +56938,11 @@
             "type": "boolean",
             "title": "Highlight Results",
             "default": true
+          },
+          "compile": {
+            "type": "boolean",
+            "title": "Compile",
+            "default": false
           }
         },
         "type": "object",
@@ -56967,6 +57013,15 @@
             "type": "array",
             "nullable": true,
             "title": "Suggestions"
+          },
+          "compiled_query": {
+            "$ref": "#/components/schemas/CompiledQuery",
+            "nullable": true
+          },
+          "compilation_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Compilation Error"
           }
         },
         "type": "object",

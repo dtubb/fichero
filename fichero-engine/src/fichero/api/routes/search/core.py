@@ -8,6 +8,12 @@ import asyncio
 import logging
 from dataclasses import asdict
 from datetime import datetime
+
+from fichero.retrieval.query_compiler import (
+    CompiledQuery,
+    compile_query,
+    looks_like_natural_language,
+)
 from enum import Enum
 from typing import Any, Optional
 
@@ -743,6 +749,11 @@ class SearchRequest(BaseModel):
     use_fuzzy_match: bool = False
     highlight_results: bool = True
 
+    # Query compilation (#4116): opt-in — the caller decides when the
+    # LLM-latency tax is acceptable (explicit submits, chat), never live
+    # typing. Only fires when the query passes the natural-language gate.
+    compile: bool = False
+
 
 class SearchEntityHit(KnowledgeEntity):
     similarity_score: float = 0.0
@@ -768,6 +779,12 @@ class SearchResponse(BaseModel):
     has_more: bool = False  # Whether more results are available
     filters_applied: dict | None = None  # Filters that were applied
     suggestions: list[str] | None = None  # Search suggestions
+
+    # Query compilation (#4116). AI = instrument: what the LLM compiled the
+    # request into is always returned so the user sees and can edit what was
+    # actually searched; a failed compilation is reported, never hidden.
+    compiled_query: CompiledQuery | None = None
+    compilation_error: str | None = None
 
 
 class ReindexResponse(BaseModel):
@@ -873,12 +890,38 @@ async def enhanced_search(
             status_code=400, detail="Invalid sort_direction. Must be 'asc' or 'desc'"
         )
 
+    # Query compilation (#4116): sentence-like queries drop down to an LLM
+    # that compiles them into a semantic query + the date/type filters
+    # db.search already understands. Opt-in (compile=true) so live-typing
+    # callers never pay LLM latency; keyword queries skip the gate anyway.
+    # Failure surfaces in compilation_error and the RAW query still runs —
+    # retrieval never breaks on an LLM outage, and nothing is hidden.
+    compiled_query: CompiledQuery | None = None
+    compilation_error: str | None = None
+    effective_query = request.query
+    if request.compile and looks_like_natural_language(request.query):
+        try:
+            compiled_query = await compile_query(db, request.query)
+            effective_query = compiled_query.semantic_query
+            merged_filters = dict(request.filters or {})
+            if compiled_query.date_from:
+                merged_filters.setdefault("date_from", compiled_query.date_from)
+            if compiled_query.date_to:
+                merged_filters.setdefault("date_to", compiled_query.date_to)
+            if compiled_query.doc_type:
+                merged_filters.setdefault("doc_type", compiled_query.doc_type)
+            if merged_filters:
+                request = request.model_copy(update={"filters": merged_filters})
+        except Exception as exc:  # noqa: BLE001
+            compilation_error = str(exc)
+            logger.warning("query compilation failed (raw query used): %s", exc)
+
     # Parse query into a plan (quoted phrases / field scopes /
     # NOT exclusions / plain free-text). The retriever still consumes
     # a plain query string — we feed it the free-text portion, then
     # post-filter for phrases + excludes and union-in entity scopes.
-    plan = parse_query(request.query)
-    retrieval_query = plan.free_text or " ".join(plan.phrases) or request.query
+    plan = parse_query(effective_query)
+    retrieval_query = plan.free_text or " ".join(plan.phrases) or effective_query
     fallback_semantic_query = _fallback_semantic_query(plan, retrieval_query)
     include_set = set(request.include)
     search_content = SearchInclude.content in include_set
@@ -958,6 +1001,68 @@ async def enhanced_search(
                 results = list(results) + artifact_hits
                 total_count = total_count + len(artifact_hits)
 
+    # Graph leg (#4115): expand the top semantic entity hits ONE hop through
+    # the knowledge graph — entity → claims → source documents — so a query
+    # about a person surfaces the documents about them even when their text
+    # never matches. Runs BEFORE the ACL filter and KG enrichment below so
+    # graph-found docs get the same visibility treatment as every other hit.
+    # Entity hits are computed here (moved up from the response-assembly
+    # tail) so one computation feeds both the graph leg and the response.
+    entity_hits = (
+        _run_entity_semantic_queries(
+            db=db,
+            queries=_search_scope_queries(
+                plan=plan,
+                scope_name="entities",
+                fallback_query=fallback_semantic_query,
+            ),
+            limit=request.limit,
+        )
+        if search_entities
+        else []
+    )
+    if search_content and entity_hits:
+        graph_seen = {r.document_id for r in results}
+        graph_slots = max(0, request.limit - len(results))
+        graph_hits: list[SearchResult] = []
+        # ponytail: top-5 seed entities, one hop, fixed 0.8 decay — add
+        # hop-depth/decay knobs when the graph leg proves out (#4110 tuning).
+        for entity_hit in entity_hits[:5]:
+            if len(graph_hits) >= graph_slots:
+                break
+            try:
+                source_doc_ids = db.knowledge_claim_source_document_ids_for_entity(
+                    entity_hit.id
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("graph-leg claim lookup failed: %s", exc)
+                continue
+            base_score = max(0.0, float(getattr(entity_hit, "similarity_score", 0.0) or 0.0))
+            for doc_id in source_doc_ids:
+                if not doc_id or doc_id in graph_seen:
+                    continue
+                graph_seen.add(doc_id)
+                graph_hits.append(
+                    SearchResult(
+                        document_id=doc_id,
+                        score=base_score * 0.8,
+                        content_preview="",
+                        # Provenance the UI can badge (#4115): this hit came
+                        # via the graph, through WHICH entity.
+                        metadata={
+                            "via": "graph",
+                            "entity_id": entity_hit.id,
+                            "entity_name": entity_hit.canonical_name,
+                        },
+                        kg_entity_ids=[entity_hit.id],
+                    )
+                )
+                if len(graph_hits) >= graph_slots:
+                    break
+        if graph_hits:
+            results = list(results) + graph_hits
+            total_count = total_count + len(graph_hits)
+
     # The noise-floor hack is no longer needed now that embeddings are
     # L2-normalised and scores are real cosine similarities (see
     # db_embeddings._l2_normalize). The user-controllable min_score on
@@ -1022,19 +1127,7 @@ async def enhanced_search(
         except Exception as exc:  # noqa: BLE001
             logger.warning("did-you-mean failed: %s", exc)
 
-    entity_hits = (
-        _run_entity_semantic_queries(
-            db=db,
-            queries=_search_scope_queries(
-                plan=plan,
-                scope_name="entities",
-                fallback_query=fallback_semantic_query,
-            ),
-            limit=request.limit,
-        )
-        if search_entities
-        else []
-    )
+    # entity_hits were computed above (graph leg) — one computation feeds both.
     claim_hits = (
         _run_claim_semantic_queries(
             db=db,
@@ -1073,6 +1166,8 @@ async def enhanced_search(
         has_more=search_stats.get("has_more", False),
         filters_applied=request.filters,
         suggestions=suggestions,
+        compiled_query=compiled_query,
+        compilation_error=compilation_error,
     )
 
 

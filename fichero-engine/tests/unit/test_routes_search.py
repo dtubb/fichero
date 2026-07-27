@@ -1406,3 +1406,190 @@ class TestSearchQueryAction:
         ids = {r["document_id"] for r in result.result["results"]}
         assert inside.id in ids
         assert outside.id not in ids
+
+
+class TestGraphLeg:
+    """#4115 graph leg: entity → claims → source documents, one hop, fused
+    into content results with provenance metadata."""
+
+    def _seed_graph(self, db):
+        # The document's TEXT never mentions the query — only the graph
+        # connects them: entity(Asprilla) —claim→ doc.
+        doc = Document(
+            name="Ledger 1948",
+            page_content="Weekly accounts and rainfall notes.",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+        db.embed(doc)
+        entity = KnowledgeEntity(id="ent-asprilla", canonical_name="Asprilla")
+        db.save(entity)
+        db.embed_entities([entity])
+        db.save(
+            KnowledgeClaim(
+                id="claim-asprilla-ledger",
+                text="Asprilla kept the ledger.",
+                source_document_id=doc.id,
+                entity_ids=["ent-asprilla"],
+            )
+        )
+        return doc
+
+    def test_graph_hit_carries_provenance(self, client, db):
+        doc = self._seed_graph(db)
+
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "Asprilla",
+                "search_type": "hybrid",
+                "min_score": 0.0,
+                "include": ["content", "entities"],
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        by_id = {hit["document_id"]: hit for hit in payload["results"]}
+        assert doc.id in by_id
+        hit = by_id[doc.id]
+        # Reached via the graph OR the entity-name bridge — both are legal
+        # front doors; the graph leg's contract is that when IT found the
+        # doc, provenance says so.
+        if hit["metadata"].get("via") == "graph":
+            assert hit["metadata"]["entity_name"] == "Asprilla"
+            assert hit["kg_entity_ids"] == ["ent-asprilla"]
+
+    def test_graph_leg_respects_the_limit(self, client, db):
+        self._seed_graph(db)
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "Asprilla",
+                "search_type": "hybrid",
+                "min_score": 0.0,
+                "limit": 1,
+                "include": ["content", "entities"],
+            },
+        )
+        assert r.status_code == 200
+        assert len(r.json()["results"]) <= 1
+
+
+class TestQueryCompilation:
+    """#4116: sentence-like queries compile to structured searches via the
+    LLM; the compiled query is always visible; failure is reported and the
+    raw query still runs."""
+
+    def test_natural_language_gate(self):
+        from fichero.retrieval.query_compiler import looks_like_natural_language as nl
+
+        # Keyword and already-structured queries keep the fast path.
+        assert not nl("cacao")
+        assert not nl("cacao mining")
+        assert not nl('"social license"')
+        assert not nl("people:Asprilla")
+        # Questions and sentences drop to the compiler.
+        assert nl("who kept the mining ledger?")
+        assert nl("letters about mining from March 1948")
+        assert nl("¿quién administraba la mina?")
+
+    def test_compiled_query_drives_retrieval_and_is_returned(self, client, db, monkeypatch):
+        from fichero.retrieval.query_compiler import CompiledQuery
+        from fichero.api.routes.search import core as core_module
+
+        doc = Document(
+            name="Mining Ledger",
+            page_content="condoto mining accounts",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+        db.embed(doc)
+
+        async def fake_compile(db_, query):
+            return CompiledQuery(
+                semantic_query="condoto mining",
+                entities=["Condoto"],
+                date_from="1948-03-01",
+                date_to="1948-03-31",
+            )
+
+        monkeypatch.setattr(core_module, "compile_query", fake_compile)
+
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "letters about mining in Condoto from March 1948",
+                "search_type": "fulltext",
+                "min_score": 0.0,
+                "compile": True,
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        # The compiled query is visible (AI = instrument)…
+        assert payload["compiled_query"]["semantic_query"] == "condoto mining"
+        assert payload["compilation_error"] is None
+        # …and its date filters were applied.
+        assert payload["filters_applied"]["date_from"] == "1948-03-01"
+
+    def test_compilation_failure_is_reported_and_raw_query_runs(self, client, db, monkeypatch):
+        from fichero.api.routes.search import core as core_module
+
+        doc = Document(
+            name="Raw Hit",
+            page_content="the ledger about mining accounts survives here",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+        db.embed(doc)
+
+        async def broken_compile(db_, query):
+            raise RuntimeError("no enabled LLM provider configured")
+
+        monkeypatch.setattr(core_module, "compile_query", broken_compile)
+
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "what does the ledger say about mining accounts",
+                "search_type": "fulltext",
+                "min_score": 0.0,
+                "compile": True,
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["compiled_query"] is None
+        assert "no enabled LLM provider" in payload["compilation_error"]
+        # The raw query still ran and found the doc.
+        assert any(hit["document_id"] == doc.id for hit in payload["results"])
+
+    def test_compile_defaults_off_and_never_fires_for_keywords(self, client, db, monkeypatch):
+        from fichero.api.routes.search import core as core_module
+
+        calls = []
+
+        async def spying_compile(db_, query):
+            calls.append(query)
+            raise AssertionError("must not be called")
+
+        monkeypatch.setattr(core_module, "compile_query", spying_compile)
+
+        # compile omitted → off, even for a sentence.
+        r1 = client.post(
+            "/api/search",
+            json={"query": "who kept the ledger of the mine?", "min_score": 0.0},
+        )
+        # compile on, but a keyword query fails the gate.
+        r2 = client.post(
+            "/api/search",
+            json={"query": "cacao", "min_score": 0.0, "compile": True},
+        )
+        assert r1.status_code == 200 and r2.status_code == 200
+        assert calls == []
