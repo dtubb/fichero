@@ -29,7 +29,10 @@ struct ImagePreviewMenuCommands: View {
     // MARK: - Body
 
     var body: some View {
-        Section("Image Preview") {
+        // One "Zoom" submenu instead of 14 flat rows (#4121 View-menu diet —
+        // Preview.app's own pattern). Keyboard shortcuts keep working from
+        // the submenu; content and gating are unchanged.
+        Menu("Zoom") {
             mainZoomSection
             Divider()
             magnifierSection

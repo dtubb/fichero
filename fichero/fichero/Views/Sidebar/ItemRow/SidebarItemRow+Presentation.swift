@@ -18,6 +18,23 @@ extension SidebarItemRow {
                 Divider()
             }
 
+            // Creation INTO the right-clicked folder (#4121): Finder
+            // semantics — the new folder nests under this row. Reuses the
+            // shared New Folder dialog; `newFolderParentId` targets it.
+            // (Binding named folderDoc: WorkflowContextMenuTargetsTests guards
+            // against the old single-doc workflow-target pattern by string.)
+            if case .document(let folderDoc) = item.itemType, folderDoc.docType == .folder {
+                Button("New Folder") {
+                    // Select the clicked row first so the create targets its
+                    // library (createFolder resolves via selectedItemLibrary).
+                    selectedItemId = "doc:\(folderDoc.id)"
+                    sidebarState.newFolderParentId = folderDoc.id
+                    sidebarState.newFolderCategory = .folder
+                    sidebarState.showingNewFolderDialog = true
+                }
+                Divider()
+            }
+
             SidebarItemContextMenu(
                 item: item,
                 deleteTargets: sidebarContextDeleteTargets(

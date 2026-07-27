@@ -360,8 +360,7 @@ struct FicheroApp: App {
 
                 FocusedImportFilesButton()
 
-                if featureManager.isSearchEnabled
-                    || featureManager.isChatEnabled
+                if featureManager.isChatEnabled
                     || featureManager.isWorkflowsEnabled {
                     Divider()
                 }
@@ -390,7 +389,10 @@ struct FicheroApp: App {
                 }
             }
 
-            TextFormattingCommands()
+            // One CommandsBuilder element (arity limit): Format's system
+            // commands + Show Ruler, which lives in Format not View (#4121
+            // View-menu diet — TextEdit/Pages precedent).
+            FormatMenuCommands()
 
         }
 

@@ -133,26 +133,6 @@ class DocumentService {
         }
     }
 
-    /// Documents related to `id` (#4120): shared knowledge-graph entities
-    /// and/or semantic embedding neighbors, ranked best-first by the engine.
-    func getRelatedDocuments(_ id: String, limit: Int = 20) async throws
-        -> [Components.Schemas.RelatedDocumentsResponse] {
-        let response = try await client.api.relatedDocumentsApiDocumentsDocIdRelatedGet(.init(
-            path: .init(docId: id),
-            query: .init(limit: limit)
-        ))
-
-        switch response {
-        case .ok(let ok):
-            return try ok.body.json.items
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
-        default:
-            throw DocumentServiceError.unexpectedResponse
-        }
-    }
-
     /// Fetch a document's parent via the generated `get_document_parent` op.
     /// Throws on non-`.ok` (#3030). Used by KG/source navigation to bubble a
     /// page child up to its containing file.
@@ -915,6 +895,30 @@ extension DocumentService {
         let response = try await client.api.libraryItemColumnsApiLibraryItemsColumnsPost(
             body: .json(request)
         )
+
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+}
+
+// MARK: - Related documents (#4120)
+
+extension DocumentService {
+    /// Documents related to `id` (#4120): shared knowledge-graph entities
+    /// and/or semantic embedding neighbors, ranked best-first by the engine.
+    func getRelatedDocuments(_ id: String, limit: Int = 20) async throws
+        -> [Components.Schemas.RelatedDocumentsResponse] {
+        let response = try await client.api.relatedDocumentsApiDocumentsDocIdRelatedGet(.init(
+            path: .init(docId: id),
+            query: .init(limit: limit)
+        ))
 
         switch response {
         case .ok(let ok):

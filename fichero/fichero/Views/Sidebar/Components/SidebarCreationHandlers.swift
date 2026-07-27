@@ -103,6 +103,15 @@ extension SidebarView {
             logger.error("Global library not available")
             return
         }
+        // Finder semantics (#4121): New Folder nests into the SELECTED
+        // folder; with no folder selected it lands at the library root.
+        if let selectedId = selectedItemId,
+           let selected = findItemById(selectedId, in: allCachedItems),
+           case .document(let doc) = selected.itemType, doc.docType == .folder {
+            sidebarState.newFolderParentId = doc.id
+        } else {
+            sidebarState.newFolderParentId = nil
+        }
         sidebarState.showingNewFolderDialog = true
         sidebarState.newFolderCategory = .folder
     }
@@ -164,9 +173,15 @@ extension SidebarView {
             sidebarState.newFolderErrorMessage = "No library available"
             return
         }
-        logger.info("Creating folder '\(name)' in library: \(library.displayName)")
+        let parentId = sidebarState.newFolderParentId
+        logger.info("Creating folder '\(name)' in library: \(library.displayName) parent: \(parentId ?? "root")")
         do {
-            let newFolder = try await library.documentStore.createCollection(name: name)
+            // Honor the dialog's parent target (#4121) — previously
+            // newFolderParentId existed but was never read, so every new
+            // folder landed at the library root.
+            let newFolder = try await library.documentStore.createFolder(
+                name: name, parentId: parentId
+            )
             logger.info("Created folder: \(name)")
             rebuildCaches()
             // Select the just-created folder so the user can immediately see its

@@ -150,6 +150,19 @@ struct NavigateToParentButton: View {
 /// App-wide toggle for the rich-text ruler. Keeps the menu checkmark in sync
 /// with the persisted preference and forwards the actual toggle to the focused
 /// text view when one exists.
+/// Format menu = the system text-formatting commands + Show Ruler (#4121:
+/// the ruler is text-formatting chrome, not view state). Composed as ONE
+/// Commands element so FicheroApp's CommandsBuilder stays under its arity cap.
+struct FormatMenuCommands: Commands {
+    var body: some Commands {
+        TextFormattingCommands()
+        CommandGroup(after: .textFormatting) {
+            Divider()
+            ShowRulerButton()
+        }
+    }
+}
+
 struct ShowRulerButton: View {
     @AppStorage("editor.rulersVisible") private var rulersVisible: Bool = true
 
