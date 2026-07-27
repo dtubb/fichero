@@ -49,6 +49,9 @@ struct EngineTransportModeTests {
     func socketPathIsShortEnough() {
         // AF_UNIX `sun_path` is ~104 bytes; a path at/over that fails to bind.
         #expect(EngineConfig.udsSocketPath.utf8.count < 104)
-        #expect(EngineConfig.udsSocketPath.hasSuffix("/Fichero/engine.sock"))
+        // The socket moved to NSTemporaryDirectory()/fichero.sock: the old
+        // Application Support "/Fichero/engine.sock" overflowed sun_path
+        // inside the App Store container (see udsSocketPath's doc comment).
+        #expect(EngineConfig.udsSocketPath.hasSuffix("/fichero.sock"))
     }
 }

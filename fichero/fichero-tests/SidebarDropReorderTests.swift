@@ -9,6 +9,12 @@ import Testing
 /// and kind-gate logic out of the view layer so regressions (e.g. the
 /// "flash-once-then-dies" symptom the old `.onMove` impl had) can be
 /// caught by the test suite before hitting Daniel's build.
+// @MainActor: `SidebarView.sidebarUnifiedRowsReorderKind` is implicitly
+// MainActor-isolated (SwiftUI View statics). Calling it from Swift Testing's
+// background executor trips dispatch_assert_queue → SIGTRAP and kills the
+// whole test HOST mid-run (seen 2026-07-26: xcodebuild "Restarting after
+// unexpected exit" → leg marked FAILED with 0 assertion failures).
+@MainActor
 struct SidebarReorderedDocIdsTests {
 
     private let libraryId = UUID()

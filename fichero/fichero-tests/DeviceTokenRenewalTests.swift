@@ -96,6 +96,11 @@ struct DeviceTokenRenewalTests {
         await DeviceTokenRenewal.renewIfNeeded(host: host)
 
         #expect(AuthTokenMiddleware.readRemoteTokenForHost(hostString) == "old-token")
-        #expect(DeviceTokenRenewal.storedExpiry(host: hostString) == nearExpiry)
+        // Tolerance, not equality: the expiry round-trips through a Double
+        // (timeIntervalSince1970 in UserDefaults), which can shave sub-ms
+        // precision off the Date and flake an exact == (seen 2026-07-26).
+        let stored = DeviceTokenRenewal.storedExpiry(host: hostString)
+        #expect(stored != nil)
+        #expect(abs((stored ?? .distantPast).timeIntervalSince(nearExpiry)) < 0.001)
     }
 }

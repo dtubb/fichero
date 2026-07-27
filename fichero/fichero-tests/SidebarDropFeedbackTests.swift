@@ -83,7 +83,11 @@ struct SidebarDropFeedbackTests {
         // copy/alias outcomes are AWAITED before the banner claims anything.
         #expect(handlers.contains("let modifiersAtDrop = SidebarDropModifiers.current()"))
         #expect(handlers.contains("finishFolderDrop("))
-        #expect(handlers.contains(#"name: "document.duplicate""#))
+        // The audited copy itself moved into the shared drop-operation
+        // executor (SidebarDropOperation) — assert it there, not in the
+        // per-row handlers file.
+        let executor = try appSource("Views/Sidebar/ItemRow/SidebarDropOperation.swift")
+        #expect(executor.contains(#"name: "document.duplicate""#))
         // The engine owns cycle/lock rules; failures surface on the banner.
         #expect(handlers.contains("sidebarState.dropErrorMessage = error.localizedDescription"))
     }
