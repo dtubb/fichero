@@ -173,6 +173,10 @@ extension ContentView {
         // fixed-220 principal search field; the breadcrumb lozenge stays.
         .modifier(ToolbarSearchableModifier(
             text: $toolbarSearchText,
+            mode: Binding(
+                get: { SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask },
+                set: { searchFieldModeRaw = $0.rawValue }
+            ),
             isCompact: horizontalSizeClass == .compact,
             onSubmit: { runToolbarSearch(toolbarSearchText) }
         ))
@@ -343,14 +347,30 @@ private struct NavigationSubtitleCompat: ViewModifier {
 /// the system site it: macOS + iPad-regular put it in the toolbar; iPhone/compact
 /// gets the nav-bar search bar for free. Only the compact inline-title tweak is
 /// platform-gated.
+/// The search field's mode (#4117): plain-language "Ask" (LLM compiles the
+/// retrieval) vs literal "Keyword". A native search scope, not extra chrome.
+enum SearchFieldMode: String, CaseIterable, Hashable {
+    case ask
+    case keyword
+}
+
 private struct ToolbarSearchableModifier: ViewModifier {
     @Binding var text: String
+    @Binding var mode: SearchFieldMode
     let isCompact: Bool
     let onSubmit: () -> Void
 
     func body(content: Content) -> some View {
         let searchable = content
-            .searchable(text: $text, placement: .automatic, prompt: "Search")
+            .searchable(
+                text: $text,
+                placement: .automatic,
+                prompt: mode == .ask ? "Ask your library" : "Search"
+            )
+            .searchScopes($mode) {
+                Label("Ask", systemImage: "sparkles").tag(SearchFieldMode.ask)
+                Text("Keyword").tag(SearchFieldMode.keyword)
+            }
             .onSubmit(of: .search, onSubmit)
         #if os(iOS)
         if isCompact {

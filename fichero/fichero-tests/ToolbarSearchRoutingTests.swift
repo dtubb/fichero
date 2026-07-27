@@ -150,14 +150,31 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         let actionsSource = try Self.appSource(Self.actionsSource)
         let resultsSource = try Self.appSource(Self.resultsSource)
 
-        // #4116 UI half: compile=true rides the explicit submit (and saved
-        // searches); re-run paths call runTransientSearch without it. The
-        // compiled query AND any compilation failure render in the results
-        // bar — AI = instrument, nothing hidden.
-        XCTAssertTrue(actionsSource.contains("runTransientSearch(route.query, compile: true)"))
+        // #4116/#4117 UI halves: the explicit submit compiles in Ask mode
+        // (the default) and searches raw text in Keyword mode; saved
+        // searches always compile; re-run paths call runTransientSearch
+        // without it. The compiled query AND any compilation failure render
+        // in the results bar — AI = instrument, nothing hidden.
+        XCTAssertTrue(actionsSource.contains("runTransientSearch(route.query, compile: searchFieldMode == .ask)"))
         XCTAssertTrue(resultsSource.contains("runTransientSearch(query, compile: true)"))
         XCTAssertTrue(resultsSource.contains("store.searchStats?.compiledQuery"))
         XCTAssertTrue(resultsSource.contains("store.searchStats?.compilationError"))
+    }
+
+    func testAIFirstFieldAndChatTheSearch() throws {
+        let resultsSource = try Self.appSource(Self.resultsSource)
+        let layoutSource = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
+
+        // #4117: the field's mode is a native search scope (Ask default /
+        // Keyword), not extra chrome; Ask gets an inviting prompt.
+        XCTAssertTrue(layoutSource.contains(".searchScopes($mode)"))
+        XCTAssertTrue(layoutSource.contains("enum SearchFieldMode"))
+        XCTAssertTrue(layoutSource.contains("case ask"))
+        // Chat-the-search: the result set becomes the conversation's scope,
+        // through the SAME router the sidebar chat entry uses.
+        XCTAssertTrue(resultsSource.contains("func openChatWithSearchResults"))
+        XCTAssertTrue(resultsSource.contains("ChatWithDocsRouter.mainChatRoute(documentIds: ids)"))
+        XCTAssertTrue(resultsSource.contains("Label(\"Chat\""))
     }
 
     func testArtifactHitsPresentInTheResultsBar() throws {

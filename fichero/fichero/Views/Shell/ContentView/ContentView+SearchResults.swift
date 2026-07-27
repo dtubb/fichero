@@ -32,6 +32,25 @@ extension ContentView {
 
     /// The search store for the library this window is showing — the same
     /// resolution `runTransientSearch` uses.
+    /// The search field's mode (#4117); raw storage lives on ContentView.
+    var searchFieldMode: SearchFieldMode {
+        SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask
+    }
+
+    /// Chat the search (#4117): open the main chat scoped to the ACTIVE
+    /// result set — the retrieval context is what the search found, and
+    /// follow-ups refine through the same audited search.query tool that
+    /// produced the grid. One retrieval backbone behind both surfaces.
+    @MainActor
+    func openChatWithSearchResults() {
+        let ids = searchResultDocuments.map(\.id)
+        guard !ids.isEmpty else { return }
+        let route = ChatWithDocsRouter.mainChatRoute(documentIds: ids)
+        chatSelectedDocuments = route.selectedDocumentIds
+        sidebarMode = route.sidebarMode
+        viewMode = route.viewMode
+    }
+
     var transientSearchStore: SearchStore? {
         (LibraryManager.shared.getLibrary(id: windowState.libraryId)
             ?? LibraryManager.shared.globalLibrary)?.searchStore
@@ -277,6 +296,16 @@ extension ContentView {
                     }
 
                     if !store.results.isEmpty && store.searchError == nil {
+                        // Chat the search (#4117): the result set becomes the
+                        // conversation's document scope.
+                        Button {
+                            openChatWithSearchResults()
+                        } label: {
+                            Label("Chat", systemImage: "bubble.left.and.text.bubble.right")
+                        }
+                        .controlSize(.small)
+                        .help("Chat about these results — the search scope becomes the conversation's context")
+
                         Button {
                             Task { await saveTransientSearch() }
                         } label: {

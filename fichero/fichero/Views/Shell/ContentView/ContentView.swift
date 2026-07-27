@@ -182,6 +182,11 @@ struct ContentView: View {
     @State var performanceService = PerformanceService()
     @State var documentScrollSync = DocumentScrollSyncState()
     @State var toolbarSearchText: String = ""
+    /// AI-first search (#4117): "Ask" (default) lets the LLM compile a
+    /// plain-language query into the structured search; "Keyword" searches
+    /// the raw text. Surfaced as a native search scope on the field; the
+    /// compiled query stays visible in the results bar either way.
+    @AppStorage("search.fieldMode") var searchFieldModeRaw: String = SearchFieldMode.ask.rawValue
     /// Transient search (#4106/S2): a submitted toolbar query renders its
     /// results INTO the Library view — no mode switch, no persisted object.
     /// `nil` = normal folder browsing; non-nil = the library column shows
