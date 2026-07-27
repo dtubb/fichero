@@ -80,6 +80,11 @@ class StorageService {
         }
     )
 
+    /// The library this service is scoped to, for callers that cache across
+    /// services (e.g. `SpaceTextureCache` keys textures per-library so the
+    /// same sourceId in two libraries can't collide). Empty = global/unscoped.
+    var libraryScopeKey: String { client.currentLibraryPath ?? "" }
+
     init(ficheroClient: FicheroClient, baseURL: URL? = nil) {
         self.client = ficheroClient
         self.configuredBaseURL = baseURL

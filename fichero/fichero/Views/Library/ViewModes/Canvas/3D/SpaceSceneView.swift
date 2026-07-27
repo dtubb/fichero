@@ -256,7 +256,10 @@ struct SpaceSceneView: View {
             }
         }
         #else
-        Spatial2DCanvas(nodes: nodes, connections: connections, selectedNodeId: $selectedNodeId)
+        Spatial2DCanvas(
+            nodes: nodes, connections: connections, selectedNodeId: $selectedNodeId,
+            storageService: storageService
+        )
         #endif
         }
     }
@@ -849,8 +852,8 @@ private extension SpaceSceneView {
 #endif
 
 #if canImport(RealityKit)
-/// Caches RealityKit textures for Spatial source-page nodes, keyed by the
-/// node's backend `sourceId`. Page bytes are fetched through the shared
+/// Caches RealityKit textures for Spatial source-page nodes, keyed by
+/// library scope + the node's backend `sourceId`. Page bytes are fetched through the shared
 /// `StorageService` (the canonical, authenticated thumbnail path) so
 /// the 3D scene no longer hand-builds a storage URL or calls `URLSession`
 /// directly (#1902).
@@ -873,24 +876,6 @@ actor SpaceTextureCache {
     func texture(
         forSourceId sourceId: String, using service: StorageService? = nil
     ) async throws -> TextureResource {
-        if let cached = cache[sourceId] { return cached }
-
-        let data = try await fetchImageData(forSourceId: sourceId, using: service)
-        let fileExtension = Self.fileExtension(for: data)
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension(fileExtension)
-        try data.write(to: tempURL, options: [.atomic])
-        defer { try? FileManager.default.removeItem(at: tempURL) }
-
-        let texture = try await TextureResource(contentsOf: tempURL)
-        cache[sourceId] = texture
-        return texture
-    }
-
-    private func fetchImageData(
-        forSourceId sourceId: String, using service: StorageService?
-    ) async throws -> Data {
         // The CURRENT library's service when the host injected one (#4160);
         // global-library fallback preserves the Spatial-room path. No `??`:
         // its autoclosure is nonisolated and LibraryManager is MainActor.
@@ -900,6 +885,27 @@ actor SpaceTextureCache {
         } else {
             storage = await LibraryManager.shared.globalLibrary?.storageService
         }
+        // Key per-library, not just per-sourceId: this cache is a process-wide
+        // singleton, and the same sourceId in two libraries is two images.
+        let cacheKey = "\(await storage?.libraryScopeKey ?? "")|\(sourceId)"
+        if let cached = cache[cacheKey] { return cached }
+
+        let data = try await fetchImageData(forSourceId: sourceId, using: storage)
+        let fileExtension = Self.fileExtension(for: data)
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(fileExtension)
+        try data.write(to: tempURL, options: [.atomic])
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let texture = try await TextureResource(contentsOf: tempURL)
+        cache[cacheKey] = texture
+        return texture
+    }
+
+    private func fetchImageData(
+        forSourceId sourceId: String, using storage: StorageService?
+    ) async throws -> Data {
         guard let data = try await storage?.thumbnailData(for: sourceId) else {
             Self.logger.error("No library available to load page thumbnail for \(sourceId, privacy: .public)")
             throw URLError(.badServerResponse)

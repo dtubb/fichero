@@ -17,6 +17,9 @@ struct SpatialNodeThumbnail: View {
     /// overview of thousands of nodes issues zero thumbnail requests. An
     /// already-loaded thumbnail is kept (no flicker) until the view is recycled.
     var enabled: Bool = true
+    /// The CURRENT library's storage service (#4160). nil falls back to the
+    /// global library — correct only for the whole-library Spatial room.
+    var storageService: StorageService?
 
     @State private var thumbnail: Image?
 
@@ -40,8 +43,8 @@ struct SpatialNodeThumbnail: View {
         // thumbnails load on zoom-in without a separate refresh path.
         .task(id: "\(sourceId)|\(enabled)") {
             guard enabled, thumbnail == nil else { return }
-            thumbnail = (try? await LibraryManager.shared.globalLibrary?
-                .storageService.getThumbnail(sourceId)) ?? nil
+            let service = storageService ?? LibraryManager.shared.globalLibrary?.storageService
+            thumbnail = (try? await service?.getThumbnail(sourceId)) ?? nil
         }
     }
 }

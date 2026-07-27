@@ -336,7 +336,8 @@ struct LibraryView: View {
                 selectedNodeId: $spatialSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
-                folderScopeId: folderId ?? wholeLibraryRoomId
+                folderScopeId: folderId ?? wholeLibraryRoomId,
+                storageService: activeLibraryReference?.storageService
             )
         }
     }

@@ -32,6 +32,9 @@ struct Spatial2DCanvas: View {
     /// The scope these positions belong to — a real folder id, or the synthetic
     /// `wholeLibraryRoomId` ("__library__") for the unscoped whole-library view.
     var folderScopeId: String?
+    /// The CURRENT library's storage service for node thumbnails (#4160).
+    /// nil falls back to the global library (whole-library Spatial room only).
+    var storageService: StorageService?
 
     /// Non-optional scope key for reading the per-scope stores (#3082): the
     /// folder id, or `wholeLibraryRoomId` when unscoped. The stores cache rows
@@ -272,7 +275,8 @@ struct Spatial2DCanvas: View {
                     fallbackIcon: node.nodeType.icon,
                     tint: node.nodeType.color,
                     side: nodeDiameter + 6,
-                    enabled: loadThumbnail
+                    enabled: loadThumbnail,
+                    storageService: storageService
                 )
             } else {
                 Image(systemName: node.nodeType.icon)
