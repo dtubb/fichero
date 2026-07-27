@@ -423,15 +423,6 @@ extension WorkflowService {
     }
 
     private func convertPortResponseToPortInfo(_ port: Components.Schemas.PortResponse) -> PortInfo {
-        // Convert default value if present
-        var defaultValue: AnyCodableValue?
-        if let defaultContainer = port._default {
-            // Try to convert the OpenAPIValueContainer to AnyCodableValue
-            if let value = defaultContainer.value {
-                defaultValue = convertAnyToAnyCodableValue(value)
-            }
-        }
-
         return PortInfo(
             id: port.id,
             name: port.name,
@@ -439,8 +430,15 @@ extension WorkflowService {
             dataType: port.dataType,
             required: port.required ?? true,
             description: port.description ?? "",
-            defaultValue: defaultValue
+            defaultValue: convertPortDefaultValue(port._default)
         )
+    }
+
+    private func convertPortDefaultValue(
+        _ container: OpenAPIRuntime.OpenAPIValueContainer?
+    ) -> AnyCodableValue? {
+        guard let value = container?.value else { return nil }
+        return convertAnyToAnyCodableValue(value)
     }
 
     private func convertObjectContainerToAnyCodableValueDict(
@@ -570,7 +568,7 @@ extension WorkflowService {
                 dataType: port.dataType?.rawValue ?? "any",
                 required: port.required ?? true,
                 description: port.description ?? "",
-                defaultValue: nil  // TODO: convert port.default_ if needed
+                defaultValue: convertPortDefaultValue(port._default)
             )
         }
 
@@ -583,7 +581,7 @@ extension WorkflowService {
                 dataType: port.dataType?.rawValue ?? "any",
                 required: port.required ?? true,
                 description: port.description ?? "",
-                defaultValue: nil
+                defaultValue: convertPortDefaultValue(port._default)
             )
         }
 

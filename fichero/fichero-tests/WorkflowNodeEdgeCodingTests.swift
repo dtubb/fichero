@@ -7,6 +7,18 @@ import XCTest
 /// (source/target/source_port) to the UI's field names. Pure decode/encode.
 final class WorkflowNodeEdgeCodingTests: XCTestCase {
 
+    func testServiceRestoresDefaultsForBothPortDirections() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("../fichero/Services/WorkflowService.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        XCTAssertEqual(
+            source.components(separatedBy: "defaultValue: convertPortDefaultValue(port._default)").count - 1,
+            3
+        )
+    }
+
     // MARK: - WorkflowNode decode defaults
 
     func testNodeMinimalDecodeAppliesDefaults() throws {
