@@ -15,6 +15,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
     case entities = "Entities"
     case knowledgeGraph = "Knowledge Graph"
     case citations = "Citations"
+    case related = "Related"
     case edits = "Edits"
     case info = "Info"
 
@@ -30,6 +31,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         case .entities: return "person.text.rectangle"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
         case .citations: return "text.quote"
+        case .related: return "doc.on.doc"
         case .edits: return "slider.horizontal.3"
         case .info: return "info.circle"
         }
@@ -54,6 +56,8 @@ enum InspectorTab: String, CaseIterable, Identifiable {
             return "Knowledge graph — structured SVO claims and provenance for this document"
         case .citations:
             return "Citations — documents this one cites and documents that cite it; includes the document's extracted bibliography"
+        case .related:
+            return "Related — documents connected to this one by shared entities or similar content"
         case .edits:
             return "Edits — non-destructive image/page edit operations for this document"
         case .info:

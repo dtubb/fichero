@@ -35,6 +35,7 @@ from fichero.models import (
     DocumentListResponse,
     DocumentNote,
     RelatedDocumentListResponse,
+    RelatedDocumentsResponse,
 )
 from fichero.security.path_security import validate_stored_document_path
 from fichero.core.perf import perf_span
@@ -92,18 +93,8 @@ class OrphanCleanupResponse(BaseModel):
     artifacts_deleted: int
 
 
-class RelatedDocumentsResponse(BaseModel):
-    """One row of /documents/{id}/related — another document that shares
-    entities with this one via knowledge claims, with the count of
-    shared entities and a small excerpt for context.
-    """
-
-    document_id: str
-    name: str | None = None
-    doc_type: str | None = None
-    file_type: str | None = None
-    shared_entities: int
-    sample_entity_names: list[str] = []
+# RelatedDocumentsResponse moved to fichero.models (#4120) so the
+# RelatedDocumentListResponse envelope is fully typed in the OpenAPI spec.
 
 
 class WorkflowRunProvenanceResponse(BaseModel):
@@ -1306,13 +1297,14 @@ async def related_documents(
     limit: int = 20,
     db: Database = Depends(get_library_database),
 ) -> RelatedDocumentListResponse:
-    """Documents that share knowledge-graph entities with this one.
+    """Documents related to this one, via two merged legs (#4120).
 
-    Aggregates entities across this doc's claims, then asks: which
-    OTHER docs have claims involving any of those same entities?
-    Sorted by overlap count.
+    Entity leg: aggregates entities across this doc's claims, then asks
+    which OTHER docs have claims involving any of those same entities.
+    Semantic leg: embedding neighbors of the doc's own stored vectors —
+    works even before any knowledge extraction has run.
 
-    Powers a 'Related' rail on the document inspector — useful for
+    Powers the 'Related' tab on the document inspector — useful for
     field notes and archival research where the user wants to follow
     a name or place across documents without manual searching.
     """
@@ -1328,7 +1320,7 @@ async def related_documents(
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("related-documents claim lookup failed: %s", exc)
-        return RelatedDocumentListResponse(items=[], count=0)
+        raw_entity_id_values = []
 
     seed_entity_ids: set[str] = set()
     for raw in raw_entity_id_values:
@@ -1347,9 +1339,6 @@ async def related_documents(
             for eid in ids:
                 if isinstance(eid, str) and eid:
                     seed_entity_ids.add(eid)
-
-    if not seed_entity_ids:
-        return RelatedDocumentListResponse(items=[], count=0)
 
     # Step 2: find docs whose claims reference ANY of those entities.
     # JSON-LIKE per-id is fine at this scale; for large entity sets we
@@ -1375,12 +1364,31 @@ async def related_documents(
             counter[other_doc_id] += 1
             sample_per_doc.setdefault(other_doc_id, set()).add(entity_id)
 
-    if not counter:
+    # Step 3: semantic neighbors from the doc's own stored embeddings —
+    # the leg that works before any claims exist. Failure degrades to the
+    # entity leg (logged), never a 500: relatedness is best-effort context.
+    similarity_by_doc: dict[str, float] = {}
+    try:
+        similarity_by_doc = dict(db.semantic_related_documents(doc_id, limit=limit))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("related-documents semantic lookup failed: %s", exc)
+
+    if not counter and not similarity_by_doc:
         return RelatedDocumentListResponse(items=[], count=0)
 
-    top = counter.most_common(limit)
+    # Merge: cosine similarity is [0, 1]; each shared entity adds 0.05
+    # (capped at 5) so both signals stack without either drowning the
+    # other. ponytail: heuristic weights — tune when #4119 calibration lands.
+    def _combined(other_id: str) -> float:
+        return similarity_by_doc.get(other_id, 0.0) + 0.05 * min(
+            counter.get(other_id, 0), 5
+        )
+
+    candidate_ids = set(counter) | set(similarity_by_doc)
+    top_ids = sorted(candidate_ids, key=_combined, reverse=True)[:limit]
     out: list[RelatedDocumentsResponse] = []
-    for other_id, overlap_count in top:
+    for other_id in top_ids:
+        overlap_count = counter.get(other_id, 0)
         other = _get_document_row(db, other_id)
         if other is None:
             continue
@@ -1411,6 +1419,7 @@ async def related_documents(
                 file_type=file_type_str,
                 shared_entities=overlap_count,
                 sample_entity_names=sample_names,
+                similarity=similarity_by_doc.get(other_id),
             )
         )
     return RelatedDocumentListResponse(items=out, count=len(out))

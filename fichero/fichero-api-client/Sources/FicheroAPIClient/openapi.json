@@ -8901,7 +8901,7 @@
           "documents"
         ],
         "summary": "Related Documents",
-        "description": "Documents that share knowledge-graph entities with this one.\n\nAggregates entities across this doc's claims, then asks: which\nOTHER docs have claims involving any of those same entities?\nSorted by overlap count.\n\nPowers a 'Related' rail on the document inspector \u2014 useful for\nfield notes and archival research where the user wants to follow\na name or place across documents without manual searching.",
+        "description": "Documents related to this one, via two merged legs (#4120).\n\nEntity leg: aggregates entities across this doc's claims, then asks\nwhich OTHER docs have claims involving any of those same entities.\nSemantic leg: embedding neighbors of the doc's own stored vectors \u2014\nworks even before any knowledge extraction has run.\n\nPowers the 'Related' tab on the document inspector \u2014 useful for\nfield notes and archival research where the user wants to follow\na name or place across documents without manual searching.",
         "operationId": "related_documents_api_documents__doc_id__related_get",
         "parameters": [
           {
@@ -55873,7 +55873,9 @@
       "RelatedDocumentListResponse": {
         "properties": {
           "items": {
-            "items": {},
+            "items": {
+              "$ref": "#/components/schemas/RelatedDocumentsResponse"
+            },
             "type": "array",
             "title": "Items"
           },
@@ -55888,7 +55890,54 @@
           "count"
         ],
         "title": "RelatedDocumentListResponse",
-        "description": "Standardized envelope for GET /api/documents/{doc_id}/related.\n\nItems are RelatedDocumentsResponse rows (route-local type), so typed as\nAny here to avoid a models <- routes import cycle."
+        "description": "Standardized envelope for GET /api/documents/{doc_id}/related."
+      },
+      "RelatedDocumentsResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          },
+          "doc_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Doc Type"
+          },
+          "file_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Type"
+          },
+          "shared_entities": {
+            "type": "integer",
+            "title": "Shared Entities"
+          },
+          "sample_entity_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sample Entity Names",
+            "default": []
+          },
+          "similarity": {
+            "type": "number",
+            "nullable": true,
+            "title": "Similarity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "shared_entities"
+        ],
+        "title": "RelatedDocumentsResponse",
+        "description": "One row of GET /api/documents/{doc_id}/related \u2014 another document\nrelated via shared knowledge-graph entities and/or semantic\nsimilarity (#4120). Lives here (not route-local) so the envelope is\nfully typed in the OpenAPI spec and the generated Swift client."
       },
       "RemoteBackendHealth": {
         "properties": {

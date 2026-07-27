@@ -29,7 +29,6 @@
     "/api/documents/{doc_id}/page-ranges": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",
     "/api/documents/{doc_id}/page-ranges/at/{page}": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",
     "/api/documents/{doc_id}/purge": "#2075 backend; UI tracked in #2077",
-    "/api/documents/{doc_id}/related": "baseline: not yet wired",
     "/api/entities/digest": "WebKit document view consumes the digest; no native Swift call site (#3765)",
     "/api/entities/{entity_id}/export": "engine half of #3703; Swift drag-export wiring pending in the same issue - remove this entry when the Swift side calls it",
     "/api/export/excel": "binary .xlsx download via a direct authenticated URL, not the typed generated client",

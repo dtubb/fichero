@@ -343,6 +343,78 @@ class TestRelatedDocuments:
         assert [item.document_id for item in response.items] == [peer.id]
         assert response.items[0].sample_entity_names == ["Valid Entity"]
 
+    def test_semantic_leg_surfaces_neighbors_without_any_claims(self, client, db):
+        # #4120: the semantic leg works BEFORE knowledge extraction — no
+        # entities, no claims, just embeddings.
+        seed = Document(
+            name="Cacao Report",
+            page_content="Cacao farming along the Atrato river and its harvest cycles.",
+            doc_type=DocType.file,
+        )
+        peer = Document(
+            name="Cacao Notes",
+            page_content="Notes on cacao harvest and river farming near the Atrato.",
+            doc_type=DocType.file,
+        )
+        outsider = Document(
+            name="Printer Manual",
+            page_content="Replace the toner cartridge and clear paper jams monthly.",
+            doc_type=DocType.file,
+        )
+        for doc in (seed, peer, outsider):
+            db.save(doc)
+            db.embed(doc)
+
+        r = client.get(f"/api/documents/{seed.id}/related?limit=10")
+
+        assert r.status_code == 200
+        payload = r.json()
+        by_id = {item["document_id"]: item for item in payload["items"]}
+        assert peer.id in by_id
+        peer_row = by_id[peer.id]
+        assert peer_row["shared_entities"] == 0
+        assert peer_row["similarity"] is not None
+        assert 0.0 <= peer_row["similarity"] <= 1.0
+        # The on-topic peer must outrank the off-topic outsider when both
+        # appear (real cosine scores, not a flat 71% — #4119).
+        ids = [item["document_id"] for item in payload["items"]]
+        if outsider.id in by_id:
+            assert ids.index(peer.id) < ids.index(outsider.id)
+        assert seed.id not in by_id
+
+    def test_semantic_and_entity_legs_merge_on_the_same_row(self, client, db):
+        seed = Document(
+            name="Mining Ledger",
+            page_content="Gold mining accounts for the Condoto operation in 1948.",
+            doc_type=DocType.file,
+        )
+        peer = Document(
+            name="Mining Diary",
+            page_content="Diary of the Condoto gold mining operation, 1948 season.",
+            doc_type=DocType.file,
+        )
+        for doc in (seed, peer):
+            db.save(doc)
+            db.embed(doc)
+        db.save(KnowledgeEntity(id="ent-condoto", canonical_name="Condoto"))
+        for doc, claim_id in ((seed, "claim-ml"), (peer, "claim-md")):
+            db.save(
+                KnowledgeClaim(
+                    id=claim_id,
+                    text="Mentions Condoto.",
+                    source_document_id=doc.id,
+                    entity_ids=["ent-condoto"],
+                )
+            )
+
+        r = client.get(f"/api/documents/{seed.id}/related?limit=10")
+
+        assert r.status_code == 200
+        by_id = {item["document_id"]: item for item in r.json()["items"]}
+        assert peer.id in by_id
+        assert by_id[peer.id]["shared_entities"] == 1
+        assert by_id[peer.id]["similarity"] is not None
+
 # ---------------------------------------------------------------------------
 # GET /api/documents/{doc_id}/children
 # ---------------------------------------------------------------------------

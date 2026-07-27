@@ -1875,13 +1875,28 @@ class DocumentListResponse(BaseModel):
     count: int
 
 
+class RelatedDocumentsResponse(BaseModel):
+    """One row of GET /api/documents/{doc_id}/related — another document
+    related via shared knowledge-graph entities and/or semantic
+    similarity (#4120). Lives here (not route-local) so the envelope is
+    fully typed in the OpenAPI spec and the generated Swift client.
+    """
+
+    document_id: str
+    name: str | None = None
+    doc_type: str | None = None
+    file_type: str | None = None
+    shared_entities: int
+    sample_entity_names: list[str] = []
+    # Real cosine similarity in [0, 1] from the embedding index, when the
+    # doc surfaced via the semantic leg. None = entity overlap only.
+    similarity: float | None = None
+
+
 class RelatedDocumentListResponse(BaseModel):
-    """Standardized envelope for GET /api/documents/{doc_id}/related.
+    """Standardized envelope for GET /api/documents/{doc_id}/related."""
 
-    Items are RelatedDocumentsResponse rows (route-local type), so typed as
-    Any here to avoid a models <- routes import cycle."""
-
-    items: list[Any]
+    items: list[RelatedDocumentsResponse]
     count: int
 
 

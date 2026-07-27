@@ -36,7 +36,9 @@ final class InspectorSectionTests: XCTestCase {
     func testApprovedGrouping() {
         XCTAssertEqual(InspectorSection.source.facets, [.content])
         XCTAssertEqual(InspectorSection.artifacts.facets, [.artifacts])
-        XCTAssertEqual(InspectorSection.knowledge.facets, [.entities, .knowledgeGraph, .citations])
+        // Related joins Knowledge (#4120): see-also is knowledge-derived
+        // (shared entities + embedding neighbors).
+        XCTAssertEqual(InspectorSection.knowledge.facets, [.entities, .knowledgeGraph, .citations, .related])
         XCTAssertEqual(InspectorSection.notes.facets, [.notes, .annotations, .interpretations])
     }
 

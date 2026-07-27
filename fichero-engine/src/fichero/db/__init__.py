@@ -3690,6 +3690,53 @@ class Database(DatabaseEmbeddingMixin):
         doc_ids = [r.get("document_id") or r.get("id") for r in results]
         return [self.get(model, id) for id in doc_ids if id]
 
+    def semantic_related_documents(
+        self, doc_id: str, limit: int = 10
+    ) -> list[tuple[str, float]]:
+        """Other documents semantically near ``doc_id``, best-first.
+
+        Uses the document's own STORED vectors (no re-embedding), runs a
+        neighbor search per vector, and keeps the best cosine similarity per
+        other document. Returns [] when the doc has no embeddings — an honest
+        empty, not a failure. Similarities are real cosine values in [0, 1]
+        (vectors are L2-normalised; see the search() conversion, #481).
+        """
+        if EMBEDDINGS_TABLE not in self._lance_tables():
+            return []
+
+        safe_id = doc_id.replace("'", "''") if doc_id else ""
+        table = self.lance.open_table(EMBEDDINGS_TABLE)
+        self.assert_vector_table_model_compatible(EMBEDDINGS_TABLE)
+        # ponytail: cap the seed vectors at 8 — enough passages to represent
+        # a document; raise if long-doc recall ever measurably suffers.
+        own_rows = (
+            table.search()
+            .where(f"id = '{safe_id}' OR document_id = '{safe_id}'")
+            .limit(8)
+            .to_list()
+        )
+        if not own_rows:
+            return []
+
+        best: dict[str, float] = {}
+        for row in own_rows:
+            vector = row.get("vector")
+            if vector is None:
+                continue
+            hits = table.search(list(vector)).limit(limit * 4).to_list()
+            for hit in hits:
+                other_id = hit.get("document_id") or hit.get("id")
+                if not other_id or other_id == doc_id:
+                    continue
+                distance = hit.get("_distance", 2.0)
+                cos_sim = 1.0 - (distance * distance) / 2.0
+                score = max(0.0, min(1.0, cos_sim))
+                if score > best.get(other_id, -1.0):
+                    best[other_id] = score
+
+        ranked = sorted(best.items(), key=lambda kv: kv[1], reverse=True)
+        return ranked[:limit]
+
     def delete_embedding(self, doc_id: str) -> bool:
         """Delete embedding for a document.
 

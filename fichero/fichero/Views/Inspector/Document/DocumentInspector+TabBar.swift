@@ -104,7 +104,7 @@ extension DocumentInspector {
         guard let doc else { return InspectorTab.allCases }
         var tabs: [InspectorTab] = [
             .content, .artifacts, .annotations, .notes, .interpretations, .knowledgeGraph,
-            .entities, .citations
+            .entities, .citations, .related
         ]
         // Image/page edit CONTROLS live in the Inspector, Lightroom-style (#3593,
         // 2026-07-12 — this reverses #3434's "edits left the inspector":

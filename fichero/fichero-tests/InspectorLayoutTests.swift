@@ -9,9 +9,10 @@ import Testing
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab includes content/artifacts/annotations/notes/interpretation/entities/kg/citations/edits/info")
+    @Test("InspectorTab includes content/artifacts/annotations/notes/interpretation/entities/kg/citations/related/edits/info")
     func allCases() {
-        #expect(InspectorTab.allCases.count == 10)
+        #expect(InspectorTab.allCases.count == 11)
+        #expect(InspectorTab.allCases.contains(.related))
         #expect(InspectorTab.allCases.contains(.content))
         #expect(InspectorTab.allCases.contains(.artifacts))
         #expect(InspectorTab.allCases.contains(.annotations))
@@ -23,11 +24,11 @@ struct InspectorTabTests {
         #expect(InspectorTab.allCases.contains(.edits))
         #expect(InspectorTab.allCases.contains(.info))
     }
-    @Test("InspectorTab order: content, artifacts, annotations, notes, interpretation, entities, kg, citations, edits, info")
+    @Test("InspectorTab order: content, artifacts, annotations, notes, interpretation, entities, kg, citations, related, edits, info")
     func ordering() {
         let expected: [InspectorTab] = [
             .content, .artifacts, .annotations, .notes, .interpretations, .entities, .knowledgeGraph,
-            .citations, .edits, .info
+            .citations, .related, .edits, .info
         ]
         #expect(InspectorTab.allCases == expected)
     }

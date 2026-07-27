@@ -21,6 +21,11 @@ extension DocumentInspector {
             knowledgeGraphTab(for: doc)
         case .citations:
             CitationsInspectorPane(document: doc)
+        case .related:
+            DocumentInspectorRelatedTab(
+                document: doc,
+                onNavigateToSource: onNavigateToSource
+            )
         case .edits:
             editsTab(for: doc)
         case .info:

@@ -29,7 +29,7 @@ enum InspectorSection: String, CaseIterable, Identifiable {
         // section no longer shows a separate Content/Info facet picker above it.
         case .source:    return [.content]
         case .artifacts: return [.artifacts]
-        case .knowledge: return [.entities, .knowledgeGraph, .citations]
+        case .knowledge: return [.entities, .knowledgeGraph, .citations, .related]
         case .notes:     return [.notes, .annotations, .interpretations]
         }
     }
