@@ -51,6 +51,17 @@ extension SidebarItemRow {
                 onMakeAlias: makeAliasAction
             )
 
+            // Grid-menu parity (#4121): the processing toggle the library
+            // grid offers, for the same document, on its sidebar row.
+            if case .document(let processDoc) = item.itemType, processDoc.docType != .folder {
+                Button(
+                    processDoc.excludeFromProcessing
+                        ? "Include in Processing" : "Exclude from Processing"
+                ) {
+                    toggleExcludeFromProcessing(processDoc)
+                }
+            }
+
             let workflowTargetIDs = resolvedWorkflowTargetIDs
             if let workflows = workflowStore?.workflows,
                !workflows.isEmpty,
@@ -117,6 +128,26 @@ extension SidebarItemRow {
     /// Finder-style Make Alias for document rows (#2591): a real engine alias
     /// node (via the bookmarks surface) beside the original — never a
     /// sidebar-only copy. The tree republishes on the store refresh.
+    /// Same executor as the grid menu (#4121): batchExclude + local refresh.
+    private func toggleExcludeFromProcessing(_ doc: Document) {
+        guard let library else { return }
+        Task { @MainActor in
+            do {
+                let refreshed = try await library.documentService.batchExclude(
+                    documentIds: [doc.id],
+                    excluded: !doc.excludeFromProcessing
+                )
+                for updated in refreshed {
+                    library.documentStore.refreshLocalContent(updated)
+                }
+            } catch {
+                sidebarRowLogger.error(
+                    "exclude toggle for \(doc.id, privacy: .public) failed: \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
     private var makeAliasAction: (() -> Void)? {
         guard case .document(let doc) = item.itemType, let library else { return nil }
         // Aliasing an alias targets the ORIGINAL (Finder: no alias chains).
