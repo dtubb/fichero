@@ -564,17 +564,6 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-entity-types")
-    def activity_get_entity_types_get(
-        ctx: typer.Context,
-    ) -> None:
-        """Get Entity Types (GET /api/activity/entity-types)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/activity/entity-types"
-            params = None
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
     @target_app.command("get-feed")
     def activity_get_feed_get(
         ctx: typer.Context,
@@ -5471,32 +5460,6 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("suggest-interpretations")
-    def hermeneutics_suggest_interpretations_post(
-        ctx: typer.Context,
-        claim_ids: str = typer.Option(..., "--claim-ids", help="Request field: claim_ids."),
-        context_claim_ids: Optional[str] = typer.Option(None, "--context-claim-ids", help="Request field: context_claim_ids."),
-        framework_ids: Optional[str] = typer.Option(None, "--framework-ids", help="Request field: framework_ids."),
-        num_suggestions: Optional[int] = typer.Option(None, "--num-suggestions", help="Request field: num_suggestions."),
-    ) -> None:
-        """Suggest Interpretations (POST /api/hermeneutics/suggestions)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/hermeneutics/suggestions"
-            params = None
-            payload = _build_json_payload({
-                "claim_ids": claim_ids,
-                "context_claim_ids": context_claim_ids,
-                "framework_ids": framework_ids,
-                "num_suggestions": num_suggestions,
-            }, {
-                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Claim Ids', 'x-cli-required': True},
-                "context_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Context Claim Ids', 'x-cli-required': False},
-                "framework_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Framework Ids', 'x-cli-required': False},
-                "num_suggestions": {'type': 'integer', 'maximum': 10.0, 'minimum': 1.0, 'title': 'Num Suggestions', 'default': 3, 'x-cli-required': False},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
     @target_app.command("picker-values-for-interpretation-editor-acts-framework-types")
     def hermeneutics_picker_values_for_interpretation_editor_acts_framework_types_get(
         ctx: typer.Context,
@@ -7141,534 +7104,6 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("list-circle-states")
-    def kg_list_circle_states_get(
-        ctx: typer.Context,
-        claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Query parameter: claim_id."),
-    ) -> None:
-        """List Circle States (GET /api/kg/interpretations/circle-state)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/interpretations/circle-state"
-            params = {
-                "claim_id": claim_id,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("create-circle-state")
-    def kg_create_circle_state_post(
-        ctx: typer.Context,
-        claim_id: str = typer.Option(..., "--claim-id", help="Request field: claim_id."),
-        current_focus: str = typer.Option(..., "--current-focus", help="Request field: current_focus."),
-        direction: str = typer.Option(..., "--direction", help="Request field: direction."),
-        focus_id: str = typer.Option(..., "--focus-id", help="Request field: focus_id."),
-        focus_label: str = typer.Option(..., "--focus-label", help="Request field: focus_label."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-    ) -> None:
-        """Create Circle State (POST /api/kg/interpretations/circle-state)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/interpretations/circle-state"
-            params = None
-            payload = _build_json_payload({
-                "claim_id": claim_id,
-                "current_focus": current_focus,
-                "direction": direction,
-                "focus_id": focus_id,
-                "focus_label": focus_label,
-                "metadata": metadata,
-            }, {
-                "claim_id": {'type': 'string', 'title': 'Claim Id', 'x-cli-required': True},
-                "current_focus": {'type': 'string', 'title': 'Current Focus', 'x-cli-required': True},
-                "direction": {'type': 'string', 'enum': ['part_to_whole', 'whole_to_part'], 'title': 'CircleNavigationDirection', 'description': 'Movement through the hermeneutic circle.', 'x-cli-required': True},
-                "focus_id": {'type': 'string', 'title': 'Focus Id', 'x-cli-required': True},
-                "focus_label": {'type': 'string', 'title': 'Focus Label', 'x-cli-required': True},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-circle-state")
-    def kg_get_circle_state_get(
-        ctx: typer.Context,
-        state_id: str = typer.Argument(..., help="Path parameter: state_id."),
-    ) -> None:
-        """Get Circle State (GET /api/kg/interpretations/circle-state/{state_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/circle-state/{state_id}"
-            params = None
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("backtrack-circle")
-    def kg_backtrack_circle_post(
-        ctx: typer.Context,
-        state_id: str = typer.Argument(..., help="Path parameter: state_id."),
-    ) -> None:
-        """Backtrack Circle (POST /api/kg/interpretations/circle-state/{state_id}/backtrack)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/circle-state/{state_id}/backtrack"
-            params = None
-            return client.request("POST", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("navigate-circle")
-    def kg_navigate_circle_post(
-        ctx: typer.Context,
-        state_id: str = typer.Argument(..., help="Path parameter: state_id."),
-        direction: str = typer.Option(..., "--direction", help="Request field: direction."),
-        focus_id: str = typer.Option(..., "--focus-id", help="Request field: focus_id."),
-        focus_label: str = typer.Option(..., "--focus-label", help="Request field: focus_label."),
-    ) -> None:
-        """Navigate Circle (POST /api/kg/interpretations/circle-state/{state_id}/navigate)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/circle-state/{state_id}/navigate"
-            params = None
-            payload = _build_json_payload({
-                "direction": direction,
-                "focus_id": focus_id,
-                "focus_label": focus_label,
-            }, {
-                "direction": {'type': 'string', 'enum': ['part_to_whole', 'whole_to_part'], 'title': 'CircleNavigationDirection', 'description': 'Movement through the hermeneutic circle.', 'x-cli-required': True},
-                "focus_id": {'type': 'string', 'title': 'Focus Id', 'x-cli-required': True},
-                "focus_label": {'type': 'string', 'title': 'Focus Label', 'x-cli-required': True},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("list-frameworks")
-    def kg_list_frameworks_get(
-        ctx: typer.Context,
-        framework_type: Optional[str] = typer.Option(None, "--framework-type", help="Query parameter: framework_type."),
-        is_active: Optional[bool] = typer.Option(None, "--is-active/--no-is-active", help="Query parameter: is_active."),
-    ) -> None:
-        """List Frameworks (GET /api/kg/interpretations/frameworks)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/interpretations/frameworks"
-            params = {
-                "framework_type": framework_type,
-                "is_active": is_active,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("create-framework")
-    def kg_create_framework_post(
-        ctx: typer.Context,
-        core_questions: Optional[str] = typer.Option(None, "--core-questions", help="Request field: core_questions."),
-        creator: Optional[str] = typer.Option(None, "--creator", help="Request field: creator."),
-        description: str = typer.Option(..., "--description", help="Request field: description."),
-        framework_type: str = typer.Option(..., "--framework-type", help="Request field: framework_type."),
-        key_concepts: Optional[str] = typer.Option(None, "--key-concepts", help="Request field: key_concepts."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        origin: Optional[str] = typer.Option(None, "--origin", help="Request field: origin."),
-        typical_applications: Optional[str] = typer.Option(None, "--typical-applications", help="Request field: typical_applications."),
-    ) -> None:
-        """Create Framework (POST /api/kg/interpretations/frameworks)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/interpretations/frameworks"
-            params = None
-            payload = _build_json_payload({
-                "core_questions": core_questions,
-                "creator": creator,
-                "description": description,
-                "framework_type": framework_type,
-                "key_concepts": key_concepts,
-                "language": language,
-                "metadata": metadata,
-                "name": name,
-                "origin": origin,
-                "typical_applications": typical_applications,
-            }, {
-                "core_questions": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Core Questions', 'x-cli-required': False},
-                "creator": {'type': 'string', 'nullable': True, 'title': 'Creator', 'x-cli-required': False},
-                "description": {'type': 'string', 'title': 'Description', 'x-cli-required': True},
-                "framework_type": {'type': 'string', 'enum': ['historical', 'disciplinary', 'thematic', 'methodological', 'theoretical', 'narrative'], 'title': 'FrameworkType', 'description': 'Interpretive lens categories.', 'x-cli-required': True},
-                "key_concepts": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Key Concepts', 'x-cli-required': False},
-                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
-                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
-                "origin": {'type': 'string', 'nullable': True, 'title': 'Origin', 'x-cli-required': False},
-                "typical_applications": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Typical Applications', 'x-cli-required': False},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("delete-framework")
-    def kg_delete_framework_delete(
-        ctx: typer.Context,
-        framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
-        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
-    ) -> None:
-        """Delete Framework (DELETE /api/kg/interpretations/frameworks/{framework_id})."""
-        if not yes:
-            typer.confirm("Delete kg?", abort=True)
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/frameworks/{framework_id}"
-            params = None
-            return client.request("DELETE", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-framework")
-    def kg_get_framework_get(
-        ctx: typer.Context,
-        framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
-    ) -> None:
-        """Get Framework (GET /api/kg/interpretations/frameworks/{framework_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/frameworks/{framework_id}"
-            params = None
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("update-framework")
-    def kg_update_framework_patch(
-        ctx: typer.Context,
-        framework_id: str = typer.Argument(..., help="Path parameter: framework_id."),
-        core_questions: Optional[str] = typer.Option(None, "--core-questions", help="Request field: core_questions."),
-        creator: Optional[str] = typer.Option(None, "--creator", help="Request field: creator."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        framework_type: Optional[str] = typer.Option(None, "--framework-type", help="Request field: framework_type."),
-        is_active: Optional[bool] = typer.Option(None, "--is-active/--no-is-active", help="Request field: is_active."),
-        key_concepts: Optional[str] = typer.Option(None, "--key-concepts", help="Request field: key_concepts."),
-        language: Optional[str] = typer.Option(None, "--language", help="Request field: language."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        origin: Optional[str] = typer.Option(None, "--origin", help="Request field: origin."),
-        typical_applications: Optional[str] = typer.Option(None, "--typical-applications", help="Request field: typical_applications."),
-    ) -> None:
-        """Update Framework (PATCH /api/kg/interpretations/frameworks/{framework_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/frameworks/{framework_id}"
-            params = None
-            payload = _build_json_payload({
-                "core_questions": core_questions,
-                "creator": creator,
-                "description": description,
-                "framework_type": framework_type,
-                "is_active": is_active,
-                "key_concepts": key_concepts,
-                "language": language,
-                "metadata": metadata,
-                "name": name,
-                "origin": origin,
-                "typical_applications": typical_applications,
-            }, {
-                "core_questions": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Core Questions', 'x-cli-required': False},
-                "creator": {'type': 'string', 'nullable': True, 'title': 'Creator', 'x-cli-required': False},
-                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
-                "framework_type": {'type': 'string', 'enum': ['historical', 'disciplinary', 'thematic', 'methodological', 'theoretical', 'narrative'], 'title': 'FrameworkType', 'description': 'Interpretive lens categories.', 'x-cli-required': False},
-                "is_active": {'type': 'boolean', 'nullable': True, 'title': 'Is Active', 'x-cli-required': False},
-                "key_concepts": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Key Concepts', 'x-cli-required': False},
-                "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
-                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
-                "origin": {'type': 'string', 'nullable': True, 'title': 'Origin', 'x-cli-required': False},
-                "typical_applications": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Typical Applications', 'x-cli-required': False},
-            }, required=True)
-            return client.request("PATCH", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("list-interpretations")
-    def kg_list_interpretations_get(
-        ctx: typer.Context,
-        act: Optional[str] = typer.Option(None, "--act", help="Query parameter: act."),
-        claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Query parameter: claim_id."),
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
-        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Query parameter: framework_id."),
-    ) -> None:
-        """List Interpretations (GET /api/kg/interpretations/interpretations)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/interpretations/interpretations"
-            params = {
-                "act": act,
-                "claim_id": claim_id,
-                "document_id": document_id,
-                "framework_id": framework_id,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("create-interpretation")
-    def kg_create_interpretation_post(
-        ctx: typer.Context,
-        act: str = typer.Option(..., "--act", help="Request field: act."),
-        claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Request field: claim_id."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        connections: Optional[str] = typer.Option(None, "--connections", help="Request field: connections."),
-        created_by: Optional[str] = typer.Option(None, "--created-by", help="Request field: created_by."),
-        document_id: Optional[str] = typer.Option(None, "--document-id", help="Request field: document_id."),
-        framework_id: str = typer.Option(..., "--framework-id", help="Request field: framework_id."),
-        interpretation_text: str = typer.Option(..., "--interpretation-text", help="Request field: interpretation_text."),
-        key_insights: Optional[str] = typer.Option(None, "--key-insights", help="Request field: key_insights."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        passage_text: Optional[str] = typer.Option(None, "--passage-text", help="Request field: passage_text."),
-        predicate: Optional[str] = typer.Option(None, "--predicate", help="Request field: predicate."),
-        tensions: Optional[str] = typer.Option(None, "--tensions", help="Request field: tensions."),
-    ) -> None:
-        """Create Interpretation (POST /api/kg/interpretations/interpretations)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/interpretations/interpretations"
-            params = None
-            payload = _build_json_payload({
-                "act": act,
-                "claim_id": claim_id,
-                "confidence": confidence,
-                "connections": connections,
-                "created_by": created_by,
-                "document_id": document_id,
-                "framework_id": framework_id,
-                "interpretation_text": interpretation_text,
-                "key_insights": key_insights,
-                "metadata": metadata,
-                "passage_text": passage_text,
-                "predicate": predicate,
-                "tensions": tensions,
-            }, {
-                "act": {'type': 'string', 'enum': ['reading', 'translating', 'contextualizing', 'synthesizing', 'critiquing', 'applying'], 'title': 'InterpretiveActType', 'description': 'Types of interpretive operations.', 'x-cli-required': True},
-                "claim_id": {'type': 'string', 'nullable': True, 'title': 'Claim Id', 'x-cli-required': False},
-                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Confidence', 'default': 0.5, 'x-cli-required': False},
-                "connections": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Connections', 'x-cli-required': False},
-                "created_by": {'type': 'string', 'title': 'Created By', 'default': 'human', 'x-cli-required': False},
-                "document_id": {'type': 'string', 'nullable': True, 'title': 'Document Id', 'x-cli-required': False},
-                "framework_id": {'type': 'string', 'title': 'Framework Id', 'x-cli-required': True},
-                "interpretation_text": {'type': 'string', 'title': 'Interpretation Text', 'x-cli-required': True},
-                "key_insights": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Key Insights', 'x-cli-required': False},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
-                "passage_text": {'type': 'string', 'nullable': True, 'title': 'Passage Text', 'x-cli-required': False},
-                "predicate": {'type': 'string', 'nullable': True, 'title': 'Predicate', 'x-cli-required': False},
-                "tensions": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Tensions', 'x-cli-required': False},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-interpretation")
-    def kg_get_interpretation_get(
-        ctx: typer.Context,
-        interpretation_id: str = typer.Argument(..., help="Path parameter: interpretation_id."),
-    ) -> None:
-        """Get Interpretation (GET /api/kg/interpretations/interpretations/{interpretation_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/interpretations/{interpretation_id}"
-            params = None
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("update-interpretation")
-    def kg_update_interpretation_patch(
-        ctx: typer.Context,
-        interpretation_id: str = typer.Argument(..., help="Path parameter: interpretation_id."),
-        act: Optional[str] = typer.Option(None, "--act", help="Request field: act."),
-        confidence: Optional[float] = typer.Option(None, "--confidence", help="Request field: confidence."),
-        connections: Optional[str] = typer.Option(None, "--connections", help="Request field: connections."),
-        interpretation_text: Optional[str] = typer.Option(None, "--interpretation-text", help="Request field: interpretation_text."),
-        key_insights: Optional[str] = typer.Option(None, "--key-insights", help="Request field: key_insights."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        predicate: Optional[str] = typer.Option(None, "--predicate", help="Request field: predicate."),
-        tensions: Optional[str] = typer.Option(None, "--tensions", help="Request field: tensions."),
-    ) -> None:
-        """Update Interpretation (PATCH /api/kg/interpretations/interpretations/{interpretation_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/interpretations/{interpretation_id}"
-            params = None
-            payload = _build_json_payload({
-                "act": act,
-                "confidence": confidence,
-                "connections": connections,
-                "interpretation_text": interpretation_text,
-                "key_insights": key_insights,
-                "metadata": metadata,
-                "predicate": predicate,
-                "tensions": tensions,
-            }, {
-                "act": {'type': 'string', 'enum': ['reading', 'translating', 'contextualizing', 'synthesizing', 'critiquing', 'applying'], 'title': 'InterpretiveActType', 'description': 'Types of interpretive operations.', 'x-cli-required': False},
-                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Confidence', 'x-cli-required': False},
-                "connections": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Connections', 'x-cli-required': False},
-                "interpretation_text": {'type': 'string', 'nullable': True, 'title': 'Interpretation Text', 'x-cli-required': False},
-                "key_insights": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Key Insights', 'x-cli-required': False},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
-                "predicate": {'type': 'string', 'nullable': True, 'title': 'Predicate', 'x-cli-required': False},
-                "tensions": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Tensions', 'x-cli-required': False},
-            }, required=True)
-            return client.request("PATCH", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("list-patterns")
-    def kg_list_patterns_get(
-        ctx: typer.Context,
-        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Query parameter: framework_id."),
-        pattern_type: Optional[str] = typer.Option(None, "--pattern-type", help="Query parameter: pattern_type."),
-        status: Optional[str] = typer.Option(None, "--status", help="Query parameter: status."),
-    ) -> None:
-        """List Patterns (GET /api/kg/interpretations/patterns)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/interpretations/patterns"
-            params = {
-                "framework_id": framework_id,
-                "pattern_type": pattern_type,
-                "status": status,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("create-pattern")
-    def kg_create_pattern_post(
-        ctx: typer.Context,
-        claim_ids: Optional[str] = typer.Option(None, "--claim-ids", help="Request field: claim_ids."),
-        description: str = typer.Option(..., "--description", help="Request field: description."),
-        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
-        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Request field: framework_id."),
-        frequency: Optional[int] = typer.Option(None, "--frequency", help="Request field: frequency."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: str = typer.Option(..., "--name", help="Request field: name."),
-        pattern_type: str = typer.Option(..., "--pattern-type", help="Request field: pattern_type."),
-        significance: Optional[float] = typer.Option(None, "--significance", help="Request field: significance."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
-        supporting_passages: Optional[str] = typer.Option(None, "--supporting-passages", help="Request field: supporting_passages."),
-    ) -> None:
-        """Create Pattern (POST /api/kg/interpretations/patterns)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/interpretations/patterns"
-            params = None
-            payload = _build_json_payload({
-                "claim_ids": claim_ids,
-                "description": description,
-                "entity_ids": entity_ids,
-                "framework_id": framework_id,
-                "frequency": frequency,
-                "metadata": metadata,
-                "name": name,
-                "pattern_type": pattern_type,
-                "significance": significance,
-                "status": status,
-                "supporting_passages": supporting_passages,
-            }, {
-                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Claim Ids', 'x-cli-required': False},
-                "description": {'type': 'string', 'title': 'Description', 'x-cli-required': True},
-                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Entity Ids', 'x-cli-required': False},
-                "framework_id": {'type': 'string', 'nullable': True, 'title': 'Framework Id', 'x-cli-required': False},
-                "frequency": {'type': 'integer', 'title': 'Frequency', 'default': 0, 'x-cli-required': False},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
-                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
-                "pattern_type": {'type': 'string', 'title': 'Pattern Type', 'x-cli-required': True},
-                "significance": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Significance', 'default': 0.5, 'x-cli-required': False},
-                "status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'superseded'], 'title': 'PatternStatus', 'description': 'Lifecycle state of a recognized pattern.', 'x-cli-required': False},
-                "supporting_passages": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Supporting Passages', 'x-cli-required': False},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-pattern")
-    def kg_get_pattern_get(
-        ctx: typer.Context,
-        pattern_id: str = typer.Argument(..., help="Path parameter: pattern_id."),
-    ) -> None:
-        """Get Pattern (GET /api/kg/interpretations/patterns/{pattern_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/patterns/{pattern_id}"
-            params = None
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("update-pattern")
-    def kg_update_pattern_patch(
-        ctx: typer.Context,
-        pattern_id: str = typer.Argument(..., help="Path parameter: pattern_id."),
-        claim_ids: Optional[str] = typer.Option(None, "--claim-ids", help="Request field: claim_ids."),
-        description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
-        entity_ids: Optional[str] = typer.Option(None, "--entity-ids", help="Request field: entity_ids."),
-        framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Request field: framework_id."),
-        frequency: Optional[int] = typer.Option(None, "--frequency", help="Request field: frequency."),
-        metadata: Optional[str] = typer.Option(None, "--metadata", help="Request field: metadata."),
-        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
-        pattern_type: Optional[str] = typer.Option(None, "--pattern-type", help="Request field: pattern_type."),
-        significance: Optional[float] = typer.Option(None, "--significance", help="Request field: significance."),
-        status: Optional[str] = typer.Option(None, "--status", help="Request field: status."),
-        supporting_passages: Optional[str] = typer.Option(None, "--supporting-passages", help="Request field: supporting_passages."),
-    ) -> None:
-        """Update Pattern (PATCH /api/kg/interpretations/patterns/{pattern_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/patterns/{pattern_id}"
-            params = None
-            payload = _build_json_payload({
-                "claim_ids": claim_ids,
-                "description": description,
-                "entity_ids": entity_ids,
-                "framework_id": framework_id,
-                "frequency": frequency,
-                "metadata": metadata,
-                "name": name,
-                "pattern_type": pattern_type,
-                "significance": significance,
-                "status": status,
-                "supporting_passages": supporting_passages,
-            }, {
-                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Claim Ids', 'x-cli-required': False},
-                "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
-                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Entity Ids', 'x-cli-required': False},
-                "framework_id": {'type': 'string', 'nullable': True, 'title': 'Framework Id', 'x-cli-required': False},
-                "frequency": {'type': 'integer', 'nullable': True, 'title': 'Frequency', 'x-cli-required': False},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Metadata', 'x-cli-required': False},
-                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'x-cli-required': False},
-                "pattern_type": {'type': 'string', 'nullable': True, 'title': 'Pattern Type', 'x-cli-required': False},
-                "significance": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Significance', 'x-cli-required': False},
-                "status": {'type': 'string', 'enum': ['tentative', 'confirmed', 'superseded'], 'title': 'PatternStatus', 'description': 'Lifecycle state of a recognized pattern.', 'x-cli-required': False},
-                "supporting_passages": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Supporting Passages', 'x-cli-required': False},
-            }, required=True)
-            return client.request("PATCH", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("add-claim-to-pattern")
-    def kg_add_claim_to_pattern_post(
-        ctx: typer.Context,
-        pattern_id: str = typer.Argument(..., help="Path parameter: pattern_id."),
-        claim_id: str = typer.Argument(..., help="Path parameter: claim_id."),
-    ) -> None:
-        """Add Claim To Pattern (POST /api/kg/interpretations/patterns/{pattern_id}/claims/{claim_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/kg/interpretations/patterns/{pattern_id}/claims/{claim_id}"
-            params = None
-            return client.request("POST", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("suggest-interpretations")
-    def kg_suggest_interpretations_post(
-        ctx: typer.Context,
-        claim_ids: str = typer.Option(..., "--claim-ids", help="Request field: claim_ids."),
-        context_claim_ids: Optional[str] = typer.Option(None, "--context-claim-ids", help="Request field: context_claim_ids."),
-        framework_ids: Optional[str] = typer.Option(None, "--framework-ids", help="Request field: framework_ids."),
-        num_suggestions: Optional[int] = typer.Option(None, "--num-suggestions", help="Request field: num_suggestions."),
-    ) -> None:
-        """Suggest Interpretations (POST /api/kg/interpretations/suggestions)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/interpretations/suggestions"
-            params = None
-            payload = _build_json_payload({
-                "claim_ids": claim_ids,
-                "context_claim_ids": context_claim_ids,
-                "framework_ids": framework_ids,
-                "num_suggestions": num_suggestions,
-            }, {
-                "claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Claim Ids', 'x-cli-required': True},
-                "context_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Context Claim Ids', 'x-cli-required': False},
-                "framework_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Framework Ids', 'x-cli-required': False},
-                "num_suggestions": {'type': 'integer', 'maximum': 10.0, 'minimum': 1.0, 'title': 'Num Suggestions', 'default': 3, 'x-cli-required': False},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("picker-values-for-interpretation-editor-acts-framework-types")
-    def kg_picker_values_for_interpretation_editor_acts_framework_types_get(
-        ctx: typer.Context,
-    ) -> None:
-        """Picker values for interpretation editor (acts + framework types) (GET /api/kg/interpretations/taxonomy/methods)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/kg/interpretations/taxonomy/methods"
-            params = None
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
     @target_app.command("list-recent-mutations-newest-first")
     def kg_list_recent_mutations_newest_first_get(
         ctx: typer.Context,
@@ -9172,9 +8607,9 @@ def register_generated_openapi_commands(
     def migrations_list_get(
         ctx: typer.Context,
     ) -> None:
-        """List Migrations (GET /api/migrations/migrations)."""
+        """List Migrations (GET /api/migrations)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/migrations/migrations"
+            endpoint_path = "/api/migrations"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -9183,9 +8618,9 @@ def register_generated_openapi_commands(
     def migrations_data_integrity_check_get(
         ctx: typer.Context,
     ) -> None:
-        """Data Integrity Check (GET /api/migrations/migrations/integrity-check)."""
+        """Data Integrity Check (GET /api/migrations/integrity-check)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/migrations/migrations/integrity-check"
+            endpoint_path = "/api/migrations/integrity-check"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -9195,9 +8630,9 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         run_id: str = typer.Option(..., "--run-id", help="Request field: run_id."),
     ) -> None:
-        """Rollback Migration (POST /api/migrations/migrations/rollback)."""
+        """Rollback Migration (POST /api/migrations/rollback)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/migrations/migrations/rollback"
+            endpoint_path = "/api/migrations/rollback"
             params = None
             payload = _build_json_payload({
                 "run_id": run_id,
@@ -9215,9 +8650,9 @@ def register_generated_openapi_commands(
         dry_run: Optional[bool] = typer.Option(None, "--dry-run/--no-dry-run", help="Request field: dry_run."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
     ) -> None:
-        """Run Migration (POST /api/migrations/migrations/run)."""
+        """Run Migration (POST /api/migrations/run)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/migrations/migrations/run"
+            endpoint_path = "/api/migrations/run"
             params = None
             payload = _build_json_payload({
                 "batch_size": batch_size,
@@ -9238,9 +8673,9 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         run_id: str = typer.Argument(..., help="Path parameter: run_id."),
     ) -> None:
-        """Get Migration Status (GET /api/migrations/migrations/status/{run_id})."""
+        """Get Migration Status (GET /api/migrations/status/{run_id})."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/migrations/migrations/status/{run_id}"
+            endpoint_path = f"/api/migrations/status/{run_id}"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -9251,9 +8686,9 @@ def register_generated_openapi_commands(
         command: str = typer.Option(..., "--command", help="Request field: command."),
         sample_size: Optional[int] = typer.Option(None, "--sample-size", help="Request field: sample_size."),
     ) -> None:
-        """Validate Migration (POST /api/migrations/migrations/validate)."""
+        """Validate Migration (POST /api/migrations/validate)."""
         def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/migrations/migrations/validate"
+            endpoint_path = "/api/migrations/validate"
             params = None
             payload = _build_json_payload({
                 "command": command,
@@ -13695,21 +13130,6 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-visualization-png")
-    def workflow_execution_get_visualization_png_get(
-        ctx: typer.Context,
-        workflow_id: str = typer.Argument(..., help="Path parameter: workflow_id."),
-        xray: Optional[bool] = typer.Option(None, "--xray/--no-xray", help="Query parameter: xray."),
-    ) -> None:
-        """Get Workflow Visualization Png (GET /api/workflow-execution/workflows/{workflow_id}/visualization.png)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/workflow-execution/workflows/{workflow_id}/visualization.png"
-            params = {
-                "xray": xray,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
     target_app = existing_apps.get('workflows')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for workflows endpoints.', no_args_is_help=True)
@@ -13806,17 +13226,6 @@ def register_generated_openapi_commands(
             }
             payload = _load_json_payload(body, body_file, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("list-modes")
-    def workflows_list_modes_get(
-        ctx: typer.Context,
-    ) -> None:
-        """List Workflow Modes (GET /api/workflows/modes)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/workflows/modes"
-            params = None
-            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("reinstall-default")

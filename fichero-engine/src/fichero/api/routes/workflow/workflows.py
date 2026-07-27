@@ -180,17 +180,6 @@ class WorkflowToolListResponse(BaseModel):
     count: int
 
 
-class WorkflowModeResponse(BaseModel):
-    id: str
-    label: str
-    description: str
-
-
-class WorkflowModeListResponse(BaseModel):
-    items: list[WorkflowModeResponse]
-    count: int
-
-
 class WorkflowCostEstimateRequest(BaseModel):
     """Inputs for pre-run workflow cost estimation."""
 
@@ -406,27 +395,8 @@ async def get_tool(tool_name: str) -> ToolResponse:
     return _tool_to_response(tool_def)
 
 
-@router.get("/modes", response_model=WorkflowModeListResponse)
-async def list_workflow_modes() -> WorkflowModeListResponse:
-    """List supported workflow editor display modes."""
-    items = [
-        WorkflowModeResponse(
-            id="icon",
-            label="Icon",
-            description="Visual canvas editor for workflow nodes and edges.",
-        ),
-        WorkflowModeResponse(
-            id="list",
-            label="List",
-            description="Linear list of workflow nodes and their wiring.",
-        ),
-        WorkflowModeResponse(
-            id="table",
-            label="Table",
-            description="Structured table view of node configuration values.",
-        ),
-    ]
-    return WorkflowModeListResponse(items=items, count=len(items))
+# /modes (a hardcoded list of EDITOR display modes — a pure UI concern) was
+# deleted in the endpoint cleanup (2026-07-27).
 
 
 class PromptRequest(BaseModel):

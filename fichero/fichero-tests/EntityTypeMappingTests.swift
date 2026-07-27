@@ -147,7 +147,8 @@ final class EntityTypeMappingTests: XCTestCase {
             "/api/hermeneutics/patterns",
             "/api/hermeneutics/patterns/{pattern_id}",
             "/api/hermeneutics/patterns/{pattern_id}/claims/{claim_id}",
-            "/api/hermeneutics/suggestions",
+            // /suggestions was a permanent-501 stub — DELETED in the
+            // 2026-07-27 endpoint cleanup, so it no longer appears here.
             "/api/hermeneutics/taxonomy/methods"
         ]
 
@@ -194,36 +195,19 @@ final class EntityTypeMappingTests: XCTestCase {
         }
     }
 
-    /// The kg/interpretations surface is deferred backlog ("baseline: not yet
-    /// wired") — no native Swift call site yet. Lock the documented deferral:
-    /// these must stay allowlisted until the surface is built (then wire +
-    /// de-allowlist together).
-    func testKnowledgeGraphInterpretationEndpointsRemainDeferred() throws {
+    /// The /api/kg/interpretations/* alias mount (same router mounted twice,
+    /// #1126) was DELETED in the 2026-07-27 endpoint cleanup — 13 duplicate
+    /// spec paths with zero callers. /api/hermeneutics/* is the one URL.
+    /// Lock the deletion: the alias must never reappear in the allowlist,
+    /// which would mean the duplicate mount came back.
+    func testKnowledgeGraphInterpretationAliasStaysDeleted() throws {
         let allowlist = try Self.repoSource(
             "fichero-engine/tests/contracts/ui_wiring_allowlist_swiftui.json"
         )
-        let deferredPaths = [
-            "/api/kg/interpretations/circle-state",
-            "/api/kg/interpretations/circle-state/{state_id}",
-            "/api/kg/interpretations/circle-state/{state_id}/backtrack",
-            "/api/kg/interpretations/circle-state/{state_id}/navigate",
-            "/api/kg/interpretations/frameworks",
-            "/api/kg/interpretations/frameworks/{framework_id}",
-            "/api/kg/interpretations/interpretations",
-            "/api/kg/interpretations/interpretations/{interpretation_id}",
-            "/api/kg/interpretations/patterns",
-            "/api/kg/interpretations/patterns/{pattern_id}",
-            "/api/kg/interpretations/patterns/{pattern_id}/claims/{claim_id}",
-            "/api/kg/interpretations/suggestions",
-            "/api/kg/interpretations/taxonomy/methods"
-        ]
-
-        for path in deferredPaths {
-            XCTAssertTrue(
-                allowlist.contains("\"\(path)\""),
-                "Deferred endpoint should stay allowlisted until wired: \(path)"
-            )
-        }
+        XCTAssertFalse(
+            allowlist.contains("/api/kg/interpretations"),
+            "The kg/interpretations alias mount was deleted — it must not return"
+        )
     }
 
     func testKnowledgeGraphPredictionAndReviewEndpointsAreWired() throws {

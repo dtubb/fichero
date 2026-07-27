@@ -68,33 +68,18 @@ class TestLLMInjectionFutureRisk:
     """Test the unavailable suggestion path and future prompt inputs."""
 
     def test_suggestions_endpoint_is_explicitly_unavailable(self, client):
-        """MEDIUM-1: /suggestions does not present placeholder text as AI output."""
-        from fichero.models.hermeneutics import HermesSuggestionRequest
-
-        # Create a framework first
-        framework_resp = client.post(
-            "/api/hermeneutics/frameworks",
-            json={
-                "name": "Test Framework",
-                "framework_type": "historical",
-                "description": "Test description",
-            },
-        )
-        assert framework_resp.status_code == 200
-        framework_id = framework_resp.json()["id"]
-
-        # Request suggestions
+        """MEDIUM-1: no AI-suggestion surface may present placeholder text as
+        AI output. The permanent-501 stub was deleted outright in the
+        2026-07-27 endpoint cleanup — the guarantee is now stronger: the
+        endpoint does not exist. This guard keeps it from quietly returning
+        as a stub; a real implementation must replace this test with
+        grounded-output assertions."""
         resp = client.post(
             "/api/hermeneutics/suggestions",
-            json=HermesSuggestionRequest(
-                claim_ids=[],
-                framework_ids=[framework_id],
-                num_suggestions=1,
-            ).model_dump(),
+            json={"claim_ids": [], "framework_ids": [], "num_suggestions": 1},
         )
 
-        assert resp.status_code == 501
-        assert resp.json()["detail"] == "Grounded AI interpretation suggestions are not implemented."
+        assert resp.status_code in (404, 405)
 
     def test_framework_injection_markers_detected(self):
         """MEDIUM-1: Framework fields could contain injection markers.

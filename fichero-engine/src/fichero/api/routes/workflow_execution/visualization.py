@@ -116,25 +116,10 @@ async def get_workflow_visualization(
         raise workflow_internal_error("Failed to generate workflow visualization")
 
 
-@router.get("/workflows/{workflow_id}/visualization.png")
-async def get_workflow_visualization_png(
-    workflow_id: str,
-    db: Database = Depends(get_library_database),
-    xray: bool = False,
-) -> WorkflowVisualizationResponse:
-    """
-    Get visualization data for a workflow.
-
-    Returns Mermaid code that can be rendered as a graph diagram.
-
-    Args:
-        workflow_id: Workflow ID
-        xray: If True, show internal subgraph details
-
-    Returns:
-        Mermaid diagram code and workflow metadata
-    """
-    return await get_workflow_visualization(workflow_id, db, xray)
+# /workflows/{workflow_id}/visualization.png lied about its content type —
+# it returned the SAME JSON Mermaid payload as /visualization, never a PNG.
+# Deleted in the endpoint cleanup (2026-07-27); the thread-level
+# /threads/{thread_id}/diagram.png endpoint genuinely renders PNG.
 
 
 @router.get("/workflows/{workflow_id}/code")

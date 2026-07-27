@@ -587,12 +587,6 @@ class TopEntitiesResponse(BaseModel):
     time_range_hours: int
 
 
-class EntityTypesResponse(BaseModel):
-    """Available entity types for filtering."""
-
-    entity_types: list[dict[str, str]]
-
-
 class ActivityMetricsSummary(BaseModel):
     """Enhanced activity metrics summary."""
 
@@ -938,24 +932,8 @@ async def get_top_entities(
     )
 
 
-# -----------------------------------------------------------------------------
-# Entity Types Endpoint
-# -----------------------------------------------------------------------------
-
-
-@router.get("/entity-types", response_model=EntityTypesResponse)
-async def get_entity_types() -> EntityTypesResponse:
-    """
-    Get available entity types for filtering.
-    """
-    return EntityTypesResponse(
-        entity_types=[
-            {"value": "workflow", "label": "Workflow", "description": "Workflow executions"},
-            {"value": "batch", "label": "Batch", "description": "Batch processing jobs"},
-            {"value": "node", "label": "Node", "description": "Individual workflow nodes"},
-            {"value": "system", "label": "System", "description": "System-level events"},
-        ]
-    )
+# /entity-types (a hardcoded 4-element literal served over HTTP) was deleted
+# in the endpoint cleanup (2026-07-27) — a client-side constant, not an API.
 
 
 # -----------------------------------------------------------------------------

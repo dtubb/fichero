@@ -3708,9 +3708,7 @@ def check(ctx: typer.Context) -> None:
         uncovered = sorted(
             p for p in backend_paths
             if p not in cli_paths
-            and not p.startswith("/api/search/views")
             and not p.startswith("/api/search/saved")
-            and not p.startswith("/api/kg/interpretations")
             and not p.startswith("/api/classifications")
             and not p.startswith("/api/canvas")
             and not p.startswith("/api/chat")

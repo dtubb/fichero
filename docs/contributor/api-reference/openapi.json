@@ -832,29 +832,6 @@
         }
       }
     },
-    "/api/activity/entity-types": {
-      "get": {
-        "tags": [
-          "activity",
-          "activity"
-        ],
-        "summary": "Get Entity Types",
-        "description": "Get available entity types for filtering.",
-        "operationId": "get_entity_types_api_activity_entity_types_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EntityTypesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/activity/metrics/summary": {
       "get": {
         "tags": [
@@ -13111,7 +13088,7 @@
         }
       }
     },
-    "/api/migrations/migrations": {
+    "/api/migrations": {
       "get": {
         "tags": [
           "migrations",
@@ -13119,7 +13096,7 @@
         ],
         "summary": "List Migrations",
         "description": "List all available migrations with descriptions.",
-        "operationId": "list_migrations_api_migrations_migrations_get",
+        "operationId": "list_migrations_api_migrations_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -13134,7 +13111,7 @@
         }
       }
     },
-    "/api/migrations/migrations/run": {
+    "/api/migrations/run": {
       "post": {
         "tags": [
           "migrations",
@@ -13142,7 +13119,7 @@
         ],
         "summary": "Run Migration",
         "description": "Run a migration with optional dry-run mode.\n\nDry-run mode validates the migration and returns counts without\nmaking any changes to the database. The audit_id can be used\nto rollback the migration if needed.",
-        "operationId": "run_migration_api_migrations_migrations_run_post",
+        "operationId": "run_migration_api_migrations_run_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -13177,7 +13154,7 @@
         }
       }
     },
-    "/api/migrations/migrations/validate": {
+    "/api/migrations/validate": {
       "post": {
         "tags": [
           "migrations",
@@ -13185,7 +13162,7 @@
         ],
         "summary": "Validate Migration",
         "description": "Validate if a migration can run safely on the current data.\n\nPerforms pre-flight checks on a sample of data and returns\nany warnings or errors that would prevent safe execution.",
-        "operationId": "validate_migration_api_migrations_migrations_validate_post",
+        "operationId": "validate_migration_api_migrations_validate_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -13220,7 +13197,7 @@
         }
       }
     },
-    "/api/migrations/migrations/status/{run_id}": {
+    "/api/migrations/status/{run_id}": {
       "get": {
         "tags": [
           "migrations",
@@ -13228,7 +13205,7 @@
         ],
         "summary": "Get Migration Status",
         "description": "Get the status of a migration run by its audit ID.\n\nReturns detailed information about the migration including\ncounts, timing, and any errors.",
-        "operationId": "get_migration_status_api_migrations_migrations_status__run_id__get",
+        "operationId": "get_migration_status_api_migrations_status__run_id__get",
         "parameters": [
           {
             "name": "run_id",
@@ -13264,7 +13241,7 @@
         }
       }
     },
-    "/api/migrations/migrations/rollback": {
+    "/api/migrations/rollback": {
       "post": {
         "tags": [
           "migrations",
@@ -13272,7 +13249,7 @@
         ],
         "summary": "Rollback Migration",
         "description": "Rollback a migration using its audit ID.\n\nRestores all entities modified by the migration to their\npre-migration state. This is only possible if the mutation\nlogs are still present.",
-        "operationId": "rollback_migration_api_migrations_migrations_rollback_post",
+        "operationId": "rollback_migration_api_migrations_rollback_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -13307,7 +13284,7 @@
         }
       }
     },
-    "/api/migrations/migrations/integrity-check": {
+    "/api/migrations/integrity-check": {
       "get": {
         "tags": [
           "migrations",
@@ -13315,7 +13292,7 @@
         ],
         "summary": "Data Integrity Check",
         "description": "Run data integrity checks on the knowledge graph.\n\nReturns counts and identifies orphaned links, unreferenced entities,\nand claims without valid sources.",
-        "operationId": "data_integrity_check_api_migrations_migrations_integrity_check_get",
+        "operationId": "data_integrity_check_api_migrations_integrity_check_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -19552,59 +19529,6 @@
         }
       }
     },
-    "/api/workflow-execution/workflows/{workflow_id}/visualization.png": {
-      "get": {
-        "tags": [
-          "workflow-execution"
-        ],
-        "summary": "Get Workflow Visualization Png",
-        "description": "Get visualization data for a workflow.\n\nReturns Mermaid code that can be rendered as a graph diagram.\n\nArgs:\n    workflow_id: Workflow ID\n    xray: If True, show internal subgraph details\n\nReturns:\n    Mermaid diagram code and workflow metadata",
-        "operationId": "get_workflow_visualization_png_api_workflow_execution_workflows__workflow_id__visualization_png_get",
-        "parameters": [
-          {
-            "name": "workflow_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Workflow Id"
-            }
-          },
-          {
-            "name": "xray",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Xray"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowVisualizationResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/workflow-execution/workflows/{workflow_id}/code": {
       "get": {
         "tags": [
@@ -19858,28 +19782,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/workflows/modes": {
-      "get": {
-        "tags": [
-          "workflows"
-        ],
-        "summary": "List Workflow Modes",
-        "description": "List supported workflow editor display modes.",
-        "operationId": "list_workflow_modes_api_workflows_modes_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowModeListResponse"
                 }
               }
             }
@@ -25303,46 +25205,6 @@
         }
       }
     },
-    "/api/hermeneutics/suggestions": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Suggest Interpretations",
-        "description": "Report that grounded interpretation suggestions are not available yet.",
-        "operationId": "suggest_interpretations_api_hermeneutics_suggestions_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HermesSuggestionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "501": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/hermeneutics/taxonomy/methods": {
       "get": {
         "tags": [
@@ -25350,1076 +25212,6 @@
         ],
         "summary": "Picker values for interpretation editor (acts + framework types)",
         "operationId": "get_taxonomy_api_hermeneutics_taxonomy_methods_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MethodTaxonomyResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/frameworks": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Create Framework",
-        "operationId": "create_framework_api_kg_interpretations_frameworks_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FrameworkCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretiveFramework"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Frameworks",
-        "operationId": "list_frameworks_api_kg_interpretations_frameworks_get",
-        "parameters": [
-          {
-            "name": "framework_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/FrameworkType",
-              "nullable": true,
-              "title": "Framework Type"
-            }
-          },
-          {
-            "name": "is_active",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "nullable": true,
-              "title": "Is Active"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FrameworkListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/frameworks/{framework_id}": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get Framework",
-        "operationId": "get_framework_api_kg_interpretations_frameworks__framework_id__get",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Framework Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretiveFramework"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Update Framework",
-        "operationId": "update_framework_api_kg_interpretations_frameworks__framework_id__patch",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FrameworkUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretiveFramework"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Delete Framework",
-        "operationId": "delete_framework_api_kg_interpretations_frameworks__framework_id__delete",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FrameworkDeactivatedResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/interpretations": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Create Interpretation",
-        "operationId": "create_interpretation_api_kg_interpretations_interpretations_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InterpretationCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Interpretation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Interpretations",
-        "operationId": "list_interpretations_api_kg_interpretations_interpretations_get",
-        "parameters": [
-          {
-            "name": "framework_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Framework Id"
-            }
-          },
-          {
-            "name": "claim_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "document_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "act",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/InterpretiveActType",
-              "nullable": true,
-              "title": "Act"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterpretationListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/interpretations/{interpretation_id}": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get Interpretation",
-        "operationId": "get_interpretation_api_kg_interpretations_interpretations__interpretation_id__get",
-        "parameters": [
-          {
-            "name": "interpretation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Interpretation Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Interpretation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Update Interpretation",
-        "operationId": "update_interpretation_api_kg_interpretations_interpretations__interpretation_id__patch",
-        "parameters": [
-          {
-            "name": "interpretation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Interpretation Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InterpretationUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Interpretation"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/patterns": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Create Pattern",
-        "operationId": "create_pattern_api_kg_interpretations_patterns_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PatternCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PatternInstance"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Patterns",
-        "operationId": "list_patterns_api_kg_interpretations_patterns_get",
-        "parameters": [
-          {
-            "name": "pattern_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Pattern Type"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/PatternStatus",
-              "nullable": true,
-              "title": "Status"
-            }
-          },
-          {
-            "name": "framework_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Framework Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PatternListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/patterns/{pattern_id}": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get Pattern",
-        "operationId": "get_pattern_api_kg_interpretations_patterns__pattern_id__get",
-        "parameters": [
-          {
-            "name": "pattern_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Pattern Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PatternInstance"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Update Pattern",
-        "operationId": "update_pattern_api_kg_interpretations_patterns__pattern_id__patch",
-        "parameters": [
-          {
-            "name": "pattern_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Pattern Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PatternUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PatternInstance"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/patterns/{pattern_id}/claims/{claim_id}": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Add Claim To Pattern",
-        "operationId": "add_claim_to_pattern_api_kg_interpretations_patterns__pattern_id__claims__claim_id__post",
-        "parameters": [
-          {
-            "name": "pattern_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Pattern Id"
-            }
-          },
-          {
-            "name": "claim_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Claim Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PatternInstance"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/circle-state": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Create Circle State",
-        "operationId": "create_circle_state_api_kg_interpretations_circle_state_post",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CircleStateCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HermeneuticCircleState"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "List Circle States",
-        "operationId": "list_circle_states_api_kg_interpretations_circle_state_get",
-        "parameters": [
-          {
-            "name": "claim_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Claim Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CircleStateListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/circle-state/{state_id}": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Get Circle State",
-        "operationId": "get_circle_state_api_kg_interpretations_circle_state__state_id__get",
-        "parameters": [
-          {
-            "name": "state_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "State Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HermeneuticCircleState"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/circle-state/{state_id}/navigate": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Navigate Circle",
-        "operationId": "navigate_circle_api_kg_interpretations_circle_state__state_id__navigate_post",
-        "parameters": [
-          {
-            "name": "state_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "State Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CircleStateNavigateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HermeneuticCircleState"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/circle-state/{state_id}/backtrack": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Backtrack Circle",
-        "operationId": "backtrack_circle_api_kg_interpretations_circle_state__state_id__backtrack_post",
-        "parameters": [
-          {
-            "name": "state_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "State Id"
-            }
-          },
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HermeneuticCircleState"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/suggestions": {
-      "post": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Suggest Interpretations",
-        "description": "Report that grounded interpretation suggestions are not available yet.",
-        "operationId": "suggest_interpretations_api_kg_interpretations_suggestions_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HermesSuggestionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "501": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/kg/interpretations/taxonomy/methods": {
-      "get": {
-        "tags": [
-          "knowledge-graph"
-        ],
-        "summary": "Picker values for interpretation editor (acts + framework types)",
-        "operationId": "get_taxonomy_api_kg_interpretations_taxonomy_methods_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -43991,26 +42783,6 @@
         "title": "EntityTypeScope",
         "description": "Scope of entity types for policy rules."
       },
-      "EntityTypesResponse": {
-        "properties": {
-          "entity_types": {
-            "items": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Entity Types"
-          }
-        },
-        "type": "object",
-        "required": [
-          "entity_types"
-        ],
-        "title": "EntityTypesResponse",
-        "description": "Available entity types for filtering."
-      },
       "EntityUpsertRequest": {
         "properties": {
           "id": {
@@ -45459,44 +44231,6 @@
         ],
         "title": "HermeneuticCircleState",
         "description": "Tracks navigation between parts and wholes in interpretive analysis.\n\nThe hermeneutic circle describes the iterative process of understanding:\nunderstanding parts through wholes, and wholes through parts.\nThis model tracks where the analyst is in that navigation."
-      },
-      "HermesSuggestionRequest": {
-        "properties": {
-          "claim_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Claim Ids"
-          },
-          "framework_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Framework Ids"
-          },
-          "context_claim_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Context Claim Ids"
-          },
-          "num_suggestions": {
-            "type": "integer",
-            "maximum": 10.0,
-            "minimum": 1.0,
-            "title": "Num Suggestions",
-            "default": 3
-          }
-        },
-        "type": "object",
-        "required": [
-          "claim_ids"
-        ],
-        "title": "HermesSuggestionRequest",
-        "description": "Request for AI interpretation suggestions."
       },
       "HeuristicPredictionItem": {
         "properties": {
@@ -62240,50 +60974,6 @@
         ],
         "title": "WorkflowListResponse",
         "description": "Standardized {items, count} envelope for GET /api/workflows."
-      },
-      "WorkflowModeListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/WorkflowModeResponse"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "count"
-        ],
-        "title": "WorkflowModeListResponse"
-      },
-      "WorkflowModeResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "label",
-          "description"
-        ],
-        "title": "WorkflowModeResponse"
       },
       "WorkflowPatchRequest": {
         "properties": {

@@ -14,7 +14,6 @@ from fichero.models.hermeneutics import (
     CircleNavigationDirection,
     FrameworkType,
     HermeneuticCircleState,
-    HermesSuggestionRequest,
     Interpretation,
     InterpretiveActType,
     InterpretiveFramework,
@@ -738,20 +737,9 @@ async def backtrack_circle(
     return HermeneuticCircleState.model_validate(result.result)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# AI Interpretation Suggestions
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-@router.post("/suggestions", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def suggest_interpretations(
-    request: HermesSuggestionRequest,
-) -> None:
-    """Report that grounded interpretation suggestions are not available yet."""
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Grounded AI interpretation suggestions are not implemented.",
-    )
+# /suggestions (grounded AI interpretation suggestions) was a permanent-501
+# stub with no caller — deleted in the endpoint cleanup (2026-07-27); build
+# the real thing against the audited action layer when the feature lands.
 
 
 # ─────────────────────────────────────────────────────────────────────────────

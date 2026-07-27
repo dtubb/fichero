@@ -270,60 +270,15 @@ def test_circle_state_not_found(client):
     assert resp.status_code == 404
 
 
-def test_interpretation_suggestions(client, db):
-    """Suggestions are unavailable until a grounded LLM path exists."""
-    # Create a framework
-    fw_resp = client.post(
-        "/api/hermeneutics/frameworks",
-        json={
-            "name": "Annales School",
-            "framework_type": "historical",
-            "description": "Longue durée and geographic determinism in history.",
-            "core_questions": [
-                "What is the longue durée structure?",
-                "How does geography shape events?",
-            ],
-            "key_concepts": ["longue durée", "geography", "mentalités"],
-        },
-    )
-    fw = fw_resp.json()
-
-    # Get suggestions
-    sugg_resp = client.post(
-        "/api/hermeneutics/suggestions",
-        json={
-            "claim_ids": ["claim-1", "claim-2"],
-            "framework_ids": [fw["id"]],
-            "num_suggestions": 3,
-        },
-    )
-    assert sugg_resp.status_code == 501
-    assert sugg_resp.json()["detail"] == "Grounded AI interpretation suggestions are not implemented."
-
-
-def test_interpretation_suggestions_is_unavailable_without_frameworks(client, db):
-    """Unsupported suggestions never fabricate output based on framework state."""
+def test_interpretation_suggestions_endpoint_is_gone(client, db):
+    """The permanent-501 /suggestions stub was deleted in the 2026-07-27
+    endpoint cleanup — nothing may fabricate AI suggestions; a future real
+    implementation replaces this guard with grounded-output tests."""
     resp = client.post(
         "/api/hermeneutics/suggestions",
-        json={
-            "claim_ids": ["claim-1"],
-            "num_suggestions": 3,
-        },
+        json={"claim_ids": ["claim-1"], "num_suggestions": 3},
     )
-    assert resp.status_code == 501
-    assert resp.json()["detail"] == "Grounded AI interpretation suggestions are not implemented."
-
-
-def test_interpretation_suggestions_invalid_num(client, db):
-    """Suggestions validates num_suggestions range (Pydantic returns 422)."""
-    resp = client.post(
-        "/api/hermeneutics/suggestions",
-        json={
-            "claim_ids": ["claim-1"],
-            "num_suggestions": 99,
-        },
-    )
-    assert resp.status_code == 422  # Pydantic validation error
+    assert resp.status_code in (404, 405)
 
 
 def test_hermeneutics_write_routes_write_action_audit(client, db):

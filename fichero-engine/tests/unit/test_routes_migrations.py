@@ -3,8 +3,8 @@
 Migrations transform the knowledge graph schema (multi-source claims,
 backfills, orphan repair). Routes support dry-run mode and integrity checks.
 Tests mock MigrationRunner to avoid running actual migrations on test data.
-Note: router uses prefix="/migrations" mounted at "/api/migrations",
-so actual paths are /api/migrations/migrations/...
+Router is mounted at "/api/migrations" with no own prefix (the doubled
+/api/migrations/migrations stutter was fixed 2026-07-27).
 """
 
 from unittest.mock import MagicMock, patch
@@ -15,7 +15,7 @@ from datetime import datetime
 # Helpers
 # ---------------------------------------------------------------------------
 
-BASE = "/api/migrations/migrations"
+BASE = "/api/migrations"
 
 
 def _make_migration_result(
@@ -40,7 +40,7 @@ def _make_migration_result(
 
 
 # ---------------------------------------------------------------------------
-# GET /api/migrations/migrations — list
+# GET /api/migrations — list
 # ---------------------------------------------------------------------------
 
 
@@ -62,7 +62,7 @@ class TestListMigrations:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/migrations/migrations/run
+# POST /api/migrations/run
 # ---------------------------------------------------------------------------
 
 
@@ -102,7 +102,7 @@ class TestRunMigration:
 
 
 # ---------------------------------------------------------------------------
-# GET /api/migrations/migrations/integrity-check
+# GET /api/migrations/integrity-check
 # ---------------------------------------------------------------------------
 
 

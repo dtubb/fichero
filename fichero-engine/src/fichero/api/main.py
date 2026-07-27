@@ -1524,9 +1524,10 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # share entity/claim ids with KnowledgeEntity/KnowledgeClaim. Promoted
     # to release for 0.0.2 alongside the rest of the KG surface so end-
     # users get the full epistemology layer in shipped builds. (#997)
+    # ONE mount only: the /api/kg/interpretations alias (#1126) duplicated
+    # every hermeneutics endpoint in the spec with zero callers — removed
+    # in the endpoint cleanup (2026-07-27).
     (hermeneutics.router, "/api/hermeneutics", ["knowledge-graph"]),
-    # Canonical KG URL prefix — same router, different mount point (#1126).
-    (hermeneutics.router, "/api/kg/interpretations", ["knowledge-graph"]),
     # Workflow chains: multi-step sequenced pipelines with output mappings.
     # Promoted from dev-tier to core for 0.0.2 (#1151).
     (chains.router, "/api", ["chains"]),

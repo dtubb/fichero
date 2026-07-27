@@ -553,10 +553,7 @@ class TestListWorkflowTools:
 
 
 class TestWorkflowModes:
-    def test_returns_workflow_modes(self, client):
-        r = client.get("/api/workflows/modes")
-        assert r.status_code == 200
-        data = r.json()
-        assert data["count"] == 3
-        mode_ids = {m["id"] for m in data["items"]}
-        assert mode_ids == {"icon", "list", "table"}
+    def test_modes_endpoint_is_gone(self, client):
+        # /modes served a hardcoded list of EDITOR display modes — a pure UI
+        # concern; deleted in the 2026-07-27 endpoint cleanup.
+        assert client.get("/api/workflows/modes").status_code == 404

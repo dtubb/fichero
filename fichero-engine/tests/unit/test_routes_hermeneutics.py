@@ -238,73 +238,12 @@ class TestTaxonomyMethods:
 
 
 # ---------------------------------------------------------------------------
-# Canonical /api/kg/interpretations/* URLs (#1126 — same router, two mounts)
+# The /api/kg/interpretations/* alias mount (#1126) was deleted in the
+# 2026-07-27 endpoint cleanup — same router, second mount, 13 duplicate spec
+# paths with zero callers. /api/hermeneutics/* (tested above) is the ONE URL.
 # ---------------------------------------------------------------------------
 
-KG_BASE = "/api/kg/interpretations"
 
-
-class TestKgInterpretationsCanonicalUrls:
-    """Verify the KG_ENDPOINTS.md canonical paths are reachable (#1126)."""
-
-    def test_frameworks_list(self, client):
-        r = client.get(f"{KG_BASE}/frameworks")
-        assert r.status_code == 200
-        assert isinstance(r.json()["items"], list)
-
-    def test_frameworks_create(self, client):
-        r = client.post(f"{KG_BASE}/frameworks", json={
-            "name": "Structural Functionalism",
-            "framework_type": "theoretical",
-            "description": "Societies as systems of interrelated parts.",
-        })
-        assert r.status_code == 200
-        assert r.json()["name"] == "Structural Functionalism"
-
-    def test_frameworks_get(self, client, db):
-        db.save(_make_framework("fwk-kg", "KG Framework"))
-        r = client.get(f"{KG_BASE}/frameworks/fwk-kg")
-        assert r.status_code == 200
-        assert r.json()["name"] == "KG Framework"
-
-    def test_frameworks_get_missing(self, client):
-        r = client.get(f"{KG_BASE}/frameworks/no-such")
-        assert r.status_code == 404
-
-    def test_interpretations_list(self, client):
-        r = client.get(f"{KG_BASE}/interpretations")
-        assert r.status_code == 200
-        assert isinstance(r.json()["items"], list)
-
-    def test_interpretations_create(self, client, db):
-        db.save(_make_framework("fwk-kg2"))
-        # Interpretations now validate that claim_id references an existing
-        # claim (hermeneutics linking) — seed it before creating.
-        db.save(KnowledgeClaim(
-            id="claim-kg2-1",
-            text="A claim to interpret.",
-            source_document_id="doc-kg2",
-            entity_ids=[],
-        ))
-        r = client.post(f"{KG_BASE}/interpretations", json={
-            "framework_id": "fwk-kg2",
-            "claim_id": "claim-kg2-1",
-            "passage_text": "Evidence passage.",
-            "interpretation_text": "Structural reading.",
-            "act": "contextualizing",
-        })
-        assert r.status_code == 200
-        assert r.json()["framework_id"] == "fwk-kg2"
-
-    def test_interpretations_get(self, client, db):
-        db.save(_make_framework("fwk-kg3"))
-        db.save(_make_interpretation("interp-kg", "fwk-kg3"))
-        r = client.get(f"{KG_BASE}/interpretations/interp-kg")
-        assert r.status_code == 200
-        assert r.json()["id"] == "interp-kg"
-
-    def test_taxonomy_methods(self, client):
-        r = client.get(f"{KG_BASE}/taxonomy/methods")
-        assert r.status_code == 200
-        data = r.json()
-        assert "acts" in data and "frameworks" in data
+class TestKgInterpretationsAliasIsGone:
+    def test_alias_mount_no_longer_exists(self, client):
+        assert client.get("/api/kg/interpretations/frameworks").status_code == 404

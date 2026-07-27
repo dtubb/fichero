@@ -9,7 +9,6 @@ from fichero.api.routes.activity import (
     TrendPoint,
     TopEntitiesResponse,
     TopEntity,
-    EntityTypesResponse,
     ActivityMetricsSummary,
     ActivityResponse,
 )
@@ -172,19 +171,6 @@ class TestTopEntitiesResponse:
         assert entity.entity_type == "workflow"
         assert entity.activity_count == 25
         assert entity.success_rate == 95.0
-class TestEntityTypesResponse:
-    """Test entity types response."""
-
-    def test_entity_types_response(self):
-        """Test entity types response."""
-        types = [
-            {"value": "workflow", "label": "Workflow", "description": "Workflow executions"},
-            {"value": "batch", "label": "Batch", "description": "Batch processing jobs"},
-        ]
-
-        response = EntityTypesResponse(entity_types=types)
-        assert len(response.entity_types) == 2
-        assert response.entity_types[0]["value"] == "workflow"
 class TestActivityMetricsSummary:
     """Test activity metrics summary model."""
 

@@ -360,16 +360,6 @@
       },
       {
         "method": "GET",
-        "path": "/activity/entity-types",
-        "operation_id": "get_entity_types_api_activity_entity_types_get",
-        "summary": "Get Entity Types",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "EntityTypesResponse"
-      },
-      {
-        "method": "GET",
         "path": "/activity/feed",
         "operation_id": "get_activity_feed_api_activity_feed_get",
         "summary": "Get Activity Feed",
@@ -3794,16 +3784,6 @@
         "response_model": "PatternInstance"
       },
       {
-        "method": "POST",
-        "path": "/hermeneutics/suggestions",
-        "operation_id": "suggest_interpretations_api_hermeneutics_suggestions_post",
-        "summary": "Suggest Interpretations",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "HermesSuggestionRequest",
-        "response_model": null
-      },
-      {
         "method": "GET",
         "path": "/hermeneutics/taxonomy/methods",
         "operation_id": "get_taxonomy_api_hermeneutics_taxonomy_methods_get",
@@ -5028,293 +5008,6 @@
       },
       {
         "method": "GET",
-        "path": "/kg/interpretations/circle-state",
-        "operation_id": "list_circle_states_api_kg_interpretations_circle_state_get",
-        "summary": "List Circle States",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "claim_id",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "CircleStateListResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/kg/interpretations/circle-state",
-        "operation_id": "create_circle_state_api_kg_interpretations_circle_state_post",
-        "summary": "Create Circle State",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CircleStateCreateRequest",
-        "response_model": "HermeneuticCircleState"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/circle-state/{state_id}",
-        "operation_id": "get_circle_state_api_kg_interpretations_circle_state__state_id__get",
-        "summary": "Get Circle State",
-        "path_params": [
-          "state_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "HermeneuticCircleState"
-      },
-      {
-        "method": "POST",
-        "path": "/kg/interpretations/circle-state/{state_id}/backtrack",
-        "operation_id": "backtrack_circle_api_kg_interpretations_circle_state__state_id__backtrack_post",
-        "summary": "Backtrack Circle",
-        "path_params": [
-          "state_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "HermeneuticCircleState"
-      },
-      {
-        "method": "POST",
-        "path": "/kg/interpretations/circle-state/{state_id}/navigate",
-        "operation_id": "navigate_circle_api_kg_interpretations_circle_state__state_id__navigate_post",
-        "summary": "Navigate Circle",
-        "path_params": [
-          "state_id"
-        ],
-        "query_params": [],
-        "request_model": "CircleStateNavigateRequest",
-        "response_model": "HermeneuticCircleState"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/frameworks",
-        "operation_id": "list_frameworks_api_kg_interpretations_frameworks_get",
-        "summary": "List Frameworks",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "framework_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "is_active",
-            "required": false,
-            "type": "boolean"
-          }
-        ],
-        "request_model": null,
-        "response_model": "FrameworkListResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/kg/interpretations/frameworks",
-        "operation_id": "create_framework_api_kg_interpretations_frameworks_post",
-        "summary": "Create Framework",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "FrameworkCreateRequest",
-        "response_model": "InterpretiveFramework"
-      },
-      {
-        "method": "DELETE",
-        "path": "/kg/interpretations/frameworks/{framework_id}",
-        "operation_id": "delete_framework_api_kg_interpretations_frameworks__framework_id__delete",
-        "summary": "Delete Framework",
-        "path_params": [
-          "framework_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "FrameworkDeactivatedResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/frameworks/{framework_id}",
-        "operation_id": "get_framework_api_kg_interpretations_frameworks__framework_id__get",
-        "summary": "Get Framework",
-        "path_params": [
-          "framework_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "InterpretiveFramework"
-      },
-      {
-        "method": "PATCH",
-        "path": "/kg/interpretations/frameworks/{framework_id}",
-        "operation_id": "update_framework_api_kg_interpretations_frameworks__framework_id__patch",
-        "summary": "Update Framework",
-        "path_params": [
-          "framework_id"
-        ],
-        "query_params": [],
-        "request_model": "FrameworkUpdateRequest",
-        "response_model": "InterpretiveFramework"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/interpretations",
-        "operation_id": "list_interpretations_api_kg_interpretations_interpretations_get",
-        "summary": "List Interpretations",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "act",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "claim_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "document_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "framework_id",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "InterpretationListResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/kg/interpretations/interpretations",
-        "operation_id": "create_interpretation_api_kg_interpretations_interpretations_post",
-        "summary": "Create Interpretation",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "InterpretationCreateRequest",
-        "response_model": "Interpretation"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/interpretations/{interpretation_id}",
-        "operation_id": "get_interpretation_api_kg_interpretations_interpretations__interpretation_id__get",
-        "summary": "Get Interpretation",
-        "path_params": [
-          "interpretation_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "Interpretation"
-      },
-      {
-        "method": "PATCH",
-        "path": "/kg/interpretations/interpretations/{interpretation_id}",
-        "operation_id": "update_interpretation_api_kg_interpretations_interpretations__interpretation_id__patch",
-        "summary": "Update Interpretation",
-        "path_params": [
-          "interpretation_id"
-        ],
-        "query_params": [],
-        "request_model": "InterpretationUpdateRequest",
-        "response_model": "Interpretation"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/patterns",
-        "operation_id": "list_patterns_api_kg_interpretations_patterns_get",
-        "summary": "List Patterns",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "framework_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "pattern_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "status",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "PatternListResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/kg/interpretations/patterns",
-        "operation_id": "create_pattern_api_kg_interpretations_patterns_post",
-        "summary": "Create Pattern",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "PatternCreateRequest",
-        "response_model": "PatternInstance"
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/patterns/{pattern_id}",
-        "operation_id": "get_pattern_api_kg_interpretations_patterns__pattern_id__get",
-        "summary": "Get Pattern",
-        "path_params": [
-          "pattern_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "PatternInstance"
-      },
-      {
-        "method": "PATCH",
-        "path": "/kg/interpretations/patterns/{pattern_id}",
-        "operation_id": "update_pattern_api_kg_interpretations_patterns__pattern_id__patch",
-        "summary": "Update Pattern",
-        "path_params": [
-          "pattern_id"
-        ],
-        "query_params": [],
-        "request_model": "PatternUpdateRequest",
-        "response_model": "PatternInstance"
-      },
-      {
-        "method": "POST",
-        "path": "/kg/interpretations/patterns/{pattern_id}/claims/{claim_id}",
-        "operation_id": "add_claim_to_pattern_api_kg_interpretations_patterns__pattern_id__claims__claim_id__post",
-        "summary": "Add Claim To Pattern",
-        "path_params": [
-          "pattern_id",
-          "claim_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "PatternInstance"
-      },
-      {
-        "method": "POST",
-        "path": "/kg/interpretations/suggestions",
-        "operation_id": "suggest_interpretations_api_kg_interpretations_suggestions_post",
-        "summary": "Suggest Interpretations",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "HermesSuggestionRequest",
-        "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/kg/interpretations/taxonomy/methods",
-        "operation_id": "get_taxonomy_api_kg_interpretations_taxonomy_methods_get",
-        "summary": "Picker values for interpretation editor (acts + framework types)",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "MethodTaxonomyResponse"
-      },
-      {
-        "method": "GET",
         "path": "/kg/mutations",
         "operation_id": "list_mutations_api_kg_mutations_get",
         "summary": "List recent KG mutations (newest first)",
@@ -6415,8 +6108,8 @@
     "migrations": [
       {
         "method": "GET",
-        "path": "/migrations/migrations",
-        "operation_id": "list_migrations_api_migrations_migrations_get",
+        "path": "/migrations",
+        "operation_id": "list_migrations_api_migrations_get",
         "summary": "List Migrations",
         "path_params": [],
         "query_params": [],
@@ -6425,8 +6118,8 @@
       },
       {
         "method": "GET",
-        "path": "/migrations/migrations/integrity-check",
-        "operation_id": "data_integrity_check_api_migrations_migrations_integrity_check_get",
+        "path": "/migrations/integrity-check",
+        "operation_id": "data_integrity_check_api_migrations_integrity_check_get",
         "summary": "Data Integrity Check",
         "path_params": [],
         "query_params": [],
@@ -6435,8 +6128,8 @@
       },
       {
         "method": "POST",
-        "path": "/migrations/migrations/rollback",
-        "operation_id": "rollback_migration_api_migrations_migrations_rollback_post",
+        "path": "/migrations/rollback",
+        "operation_id": "rollback_migration_api_migrations_rollback_post",
         "summary": "Rollback Migration",
         "path_params": [],
         "query_params": [],
@@ -6445,8 +6138,8 @@
       },
       {
         "method": "POST",
-        "path": "/migrations/migrations/run",
-        "operation_id": "run_migration_api_migrations_migrations_run_post",
+        "path": "/migrations/run",
+        "operation_id": "run_migration_api_migrations_run_post",
         "summary": "Run Migration",
         "path_params": [],
         "query_params": [],
@@ -6455,8 +6148,8 @@
       },
       {
         "method": "GET",
-        "path": "/migrations/migrations/status/{run_id}",
-        "operation_id": "get_migration_status_api_migrations_migrations_status__run_id__get",
+        "path": "/migrations/status/{run_id}",
+        "operation_id": "get_migration_status_api_migrations_status__run_id__get",
         "summary": "Get Migration Status",
         "path_params": [
           "run_id"
@@ -6467,8 +6160,8 @@
       },
       {
         "method": "POST",
-        "path": "/migrations/migrations/validate",
-        "operation_id": "validate_migration_api_migrations_migrations_validate_post",
+        "path": "/migrations/validate",
+        "operation_id": "validate_migration_api_migrations_validate_post",
         "summary": "Validate Migration",
         "path_params": [],
         "query_params": [],
@@ -9400,24 +9093,6 @@
         ],
         "request_model": null,
         "response_model": "WorkflowVisualizationResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/workflow-execution/workflows/{workflow_id}/visualization.png",
-        "operation_id": "get_workflow_visualization_png_api_workflow_execution_workflows__workflow_id__visualization_png_get",
-        "summary": "Get Workflow Visualization Png",
-        "path_params": [
-          "workflow_id"
-        ],
-        "query_params": [
-          {
-            "name": "xray",
-            "required": false,
-            "type": "boolean"
-          }
-        ],
-        "request_model": null,
-        "response_model": "WorkflowVisualizationResponse"
       }
     ],
     "workflows": [
@@ -9467,16 +9142,6 @@
         ],
         "request_model": null,
         "response_model": "WorkflowResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/workflows/modes",
-        "operation_id": "list_workflow_modes_api_workflows_modes_get",
-        "summary": "List Workflow Modes",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "WorkflowModeListResponse"
       },
       {
         "method": "POST",

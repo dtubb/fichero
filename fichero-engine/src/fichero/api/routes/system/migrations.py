@@ -20,7 +20,10 @@ from fichero.db import Database
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db.migrations.runner import MigrationRunner
 
-router = APIRouter(prefix="/migrations", tags=["migrations"])
+# No own prefix: main.py already mounts this router at /api/migrations — the
+# doubled /api/migrations/migrations segment was a mount+prefix stutter
+# (fixed in the 2026-07-27 endpoint cleanup).
+router = APIRouter(tags=["migrations"])
 
 
 # =============================================================================
