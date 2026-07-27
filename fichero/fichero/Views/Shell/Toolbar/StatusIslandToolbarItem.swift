@@ -21,6 +21,8 @@ struct StatusIslandToolbarItem: View {
 
     let isImporting: Bool
     let importProgress: String?
+    let libraryId: UUID
+    let libraryName: String
     @Binding var importError: String?
 
     var body: some View {
@@ -30,6 +32,8 @@ struct StatusIslandToolbarItem: View {
             ActivityStatusToolbarItem(
                 isImporting: isImporting,
                 importProgress: importProgress,
+                libraryId: libraryId,
+                libraryName: libraryName,
                 importError: $importError
             )
         }

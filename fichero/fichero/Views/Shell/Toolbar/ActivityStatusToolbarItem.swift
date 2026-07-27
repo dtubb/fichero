@@ -18,9 +18,12 @@ import SwiftUI
 struct ActivityStatusToolbarItem: View {
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(ActivityStore.self) private var activityStore
+    @Environment(\.openWindow) private var openWindow
 
     let isImporting: Bool
     let importProgress: String?
+    let libraryId: UUID
+    let libraryName: String
     @Binding var importError: String?
 
     @State private var showPopover = false
@@ -94,6 +97,9 @@ struct ActivityStatusToolbarItem: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Activity")
                 .font(.headline)
+            Text(libraryName)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             if let importError {
                 HStack {
@@ -137,6 +143,14 @@ struct ActivityStatusToolbarItem: View {
                 Text("Nothing running.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            Button("Open Activity") {
+                showPopover = false
+                ActivityWindowSelectionState.shared.selectLibrary(libraryId)
+                openWindow(id: ActivityWindowSelectionState.monitorWindowID)
             }
         }
         .padding(14)

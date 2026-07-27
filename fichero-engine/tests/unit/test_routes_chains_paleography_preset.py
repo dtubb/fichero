@@ -29,6 +29,19 @@ def test_build_paleography_chain_matches_a_b_c_workflows():
     ]
 
 
+def test_build_paleography_chain_prefers_paleography_transcription():
+    workflows = [
+        _wf("generic", "Transcribe Manuscripts with OCR"),
+        _wf("paleography", "Transcribe Paleography"),
+        _wf("extract", "Extract Entities and NER"),
+        _wf("catalogue", "Catalogue Synthesis"),
+    ]
+
+    _, matched = _build_paleography_chain(workflows)
+
+    assert matched["A"] == "paleography"
+
+
 def test_build_paleography_chain_raises_when_required_stage_missing():
     workflows = [
         _wf("w1", "Transcribe Manuscripts"),

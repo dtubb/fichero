@@ -233,6 +233,8 @@ extension ContentView {
                 StatusIslandToolbarItem(
                     isImporting: isImporting,
                     importProgress: importProgress,
+                    libraryId: windowState.libraryId,
+                    libraryName: windowState.library?.displayName ?? "Library",
                     importError: $importError
                 )
             }

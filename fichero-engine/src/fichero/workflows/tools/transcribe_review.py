@@ -39,20 +39,18 @@ from fichero.workflows.tools.vision_base import (
 # =============================================================================
 
 
-TOOL_CONFIG = VisionToolConfig(
-    artifact_type="transcription_review",
-    update_page_content=True,
-    trigger_embedding=True,  # Re-embed on the corrected text
-    supports_apple_vision=False,  # Review is LLM-only by design
-)
-
-
 REVIEW_CONFIG = {
     "language": {
         "type": "string",
         "default": "auto",
         "description": "Language hint for the reviewer (es / en / auto)",
         "x-group": "primary",
+    },
+    "skip_if_artifact_exists": {
+        "type": "boolean",
+        "default": True,
+        "description": "Reuse a matching prior review artifact",
+        "x-group": "advanced",
     },
 }
 
@@ -136,19 +134,35 @@ async def transcribe_review(
     files = inputs.get("files") or state.get("input_files", [])
     documents = inputs.get("documents", [])
     prior_text = inputs.get("context")  # Prior transcription flows in via this port
+    if isinstance(prior_text, list) and prior_text and all(
+        isinstance(records, list) for records in prior_text
+    ):
+        prior_text = [
+            "\n\n---\n\n".join(
+                str(records[index].get("text", ""))
+                for records in prior_text
+                if index < len(records) and isinstance(records[index], dict)
+            )
+            for index in range(len(files))
+        ]
+    elif isinstance(prior_text, list) and all(
+        isinstance(record, dict) for record in prior_text
+    ):
+        prior_text = [str(record.get("text", "")) for record in prior_text]
+    elif isinstance(prior_text, list) and len(prior_text) != len(files):
+        prior_text = "\n\n---\n\n".join(str(text) for text in prior_text)
     input_metadata = inputs.get("metadata")
 
     update_page_content = inputs.get("update_page_content", True)
     prompt = inputs.get("prompt") or _DEFAULT_REVIEW_PROMPT
 
-    tool_config = TOOL_CONFIG
-    if not update_page_content:
-        tool_config = VisionToolConfig(
-            artifact_type="transcription_review",
-            update_page_content=False,
-            trigger_embedding=False,
-            supports_apple_vision=False,
-        )
+    tool_config = VisionToolConfig(
+        artifact_type="transcription_review",
+        update_page_content=update_page_content,
+        trigger_embedding=update_page_content,
+        supports_apple_vision=False,
+        skip_if_artifact_exists=inputs.get("skip_if_artifact_exists", True),
+    )
 
     return await process_vision(
         files=files,
@@ -158,6 +172,7 @@ async def transcribe_review(
         library_path=state.get("library_path", ""),
         task_id=state.get("task_id"),
         tool_config=tool_config,
+        force_ocr=True,
         context=prior_text,
         input_metadata=input_metadata,
         thinking_mode=inputs.get("thinking_mode", "medium"),

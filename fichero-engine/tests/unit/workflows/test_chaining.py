@@ -431,6 +431,41 @@ class TestChainExecutor:
         assert captured["inputs"]["library_path"] == "/tmp/test.fichero"
 
     @pytest.mark.asyncio
+    async def test_execute_all_steps_preserve_initial_file_scope(
+        self, mock_loader, mock_workflow
+    ):
+        chain = WorkflowChain(
+            name="Selection Chain",
+            steps=[
+                ChainStep(id="step1", workflow_id="wf-test"),
+                ChainStep(id="step2", workflow_id="wf-test"),
+            ],
+        )
+        calls: list[dict] = []
+
+        async def mock_execute(*args, **kwargs):
+            calls.append(kwargs)
+            return {"outputs": {"result": {"text": "done"}}, "output_files": [], "error": None}
+
+        with patch("fichero.execution.chaining.WorkflowExecutor") as MockExecutor:
+            MockExecutor.return_value.execute = mock_execute
+            executor = ChainExecutor(workflow_loader=mock_loader)
+            result = await executor.execute(
+                chain,
+                initial_inputs={
+                    "selected_doc_ids": ["doc-1"],
+                    "library_path": "/tmp/test.fichero",
+                },
+                initial_files=["/tmp/page.jpg"],
+            )
+
+        assert result.status == ChainStepStatus.COMPLETED
+        assert len(calls) == 2
+        assert calls[1]["inputs"]["selected_doc_ids"] == ["doc-1"]
+        assert calls[1]["inputs"]["library_path"] == "/tmp/test.fichero"
+        assert calls[1]["input_files"] == ["/tmp/page.jpg"]
+
+    @pytest.mark.asyncio
     async def test_execute_multi_step_chain(self, mock_loader, mock_workflow):
         """Test executing a chain with multiple steps."""
         chain = WorkflowChain(

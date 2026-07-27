@@ -19,13 +19,15 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
             threadId: "thread-1",
             timestamp: Date(timeIntervalSince1970: 1_700_000_000),
             status: .running,
-            isLive: true
+            isLive: true,
+            libraryId: UUID(uuidString: "11111111-1111-1111-1111-111111111111")
         )
 
         state.select(run)
 
         XCTAssertEqual(state.selectedRun?.id, "run-1")
         XCTAssertEqual(state.selectedRun?.threadId, "thread-1")
+        XCTAssertEqual(state.libraryId, run.libraryId)
     }
 
     func testSelectCanClearSelection() {
@@ -55,12 +57,18 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         // so ActivityMonitorWindow.swift no longer contains the inlined detail view.
         let appSource = try Self.appSource("FicheroApp.swift")
         let monitorSource = try Self.appSource("Views/Activity/Window/ActivityMonitorWindow.swift")
+        let detailSource = try Self.appSource("Views/Activity/Window/ActivityDetailWindow.swift")
         let helpersSource = try Self.appSource("Views/Activity/ActivityViewHelpers.swift")
 
         XCTAssertTrue(appSource.contains("ActivityWindowMenuButton()"))
         XCTAssertTrue(appSource.contains("WindowGroup(\"Activity\", id: ActivityWindowSelectionState.monitorWindowID)"))
         XCTAssertTrue(appSource.contains("WindowGroup(\"Activity Detail\", id: ActivityWindowSelectionState.detailWindowID)"))
         XCTAssertTrue(monitorSource.contains("opensDetailWindow: true"))
+        XCTAssertTrue(monitorSource.contains("Label(library.displayName"))
+        XCTAssertTrue(detailSource.contains(".environment(library.documentStore)"))
+        XCTAssertTrue(detailSource.contains("selectionState.selectedRun?.libraryId"))
+        XCTAssertTrue(helpersSource.contains("@Environment(WorkflowExecutionStore.self)"))
+        XCTAssertFalse(helpersSource.contains("@Environment(WorkflowExecutionObserver.self) private var executionObserver"))
         XCTAssertFalse(monitorSource.contains("ActivityDetailView(selectedRun: selectedRun)"))
         XCTAssertTrue(helpersSource.contains("openWindow(id: ActivityWindowSelectionState.detailWindowID)"))
         XCTAssertTrue(helpersSource.contains(".onTapGesture(count: 2)"))

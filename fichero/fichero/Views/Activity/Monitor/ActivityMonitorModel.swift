@@ -62,10 +62,7 @@ extension ActivityMonitorRow {
     ///
     /// Runs are sorted newest-first. Only human-visible workflow nodes are shown
     /// (LangGraph plumbing is filtered via `activityHumanNodeName`). A run's
-    /// per-file `documentProgress` is attached under whichever node is *actively*
-    /// processing files (status running/parallel + `fileTotal > 0`) — the backend
-    /// doesn't attribute files to nodes, but in a live run only one node fans out
-    /// at a time, so this reads as "what this node is working on right now".
+    /// Per-file `documentProgress` is attached to its node via `stepStatuses`.
     static func rows(from executions: [WorkflowExecution]) -> [ActivityMonitorRow] {
         executions
             .sorted { $0.startTime > $1.startTime }
@@ -136,14 +133,16 @@ extension ActivityMonitorRow {
         }
 
         let fileRows = isActiveParallel
-            ? execution.orderedDocumentProgress.map { fileRow(for: $0, runThreadId: execution.threadId) }
+            ? execution.orderedDocumentProgress
+                .filter { $0.stepStatuses[state.nodeId] != nil }
+                .map { fileRow(for: $0, runThreadId: execution.threadId) }
             : []
 
         return ActivityMonitorRow(
             id: "node:\(execution.threadId):\(state.nodeId)",
             kind: .node,
             runThreadId: execution.threadId,
-            name: activityHumanNodeName(state.nodeId) ?? state.nodeId,
+            name: state.displayName ?? activityHumanNodeName(state.nodeId) ?? state.nodeId,
             statusSymbol: glyph.symbol,
             statusColor: glyph.color,
             isSpinning: glyph.spinning,

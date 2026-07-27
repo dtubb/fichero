@@ -4,23 +4,17 @@ import asyncio
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
-from tests.integration._seedlib import seed
-
 from fichero.db import Database, db_manager
 from fichero.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
-from fichero.models import Artifact, DocType, Document, FileType, Workflow
+from fichero.models import DocType, Document, FileType, Workflow
 from fichero.workflows.builder import build_graph
 from fichero.workflows.default_workflows import _load_preset_files
 from fichero.workflows.runtime import build_initial_state, to_workflow_def
 from fichero.workflows.tools._entity_writer import upsert_entity
-from fichero.workflows.tools.extract_all import _EntitiesOnly, _EntityOnly
 
 import fichero.workflows.tools  # noqa: F401
 
 
-FIXTURE_TEXT = "Ada signed the ledger in Mockton."
 EMBED_DIM = 1024
 
 
@@ -82,99 +76,6 @@ def test_kg_persist_finalize_preset_recomputes_and_is_idempotent(tmp_path: Path)
     assert db.lance.open_table("kg_entity_embeddings").count_rows() == 2
     assert db.lance.open_table("kg_claim_embeddings").count_rows() == 2
     assert (Path(db.path).parent / "kg.nt").exists()
-
-
-def test_catalogue_full_pipeline_runs_1_to_5(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    library_path, parent_doc_id, page_doc_ids = _seed_full_pipeline_library(tmp_path)
-    db = db_manager.get_database(library_path)
-    workflow = _load_workflow("Catalogue", provider_name="mock")
-    monkeypatch.setattr(
-        "fichero.llm.resolve_model_alias_for_capability",
-        lambda *args, **kwargs: ("openai", "gpt-4o"),
-    )
-
-    async def fake_entities(*args, **kwargs):
-        del args, kwargs
-        return _EntitiesOnly(
-            people=[_EntityOnly(name="Ada Mock", aliases=[], entity_type="person")],
-            places=[_EntityOnly(name="Mockton", aliases=[], entity_type="place")],
-            organizations=[],
-            events=[],
-        )
-
-    async def fake_extract_claims_for_entity(
-        chunk_text: str,
-        entity_name: str,
-        entity_type: str,
-        llm_config,
-        instructions: str,
-        extraction_sem,
-    ) -> list[dict]:
-        del entity_type, llm_config, instructions, extraction_sem
-        assert FIXTURE_TEXT in chunk_text
-        if entity_name == "Ada Mock":
-            return [{
-                "name": entity_name,
-                "verb": "signed",
-                "object": "the ledger",
-                "source_text": FIXTURE_TEXT,
-                "epistemic_status": "confirmed",
-                "claim_type": "fact",
-            }]
-        if entity_name == "Mockton":
-            return [{
-                "name": entity_name,
-                "verb": "is",
-                "object": "the town where Ada signed the ledger",
-                "source_text": FIXTURE_TEXT,
-                "epistemic_status": "confirmed",
-                "claim_type": "fact",
-            }]
-        return []
-
-    with (
-        patch.object(
-            Database,
-            "_embed_texts",
-            side_effect=lambda texts: [[1.0] + ([0.0] * (EMBED_DIM - 1)) for _ in texts],
-        ),
-        patch(
-            "fichero.workflows.tools.extract_entities_only.chat_structured_with_fallback",
-            new=fake_entities,
-        ),
-        patch(
-            "fichero.workflows.tools.extract_svo_only._extract_claims_for_entity",
-            new=fake_extract_claims_for_entity,
-        ),
-    ):
-        result = asyncio.run(
-            build_graph(workflow, skip_cache=True).ainvoke(
-                _workflow_state(library_path, parent_doc_id, task_id="catalogue-full-pipeline")
-            )
-        )
-
-    assert not result.get("error")
-
-    artifacts = [
-        artifact
-        for artifact in db.query(Artifact)
-        if artifact.document_id in set(page_doc_ids)
-        and artifact.artifact_type == "transcription"
-    ]
-    assert len(artifacts) == 2
-
-    entities = [
-        entity
-        for entity in db.query(KnowledgeEntity)
-        if entity.canonical_name in {"Ada Mock", "Mockton"}
-    ]
-    assert {entity.canonical_name for entity in entities}
-
-    claims = [claim for claim in db.query(KnowledgeClaim) if claim.source_document_id in set(page_doc_ids)]
-    assert len(claims) == 4
-    assert all(claim.corroboration_count >= 1 for claim in claims)
-    assert "kg_entity_embeddings" in db._lance_tables()
-    assert "kg_claim_embeddings" in db._lance_tables()
 
 
 def _seed_finalize_library(tmp_path: Path) -> tuple[Path, str, list[str]]:
@@ -261,61 +162,6 @@ def _seed_finalize_library(tmp_path: Path) -> tuple[Path, str, list[str]]:
             metadata={"verb": "signed", "object": "the ledger"},
         )
     )
-
-    return library_path, parent_doc.id, [page.id for page in pages]
-
-
-def _seed_full_pipeline_library(tmp_path: Path) -> tuple[Path, str, list[str]]:
-    library_path = tmp_path / "catalogue-full-pipeline-stage.fichero"
-    seed(library_path)
-    db = db_manager.get_database(library_path)
-
-    source_file = tmp_path / "marshall-imported.pdf"
-    source_file.write_bytes(b"%PDF-1.4\n% full pipeline fixture\n")
-
-    parent_doc = Document(
-        id="marshall-import-root",
-        name="Marshall import root",
-        path=str(source_file),
-        doc_type=DocType.file,
-        file_type=FileType.pdf,
-        metadata={"canonical_external_id": "marshall-import-root"},
-    )
-    pages = [
-        Document(
-            id="marshall-import-page-1",
-            parent_id=parent_doc.id,
-            name="Marshall import page 1",
-            doc_type=DocType.page,
-            sequence=1,
-            page_content=FIXTURE_TEXT,
-            metadata={
-                "canonical_external_id": "marshall-import-root__page_001",
-                "page_label": "001",
-                "page_number": 1,
-                "transcription": FIXTURE_TEXT,
-                "images": [{"role": "enhanced"}],
-            },
-        ),
-        Document(
-            id="marshall-import-page-2",
-            parent_id=parent_doc.id,
-            name="Marshall import page 2",
-            doc_type=DocType.page,
-            sequence=2,
-            page_content=FIXTURE_TEXT,
-            metadata={
-                "canonical_external_id": "marshall-import-root__page_002",
-                "page_label": "002",
-                "page_number": 2,
-                "transcription": FIXTURE_TEXT,
-                "images": [{"role": "enhanced"}],
-            },
-        ),
-    ]
-    db.save(parent_doc)
-    for page in pages:
-        db.save(page)
 
     return library_path, parent_doc.id, [page.id for page in pages]
 

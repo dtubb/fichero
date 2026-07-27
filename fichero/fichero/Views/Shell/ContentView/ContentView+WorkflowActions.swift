@@ -364,12 +364,7 @@ extension ContentView {
     ) -> Bool {
         executionObserver.handleEvent(event, forThreadId: threadId)
         updateDocumentStatusFromEvent(event, documentStore: documentStore)
-        switch event {
-        case .complete, .error, .systemicError:
-            return true
-        default:
-            return false
-        }
+        return event.isTerminal
     }
 
     private func workflowFinalStatus(forThreadId threadId: String) -> WorkflowStatus {
@@ -419,7 +414,7 @@ extension ContentView {
             }
         case .complete:
             documentStore.flushPendingFanoutCompletions(status: .completed)
-        case .error, .systemicError:
+        case .cancelled, .error, .systemicError:
             documentStore.flushPendingFanoutCompletions(status: .failed)
         default:
             break

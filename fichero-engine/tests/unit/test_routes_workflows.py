@@ -145,6 +145,22 @@ class TestListWorkflows:
         assert by_name["Trusted Preset"]["untested"] is False
         assert by_name["User Workflow"]["untested"] is False
 
+    def test_list_marks_sub_workflow_components_not_directly_runnable(self, client, db):
+        _make_workflow(
+            db,
+            "Internal Child",
+            is_system=True,
+            config={"input_contract": [{"id": "files", "required": True}]},
+        )
+        _make_workflow(db, "Direct Workflow", is_system=True, config={})
+
+        response = client.get("/api/workflows")
+
+        assert response.status_code == 200
+        by_name = {item["name"]: item for item in response.json()["items"]}
+        assert by_name["Internal Child"]["direct_runnable"] is False
+        assert by_name["Direct Workflow"]["direct_runnable"] is True
+
 
 # ---------------------------------------------------------------------------
 # POST /api/workflows — create

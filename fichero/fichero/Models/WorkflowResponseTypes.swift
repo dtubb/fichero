@@ -59,6 +59,7 @@ struct WorkflowResponse: Codable {
     let isSystem: Bool
     // True = shipped preset not yet validated end-to-end; UI appends "(Untested)".
     var isUntested: Bool = false
+    let directRunnable: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, provider, model, nodes, edges
@@ -66,6 +67,7 @@ struct WorkflowResponse: Codable {
         case sortOrder = "sort_order"
         case isSystem = "is_system"
         case isUntested = "untested"
+        case directRunnable = "direct_runnable"
     }
 }
 
@@ -83,6 +85,7 @@ enum NodeExecutionStatus: String, Codable {
 /// Tracks execution progress for a workflow node
 struct NodeExecutionState: Identifiable {
     let nodeId: String
+    var displayName: String?
     var status: NodeExecutionStatus = .idle
     var progress: Double = 0.0  // 0.0 to 1.0
     var fileIndex: Int = 0

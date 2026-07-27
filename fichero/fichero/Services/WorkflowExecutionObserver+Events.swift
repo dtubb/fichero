@@ -162,6 +162,7 @@ extension WorkflowExecution {
         // Skip LangGraph internal fan-out/fan-in nodes — not user-visible steps.
         guard !nodeId.hasSuffix("_aggregate"), !nodeId.hasPrefix("branch:to:") else { return }
         var state = nodeStates[nodeId] ?? NodeExecutionState(nodeId: nodeId)
+        state.displayName = nodeName
         state.status = .running
         state.progress = 0
         nodeStates[nodeId] = state
@@ -325,7 +326,8 @@ extension WorkflowExecution {
         documentProgress[identity.stableId] = docProgress
 
         // Track overall progress
-        processedFiles += 1
+        processedFileIds.insert(identity.stableId)
+        processedFiles = processedFileIds.count
         currentFilePath = nil  // Clear current file
         // (The observer raises `fileCompletedCount` in `handleEvent` — it is
         // an observer-level inspector signal, not part of this reducer.)
@@ -355,7 +357,8 @@ extension WorkflowExecution {
         documentProgress[identity.stableId] = docProgress
 
         // Track overall progress (errors also count as processed)
-        processedFiles += 1
+        processedFileIds.insert(identity.stableId)
+        processedFiles = processedFileIds.count
         currentFilePath = nil
     }
 }

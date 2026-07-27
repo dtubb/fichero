@@ -5,7 +5,9 @@ between steps. Uses an in-memory store. Dev-tier feature.
 """
 
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
+
+from fichero.api.routes import chains as chain_routes
 
 from fichero.workflows.chaining import (
     chain_store,
@@ -19,8 +21,12 @@ from fichero.workflows.chaining import (
 def clear_chain_store():
     """Reset the in-memory chain store between tests."""
     chain_store._chains.clear()
+    chain_routes._running_executions.clear()
+    chain_routes._running_executors.clear()
     yield
     chain_store._chains.clear()
+    chain_routes._running_executions.clear()
+    chain_routes._running_executors.clear()
 
 
 def _chain_payload(name: str = "Test Chain") -> dict:
@@ -218,6 +224,21 @@ class TestExecuteChain:
         cancel = client.delete(f"/api/chains/executions/{execution_id}")
         assert cancel.status_code == 200
         assert cancel.json()["execution_id"] == execution_id
+
+    def test_cancel_execution_signals_running_executor(self, client):
+        executor = MagicMock()
+        chain_routes._running_executions["exec-running"] = ChainExecutionResult(
+            chain_id="chain-1",
+            execution_id="exec-running",
+            status=ChainStepStatus.PENDING,
+        )
+        chain_routes._running_executors["exec-running"] = executor
+
+        cancel = client.delete("/api/chains/executions/exec-running")
+
+        assert cancel.status_code == 200
+        assert cancel.json()["cancelled"] is True
+        executor.cancel.assert_called_once_with()
 
 
 class TestChainOpenAPISchema:

@@ -104,11 +104,8 @@ extension WorkflowEditor {
                     updateDocumentStatus(for: event, documentStore: documentStore)
 
                     // Track terminal events
-                    switch event {
-                    case .complete, .error, .systemicError:
+                    if event.isTerminal {
                         completion.finish()
-                    default:
-                        break
                     }
                 }
             )
@@ -242,7 +239,7 @@ extension WorkflowEditor {
         case .complete:
             documentStore.flushPendingFanoutCompletions(status: .completed)
 
-        case .error, .systemicError:
+        case .cancelled, .error, .systemicError:
             documentStore.flushPendingFanoutCompletions(status: .failed)
 
         default:

@@ -62,6 +62,8 @@ struct SelectedActivityRun: Equatable, Identifiable, Hashable {
     let timestamp: Date
     let status: ActivityRunStatusType
     let isLive: Bool  // True if currently running (use observer for updates)
+    var libraryId: UUID?
+    var libraryName: String?
     var childType: ActivityChildType?  // Which child is selected (nil = overview)
 
     enum ActivityRunStatusType: String, Equatable {
@@ -82,6 +84,8 @@ struct SelectedActivityRun: Equatable, Identifiable, Hashable {
             timestamp: timestamp,
             status: status,
             isLive: isLive,
+            libraryId: libraryId,
+            libraryName: libraryName,
             childType: childType
         )
     }

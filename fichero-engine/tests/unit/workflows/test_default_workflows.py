@@ -475,21 +475,21 @@ class TestLoadPresetFiles:
         # The connection graph must be fully clean (environment-independent).
         assert connection_errors == []
 
-    def test_paleography_ensemble_translate_uses_text_tier_alias(self):
-        """The ensemble's T5 translate node is a text (llm) tool, so it must use
-        a text-tier alias ($small/$medium/$large), never a $vision_* alias."""
+    def test_paleography_ensemble_has_no_mandatory_optional_stages(self):
         presets = {p["name"]: p for p in _load_preset_files()}
         ensemble = presets["Transcribe Paleography (Ensemble + Deep Review)"]
-        translate_node = next(
-            n for n in ensemble["nodes"] if n["tool"] == "translate"
-        )
-        alias = translate_node["config"].get("provider_name")
-        assert alias in {"$small", "$medium", "$large"}, (
-            f"translate node must use a text-tier alias, got {alias!r}"
-        )
-        assert not alias.startswith("$vision_"), (
-            "translate is a text node; a $vision_* alias fails preflight"
-        )
+        tools = {node["tool"] for node in ensemble["nodes"]}
+        assert "translate" not in tools
+        assert "consistency-check" not in tools
+
+    def test_paleography_ensemble_final_review_bypasses_t2_artifact(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        ensemble = presets["Transcribe Paleography (Ensemble + Deep Review)"]
+        nodes = {node["id"]: node for node in ensemble["nodes"]}
+
+        assert nodes["t2"]["config"]["provider_name"] == "$vision_medium"
+        assert nodes["t4"]["config"]["provider_name"] == "$vision_medium"
+        assert nodes["t4"]["config"]["skip_if_artifact_exists"] is False
 
     def test_spanish_script_subworkflow_ships_in_transcribe_folder(self):
         """After rationalization (#2251), the sole user-facing Spanish Script preset
@@ -714,7 +714,14 @@ class TestLoadPresetFiles:
         assert len(route_edges) == 1, "auto-detect must have exactly one route_map edge"
 
         rmap = route_edges[0]["route_map"]
-        assert set(rmap.keys()) == {"typescript", "manuscript", "htr", "paleography"}
+        assert set(rmap.keys()) == {
+            "typescript",
+            "manuscript",
+            "htr",
+            "paleography",
+            "mixed",
+        }
+        assert rmap["mixed"] == rmap["paleography"]
 
         # All route_map target node IDs must exist in nodes
         node_ids = {n["id"] for n in ad["nodes"]}

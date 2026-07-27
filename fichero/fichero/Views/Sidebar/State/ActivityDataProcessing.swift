@@ -31,6 +31,7 @@ func runsByWorkflow(
         addActiveExecutionRuns(
             activeExecutions,
             libraryId: library.id,
+            libraryName: library.displayName,
             groups: &groups,
             seenThreadIds: &seenThreadIds
         )
@@ -39,6 +40,7 @@ func runsByWorkflow(
     addHistoricalRuns(
         historicalRuns[library.id] ?? [],
         libraryId: library.id,
+        libraryName: library.displayName,
         groups: &groups,
         seenThreadIds: &seenThreadIds
     )
@@ -55,6 +57,7 @@ func runsByWorkflow(
 private func addActiveExecutionRuns(
     _ activeExecutions: [String: WorkflowExecution],
     libraryId: UUID,
+    libraryName: String,
     groups: inout [ActivityWorkflowGroup: [ActivityRun]],
     seenThreadIds: inout Set<String>
 ) {
@@ -78,7 +81,9 @@ private func addActiveExecutionRuns(
             currentStep: execution.currentNodeName,
             errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
             fileCount: execution.totalFiles,
-            isLive: execution.isRunning
+            isLive: execution.isRunning,
+            libraryId: libraryId,
+            libraryName: libraryName
         )
         groups[groupKey, default: []].append(run)
         seenThreadIds.insert(execution.threadId)
@@ -90,6 +95,7 @@ private func addActiveExecutionRuns(
 private func addHistoricalRuns(
     _ unsortedRuns: [ActivityItem],
     libraryId: UUID,
+    libraryName: String,
     groups: inout [ActivityWorkflowGroup: [ActivityRun]],
     seenThreadIds: inout Set<String>
 ) {
@@ -123,7 +129,9 @@ private func addHistoricalRuns(
             currentStep: nil,
             errorCount: activityHasError(item) ? 1 : 0,
             fileCount: activityExtractFileCount(from: item),
-            isLive: false
+            isLive: false,
+            libraryId: libraryId,
+            libraryName: libraryName
         )
         groups[groupKey, default: []].append(run)
         seenThreadIds.insert(threadId)

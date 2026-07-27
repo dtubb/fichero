@@ -377,16 +377,7 @@ def test_spanish_script_v2_child_resolves_distinct_vision_tiers(monkeypatch):
     ) == []
 
 
-def test_paleography_ensemble_translate_node_passes_preflight(monkeypatch):
-    """The ensemble's T5 translate node must resolve as a TEXT node.
-
-    Regression for the shipped bug where T5 (tool=translate, a text/llm node)
-    used the vision-tier alias $vision_medium, which the preflight rejects with
-    "$vision_medium is a vision-tier model alias and cannot be used for text
-    workflow nodes". With every alias tier configured, the whole ensemble
-    preset must clear preflight. Flipping T5 back to a $vision_* alias would
-    reintroduce exactly one vision-tier error here.
-    """
+def test_paleography_ensemble_without_optional_translation_passes_preflight(monkeypatch):
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
         "fichero.db.app.get_app_db",
@@ -428,8 +419,7 @@ def test_paleography_ensemble_translate_node_passes_preflight(monkeypatch):
         data["version"] = str(data["version"])
     workflow = WorkflowDef(**data)
 
-    translate_node = next(n for n in workflow.nodes if n.tool == "translate")
-    assert translate_node.config.get("provider_name") in {"$small", "$medium", "$large"}
+    assert all(node.tool != "translate" for node in workflow.nodes)
 
     assert validate_workflow_preflight(
         workflow,

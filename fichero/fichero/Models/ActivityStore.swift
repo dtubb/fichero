@@ -91,30 +91,33 @@ final class ActivityStore: ChangeEventConsumer {
 
     // MARK: - Run list assembly (#3231)
 
-    /// Rebuild `runs` from the window's live executions + each open library's
-    /// recent history. Deps are passed in (the view holds them via @Environment)
+    /// Rebuild `runs` from the window's live executions + this library's recent
+    /// history. Deps are passed in (the view holds them via @Environment)
     /// so the store carries no view-layer references. Per-library query failures
     /// are collected into `runLoadFailures` rather than silently dropped.
     func rebuildRuns(
         activeExecutions: [WorkflowExecution],
-        openLibraries: [LibraryManager.LibraryReference]
+        library: LibraryManager.LibraryReference
     ) async {
         isRebuildingRuns = true
         defer { isRebuildingRuns = false }
 
-        var result = activeExecutions.map { liveRun(from: $0) }
+        var result = activeExecutions.map { liveRun(from: $0, library: library) }
         let (historical, failures) = await historicalRuns(
             excluding: Set(result.map(\.runId)),
-            openLibraries: openLibraries
+            library: library
         )
         result.append(contentsOf: historical)
         runs = result.sorted { $0.timestamp > $1.timestamp }
         runLoadFailures = failures
     }
 
-    private func liveRun(from execution: WorkflowExecution) -> ActivityRun {
+    private func liveRun(
+        from execution: WorkflowExecution,
+        library: LibraryManager.LibraryReference
+    ) -> ActivityRun {
         ActivityRun(
-            id: execution.threadId,
+            id: "\(library.id.uuidString)|\(execution.threadId)",
             runId: execution.threadId,
             workflowId: execution.id,
             threadId: execution.threadId,
@@ -125,53 +128,52 @@ final class ActivityStore: ChangeEventConsumer {
             currentStep: execution.currentNodeName,
             errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
             fileCount: execution.totalFiles,
-            isLive: true
+            isLive: true,
+            libraryId: library.id,
+            libraryName: library.displayName
         )
     }
 
     private func historicalRuns(
         excluding seenThreadIds: Set<String>,
-        openLibraries: [LibraryManager.LibraryReference]
+        library: LibraryManager.LibraryReference
     ) async -> (runs: [ActivityRun], failures: [String]) {
         let types = ["workflow_started", "workflow_completed", "workflow_failed", "workflow_cancelled"]
         let since = Date().addingTimeInterval(-7 * 24 * 3600)
         var result: [ActivityRun] = []
         var failures: [String] = []
         var emittedThreadIds = seenThreadIds
-        for library in openLibraries {
-            guard !Task.isCancelled else { break }
-            do {
-                let items = try await library.activityService.queryActivities(
-                    types: types,
-                    since: since,
-                    limit: 100
-                )
-                for item in items.sorted(by: {
-                    ($0.parsedTimestamp ?? .distantPast) > ($1.parsedTimestamp ?? .distantPast)
-                }) {
-                    let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
-                    guard let threadId, !emittedThreadIds.contains(threadId) else { continue }
-                    result.append(ActivityRun(
-                        id: threadId,
-                        runId: threadId,
-                        workflowId: item.workflowId,
-                        threadId: threadId,
-                        workflowName: activityCleanWorkflowName(activityExtractWorkflowName(from: item)),
-                        timestamp: item.parsedTimestamp ?? Date(),
-                        status: activityMapActivityType(item.type),
-                        progress: nil,
-                        currentStep: nil,
-                        errorCount: 0,
-                        fileCount: 0,
-                        isLive: false
-                    ))
-                    emittedThreadIds.insert(threadId)
-                }
-            } catch {
-                // Non-fatal for the OTHER libraries, but not silent (#3231 p1):
-                // record it so the view can surface a per-library warning row.
-                failures.append("Couldn't load activity from \(library.displayName)")
+        do {
+            let items = try await library.activityService.queryActivities(
+                types: types,
+                since: since,
+                limit: 100
+            )
+            for item in items.sorted(by: {
+                ($0.parsedTimestamp ?? .distantPast) > ($1.parsedTimestamp ?? .distantPast)
+            }) {
+                let threadId = item.threadId ?? item.batchId.map { "batch:\($0)" }
+                guard let threadId, !emittedThreadIds.contains(threadId) else { continue }
+                result.append(ActivityRun(
+                    id: "\(library.id.uuidString)|\(threadId)",
+                    runId: threadId,
+                    workflowId: item.workflowId,
+                    threadId: threadId,
+                    workflowName: activityCleanWorkflowName(activityExtractWorkflowName(from: item)),
+                    timestamp: item.parsedTimestamp ?? Date(),
+                    status: activityMapActivityType(item.type),
+                    progress: nil,
+                    currentStep: nil,
+                    errorCount: 0,
+                    fileCount: 0,
+                    isLive: false,
+                    libraryId: library.id,
+                    libraryName: library.displayName
+                ))
+                emittedThreadIds.insert(threadId)
             }
+        } catch {
+            failures.append("Couldn't load activity from \(library.displayName)")
         }
         return (result, failures)
     }

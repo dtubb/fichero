@@ -126,6 +126,154 @@ async def test_pdf_with_existing_page_content_skips_vision(tmp_path: Path) -> No
     assert mock_save.await_count == 1
 
 
+@pytest.mark.asyncio
+async def test_force_ocr_bypasses_existing_page_content(tmp_path: Path) -> None:
+    image = tmp_path / "page.png"
+    image.write_bytes(b"image")
+    documents = [{
+        "id": "doc-1",
+        "path": str(image),
+        "page_content": "stale transcription",
+    }]
+
+    with (
+        patch(
+            "fichero.workflows.tools.vision_base.file_to_data_uri",
+            return_value="data:image/png;base64,IMAGE",
+        ),
+        patch(
+            "fichero.llm.vision",
+            new=AsyncMock(return_value="fresh image result"),
+        ) as vision,
+    ):
+        result = await process_vision(
+            files=[str(image)],
+            documents=documents,
+            prompt="Review the image.",
+            llm_config=_make_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+            force_ocr=True,
+            save_to_db=False,
+        )
+
+    vision.assert_awaited_once()
+    assert result["text"] == "fresh image result"
+
+
+@pytest.mark.asyncio
+async def test_specialist_vision_tools_force_image_processing() -> None:
+    from importlib import import_module
+
+    for module_name, tool_name in (
+        ("classify_script", "classify_script"),
+        ("handwriting", "handwriting"),
+        ("transcribe_review", "transcribe_review"),
+    ):
+        module = import_module(f"fichero.workflows.tools.{module_name}")
+        process_result = {
+            "text": "{}" if tool_name == "classify_script" else "result",
+            "results": [],
+        }
+        with patch.object(
+            module,
+            "process_vision",
+            new=AsyncMock(return_value=process_result),
+        ) as process_vision:
+            await getattr(module, tool_name)(
+                {"files": ["page.png"]},
+                {"library_path": "/library.fichero"},
+                _make_llm_config(),
+            )
+
+        assert process_vision.await_args.kwargs["force_ocr"] is True
+
+
+@pytest.mark.asyncio
+async def test_transcribe_review_can_disable_prior_artifact_reuse() -> None:
+    from fichero.workflows.tools import transcribe_review as review_module
+
+    with patch.object(
+        review_module,
+        "process_vision",
+        new=AsyncMock(return_value={"text": "final review"}),
+    ) as process_vision:
+        await review_module.transcribe_review(
+            {
+                "files": ["page.png"],
+                "skip_if_artifact_exists": False,
+            },
+            {"library_path": "/library.fichero"},
+            _make_llm_config(),
+        )
+
+    tool_config = process_vision.await_args.kwargs["tool_config"]
+    assert tool_config.skip_if_artifact_exists is False
+
+
+@pytest.mark.asyncio
+async def test_transcribe_review_aligns_ensemble_drafts_by_page() -> None:
+    from fichero.workflows.tools import transcribe_review as review_module
+
+    with patch.object(
+        review_module,
+        "process_vision",
+        new=AsyncMock(return_value={"texts": ["review 1", "review 2"]}),
+    ) as process_vision:
+        await review_module.transcribe_review(
+            {
+                "files": ["page-1.png", "page-2.png"],
+                "context": [
+                    [{"text": "model-a page 1"}, {"text": "model-a page 2"}],
+                    [{"text": "model-b page 1"}, {"text": "model-b page 2"}],
+                ],
+            },
+            {"library_path": "/library.fichero"},
+            _make_llm_config(),
+        )
+
+    assert process_vision.await_args.kwargs["context"] == [
+        "model-a page 1\n\n---\n\nmodel-b page 1",
+        "model-a page 2\n\n---\n\nmodel-b page 2",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_process_vision_uses_page_aligned_context(tmp_path: Path) -> None:
+    files = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
+    for file in files:
+        file.write_bytes(b"image")
+
+    async def review(images, prompt, config):
+        del images, config
+        assert not ({"draft page 1", "draft page 2"} <= set(prompt.splitlines()))
+        return "review 1" if "draft page 1" in prompt else "review 2"
+
+    with (
+        patch(
+            "fichero.workflows.tools.vision_base.file_to_data_uri",
+            return_value="data:image/png;base64,IMAGE",
+        ),
+        patch("fichero.llm.vision", new=review),
+    ):
+        result = await process_vision(
+            files=[str(file) for file in files],
+            documents=[],
+            prompt="Review.",
+            llm_config=_make_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            context=["draft page 1", "draft page 2"],
+            force_ocr=True,
+            save_to_db=False,
+        )
+
+    assert result["texts"] == ["review 1", "review 2"]
+
+
 def test_non_retriable_provider_error_detection() -> None:
     assert _is_non_retriable_provider_error("Error code: 403 - key limit exceeded")
     assert _is_non_retriable_provider_error("401 Unauthorized")

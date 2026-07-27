@@ -9,12 +9,15 @@ Tests the activity tracking endpoints including:
 - Activity cleanup
 """
 
-import pytest
+import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock, AsyncMock
 
+import pytest
+
 from fichero.workflows.activity import (
     Activity,
+    ActivityFilter,
     ActivityLevel,
     ActivityStats,
     ActivityTracker,
@@ -389,3 +392,19 @@ class TestActivityTrackerIntegration:
         assert ActivityType.NODE_COMPLETED in types
         assert ActivityType.WORKFLOW_COMPLETED in types
         assert ActivityType.WORKFLOW_FAILED in types
+
+    @pytest.mark.asyncio
+    async def test_log_from_worker_thread_schedules_on_tracker_loop(self, test_package):
+        tracker = ActivityTracker(str(test_package / "fichero.duckdb"))
+
+        await asyncio.to_thread(
+            tracker.log,
+            ActivityType.SYSTEM_WARNING,
+            "Apple Vision warning",
+            ActivityLevel.WARNING,
+        )
+        await asyncio.sleep(0)
+        await tracker.wait_for_pending_saves()
+
+        activities = await tracker.query(ActivityFilter(limit=10))
+        assert any(activity.message == "Apple Vision warning" for activity in activities)

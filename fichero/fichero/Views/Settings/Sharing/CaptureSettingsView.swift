@@ -282,7 +282,7 @@ struct CaptureUserManageView: View {
         if lib.workflowStore.workflows.isEmpty {
             await lib.workflowStore.loadWorkflows()
         }
-        availableWorkflows = lib.workflowStore.workflows
+        availableWorkflows = lib.workflowStore.directlyRunnableWorkflows
     }
 }
 

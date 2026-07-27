@@ -17,6 +17,16 @@ final class WorkflowCanvasUndoBoundaryTests: XCTestCase {
         XCTAssertTrue(dropSource.contains("registerUndo(from: previousWorkflow, actionName: \"Add Node\")"))
     }
 
+    func testDuplicateNodePreservesEditableConfiguration() throws {
+        let source = try Self.appSource("Views/Workflow/Canvas/WorkflowCanvasView+NodesLayer.swift")
+
+        for property in [
+            "description", "enabled", "inputMappings", "inputs", "config", "outputSchema", "usesLLM"
+        ] {
+            XCTAssertTrue(source.contains("\(property): original.\(property)"), property)
+        }
+    }
+
     private static func appSource(_ relativePath: String) throws -> String {
         let baseURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

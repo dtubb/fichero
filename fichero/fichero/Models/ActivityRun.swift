@@ -18,6 +18,8 @@ struct ActivityRun: Identifiable {
     let errorCount: Int
     let fileCount: Int  // Number of files processed (from metadata)
     let isLive: Bool  // True if from WorkflowExecutionObserver
+    var libraryId: UUID?
+    var libraryName: String?
 
     /// Convert to SelectedActivityRun for viewMode
     func toSelectedRun() -> SelectedActivityRun {
@@ -29,6 +31,8 @@ struct ActivityRun: Identifiable {
             timestamp: timestamp,
             status: status.toStatusType(),
             isLive: isLive,
+            libraryId: libraryId,
+            libraryName: libraryName,
             childType: nil
         )
     }

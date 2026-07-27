@@ -14,6 +14,10 @@ struct ActivityMonitorWindow: View {
     @State private var selectionState = ActivityWindowSelectionState.shared
 
     private var library: LibraryManager.LibraryReference? {
+        if let id = selectionState.libraryId,
+           let library = libraryManager.getLibrary(id: id) {
+            return library
+        }
         if let id = libraryManager.currentLibraryId,
            let library = libraryManager.getLibrary(id: id) {
             return library
@@ -24,15 +28,24 @@ struct ActivityMonitorWindow: View {
     var body: some View {
         Group {
             if let library {
-                ActivityBrowserView(
-                    selectedRunId: selectionState.selectedRun?.id,
-                    onSelectRun: { selectionState.select($0) },
-                    showsOpenWindowButton: false,
-                    opensDetailWindow: true
-                )
-                .environment(library.activityStore)
-                .environment(library.apiClient)
-                .environment(library.workflowExecutionStore)
+                VStack(spacing: 0) {
+                    Label(library.displayName, systemImage: "books.vertical")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                    Divider()
+                    ActivityBrowserView(
+                        selectedRunId: selectionState.selectedRun?.id,
+                        onSelectRun: { selectionState.select($0) },
+                        showsOpenWindowButton: false,
+                        opensDetailWindow: true
+                    )
+                    .environment(library.activityStore)
+                    .environment(library.apiClient)
+                    .environment(library.workflowExecutionStore)
+                }
             } else {
                 ContentUnavailableView(
                     "No Library Open",

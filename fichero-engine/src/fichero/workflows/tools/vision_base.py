@@ -15,6 +15,7 @@ Provides:
 from __future__ import annotations
 
 import asyncio
+from contextvars import ContextVar
 import os
 import tempfile
 import base64
@@ -95,6 +96,9 @@ from fichero.workflows.circuit_breaker import (
 )
 
 logger = logging.getLogger(__name__)
+_vision_activity_db_path: ContextVar[str | None] = ContextVar(
+    "vision_activity_db_path", default=None
+)
 
 
 def _vision_backoff_settings() -> dict:
@@ -142,7 +146,7 @@ def _log_vision_warning(message: str, file_path: str = None):
         # Try to get activity tracker - this should work if we're in a workflow context
         from fichero.workflows.activity import get_activity_tracker
         from fichero.workflows.activity_types import ActivityType, ActivityLevel
-        tracker = get_activity_tracker()
+        tracker = get_activity_tracker(_vision_activity_db_path.get())
         if tracker:
             tracker.log(
                 type=ActivityType.SYSTEM_WARNING,
@@ -197,14 +201,13 @@ VISION_CONFIG_SCHEMA = merge_config_schema(
             "description": "Max image size",
             "x-group": "primary",
         },
-        # #1033 — born-digital PDFs already carry a selectable text
-        # layer; the transcribe path uses it and skips vision OCR. Set
-        # this when a PDF's own text layer is itself garbage and OCR is
-        # genuinely needed.
+        # #1033 — generic Transcribe reuses existing extracted text. Set
+        # this for specialist image passes, or when a PDF text layer is
+        # itself garbage and OCR is genuinely needed.
         "force_ocr": {
             "type": "boolean",
             "default": False,
-            "description": "Force OCR even when a PDF has a text layer",
+            "description": "Force image processing instead of existing text",
             "x-group": "advanced",
         },
     },
@@ -788,8 +791,10 @@ def _vision_ocr_cgimage_with_geometry(
 
         results = request.results()
         if not results:
-            img_width = cg_image.width()
-            img_height = cg_image.height()
+            from Quartz import CGImageGetHeight, CGImageGetWidth  # noqa: PLC0415
+
+            img_width = CGImageGetWidth(cg_image)
+            img_height = CGImageGetHeight(cg_image)
             msg = (f"Vision OCR returned empty at {recognition_level_name} "
                    f"({img_width}x{img_height} pixels, lang={language})")
             logger.warning(msg)
@@ -827,8 +832,7 @@ def _vision_ocr_cgimage_with_geometry(
 
 async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
     """Async wrapper for Apple Vision OCR."""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, apple_vision_ocr, image_path, language)
+    return await asyncio.to_thread(apple_vision_ocr, image_path, language)
 
 
 @lru_cache(maxsize=4)
@@ -944,8 +948,7 @@ def _apple_ocr_pdf_page(pdf_path: str, page_index: int, language: str = "en") ->
 
 async def apple_vision_ocr_pages_async(pdf_path: str, language: str = "en") -> list[str]:
     """Async per-page OCR for PDFs. Returns list[str] (one entry per page)."""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _apple_ocr_pdf_pages, pdf_path, language)
+    return await asyncio.to_thread(_apple_ocr_pdf_pages, pdf_path, language)
 
 
 async def apple_vision_ocr_pdf_page_async(
@@ -954,9 +957,7 @@ async def apple_vision_ocr_pdf_page_async(
     language: str = "en",
 ) -> str:
     """Async OCR for one PDF page by zero-based page index."""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None,
+    return await asyncio.to_thread(
         _apple_ocr_pdf_page,
         pdf_path,
         page_index,
@@ -1389,7 +1390,7 @@ async def process_vision(
     reference_values: dict[str, list] | None = None,
     match_mode: str = "prefer",
     # Context (from BASE_CONFIG_SCHEMA)
-    context: str | None = None,
+    context: str | list[str] | None = None,
     input_metadata: dict | None = None,
     # Thinking mode (from BASE_CONFIG_SCHEMA)
     thinking_mode: str = "off",
@@ -1564,9 +1565,6 @@ async def process_vision(
         f"{sum(1 for t in existing_text_by_index if t)} with pre-extracted text"
     )
 
-    # Build context section
-    context_section = build_context_section(context, input_metadata)
-
     # Build reference section
     ref_section = build_reference_section(reference_values, match_mode)
 
@@ -1575,11 +1573,6 @@ async def process_vision(
 
     # Build thinking preamble
     thinking_preamble = build_thinking_preamble(thinking_mode)
-
-    # Combine prompt
-    final_prompt = (
-        f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
-    )
 
     results = []
     texts = []
@@ -1616,6 +1609,16 @@ async def process_vision(
     # existing per-file ERROR ISOLATION: one file failing records its error and
     # never aborts the siblings or the node.
     async def _process_file(file_index: int, file_path: str) -> dict:
+        file_context = (
+            context[file_index]
+            if isinstance(context, list) and file_index < len(context)
+            else context if isinstance(context, str)
+            else None
+        )
+        final_prompt = (
+            f"{thinking_preamble}{build_context_section(file_context, input_metadata)}"
+            f"{prompt}{ref_section}{output_constraint}"
+        )
         results: list = []
         texts: list = []
         values: list = []
@@ -1728,7 +1731,7 @@ async def process_vision(
                 if file_index < len(page_doc_dict_by_index)
                 else None
             )
-            if existing_text:
+            if existing_text and not force_ocr:
                 logger.info(
                     f"Pre-extracted text passthrough: {Path(file_path).name} "
                     f"({len(existing_text)} chars, doc_id={doc_id_for_file})"
@@ -2425,8 +2428,14 @@ async def process_vision(
     )
 
     _vision_sem = _get_vision_semaphore()
+    activity_db_path = None
+    if library_path:
+        from fichero.db import db_manager
+
+        activity_db_path = str(db_manager.get_database(library_path).path)
 
     async def _run_one(file_index: int, file_path: str) -> dict:
+        activity_scope = _vision_activity_db_path.set(activity_db_path)
         try:
             async with _vision_sem:
                 return await _process_file(file_index, file_path)
@@ -2449,6 +2458,8 @@ async def process_vision(
                 "output_files": [],
                 "page_records": [],
             }
+        finally:
+            _vision_activity_db_path.reset(activity_scope)
 
     _schedule_window = max(VISION_FAN_OUT_CONCURRENCY * 8, 32)
     for _start in range(0, len(files), _schedule_window):

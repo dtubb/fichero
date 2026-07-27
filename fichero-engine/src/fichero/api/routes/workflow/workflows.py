@@ -153,6 +153,7 @@ class WorkflowResponse(BaseModel):
     # config carries `"tested": true` (today: only "Transcribe HTR"). User
     # workflows (is_system=False) are never flagged.
     untested: bool = False
+    direct_runnable: bool = True
 
 
 def _workflow_untested(wf) -> bool:
@@ -164,6 +165,11 @@ def _workflow_untested(wf) -> bool:
     return bool(getattr(wf, "is_system", False)) and not bool(
         (getattr(wf, "config", None) or {}).get("tested", False)
     )
+
+
+def _workflow_direct_runnable(wf) -> bool:
+    """Sub-workflow components require contract inputs, not document selection."""
+    return not bool((getattr(wf, "config", None) or {}).get("input_contract"))
 
 
 class WorkflowListResponse(BaseModel):
@@ -520,6 +526,7 @@ def _workflow_to_response(workflow: "Workflow") -> WorkflowResponse:  # noqa: F8
         folder_path=workflow.folder_path,
         sort_order=workflow.sort_order,
         untested=_workflow_untested(workflow),
+        direct_runnable=_workflow_direct_runnable(workflow),
     )
 
 

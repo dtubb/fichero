@@ -187,7 +187,8 @@
         "typescript": "transcribe-ts",
         "manuscript": "transcribe-ms",
         "htr": "transcribe-htr",
-        "paleography": "transcribe-paleo"
+        "paleography": "transcribe-paleo",
+        "mixed": "transcribe-paleo"
       }
     },
     {
@@ -201,7 +202,7 @@
       "id": "edge-htr-review",
       "source": "transcribe-htr",
       "target": "review-htr",
-      "source_port": "text",
+      "source_port": "records",
       "target_port": "context"
     },
     {
@@ -222,7 +223,7 @@
       "id": "edge-paleo-review",
       "source": "transcribe-paleo",
       "target": "review-paleo",
-      "source_port": "text",
+      "source_port": "records",
       "target_port": "context"
     },
     {

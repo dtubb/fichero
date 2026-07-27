@@ -8,10 +8,16 @@ final class ActivityWindowSelectionState {
     static let detailWindowID = "activity-detail"
 
     var selectedRun: SelectedActivityRun?
+    var libraryId: UUID?
 
     func select(_ run: SelectedActivityRun?) {
         selectedRun = run
+        if let libraryId = run?.libraryId {
+            self.libraryId = libraryId
+        }
     }
+
+    func selectLibrary(_ libraryId: UUID) { self.libraryId = libraryId }
 }
 
 /// Shared helper functions for Activity views
@@ -157,8 +163,8 @@ struct ActivityBrowserView: View {
     var showsOpenWindowButton: Bool = true
     var opensDetailWindow: Bool = false
 
-    @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(ActivityStore.self) private var activityStore
+    @Environment(WorkflowExecutionStore.self) private var workflowExecutionStore
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
@@ -272,12 +278,15 @@ struct ActivityBrowserView: View {
     }
 
     /// Rebuild the run list on the store from this window's live executions +
-    /// the open libraries' history (#3231 p2). The store owns the merge; the view
+    /// this library's history (#3231 p2). The store owns the merge; the view
     /// just feeds it the @Environment deps the store can't reach.
     private func reloadRuns() async {
+        guard let library = libraryManager.openLibraries.first(where: {
+            $0.activityStore === activityStore
+        }) else { return }
         await activityStore.rebuildRuns(
-            activeExecutions: Array(executionObserver.activeExecutions.values),
-            openLibraries: libraryManager.openLibraries
+            activeExecutions: Array(workflowExecutionStore.executions.values),
+            library: library
         )
     }
 
@@ -326,6 +335,13 @@ private struct ActivityBrowserRow: View {
                 Text(run.workflowName)
                     .font(.subheadline)
                     .lineLimit(1)
+
+                if let libraryName = run.libraryName {
+                    Text(libraryName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
 
                 HStack(spacing: 4) {
                     if run.isLive {

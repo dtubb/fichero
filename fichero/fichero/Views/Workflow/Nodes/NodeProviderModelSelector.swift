@@ -7,11 +7,28 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "NodePro
 let appleVisionProviderId = "apple_vision"
 
 /// Capability-tier model aliases (#810/#814). When selected, the node's
-/// providerName is persisted as the literal string "$small" or "$large";
+/// providerName is persisted as the literal alias;
 /// the workflow runtime's resolve_model_alias() looks up the concrete
 /// provider+model from the user's AIDefaults at execution time.
 let smallAliasProviderId = "$small"
 let largeAliasProviderId = "$large"
+let visionSmallAliasProviderId = "$vision_small"
+let visionMediumAliasProviderId = "$vision_medium"
+let visionLargeAliasProviderId = "$vision_large"
+
+func isModelAliasProviderId(_ providerId: String) -> Bool {
+    [
+        smallAliasProviderId,
+        largeAliasProviderId,
+        visionSmallAliasProviderId,
+        visionMediumAliasProviderId,
+        visionLargeAliasProviderId
+    ].contains(providerId)
+}
+
+func configuredNodeProviderId(_ node: WorkflowNode) -> String? {
+    node.providerName ?? node.config?["provider_name"]?.stringValue
+}
 
 /// Provider and model selection component for workflow nodes
 struct NodeProviderModelSelector: View {
@@ -40,11 +57,10 @@ struct NodeProviderModelSelector: View {
         selectedProviderId == appleVisionProviderId
     }
 
-    /// Whether a $small / $large alias is currently selected — model
+    /// Whether a model alias is currently selected — model
     /// picker hides when so, the runtime resolver fills both fields.
     private var isAliasSelected: Bool {
-        selectedProviderId == smallAliasProviderId
-            || selectedProviderId == largeAliasProviderId
+        isModelAliasProviderId(selectedProviderId)
     }
 
     /// Whether no explicit provider is set — node uses the workflow/system default.
@@ -124,14 +140,22 @@ struct NodeProviderModelSelector: View {
                             .tag(appleVisionProviderId)
                     }
 
-                    // $small / $large aliases (#810/#814). Selecting an
-                    // alias persists provider="$small"/"$large" and the
+                    // Model aliases (#810/#814). Selecting an alias persists
+                    // it as the provider and the
                     // workflow runtime resolves to the user's configured
                     // Default Small / Default Large model from Settings.
                     Label("$small (default small model)", systemImage: "leaf")
                         .tag(smallAliasProviderId)
                     Label("$large (default large model)", systemImage: "sparkles")
                         .tag(largeAliasProviderId)
+                    if toolRequiresVision {
+                        Label("$vision_small (default small vision model)", systemImage: "eye")
+                            .tag(visionSmallAliasProviderId)
+                        Label("$vision_medium (default vision model)", systemImage: "eye.circle")
+                            .tag(visionMediumAliasProviderId)
+                        Label("$vision_large (default large vision model)", systemImage: "eye.fill")
+                            .tag(visionLargeAliasProviderId)
+                    }
 
                     ForEach(availableProviders) { provider in
                         Text(provider.name).tag(provider.id)
@@ -139,6 +163,7 @@ struct NodeProviderModelSelector: View {
                 }
                 .pickerStyle(.menu)
                 .onChange(of: selectedProviderId) { _, newValue in
+                    node.config?.removeValue(forKey: "provider_name")
                     if newValue.isEmpty {
                         // Default selected — clear explicit provider/model so the runtime uses its default
                         node.config?.removeValue(forKey: "vision_mode")
@@ -158,8 +183,7 @@ struct NodeProviderModelSelector: View {
                         node.usesLLM = false
                         selectedModelId = ""
                         logger.info("Apple Vision selected for node \(node.id)")
-                    } else if newValue == smallAliasProviderId
-                                || newValue == largeAliasProviderId {
+                    } else if isModelAliasProviderId(newValue) {
                         // Tier alias — runtime fills provider+model. Model
                         // picker is hidden via isAliasSelected.
                         node.config?.removeValue(forKey: "vision_mode")

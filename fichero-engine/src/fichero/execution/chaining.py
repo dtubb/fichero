@@ -549,6 +549,8 @@ class ChainExecutor:
                     chain=chain,
                     step=step,
                     previous_result=previous_result,
+                    initial_inputs=inputs,
+                    initial_files=initial_files or [],
                     execution_id=execution_id,
                     step_index=step_index,
                 )
@@ -630,6 +632,8 @@ class ChainExecutor:
         chain: WorkflowChain,
         step: ChainStep,
         previous_result: ChainStepResult,
+        initial_inputs: dict[str, Any],
+        initial_files: list[str],
         execution_id: str,
         step_index: int,
     ) -> ChainStepResult:
@@ -668,11 +672,10 @@ class ChainExecutor:
             mappings=step.input_mappings,
             static_inputs=step.static_inputs,
         )
-        if previous_result.step_id == "__initial__":
-            step_inputs = {**previous_result.inputs, **step_inputs}
+        step_inputs = {**initial_inputs, **step_inputs}
 
         # Get input files from previous step
-        input_files = previous_result.output_files or []
+        input_files = previous_result.output_files or initial_files
 
         try:
             # Create executor for this workflow

@@ -53,13 +53,19 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
         // 400s on an unknown workflow_id (the #3820 root cause).
         let workflows = [
             WorkflowSidebarItem(id: "wf-a", name: "Alpha"),
-            WorkflowSidebarItem(id: "wf-b", name: "Beta")
+            WorkflowSidebarItem(id: "wf-b", name: "Beta"),
+            WorkflowSidebarItem(
+                id: "wf-child",
+                name: "Internal Child",
+                isDirectlyRunnable: false
+            )
         ]
         XCTAssertTrue(LibraryView.workflowIsRunnable(workflowId: "wf-a", in: workflows))
         XCTAssertTrue(LibraryView.workflowIsRunnable(workflowId: "wf-b", in: workflows))
         // An id from a different library (or a stale menu) is refused, not sent.
         XCTAssertFalse(LibraryView.workflowIsRunnable(workflowId: "wf-from-other-library", in: workflows))
         XCTAssertFalse(LibraryView.workflowIsRunnable(workflowId: "wf-a", in: []))
+        XCTAssertFalse(LibraryView.workflowIsRunnable(workflowId: "wf-child", in: workflows))
     }
 
     func testRunBatchWorkflowExecutesThroughTheMenuSourceLibrary() throws {

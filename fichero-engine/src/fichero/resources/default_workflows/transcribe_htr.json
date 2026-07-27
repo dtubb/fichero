@@ -111,7 +111,7 @@
       "id": "edge-transcribe-review",
       "source": "transcribe",
       "target": "transcribe_review",
-      "source_port": "text",
+      "source_port": "records",
       "target_port": "context"
     },
     {

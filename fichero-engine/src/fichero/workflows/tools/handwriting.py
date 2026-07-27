@@ -292,6 +292,7 @@ async def handwriting(
         task_id=state.get("task_id"),
         tool_config=TOOL_CONFIG,
         vision_mode="llm",
+        force_ocr=True,
         max_image_dimension=inputs.get("max_image_dimension", 2048),
         temperature=inputs.get("temperature", 0.2),
         max_tokens=inputs.get("max_tokens", 4096),

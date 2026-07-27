@@ -69,7 +69,7 @@ extension ActivityProgressView {
             // Status icon
             statusIcon(for: state.status)
 
-            Text(activityHumanNodeName(state.nodeId) ?? state.nodeId)
+            Text(state.displayName ?? activityHumanNodeName(state.nodeId) ?? state.nodeId)
                 .lineLimit(1)
 
             Spacer()
