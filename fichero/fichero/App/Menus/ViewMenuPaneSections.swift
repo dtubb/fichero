@@ -97,17 +97,8 @@ struct PaneToggleButton: View {
 /// Opt-in toggle for selection-driven layout changes. OFF by default so the
 /// visible pane set is stable — selecting a folder vs a PDF shows the same
 /// panes. ON restores the legacy behaviour where a folder collapses the
-/// preview pane. App-wide @AppStorage, so a Toggle reflects external changes
-/// (mirrors ShowRulerButton's rationale). (#1452)
-struct SelectionDrivenLayoutToggle: View {
-    @AppStorage("layout.followsSelection") private var layoutFollowsSelection: Bool = false
-
-    var body: some View {
-        Toggle(isOn: $layoutFollowsSelection) {
-            Label("Selection Changes Layout", systemImage: "rectangle.on.rectangle")
-        }
-    }
-}
+/// preview pane. App-wide @AppStorage; the toggle now lives in Settings ▸
+/// General (#4121) — SelectionDrivenLayoutToggle deleted with the move.
 
 // MARK: - Show Mini Toolbar (#2460)
 
@@ -147,9 +138,23 @@ struct NavigateToParentButton: View {
     }
 }
 
-/// App-wide toggle for the rich-text ruler. Keeps the menu checkmark in sync
-/// with the persisted preference and forwards the actual toggle to the focused
-/// text view when one exists.
+/// Go menu (#4121, HIG: Finder's Go/View split): pure navigation commands —
+/// Back/Forward (per-window AppNavigation history, #3581) and Go Up (⌘`) —
+/// out of the overfull View menu. Composed as ONE Commands element (the app
+/// CommandsBuilder is at its arity cap, #3347); the empty `.sidebar`
+/// replacement keeps the system sidebar items suppressed as before.
+struct GoMenuCommands: Commands {
+    var body: some Commands {
+        CommandGroup(replacing: .sidebar) {}
+        CommandMenu("Go") {
+            NavigateBackButton()
+            NavigateForwardButton()
+            Divider()
+            NavigateToParentButton()
+        }
+    }
+}
+
 /// Format menu = the system text-formatting commands + Show Ruler (#4121:
 /// the ruler is text-formatting chrome, not view state). Composed as ONE
 /// Commands element so FicheroApp's CommandsBuilder stays under its arity cap.

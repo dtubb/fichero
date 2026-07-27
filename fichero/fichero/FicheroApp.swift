@@ -345,14 +345,11 @@ struct FicheroApp: App {
                 ActivityWindowMenuButton()
             }
 
-            // View menu: back/forward history (#3581). Slotted into the emptied
-            // `.sidebar` group so it costs no @CommandsBuilder arity (already at
-            // the 10-entry limit, #3347). Surfaces the per-window AppNavigation
-            // history that the toolbar's ⌘'/⌘⇧' buttons already drive.
-            CommandGroup(replacing: .sidebar) {
-                NavigateBackButton()
-                NavigateForwardButton()
-            }
+            // Go menu (#4121, Finder's Go/View split): Back/Forward/Go Up
+            // leave the View menu. ONE CommandsBuilder element (arity is at
+            // the 10-entry cap, #3347) composing the menu + the .sidebar
+            // replacement that keeps the system sidebar items suppressed.
+            GoMenuCommands()
 
             // Data menu — declared after View, before Format
             CommandMenu("Data") {
