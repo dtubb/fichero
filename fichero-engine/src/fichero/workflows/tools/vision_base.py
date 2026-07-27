@@ -788,8 +788,10 @@ def _vision_ocr_cgimage_with_geometry(
 
         results = request.results()
         if not results:
-            img_width = cg_image.width()
-            img_height = cg_image.height()
+            from Quartz import CGImageGetHeight, CGImageGetWidth  # noqa: PLC0415
+
+            img_width = CGImageGetWidth(cg_image)
+            img_height = CGImageGetHeight(cg_image)
             msg = (f"Vision OCR returned empty at {recognition_level_name} "
                    f"({img_width}x{img_height} pixels, lang={language})")
             logger.warning(msg)

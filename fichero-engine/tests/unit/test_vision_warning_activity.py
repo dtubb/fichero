@@ -15,6 +15,7 @@ Tests here:
 
 from __future__ import annotations
 
+from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -114,3 +115,35 @@ class TestAppleVisionOCREmitsWarning:
         # points, but if it gets to the ImportError path it should have warned.
         # Just confirm no uncaught exception escaped without any logging attempt.
         # (The pytest.raises above ensures the exception was caught by the test.)
+
+    def test_empty_result_reads_cgimage_dimensions_with_core_graphics(self):
+        from fichero.workflows.tools.vision_base import (
+            _vision_ocr_cgimage_with_geometry,
+        )
+
+        request = MagicMock()
+        request.results.return_value = []
+        handler = MagicMock()
+        handler.performRequests_error_.return_value = True
+
+        vision = ModuleType("Vision")
+        vision.VNImageRequestHandler = MagicMock()
+        vision.VNImageRequestHandler.alloc.return_value.initWithCGImage_options_.return_value = handler
+        vision.VNRecognizeTextRequest = MagicMock()
+        vision.VNRecognizeTextRequest.alloc.return_value.init.return_value = request
+        vision.VNRequestTextRecognitionLevelAccurate = "accurate"
+        vision.VNRequestTextRecognitionLevelFast = "fast"
+
+        quartz = ModuleType("Quartz")
+        quartz.CGImageGetWidth = MagicMock(return_value=640)
+        quartz.CGImageGetHeight = MagicMock(return_value=480)
+
+        with (
+            patch.dict("sys.modules", {"Vision": vision, "Quartz": quartz}),
+            patch("fichero.workflows.tools.vision_base._log_vision_warning"),
+        ):
+            result = _vision_ocr_cgimage_with_geometry(object())
+
+        assert result.text == ""
+        quartz.CGImageGetWidth.assert_called()
+        quartz.CGImageGetHeight.assert_called()
