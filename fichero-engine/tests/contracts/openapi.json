@@ -9187,6 +9187,69 @@
         }
       }
     },
+    "/api/documents/{doc_id}/duplicate": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Duplicate Document",
+        "description": "Deep-copy a document (subtree included) \u2014 beside the original, or\ninto ``parent_id`` when given (Option-drag copy).",
+        "operationId": "duplicate_document_api_documents__doc_id__duplicate_post",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Parent Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/cleanup-orphans": {
       "post": {
         "tags": [

@@ -4065,6 +4065,21 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("duplicate")
+    def documents_duplicate_post(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
+    ) -> None:
+        """Duplicate Document (POST /api/documents/{doc_id}/duplicate)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/duplicate"
+            params = {
+                "parent_id": parent_id,
+            }
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-geocoded-points-for-a")
     def documents_list_geocoded_points_for_a_get(
         ctx: typer.Context,

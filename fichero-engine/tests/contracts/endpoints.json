@@ -2766,6 +2766,24 @@
         "response_model": "fichero__models__DocumentListResponse"
       },
       {
+        "method": "POST",
+        "path": "/documents/{doc_id}/duplicate",
+        "operation_id": "duplicate_document_api_documents__doc_id__duplicate_post",
+        "summary": "Duplicate Document",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "parent_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "Document"
+      },
+      {
         "method": "GET",
         "path": "/documents/{doc_id}/geo",
         "operation_id": "list_document_geo_api_documents__doc_id__geo_get",
