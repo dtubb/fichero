@@ -3,6 +3,17 @@ import SwiftUI
 extension FeatureTier {
     var tierBadgeText: String { environmentValue.uppercased() }
 
+    /// One-glyph tier badge (#4122): α = alpha, β = beta, δ = dev — the
+    /// consistent marker for gated features across menus and labels.
+    var tierBadgeGlyph: String {
+        switch self {
+        case .dev: "δ"
+        case .alpha: "α"
+        case .beta: "β"
+        case .release: ""
+        }
+    }
+
     var legendColor: Color {
         switch self {
         case .dev:
@@ -33,7 +44,8 @@ extension FeatureManager {
         else {
             return base
         }
-        return "\(base) [\(descriptor.tier.tierBadgeText)]"
+        // Glyph badge, consistently (#4122): "New Chat β", never "[BETA]".
+        return "\(base) \(descriptor.tier.tierBadgeGlyph)"
     }
 
     func badgedFeatureName(for key: FeatureKey, fallback: String) -> String {

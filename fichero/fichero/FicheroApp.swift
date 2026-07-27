@@ -540,8 +540,13 @@ private struct FeatureTierLegendWindow: View {
                             Circle()
                                 .fill(tier.legendColor)
                                 .frame(width: 10, height: 10)
-                            Text(tier.tierBadgeText)
-                                .font(.headline)
+                            // Legend teaches the glyph (#4122): "β BETA".
+                            Text(
+                                tier.tierBadgeGlyph.isEmpty
+                                    ? tier.tierBadgeText
+                                    : "\(tier.tierBadgeGlyph) \(tier.tierBadgeText)"
+                            )
+                            .font(.headline)
                             Text("- visible in \(tier.environmentValue) builds and above")
                                 .foregroundStyle(.secondary)
                         }

@@ -158,3 +158,28 @@ final class FeatureManagerTests: XCTestCase {
         XCTAssertFalse(SettingsView.showsTesterSettingsPane(tier: .release))
     }
 }
+
+// MARK: - Tier badge glyphs (#4122)
+
+/// Gated features are badged with ONE consistent glyph — α alpha, β beta,
+/// δ dev — never bracket text like "[BETA]".
+final class FeatureTierBadgeGlyphTests: XCTestCase {
+    func testGlyphMapping() {
+        XCTAssertEqual(FeatureTier.alpha.tierBadgeGlyph, "α")
+        XCTAssertEqual(FeatureTier.beta.tierBadgeGlyph, "β")
+        XCTAssertEqual(FeatureTier.dev.tierBadgeGlyph, "δ")
+        XCTAssertEqual(FeatureTier.release.tierBadgeGlyph, "")
+    }
+
+    func testBadgedLabelUsesGlyphNotBrackets() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("fichero/App/Menus/ViewMenuCommands.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(source.contains("tierBadgeGlyph)\""))
+        XCTAssertFalse(source.contains("[\\(descriptor.tier.tierBadgeText)]"))
+    }
+}
