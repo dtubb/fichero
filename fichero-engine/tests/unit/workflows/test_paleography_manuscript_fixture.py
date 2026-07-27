@@ -100,9 +100,6 @@ def test_paleography_ensemble_runs_real_manuscript_file(
     async def search(inputs, state, llm_config):
         return {"files": [], "documents": [], "count": 0, "error": None}
 
-    async def translate(inputs, state, llm_config):
-        return {"text": "translated manuscript", "value": "translated manuscript"}
-
     monkeypatch.setattr(
         "fichero.llm.resolve_model_alias_for_capability",
         resolve_alias,
@@ -110,7 +107,6 @@ def test_paleography_ensemble_runs_real_manuscript_file(
     monkeypatch.setitem(workflow_registry.TOOLS, "transcribe", transcribe)
     monkeypatch.setitem(workflow_registry.TOOLS, "transcribe_review", review)
     monkeypatch.setitem(workflow_registry.TOOLS, "search", search)
-    monkeypatch.setitem(workflow_registry.TOOLS, "translate", translate)
 
     state = build_initial_state(
         {"selected_doc_ids": [document.id]},
@@ -130,7 +126,7 @@ def test_paleography_ensemble_runs_real_manuscript_file(
     ]
     assert outputs["zoom"]["files"]
     assert all(Path(path).is_file() for path in outputs["zoom"]["files"])
-    assert {"t1a", "t1b", "t1c", "t2", "t3", "t4", "consistency"} <= set(outputs)
+    assert {"t1a", "t1b", "t1c", "t2", "t3", "t4"} <= set(outputs)
     pages = db_manager.get_database(library_path).query(
         Document,
         parent_id=document.id,

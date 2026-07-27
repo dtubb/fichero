@@ -475,21 +475,12 @@ class TestLoadPresetFiles:
         # The connection graph must be fully clean (environment-independent).
         assert connection_errors == []
 
-    def test_paleography_ensemble_translate_uses_text_tier_alias(self):
-        """The ensemble's T5 translate node is a text (llm) tool, so it must use
-        a text-tier alias ($small/$medium/$large), never a $vision_* alias."""
+    def test_paleography_ensemble_has_no_mandatory_optional_stages(self):
         presets = {p["name"]: p for p in _load_preset_files()}
         ensemble = presets["Transcribe Paleography (Ensemble + Deep Review)"]
-        translate_node = next(
-            n for n in ensemble["nodes"] if n["tool"] == "translate"
-        )
-        alias = translate_node["config"].get("provider_name")
-        assert alias in {"$small", "$medium", "$large"}, (
-            f"translate node must use a text-tier alias, got {alias!r}"
-        )
-        assert not alias.startswith("$vision_"), (
-            "translate is a text node; a $vision_* alias fails preflight"
-        )
+        tools = {node["tool"] for node in ensemble["nodes"]}
+        assert "translate" not in tools
+        assert "consistency-check" not in tools
 
     def test_paleography_ensemble_final_review_bypasses_t2_artifact(self):
         presets = {p["name"]: p for p in _load_preset_files()}

@@ -558,10 +558,9 @@ def _expected_completed_nodes_for_smoke(workflow) -> set[str]:
 def _assert_paleography_ensemble_flow(final_state: dict) -> None:
     """The ensemble's zoomed drafts must reach both review stages (#3905)."""
     outputs = final_state.get("outputs") or {}
-    assert {"zoom", "t1a", "t1b", "t1c", "t2", "t3", "t4", "consistency"} <= set(outputs)
+    assert {"zoom", "t1a", "t1b", "t1c", "t2", "t3", "t4"} <= set(outputs)
     assert outputs["zoom"]["files"]
     assert all(outputs[node]["text"] for node in ("t1a", "t1b", "t1c", "t2", "t3", "t4"))
-    assert "inconsistencies" in outputs["consistency"]
 
 
 def _assert_transcribe_terminal_outputs(final_state: dict, node_ids: tuple[str, ...]) -> None:
