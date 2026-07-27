@@ -18,6 +18,7 @@ struct WorkflowExecution: Identifiable {
     var workflowError: String?
     var totalFiles: Int = 0
     var processedFiles: Int = 0
+    var processedFileIds: Set<String> = []
     var logLines: [String] = []  // Streamed execution log lines
 
     /// Ordered document progress for display

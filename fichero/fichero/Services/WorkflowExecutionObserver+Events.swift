@@ -325,7 +325,8 @@ extension WorkflowExecution {
         documentProgress[identity.stableId] = docProgress
 
         // Track overall progress
-        processedFiles += 1
+        processedFileIds.insert(identity.stableId)
+        processedFiles = processedFileIds.count
         currentFilePath = nil  // Clear current file
         // (The observer raises `fileCompletedCount` in `handleEvent` — it is
         // an observer-level inspector signal, not part of this reducer.)
@@ -355,7 +356,8 @@ extension WorkflowExecution {
         documentProgress[identity.stableId] = docProgress
 
         // Track overall progress (errors also count as processed)
-        processedFiles += 1
+        processedFileIds.insert(identity.stableId)
+        processedFiles = processedFileIds.count
         currentFilePath = nil
     }
 }
