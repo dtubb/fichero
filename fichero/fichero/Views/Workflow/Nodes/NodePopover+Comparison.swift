@@ -36,7 +36,7 @@ extension NodePopover {
                 "Loaded \(providers.count) providers, \(providers.filter { $0.available }.count) available"
             )
 
-            if let providerId = node.providerName {
+            if let providerId = configuredNodeProviderId(node) {
                 if isModelAliasProviderId(providerId) {
                     selectedProviderId = providerId
                     selectedModelId = ""

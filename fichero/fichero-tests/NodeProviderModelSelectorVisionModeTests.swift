@@ -11,6 +11,17 @@ final class NodeProviderModelSelectorVisionModeTests: XCTestCase {
         XCTAssertFalse(isModelAliasProviderId("openai"))
     }
 
+    func testConfiguredProviderPrefersTypedFieldAndReadsLegacyConfig() {
+        var node = WorkflowNode(
+            tool: "transcribe",
+            config: ["provider_name": .string("$vision_small")]
+        )
+        XCTAssertEqual(configuredNodeProviderId(node), "$vision_small")
+
+        node.providerName = "$vision_large"
+        XCTAssertEqual(configuredNodeProviderId(node), "$vision_large")
+    }
+
     private static func source() throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -30,5 +41,6 @@ final class NodeProviderModelSelectorVisionModeTests: XCTestCase {
 
         XCTAssertNotNil(source.range(of: clear, range: defaultRange.lowerBound..<defaultExit.upperBound))
         XCTAssertNotNil(source.range(of: clear, range: aliasRange.lowerBound..<llmRange.lowerBound))
+        XCTAssertTrue(source.contains("node.config?.removeValue(forKey: \"provider_name\")"))
     }
 }

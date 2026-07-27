@@ -143,13 +143,15 @@ struct NodePopover: View {
     // MARK: - Config Helpers
 
     private func initConfigFromNode() {
+        let configuredProviderId = configuredNodeProviderId(node)
+        selectedProviderId = configuredProviderId ?? ""
         // Restore provider selection from node config
         // For Apple Vision tools, check if vision_mode is "apple" to pre-select Apple Vision provider
         if toolSupportsAppleVision {
             if let configValue = node.config?["vision_mode"],
                case .string(let mode) = configValue, mode == "apple" {
                 selectedProviderId = appleVisionProviderId
-            } else if node.providerName == nil && node.config?["vision_mode"] == nil {
+            } else if configuredProviderId == nil && node.config?["vision_mode"] == nil {
                 // Default to Apple Vision for transcribe when no provider set
                 selectedProviderId = appleVisionProviderId
             }

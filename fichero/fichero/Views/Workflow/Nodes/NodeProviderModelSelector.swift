@@ -26,6 +26,10 @@ func isModelAliasProviderId(_ providerId: String) -> Bool {
     ].contains(providerId)
 }
 
+func configuredNodeProviderId(_ node: WorkflowNode) -> String? {
+    node.providerName ?? node.config?["provider_name"]?.stringValue
+}
+
 /// Provider and model selection component for workflow nodes
 struct NodeProviderModelSelector: View {
     struct ProviderOption: Identifiable, Hashable {
@@ -159,6 +163,7 @@ struct NodeProviderModelSelector: View {
                 }
                 .pickerStyle(.menu)
                 .onChange(of: selectedProviderId) { _, newValue in
+                    node.config?.removeValue(forKey: "provider_name")
                     if newValue.isEmpty {
                         // Default selected — clear explicit provider/model so the runtime uses its default
                         node.config?.removeValue(forKey: "vision_mode")
