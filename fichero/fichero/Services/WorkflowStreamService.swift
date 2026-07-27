@@ -171,9 +171,7 @@ class WorkflowStreamService {
             if !Task.isCancelled {
                 handleStreamFailure(
                     error,
-                    streamUrl: streamUrl,
-                    threadId: threadId,
-                    onEvent: onEvent
+                    streamUrl: streamUrl
                 )
             }
         }
@@ -244,9 +242,7 @@ class WorkflowStreamService {
     /// Handle a failure from the SSE byte stream (non-cancellation only).
     private func handleStreamFailure(
         _ error: Error,
-        streamUrl: URL,
-        threadId: String,
-        onEvent: ((WorkflowStreamEvent) -> Void)?
+        streamUrl: URL
     ) {
         let message = WorkflowStreamError.streamFailureDescription(error: error, streamURL: streamUrl)
         logger.error("Stream error: \(message)")
@@ -255,7 +251,6 @@ class WorkflowStreamService {
         // Events stopped mid-run — surface a "live updates paused"
         // pill rather than leaving the run looking stalled (F7).
         self.liveUpdatesUnavailable = true
-        onEvent?(.error(threadId: threadId, error: message))
     }
 
     /// Cancel the current stream
