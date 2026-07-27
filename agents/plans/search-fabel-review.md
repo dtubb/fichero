@@ -333,3 +333,26 @@ queries skip the LLM entirely — no latency tax on 'cacao'.
 **Held for Daniel:** the 7 /api/agents/write* + /api/policies/orchestration*
 endpoints (real logic, process-memory state, overlaps #1848) — delete or
 DB-back before wiring.
+
+### Status update 2026-07-27 (end of day)
+
+CLOSED today: #4105–#4109, #4111, #4112, #4115, #4116, #4120, #4122, #4125
+(+ legacy #3245/#3246/#3249/#3250/#3255/#3534/#424/#481–#483). V4116 is
+fully done: engine compiler + UI (compile=true on explicit submits, compiled
+query + failures always rendered in the results bar).
+
+PARTIAL: #4114 (entity → 'Save Mentions as Smart Search' one-click landed
+e8441c3aa; remaining: verify/fix saved-search drag-into-folder + aliases).
+#4123 (sidebar + grid drag out = real file + RTF landed; remaining:
+single-page PDF export, markdown flavor). #4124 (sidebar classifier +
+grid/list per-cell drop targets landed; remaining: Table-view cells).
+#4121 (badges → glyphs #4122 done; View-menu first cut + nested folder
+creation + row New Folder landed; the PARITY UNIFICATION + Go menu +
+Settings migration await Daniel's sign-off — full audit in the issue).
+
+REMAINING search queue: #4117 (AI-first drop-down + chat-the-search pane —
+next big design-led slice), #4118 (unified object results), #4119
+(score calibration — rides S6), S6 #4110 (cross-library, engine project).
+
+Non-search bug queue for next session: #4121 unification (post sign-off),
+#4123/#4124 leftovers, more sidebar/DnD bugs from Daniel.
