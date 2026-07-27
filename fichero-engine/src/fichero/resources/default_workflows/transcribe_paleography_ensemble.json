@@ -28,13 +28,14 @@
   ],
   "edges": [
     {"id":"files-zoom","source":"files-source","target":"zoom","source_port":"files","target_port":"files"},
+    {"id":"docs-zoom","source":"files-source","target":"zoom","source_port":"documents","target_port":"documents"},
     {"id":"zoom-t1a","source":"zoom","target":"t1a","source_port":"files","target_port":"files"}, {"id":"zoom-t1b","source":"zoom","target":"t1b","source_port":"files","target_port":"files"}, {"id":"zoom-t1c","source":"zoom","target":"t1c","source_port":"files","target_port":"files"},
-    {"id":"docs-t1a","source":"files-source","target":"t1a","source_port":"documents","target_port":"documents"}, {"id":"docs-t1b","source":"files-source","target":"t1b","source_port":"documents","target_port":"documents"}, {"id":"docs-t1c","source":"files-source","target":"t1c","source_port":"documents","target_port":"documents"},
+    {"id":"docs-t1a","source":"zoom","target":"t1a","source_port":"documents","target_port":"documents"}, {"id":"docs-t1b","source":"zoom","target":"t1b","source_port":"documents","target_port":"documents"}, {"id":"docs-t1c","source":"zoom","target":"t1c","source_port":"documents","target_port":"documents"},
     {"id":"t1a-search","source":"t1a","target":"reference-search","source_port":"text","target_port":"query"},
     {"id":"t1a-t2","source":"t1a","target":"t2","source_port":"text","target_port":"context"}, {"id":"t1b-t2","source":"t1b","target":"t2","source_port":"text","target_port":"context"}, {"id":"t1c-t2","source":"t1c","target":"t2","source_port":"text","target_port":"context"}, {"id":"ref-t2","source":"reference-search","target":"t2","source_port":"documents","target_port":"metadata"},
-    {"id":"zoom-t2","source":"zoom","target":"t2","source_port":"files","target_port":"files"}, {"id":"docs-t2","source":"files-source","target":"t2","source_port":"documents","target_port":"documents"},
-    {"id":"t2-t3","source":"t2","target":"t3","source_port":"text","target_port":"context"}, {"id":"ref-t3","source":"reference-search","target":"t3","source_port":"documents","target_port":"metadata"}, {"id":"zoom-t3","source":"zoom","target":"t3","source_port":"files","target_port":"files"}, {"id":"docs-t3","source":"files-source","target":"t3","source_port":"documents","target_port":"documents"},
-    {"id":"t3-t4","source":"t3","target":"t4","source_port":"text","target_port":"context"}, {"id":"zoom-t4","source":"zoom","target":"t4","source_port":"files","target_port":"files"}, {"id":"docs-t4","source":"files-source","target":"t4","source_port":"documents","target_port":"documents"},
+    {"id":"zoom-t2","source":"zoom","target":"t2","source_port":"files","target_port":"files"}, {"id":"docs-t2","source":"zoom","target":"t2","source_port":"documents","target_port":"documents"},
+    {"id":"t2-t3","source":"t2","target":"t3","source_port":"text","target_port":"context"}, {"id":"ref-t3","source":"reference-search","target":"t3","source_port":"documents","target_port":"metadata"}, {"id":"zoom-t3","source":"zoom","target":"t3","source_port":"files","target_port":"files"}, {"id":"docs-t3","source":"zoom","target":"t3","source_port":"documents","target_port":"documents"},
+    {"id":"t3-t4","source":"t3","target":"t4","source_port":"text","target_port":"context"}, {"id":"zoom-t4","source":"zoom","target":"t4","source_port":"files","target_port":"files"}, {"id":"docs-t4","source":"zoom","target":"t4","source_port":"documents","target_port":"documents"},
     {"id":"t3-consistency","source":"t3","target":"consistency","source_port":"text","target_port":"text"},
     {"id":"t4-t5","source":"t4","target":"t5","source_port":"text","target_port":"text"}
   ]

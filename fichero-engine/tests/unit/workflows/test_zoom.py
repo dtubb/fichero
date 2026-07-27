@@ -30,9 +30,9 @@ async def test_zoom_renders_selected_paleography_pdf_page(tmp_path):
     result = await zoom(
         {
             "files": [str(fixture)],
-            "documents": [{"sequence": 1}],
+            "documents": [{"id": "page-18", "sequence": 1}],
             "mode": "tile",
-            "rows": 1,
+            "rows": 2,
             "output_dir": str(tmp_path),
             "output_format": "png",
         },
@@ -41,8 +41,12 @@ async def test_zoom_renders_selected_paleography_pdf_page(tmp_path):
     )
 
     assert result["error"] is None
-    assert len(result["files"]) == 1
+    assert len(result["files"]) == 2
+    assert result["documents"] == [
+        {"id": "page-18", "sequence": 1},
+        {"id": "page-18", "sequence": 1},
+    ]
     assert ".page-001.tile-01.png" in result["files"][0]
     with Image.open(result["files"][0]) as output:
         assert output.width > 500
-        assert output.height > output.width
+        assert output.height > 500

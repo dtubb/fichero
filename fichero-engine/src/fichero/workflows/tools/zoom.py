@@ -131,8 +131,14 @@ def zoom_image_file(
     name="zoom", display_name="Zoom", description="Crop and magnify image regions or line strips.",
     category="transform", icon="plus.magnifyingglass", color="pink", uses_llm=False,
     supports_batch=True,
-    input_ports=[PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES, required=True)],
-    output_ports=[PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES)],
+    input_ports=[
+        PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES, required=True),
+        PortDef(id="documents", name="Documents", port_type="input", data_type=DataType.JSON, required=False),
+    ],
+    output_ports=[
+        PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES),
+        PortDef(id="documents", name="Documents", port_type="output", data_type=DataType.JSON),
+    ],
     config_schema=ZOOM_CONFIG, sort_order=27,
 )
 async def zoom(inputs: dict[str, Any], state: State, llm_config: LLMConfig) -> dict[str, Any]:
@@ -152,5 +158,11 @@ async def zoom(inputs: dict[str, Any], state: State, llm_config: LLMConfig) -> d
             zoom_image_file(file_path, output_dir, page_index=page_index, **options)
         )
     output_files = [path for result in results for path in result["outputs"]]
+    output_documents = [
+        documents[index]
+        for index, result in enumerate(results)
+        for _ in result["outputs"]
+        if index < len(documents)
+    ]
     errors = [result["error"] for result in results if result["error"]]
-    return {"files": output_files, "output_files": output_files, "count": len(output_files), "results": results, "error": errors[0] if len(errors) == 1 else (f"{len(errors)} files failed" if errors else None)}
+    return {"files": output_files, "documents": output_documents, "output_files": output_files, "count": len(output_files), "results": results, "error": errors[0] if len(errors) == 1 else (f"{len(errors)} files failed" if errors else None)}

@@ -253,8 +253,14 @@ def _register_builtin_tools(tool_defs: dict) -> None:
         category="transform",
         icon="plus.magnifyingglass",
         color="pink",
-        input_ports=[PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES)],
-        output_ports=[PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES)],
+        input_ports=[
+            PortDef(id="files", name="Files", port_type="input", data_type=DataType.FILES),
+            PortDef(id="documents", name="Documents", port_type="input", data_type=DataType.JSON, required=False),
+        ],
+        output_ports=[
+            PortDef(id="files", name="Files", port_type="output", data_type=DataType.FILES),
+            PortDef(id="documents", name="Documents", port_type="output", data_type=DataType.JSON),
+        ],
         config_schema={
             "type": "object",
             "properties": {
