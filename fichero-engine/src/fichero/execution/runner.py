@@ -1241,14 +1241,6 @@ async def _run_workflow_in_background(
                             f"Exit node completed: {original_id}, {len(completed_exit_nodes)}/{len(exit_node_event_names)}"
                         )
 
-                        # Check if all exit nodes are done
-                        if (
-                            exit_node_event_names
-                            and completed_exit_nodes >= exit_node_event_names
-                        ):
-                            logger.info("All exit nodes completed, ending stream")
-                            break
-
         # Get final state
         checkpoint_tuple = await checkpointer.aget_tuple(config)
         final_state = (
