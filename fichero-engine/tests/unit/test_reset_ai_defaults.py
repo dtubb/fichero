@@ -102,6 +102,24 @@ class TestResetAIDefaults:
         assert defaults["default_large_provider"] == "apple"
         assert defaults["default_large_model"] == "apple-intelligence"
 
+    def test_repair_rewrites_text_only_vision_tiers(self, app_db):
+        # Legacy seeds (pre vision-tier split) pointed vision tiers at
+        # apple-intelligence — TEXT-ONLY by design, so every default vision
+        # node failed "not marked as vision-capable" (Daniel, 2026-07-27).
+        for tier in ("vision", "vision_small", "vision_medium", "vision_large"):
+            app_db.set_setting(f"default_{tier}_provider", "apple")
+            app_db.set_setting(f"default_{tier}_model", "apple-intelligence")
+        # A non-apple vision choice is a real user decision — untouched.
+        app_db.set_setting("default_vision_medium_provider", "openrouter")
+        app_db.set_setting("default_vision_medium_model", "openai/gpt-4o")
+
+        _repair_known_bad_ai_defaults(app_db)
+
+        defaults = app_db.get_ai_defaults()
+        for tier in ("vision", "vision_small", "vision_large"):
+            assert defaults[f"default_{tier}_model"] == "apple-vision", tier
+        assert defaults["default_vision_medium_model"] == "openai/gpt-4o"
+
     def test_reset_does_not_touch_providers(self, app_db):
         """The #933 scope guarantee: Reset Defaults must leave the
         Providers / Models tables alone. A user with a configured

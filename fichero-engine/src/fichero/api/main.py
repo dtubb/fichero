@@ -394,6 +394,25 @@ def _repair_known_bad_ai_defaults(app_db) -> None:
             "to apple/apple-intelligence."
         )
 
+    # Legacy vision tiers pointing at apple-intelligence (Daniel, live
+    # 2026-07-27): app DBs seeded before the vision-tier split hold
+    # default_vision*_model = "apple-intelligence", which is TEXT-ONLY by
+    # design — every default vision workflow node then fails with "not
+    # marked as vision-capable". That pairing was never valid, so
+    # rewriting it can't clobber a real user choice.
+    for tier in ("vision", "vision_small", "vision_medium", "vision_large"):
+        provider_key = f"default_{tier}_provider"
+        model_key = f"default_{tier}_model"
+        if (
+            app_db.get_setting(provider_key) == "apple"
+            and app_db.get_setting(model_key) == "apple-intelligence"
+        ):
+            app_db.set_setting(model_key, "apple-vision")
+            logger.warning(
+                f"Repaired stale AI default {tier}: apple/apple-intelligence "
+                "is text-only; now apple/apple-vision."
+            )
+
 
 def _collapse_duplicate_providers() -> None:
     """One-time cleanup for #704: collapse duplicate provider rows that
