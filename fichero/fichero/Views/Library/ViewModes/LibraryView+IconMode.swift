@@ -49,6 +49,15 @@ extension LibraryView {
                                 )
                                 .id(doc.id)
                                 .draggable(libraryItemDrag(for: doc))
+                                // Folder cells are real drop targets (#4124):
+                                // only the hovered folder highlights, and the
+                                // drop moves INTO it — not the viewed folder.
+                                .modifier(LibraryFolderCellDrop(
+                                    isFolder: doc.docType == .folder,
+                                    onDropItems: { items in
+                                        moveDraggedItems(items, into: doc)
+                                    }
+                                ))
                                 .onTapGesture(count: 2) {
                                     handleDoubleClick(doc)
                                 }

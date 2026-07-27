@@ -58,6 +58,13 @@ extension LibraryView {
                             .equatable()
                             .id(doc.id)
                             .draggable(libraryItemDrag(for: doc))
+                            // Folder rows accept in-app item drops (#4124).
+                            .modifier(LibraryFolderCellDrop(
+                                isFolder: doc.docType == .folder,
+                                onDropItems: { items in
+                                    moveDraggedItems(items, into: doc)
+                                }
+                            ))
                             .onTapGesture(count: 2) {
                                 handleDoubleClick(doc)
                             }
