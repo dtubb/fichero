@@ -19,6 +19,12 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     private static let creationSource = "Views/Sidebar/Components/SidebarCreationHandlers.swift"
     private static let resultsSource = "Views/Shell/ContentView/ContentView+SearchResults.swift"
 
+    func testResultsBarErasesInsetTypeAtContentRouterBoundary() throws {
+        let source = try Self.appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
+
+        XCTAssertTrue(source.contains("AnyView(transientSearchResultsBar)"))
+    }
+
     // MARK: - Router behaviour
 
     func testToolbarSearchRoutesToATransientSearchWithNoSavedSearch() {

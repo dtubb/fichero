@@ -129,7 +129,7 @@ extension ContentView {
             // Load More, explicit Save Search, and the engine's error detail —
             // mounted only while a toolbar query is active.
             .safeAreaInset(edge: .top, spacing: 0) {
-                transientSearchResultsBar
+                AnyView(transientSearchResultsBar)
             }
 
         case .chat(let conversation):
