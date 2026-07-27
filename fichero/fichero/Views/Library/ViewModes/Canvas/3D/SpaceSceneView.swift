@@ -58,6 +58,12 @@ struct SpaceSceneView: View {
     /// `wholeLibraryRoomId` ("__library__") for the unscoped whole-library view.
     var folderScopeId: String?
 
+    /// The CURRENT library's storage service (#4160) — page textures fetch
+    /// through it. Nil (Spatial room fallback) uses the global library, as
+    /// before. Injected by the host; this view still never touches the
+    /// generated client directly.
+    var storageService: StorageService?
+
     /// Non-optional scope key for reading the per-scope shared stores (#3082):
     /// the folder id, or `wholeLibraryRoomId` when unscoped. Mirrors
     /// `Spatial2DCanvas.scopeKey` so both renderers read the SAME scope's rows.
@@ -668,12 +674,18 @@ private extension SpaceSceneView {
         entity.components.set(HoverEffectComponent())
 
         if let sourceId = node.sourceId, !sourceId.isEmpty, node.nodeType == .source {
+            let service = storageService
             Task { @MainActor in
                 do {
-                    let texture = try await SpaceTextureCache.shared.texture(forSourceId: sourceId)
+                    let texture = try await SpaceTextureCache.shared.texture(
+                        forSourceId: sourceId, using: service
+                    )
                     entity.model?.materials = [UnlitMaterial(texture: texture)]
                 } catch {
-                    // Keep the colored placeholder when the page image cannot be loaded.
+                    // Keep the colored placeholder when the page image cannot
+                    // be loaded — but say WHY in the log (#4160): silence made
+                    // 'no thumbnails' undiagnosable.
+                    SpaceTextureCache.logTextureFailure(sourceId: sourceId, error: error)
                 }
             }
         }
@@ -852,10 +864,18 @@ actor SpaceTextureCache {
 
     private var cache: [String: TextureResource] = [:]
 
-    func texture(forSourceId sourceId: String) async throws -> TextureResource {
+    static func logTextureFailure(sourceId: String, error: Error) {
+        logger.error(
+            "page texture for \(sourceId, privacy: .public) failed: \(error.localizedDescription)"
+        )
+    }
+
+    func texture(
+        forSourceId sourceId: String, using service: StorageService? = nil
+    ) async throws -> TextureResource {
         if let cached = cache[sourceId] { return cached }
 
-        let data = try await fetchImageData(forSourceId: sourceId)
+        let data = try await fetchImageData(forSourceId: sourceId, using: service)
         let fileExtension = Self.fileExtension(for: data)
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
@@ -868,9 +888,19 @@ actor SpaceTextureCache {
         return texture
     }
 
-    private func fetchImageData(forSourceId sourceId: String) async throws -> Data {
-        guard let data = try await LibraryManager.shared.globalLibrary?
-            .storageService.thumbnailData(for: sourceId) else {
+    private func fetchImageData(
+        forSourceId sourceId: String, using service: StorageService?
+    ) async throws -> Data {
+        // The CURRENT library's service when the host injected one (#4160);
+        // global-library fallback preserves the Spatial-room path. No `??`:
+        // its autoclosure is nonisolated and LibraryManager is MainActor.
+        let storage: StorageService?
+        if let service {
+            storage = service
+        } else {
+            storage = await LibraryManager.shared.globalLibrary?.storageService
+        }
+        guard let data = try await storage?.thumbnailData(for: sourceId) else {
             Self.logger.error("No library available to load page thumbnail for \(sourceId, privacy: .public)")
             throw URLError(.badServerResponse)
         }

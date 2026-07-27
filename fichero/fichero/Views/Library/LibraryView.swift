@@ -301,7 +301,12 @@ struct LibraryView: View {
                 selectedNodeId: $spatialSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
-                folderScopeId: folderId ?? wholeLibraryRoomId
+                folderScopeId: folderId ?? wholeLibraryRoomId,
+                // #4160: textures must fetch through THIS library's storage —
+                // the cache previously always used the global library, so any
+                // non-global library rendered colored placeholders instead of
+                // page thumbnails.
+                storageService: activeLibraryReference?.storageService
             )
         }
     }
