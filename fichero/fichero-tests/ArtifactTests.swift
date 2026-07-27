@@ -218,7 +218,7 @@ final class ArtifactTests: XCTestCase {
     // methods that can't be exercised in isolation without extracting them into
     // a parallel type (which would violate iterate-never-replace). These
     // source-level guards — the same pattern used by
-    // KnowledgeGraphInspectorSectionTests / SearchResultRowFromAPITests — lock
+    // KnowledgeGraphInspectorSectionTests — lock
     // in the two fixes so a future edit can't silently regress them.
 
     private static func appSource(_ relativePath: String) throws -> String {

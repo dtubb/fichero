@@ -366,10 +366,6 @@ struct FicheroApp: App {
                     Divider()
                 }
 
-                if featureManager.isSearchEnabled {
-                    FocusedNewSearchButton()
-                }
-
                 if featureManager.isChatEnabled {
                     FocusedNewChatButton()
                 }

@@ -51,7 +51,7 @@ extension EnvironmentValues {
 /// Only the *primary* pane may register `.searchable(placement: .toolbar)`; a
 /// secondary split-pane copy registering the same fixed NSToolbar identifier
 /// crashes the toolbar subsystem with a duplicate-identifier error. Every
-/// mode-specific view that owns the toolbar search slot (LibraryView, SearchView)
+/// mode-specific view that owns the toolbar search slot (LibraryView)
 /// gates its `.searchable` and search `.onSubmit` through this predicate so the
 /// invariant lives in one testable place instead of being re-inlined per view.
 enum ToolbarSearchRegistration {

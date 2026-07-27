@@ -34,7 +34,6 @@ struct SidebarActions: Equatable {
     let importFiles: (IngestMode) -> Void
     let renameItem: () -> Void
     let deleteItem: () -> Void
-    let createSearch: () -> Void
     let createChat: () -> Void
     let createWorkflow: () -> Void
     let createChain: () -> Void

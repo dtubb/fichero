@@ -45,10 +45,6 @@ struct SidebarModeBar: View {
             Group {
                 modeIcon(.library)
 
-                if featureManager.isSearchEnabled {
-                    modeIcon(.search)
-                }
-
                 if featureManager.isChatEnabled {
                     modeIcon(.chat)
                 }
@@ -143,7 +139,6 @@ struct SidebarModeBar: View {
     /// same set + order the full row renders.
     private var enabledModes: [SidebarMode] {
         var modes: [SidebarMode] = [.library]
-        if featureManager.isSearchEnabled { modes.append(.search) }
         if featureManager.isChatEnabled { modes.append(.chat) }
         if featureManager.isWorkflowsEnabled { modes.append(.workflows) }
         if featureManager.isResearchEnabled { modes.append(.research) }

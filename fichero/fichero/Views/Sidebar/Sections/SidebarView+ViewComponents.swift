@@ -24,7 +24,6 @@ extension SidebarView {
             // filter chrome above the bar.
             if shouldShowBottomToolbar {
                 SidebarBottomToolbar(
-                    createSearch: createNewSearch,
                     createChat: createNewChat,
                     createWorkflow: createNewWorkflow,
                     createFolder: handleCreateNewFolder,

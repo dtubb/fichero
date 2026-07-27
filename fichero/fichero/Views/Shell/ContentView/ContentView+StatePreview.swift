@@ -22,10 +22,6 @@ extension ContentView {
             max(contentWidth, ContentView.contentMinWidth),
             ContentView.contentMaxWidth
         )
-        if !featureManager.isSearchEnabled && sidebarMode == .search {
-            sidebarMode = .library
-            viewMode = .library(nil)
-        }
         // Inspector visibility is per-window (@SceneStorage) and reaches the
         // View menu via FocusedValues.showInspector — no app-wide seeding needed (#1451).
         updateColumnVisibility()
@@ -71,7 +67,7 @@ extension ContentView {
     /// keep only the side-by-side default (widescreen) when advanced split layouts are off.
     var availablePreviewModes: [PreviewMode] {
         switch sidebarMode {
-        case .library, .search:
+        case .library:
             if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
                 return [.none, .standard]
             }

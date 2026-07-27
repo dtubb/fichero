@@ -34,7 +34,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
     "Chat/Research/ResearchTasksPane+Views.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
     "Chat/Research/ResearchTasksPane+Views.swift#f50acbd404": "#1912 baseline (shifted by store migration)",
-    "Library/Search/SearchFiltersPanel.swift#3c0b0dafd9": "#1912 baseline",
     "Workflow/Library/WorkflowChainListViewParts/ChainDetailContent.swift#c804133262": "#1912 baseline",
 }
 
@@ -52,7 +51,6 @@ ALLOWLIST_FILES = {
     "Library/Actions/ActionDetailView.swift",  # mixed detail content; ForEach is for a tag-chip FlowLayout
     "Activity/ActivityLogView.swift",  # streaming log viewer with auto-scroll
     "Chat/ModelComparison/ComparisonResultView.swift",  # LazyVGrid card grid for model results
-    "Library/Search/SearchResultsDisplay.swift",  # icon mode uses LazyVGrid; list mode already uses native List
 }
 
 APPKIT_BRIDGE_MARKERS = (

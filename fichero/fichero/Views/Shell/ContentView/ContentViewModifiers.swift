@@ -306,8 +306,6 @@ struct MainContentModifiers: ViewModifier {
         case .library:
             if case .library = viewMode { return }
             viewMode = .library(nil)
-        case .search:
-            viewMode = .search(nil)
         case .chat:
             // Model Comparison lives under the chat sidebar mode. "New
             // Comparison" sets sidebarMode = .chat AND viewMode = .comparison(nil);

@@ -4,12 +4,12 @@ import SwiftUI
 
 extension ContentView {
 
-    /// Library/Search own the stable reading workspace: Library/List,
+    /// Library owns the stable reading workspace: Library/List,
     /// Document Canvas, Reading/WebKit, plus the window-level inspector.
     /// This is independent of the current layout so toolbar pane buttons
     /// don't disappear when previews are temporarily hidden.
     var supportsReadingWorkspace: Bool {
-        (sidebarMode == .library && !isEntityLibrarySelection) || sidebarMode == .search
+        sidebarMode == .library && !isEntityLibrarySelection
     }
 
     /// Available display modes for the current sidebar mode.
@@ -33,11 +33,6 @@ extension ContentView {
                 return [.icon]
             }
             return [.icon, .list, .table, .canvas, .space]
-        case .search:
-            if !featureManager.isSearchAdvancedViewsEnabled {
-                return [.list]
-            }
-            return [.icon, .list, .table, .canvas]
         case .workflows:
             // Keep workflow editor simple by default; only expose table mode
             // when advanced views are explicitly enabled.

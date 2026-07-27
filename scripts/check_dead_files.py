@@ -64,8 +64,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Settings/MCP/MCPToolsCatalogView.swift": "#1945 — candidate dead file: MCP tools catalog helper types",
     "Views/Settings/MCP/MCPServersSheet.swift": "#3366 — settings routing keeps legacy sheet compiled for transition/back-compat",
     "Views/Library/Notes/NotesBrowserView.swift": "#2955 — live but scanner-blind: source read by NoteServiceTests",
-    "Views/Library/Search/SearchArrowKeyNavigation.swift": "#2955 — file stays live via View.arrowKeyResultNavigation extension; primary helper types are local-only",
-    "Views/Library/Search/SearchFiltersPanel.swift": "#1945 — candidate dead file: SearchFiltersPanel",
     "Views/Settings/AI/AISettingsView+Helpers.swift": "#1945 — candidate dead file: TierCapability",
     "Views/Sidebar/State/ActivityDataProcessing.swift": "#1945 — candidate dead file: ActivityWorkflowGroup",
     "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": "#2955 — file stays live via SidebarItemRow drop-handling extension; primary helper types are local-only",

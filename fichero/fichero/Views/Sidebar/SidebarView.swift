@@ -33,6 +33,11 @@ struct SidebarView: View {
 
     var onOpenChatWithCurrentScope: (() -> Void)?
 
+    /// Selecting a saved search runs it through the SAME transient toolbar
+    /// search path as typing the query (#4106/S2) — the sidebar has no
+    /// access to ContentView's toolbar field, so the host injects the hop.
+    var onRunSavedSearch: ((SavedSearch) -> Void)?
+
     /// Keyboard focus handoff OUT of the sidebar (right-arrow on a leaf row) —
     /// mirrors LibraryView's onRequestPreviousPaneFocus path back in.
     var onRequestNextPaneFocus: (() -> Void)?
@@ -95,6 +100,7 @@ struct SidebarView: View {
         apiClient: APIClient,
         windowPersistenceId: String,
         onOpenChatWithCurrentScope: (() -> Void)? = nil,
+        onRunSavedSearch: ((SavedSearch) -> Void)? = nil,
         onRequestNextPaneFocus: (() -> Void)? = nil
     ) {
         self._sidebarMode = sidebarMode
@@ -103,6 +109,7 @@ struct SidebarView: View {
         self.libraryManager = libraryManager
         self.itemRegistry = itemRegistry
         self.onOpenChatWithCurrentScope = onOpenChatWithCurrentScope
+        self.onRunSavedSearch = onRunSavedSearch
         self.onRequestNextPaneFocus = onRequestNextPaneFocus
         self._sidebarState = State(
             wrappedValue: SidebarState(windowId: windowPersistenceId)
@@ -248,7 +255,6 @@ struct SidebarView: View {
                 importFiles: importFiles,
                 renameItem: handleRenameSelectedItem,
                 deleteItem: handleDeleteSelection,
-                createSearch: createNewSearch,
                 createChat: createNewChat,
                 createWorkflow: createNewWorkflow,
                 createChain: createNewChain,

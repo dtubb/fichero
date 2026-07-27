@@ -178,7 +178,7 @@ extension ContentView {
     @ViewBuilder
     var previewView: some View {
         switch viewMode {
-        case .library, .search:
+        case .library:
             // Stable .id so EditorView keeps its mount across the
             // first detailDocument nil → some-doc transition. Without
             // a fixed id, SwiftUI's structural-identity pass treats
@@ -250,7 +250,7 @@ extension ContentView {
     @ViewBuilder
     var inspectorView: some View {
         switch viewMode {
-        case .library, .search:
+        case .library:
             DocumentInspector(
                 document: inspectorDocument,
                 onNavigateToSource: { sourceDocId in

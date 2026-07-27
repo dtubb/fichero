@@ -10,7 +10,6 @@ struct SidebarBottomToolbar: View {
     // Feature manager to hide buttons
     let featureManager = FeatureManager.shared
 
-    let createSearch: () -> Void
     let createChat: () -> Void
     let createWorkflow: () -> Void
     let createFolder: () -> Void
@@ -105,12 +104,6 @@ struct SidebarBottomToolbar: View {
 
         // New item menu (dropdown)
         Menu {
-                if featureManager.isSearchEnabled {
-                    Button(action: createSearch) {
-                        Label("New Search", systemImage: "magnifyingglass")
-                    }
-                }
-
                 if featureManager.isChatEnabled {
                     Button(action: createChat) {
                         Label("New Chat", systemImage: "bubble.left.and.bubble.right")

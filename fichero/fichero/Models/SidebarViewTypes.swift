@@ -5,7 +5,6 @@ import Foundation
 /// Which main view is active based on sidebar selection
 enum AppViewMode: Equatable {
     case library(Document?)              // Library browsing - selected collection/folder
-    case search(SavedSearch?)            // Search view - selected saved search or new search
     case chat(Conversation?)             // Chat view - RAG conversation with documents
     case comparison(ComparisonSummary?)  // Model comparison view
     case workflow(WorkflowSidebarItem?)  // Workflow editor - selected workflow
@@ -20,7 +19,6 @@ enum AppViewMode: Equatable {
     var category: ItemCategory {
         switch self {
         case .library: return .folder
-        case .search: return .search
         case .chat, .comparison: return .chat
         case .workflow, .chain: return .workflow
         case .batches, .batch, .automation, .schedule, .trigger: return .workflow

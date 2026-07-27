@@ -10,7 +10,6 @@ final class ContentViewPersistenceTests: XCTestCase {
     func testSerializeViewModeTypeMappingIsStableForEveryMode() {
         let cases: [(AppViewMode, String)] = [
             (.library(nil), "library"),
-            (.search(nil), "search"),
             (.chat(nil), "chat"),
             (.comparison(nil), "comparison"),
             (.workflow(nil), "workflow"),

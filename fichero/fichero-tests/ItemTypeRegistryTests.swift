@@ -34,10 +34,10 @@ final class ItemTypeRegistryTests: XCTestCase {
 
     func testDefinitionLookupById() {
         let registry = ItemTypeRegistry()
-        registry.createSearch = { }
-        let result = registry.definition(for: "search")
+        registry.createChat = { }
+        let result = registry.definition(for: "chat")
         XCTAssertNotNil(result)
-        XCTAssertEqual(result?.id, "search")
+        XCTAssertEqual(result?.id, "chat")
     }
 
     func testDefinitionLookupMissReturnsNil() {

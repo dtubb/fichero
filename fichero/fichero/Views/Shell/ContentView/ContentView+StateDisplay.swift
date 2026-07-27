@@ -39,8 +39,6 @@ extension ContentView {
             } else {
                 viewName = document?.name ?? "Library"
             }
-        case .search(let savedSearch):
-            viewName = savedSearch?.name ?? "Search"
         case .chat(let conversation):
             viewName = conversation?.title ?? "Chat"
         case .comparison(let comparison):
@@ -127,8 +125,6 @@ extension ContentView {
                 return "doc.richtext"
             }
             return doc.docType == .folder ? "folder" : (doc.fileType == .pdf ? "doc.richtext" : "doc.text")
-        case .search:
-            return "magnifyingglass"
         case .chat:
             return "bubble.left.and.bubble.right"
         case .comparison:

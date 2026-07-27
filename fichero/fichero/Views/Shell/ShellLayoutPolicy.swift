@@ -165,8 +165,6 @@ enum CompactShellPolicy {
             // The entities browser is a non-reader library selection — it owns
             // its own content (the KG browser), so it takes the mode path.
             return isEntitySelection ? .modeContent : .libraryReader
-        case .search:
-            return .libraryReader
         case .chat, .comparison, .workflow, .chain, .batches, .batch,
              .automation, .schedule, .trigger, .activity:
             return .modeContent

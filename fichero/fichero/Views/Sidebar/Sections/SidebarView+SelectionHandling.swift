@@ -161,9 +161,13 @@ extension SidebarView {
             sidebarMode = .library
             viewMode = .library(doc)
         case .savedSearch(let search):
-            sidebarViewLogger.info("Switching to search view with search: \(search.name)")
-            sidebarMode = .search
-            viewMode = .search(search)
+            // Saved searches run through the transient toolbar-search path
+            // (#4106/S2) — results render INTO the Library view; there is no
+            // separate search mode anymore.
+            sidebarViewLogger.info("Running saved search: \(search.name)")
+            sidebarMode = .library
+            viewMode = .library(nil)
+            onRunSavedSearch?(search)
         case .conversation(let conversation):
             sidebarViewLogger.info("Switching to chat view with conversation: \(conversation.id)")
             sidebarMode = .chat
@@ -203,9 +207,9 @@ extension SidebarView {
         sidebarViewLogger.info("Folder clicked: category = \(item.category.rawValue)")
         switch item.category {
         case .search:
-            sidebarViewLogger.info("Switching to empty search view")
-            sidebarMode = .search
-            viewMode = .search(nil)
+            // Saved-search section folders just toggle expansion — search
+            // itself lives in the toolbar field (#4106/S2).
+            sidebarViewLogger.info("Saved-search folder - just toggling expansion")
         case .chat:
             sidebarViewLogger.info("Switching to empty chat view")
             sidebarMode = .chat

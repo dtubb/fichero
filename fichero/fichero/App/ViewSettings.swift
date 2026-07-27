@@ -182,10 +182,11 @@ enum ReaderTextWrap: String, CaseIterable, Identifiable {
 // MARK: - View Mode Enums
 
 /// Sidebar mode selection - Xcode-style mode switching
-/// Order: Content (1-4), Research (5), Automation (6), Monitoring (7), KG (9)
+/// Search is NOT a mode (#4106/S2): the toolbar search field renders its
+/// results into the Library view, so `.search` was retired. ⌘2 stays
+/// unassigned rather than renumbering the muscle-memory shortcuts below.
 enum SidebarMode: String, CaseIterable {
     case library      // 1: Documents, folders
-    case search       // 2: Saved searches + search bar
     case chat         // 3: Conversations
     case workflows    // 4: Workflow definitions
     case automation   // 5: Schedules + triggers
@@ -197,7 +198,6 @@ enum SidebarMode: String, CaseIterable {
     var icon: String {
         switch self {
         case .library: "folder"
-        case .search: "magnifyingglass"
         case .chat: "bubble.left.and.bubble.right"
         case .workflows: "bolt"
         case .research: "flask"
@@ -211,7 +211,6 @@ enum SidebarMode: String, CaseIterable {
     var label: String {
         switch self {
         case .library: "Library"
-        case .search: "Search"
         case .chat: "Chat"
         case .workflows: "Workflows"
         case .research: "Research"
@@ -225,7 +224,6 @@ enum SidebarMode: String, CaseIterable {
     var shortcutNumber: String {
         switch self {
         case .library: "1"
-        case .search: "2"
         case .chat: "3"
         case .workflows: "4"
         case .automation: "5"
@@ -241,8 +239,6 @@ enum SidebarMode: String, CaseIterable {
         switch self {
         case .library:
             body = "Library — browse your documents and folders"
-        case .search:
-            body = "Search — saved searches and full-text search across the library"
         case .chat:
             body = "Chat — ask questions about your documents in a conversation"
         case .workflows:

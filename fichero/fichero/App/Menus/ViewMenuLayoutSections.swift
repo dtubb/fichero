@@ -3,17 +3,17 @@ import SwiftUI
 // MARK: - Library Layout Section
 
 /// Library layout selection commands (Icons, List, Table, Map)
-/// Only shown for Library and Search modes
+/// Only shown for Library mode
 struct LibraryLayoutSection: View {
     @Bindable var viewSettings: ViewSettings
     let featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarMode) var sidebarMode
 
-    /// Only show view options for modes that need them (Library, Search)
+    /// Only show view options for modes that need them (Library)
     private var shouldShowViewOptions: Bool {
         guard let mode = sidebarMode?.wrappedValue else { return false }
         switch mode {
-        case .library, .search:
+        case .library:
             return true
         case .chat, .workflows, .automation, .activity, .research, .knowledgeGraph:
             return false
@@ -24,9 +24,6 @@ struct LibraryLayoutSection: View {
         guard let mode = sidebarMode?.wrappedValue else { return [] }
         if mode == .library && !featureManager.isLibraryAdvancedViewsEnabled {
             return [.icons]
-        }
-        if mode == .search && !featureManager.isSearchAdvancedViewsEnabled {
-            return [.list]
         }
         return [.icons, .list, .table, .canvas, .space]
     }
@@ -138,8 +135,7 @@ struct SortSection: View {
     @FocusedValue(\.librarySortAscending) var sortAscending
 
     private var shouldShow: Bool {
-        guard let mode = sidebarMode?.wrappedValue else { return false }
-        return mode == .library || mode == .search
+        sidebarMode?.wrappedValue == .library
     }
 
     var body: some View {
@@ -197,7 +193,7 @@ struct PreviewModeSection: View {
     private var availablePreviewModes: [PreviewMode] {
         guard let mode = sidebarMode?.wrappedValue else { return [] }
         switch mode {
-        case .library, .search:
+        case .library:
             if !featureManager.isLibrarySearchSplitLayoutsEnabled {
                 return [.standard]
             }

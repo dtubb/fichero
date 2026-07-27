@@ -80,8 +80,6 @@ extension ContentView {
                 return false
             }
             return true
-        case .search:
-            return true
         default:
             return false
         }

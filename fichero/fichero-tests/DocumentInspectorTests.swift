@@ -131,12 +131,10 @@ final class DocumentInspectorTests: XCTestCase {
         )
         let sharedSource = try Self.appSource("Views/Inspector/Knowledge/KnowledgeGraphSupport.swift")
         let artifactsSource = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
-        let searchSource = try Self.appSource("Views/Library/Search/SearchView+Helpers.swift")
 
         XCTAssertTrue(sharedSource.contains("final class ClaimSourceNavigationState"))
         XCTAssertTrue(contentSource.contains(".onChange(of: claimSourceNavigationState.requestID)"))
         XCTAssertTrue(artifactsSource.contains("claimSourceNavigationState?.request("))
-        XCTAssertTrue(searchSource.contains("claimSourceNavigationState?.request(request)"))
         XCTAssertFalse(contentSource.contains(".ficheroOpenClaimSource"))
         XCTAssertFalse(sharedSource.contains("static let ficheroOpenClaimSource"))
     }

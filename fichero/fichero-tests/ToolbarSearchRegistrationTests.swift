@@ -3,7 +3,7 @@ import XCTest
 
 /// Guards the NSToolbar duplicate-identifier crash invariant (#1447/#2309):
 /// only the primary split-pane may register `.searchable(placement: .toolbar)`.
-/// LibraryView and SearchView both gate their toolbar search slot through this
+/// LibraryView gates its toolbar search slot through this
 /// predicate, so a regression here would re-open the crash a headless build
 /// can't catch.
 final class ToolbarSearchRegistrationTests: XCTestCase {

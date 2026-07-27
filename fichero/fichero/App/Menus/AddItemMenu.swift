@@ -61,13 +61,6 @@ struct AddItemMenu: View {
 
             Divider()
 
-            if featureManager.isSearchEnabled {
-                Button("New Search") {
-                    createSearchAction?()
-                }
-                .disabled(createSearchAction == nil)
-            }
-
             if featureManager.isChatEnabled {
                 Button(featureManager.badgedLabel("New Chat", for: .chat)) {
                     createChatAction?()
@@ -121,13 +114,6 @@ struct AddItemMenu: View {
         return registry.importFiles
     }
 
-    private var createSearchAction: (() -> Void)? {
-        if let sidebarActions {
-            return sidebarActions.createSearch
-        }
-        return registry.createSearch
-    }
-
     private var createChatAction: (() -> Void)? {
         if let sidebarActions {
             return sidebarActions.createChat
@@ -153,7 +139,6 @@ struct AddItemMenu: View {
 #Preview {
     let registry = ItemTypeRegistry()
     registry.createFolder = { print("Create folder") }
-    registry.createSearch = { print("Create search") }
     registry.createChat = { print("Create chat") }
     registry.createWorkflow = { print("Create workflow") }
 

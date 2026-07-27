@@ -64,8 +64,6 @@ extension ContentView {
 
     func sidebarMode(for viewType: String) -> SidebarMode {
         switch viewType {
-        case "search":
-            return .search
         case "chat":
             return .chat
         case "workflow", "chain":

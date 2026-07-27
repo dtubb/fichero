@@ -62,7 +62,7 @@ extension ContentView {
     /// Only show for content modes (library, search, chat, workflows)
     var showNavigationToolbar: Bool {
         switch viewMode {
-        case .library, .search, .chat, .comparison, .workflow, .chain:
+        case .library, .chat, .comparison, .workflow, .chain:
             return true
         case .batches, .batch, .automation, .schedule, .trigger, .activity:
             return false
@@ -80,7 +80,7 @@ extension ContentView {
     /// Shown for modes that support multiple content presentations.
     var showViewModePicker: Bool {
         switch sidebarMode {
-        case .library, .search, .workflows:
+        case .library, .workflows:
             return true
         case .chat, .automation, .activity, .research, .knowledgeGraph:
             return false

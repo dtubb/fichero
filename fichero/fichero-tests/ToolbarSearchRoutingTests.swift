@@ -17,8 +17,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
 
     private static let actionsSource = "Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift"
     private static let creationSource = "Views/Sidebar/Components/SidebarCreationHandlers.swift"
-    private static let helpersSource = "Views/Library/Search/SearchView+Helpers.swift"
-    private static let searchViewSource = "Views/Library/Search/SearchView.swift"
+    private static let resultsSource = "Views/Shell/ContentView/ContentView+SearchResults.swift"
 
     // MARK: - Router behaviour
 
@@ -76,38 +75,41 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     func testNewSearchPlaceholderIsNotPersisted() throws {
         let source = try Self.appSource(Self.creationSource)
 
-        // createNewSearch() used to write a literal "New Search" row before the
-        // user had typed anything.
+        // createNewSearch() used to write a literal "New Search" row before
+        // the user had typed anything; with the search mode retired (#4106/S2)
+        // the whole creation affordance is gone.
         XCTAssertFalse(source.contains("query: \"New Search\""))
         XCTAssertFalse(source.contains("savedSearchService.saveSearch"))
-        XCTAssertTrue(source.contains("viewMode = .search(nil)"))
+        XCTAssertFalse(source.contains("createNewSearch"))
     }
 
     func testExplicitSaveSearchPathIsPreserved() throws {
-        let source = try Self.appSource(Self.helpersSource)
+        let source = try Self.appSource(Self.resultsSource)
 
-        // Removing the implicit save must not remove the explicit one.
-        XCTAssertTrue(source.contains("func saveCurrentQuery() async"))
+        // Removing the implicit save must not remove the explicit one — it
+        // now lives on the transient results bar (#4106/S2 slice B).
+        XCTAssertTrue(source.contains("func saveTransientSearch() async"))
         XCTAssertTrue(source.contains("savedSearchService.saveSearch"))
-    }
-
-    func testSaveSearchButtonStillOffersToPersistATransientSearch() throws {
-        let source = try Self.appSource(Self.searchViewSource)
-
-        // The button is gated on savedSearch == nil, which is now the normal
-        // state for every toolbar search rather than a rare one.
-        XCTAssertTrue(source.contains("if savedSearch == nil"))
         XCTAssertTrue(source.contains("Label(\"Save Search\", systemImage: \"square.and.arrow.down\")"))
     }
 
-    func testTransientSearchRunsItsQueryOnAppear() throws {
-        let source = try Self.appSource(Self.searchViewSource)
+    func testSavedSearchesRunThroughTheTransientPath() throws {
+        let sidebarSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
+        let resultsSource = try Self.appSource(Self.resultsSource)
 
-        // With savedSearch == nil the query already sits in the shared toolbar
-        // field, so `.onChange(of: queryText)` never fires and onAppear must
-        // search on any non-empty queryText — not only when a saved search
-        // supplied one. The marker comment pins the intent to the issue.
-        XCTAssertTrue(source.contains("// Transient searches (#4086)"))
-        XCTAssertTrue(source.contains("performSearch()"))
+        // Selecting a saved search must not resurrect a search mode — it
+        // seeds the toolbar field and runs the same transient pipeline.
+        XCTAssertTrue(sidebarSource.contains("onRunSavedSearch?(search)"))
+        XCTAssertFalse(sidebarSource.contains("viewMode = .search"))
+        XCTAssertTrue(resultsSource.contains("func runSavedSearch(_ search: SavedSearch)"))
+    }
+
+    func testTransientResultsRerunOnLibraryChanges() throws {
+        let source = try Self.appSource(Self.resultsSource)
+
+        // A document.* change bumps SearchStore.changeToken (#3249); the
+        // results bar re-runs the active query so stale hits never linger.
+        XCTAssertTrue(source.contains(".onChange(of: store.changeToken)"))
+        XCTAssertTrue(source.contains("await runTransientSearch(query)"))
     }
 }

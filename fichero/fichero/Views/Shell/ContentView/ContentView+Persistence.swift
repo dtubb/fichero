@@ -67,11 +67,9 @@ extension ContentView {
             return .library(doc)
 
         case "search":
-            guard let id = normalizedStoredItemId(for: type, rawItemId: itemId) else {
-                return .search(nil)
-            }
-            let search = savedSearchService.savedSearches.first { $0.id == id }
-            return .search(search)
+            // Pre-#4106 sessions persisted a "search" mode; it no longer
+            // exists — restore to the library instead of crashing on it.
+            return .library(nil)
 
         case "chat":
             guard let id = normalizedStoredItemId(for: type, rawItemId: itemId) else {
@@ -123,8 +121,6 @@ extension ContentView {
         switch mode {
         case .library(let doc):
             return ("library", doc?.id)
-        case .search(let search):
-            return ("search", search?.id)
         case .chat(let conversation):
             return ("chat", conversation?.id)
         case .comparison(let comparison):

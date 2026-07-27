@@ -105,7 +105,6 @@ struct SidebarFocusedValuesConfig {
     let importFiles: (IngestMode) -> Void
     let renameItem: () -> Void
     let deleteItem: () -> Void
-    let createSearch: () -> Void
     let createChat: () -> Void
     let createWorkflow: () -> Void
     let createChain: () -> Void          // No longer optional
@@ -127,7 +126,6 @@ extension View {
                 importFiles: config.importFiles,
                 renameItem: config.renameItem,
                 deleteItem: config.deleteItem,
-                createSearch: config.createSearch,
                 createChat: config.createChat,
                 createWorkflow: config.createWorkflow,
                 createChain: config.createChain,

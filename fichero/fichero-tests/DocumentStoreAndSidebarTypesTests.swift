@@ -151,7 +151,6 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // Locks the sidebar-to-toolbar wire: each AppViewMode collapses
         // into an ItemCategory used to decide which toolbar set renders.
         XCTAssertEqual(AppViewMode.library(nil).category, .folder)
-        XCTAssertEqual(AppViewMode.search(nil).category, .search)
         XCTAssertEqual(AppViewMode.chat(nil).category, .chat)
         XCTAssertEqual(AppViewMode.comparison(nil).category, .chat)
         XCTAssertEqual(AppViewMode.workflow(nil).category, .workflow)

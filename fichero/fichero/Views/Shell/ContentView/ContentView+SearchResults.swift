@@ -7,26 +7,50 @@ import SwiftUI
 // library column's `documents` input swaps to `searchResultDocuments` while
 // `activeSearchQuery` is non-nil, so every existing view mode (icons / list /
 // columns / table) presents the results. Nothing is persisted (#4086) and the
-// view mode never leaves `.library`.
+// view mode never leaves `.library`. Saved searches run through this SAME
+// path (slice B) — selecting one seeds the toolbar field and runs it.
 
 private let searchResultsLogger = Logger(
     subsystem: "app.fichero.fichero", category: "TransientSearch"
 )
 
 extension ContentView {
+    static let transientSearchPageSize = 50
+
+    /// The search store for the library this window is showing — the same
+    /// resolution `runTransientSearch` uses.
+    var transientSearchStore: SearchStore? {
+        (LibraryManager.shared.getLibrary(id: windowState.libraryId)
+            ?? LibraryManager.shared.globalLibrary)?.searchStore
+    }
+
+    /// Run a saved search through the transient path (#4106/S2 slice B):
+    /// seed the toolbar field so the query is visible/editable, then search.
+    @MainActor
+    func runSavedSearch(_ search: SavedSearch) {
+        let query = search.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+        toolbarSearchText = query
+        activeSearchQuery = query
+        transientSearchLimit = Self.transientSearchPageSize
+        Task { @MainActor in
+            await runTransientSearch(query)
+        }
+    }
+
     /// Run the library's search store for `query` and resolve the hits into
     /// `Document` rows, preserving the engine's relevance order.
     ///
     /// Resolution prefers documents already loaded by the DocumentStore (zero
     /// fetches for the common case of hits inside the browsed library) and
-    /// fetches the rest individually — a search page is ≤50 rows, so per-id
-    /// gets are fine here.
+    /// fetches the rest individually — a search page is ≤`transientSearchLimit`
+    /// rows, so per-id gets are fine here.
     @MainActor
     func runTransientSearch(_ query: String) async {
         guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId)
             ?? LibraryManager.shared.globalLibrary else { return }
         let store = library.searchStore
-        await store.performSearch(query: query)
+        await store.performSearch(query: query, limit: transientSearchLimit)
 
         // A newer query superseded this one while the request was in flight —
         // its own resolution pass owns the result state.
@@ -54,10 +78,120 @@ extension ContentView {
         searchResultDocuments = resolved
     }
 
+    /// Grow the page and re-run the active query (S9 UI half).
+    @MainActor
+    func loadMoreTransientResults() {
+        guard let query = activeSearchQuery else { return }
+        transientSearchLimit += Self.transientSearchPageSize
+        Task { @MainActor in
+            await runTransientSearch(query)
+        }
+    }
+
+    /// Persist the active transient query as a SavedSearch — the ONE explicit
+    /// save path (#4086); searching itself never persists anything.
+    @MainActor
+    func saveTransientSearch() async {
+        guard let query = activeSearchQuery,
+              let library = LibraryManager.shared.getLibrary(id: windowState.libraryId)
+                  ?? LibraryManager.shared.globalLibrary else { return }
+        do {
+            _ = try await library.savedSearchService.saveSearch(
+                query: query,
+                isSmartSearch: true,
+                searchType: "hybrid",
+                sortBy: "relevance",
+                sortDirection: "desc"
+            )
+            try await library.savedSearchService.loadSavedSearches()
+        } catch {
+            searchResultsLogger.error("Save search failed: \(error.localizedDescription)")
+        }
+    }
+
     /// Leave transient-search presentation and return to folder browsing.
     @MainActor
     func clearTransientSearch() {
         activeSearchQuery = nil
         searchResultDocuments = []
+        transientSearchLimit = Self.transientSearchPageSize
+    }
+
+    // MARK: - Results bar (S5/S9 UI halves)
+
+    /// Header above the Library view while a transient search is active:
+    /// honest result count (#4113), Load More when the engine reports more
+    /// pages, the explicit Save Search action, and the engine's failure
+    /// detail (#4109) — never a silent empty grid.
+    @ViewBuilder
+    var transientSearchResultsBar: some View {
+        if let query = activeSearchQuery, let store = transientSearchStore {
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    if let error = store.searchError {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .font(.callout)
+                            .foregroundStyle(.red)
+                            .lineLimit(2)
+                    } else if store.isSearching {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Searching for “\(query)”…")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        let total = store.searchStats?.totalResults ?? store.results.count
+                        Text("\(total) result\(total == 1 ? "" : "s") for “\(query)”")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    if store.searchStats?.hasMore == true {
+                        Button("Load More") {
+                            loadMoreTransientResults()
+                        }
+                        .controlSize(.small)
+                    }
+
+                    if !store.results.isEmpty && store.searchError == nil {
+                        Button {
+                            Task { await saveTransientSearch() }
+                        } label: {
+                            Label("Save Search", systemImage: "square.and.arrow.down")
+                        }
+                        .controlSize(.small)
+                        .help("Save this search to the sidebar")
+                    }
+
+                    Button {
+                        toolbarSearchText = ""
+                        clearTransientSearch()
+                    } label: {
+                        Label("Done", systemImage: "xmark.circle.fill")
+                            .labelStyle(.titleOnly)
+                    }
+                    .controlSize(.small)
+                    .help("Clear the search and return to browsing")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.bar)
+                .accessibilityIdentifier("library.search.resultsBar")
+
+                Divider()
+            }
+            // A document.* change on this (or another window's) library bumps
+            // SearchStore.changeToken (#3249) — re-run the active query so
+            // renamed / deleted / re-OCR'd docs don't linger stale in the
+            // results. Lives on the bar because the bar is mounted exactly
+            // while a transient search is presented.
+            .onChange(of: store.changeToken) { _, _ in
+                Task { @MainActor in
+                    await runTransientSearch(query)
+                }
+            }
+        }
     }
 }

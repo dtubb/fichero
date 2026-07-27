@@ -41,6 +41,9 @@ extension ContentView {
             onOpenChatWithCurrentScope: {
                 openChatWithCurrentScope()
             },
+            onRunSavedSearch: { search in
+                runSavedSearch(search)
+            },
             onRequestNextPaneFocus: {
                 cyclePaneFocus(reverse: false)
             }

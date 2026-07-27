@@ -44,7 +44,6 @@ class ItemTypeRegistry {
     // Handlers injected from SidebarView (have access to services)
     var createFolder: (() -> Void)?
     var importFiles: (() -> Void)?
-    var createSearch: (() -> Void)?
     var createChat: (() -> Void)?
     var createComparison: (() -> Void)?
     var createWorkflow: (() -> Void)?
@@ -87,17 +86,6 @@ class ItemTypeRegistry {
         }
 
         // AI category
-        if let handler = createSearch {
-            items.append(ItemTypeDefinition(
-                id: "search",
-                name: "Smart Search",
-                icon: "magnifyingglass.circle",
-                category: .aiTools,
-                keyboardShortcut: "f",
-                handler: handler
-            ))
-        }
-
         if let handler = createChat {
             items.append(ItemTypeDefinition(
                 id: "chat",

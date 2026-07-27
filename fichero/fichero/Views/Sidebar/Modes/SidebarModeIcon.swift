@@ -41,8 +41,6 @@ struct SidebarModeIcon: View {
         switch mode {
         case .library:
             return "folder.fill"
-        case .search:
-            return "magnifyingglass"
         case .chat:
             return "bubble.left.and.bubble.right.fill"
         case .workflows:

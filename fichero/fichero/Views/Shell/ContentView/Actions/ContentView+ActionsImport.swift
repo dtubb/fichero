@@ -47,6 +47,7 @@ extension ContentView {
         sidebarMode = route.sidebarMode
         viewMode = route.viewMode
         activeSearchQuery = route.query
+        transientSearchLimit = Self.transientSearchPageSize
         Task { @MainActor in
             await runTransientSearch(route.query)
         }

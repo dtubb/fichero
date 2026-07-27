@@ -2,22 +2,6 @@ import SwiftUI
 
 // MARK: - Creation Buttons
 
-/// Button that creates a new search
-struct FocusedNewSearchButton: View {
-    @FocusedValue(\.sidebarActions) private var sidebarActions
-    let featureManager = FeatureManager.shared
-
-    var body: some View {
-        if featureManager.isSearchEnabled {
-            Button("New Search") {
-                sidebarActions?.createSearch()
-            }
-            .keyboardShortcut("n", modifiers: [.command, .option])
-            .disabled(sidebarActions == nil)
-        }
-    }
-}
-
 /// Button that creates a new chat
 struct FocusedNewChatButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions

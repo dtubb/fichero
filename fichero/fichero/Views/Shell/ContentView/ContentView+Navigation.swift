@@ -122,17 +122,12 @@ extension ContentView {
             // preview/sidebar layout variant; without this, list/table rows can
             // paint under the shell sidebar or off the left window edge (#3336).
             .clipped()
-
-        case .search(let savedSearch):
-            SearchView(
-                savedSearch: savedSearch,
-                selection: $browserSelection,
-                detailDocument: $detailDocument,
-                displayMode: $viewDisplayMode,
-                // Drive live search from ContentView's SINGLE global toolbar
-                // search — SearchView no longer owns its own .searchable (#3163).
-                queryText: $toolbarSearchText
-            )
+            // Transient-search chrome (#4106 S2/S9/S5): honest result count,
+            // Load More, explicit Save Search, and the engine's error detail —
+            // mounted only while a toolbar query is active.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                transientSearchResultsBar
+            }
 
         case .chat(let conversation):
             ChatView(

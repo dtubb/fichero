@@ -7,22 +7,6 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Sidebar
 // MARK: - Creation Methods Extension
 
 extension SidebarView {
-    /// Open a blank search.
-    ///
-    /// Persists nothing (#4086): this used to write a "New Search" placeholder
-    /// row into the library before the user had typed anything. A search only
-    /// becomes a stored object via the explicit "Save Search" action.
-    func createNewSearch() {
-        guard FeatureManager.shared.isSearchEnabled else {
-            logger.debug("Search feature is gated off; skipping createNewSearch()")
-            return
-        }
-
-        selectedItemId = nil
-        sidebarMode = .search  // Switch to search sidebar
-        viewMode = .search(nil)
-    }
-
     /// Create a new chat - defaults to Global library
     func createNewChat() {
         guard let globalLibrary = libraryManager.globalLibrary else {

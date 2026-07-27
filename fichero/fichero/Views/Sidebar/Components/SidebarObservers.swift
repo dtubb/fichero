@@ -191,7 +191,6 @@ extension SidebarView {
         itemRegistry.importFiles = {
             importFiles(mode: .link)  // Default to link mode from Add menu
         }
-        itemRegistry.createSearch = createNewSearch
         itemRegistry.createChat = createNewChat
         itemRegistry.createComparison = createNewComparison
         if FeatureManager.shared.isWorkflowChainsEnabled {

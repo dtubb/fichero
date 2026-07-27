@@ -10,7 +10,7 @@ final class CompactShellPolicyTests: XCTestCase {
     /// Sendable, but this is an immutable test constant never mutated across
     /// domains — safe by construction (Swift 6).
     private nonisolated(unsafe) static let allModes: [AppViewMode] = [
-        .library(nil), .search(nil), .chat(nil), .comparison(nil),
+        .library(nil), .chat(nil), .comparison(nil),
         .workflow(nil), .chain(nil), .batches, .batch(nil),
         .automation, .schedule(nil), .trigger(nil), .activity(nil)
     ]
@@ -44,7 +44,7 @@ final class CompactShellPolicyTests: XCTestCase {
 
     /// The full compact truth table. macOS is never compact, so its compact
     /// route collapses to `.regular` regardless of mode; other platforms map
-    /// library(non-entity)/search → reader and everything else → mode content.
+    /// library(non-entity) → reader and everything else → mode content.
     func testCompactRouteTruthTable() {
         #if os(macOS)
         for mode in Self.allModes {
@@ -61,8 +61,6 @@ final class CompactShellPolicyTests: XCTestCase {
         #else
         XCTAssertEqual(route(.library(nil), false), .libraryReader)
         XCTAssertEqual(route(.library(nil), true), .modeContent)   // entities browser
-        XCTAssertEqual(route(.search(nil), false), .libraryReader)
-        XCTAssertEqual(route(.search(nil), true), .libraryReader)  // search ignores entity flag
 
         let modeContentModes: [AppViewMode] = [
             .chat(nil), .comparison(nil), .workflow(nil), .chain(nil),
