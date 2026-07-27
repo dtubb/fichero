@@ -241,3 +241,57 @@ S6, and therefore the "all libraries" option in S3. Do not put "All libraries" i
 
 **Milestone hygiene, do before anything else.**
 Move the 14 Historical Text issues (#3311–#3326) out of milestone 17 into their own milestone, and close the three stale 0.0.x release gates (#481/#482/#483). Verify and close #424 (backend already done) and #3249 (already fixed). That takes milestone 17 from 24 open to 5 real search issues and makes the milestone assessable.
+
+---
+
+## 7. Vision additions (2026-07-27, Daniel — V-series #4114–#4120)
+
+Status when these landed: S1/S5/S9/S7 done; S2 fully landed (slices A+B+C,
+ed2fbd8c1 + e73231265) — search is ONE surface, the toolbar field rendering
+into the Library view, saved searches run transient. These additions build on
+that unification; none of them reintroduce a separate search mode.
+
+**V1 #4114 — Smart folders.** Saved searches behave like Finder smart
+folders: drag into sidebar folders, alias them, one-click "all mentions of
+<entity>" searches from an entity's context menu. Pure organization on top of
+the stored query — the transient pipeline stays the only executor.
+
+**V2 #4115 — Graph leg + chat tooling.** Add KG traversal (entity →
+statements → documents) as a retrieval leg beside vector+FTS, and expose the
+whole search as ONE audited action-layer tool the chat/agent system calls
+(chat_tools.py exists unwired; #1848). Search is chat's retrieval backbone —
+one implementation, two front doors.
+
+**V3 #4116 — LLM query compilation.** Sentence/question-like queries drop
+down to an LLM (langchain, local-first MLX) that constructs the advanced
+search: entities, date ranges, field filters, semantic query. Keyword queries
+keep the fast path. The compiled query is always visible and editable
+(AI = instrument: show what was searched).
+
+**V4 #4117 — AI-first field + chat-the-search.** The search field is
+plain-language by DEFAULT with a drop-down to switch to keyword/advanced
+(one control, not a pile of toggles). Running a search can also open a chat
+pane scoped to that search — conversational refinement over the same result
+context. Depends on V2 (tool) + V3 (compilation).
+
+**V5 #4118 — Unified object search.** Results span documents, images,
+artifacts, entities, and KVO/hermeneutic/ontological statements. Engine:
+extend the include= legs with honest per-type counts. UI: typed rows/cards in
+the existing Library view modes; type filtering; sortable. Presentations are
+view modes, never new surfaces.
+
+**V6 #4119 — Real, graphical relevance.** Fix score calibration (the
+everything-is-71% problem; same normalisation work as S6 #4110) and render
+relevance as a DEVONthink-style graphic, not a percentage number.
+
+**V7 #4120 — Related Documents inspector.** Automatic see-also for the open
+document (embedding neighbors + entity-overlap boost) as a new Inspector tab
+or a toggleable bottom-right section. Needs a related-documents endpoint;
+honest empty state when unindexed.
+
+**Sequencing against the S-series.** S3/S4 (scope + default) stay next — they
+are cheap and V4's drop-down will sit beside the scope control, so land the
+control chrome once. Then S8 (real params through the mini-toolbar) which V3
+extends. V7 is independent of everything and can interleave. V2→V3→V4 is the
+dependency chain for the AI path; V6 rides with S6's normalisation work.
+V1 and V5 are independent engine+UI slices.
