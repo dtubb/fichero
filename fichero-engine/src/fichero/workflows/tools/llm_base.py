@@ -74,7 +74,7 @@ BASE_INPUT_PORTS = [
         id="context",
         name="Context",
         port_type="input",
-        data_type=DataType.TEXT,
+        data_type=DataType.ANY,
         required=False,
         description="Previous text/transcription",
     ),

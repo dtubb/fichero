@@ -202,7 +202,7 @@
       "id": "edge-htr-review",
       "source": "transcribe-htr",
       "target": "review-htr",
-      "source_port": "text",
+      "source_port": "records",
       "target_port": "context"
     },
     {
@@ -223,7 +223,7 @@
       "id": "edge-paleo-review",
       "source": "transcribe-paleo",
       "target": "review-paleo",
-      "source_port": "text",
+      "source_port": "records",
       "target_port": "context"
     },
     {

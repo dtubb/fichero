@@ -123,7 +123,7 @@
       "id": "edge-draft-review-medium",
       "source": "transcribe-draft",
       "target": "transcribe-review-medium",
-      "source_port": "text",
+      "source_port": "records",
       "target_port": "context"
     },
     {
@@ -137,7 +137,7 @@
       "id": "edge-review-medium-final-large",
       "source": "transcribe-review-medium",
       "target": "transcribe-final-large",
-      "source_port": "text",
+      "source_port": "records",
       "target_port": "context"
     },
     {

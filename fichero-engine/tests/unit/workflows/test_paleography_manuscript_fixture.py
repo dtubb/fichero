@@ -80,12 +80,22 @@ def test_paleography_ensemble_runs_real_manuscript_file(
         assert all(Path(path).is_file() for path in inputs["files"])
         text = f"draft-{len(drafts) + 1}: enel tiempo que el escriuio"
         drafts.append(text)
-        return {"text": text, "value": text, "error": None}
+        return {
+            "text": text,
+            "records": [{"text": text} for _ in inputs["files"]],
+            "value": text,
+            "error": None,
+        }
 
     async def review(inputs, state, llm_config):
         review_contexts.append(inputs.get("context"))
         text = "reviewed: enel tiempo que el escriuio"
-        return {"text": text, "value": text, "error": None}
+        return {
+            "text": text,
+            "records": [{"text": text} for _ in inputs["files"]],
+            "value": text,
+            "error": None,
+        }
 
     async def search(inputs, state, llm_config):
         return {"files": [], "documents": [], "count": 0, "error": None}
@@ -113,7 +123,11 @@ def test_paleography_ensemble_runs_real_manuscript_file(
     assert not final_state.get("error")
     outputs = final_state["outputs"]
     assert len(drafts) == 3
-    assert review_contexts[0] == drafts
+    assert outputs["t1a"]["records"]
+    assert review_contexts[0] == [
+        [{"text": draft}, {"text": draft}]
+        for draft in drafts
+    ]
     assert outputs["zoom"]["files"]
     assert all(Path(path).is_file() for path in outputs["zoom"]["files"])
     assert {"t1a", "t1b", "t1c", "t2", "t3", "t4", "consistency"} <= set(outputs)

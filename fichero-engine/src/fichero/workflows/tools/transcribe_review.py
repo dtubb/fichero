@@ -134,7 +134,22 @@ async def transcribe_review(
     files = inputs.get("files") or state.get("input_files", [])
     documents = inputs.get("documents", [])
     prior_text = inputs.get("context")  # Prior transcription flows in via this port
-    if isinstance(prior_text, list):
+    if isinstance(prior_text, list) and prior_text and all(
+        isinstance(records, list) for records in prior_text
+    ):
+        prior_text = [
+            "\n\n---\n\n".join(
+                str(records[index].get("text", ""))
+                for records in prior_text
+                if index < len(records) and isinstance(records[index], dict)
+            )
+            for index in range(len(files))
+        ]
+    elif isinstance(prior_text, list) and all(
+        isinstance(record, dict) for record in prior_text
+    ):
+        prior_text = [str(record.get("text", "")) for record in prior_text]
+    elif isinstance(prior_text, list) and len(prior_text) != len(files):
         prior_text = "\n\n---\n\n".join(str(text) for text in prior_text)
     input_metadata = inputs.get("metadata")
 

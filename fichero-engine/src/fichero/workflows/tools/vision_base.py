@@ -1390,7 +1390,7 @@ async def process_vision(
     reference_values: dict[str, list] | None = None,
     match_mode: str = "prefer",
     # Context (from BASE_CONFIG_SCHEMA)
-    context: str | None = None,
+    context: str | list[str] | None = None,
     input_metadata: dict | None = None,
     # Thinking mode (from BASE_CONFIG_SCHEMA)
     thinking_mode: str = "off",
@@ -1565,9 +1565,6 @@ async def process_vision(
         f"{sum(1 for t in existing_text_by_index if t)} with pre-extracted text"
     )
 
-    # Build context section
-    context_section = build_context_section(context, input_metadata)
-
     # Build reference section
     ref_section = build_reference_section(reference_values, match_mode)
 
@@ -1576,11 +1573,6 @@ async def process_vision(
 
     # Build thinking preamble
     thinking_preamble = build_thinking_preamble(thinking_mode)
-
-    # Combine prompt
-    final_prompt = (
-        f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
-    )
 
     results = []
     texts = []
@@ -1617,6 +1609,16 @@ async def process_vision(
     # existing per-file ERROR ISOLATION: one file failing records its error and
     # never aborts the siblings or the node.
     async def _process_file(file_index: int, file_path: str) -> dict:
+        file_context = (
+            context[file_index]
+            if isinstance(context, list) and file_index < len(context)
+            else context if isinstance(context, str)
+            else None
+        )
+        final_prompt = (
+            f"{thinking_preamble}{build_context_section(file_context, input_metadata)}"
+            f"{prompt}{ref_section}{output_constraint}"
+        )
         results: list = []
         texts: list = []
         values: list = []

@@ -213,6 +213,67 @@ async def test_transcribe_review_can_disable_prior_artifact_reuse() -> None:
     assert tool_config.skip_if_artifact_exists is False
 
 
+@pytest.mark.asyncio
+async def test_transcribe_review_aligns_ensemble_drafts_by_page() -> None:
+    from fichero.workflows.tools import transcribe_review as review_module
+
+    with patch.object(
+        review_module,
+        "process_vision",
+        new=AsyncMock(return_value={"texts": ["review 1", "review 2"]}),
+    ) as process_vision:
+        await review_module.transcribe_review(
+            {
+                "files": ["page-1.png", "page-2.png"],
+                "context": [
+                    [{"text": "model-a page 1"}, {"text": "model-a page 2"}],
+                    [{"text": "model-b page 1"}, {"text": "model-b page 2"}],
+                ],
+            },
+            {"library_path": "/library.fichero"},
+            _make_llm_config(),
+        )
+
+    assert process_vision.await_args.kwargs["context"] == [
+        "model-a page 1\n\n---\n\nmodel-b page 1",
+        "model-a page 2\n\n---\n\nmodel-b page 2",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_process_vision_uses_page_aligned_context(tmp_path: Path) -> None:
+    files = [tmp_path / "page-1.png", tmp_path / "page-2.png"]
+    for file in files:
+        file.write_bytes(b"image")
+
+    async def review(images, prompt, config):
+        del images, config
+        assert not ({"draft page 1", "draft page 2"} <= set(prompt.splitlines()))
+        return "review 1" if "draft page 1" in prompt else "review 2"
+
+    with (
+        patch(
+            "fichero.workflows.tools.vision_base.file_to_data_uri",
+            return_value="data:image/png;base64,IMAGE",
+        ),
+        patch("fichero.llm.vision", new=review),
+    ):
+        result = await process_vision(
+            files=[str(file) for file in files],
+            documents=[],
+            prompt="Review.",
+            llm_config=_make_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            context=["draft page 1", "draft page 2"],
+            force_ocr=True,
+            save_to_db=False,
+        )
+
+    assert result["texts"] == ["review 1", "review 2"]
+
+
 def test_non_retriable_provider_error_detection() -> None:
     assert _is_non_retriable_provider_error("Error code: 403 - key limit exceeded")
     assert _is_non_retriable_provider_error("401 Unauthorized")
