@@ -2,6 +2,61 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.26
+
+### Dev build
+
+Internal TestFlight + DMG dev prerelease cut from green `integration`.
+
+### New
+
+**Instant launch.** The window mounts real content on the first frame:
+saved libraries materialize before the scene graph builds, and nothing
+waits for the engine health probe anymore — data streams in as the
+engine connects (#4036). Warm first frame dropped from ~1.9s to ~1.4s,
+and it shows your library shell instead of a spinner.
+
+**Xcode-style status island.** Engine state, background activity, and
+errors now live in one center toolbar island beside the title — a
+message area ("Starting engine…", import progress, running workflows,
+errors in red) flanked by the engine button (connection details +
+Retry) and the activity button (task list). The full-window
+"Connecting to backend…" takeover and the login-wall flash at launch
+are gone; a broken connection is visible chrome, never a blocked app.
+
+**Finder-grade sidebar.** The full drag grammar landed: insertion-line
+drops, Option-drag copies (through the audited `document.duplicate`
+deep-copy action), Finder-style aliases (badge, target resolution,
+Make Alias), Duplicate parity for workflows, saved searches, and
+conversations, multi-item drop feedback, count-aware Delete, and
+right-arrow handing keyboard focus from a leaf row to the content
+pane. Every library gets its own header row, and the pinned bottom
+navigation rows are retired. Document-scoped chat is back on Mac as a
+context-menu command on the document ("Add to Chat").
+
+### Fixed
+
+- **100% CPU at idle** — a per-frame UserDefaults write spun the
+  AttributeGraph; the app idles at 0% again.
+- **Default Workflows tree** — presets seed into the global library
+  only, subfolder ids route correctly (no embedded slashes), legacy
+  preset folders that lingered at the sidebar's top level re-home
+  under the locked "Default Workflows" container on next open, the
+  container's read-only lock is enforced on document actions, and
+  re-seeding no longer resurrects soft-deleted workflow mirrors.
+- **One path, not four** — the location breadcrumb renders only in the
+  toolbar; the duplicate in-window path bars are gone and the bottom
+  status bar is Finder-style (what's selected, not where it is).
+- **Cycle-creating document moves are rejected** by the engine.
+- Restored-selection reconcile + launch invalidation storm fixed.
+
+### Under The Hood
+
+The macOS verify leg is genuinely green: a MainActor-isolation crash
+that killed the test host mid-run, three stale contracts hidden from
+failure greps, and a sub-millisecond Date flake are fixed. New engine
+tests cover the Default Workflows tree heal.
+
 ## 2026.07.24
 
 ### Dev build
