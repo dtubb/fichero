@@ -22,6 +22,8 @@ struct ActivityStatusToolbarItem: View {
 
     let isImporting: Bool
     let importProgress: String?
+    let libraryId: UUID
+    let libraryName: String
     @Binding var importError: String?
 
     @State private var showPopover = false
@@ -95,6 +97,9 @@ struct ActivityStatusToolbarItem: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Activity")
                 .font(.headline)
+            Text(libraryName)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             if let importError {
                 HStack {
@@ -144,6 +149,7 @@ struct ActivityStatusToolbarItem: View {
 
             Button("Open Activity") {
                 showPopover = false
+                ActivityWindowSelectionState.shared.selectLibrary(libraryId)
                 openWindow(id: ActivityWindowSelectionState.monitorWindowID)
             }
         }

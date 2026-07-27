@@ -163,6 +163,8 @@ struct StatusIslandToolbarTests {
         let source = try Self.appSource("Views/Shell/Toolbar/ActivityStatusToolbarItem.swift")
 
         #expect(source.contains("@Environment(\\.openWindow)"))
+        #expect(source.contains("Text(libraryName)"))
+        #expect(source.contains("selectLibrary(libraryId)"))
         #expect(source.contains("openWindow(id: ActivityWindowSelectionState.monitorWindowID)"))
     }
 }

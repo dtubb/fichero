@@ -10,6 +10,10 @@ struct ActivityDetailWindow: View {
     @State private var selectionState = ActivityWindowSelectionState.shared
 
     private var library: LibraryManager.LibraryReference? {
+        if let id = selectionState.selectedRun?.libraryId ?? selectionState.libraryId,
+           let library = libraryManager.getLibrary(id: id) {
+            return library
+        }
         if let id = libraryManager.currentLibraryId,
            let library = libraryManager.getLibrary(id: id) {
             return library

@@ -118,7 +118,9 @@ struct ActivityRunToSelectedRunTests {
             currentStep: "ocr",
             errorCount: 0,
             fileCount: 3,
-            isLive: isLive
+            isLive: isLive,
+            libraryId: UUID(uuidString: "11111111-1111-1111-1111-111111111111"),
+            libraryName: "Letters"
         )
     }
 
@@ -137,6 +139,8 @@ struct ActivityRunToSelectedRunTests {
         #expect(selected.threadId == "thread-42")
         #expect(selected.timestamp == Date(timeIntervalSince1970: 1_000))
         #expect(selected.isLive == false)
+        #expect(selected.libraryId == UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+        #expect(selected.libraryName == "Letters")
     }
 
     @Test("toSelectedRun converts status via toStatusType")
@@ -165,6 +169,8 @@ struct SelectedActivityRunWithTests {
             timestamp: Date(timeIntervalSince1970: 1_000),
             status: .completed,
             isLive: false,
+            libraryId: UUID(uuidString: "11111111-1111-1111-1111-111111111111"),
+            libraryName: "Letters",
             childType: nil
         )
         let withLog = base.with(childType: .log)
@@ -176,6 +182,8 @@ struct SelectedActivityRunWithTests {
         #expect(withLog.timestamp == base.timestamp)
         #expect(withLog.status == base.status)
         #expect(withLog.isLive == base.isLive)
+        #expect(withLog.libraryId == base.libraryId)
+        #expect(withLog.libraryName == base.libraryName)
     }
 }
 

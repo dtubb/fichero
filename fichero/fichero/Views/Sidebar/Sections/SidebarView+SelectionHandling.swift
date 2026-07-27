@@ -185,6 +185,8 @@ extension SidebarView {
                 timestamp: activity.parsedTimestamp ?? Date(),
                 status: activityMapActivityType(activity.type).toStatusType(),
                 isLive: false,
+                libraryId: item.libraryId,
+                libraryName: item.libraryId.flatMap { libraryManager.getLibrary(id: $0)?.displayName },
                 childType: nil
             )
             sidebarViewLogger.info("Switching to activity view with run: \(selectedRun.id)")
