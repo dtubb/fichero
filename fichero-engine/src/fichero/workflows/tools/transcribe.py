@@ -215,6 +215,7 @@ async def transcribe(
         match_mode=inputs.get("match_mode", "prefer"),
         context=context,
         input_metadata=input_metadata,
+        thinking_mode=inputs.get("thinking_mode", "off"),
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
         return_boxes=return_boxes,
