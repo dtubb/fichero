@@ -43,6 +43,17 @@ extension ContentView {
         guard featureManager.isSearchEnabled else { return }
         guard let route = ToolbarSearchRouter.route(for: rawQuery) else { return }
 
+        // Capture the browsed folder BEFORE clearing the selection so the
+        // results bar can offer it as a scope (#4107/S3).
+        if case .library(let doc) = viewMode, let doc, doc.docType == .folder {
+            transientSearchContextFolder = TransientSearchFolder(id: doc.id, name: doc.name)
+        } else {
+            transientSearchContextFolder = nil
+        }
+        // Finder-style default scope (#4108/S4); folder scope only applies
+        // when there IS a browsed folder to scope to.
+        transientSearchScopeIsFolder = transientSearchContextFolder != nil
+            && UserDefaults.standard.bool(forKey: Self.searchDefaultScopeIsFolderKey)
         sidebarSelectionState.selectedItemId = nil
         sidebarMode = route.sidebarMode
         viewMode = route.viewMode

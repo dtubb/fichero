@@ -104,6 +104,32 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         XCTAssertTrue(resultsSource.contains("func runSavedSearch(_ search: SavedSearch)"))
     }
 
+    func testFolderScopeRoutesThroughTheEngineFilter() throws {
+        let resultsSource = try Self.appSource(Self.resultsSource)
+        let storeSource = try Self.appSource("Models/SearchStore.swift")
+
+        // #4107/S3: folder scope is the engine's folder_id filter (which
+        // expands to the descendant set server-side), captured from the
+        // browsed folder and toggleable in the results bar. No client-side
+        // result filtering, and no "All libraries" until #4110.
+        XCTAssertTrue(storeSource.contains("[\"folder_id\": $0]"))
+        XCTAssertTrue(resultsSource.contains("transientSearchScopeIsFolder ? transientSearchContextFolder?.id : nil"))
+        XCTAssertTrue(resultsSource.contains("Picker(\"Search scope\""))
+        XCTAssertFalse(resultsSource.contains("All Libraries"))
+    }
+
+    func testDefaultScopeIsOneFinderStylePreference() throws {
+        let actionsSource = try Self.appSource(Self.actionsSource)
+        let settingsSource = try Self.appSource("Views/Settings/General/GeneralSettingsView.swift")
+
+        // #4108/S4: ONE preference (Finder's "When performing a search"),
+        // read at submit; folder default only applies when a folder exists.
+        XCTAssertTrue(actionsSource.contains("Self.searchDefaultScopeIsFolderKey"))
+        XCTAssertTrue(actionsSource.contains("transientSearchContextFolder != nil"))
+        XCTAssertTrue(settingsSource.contains("Picker(\"When performing a search\""))
+        XCTAssertTrue(settingsSource.contains("ContentView.searchDefaultScopeIsFolderKey"))
+    }
+
     func testTransientResultsRerunOnLibraryChanges() throws {
         let source = try Self.appSource(Self.resultsSource)
 

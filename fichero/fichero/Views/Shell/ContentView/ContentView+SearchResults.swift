@@ -14,8 +14,20 @@ private let searchResultsLogger = Logger(
     subsystem: "app.fichero.fichero", category: "TransientSearch"
 )
 
+/// The folder the user was browsing when a transient search ran — offered as
+/// a search scope beside the whole library (#4107/S3).
+struct TransientSearchFolder: Equatable {
+    let id: String
+    let name: String
+}
+
 extension ContentView {
     static let transientSearchPageSize = 50
+
+    /// UserDefaults key for the Finder-style default search scope (#4108/S4):
+    /// false = whole library (default), true = the folder being browsed.
+    /// Written by Settings ▸ General ▸ "When performing a search".
+    static let searchDefaultScopeIsFolderKey = "search.defaultScopeIsFolder"
 
     /// The search store for the library this window is showing — the same
     /// resolution `runTransientSearch` uses.
@@ -33,6 +45,9 @@ extension ContentView {
         toolbarSearchText = query
         activeSearchQuery = query
         transientSearchLimit = Self.transientSearchPageSize
+        // Saved searches are library-wide; never inherit a stale folder scope.
+        transientSearchContextFolder = nil
+        transientSearchScopeIsFolder = false
         Task { @MainActor in
             await runTransientSearch(query)
         }
@@ -50,7 +65,8 @@ extension ContentView {
         guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId)
             ?? LibraryManager.shared.globalLibrary else { return }
         let store = library.searchStore
-        await store.performSearch(query: query, limit: transientSearchLimit)
+        let folderId = transientSearchScopeIsFolder ? transientSearchContextFolder?.id : nil
+        await store.performSearch(query: query, limit: transientSearchLimit, folderId: folderId)
 
         // A newer query superseded this one while the request was in flight —
         // its own resolution pass owns the result state.
@@ -115,6 +131,8 @@ extension ContentView {
         activeSearchQuery = nil
         searchResultDocuments = []
         transientSearchLimit = Self.transientSearchPageSize
+        transientSearchContextFolder = nil
+        transientSearchScopeIsFolder = false
     }
 
     // MARK: - Results bar (S5/S9 UI halves)
@@ -147,6 +165,26 @@ extension ContentView {
                     }
 
                     Spacer()
+
+                    // Scope control (#4107/S3): whole library vs the folder
+                    // that was being browsed when the search ran. No "All
+                    // libraries" until cross-library fan-out lands (#4110).
+                    if let folder = transientSearchContextFolder {
+                        Picker("Search scope", selection: $transientSearchScopeIsFolder) {
+                            Text("Library").tag(false)
+                            Text("“\(folder.name)”").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .onChange(of: transientSearchScopeIsFolder) { _, _ in
+                            transientSearchLimit = Self.transientSearchPageSize
+                            Task { @MainActor in
+                                await runTransientSearch(query)
+                            }
+                        }
+                    }
 
                     if store.searchStats?.hasMore == true {
                         Button("Load More") {

@@ -49,7 +49,8 @@ final class SearchStore: ChangeEventConsumer {
         include: [Components.Schemas.SearchInclude] = [],
         searchType: String = "hybrid",
         sortBy: String = "relevance",
-        sortOrder: String = "desc"
+        sortOrder: String = "desc",
+        folderId: String? = nil
     ) async {
         // #4024: trim newlines/tabs too — `.whitespaces` excludes newlines, so a query of
         // only whitespace (e.g. " \n\t") stayed non-empty and reached the backend as a blank
@@ -71,7 +72,9 @@ final class SearchStore: ChangeEventConsumer {
                 include: include,
                 minScore: 0.0,
                 searchType: searchType,
-                filters: nil,
+                // Folder scope (#4107/S3): the engine expands folder_id to the
+                // folder's whole descendant set server-side.
+                filters: folderId.map { ["folder_id": $0] },
                 sortBy: sortBy,
                 sortOrder: sortOrder,
                 offset: 0,

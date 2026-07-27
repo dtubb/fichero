@@ -191,6 +191,12 @@ struct ContentView: View {
     /// Page size for the active transient search; "Load More" grows it and
     /// re-runs the query (S9 UI half). Reset to the default on every new query.
     @State var transientSearchLimit: Int = ContentView.transientSearchPageSize
+    /// Folder the user was browsing when the search ran (#4107/S3) — offered
+    /// as a scope alongside the whole library in the results bar.
+    @State var transientSearchContextFolder: TransientSearchFolder?
+    /// Whether the active search is scoped to the context folder (true) or
+    /// the whole library (false, the default).
+    @State var transientSearchScopeIsFolder = false
     @State var navigationHistory = AppNavigationHistory()
     @State var isRestoringNavigationHistory = false
 

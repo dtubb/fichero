@@ -10,6 +10,9 @@ struct GeneralSettingsView: View {
     @AppStorage("autoCreateEmbeddings") private var autoCreateEmbeddings: Bool = true
     // #1869 — single on/off; key shared with WorkflowCompletionNotifier. Default ON.
     @AppStorage(WorkflowCompletionNotifier.enabledDefaultsKey) private var notificationsEnabled: Bool = true
+    // #4108/S4 — Finder-style default search scope; key shared with
+    // runToolbarSearch (ContentView.searchDefaultScopeIsFolderKey).
+    @AppStorage(ContentView.searchDefaultScopeIsFolderKey) private var searchDefaultScopeIsFolder: Bool = false
 
     // Typography settings
     @AppStorage("editor.fontName") private var fontName: String = "System"
@@ -76,6 +79,18 @@ struct GeneralSettingsView: View {
             Section("Ingestion") {
                 Toggle("Auto-extract text from documents", isOn: $autoExtractText)
                 Toggle("Auto-create search embeddings", isOn: $autoCreateEmbeddings)
+            }
+
+            // Finder-style default search scope (#4108/S4) — ONE preference;
+            // the per-search override lives in the results bar.
+            Section("Search") {
+                Picker("When performing a search", selection: $searchDefaultScopeIsFolder) {
+                    Text("Search This Library").tag(false)
+                    Text("Search the Current Folder").tag(true)
+                }
+                Text("You can switch the scope of any search from the results bar.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Notifications") {
