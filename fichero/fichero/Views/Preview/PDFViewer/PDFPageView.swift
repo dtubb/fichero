@@ -58,6 +58,21 @@ struct PDFPageView: NSViewRepresentable {
     @State private var lockedPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
     @Environment(StorageService.self) private var storageService
 
+    /// PDFView that switches autoScales off the moment a pinch BEGINS
+    /// (#4125): with autoScales still on at gesture start, PDFKit re-fit the
+    /// document mid-first-pinch — the visible snap-back-to-fit — before the
+    /// scale-change observer could flip it off. Disabling at the gesture
+    /// boundary preserves #588's initial-fit-through-layout-passes while
+    /// making the first pinch behave like every later one.
+    final class PinchOwningPDFView: PDFView {
+        override func magnify(with event: NSEvent) {
+            if autoScales {
+                autoScales = false
+            }
+            super.magnify(with: event)
+        }
+    }
+
     func makeCoordinator() -> Coordinator {
         Coordinator(
             owner: self,
@@ -68,7 +83,7 @@ struct PDFPageView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> PDFView {
-        let view = PDFView()
+        let view = PinchOwningPDFView()
         view.setAccessibilityIdentifier("pdfPreview")  // XCUITest hook (#1230)
         view.displayMode = displayMode
         view.displaysPageBreaks = false

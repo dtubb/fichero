@@ -44,3 +44,19 @@ final class LibraryGridDropTests: XCTestCase {
         XCTAssertTrue(source.contains("guard folder.docType == .folder"))
     }
 }
+
+/// #4125: the first pinch on a PDF must not snap back to fit. autoScales is
+/// disabled at pinch BEGIN (PinchOwningPDFView.magnify), not on the first
+/// scale-change notification — by then PDFKit had already re-fit mid-gesture.
+final class PDFFirstPinchTests: XCTestCase {
+    func testPinchDisablesAutoScalesAtGestureStart() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views/Preview/PDFViewer/PDFPageView.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(source.contains("class PinchOwningPDFView: PDFView"))
+        XCTAssertTrue(source.contains("override func magnify(with event: NSEvent)"))
+        XCTAssertTrue(source.contains("let view = PinchOwningPDFView()"))
+    }
+}
