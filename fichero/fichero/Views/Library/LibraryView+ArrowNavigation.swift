@@ -106,12 +106,25 @@ extension LibraryView {
         } else {
             ids = filteredDocuments.map(\.id)
         }
-        return LibraryKeyboardCursor.index(
+        if let idx = LibraryKeyboardCursor.index(
             cursor: selectionCursor,
             anchor: selectionAnchor,
             selection: selection,
             ids: ids
-        ).map { ids[$0] }
+        ) {
+            return ids[idx]
+        }
+        // Table outline child rows (#4160 step 3): "<doc>:artifact:<id>" ids
+        // aren't in the document list, so resolve to the topmost selected
+        // row's PARENT document — Return/Space/Quick Look then act on the
+        // right document instead of silently doing nothing.
+        return selection
+            .compactMap { id -> Int? in
+                guard let colon = id.firstIndex(of: ":") else { return nil }
+                return ids.firstIndex(of: String(id[..<colon]))
+            }
+            .min()
+            .map { ids[$0] }
     }
 
     private func stepSize(for direction: ArrowDirection) -> Int {

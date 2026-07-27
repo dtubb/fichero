@@ -145,12 +145,20 @@ extension LibraryView {
             // per-cell modifier as icon/list modes; Table scopes the
             // dropDestination (and its highlight) to this cell.
             tableCellView(for: "name", document: node.document)
+                // Document rows drag out like list/icon rows (#4160 step 3):
+                // real file copy + RTF via the shared LibraryItemDrag —
+                // previously only CHILD rows were draggable in table mode.
+                .draggable(libraryItemDrag(for: node.document))
                 .modifier(LibraryFolderCellDrop(
                     isFolder: node.document.docType == .folder,
                     onDropItems: { items in
                         moveDraggedItems(items, into: node.document)
                     }
                 ))
+                .modifier(LibraryRowHoverWash(enabled: !selection.contains(node.document.id)))
+                // VoiceOver/XCUITest parity with list rows and icon tiles.
+                .accessibilityIdentifier("libraryTableRow.\(node.document.id)")
+                .accessibilityAddTraits(selection.contains(node.document.id) ? .isSelected : [])
         case .childGroup(let type):
             Label(type.groupLabel(count: node.count), systemImage: type.systemImage)
                 .font(.subheadline)

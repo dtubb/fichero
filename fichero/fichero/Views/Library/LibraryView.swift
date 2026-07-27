@@ -112,11 +112,13 @@ struct LibraryView: View {
     @SceneStorage("list_show_dates") var showDatesEntities = true
 
     /// Mac-native column customization for the table view (right-click on
-    /// any column header → show/hide menu, drag to reorder). Backed by
-    /// SwiftUI's TableColumnCustomization API on macOS 14+. State lives
-    /// for the window lifetime; deeper persistence to @SceneStorage is a
-    /// follow-up. (#519)
-    @State var tableColumnCustomization = TableColumnCustomization<LibraryOutlineNode>()
+    /// any column header → show/hide menu, drag to reorder, drag-resize).
+    /// Backed by SwiftUI's TableColumnCustomization API. Persisted via
+    /// @SceneStorage (the follow-up the old @State comment promised, #519/
+    /// #4160): resize/reorder/show-hide now survive relaunch, per window —
+    /// matching how sort already persists.
+    @SceneStorage("library.tableColumns")
+    var tableColumnCustomization: TableColumnCustomization<LibraryOutlineNode> = .init()
 
     /// Drives the expandable outline Table (#2258). Lazily created on
     /// first appear (needs the library's entity service from the

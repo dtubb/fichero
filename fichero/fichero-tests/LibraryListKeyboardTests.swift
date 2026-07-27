@@ -159,6 +159,29 @@ struct LibraryListModeGuardTests {
         #expect(keys.contains("func quickLook(_ doc: Document)"))
     }
 
+    @Test("table mode matches the list/icon bar: cursor, drag, a11y, hover")
+    func tableModeParity() throws {
+        let table = try appSource("Views/Library/ViewModes/LibraryView+TableView.swift")
+        // Deterministic primary pick everywhere the native Table hands us a
+        // Set — context menu, double-click, selection watcher (audit G1/G2).
+        #expect(table.contains("func primaryNodeId(in items: Set<String>)"))
+        #expect(!table.contains("items.first"))
+        #expect(!table.contains("newSelection.first"))
+        // The native Table writes selection directly; the shared cursor must
+        // be maintained here or Return/Space act on the wrong row (G3).
+        #expect(table.contains("selectionCursor = nodeId"))
+        let columns = try appSource("Views/Library/ViewModes/LibraryView+TableColumns.swift")
+        #expect(columns.contains(".draggable(libraryItemDrag(for: node.document))"))
+        #expect(columns.contains("libraryTableRow."))
+        #expect(columns.contains("LibraryRowHoverWash"))
+        // Child outline ids resolve to their parent doc for Return/Space (G2).
+        let nav = try appSource("Views/Library/LibraryView+ArrowNavigation.swift")
+        #expect(nav.contains("id.firstIndex(of: \":\")"))
+        // Column layout persists (was window-lifetime @State — audit G5).
+        let root = try appSource("Views/Library/LibraryView.swift")
+        #expect(root.contains("@SceneStorage(\"library.tableColumns\")"))
+    }
+
     @Test("entity lozenge block reserves real height while loading")
     func lozengeReservation() throws {
         let source = try appSource("Views/Inspector/Artifacts/ArtifactEntityViews.swift")

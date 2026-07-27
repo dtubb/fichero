@@ -24,9 +24,11 @@ extension LibraryView {
         .alternatingRowBackgrounds()
         #endif
         .contextMenu(forSelectionType: String.self) { items in
+            // Deterministic primary pick, not Set hash order (#4160):
+            // right-clicking a multi-selection targeted an arbitrary doc.
             // Child-group rows carry "<docId>:<type>" ids — drop the
             // suffix so a context-menu on a child still targets its doc.
-            if let firstId = items.first,
+            if let firstId = primaryNodeId(in: items),
                let doc = filteredDocuments.first(where: { $0.id == documentId(forNodeId: firstId) }) {
                 documentContextMenu(for: doc)
             }
@@ -38,15 +40,33 @@ extension LibraryView {
     }
 
     private func handleOutlineDoubleClickSelection() {
-        // Ordered cursor, not Set hash order (#4160) — double-clicking a
-        // multi-selection used to open an arbitrary row.
-        guard let firstId = orderedPrimarySelectionId else { return }
+        // Act on the deterministic primary ROW id, not the document-level
+        // cursor: child ids ("<doc>:artifact:<id>") aren't in
+        // filteredDocuments, so the step-2 cursor swap silently killed the
+        // artifact-detail-window path for child rows (#4160 step 3).
+        guard let firstId = primaryNodeId(in: selection) else { return }
         if let artifactSelection = artifactSelectionForNodeId(firstId) {
             openArtifactDetailWindow(for: artifactSelection)
             return
         }
         if let doc = filteredDocuments.first(where: { $0.id == documentId(forNodeId: firstId) }) {
             handleDoubleClick(doc)
+        }
+    }
+
+    /// Deterministic primary node id for a set of outline-row ids: the
+    /// shared keyboard cursor when it's in the set, else the id whose
+    /// PARENT DOCUMENT comes first in visual order (ties broken lexically —
+    /// never Set hash order).
+    func primaryNodeId(in items: Set<String>) -> String? {
+        if items.count <= 1 { return items.min() }
+        if let cursor = selectionCursor, items.contains(cursor) { return cursor }
+        let order = filteredDocuments.map(\.id)
+        return items.min { lhs, rhs in
+            let li = order.firstIndex(of: documentId(forNodeId: lhs)) ?? Int.max
+            let ri = order.firstIndex(of: documentId(forNodeId: rhs)) ?? Int.max
+            if li != ri { return li < ri }
+            return lhs < rhs
         }
     }
 
@@ -117,7 +137,16 @@ extension LibraryView {
             }
         }
         .onChange(of: selection) { _, newSelection in
-            guard let nodeId = newSelection.first else { return }
+            guard let nodeId = primaryNodeId(in: newSelection) else { return }
+            // Keep the shared keyboard cursor live in table mode (#4160):
+            // the native Table writes `selection` directly, so the
+            // handleTap/applySelection paths that normally maintain
+            // cursor+anchor never run here — without this, Return/Space/
+            // follow-scroll pointed at the topmost row, not the clicked one.
+            selectionCursor = nodeId
+            if selectionAnchor.map({ !newSelection.contains($0) }) ?? true {
+                selectionAnchor = nodeId
+            }
             if let pageDoc = pageDocumentForNodeId(nodeId) {
                 onPageFocus(pageDoc)
             } else if let artifactSelection = artifactSelectionForNodeId(nodeId) {

@@ -201,7 +201,12 @@ struct ArtifactEntityCell: View {
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
             } else {
-                Color.clear.frame(height: 14)
+                // Reserve ~2 lozenge rows while the first fetch is in
+                // flight, same rationale as the multiLine reservation
+                // (#4160): a 14pt spacer that grows to a multi-line
+                // FlowLayout re-pitched the whole table row on load.
+                // ponytail: fixed estimate; measured height if still jumpy.
+                Color.clear.frame(height: 40)
             }
         }
         // Top-align so cells in the same row don't vertically center —
