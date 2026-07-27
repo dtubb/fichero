@@ -216,7 +216,10 @@ extension LibraryView {
         thumbnailPrefetchTask = nil
     }
 
-    private func scheduleThumbnailPrefetch(around documentId: String) {
+    // Internal (not private): the list view prefetches with the same window
+    // from ITS rows' onAppear (#4160) — list rows previously fetched one at a
+    // time on scroll, so every scroll showed skeleton churn.
+    func scheduleThumbnailPrefetch(around documentId: String) {
         guard !isShowingEntitiesCollection,
               let index = documentIndexById[documentId] else { return }
 

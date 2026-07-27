@@ -11,6 +11,14 @@ struct MailStyleRow: View {
     /// the row's `.equatable()` diffing: focus changes also change the `tint`
     /// LibrarySelectableRow already compares.
     var isPaneFocused: Bool = false
+    /// Inline rename (#4160): the context menu's Rename set state only the
+    /// TABLE mode consumed — in list mode it silently did nothing (while
+    /// still blocking type-select). Threaded from LibraryView's existing
+    /// renamingDocumentId/editingName wiring, same as the table column.
+    var isRenaming: Bool = false
+    var editingName: Binding<String> = .constant("")
+    var onCommitRename: () -> Void = {}
+    var onCancelRename: () -> Void = {}
     /// Entity types the parent wants rendered in the lozenge rows.
     /// Defaults to all six so callers that don't filter still see
     /// everything; LibraryView passes its `listVisibleEntityTypes`
@@ -61,12 +69,25 @@ struct MailStyleRow: View {
                     // PDF page rows show their page number (prefer an
                     // extracted page_label once #2080 lands), not the
                     // internal id/filename. Non-page docs keep their name. (#2053)
-                    Text(document.pageThumbnailLabel ?? document.name)
-                        .font(.headline)
-                        .foregroundStyle(primaryTextColor)
-                        .lineLimit(3)
-                        .truncationMode(.middle)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if isRenaming {
+                        EditableDocumentName(
+                            document: document,
+                            isRenaming: true,
+                            editingName: editingName,
+                            font: .headline,
+                            onCommit: onCommitRename,
+                            onCancel: onCancelRename
+                        )
+                    } else {
+                        Text(document.pageThumbnailLabel ?? document.name)
+                            .font(.headline)
+                            .foregroundStyle(primaryTextColor)
+                            .lineLimit(3)
+                            .truncationMode(.middle)
+                            .fixedSize(horizontal: false, vertical: true)
+                            // Middle-truncated titles reveal in full on hover.
+                            .help(document.pageThumbnailLabel ?? document.name)
+                    }
 
                     if document.isLinked {
                         Image(systemName: "arrow.up.right.square")
@@ -125,6 +146,29 @@ struct MailStyleRow: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+        // VoiceOver reads one coherent row (#4160), matching the sidebar's
+        // terse label+hint convention — not loose text fragments.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(rowAccessibilityLabel)
+        .accessibilityValue(document.status.rawValue.capitalized)
+        .accessibilityHint(rowAccessibilityHint)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("libraryRow.\(document.id)")
+    }
+
+    private var rowAccessibilityLabel: String {
+        let name = document.pageThumbnailLabel ?? document.name
+        if document.docType == .folder { return "\(name), folder" }
+        if let fileType = document.fileType { return "\(name), \(fileType.rawValue)" }
+        return name
+    }
+
+    private var rowAccessibilityHint: String {
+        #if os(macOS)
+        "Press Return to open, Space to preview. Right-click for actions."
+        #else
+        "Double tap and hold for actions."
+        #endif
     }
 
     /// White-on-accent when this row is the focused selection (the fill is

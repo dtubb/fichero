@@ -42,7 +42,11 @@ extension LibraryView {
                                 // renders from — the document AND which entity-type
                                 // tags are shown — so a filter change still re-renders
                                 // the row (isSelected/tint cover selection + focus).
-                                identity: DocRowIdentity(document: doc, visibleEntityTypes: listVisibleEntityTypes),
+                                identity: DocRowIdentity(
+                                    document: doc,
+                                    visibleEntityTypes: listVisibleEntityTypes,
+                                    isRenaming: renamingDocumentId == doc.id
+                                ),
                                 isSelected: selection.contains(doc.id),
                                 tint: selectionFill
                             ) {
@@ -50,6 +54,10 @@ extension LibraryView {
                                     document: doc,
                                     isSelected: selection.contains(doc.id),
                                     isPaneFocused: isPaneFocused,
+                                    isRenaming: renamingDocumentId == doc.id,
+                                    editingName: $editingName,
+                                    onCommitRename: commitRename,
+                                    onCancelRename: cancelRename,
                                     visibleEntityTypes: listVisibleEntityTypes
                                 ) { tag in
                                     searchText = tag
@@ -57,6 +65,7 @@ extension LibraryView {
                                 }
                             }
                             .equatable()
+                            .modifier(LibraryRowHoverWash(enabled: !selection.contains(doc.id)))
                             .id(doc.id)
                             .draggable(libraryItemDrag(for: doc))
                             // Folder rows accept in-app item drops (#4124).
@@ -75,6 +84,12 @@ extension LibraryView {
                             }
                             .contextMenu {
                                 documentContextMenu(for: doc)
+                            }
+                            // Same look-ahead window icon mode uses (#4160):
+                            // batch-prefetch thumbnails around the appearing
+                            // row instead of one fetch per row on scroll.
+                            .onAppear {
+                                scheduleThumbnailPrefetch(around: doc.id)
                             }
 
                             Divider()

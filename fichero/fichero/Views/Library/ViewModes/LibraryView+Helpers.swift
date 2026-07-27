@@ -15,6 +15,24 @@ import SwiftUI
 struct DocRowIdentity: Equatable, Sendable {
     let document: Document
     let visibleEntityTypes: Set<String>
+    /// Inline rename toggles the title between Text and TextField (#4160) —
+    /// without this in `==`, `.equatable()` suppresses the redraw and the
+    /// rename field never appears.
+    var isRenaming: Bool = false
+}
+
+/// Subtle hover wash on unselected list rows (#4160), like the sidebar's
+/// hover affordance — pointer feedback without stealing the selection tint.
+/// Per-row @State so hovering re-renders ONE row, not the list.
+struct LibraryRowHoverWash: ViewModifier {
+    let enabled: Bool
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(enabled && isHovered ? Color.primary.opacity(0.05) : Color.clear)
+            .onHover { isHovered = $0 }
+    }
 }
 
 struct LibrarySelectableRow<Identity: Equatable & Sendable, Content: View>: View, Equatable {

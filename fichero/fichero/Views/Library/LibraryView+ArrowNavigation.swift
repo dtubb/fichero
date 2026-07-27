@@ -26,7 +26,7 @@ enum LibraryKeyboardCursor {
 
 extension LibraryView {
     enum ArrowDirection {
-        case upDir, down, left, right, pageUp, pageDown
+        case upDir, down, left, right, pageUp, pageDown, home, end
     }
 
     #if os(macOS)
@@ -67,10 +67,17 @@ extension LibraryView {
             return .handled
         }
 
-        let step = stepSize(for: direction)
-        guard step != 0 else { return .ignored }
-        let targetIndex = currentIndex + step
-        guard targetIndex >= 0, targetIndex < ids.count else { return .handled }
+        let targetIndex: Int
+        switch direction {
+        case .home: targetIndex = 0
+        case .end: targetIndex = ids.count - 1
+        default:
+            let step = stepSize(for: direction)
+            guard step != 0 else { return .ignored }
+            let candidate = currentIndex + step
+            guard candidate >= 0, candidate < ids.count else { return .handled }
+            targetIndex = candidate
+        }
 
         applySelection(targetIndex: targetIndex, ids: ids)
         if displayMode == .icon || displayMode == .list || displayMode == .table {
@@ -115,6 +122,8 @@ extension LibraryView {
         case .right:  return  1
         case .pageUp: return -pageStepSize()
         case .pageDown: return pageStepSize()
+        // Absolute jumps — handled before stepSize is consulted.
+        case .home, .end: return 0
         }
     }
 

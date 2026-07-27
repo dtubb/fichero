@@ -101,6 +101,36 @@ struct LibraryListModeGuardTests {
         #expect(source.contains("primaryTextColor"))
     }
 
+    @Test("list rows support inline rename via the shared editable name")
+    func inlineRenameWired() throws {
+        let components = try appSource("Views/Library/LibraryViewComponents.swift")
+        #expect(components.contains("EditableDocumentName("))
+        // Rename state must reach the .equatable() diff or the field never
+        // appears — the one place these changes can silently break (audit).
+        let helpers = try appSource("Views/Library/ViewModes/LibraryView+Helpers.swift")
+        #expect(helpers.contains("var isRenaming: Bool"))
+        let list = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        #expect(list.contains("isRenaming: renamingDocumentId == doc.id"))
+    }
+
+    @Test("Space, Home, and End are handled")
+    func spaceHomeEnd() throws {
+        let keys = try appSource("Views/Library/LibraryView+KeyboardShortcuts.swift")
+        #expect(keys.contains(".onKeyPress(.space)"))
+        #expect(keys.contains(".onKeyPress(.home"))
+        #expect(keys.contains(".onKeyPress(.end"))
+        #expect(keys.contains(".quickLookPreview($quickLookURL)"))
+    }
+
+    @Test("list rows prefetch thumbnails and carry accessibility")
+    func prefetchAndAccessibility() throws {
+        let list = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        #expect(list.contains("scheduleThumbnailPrefetch(around: doc.id)"))
+        let components = try appSource("Views/Library/LibraryViewComponents.swift")
+        #expect(components.contains(".accessibilityElement(children: .combine)"))
+        #expect(components.contains("accessibilityIdentifier(\"libraryRow."))
+    }
+
     @Test("entity lozenge block reserves real height while loading")
     func lozengeReservation() throws {
         let source = try appSource("Views/Inspector/Artifacts/ArtifactEntityViews.swift")

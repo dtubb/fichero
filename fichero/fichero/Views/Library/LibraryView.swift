@@ -180,6 +180,8 @@ struct LibraryView: View {
     // arrows resumed from, Return opened, and the list scrolled to an
     // arbitrary row.
     @State var selectionCursor: String?
+    // Space → Quick Look temp-file URL (#4160); non-nil presents the panel.
+    @State var quickLookURL: URL?
 
     // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
     @State var gridColumnCount: Int = 4
