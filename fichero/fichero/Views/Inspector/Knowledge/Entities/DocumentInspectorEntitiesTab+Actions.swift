@@ -220,11 +220,13 @@ extension DocumentInspectorEntitiesTab {
     // `internal`: called from `entityContextMenu` and `openEntity` in `+Menus.swift`.
     func postSearch(
         for entity: Components.Schemas.KnowledgeEntity,
-        kind: EntityKind
+        kind: EntityKind,
+        saveAsSmartSearch: Bool = false
     ) {
         entitySearchState?.request(
             name: entity.canonicalName,
-            entityType: kind.searchScope
+            entityType: kind.searchScope,
+            saveAsSmartSearch: saveAsSmartSearch
         )
     }
 }

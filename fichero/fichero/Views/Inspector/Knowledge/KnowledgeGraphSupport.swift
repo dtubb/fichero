@@ -67,12 +67,16 @@ final class EntitySearchState {
     private(set) var requestID: Int = 0
     private(set) var requestedName: String?
     private(set) var requestedEntityType: String?
+    /// Smart-folder hop (#4114): also persist the scoped query as a
+    /// SavedSearch so it lands in the sidebar in ONE click.
+    private(set) var requestedSaveAsSmartSearch: Bool = false
 
-    func request(name: String, entityType: String?) {
+    func request(name: String, entityType: String?, saveAsSmartSearch: Bool = false) {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
         requestedName = trimmedName
         requestedEntityType = entityType?.trimmingCharacters(in: .whitespacesAndNewlines)
+        requestedSaveAsSmartSearch = saveAsSmartSearch
         requestID &+= 1
     }
 }

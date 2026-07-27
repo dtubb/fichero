@@ -1,6 +1,11 @@
+import OSLog
 import SwiftUI
 
 // MARK: - ContentView Event & State Change Handlers
+
+private let stateEventsLogger = Logger(
+    subsystem: "app.fichero.fichero", category: "ContentViewStateEvents"
+)
 
 extension ContentView {
 
@@ -170,8 +175,8 @@ extension ContentView {
     func handleEntitySearchRequested() {
         // Click on a blue entity lozenge anywhere in the UI fires the
         // toolbar search for that name. Same code path as typing in
-        // the toolbar — creates a saved search, switches to search
-        // mode, runs the query.
+        // the toolbar — the TRANSIENT pipeline (#4086/#4106), persisting
+        // nothing unless the request explicitly asks for a smart search.
         //
         // When the lozenge knows its entity_type (people / places /
         // keywords / etc.), we construct a SCOPED query like
@@ -193,6 +198,24 @@ extension ContentView {
         }
         toolbarSearchText = query
         runToolbarSearch(query)
+        // Smart folder in one click (#4114): the entity menu's "Save Mentions
+        // as Smart Search" persists the SAME scoped query to the sidebar.
+        if entitySearchState.requestedSaveAsSmartSearch {
+            Task { @MainActor in
+                do {
+                    _ = try await savedSearchService.saveSearch(
+                        query: query,
+                        isSmartSearch: true,
+                        searchType: "hybrid",
+                        sortBy: "relevance",
+                        sortDirection: "desc"
+                    )
+                    try await savedSearchService.loadSavedSearches()
+                } catch {
+                    stateEventsLogger.error("smart-search save failed: \(error.localizedDescription)")
+                }
+            }
+        }
     }
 
     /// Handles typed source-open requests from inspector/KG/search surfaces.

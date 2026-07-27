@@ -72,6 +72,15 @@ extension DocumentInspectorEntitiesTab {
         Button("Find in Library") {
             postSearch(for: entity, kind: EntityKind(apiType: entity.entityType) ?? .other)
         }
+        // Smart folder in ONE click (#4114): runs the mention search AND
+        // persists it to the sidebar's saved searches.
+        Button("Save Mentions as Smart Search") {
+            postSearch(
+                for: entity,
+                kind: EntityKind(apiType: entity.entityType) ?? .other,
+                saveAsSmartSearch: true
+            )
+        }
         // Row text can't use .textSelection (it fights row selection), so Copy
         // is the always-available copy-paste path for a selectable row (#3461).
         Button("Copy Name") {
