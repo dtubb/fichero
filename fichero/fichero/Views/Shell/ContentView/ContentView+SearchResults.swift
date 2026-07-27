@@ -74,6 +74,10 @@ extension ContentView {
         await store.performSearch(
             query: query,
             limit: transientSearchLimit,
+            // All four legs (#4118): documents + entities + claims +
+            // workflow artifacts — the grid shows documents; the bar
+            // presents the typed hits.
+            include: [.content, .entities, .claims, .artifacts],
             searchType: transientSearchType,
             sortBy: transientSearchSortBy,
             sortOrder: transientSearchSortDirection,
@@ -137,6 +141,23 @@ extension ContentView {
             try await library.savedSearchService.loadSavedSearches()
         } catch {
             searchResultsLogger.error("Save search failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Navigate to the document that owns a matched artifact (#4118).
+    @MainActor
+    func openArtifactHit(_ hit: Components.Schemas.SearchArtifactHit) {
+        Task { @MainActor in
+            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId)
+                ?? LibraryManager.shared.globalLibrary else { return }
+            do {
+                let doc = try await library.documentService.getDocument(hit.documentId)
+                navigateToDocument(doc)
+            } catch {
+                searchResultsLogger.error(
+                    "artifact hit \(hit.documentId, privacy: .public) failed to open: \(error.localizedDescription)"
+                )
+            }
         }
     }
 
@@ -305,6 +326,48 @@ extension ContentView {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                         Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 4)
+                    .background(.bar)
+                }
+
+                // Typed artifact hits (#4118): workflow outputs that matched —
+                // type-badged, snippeted, click navigates to the owning doc.
+                if let artifactHits = store.searchStats?.artifactHits, !artifactHits.isEmpty {
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(Array(artifactHits.prefix(5).enumerated()), id: \.offset) { _, hit in
+                                Button {
+                                    openArtifactHit(hit)
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Text(hit.artifactType)
+                                            .font(.caption2.weight(.medium))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 1)
+                                            .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                                        Text(hit.snippet ?? hit.documentName ?? hit.documentId)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                        Spacer()
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            if artifactHits.count > 5 {
+                                Text("…and \(artifactHits.count - 5) more")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.leading, 4)
+                    } label: {
+                        Label("Artifacts (\(artifactHits.count))", systemImage: "shippingbox")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 12)
                     .padding(.bottom, 4)

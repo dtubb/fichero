@@ -5,6 +5,8 @@ struct SearchResponse: Codable {
     let results: [SearchResult]
     let entityHits: [Components.Schemas.SearchEntityHit]
     let claimHits: [Components.Schemas.SearchClaimHit]
+    /// Workflow outputs that matched (#4118) — typed, opt-in leg.
+    let artifactHits: [Components.Schemas.SearchArtifactHit]
     let count: Int
     let totalResults: Int
     let query: String
@@ -22,6 +24,7 @@ struct SearchResponse: Codable {
         case results
         case entityHits = "entity_hits"
         case claimHits = "claim_hits"
+        case artifactHits = "artifact_hits"
         case count
         case totalResults = "total_results"
         case query
@@ -38,6 +41,7 @@ struct SearchResponse: Codable {
         results: [SearchResult],
         entityHits: [Components.Schemas.SearchEntityHit] = [],
         claimHits: [Components.Schemas.SearchClaimHit] = [],
+        artifactHits: [Components.Schemas.SearchArtifactHit] = [],
         count: Int,
         totalResults: Int,
         query: String,
@@ -52,6 +56,7 @@ struct SearchResponse: Codable {
         self.results = results
         self.entityHits = entityHits
         self.claimHits = claimHits
+        self.artifactHits = artifactHits
         self.count = count
         self.totalResults = totalResults
         self.query = query
@@ -74,6 +79,10 @@ struct SearchResponse: Codable {
         claimHits = try container.decodeIfPresent(
             [Components.Schemas.SearchClaimHit].self,
             forKey: .claimHits
+        ) ?? []
+        artifactHits = try container.decodeIfPresent(
+            [Components.Schemas.SearchArtifactHit].self,
+            forKey: .artifactHits
         ) ?? []
         count = try container.decode(Int.self, forKey: .count)
         totalResults = try container.decode(Int.self, forKey: .totalResults)

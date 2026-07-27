@@ -248,6 +248,7 @@ class SearchService {
             results: results,
             entityHits: generated.entityHits ?? [],
             claimHits: generated.claimHits ?? [],
+            artifactHits: generated.artifactHits ?? [],
             count: generated.count,
             totalResults: generated.totalResults,
             query: generated.query,

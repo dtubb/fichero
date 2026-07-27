@@ -160,6 +160,18 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         XCTAssertTrue(resultsSource.contains("store.searchStats?.compilationError"))
     }
 
+    func testArtifactHitsPresentInTheResultsBar() throws {
+        let resultsSource = try Self.appSource(Self.resultsSource)
+
+        // #4118 UI half: the transient search requests all four legs and the
+        // bar presents typed artifact hits (badge + snippet, click opens the
+        // owning document).
+        XCTAssertTrue(resultsSource.contains("include: [.content, .entities, .claims, .artifacts]"))
+        XCTAssertTrue(resultsSource.contains("store.searchStats?.artifactHits"))
+        XCTAssertTrue(resultsSource.contains("func openArtifactHit"))
+        XCTAssertTrue(resultsSource.contains("navigateToDocument(doc)"))
+    }
+
     func testTransientResultsRerunOnLibraryChanges() throws {
         let source = try Self.appSource(Self.resultsSource)
 
