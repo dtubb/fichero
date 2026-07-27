@@ -36,10 +36,14 @@ extension NodePopover {
                 "Loaded \(providers.count) providers, \(providers.filter { $0.available }.count) available"
             )
 
-            if let providerId = node.providerName,
-               let provider = providers.first(where: { $0.id == providerId }) {
-                selectedProviderId = provider.id
-                selectedModelId = node.modelName ?? provider.models.first ?? ""
+            if let providerId = node.providerName {
+                if isModelAliasProviderId(providerId) {
+                    selectedProviderId = providerId
+                    selectedModelId = ""
+                } else if let provider = providers.first(where: { $0.id == providerId }) {
+                    selectedProviderId = provider.id
+                    selectedModelId = node.modelName ?? provider.models.first ?? ""
+                }
             }
         } catch {
             comparisonLogger.error("Failed to load providers: \(String(describing: error))")
