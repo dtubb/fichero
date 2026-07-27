@@ -55,12 +55,14 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         // so ActivityMonitorWindow.swift no longer contains the inlined detail view.
         let appSource = try Self.appSource("FicheroApp.swift")
         let monitorSource = try Self.appSource("Views/Activity/Window/ActivityMonitorWindow.swift")
+        let detailSource = try Self.appSource("Views/Activity/Window/ActivityDetailWindow.swift")
         let helpersSource = try Self.appSource("Views/Activity/ActivityViewHelpers.swift")
 
         XCTAssertTrue(appSource.contains("ActivityWindowMenuButton()"))
         XCTAssertTrue(appSource.contains("WindowGroup(\"Activity\", id: ActivityWindowSelectionState.monitorWindowID)"))
         XCTAssertTrue(appSource.contains("WindowGroup(\"Activity Detail\", id: ActivityWindowSelectionState.detailWindowID)"))
         XCTAssertTrue(monitorSource.contains("opensDetailWindow: true"))
+        XCTAssertTrue(detailSource.contains(".environment(library.documentStore)"))
         XCTAssertFalse(monitorSource.contains("ActivityDetailView(selectedRun: selectedRun)"))
         XCTAssertTrue(helpersSource.contains("openWindow(id: ActivityWindowSelectionState.detailWindowID)"))
         XCTAssertTrue(helpersSource.contains(".onTapGesture(count: 2)"))

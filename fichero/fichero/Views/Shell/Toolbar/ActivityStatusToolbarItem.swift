@@ -18,6 +18,7 @@ import SwiftUI
 struct ActivityStatusToolbarItem: View {
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(ActivityStore.self) private var activityStore
+    @Environment(\.openWindow) private var openWindow
 
     let isImporting: Bool
     let importProgress: String?
@@ -137,6 +138,13 @@ struct ActivityStatusToolbarItem: View {
                 Text("Nothing running.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            Button("Open Activity") {
+                showPopover = false
+                openWindow(id: ActivityWindowSelectionState.monitorWindowID)
             }
         }
         .padding(14)

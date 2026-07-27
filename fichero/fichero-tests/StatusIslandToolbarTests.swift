@@ -157,4 +157,12 @@ struct StatusIslandToolbarTests {
         #expect(island.contains("EngineStatusToolbarItem()"))
         #expect(island.contains("ActivityStatusToolbarItem("))
     }
+
+    @Test("the activity status popover opens the Activity window")
+    func activityStatusOpensActivityWindow() throws {
+        let source = try Self.appSource("Views/Shell/Toolbar/ActivityStatusToolbarItem.swift")
+
+        #expect(source.contains("@Environment(\\.openWindow)"))
+        #expect(source.contains("openWindow(id: ActivityWindowSelectionState.monitorWindowID)"))
+    }
 }

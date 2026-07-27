@@ -23,6 +23,7 @@ struct ActivityDetailWindow: View {
                 ActivityDetailView(selectedRun: selectedRun)
                     .environment(library.activityStore)
                     .environment(library.apiClient)
+                    .environment(library.documentStore)
                     .environment(library.workflowExecutionStore)
             } else {
                 ContentUnavailableView(
