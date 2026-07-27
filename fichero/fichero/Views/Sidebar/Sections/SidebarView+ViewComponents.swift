@@ -24,13 +24,8 @@ extension SidebarView {
             // filter chrome above the bar.
             if shouldShowBottomToolbar {
                 SidebarBottomToolbar(
-                    createChat: createNewChat,
-                    createWorkflow: createNewWorkflow,
-                    createFolder: handleCreateNewFolder,
+                    itemRegistry: itemRegistry,
                     importFiles: importFiles,
-                    createComparison: createNewComparison,
-                    createSchedule: createNewSchedule,
-                    createTrigger: createNewTrigger,
                     deleteItem: handleDeleteSelection,
                     hasSelection: selectedItem != nil,
                     sidebarFilterText: $sidebarFilterText

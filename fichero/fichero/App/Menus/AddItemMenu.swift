@@ -69,10 +69,23 @@ struct AddItemMenu: View {
             }
 
             if featureManager.isWorkflowsEnabled {
-                Button("New Workflow") {
+                Button(featureManager.badgedLabel("New Workflow", for: .workflows)) {
                     createWorkflowAction?()
                 }
                 .disabled(createWorkflowAction == nil)
+                // One gate for Comparison everywhere (#4121): it rode
+                // isWorkflowsEnabled in the toolbar and a stricter flag in
+                // the Data menu — the shared menu settles on workflows.
+                Button(featureManager.badgedLabel("New Comparison", for: .modelComparison)) {
+                    createComparisonAction?()
+                }
+                .disabled(createComparisonAction == nil)
+                if featureManager.isWorkflowChainsEnabled {
+                    Button(featureManager.badgedLabel("New Chain", for: .workflowChains)) {
+                        createChainAction?()
+                    }
+                    .disabled(createChainAction == nil)
+                }
             }
 
             if featureManager.isAutomationEnabled {
@@ -80,6 +93,10 @@ struct AddItemMenu: View {
                     createScheduleAction?()
                 }
                 .disabled(createScheduleAction == nil)
+                Button(featureManager.badgedLabel("New Trigger", for: .automation)) {
+                    createTriggerAction?()
+                }
+                .disabled(createTriggerAction == nil)
             }
         } else {
             Text("No create actions available")
@@ -112,6 +129,27 @@ struct AddItemMenu: View {
             return { sidebarActions.importFiles(.move) }
         }
         return registry.importFiles
+    }
+
+    private var createComparisonAction: (() -> Void)? {
+        if let sidebarActions {
+            return sidebarActions.createComparison
+        }
+        return registry.createComparison
+    }
+
+    private var createChainAction: (() -> Void)? {
+        if let sidebarActions {
+            return sidebarActions.createChain
+        }
+        return registry.createChain
+    }
+
+    private var createTriggerAction: (() -> Void)? {
+        if let sidebarActions {
+            return sidebarActions.createTrigger
+        }
+        return registry.createTrigger
     }
 
     private var createChatAction: (() -> Void)? {

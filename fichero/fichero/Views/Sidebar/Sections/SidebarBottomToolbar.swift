@@ -10,14 +10,12 @@ struct SidebarBottomToolbar: View {
     // Feature manager to hide buttons
     let featureManager = FeatureManager.shared
 
-    let createChat: () -> Void
-    let createWorkflow: () -> Void
-    let createFolder: () -> Void
+    /// One shared creation menu (#4121): the + dropdown renders AddItemMenu —
+    /// the SAME registry/FocusedValue-driven list the Data menu uses — so the
+    /// items, gating, and tier badges can never drift between surfaces again.
+    let itemRegistry: ItemTypeRegistry
     let importFiles: (IngestMode) -> Void
     // Optional automation creation callbacks
-    var createComparison: (() -> Void)?
-    var createSchedule: (() -> Void)?
-    var createTrigger: (() -> Void)?
     // Selection-dependent actions (#2309)
     var deleteItem: (() -> Void)?
     var hasSelection: Bool = false
@@ -102,49 +100,9 @@ struct SidebarBottomToolbar: View {
 
         Spacer(minLength: 12)
 
-        // New item menu (dropdown)
+        // New item menu (dropdown) — ONE source of truth (#4121).
         Menu {
-                if featureManager.isChatEnabled {
-                    Button(action: createChat) {
-                        Label("New Chat", systemImage: "bubble.left.and.bubble.right")
-                    }
-                }
-
-                if featureManager.isWorkflowsEnabled {
-                    if let createComparison = createComparison {
-                        Button(action: createComparison) {
-                            Label("New Comparison", systemImage: "arrow.left.arrow.right")
-                        }
-                    }
-                    Button(action: createWorkflow) {
-                        Label("New Workflow", systemImage: "arrow.triangle.branch")
-                    }
-                }
-
-                if featureManager.isAutomationEnabled || featureManager.isWorkflowsEnabled {
-                    Divider()
-                }
-
-                if featureManager.isAutomationEnabled {
-                    if let createSchedule = createSchedule {
-                        Button(action: createSchedule) {
-                            Label("New Schedule", systemImage: "clock")
-                        }
-                    }
-                    if let createTrigger = createTrigger {
-                        Button(action: createTrigger) {
-                            Label("New Trigger", systemImage: "bolt")
-                        }
-                    }
-
-                    if createSchedule != nil || createTrigger != nil {
-                        Divider()
-                    }
-                }
-
-                Button(action: createFolder) {
-                    Label("New Folder", systemImage: "folder.badge.plus")
-                }
+                AddItemMenu(registry: itemRegistry, style: .contextual)
             } label: {
                 Image(systemName: "plus")
                     .font(iconFont)
@@ -226,7 +184,7 @@ struct SidebarBottomToolbar: View {
             // Run workflow on selection (only shown when workflows feature is enabled)
             if featureManager.isWorkflowsEnabled {
                 Button {
-                    createWorkflow()
+                    itemRegistry.createWorkflow?()
                 } label: {
                     Image(systemName: "bolt")
                         .font(iconFont)
@@ -267,7 +225,7 @@ struct SidebarBottomToolbar: View {
 
         if featureManager.isWorkflowsEnabled {
             Button {
-                createWorkflow()
+                itemRegistry.createWorkflow?()
             } label: {
                 Label("New Workflow", systemImage: "bolt")
             }
