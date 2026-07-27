@@ -149,6 +149,15 @@ struct FileProgressIdentity: Equatable {
 }
 
 extension WorkflowStreamEvent {
+    var isTerminal: Bool {
+        switch self {
+        case .complete, .cancelled, .error, .systemicError:
+            return true
+        default:
+            return false
+        }
+    }
+
     var fileProgressIdentity: FileProgressIdentity? {
         switch self {
         case .fileStart(_, _, let filePath, _, _, _, let documentId, let pageId, let displayName, let sequence):

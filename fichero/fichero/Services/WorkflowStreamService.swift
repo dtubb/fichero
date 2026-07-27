@@ -233,7 +233,7 @@ class WorkflowStreamService {
             case .error, .systemicError:
                 self.hadError = true
                 self.isStreaming = false
-            case .complete, .pause:
+            case .complete, .pause, .cancelled:
                 self.isStreaming = false
             default:
                 break

@@ -206,7 +206,7 @@ extension LibraryView {
                 }
             }
             return true
-        case .error, .systemicError:
+        case .cancelled, .error, .systemicError:
             documentStore?.flushPendingFanoutCompletions(status: .failed)
             return true
         default:

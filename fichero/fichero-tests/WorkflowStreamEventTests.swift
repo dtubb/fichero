@@ -11,4 +11,17 @@ final class WorkflowStreamEventTests: XCTestCase {
         XCTAssertNotEqual(first, otherNode)
         XCTAssertNotEqual(first, .complete(threadId: "t-1", checkpointId: nil, finalState: nil))
     }
+
+    func testTerminalEventsIncludeCancellationButNotPause() {
+        XCTAssertTrue(WorkflowStreamEvent.complete(threadId: "t", checkpointId: nil, finalState: nil).isTerminal)
+        XCTAssertTrue(WorkflowStreamEvent.cancelled(threadId: "t").isTerminal)
+        XCTAssertTrue(WorkflowStreamEvent.error(threadId: "t", error: "failed").isTerminal)
+        XCTAssertTrue(WorkflowStreamEvent.systemicError(
+            threadId: "t",
+            error: "failed",
+            errorCount: 1,
+            totalCount: 1
+        ).isTerminal)
+        XCTAssertFalse(WorkflowStreamEvent.pause(threadId: "t", checkpointId: nil, currentState: nil).isTerminal)
+    }
 }
