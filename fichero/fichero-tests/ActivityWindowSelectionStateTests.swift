@@ -67,6 +67,8 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(monitorSource.contains("Label(library.displayName"))
         XCTAssertTrue(detailSource.contains(".environment(library.documentStore)"))
         XCTAssertTrue(detailSource.contains("selectionState.selectedRun?.libraryId"))
+        XCTAssertTrue(helpersSource.contains("@Environment(WorkflowExecutionStore.self)"))
+        XCTAssertFalse(helpersSource.contains("@Environment(WorkflowExecutionObserver.self) private var executionObserver"))
         XCTAssertFalse(monitorSource.contains("ActivityDetailView(selectedRun: selectedRun)"))
         XCTAssertTrue(helpersSource.contains("openWindow(id: ActivityWindowSelectionState.detailWindowID)"))
         XCTAssertTrue(helpersSource.contains(".onTapGesture(count: 2)"))

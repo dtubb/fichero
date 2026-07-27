@@ -163,8 +163,8 @@ struct ActivityBrowserView: View {
     var showsOpenWindowButton: Bool = true
     var opensDetailWindow: Bool = false
 
-    @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(ActivityStore.self) private var activityStore
+    @Environment(WorkflowExecutionStore.self) private var workflowExecutionStore
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
@@ -285,7 +285,7 @@ struct ActivityBrowserView: View {
             $0.activityStore === activityStore
         }) else { return }
         await activityStore.rebuildRuns(
-            activeExecutions: Array(executionObserver.activeExecutions.values),
+            activeExecutions: Array(workflowExecutionStore.executions.values),
             library: library
         )
     }
