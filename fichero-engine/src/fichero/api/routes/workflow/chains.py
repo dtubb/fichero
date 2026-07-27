@@ -241,6 +241,7 @@ class PaleographyPresetResponse(BaseModel):
 MAX_TRACKED_EXECUTIONS = 1000
 MAX_EVENTS_PER_EXECUTION = 100
 _running_executions: dict[str, ChainExecutionResult] = {}
+_running_executors: dict[str, ChainExecutor] = {}
 _execution_events: dict[str, list[ChainProgressEvent]] = {}
 _execution_order: list[str] = []  # Track insertion order for LRU eviction
 
@@ -250,6 +251,7 @@ def _evict_old_executions() -> None:
     while len(_execution_order) > MAX_TRACKED_EXECUTIONS:
         oldest_id = _execution_order.pop(0)
         _running_executions.pop(oldest_id, None)
+        _running_executors.pop(oldest_id, None)
         _execution_events.pop(oldest_id, None)
 
 
@@ -601,6 +603,7 @@ async def execute_chain(
         execution_id=execution_id,
         status=ChainStepStatus.PENDING,
     )
+    _running_executors[execution_id] = executor
 
     # Define background task
     async def run_chain():
@@ -620,6 +623,8 @@ async def execute_chain(
                 execution_id=execution_id,
                 status=ChainStepStatus.FAILED,
             )
+        finally:
+            _running_executors.pop(execution_id, None)
 
     # Start in background
     background_tasks.add_task(run_chain)
@@ -687,6 +692,9 @@ async def cancel_chain_execution(execution_id: str) -> ChainCancelResponse:
     # Mark as cancelled (executor checks this flag)
     result = _running_executions[execution_id]
     if result.status == ChainStepStatus.PENDING:
+        executor = _running_executors.get(execution_id)
+        if executor:
+            executor.cancel()
         result.status = ChainStepStatus.CANCELLED
         _running_executions[execution_id] = result
         return ChainCancelResponse(cancelled=True, execution_id=execution_id)
