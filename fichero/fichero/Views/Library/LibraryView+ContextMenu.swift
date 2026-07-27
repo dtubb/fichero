@@ -206,7 +206,7 @@ extension LibraryView {
         workflows: [WorkflowSidebarItem],
         action: @escaping (String, String?, String?) -> Void
     ) -> some View {
-        let grouped = Dictionary(grouping: workflows) { workflow in
+        let grouped = Dictionary(grouping: workflows.filter(\.canRunDirectly)) { workflow in
             workflow.folderPath.isEmpty ? "/" : workflow.folderPath
         }
         let topLevel = (grouped["/"] ?? []).sorted { $0.name < $1.name }

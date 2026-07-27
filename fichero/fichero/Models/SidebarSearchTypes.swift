@@ -103,6 +103,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     var isSystem: Bool
     // True = shipped preset not yet validated end-to-end; UI appends "(Untested)".
     var isUntested: Bool
+    var isDirectlyRunnable: Bool?
     var createdAt: Date
     var updatedAt: Date
 
@@ -117,6 +118,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         case sortOrder = "sort_order"
         case isSystem = "is_system"
         case isUntested = "untested"
+        case isDirectlyRunnable = "direct_runnable"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -132,6 +134,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         sortOrder: Int = 0,
         isSystem: Bool = false,
         isUntested: Bool = false,
+        isDirectlyRunnable: Bool = true,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -145,6 +148,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         self.sortOrder = sortOrder
         self.isSystem = isSystem
         self.isUntested = isUntested
+        self.isDirectlyRunnable = isDirectlyRunnable
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -153,4 +157,6 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     var displayName: String {
         isUntested ? "\(name) (Untested)" : name
     }
+
+    var canRunDirectly: Bool { isDirectlyRunnable ?? true }
 }

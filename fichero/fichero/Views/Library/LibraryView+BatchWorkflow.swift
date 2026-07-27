@@ -30,7 +30,7 @@ extension LibraryView {
     /// A workflow id can only be run in the library it will execute against.
     /// Pure so the guard in `runBatchWorkflow` is unit-testable (#3820).
     static func workflowIsRunnable(workflowId: String, in workflows: [WorkflowSidebarItem]) -> Bool {
-        workflows.contains { $0.id == workflowId }
+        workflows.contains { $0.id == workflowId && $0.canRunDirectly }
     }
 
     // MARK: - Workflow Execution (replaces batch path)

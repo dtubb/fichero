@@ -13,7 +13,7 @@ struct WorkflowPickerSheet: View {
 
     private var workflows: [WorkflowSidebarItem] {
         let library = libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
-        return library?.workflowStore.workflows ?? []
+        return library?.workflowStore.directlyRunnableWorkflows ?? []
     }
 
     private var filteredWorkflows: [WorkflowSidebarItem] {

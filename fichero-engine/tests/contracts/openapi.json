@@ -61116,6 +61116,11 @@
             "type": "boolean",
             "title": "Untested",
             "default": false
+          },
+          "direct_runnable": {
+            "type": "boolean",
+            "title": "Direct Runnable",
+            "default": true
           }
         },
         "type": "object",

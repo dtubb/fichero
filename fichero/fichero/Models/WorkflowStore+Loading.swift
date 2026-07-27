@@ -48,6 +48,7 @@ extension WorkflowStore {
                     sortOrder: workflow.sortOrder,
                     isSystem: workflow.isSystem,
                     isUntested: workflow.isUntested,
+                    isDirectlyRunnable: workflow.directRunnable ?? true,
                     createdAt: Date(),  // Backend doesn't return these yet
                     updatedAt: Date()
                 )

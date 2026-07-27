@@ -8,6 +8,9 @@ import OSLog
 @Observable
 final class WorkflowStore: ChangeEventConsumer {
     var workflows: [WorkflowSidebarItem] = []
+    var directlyRunnableWorkflows: [WorkflowSidebarItem] {
+        workflows.filter(\.canRunDirectly)
+    }
     var selectedWorkflow: WorkflowSidebarItem?
     var isLoading = false
     var isSaving = false

@@ -507,10 +507,12 @@ extension WorkflowService {
         // client can lag schema changes (both are derived backend response fields).
         var isSystem = false
         var isUntested = false
+        var directRunnable = true
         if let data = try? JSONEncoder().encode(workflow),
            let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             isSystem = (dict["is_system"] as? Bool) ?? false
             isUntested = (dict["untested"] as? Bool) ?? false
+            directRunnable = (dict["direct_runnable"] as? Bool) ?? true
         }
         return WorkflowResponse(
             id: workflow.id,
@@ -523,7 +525,8 @@ extension WorkflowService {
             folderPath: workflow.folderPath,
             sortOrder: workflow.sortOrder,
             isSystem: isSystem,
-            isUntested: isUntested
+            isUntested: isUntested,
+            directRunnable: directRunnable
         )
     }
 

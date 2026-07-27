@@ -28,7 +28,7 @@ struct ScheduleCreationSheet: View {
 
                     Picker("Workflow", selection: $selectedWorkflowId) {
                         Text("Select workflow...").tag("")
-                        ForEach(workflowStore.workflows) { workflow in
+                        ForEach(workflowStore.directlyRunnableWorkflows) { workflow in
                             Text(workflow.name).tag(workflow.id)
                         }
                     }

@@ -83,13 +83,15 @@ final class WorkflowResponseTypesTests: XCTestCase {
             "folder_path": "/Catalogue",
             "sort_order": 3,
             "is_system": true,
-            "untested": false
+            "untested": false,
+            "direct_runnable": false
         }
         """.data(using: .utf8)!
         let resp = try JSONDecoder().decode(WorkflowResponse.self, from: json)
         XCTAssertEqual(resp.folderPath, "/Catalogue")
         XCTAssertEqual(resp.sortOrder, 3)
         XCTAssertTrue(resp.isSystem)
+        XCTAssertEqual(resp.directRunnable, false)
     }
 
     // MARK: - NodeExecutionStatus raw values
