@@ -306,7 +306,7 @@ def _best_workflow_match(
         score = 0
         for idx, term in enumerate(lowered_terms):
             if term in name_lower:
-                score += max(1, 10 - idx)
+                score = max(score, max(1, 10 - idx))
         if score > 0:
             scored.append((score, workflow))
     if not scored:
@@ -320,7 +320,7 @@ def _build_paleography_chain(
 ) -> tuple[WorkflowChain, dict[str, str]]:
     """Build a stageable A/B/C paleography chain from available workflows."""
     transcribe = _best_workflow_match(
-        workflows, ["transcribe", "ocr", "handwriting", "paleography", "prepare"]
+        workflows, ["paleography", "handwriting", "htr", "transcribe", "ocr", "prepare"]
     )
     extract = _best_workflow_match(
         workflows, ["extract", "entities", "ner", "kg", "claims"]
