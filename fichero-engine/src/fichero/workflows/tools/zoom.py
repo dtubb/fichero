@@ -26,6 +26,7 @@ ZOOM_CONFIG = {
     "rows": {"type": "integer", "default": 0, "minimum": 0, "description": "Line strips; 0 chooses from image height."},
     "overlap": {"type": "number", "default": 0.15, "minimum": 0.0, "maximum": 0.3},
     "scale": {"type": "number", "default": 2.0, "minimum": 1.0, "maximum": 6.0},
+    "pdf_dpi": {"type": "integer", "default": 200, "minimum": 72, "maximum": 600},
     "output_format": {"type": "string", "enum": ["jpg", "png", "tiff", "webp"], "default": "jpg"},
     "compression_quality": {"type": "integer", "default": 90, "minimum": 1, "maximum": 100},
     "output_dir": {"type": "string", "default": ""},
@@ -44,6 +45,8 @@ def zoom_image_file(
     rows: int = 0,
     overlap: float = 0.15,
     scale: float = 2.0,
+    pdf_dpi: int = 200,
+    page_index: int | None = None,
     output_format: str = "jpg",
     compression_quality: int = 90,
 ) -> dict[str, Any]:
@@ -51,16 +54,32 @@ def zoom_image_file(
     source = Path(file_path)
     output_root = Path(output_dir)
     try:
-        if source.suffix.lower() not in _IMAGE_SUFFIXES:
+        if source.suffix.lower() not in _IMAGE_SUFFIXES | {".pdf"}:
             raise ValueError(f"Unsupported input file type: {source.suffix}")
         if mode not in {"region", "tile"}:
             raise ValueError("mode must be region or tile")
         scale = max(1.0, min(6.0, float(scale)))
         overlap = max(0.0, min(0.3, float(overlap)))
-
         from PIL import Image
 
-        with Image.open(source) as image:
+        if source.suffix.lower() == ".pdf":
+            from fichero.workflows.tools.prepare_images import _load_pages
+
+            pages, _ = _load_pages(source, pdf_dpi=pdf_dpi)
+            if page_index is not None:
+                if not 0 <= page_index < len(pages):
+                    raise ValueError(f"PDF page {page_index + 1} not found in: {source}")
+                page_images = [(page_index, pages[page_index])]
+            else:
+                page_images = list(enumerate(pages))
+        else:
+            with Image.open(source) as image:
+                page_images = [(None, image.copy())]
+
+        outputs = []
+        all_regions = []
+        original_size = []
+        for pdf_page_index, image in page_images:
             original_size = list(image.size)
             if mode == "region":
                 if None in {x, y, width, height} or width <= 0 or height <= 0:
@@ -84,7 +103,6 @@ def zoom_image_file(
                 ]
 
             ext = _extension_for_format(output_format)
-            outputs = []
             for index, region in enumerate(regions, start=1):
                 cropped = image.crop(region)
                 enlarged = cropped.resize(
@@ -92,11 +110,18 @@ def zoom_image_file(
                     Image.Resampling.LANCZOS,
                 )
                 suffix = "region" if mode == "region" else f"tile-{index:02d}"
-                output_path = output_root / f"{source.stem}.{suffix}.{ext}"
+                page_suffix = (
+                    f".page-{pdf_page_index + 1:03d}"
+                    if pdf_page_index is not None
+                    else ""
+                )
+                output_path = output_root / f"{source.stem}{page_suffix}.{suffix}.{ext}"
                 _save_image(enlarged, output_path, output_format=output_format, compression_quality=compression_quality)
                 outputs.append(str(output_path))
+            all_regions.extend([list(region) for region in regions])
+            image.close()
 
-        return {"source": str(source), "outputs": outputs, "output_files": outputs, "details": {"original_size": original_size, "mode": mode, "scale": scale, "regions": [list(region) for region in regions]}, "error": None}
+        return {"source": str(source), "outputs": outputs, "output_files": outputs, "details": {"original_size": original_size, "mode": mode, "scale": scale, "regions": all_regions}, "error": None}
     except Exception as exc:
         logger.warning("zoom failed for %s: %s", source, exc)
         return {"source": str(source), "outputs": [], "output_files": [], "details": {}, "error": str(exc)}
@@ -117,7 +142,15 @@ async def zoom(inputs: dict[str, Any], state: State, llm_config: LLMConfig) -> d
         files = [files]
     output_dir = inputs.get("output_dir") or str(Path(tempfile.gettempdir()) / "fichero-zoom")
     options = {key: inputs[key] for key in ZOOM_CONFIG if key in inputs and key != "output_dir"}
-    results = [zoom_image_file(file_path, output_dir, **options) for file_path in files]
+    documents = list(inputs.get("documents") or [])
+    results = []
+    for index, file_path in enumerate(files):
+        document = documents[index] if index < len(documents) else None
+        raw_page = document.get("sequence") if isinstance(document, dict) else None
+        page_index = int(raw_page) - 1 if raw_page is not None else None
+        results.append(
+            zoom_image_file(file_path, output_dir, page_index=page_index, **options)
+        )
     output_files = [path for result in results for path in result["outputs"]]
     errors = [result["error"] for result in results if result["error"]]
     return {"files": output_files, "output_files": output_files, "count": len(output_files), "results": results, "error": errors[0] if len(errors) == 1 else (f"{len(errors)} files failed" if errors else None)}
