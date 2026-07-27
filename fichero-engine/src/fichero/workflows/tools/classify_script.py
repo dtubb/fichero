@@ -121,7 +121,7 @@ async def classify_script(
         vision_mode=inputs.get("vision_mode", "llm"),
         language=inputs.get("language", "en"),
         max_image_dimension=inputs.get("max_image_dimension", 2048),
-        force_ocr=False,
+        force_ocr=True,
         temperature=inputs.get("temperature"),
         max_tokens=inputs.get("max_tokens"),
         output_format="json",

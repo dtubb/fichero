@@ -126,6 +126,71 @@ async def test_pdf_with_existing_page_content_skips_vision(tmp_path: Path) -> No
     assert mock_save.await_count == 1
 
 
+@pytest.mark.asyncio
+async def test_force_ocr_bypasses_existing_page_content(tmp_path: Path) -> None:
+    image = tmp_path / "page.png"
+    image.write_bytes(b"image")
+    documents = [{
+        "id": "doc-1",
+        "path": str(image),
+        "page_content": "stale transcription",
+    }]
+
+    with (
+        patch(
+            "fichero.workflows.tools.vision_base.file_to_data_uri",
+            return_value="data:image/png;base64,IMAGE",
+        ),
+        patch(
+            "fichero.llm.vision",
+            new=AsyncMock(return_value="fresh image result"),
+        ) as vision,
+    ):
+        result = await process_vision(
+            files=[str(image)],
+            documents=documents,
+            prompt="Review the image.",
+            llm_config=_make_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+            force_ocr=True,
+            save_to_db=False,
+        )
+
+    vision.assert_awaited_once()
+    assert result["text"] == "fresh image result"
+
+
+@pytest.mark.asyncio
+async def test_specialist_vision_tools_force_image_processing() -> None:
+    from importlib import import_module
+
+    for module_name, tool_name in (
+        ("classify_script", "classify_script"),
+        ("handwriting", "handwriting"),
+        ("transcribe_review", "transcribe_review"),
+    ):
+        module = import_module(f"fichero.workflows.tools.{module_name}")
+        process_result = {
+            "text": "{}" if tool_name == "classify_script" else "result",
+            "results": [],
+        }
+        with patch.object(
+            module,
+            "process_vision",
+            new=AsyncMock(return_value=process_result),
+        ) as process_vision:
+            await getattr(module, tool_name)(
+                {"files": ["page.png"]},
+                {"library_path": "/library.fichero"},
+                _make_llm_config(),
+            )
+
+        assert process_vision.await_args.kwargs["force_ocr"] is True
+
+
 def test_non_retriable_provider_error_detection() -> None:
     assert _is_non_retriable_provider_error("Error code: 403 - key limit exceeded")
     assert _is_non_retriable_provider_error("401 Unauthorized")

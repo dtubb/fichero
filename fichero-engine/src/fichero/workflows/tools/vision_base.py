@@ -201,14 +201,13 @@ VISION_CONFIG_SCHEMA = merge_config_schema(
             "description": "Max image size",
             "x-group": "primary",
         },
-        # #1033 — born-digital PDFs already carry a selectable text
-        # layer; the transcribe path uses it and skips vision OCR. Set
-        # this when a PDF's own text layer is itself garbage and OCR is
-        # genuinely needed.
+        # #1033 — generic Transcribe reuses existing extracted text. Set
+        # this for specialist image passes, or when a PDF text layer is
+        # itself garbage and OCR is genuinely needed.
         "force_ocr": {
             "type": "boolean",
             "default": False,
-            "description": "Force OCR even when a PDF has a text layer",
+            "description": "Force image processing instead of existing text",
             "x-group": "advanced",
         },
     },
@@ -1730,7 +1729,7 @@ async def process_vision(
                 if file_index < len(page_doc_dict_by_index)
                 else None
             )
-            if existing_text:
+            if existing_text and not force_ocr:
                 logger.info(
                     f"Pre-extracted text passthrough: {Path(file_path).name} "
                     f"({len(existing_text)} chars, doc_id={doc_id_for_file})"

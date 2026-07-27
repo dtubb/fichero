@@ -160,6 +160,7 @@ async def transcribe_review(
         library_path=state.get("library_path", ""),
         task_id=state.get("task_id"),
         tool_config=tool_config,
+        force_ocr=True,
         context=prior_text,
         input_metadata=input_metadata,
         thinking_mode=inputs.get("thinking_mode", "medium"),

@@ -36,3 +36,23 @@ async def test_transcribe_forwards_thinking_mode():
         )
 
     assert process_vision.await_args.kwargs["thinking_mode"] == "medium"
+
+
+@pytest.mark.asyncio
+async def test_transcribe_only_forces_images_for_specialist_passes():
+    for inputs, expected in (
+        ({"files": ["page.png"]}, False),
+        ({"files": ["page.png"], "prompt": "Specialist pass"}, True),
+        ({"files": ["page.png"], "update_page_content": False}, True),
+    ):
+        with patch(
+            "fichero.workflows.tools.transcribe.process_vision",
+            new=AsyncMock(return_value={"text": "result"}),
+        ) as process_vision:
+            await transcribe(
+                inputs,
+                {"library_path": "/library.fichero"},
+                LLMConfig(provider="test", model="test"),
+            )
+
+        assert process_vision.await_args.kwargs["force_ocr"] is expected
