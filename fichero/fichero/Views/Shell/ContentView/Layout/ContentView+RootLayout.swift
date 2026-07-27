@@ -176,6 +176,14 @@ extension ContentView {
             isCompact: horizontalSizeClass == .compact,
             onSubmit: { runToolbarSearch(toolbarSearchText) }
         ))
+        // Clearing the field (or its ⓧ) exits transient-search presentation
+        // and restores the browsed folder's contents (#4106/S2).
+        .onChange(of: toolbarSearchText) { _, newText in
+            if newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                activeSearchQuery != nil {
+                clearTransientSearch()
+            }
+        }
         .onAppear {
             handleOnAppear()
             syncFocusedDocumentSelection(detailDocument)

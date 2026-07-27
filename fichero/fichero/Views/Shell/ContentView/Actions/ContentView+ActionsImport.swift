@@ -35,9 +35,10 @@ extension ContentView {
     /// Run the query typed in the global toolbar search field.
     ///
     /// Searching is navigation, not an artifact (#4086): submitting a query
-    /// persists nothing. The route carries no `SavedSearch`, so no sidebar row
-    /// is created and none is selected. Saving stays the explicit "Save Search"
-    /// toolbar action (`SearchView+Helpers.saveCurrentQuery`).
+    /// persists nothing. And it is not a mode switch (#4106/S2): results
+    /// render INTO the Library view — `viewMode` stays `.library`, and the
+    /// library column's contents swap to the transient result set. Saving
+    /// stays the explicit "Save Search" action.
     func runToolbarSearch(_ rawQuery: String) {
         guard featureManager.isSearchEnabled else { return }
         guard let route = ToolbarSearchRouter.route(for: rawQuery) else { return }
@@ -45,6 +46,10 @@ extension ContentView {
         sidebarSelectionState.selectedItemId = nil
         sidebarMode = route.sidebarMode
         viewMode = route.viewMode
+        activeSearchQuery = route.query
+        Task { @MainActor in
+            await runTransientSearch(route.query)
+        }
     }
 
     // MARK: - File Import
@@ -183,14 +188,24 @@ enum ChatScopeBuilder {
 struct ToolbarSearchRoute: Equatable {
     let sidebarMode: SidebarMode
     let viewMode: AppViewMode
+    /// The trimmed query the transient search runs (#4106/S2).
+    let query: String
 }
 
 enum ToolbarSearchRouter {
     /// Returns the route for `rawQuery`, or nil when the query is blank.
+    ///
+    /// Search stays IN the library (#4106/S2): the sidebar keeps the library
+    /// tree and the view mode keeps the Library view — only the library
+    /// column's contents change, to the transient result set for `query`.
     static func route(for rawQuery: String) -> ToolbarSearchRoute? {
         let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return nil }
-        return ToolbarSearchRoute(sidebarMode: .search, viewMode: .search(nil))
+        return ToolbarSearchRoute(
+            sidebarMode: .library,
+            viewMode: .library(nil),
+            query: query
+        )
     }
 }
 

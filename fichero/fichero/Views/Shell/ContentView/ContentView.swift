@@ -182,6 +182,12 @@ struct ContentView: View {
     @State var performanceService = PerformanceService()
     @State var documentScrollSync = DocumentScrollSyncState()
     @State var toolbarSearchText: String = ""
+    // Transient search (#4106/S2): a submitted toolbar query renders its
+    // results INTO the Library view — no mode switch, no persisted object.
+    // `nil` = normal folder browsing; non-nil = the library column shows
+    // `searchResultDocuments` (relevance order) for this query.
+    @State var activeSearchQuery: String?
+    @State var searchResultDocuments: [Document] = []
     @State var navigationHistory = AppNavigationHistory()
     @State var isRestoringNavigationHistory = false
 

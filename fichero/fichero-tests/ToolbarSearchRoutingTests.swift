@@ -25,23 +25,26 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     func testToolbarSearchRoutesToATransientSearchWithNoSavedSearch() {
         let route = ToolbarSearchRouter.route(for: "marshall diaries")
 
-        XCTAssertEqual(route?.sidebarMode, .search)
-        // The nil payload is the whole point: no SavedSearch is created, so the
-        // route has nothing to point at.
-        XCTAssertEqual(route?.viewMode, .search(nil))
+        // #4106/S2: search stays IN the library — no mode switch, no persisted
+        // object. The library column's contents swap to the transient result
+        // set for the trimmed query.
+        XCTAssertEqual(route?.sidebarMode, .library)
+        XCTAssertEqual(route?.viewMode, .library(nil))
+        XCTAssertEqual(route?.query, "marshall diaries")
     }
 
-    func testRepeatedSearchesAllRouteToTheSameTransientDestination() {
-        // N searches must produce N identical transient routes — never N
-        // distinct saved-search ids accumulating in the sidebar.
+    func testRepeatedSearchesRouteIdenticallyPerQuery() {
+        // N searches must produce N transient routes differing only by query —
+        // never N distinct saved-search ids accumulating in the sidebar.
         let routes = ["one", "two", "three", "one"].compactMap {
             ToolbarSearchRouter.route(for: $0)
         }
 
         XCTAssertEqual(routes.count, 4)
-        // AppViewMode is Equatable, not Hashable — compare pairwise.
-        XCTAssertTrue(routes.allSatisfy { $0 == routes[0] })
-        XCTAssertEqual(routes.first?.viewMode, .search(nil))
+        XCTAssertEqual(routes[0], routes[3])
+        XCTAssertTrue(routes.allSatisfy {
+            $0.sidebarMode == .library && $0.viewMode == .library(nil)
+        })
     }
 
     // MARK: - Edge cases
@@ -52,8 +55,10 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         XCTAssertNil(ToolbarSearchRouter.route(for: "\n\t "))
     }
 
-    func testWhitespacePaddedQueryStillRoutes() {
-        XCTAssertEqual(ToolbarSearchRouter.route(for: "  cacao  ")?.viewMode, .search(nil))
+    func testWhitespacePaddedQueryStillRoutesWithTrimmedQuery() {
+        let route = ToolbarSearchRouter.route(for: "  cacao  ")
+        XCTAssertEqual(route?.viewMode, .library(nil))
+        XCTAssertEqual(route?.query, "cacao")
     }
 
     // MARK: - Regression: no implicit persistence

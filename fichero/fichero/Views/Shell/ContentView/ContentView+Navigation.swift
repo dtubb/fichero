@@ -84,7 +84,10 @@ extension ContentView {
             // Space (3D) has no renderer yet (#3081) — .space normalizes to an
             // available mode upstream, so the library path renders LibraryView.
             LibraryView(
-                documents: selectedDocuments,
+                // Transient search (#4106/S2): while a toolbar query is
+                // active the library column shows its resolved hits in
+                // relevance order; every Library view mode presents them.
+                documents: activeSearchQuery == nil ? selectedDocuments : searchResultDocuments,
                 contentCollection: isEntityLibrarySelection ? .entities : .documents,
                 isLoading: documentStore.isLoading,
                 isConnected: documentStore.isConnected,
