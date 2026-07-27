@@ -60,6 +60,29 @@ extension SidebarItemRow {
                 ) {
                     toggleExcludeFromProcessing(processDoc)
                 }
+                // Same-parity picker sheets (#4121): saved-pointer bookmark
+                // and workspace membership, presented from this row.
+                Button {
+                    bookmarkPickerDocument = processDoc
+                } label: {
+                    Label("Bookmark…", systemImage: "bookmark")
+                }
+                Button {
+                    workspacePickerDocument = processDoc
+                } label: {
+                    Label("Add to Workspace…", systemImage: "square.grid.2x2")
+                }
+                #if os(macOS)
+                // Export a real copy of the source file (#4121) — the same
+                // storage-service path the Finder drag-out uses (#4123).
+                Button {
+                    DocumentExporter.exportViaSavePanel(SidebarDragID(item: item)) { message in
+                        sidebarState.dropErrorMessage = message
+                    }
+                } label: {
+                    Label("Export…", systemImage: "square.and.arrow.up")
+                }
+                #endif
             }
 
             let workflowTargetIDs = resolvedWorkflowTargetIDs
@@ -68,7 +91,7 @@ extension SidebarItemRow {
                !workflowTargetIDs.isEmpty {
                 Divider()
                 Menu("Run Workflow") {
-                    workflowMenuItems(workflows: workflows) { workflowId, providerOverride, modelOverride in
+                    RunWorkflowSubmenuItems(workflows: workflows) { workflowId, providerOverride, modelOverride in
                         runWorkflowOnDocuments(
                             workflowId: workflowId,
                             docIds: workflowTargetIDs,
@@ -277,71 +300,7 @@ extension SidebarItemRow {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// Builds a `Run Workflow` submenu where workflows whose `folderPath`
-    /// is "/" appear at the top level and workflows under any other folder
-    /// path are grouped into a `Menu("<folder>")` submenu (#722). Folder
-    /// paths like `/Transcribe` and `/Catalogue` give us nested
-    /// submenus matching the user's mental model. Workflows are sorted
-    /// alphabetically within each group; folder names are sorted
-    /// alphabetically too.
-    @ViewBuilder
-    func workflowMenuItems(
-        workflows: [WorkflowSidebarItem],
-        action: @escaping (String, String?, String?) -> Void
-    ) -> some View {
-        let grouped = Dictionary(grouping: workflows.filter(\.canRunDirectly)) { workflow in
-            workflow.folderPath.isEmpty ? "/" : workflow.folderPath
-        }
-        let topLevel = (grouped["/"] ?? []).sorted { $0.name < $1.name }
-        let folderKeys = grouped.keys
-            .filter { $0 != "/" }
-            .sorted()
-
-        ForEach(topLevel) { workflow in
-            Menu(workflow.name) {
-                Button("Default") { action(workflow.id, nil, nil) }
-                ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
-                    if provider.models.isEmpty {
-                        Button(provider.name) { action(workflow.id, provider.id, nil) }
-                    } else {
-                        Menu(provider.name) {
-                            ForEach(provider.models, id: \.self) { model in
-                                Button(model) { action(workflow.id, provider.id, model) }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        ForEach(folderKeys, id: \.self) { folderPath in
-            Menu(folderLabel(for: folderPath)) {
-                let inFolder = (grouped[folderPath] ?? []).sorted { $0.name < $1.name }
-                ForEach(inFolder) { workflow in
-                    Menu(workflow.name) {
-                        Button("Default") { action(workflow.id, nil, nil) }
-                        ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
-                            if provider.models.isEmpty {
-                                Button(provider.name) { action(workflow.id, provider.id, nil) }
-                            } else {
-                                Menu(provider.name) {
-                                    ForEach(provider.models, id: \.self) { model in
-                                        Button(model) { action(workflow.id, provider.id, model) }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// "/Transcribe" → "Transcribe"; "/Catalogue/Sub" → "Sub" (last
-    /// component, mirroring how Finder shows nested folders in menus).
-    func folderLabel(for path: String) -> String {
-        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if trimmed.isEmpty { return path }
-        return String(trimmed.split(separator: "/").last ?? Substring(trimmed))
-    }
+    // Run Workflow submenu body lives in the shared `RunWorkflowSubmenuItems`
+    // (#722, deduped #4121) — one grouping/override implementation for the
+    // sidebar row and the library grid context menus.
 }

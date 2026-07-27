@@ -62,6 +62,24 @@ extension SidebarItemRow {
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
+            // Grid-menu parity (#4121): the same picker sheets LibraryView
+            // hosts, presented per-row so the clicked row's OWN library
+            // services are injected (sidebar rows span libraries).
+            .sheet(item: $workspacePickerDocument) { document in
+                if let library {
+                    WorkspaceItemPicker(document: document)
+                        .environment(library.documentService)
+                }
+            }
+            .sheet(item: $bookmarkPickerDocument) { document in
+                if let library {
+                    BookmarksView(document: document, onOpen: { target in
+                        selectedItemId = "doc:\(target.id)"
+                    })
+                    .environment(library.documentService)
+                    .environment(library.bookmarkService)
+                }
+            }
     }
 
     private func requestSelectionFallback(for id: String) {

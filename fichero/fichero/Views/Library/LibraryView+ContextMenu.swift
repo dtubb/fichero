@@ -91,6 +91,21 @@ extension LibraryView {
         } label: {
             Label("Make Alias", systemImage: "arrowshape.turn.up.right")
         }
+        #if os(macOS)
+        // Export a real copy of the source file (#4121) — the same
+        // storage-service path the Finder drag-out uses (#4123).
+        if document.docType != .folder {
+            Button {
+                DocumentExporter.exportViaSavePanel(
+                    SidebarDragID(document: document, libraryId: windowState.libraryId)
+                ) { message in
+                    contextMenuLogger.error("\(message, privacy: .public)")
+                }
+            } label: {
+                Label("Export…", systemImage: "square.and.arrow.up")
+            }
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -258,7 +273,7 @@ extension LibraryView {
            !availableWorkflows.isEmpty,
            !workflowTargetIDs.isEmpty {
             Menu {
-                workflowSubmenuItems(workflows: availableWorkflows) { workflowId, providerOverride, modelOverride in
+                RunWorkflowSubmenuItems(workflows: availableWorkflows) { workflowId, providerOverride, modelOverride in
                     Task { @MainActor in
                         selectedDocumentIdsForBatch = workflowTargetIDs
                         await runBatchWorkflow(
@@ -302,66 +317,9 @@ extension LibraryView {
         document.docType == .folder ? .folder(document.id) : .file(document.id)
     }
 
-    /// Render a Run-Workflow menu body that groups workflows by their
-    /// `folderPath`. Top-level workflows appear directly; folders become
-    /// `Menu("<folder>")` submenus. Used by the grid context menu and the
-    /// sidebar row context menu (which has its own copy in
-    /// SidebarItemRow.swift). Centralizing here would require passing
-    /// the action across modules — we accept the duplication for now.
-    @ViewBuilder
-    private func workflowSubmenuItems(
-        workflows: [WorkflowSidebarItem],
-        action: @escaping (String, String?, String?) -> Void
-    ) -> some View {
-        let grouped = Dictionary(grouping: workflows.filter(\.canRunDirectly)) { workflow in
-            workflow.folderPath.isEmpty ? "/" : workflow.folderPath
-        }
-        let topLevel = (grouped["/"] ?? []).sorted { $0.name < $1.name }
-        let folderKeys = grouped.keys.filter { $0 != "/" }.sorted()
-
-        ForEach(topLevel) { workflow in
-            runWorkflowMenuEntry(workflow: workflow, action: action)
-        }
-        ForEach(folderKeys, id: \.self) { folderPath in
-            Menu(folderPathLabel(folderPath)) {
-                let inFolder = (grouped[folderPath] ?? []).sorted { $0.name < $1.name }
-                ForEach(inFolder) { workflow in
-                    runWorkflowMenuEntry(workflow: workflow, action: action)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func runWorkflowMenuEntry(
-        workflow: WorkflowSidebarItem,
-        action: @escaping (String, String?, String?) -> Void
-    ) -> some View {
-        Menu(workflow.name) {
-            Button("Default") { action(workflow.id, nil, nil) }
-            ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
-                if provider.models.isEmpty {
-                    Button(provider.name) {
-                        action(workflow.id, provider.id, nil)
-                    }
-                } else {
-                    Menu(provider.name) {
-                        ForEach(provider.models, id: \.self) { model in
-                            Button(model) {
-                                action(workflow.id, provider.id, model)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func folderPathLabel(_ path: String) -> String {
-        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if trimmed.isEmpty { return path }
-        return String(trimmed.split(separator: "/").last ?? Substring(trimmed))
-    }
+    // Run Workflow submenu body lives in the shared `RunWorkflowSubmenuItems`
+    // (#722, deduped #4121) — one grouping/override implementation for the
+    // sidebar row and the library grid context menus.
 
     private func excludeToggleTargets(for document: Document) -> [Document] {
         let targetIds = selection.isEmpty ? [document.id] : Array(selection)

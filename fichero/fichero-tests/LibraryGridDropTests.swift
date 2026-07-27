@@ -81,6 +81,74 @@ final class LibraryContextMenuParityTests: XCTestCase {
         // Delete honors the multi-selection when the clicked row is in it.
         XCTAssertTrue(source.contains("selection.contains(document.id)"))
     }
+
+    /// Reverse parity (#4121): the grid's Bookmark…/Add to Workspace… picker
+    /// actions on the sidebar row, presented per-row so the clicked row's OWN
+    /// library services back the sheet (sidebar rows span libraries).
+    func testSidebarRowGainsGridPickerActions() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(source.contains("Label(\"Bookmark…\""))
+        XCTAssertTrue(source.contains("Label(\"Add to Workspace…\""))
+        XCTAssertTrue(source.contains("Label(\"Export…\""))
+
+        let bodyURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift")
+        let body = try String(contentsOf: bodyURL, encoding: .utf8)
+        XCTAssertTrue(body.contains(".sheet(item: $workspacePickerDocument)"))
+        XCTAssertTrue(body.contains(".sheet(item: $bookmarkPickerDocument)"))
+        // The sheet must inject the ROW's library services, not inherit
+        // whatever library happens to be active in the window.
+        XCTAssertTrue(body.contains(".environment(library.bookmarkService)"))
+    }
+
+    /// Export… (#4121) exists on BOTH surfaces and both funnel through
+    /// DocumentExporter → SidebarItemRow.exportSourceFile — the storage-service
+    /// path drag-out uses. One implementation, no divergent naming/auth.
+    func testExportSharesTheDragOutPath() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+        let grid = try String(
+            contentsOf: root.appendingPathComponent("Views/Library/LibraryView+ContextMenu.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(grid.contains("DocumentExporter.exportViaSavePanel"))
+        XCTAssertTrue(grid.contains("Label(\"Export…\""))
+        let exporter = try String(
+            contentsOf: root.appendingPathComponent("Views/Components/DocumentExporter.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(exporter.contains("SidebarDragID.exportSourceFile"))
+    }
+
+    /// The Run Workflow submenu body is ONE shared implementation (#4121):
+    /// both context menus render RunWorkflowSubmenuItems, and neither keeps
+    /// a private copy of the grouping logic.
+    func testRunWorkflowSubmenuIsShared() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+        let sidebar = try String(
+            contentsOf: root.appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift"),
+            encoding: .utf8
+        )
+        let grid = try String(
+            contentsOf: root.appendingPathComponent("Views/Library/LibraryView+ContextMenu.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(sidebar.contains("RunWorkflowSubmenuItems(workflows:"))
+        XCTAssertTrue(grid.contains("RunWorkflowSubmenuItems(workflows:"))
+        XCTAssertFalse(sidebar.contains("func workflowMenuItems("))
+        XCTAssertFalse(grid.contains("func workflowSubmenuItems("))
+    }
 }
 
 /// Default Workflows rows read as locked (Daniel, 2026-07-27): a trailing

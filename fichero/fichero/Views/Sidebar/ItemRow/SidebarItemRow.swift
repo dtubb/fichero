@@ -79,6 +79,18 @@ struct SidebarDragID: Transferable {
         }
     }
 
+    /// Same payload for a library-grid document (#4121 Export…) — grid cells
+    /// hold a `Document` + window library rather than a `SidebarItem`.
+    init(document: Document, libraryId: UUID?) {
+        self.id = "doc:\(document.id)"
+        if document.docType != .folder {
+            self.documentId = document.id
+            self.libraryId = libraryId
+            self.name = document.name
+            self.transcript = document.pageContent ?? ""
+        }
+    }
+
     static var transferRepresentation: some TransferRepresentation {
         // Cross-app, best-first: a real copy of the source file (fetched via
         // the storage HTTP endpoints — the engine may be remote, NEVER a
@@ -234,6 +246,10 @@ struct SidebarItemRow: View {
     @State private var optionMonitor: Any?
     #endif
     @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
+    /// Grid-menu parity (#4121): Bookmark… / Add to Workspace… picker sheets,
+    /// presented from this row so each row injects ITS library's services.
+    @State var workspacePickerDocument: Document?
+    @State var bookmarkPickerDocument: Document?
     @FocusState var isRenameFocused: Bool
     @State var isCommittingRename = false
     @State var isPulsing = false
