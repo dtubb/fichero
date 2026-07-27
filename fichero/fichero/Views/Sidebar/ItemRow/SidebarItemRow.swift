@@ -50,9 +50,102 @@ func sidebarShouldReconcileSelection(selectedId: String?, lastHandled: String?) 
 /// for — so the drop pipeline didn't need migrating.
 struct SidebarDragID: Transferable {
     let id: String
+    /// Bare document id + context for cross-app exports (#4123). Nil for
+    /// non-document rows — those stay in-process-only, as before.
+    var documentId: String?
+    var libraryId: UUID?
+    var name: String = ""
+    /// The document's transcript/content for text-editor drops.
+    var transcript: String = ""
+
+    /// Rows that can export a real file: documents with a source file
+    /// (folders and virtual rows can't).
+    var exportsFile: Bool { documentId != nil }
+    var exportsText: Bool { !transcript.isEmpty }
+
+    init(id: String) {
+        self.id = id
+    }
+
+    /// Full payload for a document row (#4123): dragging OUT of the app
+    /// delivers a real file copy / rich text instead of the internal id.
+    init(item: SidebarItem) {
+        self.id = item.id
+        if case .document(let doc) = item.itemType, doc.docType != .folder {
+            self.documentId = doc.id
+            self.libraryId = item.libraryId
+            self.name = doc.name
+            self.transcript = doc.pageContent ?? ""
+        }
+    }
+
     static var transferRepresentation: some TransferRepresentation {
+        // Cross-app, best-first: a real copy of the source file (fetched via
+        // the storage HTTP endpoints — the engine may be remote, NEVER a
+        // local path), then the transcript as RTF for text editors.
+        FileRepresentation(exportedContentType: .data) { item in
+            SentTransferredFile(try await Self.exportSourceFile(for: item))
+        }
+        .exportingCondition { $0.exportsFile }
+        DataRepresentation(exportedContentType: .rtf) { item in
+            try Self.transcriptRTFData(item.transcript)
+        }
+        .exportingCondition { $0.exportsText }
+        // In-process id flavor — the sidebar move pipeline's payload,
+        // unchanged (#623/#711). LAST so external consumers prefer the
+        // real representations above instead of a "doc:<uuid>" clipping.
         ProxyRepresentation(exporting: \.id)
             .visibility(.ownProcess)
+    }
+
+    /// Transcript → RTF bytes for rich-text pasteboard consumers.
+    static func transcriptRTFData(_ transcript: String) throws -> Data {
+        let attributed = NSAttributedString(string: transcript)
+        return try attributed.data(
+            from: NSRange(location: 0, length: attributed.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+        )
+    }
+
+    /// Fetch the document's source bytes through the library's storage
+    /// service into a temp file named for Finder (#4123).
+    static func exportSourceFile(for item: SidebarDragID) async throws -> URL {
+        guard let documentId = item.documentId else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let storage = await MainActor.run { () -> StorageService? in
+            let library = item.libraryId.flatMap { LibraryManager.shared.getLibrary(id: $0) }
+                ?? LibraryManager.shared.globalLibrary
+            return library?.storageService
+        }
+        guard let storage else { throw CocoaError(.fileNoSuchFile) }
+        let (tempURL, disposition) = try await storage.fetchSourceFile(documentId)
+        // Prefer the server's filename (its extension picks the app that
+        // opens the copy); fall back to the row name.
+        let filename = Self.filename(fromContentDisposition: disposition)
+            ?? (item.name.isEmpty ? tempURL.lastPathComponent : item.name)
+        let named = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fichero-drag-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: named, withIntermediateDirectories: true)
+        let destination = named.appendingPathComponent(filename)
+        try FileManager.default.moveItem(at: tempURL, to: destination)
+        return destination
+    }
+
+    /// Minimal Content-Disposition filename parse: `filename="x.pdf"` /
+    /// `filename=x.pdf`. Returns nil when absent or empty.
+    static func filename(fromContentDisposition disposition: String?) -> String? {
+        guard let disposition else { return nil }
+        for part in disposition.split(separator: ";") {
+            let trimmed = part.trimmingCharacters(in: .whitespaces)
+            guard trimmed.lowercased().hasPrefix("filename=") else { continue }
+            var value = String(trimmed.dropFirst("filename=".count))
+            value = value.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            // No path separators from a header into the filesystem.
+            value = value.replacingOccurrences(of: "/", with: "-")
+            return value.isEmpty ? nil : value
+        }
+        return nil
     }
 }
 

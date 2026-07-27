@@ -199,7 +199,9 @@ extension SidebarView {
             onOpenChatWithCurrentScope: onOpenChatWithCurrentScope
         )
         .contentShape(Rectangle())
-        .draggable(item.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(id: item.id))
+        // Full payload (#4123): document rows export a real file copy + RTF
+        // transcript to other apps; the in-process id flavor is unchanged.
+        .draggable(item.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(item: item))
         .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 8))
         // Inbox is anchored (#621); non-reorderable kinds (schedules, triggers,
         // conversations…) disable the move drag so they don't show a system
