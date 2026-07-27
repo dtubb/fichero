@@ -16,6 +16,11 @@ struct DocumentThumbnailView: View {
     var onCommitRename: () -> Void = {}
     var onCancelRename: () -> Void = {}
 
+    /// The portrait 3:4 image well, at scale 1. Every branch pins to this
+    /// size so no image's intrinsic dimensions can distort the grid.
+    static let wellWidth: CGFloat = 100
+    static let wellHeight: CGFloat = wellWidth * 4 / 3
+
     #if os(macOS)
     @Environment(\.controlActiveState) private var controlActiveState
     #endif
@@ -51,7 +56,11 @@ struct DocumentThumbnailView: View {
                 } else if document.fileType == .image {
                     LibraryImageView(documentId: document.id, imageType: .thumbnail)
                         .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        // Explicit frame, not maxWidth/maxHeight (#789 class,
+                        // Daniel 2026-07-27): a LANDSCAPE image's intrinsic
+                        // width wins the layout pass and blows the tile past
+                        // its portrait 3:4 cell, overlapping neighbours.
+                        .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
                         .clipped()
                 } else if document.docType != .page, document.fileType != .pdf, let preview = document.pageContent, !preview.isEmpty {
                     // Text-preview thumbnail (#625) is only for genuinely text
@@ -63,15 +72,12 @@ struct DocumentThumbnailView: View {
                         .clipped()
                 } else {
                     // Load thumbnail from backend API with library path header.
-                    // Pin to the cell's 3:4 aspect via the inner GeometryReader-
-                    // style frame so wide-aspect images (panoramas, landscape
-                    // photos) don't blow past the cell width and overlap the
-                    // neighbour to the right (#789). `.fill` + `.clipped()`
-                    // alone wasn't enough — without an explicit frame, the
-                    // intrinsic image size won the layout pass.
+                    // Explicit frame (#789): `.fill` + `.clipped()` alone isn't
+                    // enough — without it, the intrinsic image size wins the
+                    // layout pass and landscape pages overlap the neighbour.
                     LibraryImageView(documentId: document.id, imageType: .thumbnail)
                         .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
                         .clipped()
                 }
 
@@ -91,6 +97,9 @@ struct DocumentThumbnailView: View {
                     }
                 }
             }
+            // Pin the whole well, not just the image branch — the ZStack
+            // otherwise grows to its largest child's intrinsic size.
+            .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)

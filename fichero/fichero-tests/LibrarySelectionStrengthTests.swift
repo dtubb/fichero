@@ -42,6 +42,14 @@ final class LibrarySelectionStrengthTests: XCTestCase {
         )
     }
 
+    func testThumbnailWellHasExplicitPortraitBounds() throws {
+        let source = try Self.appSource("Views/Library/LibraryThumbnailViews.swift")
+
+        XCTAssertTrue(source.contains("static let wellWidth: CGFloat = 100"))
+        XCTAssertTrue(source.contains("static let wellHeight: CGFloat = wellWidth * 4 / 3"))
+        XCTAssertTrue(source.contains(".frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)"))
+    }
+
     private static func appSource(_ relativePath: String) throws -> String {
         let baseURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
