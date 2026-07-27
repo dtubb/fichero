@@ -542,7 +542,7 @@ def _run_content_search_sync(
     retrieval_query: str,
 ) -> tuple[list[SearchResult], int, dict[str, Any]]:
     """Run synchronous content retrieval work off the FastAPI event loop."""
-    results, _total_count, search_stats = db.search(
+    results, total_count, search_stats = db.search(
         query=retrieval_query,
         limit=request.limit,
         min_score=request.min_score,
@@ -556,7 +556,10 @@ def _run_content_search_sync(
     )
     results = _project_pdf_file_hits_to_pages(db, results, retrieval_query)
     results = _enrich_page_results_with_parent_info(db, results)
-    return results, len(results), search_stats
+    # Return the db's REAL pre-pagination match count (#4113): `len(results)`
+    # was just the page size, so total_results lied and has_more had nothing
+    # honest to compare against.
+    return results, total_count, search_stats
 
 
 _ALL_ENTITY_TYPES: tuple[str, ...] = (

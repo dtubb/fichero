@@ -1302,3 +1302,57 @@ class TestSizeSort:
         )
         ids_asc = [hit["document_id"] for hit in r_asc.json()["results"]]
         assert ids_asc.index(small.id) < ids_asc.index(big.id)
+
+
+class TestHonestCounts:
+    """total_results is the FULL match count, not the page size (#4113)."""
+
+    @staticmethod
+    def _seed_many(db, n):
+        docs = []
+        for i in range(n):
+            doc = Document(
+                name=f"tatabro-{i}.txt",
+                page_content="tatabro river crossing notes",
+                doc_type=DocType.file,
+                file_type=FileType.text,
+            )
+            db.save(doc)
+            db.embed(doc)
+            docs.append(doc)
+        return docs
+
+    def test_total_results_exceeds_page_and_has_more(self, client, db):
+        self._seed_many(db, 5)
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "tatabro",
+                "search_type": "fulltext",
+                "limit": 2,
+                "min_score": 0.0,
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["results"]) == 2
+        assert data["total_results"] == 5
+        assert data["has_more"] is True
+
+    def test_offset_pages_through_all_matches(self, client, db):
+        self._seed_many(db, 5)
+        seen: set[str] = set()
+        for offset in (0, 2, 4):
+            r = client.post(
+                "/api/search",
+                json={
+                    "query": "tatabro",
+                    "search_type": "fulltext",
+                    "limit": 2,
+                    "offset": offset,
+                    "min_score": 0.0,
+                },
+            )
+            assert r.status_code == 200
+            seen.update(hit["document_id"] for hit in r.json()["results"])
+        assert len(seen) == 5

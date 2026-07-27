@@ -4086,9 +4086,14 @@ class Database(DatabaseEmbeddingMixin):
                     # Embed query
                     query_vector = self._embed_text(semantic_query)
 
-                    # Search vectors
+                    # Search vectors. Candidate count mirrors the FTS leg
+                    # (#4113): the old `limit * 2` ignored `offset`, so deep
+                    # pages ran out of semantic candidates and silently
+                    # degraded toward fulltext-only ordering.
                     raw_results = self.search_vectors(
-                        EMBEDDINGS_TABLE, query_vector, limit * 2
+                        EMBEDDINGS_TABLE,
+                        query_vector,
+                        max(limit * 4, offset + limit * 2),
                     )
 
                     # Convert to SearchResult, filter by score
