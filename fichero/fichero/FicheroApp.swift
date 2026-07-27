@@ -134,8 +134,15 @@ struct FicheroApp: App {
         // bind — restore is local-only now; data loads and registry writes
         // defer/fail-soft until the authenticated probe flips ready (see
         // `restoreSavedLibraries`'s doc comment).
-        LibraryManager.shared.restoreSavedLibraries()
-        LaunchProfile.milestone("saved libraries materialized (pre-ready)")
+        //
+        // NOT in embedded-engine UI-test mode: that path reaches here (its
+        // early-return above is carved out on purpose), but restoring would
+        // open the DEVELOPER'S real saved libraries into the test app — the
+        // harness seeds its own library through the engine registry instead.
+        if !isUITesting() {
+            LibraryManager.shared.restoreSavedLibraries()
+            LaunchProfile.milestone("saved libraries materialized (pre-ready)")
+        }
     }
 
     // MARK: - File Opening
