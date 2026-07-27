@@ -22,9 +22,11 @@ extension LibraryView {
             documentId: document.id,
             text: document.pageContent?.isEmpty == false ? document.pageContent ?? document.name : document.name,
             // File-export context (#4123): the drag can promise a real copy
-            // of the source file, named for Finder.
+            // of the source file, named for Finder. Page rows export just
+            // their page (`sequence` is 1-based).
             libraryId: windowState.libraryId,
-            name: document.name
+            name: document.name,
+            pageIndex: kind == .page ? max(0, (document.sequence ?? 1) - 1) : nil
         )
     }
 

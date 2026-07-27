@@ -132,6 +132,9 @@ struct LibraryItemDrag: Codable, Transferable {
     /// Display name for the exported file's fallback filename — `text` can
     /// be a whole transcript, which must never become a filename.
     var name: String = ""
+    /// 0-based PDF page index for page rows (#4123): the file export trims
+    /// the parent's multi-page PDF to just this page.
+    var pageIndex: Int?
 
     var exportText: String { "\(kind.rawValue.capitalized): \(text)" }
 
@@ -150,6 +153,7 @@ struct LibraryItemDrag: Codable, Transferable {
             drag.documentId = item.documentId
             drag.libraryId = item.libraryId
             drag.name = item.name
+            drag.pageIndex = item.pageIndex
             return SentTransferredFile(try await SidebarDragID.exportSourceFile(for: drag))
         }
         .exportingCondition { $0.exportsSourceFile }

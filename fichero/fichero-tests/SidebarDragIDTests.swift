@@ -1,6 +1,7 @@
 @testable import Fichero
 import AppKit
 import Foundation
+import PDFKit
 import Testing
 
 /// #4123: dragging OUT of the sidebar delivers real content — a file copy /
@@ -75,6 +76,61 @@ struct SidebarDragIDTests {
         #expect(SidebarDragID.filename(fromContentDisposition: "attachment") == nil)
         // No header-driven path traversal into the temp directory.
         #expect(SidebarDragID.filename(fromContentDisposition: "attachment; filename=\"../x.pdf\"") == "..-x.pdf")
+    }
+
+    @Test("page rows carry a 0-based PDF page index")
+    func pageRowsCarryPageIndex() {
+        var pageDoc = Document(id: "p3", docType: .page, name: "page 3", pageContent: "text")
+        pageDoc.sequence = 3
+        let item = SidebarItem(
+            id: "doc:p3", name: "page 3", icon: "doc", category: .folder,
+            itemType: .document(pageDoc), children: nil, progress: nil,
+            showProgress: false, libraryId: libraryId, folderPath: "/",
+            sortOrder: 0, isFolder: false
+        )
+        // sequence is 1-based; PDFKit indices are 0-based.
+        #expect(SidebarDragID(item: item).pageIndex == 2)
+        // Non-page rows never trim.
+        #expect(SidebarDragID(item: docItem("d1", name: "Ledger.pdf")).pageIndex == nil)
+    }
+
+    @Test("single-page trim extracts just the requested page")
+    func singlePageTrim() throws {
+        // Build a 2-page PDF with PDFKit.
+        let pdf = PDFDocument()
+        for _ in 0..<2 {
+            let page = PDFPage()
+            pdf.insert(page, at: pdf.pageCount)
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("drag-trim-\(UUID().uuidString).pdf")
+        #expect(pdf.write(to: url))
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let trimmed = try #require(SidebarDragID.singlePagePDF(from: url, pageIndex: 1))
+        defer { try? FileManager.default.removeItem(at: trimmed) }
+        #expect(PDFDocument(url: trimmed)?.pageCount == 1)
+        #expect(trimmed.lastPathComponent.hasSuffix("page 2.pdf"))
+
+        // No pageIndex, single-page files, and non-PDFs all keep the original.
+        #expect(SidebarDragID.singlePagePDF(from: url, pageIndex: nil) == nil)
+        let txt = FileManager.default.temporaryDirectory
+            .appendingPathComponent("drag-trim-\(UUID().uuidString).txt")
+        try "not a pdf".write(to: txt, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: txt) }
+        #expect(SidebarDragID.singlePagePDF(from: txt, pageIndex: 0) == nil)
+    }
+
+    @Test("plain-text markdown flavor is exported for editors")
+    func plainTextFlavorExists() throws {
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow.swift"),
+            encoding: .utf8
+        )
+        #expect(source.contains("DataRepresentation(exportedContentType: .utf8PlainText)"))
     }
 
     @Test("in-process id flavor survives for the move pipeline")

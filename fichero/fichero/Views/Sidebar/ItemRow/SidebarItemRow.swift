@@ -4,6 +4,9 @@ import UniformTypeIdentifiers
 #if canImport(AppKit)
 import AppKit
 #endif
+#if canImport(PDFKit)
+import PDFKit
+#endif
 
 let sidebarRowLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarRow")
 
@@ -57,6 +60,9 @@ struct SidebarDragID: Transferable {
     var name: String = ""
     /// The document's transcript/content for text-editor drops.
     var transcript: String = ""
+    /// 0-based PDF page index for PAGE rows (#4123): the export trims the
+    /// parent's multi-page PDF to just this page. Nil = export the whole file.
+    var pageIndex: Int?
 
     /// Rows that can export a real file: documents with a source file
     /// (folders and virtual rows can't).
@@ -76,6 +82,10 @@ struct SidebarDragID: Transferable {
             self.libraryId = item.libraryId
             self.name = doc.name
             self.transcript = doc.pageContent ?? ""
+            // `sequence` is 1-based (see ContentView+ReadingLayout).
+            if doc.docType == .page {
+                self.pageIndex = max(0, (doc.sequence ?? 1) - 1)
+            }
         }
     }
 
@@ -88,6 +98,9 @@ struct SidebarDragID: Transferable {
             self.libraryId = libraryId
             self.name = document.name
             self.transcript = document.pageContent ?? ""
+            if document.docType == .page {
+                self.pageIndex = max(0, (document.sequence ?? 1) - 1)
+            }
         }
     }
 
@@ -101,6 +114,15 @@ struct SidebarDragID: Transferable {
         .exportingCondition { $0.exportsFile }
         DataRepresentation(exportedContentType: .rtf) { item in
             try Self.transcriptRTFData(item.transcript)
+        }
+        .exportingCondition { $0.exportsText }
+        // Markdown/plain-text flavor (#4123) for editors that prefer raw
+        // text over RTF. The transcript IS the markdown-ish source; UTF-8
+        // plain text is the flavor every markdown editor accepts. Safe for
+        // the in-app drop pipeline: classifySidebarDropProviders already
+        // excludes utf8PlainText (#4124).
+        DataRepresentation(exportedContentType: .utf8PlainText) { item in
+            Data(item.transcript.utf8)
         }
         .exportingCondition { $0.exportsText }
         // In-process id flavor — the sidebar move pipeline's payload,
@@ -145,7 +167,34 @@ struct SidebarDragID: Transferable {
         try FileManager.default.createDirectory(at: named, withIntermediateDirectories: true)
         let destination = named.appendingPathComponent(filename)
         try FileManager.default.moveItem(at: tempURL, to: destination)
+        if let trimmed = Self.singlePagePDF(from: destination, pageIndex: item.pageIndex) {
+            return trimmed
+        }
         return destination
+    }
+
+    /// Page rows export just THEIR page (#4123): the storage endpoint returns
+    /// the parent's whole source file, so trim it client-side. Nil (= keep the
+    /// full file) unless this is a page row, the file is a real multi-page
+    /// PDF, and extraction succeeds — a trim failure must never lose the drag.
+    static func singlePagePDF(from url: URL, pageIndex: Int?) -> URL? {
+        #if canImport(PDFKit)
+        guard let pageIndex,
+              let pdf = PDFDocument(url: url),
+              pdf.pageCount > 1,
+              let page = pdf.page(at: min(pageIndex, pdf.pageCount - 1)) else {
+            return nil
+        }
+        let single = PDFDocument()
+        single.insert(page, at: 0)
+        let base = url.deletingPathExtension().lastPathComponent
+        let pageURL = url.deletingLastPathComponent()
+            .appendingPathComponent("\(base) page \(pageIndex + 1).pdf")
+        guard single.write(to: pageURL) else { return nil }
+        return pageURL
+        #else
+        return nil
+        #endif
     }
 
     /// Minimal Content-Disposition filename parse: `filename="x.pdf"` /
