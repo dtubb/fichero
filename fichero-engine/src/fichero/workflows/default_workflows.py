@@ -309,13 +309,24 @@ def heal_default_workflow_tree(db: "Database") -> int:
         logger.warning(f"heal_default_workflow_tree: cannot list workflows: {exc}")
         return 0
 
+    preset_by_name = {p.get("name"): p for p in presets if p.get("name")}
     healed = 0
     for workflow in existing:
         if workflow.name not in preset_names:
             continue
-        if not (
-            getattr(workflow, "is_template", False) or getattr(workflow, "is_system", False)
-        ):
+        # Legacy seeded rows PREDATE the is_system/is_template flags, so
+        # gating on the flags alone skipped exactly the mirrors this heal
+        # was written for (Daniel, live 2026-07-27: preset folders stuck at
+        # the tree root forever). A row also counts as seeded when it
+        # carries the preset's folder_path — that's what seeding stamps.
+        # A user's own same-named workflow (no flags, no preset
+        # folder_path) is never touched.
+        preset = preset_by_name[workflow.name]
+        flagged = getattr(workflow, "is_template", False) or getattr(workflow, "is_system", False)
+        looks_seeded = (getattr(workflow, "folder_path", None) or "/") == (
+            preset.get("folder_path") or "/"
+        )
+        if not (flagged or looks_seeded):
             continue
         mirror = db.get(Document, workflow.id)
         parent_id = getattr(mirror, "parent_id", None) if mirror is not None else None

@@ -82,6 +82,19 @@ def test_heal_rehomes_mirror_and_sweeps_empty_legacy_folder(temp_db):
     assert temp_db.get(Document, legacy_folder.id) is None
 
 
+def test_heal_recognizes_legacy_seed_without_system_flags(temp_db):
+    preset = _first_foldered_preset()
+    workflow, _ = _make_legacy_layout(temp_db, preset)
+    workflow.is_template = False
+    workflow.is_system = False
+    temp_db.save(workflow)
+
+    assert heal_default_workflow_tree(temp_db) == 1
+    assert temp_db.get(Document, workflow.id).parent_id.startswith(
+        _DEFAULT_WORKFLOWS_CONTAINER_ID
+    )
+
+
 def test_heal_leaves_user_folder_with_content_alone(temp_db):
     preset = _first_foldered_preset()
     _, legacy_folder = _make_legacy_layout(temp_db, preset)
