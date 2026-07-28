@@ -88,6 +88,24 @@ class ChangeEvent(BaseModel):
     interpretation_ids: list[str] = Field(default_factory=list)
     run_id: str | None = None
     actor: str = "system"  # ui | chat | workflow | import | system
+    document_parents: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Map of document id -> parent document id, for the ids in "
+            "`document_ids`. Lets a client decide whether it cares about a "
+            "document WITHOUT fetching it first (#4205): during a 100k-file "
+            "import, only documents that are roots, in the selected "
+            "collection, or under an already-loaded parent need fetching. "
+            "A per-id map rather than a single parent field because "
+            "`document_ids` is a list whose entries can have different "
+            "parents. "
+            "AN ID ABSENT FROM THIS MAP MEANS 'PARENT UNKNOWN — FETCH IT'. It "
+            "NEVER means 'this is a root'. Treating absence as root files "
+            "imported documents at the top level, which is the bug this exists "
+            "to prevent, so a partial map is safe by construction and an "
+            "emitter that cannot supply a parent simply omits the entry."
+        ),
+    )
     metadata: dict[str, str] = Field(default_factory=dict)
     origin_window: str | None = None  # self-echo de-dup seam (spec §3.5)
     origin_user: str | None = None  # user-level self-echo de-dup seam (#2023)
@@ -450,6 +468,7 @@ def emit_change(
     metadata: dict[str, str] | None = None,
     origin_window: str | None = None,
     origin_user: str | None = None,
+    document_parents: dict[str, str] | None = None,
 ) -> None:
     """Broadcast a change to every window subscribed to ``library_path``.
 
@@ -473,6 +492,7 @@ def emit_change(
             metadata=dict(metadata or {}),
             origin_window=origin_window,
             origin_user=origin_user,
+            document_parents=dict(document_parents or {}),
         )
         _change_hub.emit(library_path, event)
     except Exception as exc:  # pragma: no cover - defensive

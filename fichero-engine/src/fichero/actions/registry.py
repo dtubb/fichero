@@ -100,6 +100,10 @@ class ChangeSpec:
     citation_ids: list[str] = field(default_factory=list)
     reference_ids: list[str] = field(default_factory=list)
     interpretation_ids: list[str] = field(default_factory=list)
+    # #4205: document id -> parent id, for ids in ``document_ids``. Absent
+    # means "parent unknown, fetch it" and NEVER "root", so bulk actions
+    # that only have ids may leave it empty without misleading a client.
+    document_parents: dict[str, str] = field(default_factory=dict)
     emit_fn: EmitFn | None = None
 
 
@@ -272,6 +276,7 @@ class ActionRegistry:
                 citation_ids=spec.citation_ids,
                 reference_ids=spec.reference_ids,
                 interpretation_ids=spec.interpretation_ids,
+                document_parents=spec.document_parents,
                 run_id=ctx.run_id,
                 actor=ctx.actor,
                 origin_window=ctx.origin_window,

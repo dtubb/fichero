@@ -360,6 +360,12 @@ async def ingest_folder(
                     x_fichero_library_path,
                     type="document.created",
                     document_ids=[doc.id],
+                    # #4205: lets the client skip fetching documents it cannot
+                    # be showing. Omitted rather than defaulted when the
+                    # document has no parent_id, because absent means
+                    # "unknown", and a wrong "root" would file imported files
+                    # at the top level.
+                    document_parents=({doc.id: doc.parent_id} if doc.parent_id else {}),
                     actor=actor_from_request(http_request),
                     origin_window=getattr(http_request.state, "origin_window", None),
                     origin_user=actor_from_request(http_request),
@@ -630,6 +636,10 @@ def _action_import_file(
         after={"document_id": doc.id},
         emit_type="document.created",
         document_ids=[doc.id],
+        # #4205: the document is in hand here, so the client need not fetch it
+        # to learn where it belongs. Omitted when parent_id is None — absent
+        # means "unknown", never "root".
+        document_parents=({doc.id: doc.parent_id} if doc.parent_id else {}),
     )
     return doc.model_dump(mode="json"), spec
 
@@ -666,6 +676,13 @@ def _action_import_folder(
         after={"document_ids": doc_ids},
         emit_type="document.created" if doc_ids else None,
         document_ids=doc_ids,
+        # #4205: this trailing bulk event repeats every id from the import. If
+        # it carried no parents the client would treat all of them as
+        # "unknown, fetch it" and re-flood itself with the fetches the
+        # per-file events just let it skip — the optimisation would survive
+        # the stream and die at the end. The Documents are in hand here, so
+        # the parents cost nothing.
+        document_parents={d.id: d.parent_id for d in docs if d.parent_id},
     )
     return {"document_ids": doc_ids, "count": len(doc_ids)}, spec
 
