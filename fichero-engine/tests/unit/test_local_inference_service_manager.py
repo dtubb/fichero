@@ -8,6 +8,7 @@ from pathlib import Path
 import signal
 import socket
 import sys
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -468,7 +469,14 @@ async def test_managed_process_stderr_excerpt_surfaces_in_status(tmp_path: Path)
     os.environ["FICHERO_FAKE_MLX_STDERR"] = "mlx runtime missing"
     os.environ["FICHERO_FAKE_MLX_EXIT_CODE"] = "9"
     try:
-        status = await manager.start(timeout_seconds=0.2)
+        # The budget must cover a COLD CPython spawn (interpreter boot +
+        # http.server/socketserver import) on a loaded machine, not just an
+        # idle one: under the full ~8k-test run 0.2s expired before the
+        # sidecar had even reached its exit, so start() broke out still in
+        # `starting` and reported "did not become healthy" instead of the
+        # stderr excerpt. A generous ceiling costs nothing — start() returns
+        # as soon as the exit is observed, it does not wait out the timeout.
+        status = await manager.start(timeout_seconds=10)
     finally:
         if previous_mode is None:
             os.environ.pop("FICHERO_FAKE_MLX_MODE", None)
@@ -485,6 +493,49 @@ async def test_managed_process_stderr_excerpt_surfaces_in_status(tmp_path: Path)
 
     assert status.state == LocalServiceState.failed
     assert "mlx runtime missing" in (status.last_error or "")
+
+
+@pytest.mark.asyncio
+async def test_stderr_excerpt_survives_regardless_of_start_timeout(tmp_path: Path) -> None:
+    """Excerpt plumbing must not depend on winning a wall-clock race.
+
+    The sibling start() test can only observe the excerpt if the sidecar dies
+    inside the start budget. This one waits for the exit to actually happen,
+    then drains directly, so it pins the stderr capture path itself and stays
+    honest on a loaded machine where any fixed budget can expire early.
+    """
+    script = write_fake_managed_server(tmp_path)
+    port = free_loopback_port()
+    managed_profile = profile(
+        python_executable=sys.executable,
+        command=[str(script)],
+        base_url=f"http://127.0.0.1:{port}/v1",
+    )
+    process = ManagedLocalInferenceProcess(managed_profile)
+    previous = {
+        key: os.environ.get(key)
+        for key in ("FICHERO_FAKE_MLX_MODE", "FICHERO_FAKE_MLX_STDERR", "FICHERO_FAKE_MLX_EXIT_CODE")
+    }
+    os.environ["FICHERO_FAKE_MLX_MODE"] = "exit"
+    os.environ["FICHERO_FAKE_MLX_STDERR"] = "mlx runtime missing"
+    os.environ["FICHERO_FAKE_MLX_EXIT_CODE"] = "9"
+    try:
+        await process.start()
+        deadline = time.monotonic() + 30
+        while process.is_running() and time.monotonic() < deadline:
+            await asyncio.sleep(0.01)
+        assert not process.is_running(), "fake sidecar never exited"
+
+        last_error = await process.finalize_last_error()
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    assert "mlx runtime missing" in (last_error or "")
+    assert "exited 9" in (last_error or "")
 
 
 @pytest.mark.parametrize(
