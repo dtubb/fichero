@@ -110,6 +110,19 @@ extension DocumentStore: ObservableDomainStore {
             if collections[index] != doc { collections[index] = doc }
         } else if doc.parentId == nil {
             collections.append(doc)
+        } else if childrenCache[doc.parentId ?? ""] == nil {
+            // Parent's children are NOT loaded, so the `childrenCache` block
+            // below cannot deliver this row — and `SidebarItemBuilder` files
+            // anything with a `parentId` under its parent, so `collections` is
+            // the only container that makes it visible. Dropping it here is what
+            // broke live delivery when the roots guard first landed: importing
+            // into a folder the user had not expanded showed nothing at all.
+            //
+            // The cost is that `collections` briefly holds non-roots for
+            // unexpanded parents, until the next `loadCollections()`. That is
+            // the lesser evil: the pollution is transient and invisible, a
+            // missing row is neither.
+            collections.append(doc)
         }
 
         // Grid for the selected collection.
