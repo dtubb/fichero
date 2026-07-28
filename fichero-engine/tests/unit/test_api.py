@@ -640,34 +640,35 @@ class TestIngestRoutes:
         assert response.status_code == 422
 
     def test_get_ingest_status_valid_task(self, client, record_background_task):
-        """Get status of valid task returns task info."""
-        # First, start a task
+        """A freshly created task reports the SCANNING state: total still 0.
+
+        Streaming ingest (#4203) no longer counts the folder up-front — the
+        total is discovered by the background walk and reported through
+        ``on_progress``. Until that first callback lands, ``total`` is 0, and
+        the client renders "Scanning…" rather than "0 of 0". This fixture
+        suppresses the background task, so 0 is the whole contract here.
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
             test_file = Path(tmpdir) / "test.jpg"
             test_file.write_bytes(b"fake image data")
 
-            with patch("fichero.importers.ingest.count_files") as mock_count:
-                mock_count.return_value = 1
+            create_response = client.post("/api/ingest/folder", json={
+                "path": tmpdir,
+            })
+            assert create_response.status_code == 200
+            task_data = create_response.json()
+            task_id = task_data["task_id"]
 
-                create_response = client.post("/api/ingest/folder", json={
-                    "path": tmpdir,
-                })
-                assert create_response.status_code == 200
-                task_data = create_response.json()
-                task_id = task_data["task_id"]
-
-                # Now get the status
-                status_response = client.get(f"/api/ingest/status/{task_id}")
-                assert status_response.status_code == 200
-                status_data = status_response.json()
-                assert status_data["task_id"] == task_id
-                # In test environment, background tasks may complete immediately
-                # So we accept either "pending" or "completed" status
-                assert status_data["status"] in ["pending", "completed", "running"]
-                assert status_data["path"] == tmpdir
-                assert status_data["progress"] >= 0.0
-                assert status_data["total"] == 1
-                assert status_data["processed"] >= 0
+            status_response = client.get(f"/api/ingest/status/{task_id}")
+            assert status_response.status_code == 200
+            status_data = status_response.json()
+            assert status_data["task_id"] == task_id
+            assert status_data["status"] in ["pending", "completed", "running"]
+            assert status_data["path"] == tmpdir
+            assert status_data["progress"] >= 0.0
+            # Scanning: total is unknown, NOT "an empty folder".
+            assert status_data["total"] == 0
+            assert status_data["processed"] == 0
 
     def test_ingest_file_different_file_types(self, client):
         """Test ingest with different file types."""
