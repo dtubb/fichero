@@ -41,6 +41,7 @@ RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 # Keys are paths relative to SWIFT_DIR (posix). Value documents why it is a
 # sanctioned bridge OR that it is baseline debt to migrate.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Views/Library/Export/DocumentExporter.swift": "#4121 — macOS export destination uses NSSavePanel behind #if os(macOS); iOS uses its system share sheet",
     "Views/Sidebar/ItemRow/SidebarDropOperation.swift": "Option-drag copy (Daniel 2026-07-26) — the ⌥ key at drop time is unreadable from SwiftUI drop callbacks; NSEvent.modifierFlags on macOS, GameController hardware keyboard on iOS/visionOS. Both #if os-gated; no drag-stack surgery",
     "App/ViewSettings.swift": "#3682 — Reader/Editor font scale multiplies the SEMANTIC base size, which only NSFont/UIFont.preferredFont(forTextStyle:) can report (SwiftUI exposes no point size). Both sides are #if canImport-guarded; #2101",
     "Views/Preview/ImageEditor/LiveEditPreview.swift": "#3673 — Core Image live preview bridges CGImage → NSImage/UIImage for display; Core Image itself is AppKit/UIKit-side. #if canImport-guarded; #2101",

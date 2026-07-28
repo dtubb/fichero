@@ -30,7 +30,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
     "Library/ViewModes/Graph/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
     "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
-    "Library/ViewModes/LibraryView+ListView.swift#be54d59539": "#1912 baseline (list ScrollView+LazyVStack moved here when LibraryView+DisplayModes was split by file_length; rehashed: #3705 .draggable; #3875 selection-fill; #3868 extracted a value-typed selectable row wrapper; #4124 per-cell folder drop modifier; the collection itself is unchanged)",
+    "Library/ViewModes/LibraryView+ListView.swift#b8e84a1c0a": "#1912 baseline (ScrollView is required for #4160 keyboard handling; rehashed by thumbnail prefetch, collection unchanged)",
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
     "Chat/Research/ResearchTasksPane+Views.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
     "Chat/Research/ResearchTasksPane+Views.swift#f50acbd404": "#1912 baseline (shifted by store migration)",

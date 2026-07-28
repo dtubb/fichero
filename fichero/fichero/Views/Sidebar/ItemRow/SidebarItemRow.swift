@@ -116,11 +116,8 @@ struct SidebarDragID: Transferable {
             try Self.transcriptRTFData(item.transcript)
         }
         .exportingCondition { $0.exportsText }
-        // Markdown/plain-text flavor (#4123) for editors that prefer raw
-        // text over RTF. The transcript IS the markdown-ish source; UTF-8
-        // plain text is the flavor every markdown editor accepts. Safe for
-        // the in-app drop pipeline: classifySidebarDropProviders already
-        // excludes utf8PlainText (#4124).
+        // UTF-8 serves markdown editors; the in-app drop classifier excludes
+        // this flavor so it cannot interfere with sidebar moves (#4123/#4124).
         DataRepresentation(exportedContentType: .utf8PlainText) { item in
             Data(item.transcript.utf8)
         }
@@ -342,13 +339,8 @@ struct SidebarItemRow: View {
             ?? store.collections.first(where: { $0.id == doc.id })
             ?? doc
         if live.status == .processing { return true }
-        // Folder: report processing if ANY descendant is currently processing.
-        // Look in BOTH currentDocuments (the set actively shown in the grid;
-        // covers the very common "user is browsing the folder being processed"
-        // case the user hit) and childrenCache (other folders' kids cached for
-        // sidebar tree expansion). Without the currentDocuments check the
-        // folder spinner only appeared if the user had expanded the folder
-        // separately — silently broken in the most common workflow.
+        // Check both visible documents and cached children so the folder spinner
+        // works whether the folder is open in the grid or expanded in the sidebar.
         if doc.docType == .folder {
             if store.currentDocuments.contains(where: {
                 $0.parentId == doc.id && $0.status == .processing

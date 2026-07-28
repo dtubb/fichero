@@ -122,7 +122,7 @@ final class LibraryContextMenuParityTests: XCTestCase {
         XCTAssertTrue(grid.contains("DocumentExporter.exportViaSavePanel"))
         XCTAssertTrue(grid.contains("Label(\"Export…\""))
         let exporter = try String(
-            contentsOf: root.appendingPathComponent("Views/Components/DocumentExporter.swift"),
+            contentsOf: root.appendingPathComponent("Views/Library/Export/DocumentExporter.swift"),
             encoding: .utf8
         )
         XCTAssertTrue(exporter.contains("SidebarDragID.exportSourceFile"))
