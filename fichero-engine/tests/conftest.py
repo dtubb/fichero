@@ -39,9 +39,63 @@ os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")
 # and fights the running uvicorn for the exclusive duckdb lock. Override
 # `FICHERO_BASE_PATH` (consumed by pydantic-settings env_prefix="FICHERO_")
 # so app_db_path resolves under a per-process tmp dir.
+import atexit as _atexit
+import shutil as _shutil
 import tempfile as _tempfile
 import pathlib as _pathlib
 from urllib.parse import quote
+
+_TEST_BASE_PREFIX = "fichero-tests-"
+
+
+def _pid_is_alive(pid: int) -> bool:
+    """True when a process with this pid exists.
+
+    PID reuse can make a dead run's directory look live, so this errs toward
+    "alive" — under-cleaning is safe, deleting a running suite's database is
+    not.
+    """
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists, owned by someone else
+    except OSError:
+        return True
+    return True
+
+
+def _sweep_abandoned_test_base_paths() -> int:
+    """Remove base dirs left by runs whose process is gone (#4228).
+
+    Each run creates ``fichero-tests-<pid>-*`` and, until this, never removed
+    it. Four days of runs had accumulated 705 directories and 3.5 GB, which
+    exhausted the disk and produced ~45 SETUP errors in a full suite — fixtures
+    failing before any test body ran. Re-running to diagnose the instability
+    consumed more disk and made the next run likelier to die.
+
+    The finalizer below handles a normal exit, but EVERY failed run that day
+    ended in a kill, where no finalizer fires. So the durable half is this
+    sweep: on startup, remove directories whose owning pid no longer exists.
+    A live run's directory is never touched — its pid is alive by definition.
+    """
+    removed = 0
+    tmp_root = _pathlib.Path(_tempfile.gettempdir())
+    for entry in tmp_root.glob(f"{_TEST_BASE_PREFIX}*"):
+        if not entry.is_dir():
+            continue
+        suffix = entry.name[len(_TEST_BASE_PREFIX) :]
+        pid_text = suffix.split("-", 1)[0]
+        if not pid_text.isdigit():
+            continue
+        pid = int(pid_text)
+        if pid == os.getpid() or _pid_is_alive(pid):
+            continue
+        _shutil.rmtree(entry, ignore_errors=True)
+        removed += 1
+    return removed
+
 
 def _make_test_base_path() -> _pathlib.Path:
     """Create a per-process base path for test-only app storage.
@@ -51,12 +105,16 @@ def _make_test_base_path() -> _pathlib.Path:
     """
 
     return _pathlib.Path(
-        _tempfile.mkdtemp(prefix=f"fichero-tests-{os.getpid()}-")
+        _tempfile.mkdtemp(prefix=f"{_TEST_BASE_PREFIX}{os.getpid()}-")
     )
 
 
+_sweep_abandoned_test_base_paths()
 _test_base = _make_test_base_path()
 os.environ.setdefault("FICHERO_BASE_PATH", str(_test_base))
+# Normal-exit cleanup. Cannot fire on SIGKILL, which is why the startup sweep
+# above exists as the durable half rather than the belt-and-braces one.
+_atexit.register(_shutil.rmtree, _test_base, True)
 
 from fichero.api.main import app  # noqa: E402
 from fichero.db import db_manager  # noqa: E402
