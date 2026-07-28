@@ -30,6 +30,7 @@ struct FicheroAppIOS: App {
                 .environment(appState)
                 .environment(viewSettings)
                 .environment(libraryManager)
+                .environment(FeatureManager.shared)
                 .environment(claimFocusState)
                 .environment(appState.mcpService)
                 .environment(captureQueue)

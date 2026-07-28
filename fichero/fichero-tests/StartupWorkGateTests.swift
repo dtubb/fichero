@@ -88,6 +88,14 @@ struct StartupWorkGateTests {
         return source[openBrace.upperBound..<source.endIndex]
     }
 
+    @Test("iOS main window injects FeatureManager before mounting the workspace")
+    func iosMainWindowInjectsFeatureManager() throws {
+        let source = try Self.appSource("FicheroApp_iOS.swift")
+        let detailScene = try #require(source.range(of: "WindowGroup(\"Document\""))
+
+        #expect(source[..<detailScene.lowerBound].contains(".environment(FeatureManager.shared)"))
+    }
+
     /// #3945: the engine spawn is an APP event, owned by the AppDelegate's
     /// `applicationDidFinishLaunching`, not a window's `.task`. A window is not an
     /// engine, so opening one must not be what starts (or fails to start) it — the

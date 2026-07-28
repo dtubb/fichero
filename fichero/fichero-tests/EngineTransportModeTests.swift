@@ -45,6 +45,17 @@ struct EngineTransportModeTests {
         #expect(EngineConfig.transportMode(for: .inert) == .https)
     }
 
+    @Test("UI-test UDS override wins over a saved remote host")
+    func uiTestUDSOverrideWinsOverRemoteHost() {
+        let mode = EngineConfig.localDebugTransportOverride(
+            environment: ["FICHERO_FORCE_UDS_PATH": "/tmp/test.sock"],
+            hostRequiresRemoteConnection: true,
+            uiTesting: true
+        )
+
+        #expect(mode == .uds(path: "/tmp/test.sock"))
+    }
+
     @Test("socket path stays well under the ~104-byte sun_path limit")
     func socketPathIsShortEnough() {
         // AF_UNIX `sun_path` is ~104 bytes; a path at/over that fails to bind.

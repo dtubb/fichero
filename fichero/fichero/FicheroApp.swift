@@ -117,15 +117,12 @@ struct FicheroApp: App {
             return
         }
 
-        // XCUITest smoke run (#1230): the runner launches the real app, so this
-        // boot path executes. Skip the modal "Move to Applications?" prompt (it
-        // would block the runner) and the saved-library restore (it would open
-        // the developer's real libraries). The isolated global library — rooted
-        // under FICHERO_UITEST_HOME — still loads lazily via LibraryManager so
-        // the window has something to show.
-        if isUITesting() && !isEmbeddedEngineUITesting() {
+        // XCUITest run (#1230): open an explicit fixture in either mode. The
+        // non-embedded path then skips installer and saved-library side effects;
+        // embedded tests continue so they can launch the bundled engine.
+        if isUITesting() {
             openUITestLibraryOverrideIfNeeded()
-            return
+            if !isEmbeddedEngineUITesting() { return }
         }
 
         // Materialize saved libraries BEFORE the scene graph builds (launch

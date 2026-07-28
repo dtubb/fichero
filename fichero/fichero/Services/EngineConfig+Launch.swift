@@ -20,18 +20,22 @@ extension EngineConfig {
     /// - `FICHERO_FORCE_UDS_PATH=/path/to/engine.sock`: dial the engine over an
     ///   AF_UNIX socket (`.uds`).
     ///
-    /// In-process wins if both are set. A configured *remote* host keeps `.https`
-    /// (the overrides only make sense for the local engine on this machine).
+    /// In-process wins if both are set. A configured remote host keeps `.https`,
+    /// except in a hermetic UI test whose explicit transport owns the launch.
     static var transportMode: TransportMode {
-        localDebugTransportOverride ?? transportMode(for: engineProvisioningStrategy())
+        localDebugTransportOverride() ?? transportMode(for: engineProvisioningStrategy())
     }
 
     /// Debug-only overrides for the LOCAL engine transport, or `nil` when none is
-    /// set. Returns `nil` for a configured remote host — the overrides only make
-    /// sense for the engine on this machine, and remote always uses HTTPS.
-    private static var localDebugTransportOverride: TransportMode? {
-        guard !requiresExternalBackendConnection else { return nil }
-        let env = ProcessInfo.processInfo.environment
+    /// set. Returns `nil` for a configured remote host outside UI testing.
+    static func localDebugTransportOverride(
+        environment env: [String: String] = ProcessInfo.processInfo.environment,
+        hostRequiresRemoteConnection: Bool = requiresExternalBackendConnection,
+        uiTesting: Bool = isUITesting()
+    ) -> TransportMode? {
+        // A hermetic UI test explicitly owns its transport; a developer's saved
+        // remote host must not redirect it away from the test engine.
+        guard uiTesting || !hostRequiresRemoteConnection else { return nil }
         #if os(macOS)
         if let flag = env["FICHERO_FORCE_INMEMORY"], isTruthy(flag) {
             return .inMemory
