@@ -20,7 +20,10 @@ logger = logging.getLogger(__name__)
 _MAX_IMAGE_PIXELS = 50_000_000
 
 # Standard formats PIL can handle directly
-PIL_FORMATS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".webp"}
+PIL_FORMATS = {
+    ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".gif", ".webp",
+    ".avif", ".jp2", ".j2k", ".jpf", ".jpx",
+}
 
 # Formats requiring special handling
 HEIC_FORMATS = {".heic", ".heif"}
@@ -186,6 +189,11 @@ class ImageLoader(MediaLoader):
             ".bmp": "image/bmp",
             ".gif": "image/gif",
             ".webp": "image/webp",
+            ".avif": "image/avif",
+            ".jp2": "image/jp2",
+            ".j2k": "image/jp2",
+            ".jpf": "image/jpx",
+            ".jpx": "image/jpx",
             ".heic": "image/heic",
             ".heif": "image/heif",
             ".jxl": "image/jxl",

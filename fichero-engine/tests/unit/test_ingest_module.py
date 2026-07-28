@@ -45,6 +45,7 @@ class TestDetectFileType:
         assert detect_file_type(Path("test.webp")) == FileType.image
         assert detect_file_type(Path("test.tiff")) == FileType.image
         assert detect_file_type(Path("test.heic")) == FileType.image
+        assert detect_file_type(Path("test.jp2")) == FileType.image
 
     def test_image_types_case_insensitive(self):
         """Uppercase extensions must resolve the same as lowercase.
@@ -101,6 +102,7 @@ class TestDetectFileType:
 
         assert detect_file_type(Path("test.txt")) == FileType.text
         assert detect_file_type(Path("test.md")) == FileType.text
+        assert detect_file_type(Path("manifest.jsonl")) == FileType.text
 
     def test_word_types(self):
         """Should detect Word file types."""
@@ -292,6 +294,17 @@ class TestCountFiles:
 
         assert count == 1
 
+    def test_excludes_metadata_sidecars(self, tmp_path):
+        """Progress totals count primary documents, not companion metadata."""
+        from fichero.importers.ingest import count_files
+
+        (tmp_path / "photo.jpg").touch()
+        (tmp_path / "photo.xmp").touch()
+        (tmp_path / "photo.iffy.json").touch()
+        (tmp_path / "photo.jpg.json").touch()
+
+        assert count_files(tmp_path) == 1
+
 
 class TestFindDuplicates:
     """Tests for find_duplicates function."""
@@ -400,6 +413,19 @@ class TestIngestFile:
         with pytest.raises(ValueError, match="Refusing to ingest symlinked file"):
             ingest_file(link, save=False)
 
+    @patch("fichero.bookmarks.create_bookmark", return_value=None)
+    def test_jsonl_import_keeps_searchable_record_text(self, _mock_bookmark, tmp_path):
+        from fichero.importers.ingest import ingest_file
+        from fichero.models import FileType
+
+        path = tmp_path / "records.jsonl"
+        path.write_text('{"id": 1, "text": "Marshall diary"}\n', encoding="utf-8")
+
+        doc = ingest_file(path, save=False)
+
+        assert doc.file_type == FileType.text
+        assert "Marshall diary" in doc.page_content
+
     @patch("fichero.db.db")
     @patch("fichero.bookmarks.create_bookmark")
     def test_link_mode_creates_bookmark(self, mock_bookmark, mock_db, tmp_path):
@@ -439,6 +465,95 @@ class TestIngestFile:
         assert doc.path == str(dest)
         mock_copy.assert_called_once_with(file)
         mock_db.save.assert_called_once()
+
+    @patch("fichero.importers.ingest._copy_to_library")
+    def test_move_deletes_source_only_after_commit(self, mock_copy, tmp_path):
+        """A failed transaction must never destroy the user's source file."""
+        from fichero.importers.ingest import ingest_file, IngestMode
+
+        source = tmp_path / "source.txt"
+        source.write_text("irreplaceable", encoding="utf-8")
+        destination = tmp_path / "library" / source.name
+        destination.parent.mkdir()
+        destination.write_text(source.read_text(), encoding="utf-8")
+        mock_copy.return_value = destination
+        db = MagicMock()
+        hooks = []
+        db.add_after_commit_hook.side_effect = hooks.append
+
+        ingest_file(
+            source,
+            mode=IngestMode.MOVE,
+            extract_metadata=False,
+            extract_text=False,
+            auto_embed=False,
+            db=db,
+        )
+
+        assert source.exists()
+        assert len(hooks) == 1
+        hooks[0]()
+        assert not source.exists()
+
+    @patch("fichero.importers.ingest._copy_to_library")
+    def test_move_delete_failure_is_persisted_on_the_committed_copy(
+        self, mock_copy, tmp_path
+    ):
+        from fichero.importers.ingest import ingest_file, IngestMode
+        from fichero.models import Status
+
+        source = tmp_path / "source.txt"
+        source.write_text("irreplaceable", encoding="utf-8")
+        destination = tmp_path / "stored.txt"
+        destination.write_text("irreplaceable", encoding="utf-8")
+        mock_copy.return_value = destination
+        db = MagicMock()
+        hooks = []
+        db.add_after_commit_hook.side_effect = hooks.append
+
+        doc = ingest_file(
+            source,
+            mode=IngestMode.MOVE,
+            extract_metadata=False,
+            extract_text=False,
+            auto_embed=False,
+            db=db,
+        )
+        with patch.object(Path, "unlink", side_effect=PermissionError("read-only")):
+            hooks[0]()
+
+        assert source.exists()
+        assert doc.status == Status.failed
+        assert "source could not be deleted" in doc.metadata["ingest_error"]
+        assert db.save.call_count == 2
+
+    @patch("fichero.importers.ingest._copy_to_library")
+    def test_copy_extracts_stored_bytes_but_keeps_source_sidecars(
+        self, mock_copy, tmp_path
+    ):
+        from fichero.importers.ingest import ingest_file, IngestMode
+
+        fixture = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.jpg"
+        source = tmp_path / "source.jpg"
+        destination = tmp_path / "library" / "stored.jpg"
+        source.write_bytes(fixture.read_bytes())
+        destination.parent.mkdir()
+        destination.write_bytes(fixture.read_bytes())
+        (tmp_path / "source.iffy.json").write_text(
+            '{"status": "catalogued"}', encoding="utf-8"
+        )
+        mock_copy.return_value = destination
+
+        doc = ingest_file(
+            source,
+            mode=IngestMode.COPY,
+            extract_text=False,
+            auto_embed=False,
+            db=MagicMock(),
+        )
+
+        assert doc.metadata["checksum"]
+        assert doc.metadata["_iffy_sidecar"] is True
 
     @patch("fichero.db.db")
     @patch("fichero.bookmarks.create_bookmark")
@@ -563,9 +678,70 @@ class TestIngestFolder:
 
         ingest_folder(tmp_path, on_progress=on_progress)
 
-        assert len(progress_calls) == 2
+        assert progress_calls[0] == (0, 2)
+        assert len(progress_calls) == 3
         assert progress_calls[-1][0] == 2  # Final current
         assert progress_calls[-1][1] == 2  # Total
+
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark", return_value=None)
+    def test_cancellation_stops_between_committed_files(
+        self, _mock_bookmark, mock_db, tmp_path
+    ):
+        """Cancellation keeps completed files and does not start the next one."""
+        from fichero.importers.ingest import ingest_folder
+
+        for name in ("a.txt", "b.txt", "c.txt"):
+            (tmp_path / name).write_text(name, encoding="utf-8")
+        mock_db.all.return_value = []
+        cancelled = False
+
+        def on_progress(current, _total):
+            nonlocal cancelled
+            cancelled = current == 1
+
+        docs = ingest_folder(
+            tmp_path,
+            create_collection=False,
+            extract_text=False,
+            auto_embed=False,
+            on_progress=on_progress,
+            should_cancel=lambda: cancelled,
+        )
+
+        assert len(docs) == 1
+        saved_batch = mock_db.save_many.call_args.args[0]
+        assert len(saved_batch) == 1
+
+    @patch("fichero.bookmarks.create_bookmark", return_value=None)
+    def test_link_batches_are_visible_before_per_file_callbacks(
+        self, _mock_bookmark, db, tmp_path
+    ):
+        from fichero.importers.ingest import ingest_folder
+        from fichero.models import Document
+
+        corpus = tmp_path / "corpus"
+        corpus.mkdir()
+        for index in range(101):
+            (corpus / f"doc-{index:03d}.txt").write_text("x", encoding="utf-8")
+        visible = []
+
+        def on_document(doc):
+            visible.append(not db.in_transaction and db.get(Document, doc.id) is not None)
+
+        with patch.object(db, "save_many", wraps=db.save_many) as save_many:
+            docs = ingest_folder(
+                corpus,
+                db=db,
+                create_collection=False,
+                extract_text=False,
+                auto_embed=False,
+                on_document=on_document,
+            )
+
+        assert len(docs) == 101
+        assert [len(call.args[0]) for call in save_many.call_args_list] == [100, 1]
+        assert all(visible)
 
     @patch("fichero.db.db")
     @patch("fichero.bookmarks.create_bookmark")
@@ -576,12 +752,16 @@ class TestIngestFolder:
         (tmp_path / "photo.jpg").write_bytes(b"image")
         (tmp_path / "photo.xmp").write_text("<x:xmpmeta/>", encoding="utf-8")
         (tmp_path / "photo.iffy.json").write_text("{}", encoding="utf-8")
+        (tmp_path / "photo.jpg.json").write_text(
+            '{"repository":"Archive"}', encoding="utf-8"
+        )
 
         mock_bookmark.return_value = None
         docs = ingest_folder(tmp_path)
 
         assert len(docs) == 1
         assert docs[0].name == "photo.jpg"
+        assert docs[0].source_metadata["repository"] == "Archive"
 
     def test_folder_ingest_rejects_symlinked_files_with_failed_stub(self, tmp_path):
         from fichero.importers.ingest import ingest_folder
@@ -655,24 +835,8 @@ class TestIngestFolder:
         assert "Could not pre-index existing checksums for skip logic" in caplog.text
         assert str(mock_db.path) in caplog.text
 
-    def test_large_folder_keeps_executor_and_ingests_every_file(self, tmp_path, monkeypatch):
-        """#1360 + #1554: large folder ingest keeps the ThreadPoolExecutor
-        fan-out, and every file is ingested exactly once with no drops.
-
-        Originally (#1360) this asserted wall-clock parallelism of the
-        ``ingest_file`` calls. That parallelism is what caused the #1554
-        race: ``ingest_file`` interleaves reads/writes on a single,
-        non-thread-safe DuckDB connection, so concurrent calls nulled out
-        required ``Document`` columns and dropped files as failed stubs.
-
-        The fix serializes the db-touching ``ingest_file`` call behind a
-        shared lock, so the per-file work no longer overlaps — the real
-        win #1360 cared about (no dropped files on big folders, executor
-        structure retained for the parallel pre-pass: checksum/dedup/
-        hierarchy) still holds. We therefore assert *correctness and
-        coverage* (all 6 files come back, each once), not raw wall-clock
-        overlap of the serialized critical section.
-        """
+    def test_large_folder_ingests_every_file_once(self, tmp_path, monkeypatch):
+        """The bounded-memory serial path must neither drop nor repeat files."""
         from fichero.importers.ingest import ingest_folder
         from fichero.models import DocType, Document, FileType
 
@@ -772,6 +936,20 @@ class TestCopyToLibrary:
         assert "imported" in str(dest)
         assert dest.parent.name == "so"  # First 2 chars of "source"
 
+    @patch("fichero.importers.ingest._try_apfs_clone", return_value=False)
+    def test_long_source_name_is_truncated_only_in_storage(self, _mock_clone, tmp_path):
+        from fichero.importers.ingest import _copy_to_library
+
+        source = tmp_path / ("é" * 120 + ".txt")
+        source.write_text("content", encoding="utf-8")
+        package = tmp_path / "Library.fichero"
+
+        destination = _copy_to_library(source, package)
+
+        assert destination.exists()
+        assert len(destination.name.encode()) <= 255
+        assert destination.suffix == ".txt"
+
 
 class TestTryApfsClone:
     """Tests for _try_apfs_clone function."""
@@ -809,6 +987,18 @@ class TestTryApfsClone:
 
 class TestIngestWithRealFiles:
     """Tests for ingestion with real sample files."""
+
+    @pytest.mark.parametrize("suffix,format_name", [(".avif", "AVIF"), (".jp2", "JPEG2000")])
+    def test_pillow_registered_archival_image_formats_load(self, tmp_path, suffix, format_name):
+        from PIL import Image
+        from fichero.loaders.image_loader import ImageLoader
+
+        path = tmp_path / f"archival{suffix}"
+        Image.new("RGB", (8, 6), "white").save(path, format=format_name)
+
+        content = ImageLoader().load_sync(path)
+
+        assert content.images[0].size == (8, 6)
 
     @patch("fichero.db.db")
     @patch("fichero.bookmarks.create_bookmark")

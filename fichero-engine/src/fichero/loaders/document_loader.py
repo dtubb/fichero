@@ -32,7 +32,7 @@ EBOOK_FORMATS = {".epub", ".mobi"}
 
 # Plain text formats (including CSV which is structured plain text)
 TEXT_FORMATS = {
-    ".txt", ".md", ".markdown", ".rst", ".html", ".htm", ".xml", ".csv",
+    ".txt", ".md", ".markdown", ".rst", ".html", ".htm", ".xml", ".csv", ".jsonl",
     # Subtitle / transcript files — plain text with timestamp markers.
     # Timestamps become indexable noise, but the dialog/transcript text
     # is what users search for.
@@ -344,5 +344,6 @@ class DocumentLoader(MediaLoader):
             ".html": "text/html",
             ".htm": "text/html",
             ".xml": "application/xml",
+            ".jsonl": "application/x-ndjson",
         }
         return mime_types.get(suffix, "application/octet-stream")

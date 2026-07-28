@@ -58,6 +58,13 @@ def test_save_many_inserts_all_rows_like_individual_saves(temp_db):
         assert stored[d.id].name == d.name
 
 
+def test_save_many_keeps_large_multi_statement_batch_atomic(temp_db):
+    docs = [_doc(i) for i in range(501)]
+
+    assert temp_db.save_many(docs) == 501
+    assert len(temp_db.all(Document)) == 501
+
+
 def test_save_many_matches_single_save_path(temp_db):
     """The same instance round-trips identically via save() and save_many()."""
     one = _doc(1, content="hello world")
@@ -110,6 +117,29 @@ def test_save_many_bad_batch_raises_no_silent_partial(temp_db):
     ids = {d.id for d in temp_db.all(Document)}
     # Only the pre-existing row survives; neither doc-2 nor doc-3 was written.
     assert ids == {"doc-1"}
+
+
+def test_ensure_table_cache_skips_reconcile_until_invalidated(temp_db, monkeypatch):
+    """Repeated saves avoid schema DDL; the existing discard seam restores it."""
+    table = temp_db._table_name(Document)
+    temp_db._tables_created.discard(table)
+    original = temp_db._python_to_duckdb_type
+    calls = 0
+
+    def counted(annotation):
+        nonlocal calls
+        calls += 1
+        return original(annotation)
+
+    monkeypatch.setattr(temp_db, "_python_to_duckdb_type", counted)
+    temp_db._ensure_table(Document)
+    first_calls = calls
+    temp_db._ensure_table(Document)
+    assert calls == first_calls
+
+    temp_db._tables_created.discard(table)
+    temp_db._ensure_table(Document)
+    assert calls > first_calls
 
 
 # ---------------------------------------------------------------------------

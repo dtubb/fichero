@@ -38,8 +38,8 @@ import hashlib
 import json
 import logging
 import mimetypes
+import os
 import shutil
-import threading
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -105,6 +105,10 @@ _FILE_TYPE_MAP = {
     ".heif": FileType.image,
     ".jxl": FileType.image,
     ".avif": FileType.image,
+    ".jp2": FileType.image,
+    ".j2k": FileType.image,
+    ".jpf": FileType.image,
+    ".jpx": FileType.image,
     # RAW formats
     ".raw": FileType.image,
     ".cr2": FileType.image,
@@ -143,6 +147,7 @@ _FILE_TYPE_MAP = {
     ".html": FileType.text,
     ".htm": FileType.text,
     ".xml": FileType.text,
+    ".jsonl": FileType.text,
     # Subtitles / transcripts — searchable as plain text
     ".srt": FileType.text,
     ".vtt": FileType.text,
@@ -263,7 +268,9 @@ def ingest_file(
 
     # Import bibliographic sidecars early so canonical citation data is
     # available before any LLM-based metadata extraction runs.
-    sidecar_metadata = _load_bibliography_sidecar(path)
+    companion_metadata = _load_companion_json(path) or {}
+    bibliography_metadata = _load_bibliography_sidecar(path) or {}
+    sidecar_metadata = {**companion_metadata, **bibliography_metadata} or None
 
     # Build metadata. Always record the ingest_mode explicitly (#603 Part 2)
     # so the frontend can show LINK / COPY / MOVE badges and branch the
@@ -307,15 +314,8 @@ def ingest_file(
             metadata=metadata,
             status=Status.pending,
         )
+        content_path = dest
 
-        # For MOVE mode, delete original file after successful copy
-        if mode == IngestMode.MOVE:
-            try:
-                path.unlink()
-                logger.info("Moved file (original deleted): %s", path)
-            except Exception as e:
-                logger.warning("Failed to delete original file after move: %s", e)
-                # Continue anyway - file was successfully copied
     else:
         # Link with bookmark
         bookmark = create_bookmark(path)
@@ -331,10 +331,11 @@ def ingest_file(
             metadata=metadata,
             status=Status.pending,
         )
+        content_path = path
 
     # Extract metadata if requested
     if extract_metadata:
-        _extract_file_metadata(doc, path)
+        _extract_file_metadata(doc, content_path, sidecar_path=path)
 
     if sidecar_metadata:
         doc.source_metadata = sidecar_metadata
@@ -345,7 +346,7 @@ def ingest_file(
     text_extraction_failed = False
     if extract_text and file_type in _TEXT_EXTRACTABLE:
         try:
-            _extract_text_content(doc, path)
+            _extract_text_content(doc, content_path)
         except Exception as _text_exc:
             # Ensure the document always reflects the failure even if the
             # exception was raised before _extract_text_content could set
@@ -377,9 +378,34 @@ def ingest_file(
         # so workflows (transcribe, extract, etc.) can fan out per-page and
         # each page is searchable on its own.
         if file_type == FileType.pdf and not text_extraction_failed:
-            _create_pdf_page_children(doc, path, db, auto_embed=auto_embed)
+            _create_pdf_page_children(doc, content_path, db, auto_embed=auto_embed)
 
         _touch_ancestor_documents(db, doc.parent_id)
+
+        # MOVE becomes destructive only after every database write for this
+        # file commits. If extraction, page creation, embedding, or commit
+        # fails, the source remains available for a safe retry (#4203).
+        if mode == IngestMode.MOVE:
+            def delete_original() -> None:
+                try:
+                    path.unlink()
+                    logger.info("Moved file (original deleted): %s", path)
+                except Exception as exc:
+                    logger.warning("Failed to delete original file after move: %s", exc)
+                    doc.status = Status.failed
+                    doc.metadata["ingest_error"] = (
+                        f"Stored copy committed, but the source could not be deleted: {exc}"
+                    )
+                    try:
+                        db.save(doc)
+                    except Exception as save_exc:  # pragma: no cover - last-resort log
+                        logger.error(
+                            "Could not persist move cleanup failure for %s: %s",
+                            path,
+                            save_exc,
+                        )
+
+            db.add_after_commit_hook(delete_original)
 
     return doc
 
@@ -410,6 +436,21 @@ def _load_bibliography_sidecar(path: Path) -> dict[str, Any] | None:
         if title and (title == target_stem or target_stem in title):
             return entry
 
+    return None
+
+
+def _load_companion_json(path: Path) -> dict[str, Any] | None:
+    """Load downloader metadata stored as ``<primary filename>.json``."""
+    sidecar = path.with_name(f"{path.name}.json")
+    if not sidecar.is_file():
+        return None
+    try:
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            return payload
+        logger.warning("Ignoring non-object companion metadata: %s", sidecar)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        logger.warning("Failed to parse companion metadata %s: %s", sidecar, exc)
     return None
 
 
@@ -640,7 +681,16 @@ def _copy_to_library(source: Path, package_path: Path | None = None) -> Path:
 
     # Generate unique filename
     unique_prefix = uuid4().hex[:8]
-    dest = dest_dir / f"{unique_prefix}_{source.name}"
+    prefix = f"{unique_prefix}_"
+    name_max = os.pathconf(dest_dir, "PC_NAME_MAX")
+    suffix = source.suffix
+    stem_budget = name_max - len(os.fsencode(prefix + suffix))
+    stored_stem = ""
+    for character in source.stem:
+        if len(os.fsencode(stored_stem + character)) > stem_budget:
+            break
+        stored_stem += character
+    dest = dest_dir / f"{prefix}{stored_stem}{suffix}"
 
     # Try APFS clone first (macOS only, instant, no disk space until modified)
     if _try_apfs_clone(source, dest):
@@ -671,7 +721,9 @@ def _try_apfs_clone(source: Path, dest: Path) -> bool:
         return False
 
 
-def _extract_file_metadata(doc: Document, path: Path) -> None:
+def _extract_file_metadata(
+    doc: Document, path: Path, *, sidecar_path: Path | None = None
+) -> None:
     """Extract basic metadata from file.
 
     Updates doc.metadata in place.
@@ -690,7 +742,7 @@ def _extract_file_metadata(doc: Document, path: Path) -> None:
 
         # Image dimensions (if applicable)
         if doc.file_type == FileType.image:
-            _extract_image_metadata(doc, path)
+            _extract_image_metadata(doc, path, sidecar_path=sidecar_path)
 
     except ValueError:
         raise
@@ -710,7 +762,9 @@ def _file_checksum(path: Path, algorithm: str = "sha256") -> str:
     return hasher.hexdigest()
 
 
-def _extract_image_metadata(doc: Document, path: Path) -> None:
+def _extract_image_metadata(
+    doc: Document, path: Path, *, sidecar_path: Path | None = None
+) -> None:
     """Extract image dimensions and XMP sidecar metadata.
 
     Updates doc.metadata in place.
@@ -736,8 +790,10 @@ def _extract_image_metadata(doc: Document, path: Path) -> None:
                     if 272 in exif:
                         doc.metadata["exif_model"] = exif[272]
 
+        companion = sidecar_path or path
+
         # Parse XMP sidecar if present
-        xmp_data = parse_xmp_sidecar(path)
+        xmp_data = parse_xmp_sidecar(companion)
         if xmp_data:
             apply_xmp_to_document(doc, xmp_data)
             logger.debug(
@@ -745,7 +801,7 @@ def _extract_image_metadata(doc: Document, path: Path) -> None:
             )
 
         # Parse .iffy.json sidecar if present
-        iffy_data = _parse_iffy_sidecar(path)
+        iffy_data = _parse_iffy_sidecar(companion)
         if iffy_data:
             _apply_iffy_to_document(doc, iffy_data)
             logger.debug(
@@ -936,6 +992,9 @@ def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
 # =============================================================================
 
 
+_INGEST_BATCH_SIZE = 100
+
+
 def ingest_folder(
     folder: Path,
     mode: IngestMode = IngestMode.LINK,
@@ -946,6 +1005,7 @@ def ingest_folder(
     auto_embed: bool = True,
     on_progress: Callable[[int, int], None] | None = None,
     on_document: "Callable[[Document], None] | None" = None,
+    should_cancel: Callable[[], bool] | None = None,
     db: "Database | None" = None,
     package_path: Path | None = None,
 ) -> list[Document]:
@@ -962,12 +1022,14 @@ def ingest_folder(
         on_progress: Progress callback (current, total) — invoked after every
             file (successful, skipped, or failed) so the caller can advance a
             progress bar.
-        on_document: Per-document callback invoked once for each successfully
-            ingested file, with the created :class:`Document`. The folder
+        on_document: Per-document callback invoked once for each persisted
+            folder, file, or failed-file stub. The folder
             ingest route uses this to emit a ``document.created`` change event
             per file so the sidebar populates incrementally instead of waiting
-            for the whole import to finish (#4065). Skipped (unchanged hash)
-            and failed files do NOT fire ``on_document`` — only real creates.
+            for the whole import to finish (#4065). Skipped unchanged files do
+            not fire it.
+        should_cancel: Checked between files. Already committed documents remain
+            coherent and a retry skips their unchanged source checksums.
         db: Database instance (required)
         package_path: Library package path for COPY mode
 
@@ -990,6 +1052,17 @@ def ingest_folder(
     if db is None:
         raise ValueError("db parameter is required")
 
+    if should_cancel and should_cancel():
+        return []
+
+    def notify_document(doc: Document) -> None:
+        if on_document is None:
+            return
+        try:
+            on_document(doc)
+        except Exception as exc:  # pragma: no cover - defensive callback seam
+            logger.warning("on_document callback failed: %s", exc)
+
     # Create folder Document, nested under the caller's parent_id if
     # one was given. Previously the `and not parent_id` guard caused
     # folder drops with a target to import files FLAT into the target
@@ -999,36 +1072,36 @@ def ingest_folder(
     # explicitly want files imported flat can pass `create_collection=False`.
     folder_id = parent_id
     if create_collection:
-        folder_doc = Document(
-            name=folder.name,
-            path=str(folder),
-            doc_type=DocType.folder,
-            status=Status.completed,
-            parent_id=parent_id,
+        existing_roots = db.query(Document, parent_id=parent_id, name=folder.name)
+        folder_doc = next(
+            (
+                doc
+                for doc in existing_roots
+                if doc.doc_type == DocType.folder and doc.path == str(folder)
+            ),
+            None,
         )
-        db.save(folder_doc)
+        if folder_doc is None:
+            folder_doc = Document(
+                name=folder.name,
+                path=str(folder),
+                doc_type=DocType.folder,
+                status=Status.completed,
+                parent_id=parent_id,
+            )
+            with db.transaction():
+                db.save(folder_doc)
+                _touch_ancestor_documents(db, folder_doc.parent_id)
+            notify_document(folder_doc)
         folder_id = folder_doc.id
-        _touch_ancestor_documents(db, folder_doc.parent_id)
         logger.info(
             f"Created folder: {folder.name} "
             f"(parent_id={parent_id or 'root'})"
         )
 
-    # Gather files
-    if recursive:
-        files = list(folder.rglob("*"))
-    else:
-        files = list(folder.glob("*"))
-
-    # Filter to actual files (exclude sidecar files that are metadata companions,
-    # not primary ingest targets).
-    files = [
-        f
-        for f in files
-        if f.is_file() and not f.name.startswith(".") and not _is_sidecar_file(f)
-    ]
-
-    total = len(files)
+    total = count_files(folder, recursive=recursive)
+    if on_progress:
+        on_progress(0, total)
     documents: list[Document] = []
     existing_hashes: set[tuple[str, str]] = set()
     library_path = package_path or getattr(db, "path", None)
@@ -1048,9 +1121,63 @@ def ingest_folder(
             exc,
         )
 
-    work_items: list[tuple[int, Path, str | None, str, str]] = []
+    files = (
+        path
+        for path in discover_files(folder, recursive=recursive)
+        if not _is_sidecar_file(path)
+    )
+    pending_links: list[tuple[Document, str, str]] = []
+
+    def flush_pending_links() -> None:
+        nonlocal pending_links
+        if not pending_links:
+            return
+        batch, pending_links = pending_links, []
+        try:
+            db.save_many([doc for doc, _, _ in batch])
+            saved = batch
+        except Exception as batch_exc:
+            # Preserve per-file failure isolation if one unexpected row rejects
+            # the native bulk statement; the ordinary path identifies survivors.
+            logger.warning("Bulk ingest save failed; retrying per file: %s", batch_exc)
+            saved = []
+            failed_saves: list[str] = []
+            for item in batch:
+                try:
+                    with db.transaction():
+                        db.save(item[0])
+                    saved.append(item)
+                except Exception as save_exc:
+                    logger.error("Could not persist %s: %s", item[0].name, save_exc)
+                    failed_saves.append(f"{item[0].name}: {save_exc}")
+        else:
+            failed_saves = []
+
+        parent_ids = {doc.parent_id for doc, _, _ in saved if doc.parent_id}
+        if parent_ids:
+            with db.transaction():
+                for saved_parent_id in parent_ids:
+                    _touch_ancestor_documents(db, saved_parent_id)
+
+        for doc, source_key, checksum in saved:
+            documents.append(doc)
+            actual_checksum = (doc.metadata or {}).get("checksum")
+            existing_hashes.add(
+                (
+                    source_key,
+                    actual_checksum if isinstance(actual_checksum, str) else checksum,
+                )
+            )
+            notify_document(doc)
+        if failed_saves:
+            raise RuntimeError("; ".join(failed_saves))
+
     for i, file_path in enumerate(files):
+        if should_cancel and should_cancel():
+            flush_pending_links()
+            break
         subfolder_id = folder_id
+        created_folders: list[Document] = []
         try:
             if file_path.is_symlink():
                 raise ValueError(f"Refusing to ingest symlinked file: {file_path}")
@@ -1062,16 +1189,62 @@ def ingest_folder(
                     on_progress(i + 1, total)
                 continue
 
-            # For recursive, create subfolder structure
+            # Folder rows commit first so a failed child can still point at a
+            # real, visible parent rather than an ID rolled back with the file.
             if recursive and file_path.parent != folder:
-                subfolder_id = _ensure_folder_hierarchy(
-                    file_path.parent,
-                    folder,
-                    folder_id,
-                    db,
-                )
+                with db.transaction():
+                    subfolder_id = _ensure_folder_hierarchy(
+                        file_path.parent,
+                        folder,
+                        folder_id,
+                        db,
+                        created=created_folders,
+                    )
+                for created_folder in created_folders:
+                    notify_document(created_folder)
 
-            work_items.append((i, file_path, subfolder_id, source_key, checksum))
+            file_type = detect_file_type(file_path)
+            batchable_link = mode == IngestMode.LINK and (
+                not extract_text or file_type not in _TEXT_EXTRACTABLE
+            ) and file_type != FileType.pdf
+            if batchable_link:
+                doc = ingest_file(
+                    file_path,
+                    mode=mode,
+                    parent_id=subfolder_id,
+                    extract_metadata=True,
+                    extract_text=extract_text,
+                    auto_embed=auto_embed,
+                    save=False,
+                    db=db,
+                    package_path=package_path,
+                )
+                pending_links.append((doc, source_key, checksum))
+            else:
+                with db.transaction():
+                    doc = ingest_file(
+                        file_path,
+                        mode=mode,
+                        parent_id=subfolder_id,
+                        extract_metadata=True,
+                        extract_text=extract_text,
+                        auto_embed=auto_embed,
+                        save=True,
+                        db=db,
+                        package_path=package_path,
+                    )
+
+                documents.append(doc)
+                actual_checksum = (doc.metadata or {}).get("checksum")
+                existing_hashes.add(
+                    (
+                        source_key,
+                        actual_checksum
+                        if isinstance(actual_checksum, str)
+                        else checksum,
+                    )
+                )
+                notify_document(doc)
 
         except Exception as e:
             # Fail loud (#881/#1216): persist a failed-status stub so the
@@ -1087,7 +1260,9 @@ def ingest_folder(
                     status=Status.failed,
                     metadata={"ingest_error": str(e)},
                 )
-                db.save(stub)
+                with db.transaction():
+                    db.save(stub)
+                notify_document(stub)
             except Exception as save_err:
                 logger.error(
                     "Could not persist failed-ingest stub for %s: %s",
@@ -1096,91 +1271,13 @@ def ingest_folder(
                 )
             if on_progress:
                 on_progress(i + 1, total)
-
-    if not work_items:
-        logger.info(f"Ingested {len(documents)} files from {folder.name}")
-        return documents
-
-    # DuckDB connections are NOT thread-safe for concurrent reads/writes
-    # (#1554). ingest_file interleaves db.save/db.embed/db.query throughout,
-    # so we serialize every db touch behind a shared lock. Under contention
-    # an unguarded shared connection returned None for required Document
-    # columns (id/name/created_at/updated_at), tripping Pydantic validation
-    # and persisting sourceless Status.failed stubs (no thumbnail/preview).
-    # The lock spans the whole ingest_file call — the work that runs while
-    # holding it is db-bound anyway, so the executor parallelism it preempts
-    # was never real, while genuine per-file errors still flow to the stub
-    # path below.
-    db_lock = threading.Lock()
-
-    def _ingest_one(item: tuple[int, Path, str | None, str, str]) -> tuple[int, Document | None, Exception | None, str, str, str | None, Path]:
-        i, file_path, subfolder_id, source_key, checksum = item
-        try:
-            with db_lock:
-                doc = ingest_file(
-                    file_path,
-                    mode=mode,
-                    parent_id=subfolder_id,
-                    extract_metadata=True,
-                    extract_text=extract_text,
-                    auto_embed=auto_embed,
-                    save=True,
-                    db=db,
-                    package_path=package_path,
-                )
-            return (i, doc, None, source_key, checksum, subfolder_id, file_path)
-        except Exception as exc:
-            return (i, None, exc, source_key, checksum, subfolder_id, file_path)
-
-    import concurrent.futures
-    import os
-
-    max_workers = min(8, max(1, (os.cpu_count() or 4)), len(work_items))
-    ordered_docs: dict[int, Document] = {}
-    completed = 0
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(_ingest_one, item) for item in work_items]
-        for future in concurrent.futures.as_completed(futures):
-            i, doc, err, source_key, checksum, subfolder_id, file_path = future.result()
-            completed += 1
-            if err is None and doc is not None:
-                ordered_docs[i] = doc
-                existing_hashes.add((source_key, checksum))
-                # Progressive streaming (#4065): notify the caller of each
-                # successfully ingested document as soon as it lands, so the
-                # route can emit a per-file ``document.created`` change event
-                # and the sidebar patches incrementally instead of waiting for
-                # the whole batch. Guarded so a callback failure can never
-                # corrupt the ingest.
-                if on_document is not None:
-                    try:
-                        on_document(doc)
-                    except Exception as exc:  # pragma: no cover - defensive
-                        logger.warning("on_document callback failed: %s", exc)
-            else:
-                logger.warning(f"Failed to ingest {file_path}: {err}")
-                try:
-                    stub = Document(
-                        name=file_path.name,
-                        path=str(file_path),
-                        doc_type=DocType.file,
-                        file_type=detect_file_type(file_path),
-                        parent_id=subfolder_id,
-                        status=Status.failed,
-                        metadata={"ingest_error": str(err)},
-                    )
-                    db.save(stub)
-                except Exception as save_err:
-                    logger.error(
-                        "Could not persist failed-ingest stub for %s: %s",
-                        file_path,
-                        save_err,
-                    )
+        else:
             if on_progress:
-                on_progress(completed, total)
+                on_progress(i + 1, total)
+        if len(pending_links) >= _INGEST_BATCH_SIZE:
+            flush_pending_links()
 
-    documents.extend(doc for _, doc in sorted(ordered_docs.items(), key=lambda item: item[0]))
-
+    flush_pending_links()
     logger.info(f"Ingested {len(documents)} files from {folder.name}")
     return documents
 
@@ -1189,7 +1286,11 @@ def _is_sidecar_file(path: Path) -> bool:
     """Return True when ``path`` is a metadata sidecar, not a primary document."""
     suffix = path.suffix.lower()
     name = path.name.lower()
-    return suffix == ".xmp" or name.endswith(".iffy.json")
+    return (
+        suffix == ".xmp"
+        or name.endswith(".iffy.json")
+        or (suffix == ".json" and path.with_suffix("").is_file())
+    )
 
 
 _ANCESTOR_MAX_DEPTH = 64
@@ -1241,6 +1342,7 @@ def _ensure_folder_hierarchy(
     base_folder: Path,
     base_id: str,
     db: "Database",
+    created: list[Document] | None = None,
 ) -> str:
     """Ensure folder hierarchy exists in database.
 
@@ -1272,6 +1374,8 @@ def _ensure_folder_hierarchy(
                 status=Status.completed,
             )
             db.save(folder_doc)
+            if created is not None:
+                created.append(folder_doc)
             current_parent = folder_doc.id
 
     return current_parent
@@ -1329,7 +1433,11 @@ def count_files(
     Returns:
         Number of matching files
     """
-    return sum(1 for _ in discover_files(folder, extensions, recursive))
+    return sum(
+        1
+        for path in discover_files(folder, extensions, recursive)
+        if not _is_sidecar_file(path)
+    )
 
 
 # =============================================================================
@@ -1477,6 +1585,7 @@ __all__ = [
     '_is_sidecar_file',
     '_kreuzberg_pdf_pages',
     '_load_bibliography_sidecar',
+    '_load_companion_json',
     '_page_label_for',
     '_parse_iffy_sidecar',
     '_resolve_default_db',
@@ -1502,6 +1611,5 @@ __all__ = [
     'logging',
     'mimetypes',
     'shutil',
-    'threading',
     'uuid4',
 ]

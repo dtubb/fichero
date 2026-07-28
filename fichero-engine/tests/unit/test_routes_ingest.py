@@ -240,6 +240,63 @@ class TestIngestFolder:
         assert status["status"] == "completed"
         assert set(status["document_ids"]) == {"doc-a", "doc-b"}
 
+    def test_per_file_events_fire_only_after_the_document_commit(
+        self, client, db, tmp_path, monkeypatch
+    ):
+        """#4203: a created event must never announce an uncommitted row."""
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / "b.txt").write_text("b")
+        emitted_in_transaction: list[bool] = []
+
+        def capture_emit(*_args, **kwargs):
+            if len(kwargs.get("document_ids", [])) == 1:
+                emitted_in_transaction.append(db.in_transaction)
+
+        def fake_ingest_folder(*_args, **kwargs):
+            docs = [
+                Document(id="doc-a", name="a.txt"),
+                Document(id="doc-b", name="b.txt"),
+            ]
+            for doc in docs:
+                kwargs["db"].save(doc)
+                kwargs["on_document"](doc)
+            return docs
+
+        monkeypatch.setattr("fichero.api.change_stream.emit_change", capture_emit)
+        with patch("fichero.importers.ingest.ingest_folder", side_effect=fake_ingest_folder), \
+             patch("fichero.importers.ingest.count_files", return_value=2):
+            response = client.post("/api/ingest/folder", json={"path": str(tmp_path)})
+
+        assert response.status_code == 200
+        assert emitted_in_transaction == [False, False]
+
+    def test_failed_file_is_visible_in_task_status(self, client, tmp_path):
+        (tmp_path / "broken.pdf").write_bytes(b"broken")
+
+        def fake_ingest_folder(*_args, **kwargs):
+            failed = Document(
+                id="failed-doc",
+                name="broken.pdf",
+                path=str(tmp_path / "broken.pdf"),
+                status="failed",
+                metadata={"ingest_error": "permission denied"},
+            )
+            kwargs["on_document"](failed)
+            kwargs["on_progress"](1, 1)
+            return []
+
+        with patch("fichero.importers.ingest.ingest_folder", side_effect=fake_ingest_folder):
+            response = client.post("/api/ingest/folder", json={"path": str(tmp_path)})
+
+        status = client.get(f"/api/ingest/status/{response.json()['task_id']}").json()
+        assert status["failed"] == 1
+        assert status["failures"] == [{
+            "path": str(tmp_path / "broken.pdf"),
+            "error": "permission denied",
+            "document_id": "failed-doc",
+        }]
+        assert status["document_ids"] == ["failed-doc"]
+
 
 # ---------------------------------------------------------------------------
 # GET /api/ingest/status/{task_id}
@@ -250,6 +307,23 @@ class TestIngestStatus:
     def test_missing_task_returns_404(self, client):
         r = client.get("/api/ingest/status/no-such-task")
         assert r.status_code == 404
+
+    def test_cancel_marks_running_task_for_cooperative_stop(self, client, monkeypatch):
+        library_path = client.headers["X-Fichero-Library-Path"]
+        monkeypatch.setattr(ingest.core, "_tasks", {
+            "running-task": {
+                "status": "running",
+                "path": "/tmp/import",
+                "library_path": library_path,
+                "cancel_requested": False,
+            }
+        })
+
+        response = client.post("/api/ingest/folder/running-task/cancel")
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "cancelling"
+        assert ingest.core._tasks["running-task"]["cancel_requested"] is True
 
     def test_task_status_after_folder_ingest(self, client, tmp_path):
         (tmp_path / "b.txt").write_text("b")

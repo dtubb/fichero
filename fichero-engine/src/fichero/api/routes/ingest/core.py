@@ -20,7 +20,7 @@ from fichero.api.auth import actor_from_request
 from fichero.actions.registry import ActionContext, registry
 from fichero.security import authz
 from fichero.db import Database
-from fichero.models import Document
+from fichero.models import Document, Status
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -52,6 +52,7 @@ def _ingest_action_context(
     *,
     on_progress=None,
     on_document=None,
+    should_cancel=None,
 ) -> ActionContext:
     return ActionContext(
         actor=actor_from_request(request),
@@ -59,6 +60,7 @@ def _ingest_action_context(
         is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),
         on_progress=on_progress,
         on_document=on_document,
+        should_cancel=should_cancel,
     )
 
 
@@ -68,7 +70,7 @@ def _prune_tasks(now: float | None = None) -> None:
     terminal = [
         (task_id, task)
         for task_id, task in _tasks.items()
-        if task["status"] in {"completed", "failed"}
+        if task["status"] in {"completed", "failed", "cancelled"}
     ]
     for task_id, task in terminal:
         if now - task["finished_at"] >= _TASK_TTL_SECONDS:
@@ -78,7 +80,7 @@ def _prune_tasks(now: float | None = None) -> None:
         (
             (task["finished_at"], task_id)
             for task_id, task in _tasks.items()
-            if task["status"] in {"completed", "failed"}
+            if task["status"] in {"completed", "failed", "cancelled"}
         )
     )
     for _, task_id in remaining[:-_MAX_TERMINAL_TASKS]:
@@ -127,13 +129,21 @@ class IngestTaskStatus(BaseModel):
     """Status of an ingest task."""
 
     task_id: str
-    status: str  # pending, running, completed, failed
+    status: str  # pending, running, cancelling, cancelled, completed, failed
     path: str
     progress: float  # 0.0 to 1.0
     total: int
     processed: int
     error: Optional[str] = None
     document_ids: list[str] = []
+    failed: int = 0
+    failures: list[dict[str, str]] = []
+    files_per_second: float = 0.0
+
+
+class IngestCancelResponse(BaseModel):
+    task_id: str
+    status: str
 
 
 # Shared mutation logic (the proven algorithm wrapped by both the route and the
@@ -193,6 +203,7 @@ def import_folder_impl(
     package_path: Path,
     on_progress=None,
     on_document=None,
+    should_cancel=None,
 ) -> list[Document]:
     """Validate + synchronously ingest a folder. Returns the created Documents.
 
@@ -229,6 +240,7 @@ def import_folder_impl(
         auto_embed=request.auto_embed,
         on_progress=on_progress,
         on_document=on_document,
+        should_cancel=should_cancel,
         db=db,
         package_path=package_path,
     )
@@ -273,8 +285,6 @@ async def ingest_folder(
 
     Returns immediately with a task_id. Use /status/{task_id} to check progress.
     """
-    from fichero.importers.ingest import count_files
-
     _require_ingest_owner(http_request, x_fichero_library_path)
     path = Path(request.path)
     _validate_ingest_path(request.path)
@@ -288,16 +298,18 @@ async def ingest_folder(
 
     # Create task
     task_id = uuid4().hex[:12]
-    total = count_files(path, recursive=request.recursive)
-
     _tasks[task_id] = {
         "status": "pending",
         "path": str(path),
         "progress": 0.0,
-        "total": total,
+        "total": 0,
         "processed": 0,
         "error": None,
         "document_ids": [],
+        "failed": 0,
+        "failures": [],
+        "files_per_second": 0.0,
+        "cancel_requested": False,
         "library_path": x_fichero_library_path,
     }
     _prune_tasks()
@@ -311,7 +323,10 @@ async def ingest_folder(
 
         def on_progress(current: int, total: int):
             _tasks[task_id]["processed"] = current
+            _tasks[task_id]["total"] = total
             _tasks[task_id]["progress"] = current / total if total > 0 else 1.0
+            elapsed = time.monotonic() - _tasks[task_id]["started_at"]
+            _tasks[task_id]["files_per_second"] = current / elapsed if elapsed > 0 else 0.0
 
         # Progressive sidebar population (#4065): for each successfully ingested
         # document, accumulate its id in the task's running ``document_ids``
@@ -327,6 +342,17 @@ async def ingest_folder(
                 _tasks[task_id]["document_ids"].append(doc.id)
             except Exception:  # pragma: no cover - defensive
                 pass
+            if doc.status == Status.failed:
+                metadata = doc.metadata or {}
+                error = str(
+                    metadata.get("ingest_error")
+                    or metadata.get("text_extraction_error")
+                    or "Import failed"
+                )
+                _tasks[task_id]["failed"] += 1
+                _tasks[task_id]["failures"].append(
+                    {"path": doc.path or doc.name, "error": error, "document_id": doc.id}
+                )
             try:
                 from fichero.api.change_stream import emit_change
 
@@ -342,7 +368,9 @@ async def ingest_folder(
                 logger.debug("per-file emit_change failed (ignored): %s", exc)
 
         try:
-            _tasks[task_id]["status"] = "running"
+            _tasks[task_id]["started_at"] = time.monotonic()
+            if not _tasks[task_id]["cancel_requested"]:
+                _tasks[task_id]["status"] = "running"
             # Route through the shared impl so the background task and the
             # audited ``import.folder`` action ingest via the SAME code path.
             result = registry.invoke(
@@ -354,13 +382,18 @@ async def ingest_folder(
                     x_fichero_library_path,
                     on_progress=on_progress,
                     on_document=on_document,
+                    should_cancel=lambda: _tasks[task_id]["cancel_requested"],
                 ),
             )
             doc_ids = result.result["document_ids"]
-            _tasks[task_id]["status"] = "completed"
+            cancelled = _tasks[task_id]["cancel_requested"]
+            _tasks[task_id]["status"] = "cancelled" if cancelled else "completed"
             _tasks[task_id]["finished_at"] = time.monotonic()
-            _tasks[task_id]["progress"] = 1.0
-            _tasks[task_id]["document_ids"] = doc_ids
+            if not cancelled:
+                _tasks[task_id]["progress"] = 1.0
+            _tasks[task_id]["document_ids"] = list(
+                dict.fromkeys(_tasks[task_id]["document_ids"] + doc_ids)
+            )
             logger.info(f"Folder ingest complete: {path} ({len(doc_ids)} files)")
         except Exception as e:
             _tasks[task_id]["status"] = "failed"
@@ -519,7 +552,27 @@ async def get_ingest_status(
         processed=task["processed"],
         error=task.get("error"),
         document_ids=task.get("document_ids", []),
+        failed=task.get("failed", 0),
+        failures=task.get("failures", []),
+        files_per_second=task.get("files_per_second", 0.0),
     )
+
+
+@router.post("/folder/{task_id}/cancel")
+async def cancel_ingest(
+    task_id: str,
+    http_request: Request,
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> IngestCancelResponse:
+    """Request cancellation between committed files; repeated calls are safe."""
+    _require_ingest_owner(http_request, x_fichero_library_path)
+    task = _tasks.get(task_id)
+    if task is None or task["library_path"] != x_fichero_library_path:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+    if task["status"] not in {"completed", "failed", "cancelled"}:
+        task["cancel_requested"] = True
+        task["status"] = "cancelling"
+    return IngestCancelResponse(task_id=task_id, status=task["status"])
 
 
 # ---------------------------------------------------------------------------
@@ -586,6 +639,9 @@ def _action_import_file(
     IngestFolderRequest,
     domains=["document"],
     undoable=False,
+    # A folder is a resumable sequence of committed files/batches. Wrapping the
+    # whole import hides every row behind one transaction until the last file.
+    atomic=False,
 )
 def _action_import_folder(
     db: Database, params: IngestFolderRequest, ctx: ActionContext
@@ -601,6 +657,7 @@ def _action_import_folder(
         package_path,
         on_progress=ctx.on_progress,
         on_document=ctx.on_document,
+        should_cancel=ctx.should_cancel,
     )
     doc_ids = [d.id for d in docs]
     spec = ChangeSpec(

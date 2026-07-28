@@ -1074,17 +1074,18 @@ class Database(DatabaseEmbeddingMixin):
         for single-row execute, positional ``?`` for executemany batches).
         """
         col_names = ", ".join(cols)
+        values = placeholders if placeholders.startswith("(") else f"({placeholders})"
         update_cols = [c for c in cols if c != "id"]
         if update_cols:
             set_clause = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
             return (
-                f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
+                f"INSERT INTO {sql_table} ({col_names}) VALUES {values} "
                 f"ON CONFLICT (id) DO UPDATE SET {set_clause}"
             )
         # Edge case: a table whose only column is `id` — ON CONFLICT has
         # nothing to update, so DO NOTHING is the right semantics.
         return (
-            f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
+            f"INSERT INTO {sql_table} ({col_names}) VALUES {values} "
             f"ON CONFLICT (id) DO NOTHING"
         )
 
@@ -1212,8 +1213,6 @@ class Database(DatabaseEmbeddingMixin):
 
         rows = [self._dump_row(obj) for obj in objs]
         cols = list(rows[0].keys())
-        placeholders = ", ".join("?" for _ in cols)
-        sql = self._upsert_sql(sql_table, cols, placeholders)
         # Positional params in stable column order for every row. Missing keys
         # would silently shift columns, so demand a uniform shape up front.
         param_rows: list[list[Any]] = []
@@ -1230,7 +1229,16 @@ class Database(DatabaseEmbeddingMixin):
                 try:
                     self.conn.execute("BEGIN TRANSACTION")
                     try:
-                        self.conn.executemany(sql, param_rows)
+                        # DuckDB's Python executemany still dispatches one UPSERT
+                        # per row. Native multi-row VALUES is ~20x faster here.
+                        # ponytail: 500 bounds SQL/parameter size; tune only from
+                        # a measured larger-model or driver limit.
+                        for start in range(0, len(param_rows), 500):
+                            batch = param_rows[start : start + 500]
+                            row_placeholders = f"({', '.join('?' for _ in cols)})"
+                            placeholders = ", ".join(row_placeholders for _ in batch)
+                            sql = self._upsert_sql(sql_table, cols, placeholders)
+                            self.conn.execute(sql, [value for row in batch for value in row])
                     except Exception:
                         # Abort the partial batch — no half-written rows.
                         self.conn.execute("ROLLBACK")
@@ -4865,6 +4873,13 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(model)
 
         with self._lock:
+            # The schema is immutable for the lifetime of a healthy connection.
+            # _materialize_schema() discards each entry before reconciliation,
+            # and _reconnect_after_invalidated() clears the whole set, so both
+            # existing invalidation paths still force a fresh check.
+            if table in self._tables_created:
+                return
+
             def _execute_locked(sql: str):
                 for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
                     try:
