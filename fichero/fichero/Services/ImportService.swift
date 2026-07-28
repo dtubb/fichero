@@ -299,8 +299,37 @@ class ImportService {
                 total: status.total,
                 processed: status.processed,
                 error: status.error,
-                documentIds: status.documentIds ?? []
+                documentIds: status.documentIds ?? [],
+                failed: status.failed ?? 0,
+                failures: (status.failures ?? []).map { entry in
+                    IngestFailure(
+                        path: entry.additionalProperties["path"] ?? "",
+                        error: entry.additionalProperties["error"] ?? "Import failed",
+                        documentId: entry.additionalProperties["document_id"]
+                    )
+                },
+                filesPerSecond: status.filesPerSecond ?? 0
             )
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ImportServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw ImportServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
+    /// Ask the engine to stop between committed files. Cooperative: the task
+    /// finishes the file in flight, so the reported status goes `cancelling`
+    /// then `cancelled` rather than stopping instantly. Repeated calls are safe.
+    @discardableResult
+    func cancelIngest(_ taskId: String) async throws -> String {
+        let response = try await client.api.cancelIngestApiIngestFolderTaskIdCancelPost(
+            path: .init(taskId: taskId)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.status
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ImportServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -488,6 +517,17 @@ struct IngestTask: Identifiable {
     var id: String { taskId }
 }
 
+/// One file the import could not take, surfaced rather than swallowed (#4203).
+struct IngestFailure: Identifiable, Equatable {
+    let path: String
+    let error: String
+    let documentId: String?
+
+    /// The failed stub's document id when the engine made one, else the path —
+    /// two files can't share a path within one import.
+    var id: String { documentId ?? path }
+}
+
 /// Status of an ingest task
 struct IngestTaskStatus {
     let taskId: String
@@ -498,6 +538,28 @@ struct IngestTaskStatus {
     let processed: Int?
     let error: String?
     let documentIds: [String]
+    let failed: Int
+    let failures: [IngestFailure]
+    /// Throughput the engine measured; 0 until the first file lands.
+    let filesPerSecond: Double
+
+    /// The walk hasn't finished counting yet, so `processed / total` would read
+    /// "0 of 0" — the moment the user currently sees nothing at all (#4203).
+    var isScanning: Bool { (total ?? 0) == 0 }
+
+    /// Cancellation requested and not yet settled.
+    var isCancelling: Bool { status == "cancelling" }
+
+    /// Terminal, whatever the outcome — polling stops here.
+    var isFinished: Bool { ["completed", "failed", "cancelled"].contains(status) }
+
+    /// Seconds of work left at the measured rate, or nil while scanning, while
+    /// the rate is still unknown, or once there's nothing left to do.
+    var estimatedSecondsRemaining: Double? {
+        guard !isScanning, filesPerSecond > 0,
+              let total, let processed, total > processed else { return nil }
+        return Double(total - processed) / filesPerSecond
+    }
 }
 
 // MARK: - Error Types

@@ -197,6 +197,7 @@
     "/api/images/{document_id}/preview": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/ingest/file": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/ingest/folder": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/ingest/folder/{task_id}/cancel": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/ingest/status/{task_id}": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/ingest/xlsx": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/integrations": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
