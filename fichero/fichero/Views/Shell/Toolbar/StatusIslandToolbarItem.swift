@@ -41,6 +41,16 @@ struct StatusIslandToolbarItem: View {
                     isCompact: true,
                     onCancel: { Task { await library.importService.cancelActiveIngest() } }
                 )
+            } else if let library = libraryManager?.importingLibrary {
+                // #4235: importing, but the engine has no task yet — staging,
+                // the folder grant and the create call all precede it. Show
+                // that the drop registered rather than nothing at all. No
+                // Cancel: there is no task to cancel until the engine has one.
+                ProgressView()
+                    .controlSize(.small)
+                Text("Preparing import to \(library.displayName)…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             } else {
                 message
             }

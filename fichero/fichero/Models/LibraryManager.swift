@@ -517,6 +517,14 @@ class LibraryManager {
     /// accessor so both surfaces resolve the same import.
     var importingLibrary: LibraryReference? {
         openLibraries.first { $0.importService.activeIngest != nil }
+            // #4235: a task-less import is still an import. Staging the drop,
+            // minting the folder grant and the create call all happen BEFORE
+            // the engine has a task to report progress for, so keying only on
+            // `activeIngest` left the island blank for that whole window — the
+            // user drops a folder and the app looks like it did not notice.
+            // `isImporting` is set at the top of the drop path, so it covers
+            // exactly the gap `activeIngest` cannot.
+            ?? openLibraries.first { $0.importService.isImporting }
     }
 }
 

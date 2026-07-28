@@ -26,7 +26,7 @@ class ImportService {
     /// show the same numbers (#4203).
     var activeIngest: IngestTaskStatus?
 
-    /// Display name of the library the active import is filling. Daniel's first
+    /// Display name of the library the active import is filling. The user's first
     /// question on seeing an import is WHICH library it's going into, and with
     /// several open the path alone doesn't answer that.
     var activeIngestLibraryName: String?
