@@ -54,17 +54,10 @@ PRESENTATION = (
 OPTIONAL_CONTENT_SENSITIVE = ("safeAreaInset", "sheet", "popover")
 
 # Keyed "path#firstModifier+secondModifier@line" — today's backlog, in the same
-# sense as check_native_controls.py. These are PRE-EXISTING and NOT certified
-# safe; they are recorded so the check can land green and fail on anything NEW.
-KNOWN_VIOLATIONS: dict[str, str] = {
-    "fichero/fichero/Views/Activity/Monitor/ActivityMonitorView.swift#sheet+alert@56": (
-        "#4201 backlog — .sheet + .alert on one node; unproven, split when touched"
-    ),
-    "fichero/fichero/Views/Settings/Sharing/CaptureSettingsView.swift#sheet+sheet@174": (
-        "#4201 backlog — TWO .sheet modifiers on one node, the #3163 duplicate-"
-        "registration shape; highest-risk entry here, fix first"
-    ),
-}
+# sense as check_native_controls.py. Entries are NOT certified safe; they exist
+# so the check can land green and fail on anything NEW. Empty is the goal state:
+# the two founding entries were fixed within the hour of being recorded.
+KNOWN_VIOLATIONS: dict[str, str] = {}
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"//.*$")
