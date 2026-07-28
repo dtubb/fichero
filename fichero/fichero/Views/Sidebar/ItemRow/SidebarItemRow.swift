@@ -319,9 +319,26 @@ struct SidebarItemRow: View {
         item.icon == "tray.fill"
     }
 
+    /// The workflow id whose run-state this row should display, or nil for
+    /// non-workflow rows. Mirror DOC rows share their workflow's id (the
+    /// engine mirrors workflows into same-id document nodes), so the sidebar
+    /// spinner survives #4186's removal of the virtual workflow rows.
+    /// Static + pure for testability (nonisolated: statics on View types
+    /// inherit MainActor under the macOS 26 SDK and tests run off-main).
+    nonisolated static func runStateWorkflowId(for item: SidebarItem) -> String? {
+        switch item.itemType {
+        case .workflow(let workflow):
+            return workflow.id
+        case .document(let doc) where doc.isWorkflowNode:
+            return doc.id
+        default:
+            return nil
+        }
+    }
+
     var workflowIsRunning: Bool {
-        guard case .workflow(let workflow) = item.itemType else { return false }
-        return executionObserver.isRunning(workflowId: workflow.id)
+        guard let workflowId = Self.runStateWorkflowId(for: item) else { return false }
+        return executionObserver.isRunning(workflowId: workflowId)
     }
 
     /// True when this sidebar row's document is currently being processed
@@ -357,8 +374,8 @@ struct SidebarItemRow: View {
     }
 
     var workflowProgress: Double? {
-        guard case .workflow(let workflow) = item.itemType else { return nil }
-        return executionObserver.getProgress(for: workflow.id)
+        guard let workflowId = Self.runStateWorkflowId(for: item) else { return nil }
+        return executionObserver.getProgress(for: workflowId)
     }
 
     var isExpanded: Binding<Bool> {
