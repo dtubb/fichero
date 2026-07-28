@@ -158,6 +158,10 @@ struct LibraryView: View {
     // Delete confirmation state
     @State var showDeleteConfirmation = false
     @State var documentsToDelete: [Document] = []
+    // #4198: delete acts on document rows and states what it skips; a
+    // child-only selection presents the same dialog as a plain notice
+    // instead of a silent no-op.
+    @State var deleteSkippedNote: String?
 
     // Inline rename state
     @State var renamingDocumentId: String?

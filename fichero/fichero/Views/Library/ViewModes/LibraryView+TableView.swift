@@ -91,7 +91,9 @@ extension LibraryView {
     /// Top-level outline nodes for the currently filtered documents, with
     /// any already-loaded child groups attached. Built fresh each render
     /// from the (value-type) model cache so newly-loaded rollups appear.
-    private var outlineNodes: [LibraryOutlineNode] {
+    /// Internal (not private): `selectAll()` spans the visible outline rows
+    /// in table mode (#4198).
+    var outlineNodes: [LibraryOutlineNode] {
         guard let outlineModel else {
             return filteredDocuments.map { LibraryOutlineNode.document($0, children: nil) }
         }

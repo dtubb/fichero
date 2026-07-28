@@ -144,22 +144,42 @@ extension LibraryView {
 
     @ViewBuilder
     private func applyDeleteConfirmation(to content: some View) -> some View {
+        // ONE presentation modifier serves both the normal confirmation and
+        // the #4198 child-only-selection notice (empty `documentsToDelete`
+        // → "Nothing Deleted" + OK). Stacking a second `.alert` on this node
+        // trapped non-deterministically at launch — same attribute-machinery
+        // family as #3163 (duplicate .searchable) and #4189 (Optional view
+        // under .safeAreaInset). Never add a sibling presentation here.
         content
             .confirmationDialog(
-                "Delete \(documentsToDelete.count) document\(documentsToDelete.count == 1 ? "" : "s")?",
+                documentsToDelete.isEmpty
+                    ? "Nothing Deleted"
+                    : "Delete \(documentsToDelete.count) document\(documentsToDelete.count == 1 ? "" : "s")?",
                 isPresented: $showDeleteConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await performDeleteSelected()
+                if documentsToDelete.isEmpty {
+                    Button("OK", role: .cancel) { deleteSkippedNote = nil }
+                } else {
+                    Button("Delete", role: .destructive) {
+                        Task {
+                            await performDeleteSelected()
+                        }
+                    }
+                    Button("Cancel", role: .cancel) {
+                        documentsToDelete = []
+                        deleteSkippedNote = nil
                     }
                 }
-                Button("Cancel", role: .cancel) {
-                    documentsToDelete = []
-                }
             } message: {
-                deleteConfirmationMessage
+                if !documentsToDelete.isEmpty {
+                    deleteConfirmationMessage
+                }
+                // #4198: the selection held child outline rows — say plainly
+                // that they are not part of this delete.
+                if let note = deleteSkippedNote {
+                    Text(note)
+                }
             }
     }
 

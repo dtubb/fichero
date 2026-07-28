@@ -152,6 +152,43 @@ struct LibraryOutlineNode: Identifiable, Hashable {
     }
 }
 
+extension LibraryOutlineNode {
+    /// Depth-first flatten of the outline into the row ids the Table
+    /// actually SHOWS (#4198): a node's children count only while that node
+    /// is expanded. This is the Finder-style "visible rows" set — ⌘A and
+    /// select-all span it, exactly like Finder's list view. No toggle: an
+    /// expanded row is simply selectable.
+    static func visibleIds(of nodes: [LibraryOutlineNode], expanded: Set<String>) -> [String] {
+        var ids: [String] = []
+        for node in nodes {
+            ids.append(node.id)
+            if node.canExpand, expanded.contains(node.id), let children = node.children {
+                ids.append(contentsOf: visibleIds(of: children, expanded: expanded))
+            }
+        }
+        return ids
+    }
+
+    /// Classify an outline node id back to its child-row type, or nil for a
+    /// document row / unrecognised id. Matches the id shapes minted in `id`:
+    /// item rows ("<doc>:entity:<id>") and group rows ("<doc>:entities").
+    /// NOTE: a document id may itself contain colons (default-workflow
+    /// subfolders are "container:<name>"), so callers must treat "not a
+    /// known marker" as "not a child row" — never assume colon ⇒ child.
+    static func childRowType(forNodeId id: String) -> ChildType? {
+        let parts = id.split(separator: ":")
+        guard parts.count >= 2 else { return nil }
+        switch parts[1] {
+        case "page", "pages": return .pages
+        case "artifact", "artifacts": return .artifacts
+        case "entity", "entities": return .entities
+        case "note", "notes": return .notes
+        case "claim", "claims": return .claims
+        default: return nil
+        }
+    }
+}
+
 extension LibraryOutlineNode.ChildType {
     /// Extract this type's count from a rollup response.
     func count(in rollup: Components.Schemas.DocumentRollupResponse) -> Int {
