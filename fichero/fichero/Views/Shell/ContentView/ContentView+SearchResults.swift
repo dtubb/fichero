@@ -215,221 +215,239 @@ extension ContentView {
     /// honest result count (#4113), Load More when the engine reports more
     /// pages, the explicit Save Search action, and the engine's failure
     /// detail (#4109) — never a silent empty grid.
-    @ViewBuilder
+    ///
+    /// Structural invariant (crash, 2026-07-27): this view is mounted through
+    /// `AnyView(...)` inside `.safeAreaInset` at the content-router boundary
+    /// (#4188). The inset's erased content must keep ONE concrete root across
+    /// the active/inactive flip — a bare `if let` here makes the erased view
+    /// list alternate between empty and populated, which the attribute graph
+    /// resolves by re-typing live attributes mid-update and dies with a
+    /// precondition failure when a query starts or clears. The conditional
+    /// therefore lives INSIDE a constant outer container: mounting or
+    /// dismissing the bar only inserts/removes children of a stable root.
+    /// An empty VStack lays out at zero size, so the inactive state still
+    /// reserves no inset space.
     var transientSearchResultsBar: some View {
-        if let query = activeSearchQuery, let store = transientSearchStore {
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    if let error = store.searchError {
-                        Label(error, systemImage: "exclamationmark.triangle")
-                            .font(.callout)
-                            .foregroundStyle(.red)
-                            .lineLimit(2)
-                    } else if store.isSearching {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Searching for “\(query)”…")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        let total = store.searchStats?.totalResults ?? store.results.count
-                        Text("\(total) result\(total == 1 ? "" : "s") for “\(query)”")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
+        VStack(spacing: 0) {
+            if let query = activeSearchQuery, let store = transientSearchStore {
+                activeSearchResultsContent(query: query, store: store)
+            }
+        }
+    }
 
-                    Spacer()
-
-                    // Scope control (#4107/S3): whole library vs the folder
-                    // that was being browsed when the search ran. No "All
-                    // libraries" until cross-library fan-out lands (#4110).
-                    if let folder = transientSearchContextFolder {
-                        Picker("Search scope", selection: $transientSearchScopeIsFolder) {
-                            Text("Library").tag(false)
-                            Text("“\(folder.name)”").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                        .fixedSize()
-                        .labelsHidden()
+    @ViewBuilder
+    private func activeSearchResultsContent(query: String, store: SearchStore) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                if let error = store.searchError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                } else if store.isSearching {
+                    ProgressView()
                         .controlSize(.small)
-                        .onChange(of: transientSearchScopeIsFolder) { _, _ in
-                            transientSearchLimit = Self.transientSearchPageSize
-                            Task { @MainActor in
-                                await runTransientSearch(query)
-                            }
-                        }
-                    }
+                    Text("Searching for “\(query)”…")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    let total = store.searchStats?.totalResults ?? store.results.count
+                    Text("\(total) result\(total == 1 ? "" : "s") for “\(query)”")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
 
-                    // Real parameters (#4112/S8): search type + sort, the
-                    // knobs the deleted mode surface used to own. One compact
-                    // menu, not a pile of chrome.
-                    Menu {
-                        Picker("Search Type", selection: $transientSearchType) {
-                            Text("Hybrid").tag("hybrid")
-                            Text("Semantic").tag("semantic")
-                            Text("Full Text").tag("fulltext")
-                        }
-                        Divider()
-                        Picker("Sort By", selection: $transientSearchSortBy) {
-                            Text("Relevance").tag("relevance")
-                            Text("Date").tag("date")
-                            Text("Name").tag("name")
-                            Text("Size").tag("size")
-                        }
-                        Picker("Order", selection: $transientSearchSortDirection) {
-                            Text("Descending").tag("desc")
-                            Text("Ascending").tag("asc")
-                        }
-                    } label: {
-                        Label("Search Options", systemImage: "slider.horizontal.3")
-                            .labelStyle(.iconOnly)
+                Spacer()
+
+                // Scope control (#4107/S3): whole library vs the folder
+                // that was being browsed when the search ran. No "All
+                // libraries" until cross-library fan-out lands (#4110).
+                if let folder = transientSearchContextFolder {
+                    Picker("Search scope", selection: $transientSearchScopeIsFolder) {
+                        Text("Library").tag(false)
+                        Text("“\(folder.name)”").tag(true)
                     }
-                    .menuStyle(.borderlessButton)
+                    .pickerStyle(.segmented)
                     .fixedSize()
-                    .help("Search type and sort order")
-
-                    if store.searchStats?.hasMore == true {
-                        Button("Load More") {
-                            loadMoreTransientResults()
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .onChange(of: transientSearchScopeIsFolder) { _, _ in
+                        transientSearchLimit = Self.transientSearchPageSize
+                        Task { @MainActor in
+                            await runTransientSearch(query)
                         }
-                        .controlSize(.small)
                     }
+                }
 
-                    if !store.results.isEmpty && store.searchError == nil {
-                        // Chat the search (#4117): the result set becomes the
-                        // conversation's document scope.
-                        Button {
-                            openChatWithSearchResults()
-                        } label: {
-                            Label("Chat", systemImage: "bubble.left.and.text.bubble.right")
-                        }
-                        .controlSize(.small)
-                        .help("Chat about these results — the search scope becomes the conversation's context")
-
-                        Button {
-                            Task { await saveTransientSearch() }
-                        } label: {
-                            Label("Save Search", systemImage: "square.and.arrow.down")
-                        }
-                        .controlSize(.small)
-                        .help("Save this search to the sidebar")
+                // Real parameters (#4112/S8): search type + sort, the
+                // knobs the deleted mode surface used to own. One compact
+                // menu, not a pile of chrome.
+                Menu {
+                    Picker("Search Type", selection: $transientSearchType) {
+                        Text("Hybrid").tag("hybrid")
+                        Text("Semantic").tag("semantic")
+                        Text("Full Text").tag("fulltext")
                     }
+                    Divider()
+                    Picker("Sort By", selection: $transientSearchSortBy) {
+                        Text("Relevance").tag("relevance")
+                        Text("Date").tag("date")
+                        Text("Name").tag("name")
+                        Text("Size").tag("size")
+                    }
+                    Picker("Order", selection: $transientSearchSortDirection) {
+                        Text("Descending").tag("desc")
+                        Text("Ascending").tag("asc")
+                    }
+                } label: {
+                    Label("Search Options", systemImage: "slider.horizontal.3")
+                        .labelStyle(.iconOnly)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Search type and sort order")
 
-                    Button {
-                        toolbarSearchText = ""
-                        clearTransientSearch()
-                    } label: {
-                        Label("Done", systemImage: "xmark.circle.fill")
-                            .labelStyle(.titleOnly)
+                if store.searchStats?.hasMore == true {
+                    Button("Load More") {
+                        loadMoreTransientResults()
                     }
                     .controlSize(.small)
-                    .help("Clear the search and return to browsing")
+                }
+
+                if !store.results.isEmpty && store.searchError == nil {
+                    // Chat the search (#4117): the result set becomes the
+                    // conversation's document scope.
+                    Button {
+                        openChatWithSearchResults()
+                    } label: {
+                        Label("Chat", systemImage: "bubble.left.and.text.bubble.right")
+                    }
+                    .controlSize(.small)
+                    .help("Chat about these results — the search scope becomes the conversation's context")
+
+                    Button {
+                        Task { await saveTransientSearch() }
+                    } label: {
+                        Label("Save Search", systemImage: "square.and.arrow.down")
+                    }
+                    .controlSize(.small)
+                    .help("Save this search to the sidebar")
+                }
+
+                Button {
+                    toolbarSearchText = ""
+                    clearTransientSearch()
+                } label: {
+                    Label("Done", systemImage: "xmark.circle.fill")
+                        .labelStyle(.titleOnly)
+                }
+                .controlSize(.small)
+                .help("Clear the search and return to browsing")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.bar)
+            .accessibilityIdentifier("library.search.resultsBar")
+
+            // What the AI actually searched (#4116) — always visible so
+            // the compiled query is inspectable; edit the toolbar field
+            // to override. Compilation failure shows too, never hidden.
+            if let compiled = store.searchStats?.compiledQuery {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.secondary)
+                    Text("Searched: “\(compiled.semanticQuery)”\(Self.compiledFiltersSummary(compiled))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .help("Searched: “\(compiled.semanticQuery)”\(Self.compiledFiltersSummary(compiled))")
+                    Spacer()
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.bottom, 4)
                 .background(.bar)
-                .accessibilityIdentifier("library.search.resultsBar")
-
-                // What the AI actually searched (#4116) — always visible so
-                // the compiled query is inspectable; edit the toolbar field
-                // to override. Compilation failure shows too, never hidden.
-                if let compiled = store.searchStats?.compiledQuery {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                            .foregroundStyle(.secondary)
-                        Text("Searched: “\(compiled.semanticQuery)”\(Self.compiledFiltersSummary(compiled))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                            .help("Searched: “\(compiled.semanticQuery)”\(Self.compiledFiltersSummary(compiled))")
-                        Spacer()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 4)
-                    .background(.bar)
-                } else if let compileError = store.searchStats?.compilationError {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                            .foregroundStyle(.secondary)
-                        // Readable failure (Daniel, live 2026-07-27): one
-                        // truncated line hid the actual error. Wrap up to
-                        // four lines + full text on hover — a failure detail
-                        // the user can't read is a silent failure.
-                        Text("AI couldn't refine this search (\(compileError)) — searched your words as typed.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(4)
-                            .textSelection(.enabled)
-                            .help(compileError)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 4)
-                    .background(.bar)
+            } else if let compileError = store.searchStats?.compilationError {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.secondary)
+                    // Readable failure (Daniel, live 2026-07-27): one
+                    // truncated line hid the actual error. Wrap up to
+                    // four lines + full text on hover — a failure detail
+                    // the user can't read is a silent failure.
+                    Text("AI couldn't refine this search (\(compileError)) — searched your words as typed.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                        .textSelection(.enabled)
+                        .help(compileError)
+                    Spacer()
                 }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 4)
+                .background(.bar)
+            }
 
-                // Typed artifact hits (#4118): workflow outputs that matched —
-                // type-badged, snippeted, click navigates to the owning doc.
-                if let artifactHits = store.searchStats?.artifactHits, !artifactHits.isEmpty {
-                    DisclosureGroup {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(Array(artifactHits.prefix(5).enumerated()), id: \.offset) { _, hit in
-                                Button {
-                                    openArtifactHit(hit)
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Text(hit.artifactType)
-                                            .font(.caption2.weight(.medium))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 1)
-                                            .background(Capsule().fill(Color.secondary.opacity(0.12)))
-                                        Text(hit.snippet ?? hit.documentName ?? hit.documentId)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                        Spacer()
-                                    }
-                                    .contentShape(Rectangle())
+            // Typed artifact hits (#4118): workflow outputs that matched —
+            // type-badged, snippeted, click navigates to the owning doc.
+            if let artifactHits = store.searchStats?.artifactHits, !artifactHits.isEmpty {
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(artifactHits.prefix(5).enumerated()), id: \.offset) { _, hit in
+                            Button {
+                                openArtifactHit(hit)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Text(hit.artifactType)
+                                        .font(.caption2.weight(.medium))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 1)
+                                        .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                                    Text(hit.snippet ?? hit.documentName ?? hit.documentId)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                    Spacer()
                                 }
-                                .buttonStyle(.plain)
+                                .contentShape(Rectangle())
                             }
-                            if artifactHits.count > 5 {
-                                Text("…and \(artifactHits.count - 5) more")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                            .buttonStyle(.plain)
                         }
-                        .padding(.leading, 4)
-                    } label: {
-                        Label("Artifacts (\(artifactHits.count))", systemImage: "shippingbox")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if artifactHits.count > 5 {
+                            Text("…and \(artifactHits.count - 5) more")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 4)
-                    .background(.bar)
+                    .padding(.leading, 4)
+                } label: {
+                    Label("Artifacts (\(artifactHits.count))", systemImage: "shippingbox")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 4)
+                .background(.bar)
+            }
 
-                Divider()
+            Divider()
+        }
+        // A document.* change on this (or another window's) library bumps
+        // SearchStore.changeToken (#3249) — re-run the active query so
+        // renamed / deleted / re-OCR'd docs don't linger stale in the
+        // results. Lives on the bar because the bar is mounted exactly
+        // while a transient search is presented.
+        .onChange(of: store.changeToken) { _, _ in
+            Task { @MainActor in
+                await runTransientSearch(query)
             }
-            // A document.* change on this (or another window's) library bumps
-            // SearchStore.changeToken (#3249) — re-run the active query so
-            // renamed / deleted / re-OCR'd docs don't linger stale in the
-            // results. Lives on the bar because the bar is mounted exactly
-            // while a transient search is presented.
-            .onChange(of: store.changeToken) { _, _ in
-                Task { @MainActor in
-                    await runTransientSearch(query)
-                }
-            }
-            // Changing type/sort re-runs the active query with a fresh page
-            // (#4112/S8) — the values are Strings, so one observed tuple
-            // keeps the modifier count down.
-            .onChange(of: [transientSearchType, transientSearchSortBy, transientSearchSortDirection]) { _, _ in
-                transientSearchLimit = Self.transientSearchPageSize
-                Task { @MainActor in
-                    await runTransientSearch(query)
-                }
+        }
+        // Changing type/sort re-runs the active query with a fresh page
+        // (#4112/S8) — the values are Strings, so one observed tuple
+        // keeps the modifier count down.
+        .onChange(of: [transientSearchType, transientSearchSortBy, transientSearchSortDirection]) { _, _ in
+            transientSearchLimit = Self.transientSearchPageSize
+            Task { @MainActor in
+                await runTransientSearch(query)
             }
         }
     }

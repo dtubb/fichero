@@ -25,6 +25,24 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         XCTAssertTrue(source.contains("AnyView(transientSearchResultsBar)"))
     }
 
+    func testResultsBarKeepsAStableRootAcrossTheActiveFlip() throws {
+        let source = try Self.appSource(Self.resultsSource)
+
+        // Crash regression (2026-07-27): the inset's erased content must keep
+        // ONE concrete root across the query start/clear flip. A bare
+        // `if let` root made the erased view list alternate between empty and
+        // populated, and the attribute graph resolved the re-typed attributes
+        // with a precondition failure (crash at the `.safeAreaInset` site).
+        // The conditional must stay INSIDE the constant outer container.
+        XCTAssertTrue(source.contains(
+            """
+                var transientSearchResultsBar: some View {
+                    VStack(spacing: 0) {
+                        if let query = activeSearchQuery, let store = transientSearchStore {
+            """
+        ))
+    }
+
     func testCompilationFailureDetailRemainsReadable() throws {
         let source = try Self.appSource(Self.resultsSource)
 
