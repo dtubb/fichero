@@ -94,6 +94,50 @@ class TestParsing:
         assert guard.swift_wire_keys(sw) == {"type", "entity_ids", "run_id"}
 
 
+class TestItParsesTheRightType:
+    """Closing a limit whose failure direction was a silent PASS (#4211)."""
+
+    def test_a_decodable_declared_ABOVE_change_event_is_not_parsed(self, tmp_path):
+        """Previously the FIRST CodingKeys in the file won — wrong type, still green."""
+        decoy = """
+struct SomethingElse: Decodable {
+    let other: String
+
+    enum CodingKeys: String, CodingKey {
+        case other = "totally_different"
+    }
+}
+"""
+        _, sw = _sources(tmp_path, swift=decoy + _SWIFT)
+
+        keys = guard.swift_wire_keys(sw)
+
+        assert "totally_different" not in keys, "parsed the decoy type's keys"
+        assert keys == {"type", "entity_ids", "run_id"}
+
+    def test_a_type_declared_BETWEEN_the_struct_and_its_keys_is_refused(self, tmp_path):
+        """Ambiguous rather than wrong: fail loudly instead of guessing."""
+        import pytest
+
+        broken = _SWIFT.replace(
+            "    enum CodingKeys",
+            "    struct Nested: Decodable { let x: String }\n\n    enum CodingKeys",
+        )
+        _, sw = _sources(tmp_path, swift=broken)
+
+        with pytest.raises(SystemExit, match="Nested"):
+            guard.swift_wire_keys(sw)
+
+    def test_a_missing_change_event_struct_is_refused(self, tmp_path):
+        """A renamed/moved struct must fail loudly, not silently compare nothing."""
+        import pytest
+
+        _, sw = _sources(tmp_path, swift=_SWIFT.replace("struct ChangeEvent", "struct Renamed"))
+
+        with pytest.raises(SystemExit, match="ChangeEvent"):
+            guard.swift_wire_keys(sw)
+
+
 class TestTheDangerousDirection:
     """Swift decoding a field the engine does not send — silent nil."""
 

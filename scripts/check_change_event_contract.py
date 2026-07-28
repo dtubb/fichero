@@ -90,10 +90,31 @@ def swift_wire_keys(path: Path = SWIFT_SOURCE) -> set[str]:
     """Wire names the Swift `ChangeEvent` decodes, from its CodingKeys enum.
 
     A bare `case actor` means the wire name IS the property name.
+
+    The search starts AT `struct ChangeEvent` rather than at the top of the
+    file. Taking the first CodingKeys in the file would silently compare a
+    different Decodable type if one were ever declared above this one — and it
+    would still PASS, which is the failure direction that hides.
     """
-    match = _CODING_KEYS.search(path.read_text(encoding="utf-8"))
+    source = path.read_text(encoding="utf-8")
+    declaration = re.search(r"\bstruct\s+ChangeEvent\b", source)
+    if not declaration:
+        raise SystemExit(f"error: no `struct ChangeEvent` found in {path}")
+
+    match = _CODING_KEYS.search(source, declaration.end())
     if not match:
-        raise SystemExit(f"error: no CodingKeys enum found in {path}")
+        raise SystemExit(f"error: ChangeEvent has no CodingKeys enum in {path}")
+
+    # Nothing may declare another type between ChangeEvent and its CodingKeys,
+    # or the enum we just found belongs to that type instead.
+    between = source[declaration.end() : match.start()]
+    intruder = re.search(r"\b(?:struct|class|enum)\s+(\w+)", between)
+    if intruder and intruder.group(1) != "CodingKeys":
+        raise SystemExit(
+            f"error: `{intruder.group(1)}` is declared between ChangeEvent and the "
+            f"CodingKeys enum in {path}; the parsed keys may not be ChangeEvent's"
+        )
+
     return {wire or swift for swift, wire in _CASE.findall(match.group(1))}
 
 
