@@ -355,6 +355,79 @@ class TestIffySidecar:
         assert parsed["iffy_record_type"] == "map"
         assert parsed["iffy_notes"] == "n1, n2"
 
+    def test_parse_iffy_sidecar_full_name_convention(self, tmp_path):
+        """`x.jpg.iffy.json` — extension INCLUDED (#4206).
+
+        Both conventions ship in one archive. Only the stem form was looked
+        for, so 110 real files imported with no provenance and no warning.
+        The untested convention was the broken one, which is why both are
+        pinned here.
+        """
+        from fichero.importers.ingest import _parse_iffy_sidecar
+
+        image = tmp_path / "rumsey_1827.jpg"
+        image.write_text("x", encoding="utf-8")
+        sidecar = tmp_path / "rumsey_1827.jpg.iffy.json"
+        sidecar.write_text('{"status":"downloaded","title":"Guayaquil"}', encoding="utf-8")
+
+        parsed = _parse_iffy_sidecar(image)
+
+        assert parsed is not None, "full-name sidecar was not found"
+        assert parsed["iffy_status"] == "downloaded"
+
+    def test_full_name_wins_when_both_conventions_are_present(self, tmp_path):
+        """Full name is unambiguous, so it takes precedence over the stem."""
+        from fichero.importers.ingest import _parse_iffy_sidecar
+
+        image = tmp_path / "map.jpg"
+        image.write_text("x", encoding="utf-8")
+        (tmp_path / "map.jpg.iffy.json").write_text(
+            '{"status":"from-full-name"}', encoding="utf-8"
+        )
+        (tmp_path / "map.iffy.json").write_text('{"status":"from-stem"}', encoding="utf-8")
+
+        assert _parse_iffy_sidecar(image)["iffy_status"] == "from-full-name"
+
+    def test_stem_form_still_serves_two_renditions_of_one_source(self, tmp_path):
+        """The stem form is deliberately kept as a fallback.
+
+        The archive holds 10 cases where one sidecar describes both a .png and
+        a .tif of the same map. Requiring the full-name form would break them.
+        """
+        from fichero.importers.ingest import _parse_iffy_sidecar
+
+        for ext in (".png", ".tif"):
+            (tmp_path / f"cartagena_1715{ext}").write_text("x", encoding="utf-8")
+        (tmp_path / "cartagena_1715.iffy.json").write_text(
+            '{"status":"catalogued"}', encoding="utf-8"
+        )
+
+        for ext in (".png", ".tif"):
+            parsed = _parse_iffy_sidecar(tmp_path / f"cartagena_1715{ext}")
+            assert parsed is not None, f"{ext} rendition lost its sidecar"
+            assert parsed["iffy_status"] == "catalogued"
+
+    def test_sidecar_is_extension_agnostic(self, tmp_path):
+        """The 110th file is HTML, not an image — the lookup must not assume media."""
+        from fichero.importers.ingest import _parse_iffy_sidecar
+
+        page = tmp_path / "guasti_2006.html"
+        page.write_text("<p>x</p>", encoding="utf-8")
+        (tmp_path / "guasti_2006.html.iffy.json").write_text(
+            '{"status":"downloaded"}', encoding="utf-8"
+        )
+
+        assert _parse_iffy_sidecar(page) is not None
+
+    def test_missing_sidecar_still_returns_none(self, tmp_path):
+        """Trying two candidates must not turn "absent" into a false positive."""
+        from fichero.importers.ingest import _parse_iffy_sidecar
+
+        image = tmp_path / "lonely.jpg"
+        image.write_text("x", encoding="utf-8")
+
+        assert _parse_iffy_sidecar(image) is None
+
     def test_apply_iffy_does_not_override_existing_metadata(self):
         from fichero.importers.ingest import _apply_iffy_to_document
         from fichero.models import Document

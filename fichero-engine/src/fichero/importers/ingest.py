@@ -1472,8 +1472,22 @@ def count_files(
 def _parse_iffy_sidecar(image_path: Path) -> dict[str, Any] | None:
     """Parse an .iffy.json sidecar file for a document.
 
-    Looks for a sibling .iffy.json file (same name as document with .iffy.json extension).
-    Returns None if no sidecar exists or parsing fails.
+    Two naming conventions exist side by side in the same archive, and BOTH
+    must be tried (#4206):
+
+    * ``x.jpg.iffy.json`` — FULL NAME, extension included
+    * ``x.iffy.json``     — STEM only, extension stripped
+
+    Only the stem form was looked for before, so the full-name form silently
+    resolved to nothing: 110 files in Daniel's corpus imported without their
+    title / original_date / repository / identifier / record_url, with no
+    warning. Silence is what made it expensive to find.
+
+    Full name is tried FIRST because it is unambiguous. The stem form cannot
+    distinguish ``x.png`` from ``x.tif`` when both sit in one directory — 10
+    such collisions exist in that corpus, where the sidecar legitimately
+    describes both renditions, so the stem form stays a fallback rather than
+    an error.
 
     Args:
         image_path: Path to the document file
@@ -1485,8 +1499,18 @@ def _parse_iffy_sidecar(image_path: Path) -> dict[str, Any] | None:
     if image_path.suffix == ".json" and image_path.stem.endswith(".iffy"):
         return None
 
-    sidecar = image_path.parent / f"{image_path.stem}.iffy.json"
-    if not sidecar.exists():
+    sidecar = next(
+        (
+            candidate
+            for candidate in (
+                image_path.parent / f"{image_path.name}.iffy.json",
+                image_path.parent / f"{image_path.stem}.iffy.json",
+            )
+            if candidate.exists()
+        ),
+        None,
+    )
+    if sidecar is None:
         return None
 
     try:
