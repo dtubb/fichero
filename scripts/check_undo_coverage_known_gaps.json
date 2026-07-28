@@ -190,6 +190,7 @@
   "POST /api/images/{document_id}/unsplit": "inverse-action design required; tracked in #3740",
   "POST /api/ingest/file": "no undo registration in current tree",
   "POST /api/ingest/folder": "no undo registration in current tree",
+  "POST /api/ingest/folder/{task_id}/cancel": "no undo registration - #4203 stops an in-flight import between committed files; there is no honest inverse that resumes the same walk, and the files already committed stay imported and are individually deletable",
   "POST /api/ingest/xlsx": "no undo registration in current tree",
   "POST /api/integrations/tinderbox/notes": "no undo registration in current tree",
   "POST /api/integrations/{app_name}/export": "no undo registration in current tree",

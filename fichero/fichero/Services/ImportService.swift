@@ -318,9 +318,10 @@ class ImportService {
         }
     }
 
-    /// Ask the engine to stop between committed files. Cooperative: the task
-    /// finishes the file in flight, so the reported status goes `cancelling`
-    /// then `cancelled` rather than stopping instantly. Repeated calls are safe.
+    /// `POST /api/ingest/folder/{task_id}/cancel` — ask the engine to stop
+    /// between committed files. Cooperative: the task finishes the file in
+    /// flight, so the reported status goes `cancelling` then `cancelled` rather
+    /// than stopping instantly. Repeated calls are safe.
     @discardableResult
     func cancelIngest(_ taskId: String) async throws -> String {
         let response = try await client.api.cancelIngestApiIngestFolderTaskIdCancelPost(
