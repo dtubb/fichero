@@ -11600,6 +11600,49 @@
         }
       }
     },
+    "/api/ingest/folder/{task_id}/cancel": {
+      "post": {
+        "tags": [
+          "ingest"
+        ],
+        "summary": "Cancel Ingest",
+        "description": "Request cancellation between committed files; repeated calls are safe.",
+        "operationId": "cancel_ingest_api_ingest_folder__task_id__cancel_post",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestCancelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/images/{document_id}/edits": {
       "get": {
         "tags": [
@@ -44682,6 +44725,24 @@
         ],
         "title": "InclusionUpsertRequest"
       },
+      "IngestCancelResponse": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "status"
+        ],
+        "title": "IngestCancelResponse"
+      },
       "IngestFileRequest": {
         "properties": {
           "path": {
@@ -44837,6 +44898,27 @@
             "type": "array",
             "title": "Document Ids",
             "default": []
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "default": 0
+          },
+          "failures": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Failures",
+            "default": []
+          },
+          "files_per_second": {
+            "type": "number",
+            "title": "Files Per Second",
+            "default": 0.0
           }
         },
         "type": "object",

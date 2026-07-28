@@ -5982,6 +5982,18 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("cancel")
+    def ingest_cancel_post(
+        ctx: typer.Context,
+        task_id: str = typer.Argument(..., help="Path parameter: task_id."),
+    ) -> None:
+        """Cancel Ingest (POST /api/ingest/folder/{task_id}/cancel)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/ingest/folder/{task_id}/cancel"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-status")
     def ingest_get_status_get(
         ctx: typer.Context,

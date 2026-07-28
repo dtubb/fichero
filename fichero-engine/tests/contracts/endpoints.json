@@ -4094,6 +4094,18 @@
         "response_model": "IngestTaskResponse"
       },
       {
+        "method": "POST",
+        "path": "/ingest/folder/{task_id}/cancel",
+        "operation_id": "cancel_ingest_api_ingest_folder__task_id__cancel_post",
+        "summary": "Cancel Ingest",
+        "path_params": [
+          "task_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IngestCancelResponse"
+      },
+      {
         "method": "GET",
         "path": "/ingest/status/{task_id}",
         "operation_id": "get_ingest_status_api_ingest_status__task_id__get",
