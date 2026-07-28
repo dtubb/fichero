@@ -940,6 +940,63 @@ def _is_sandbox_container_app_support(path: Path, home: Path) -> bool:
     return len(parts) >= 5 and parts[1:4] == ("Data", "Library", "Application Support")
 
 
+def _is_sandbox_container_drop_staging(path: Path, home: Path) -> bool:
+    """True iff path is a Finder-drop staging dir inside ONE sandbox container.
+
+    Matches ~/Library/Containers/<container>/Data/tmp/fichero-drop-<uuid>/...
+    where <container> is exactly one path component. The app stages every
+    Finder drop there (`SidebarItemRow+DropHandlers.swift`), and an externally
+    started engine — the default Dev Local scheme — could not read it, so every
+    drop returned 403 (#4223).
+
+    The bookmark fallback cannot rescue this: the app mints a TRANSIENT,
+    unpersisted grant, and grants live in the engine process's own `_GRANTED`.
+    A separately started engine has no channel to receive one.
+
+    ponytail: this is DELIBERATELY narrower than its Application Support
+    sibling. That helper accepts any single container's Application Support;
+    this one additionally requires the `fichero-drop-` prefix, so it grants
+    Fichero's own staging directories and nothing else. Without the prefix
+    check this would open every sandboxed app's Data/tmp — Mail's, Messages' —
+    which is the same exposure the sibling's comment warns against, one
+    directory over. NEVER relax either the single-component container or the
+    prefix.
+
+    TWO SHAPES, because the engine sees this directory under different names
+    depending on how it was started, and BOTH were denied:
+
+    * UNSANDBOXED engine (Dev Local, DMG) — real HOME, so the drop dir is
+      ~/Library/Containers/<container>/Data/tmp/fichero-drop-<uuid>/
+    * SANDBOXED engine (App Store, embedded) — the sandbox redirects HOME
+      INTO the container, so the SAME directory is $HOME/tmp/fichero-drop-
+      <uuid>/ and the `Library/Containers` prefix never matches.
+
+    The second shape was established by simulating the redirected HOME rather
+    than assumed: without it the App Store build would ship with drag-and-drop
+    still returning 403.
+    """
+    # Sandboxed view: HOME is already the container's Data dir.
+    try:
+        parts = path.relative_to(home / "tmp").parts
+    except ValueError:
+        pass
+    else:
+        return bool(parts) and parts[0].startswith("fichero-drop-")
+
+    try:
+        parts = path.relative_to(home / "Library" / "Containers").parts
+    except ValueError:
+        return False
+    # parts = (<container>, "Data", "tmp", "fichero-drop-<uuid>", <...>*)
+    # len >= 4 admits the staging directory itself (a folder drop) as well as
+    # the files staged inside it.
+    return (
+        len(parts) >= 4
+        and parts[1:3] == ("Data", "tmp")
+        and parts[3].startswith("fichero-drop-")
+    )
+
+
 def _is_allowed_local_path(path: str) -> bool:
     """Return whether a local file path is below an engine-approved root."""
     try:
@@ -975,6 +1032,8 @@ def _is_allowed_local_path(path: str) -> bool:
         for root in allowed_roots
     ) or any(
         _is_sandbox_container_app_support(candidate, home) for candidate in candidates
+    ) or any(
+        _is_sandbox_container_drop_staging(candidate, home) for candidate in candidates
     )
 
 
