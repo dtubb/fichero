@@ -243,14 +243,58 @@ def _source_mtime_ns(source: Path) -> int:
 
 
 def _sync_alias_to_cache(cache_path: Path, alias_path: Path) -> None:
-    """Keep the legacy doc-id.jpg path pointing at the latest cache entry."""
-    alias_path.parent.mkdir(parents=True, exist_ok=True)
-    if alias_path.exists() or alias_path.is_symlink():
-        alias_path.unlink()
+    """Keep the legacy doc-id.jpg path pointing at the latest cache entry.
+
+    Idempotent, and non-fatal by design (#4231).
+
+    The previous unlink-then-link sequence threw three different ways once the
+    alias and the cache entry were already the same inode, which is the steady
+    state after the first call: FileExistsError when the unlink lost a race,
+    SameFileError from the copy2 fallback that existed to handle exactly this,
+    and FileNotFoundError when the destination vanished between the two steps.
+    It surfaced as intermittent 500s on thumbnails that had generated fine,
+    because the exception escaped after the response headers were sent.
+
+    Two changes. Short-circuit when the paths are already the same inode — the
+    common case, and the one that used to throw. Then link into a temporary
+    name and `os.replace` it into place: atomic, so there is no window in which
+    the alias does not exist, and no unlink to lose a race with.
+
+    Failure is logged and swallowed rather than raised. That is a deliberate
+    exception to "raise loudly": the caller has already produced a valid
+    thumbnail, and the alias is a legacy convenience path. Failing the request
+    would discard good work over a bookkeeping copy — the image is served
+    either way.
+    """
     try:
-        os.link(cache_path, alias_path)
-    except OSError:
-        shutil.copy2(cache_path, alias_path)
+        alias_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Already pointing at this cache entry: nothing to do. This is the
+        # steady state, and the case the old sequence crashed on.
+        if alias_path.exists() and cache_path.exists():
+            try:
+                if os.path.samefile(cache_path, alias_path):
+                    return
+            except OSError:
+                pass  # fall through and rewrite it
+
+        staging = alias_path.with_name(f"{alias_path.name}.sync-{os.getpid()}")
+        try:
+            try:
+                os.link(cache_path, staging)
+            except OSError:
+                # Cross-device, or a filesystem without hard links.
+                shutil.copy2(cache_path, staging)
+            os.replace(staging, alias_path)
+        finally:
+            if staging.exists():
+                staging.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning(
+            "Thumbnail alias sync failed for %s (the thumbnail itself is fine): %s",
+            alias_path.name,
+            exc,
+        )
 
 
 def _remove_stale_thumbnail_variants(
