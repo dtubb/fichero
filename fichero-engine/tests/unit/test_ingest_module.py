@@ -856,6 +856,65 @@ class TestIngestFolder:
         assert "Could not pre-index existing checksums for skip logic" in caplog.text
         assert str(mock_db.path) in caplog.text
 
+    @patch("fichero.bookmarks.create_bookmark", return_value=None)
+    def test_failed_existing_document_is_retried(
+        self, _mock_bookmark, tmp_path
+    ):
+        from fichero.importers.ingest import ingest_folder
+        from fichero.models import Document, Status
+
+        source = tmp_path / "retry.txt"
+        source.write_text("retry me", encoding="utf-8")
+        failed = Document(
+            name=source.name,
+            path=str(source),
+            status=Status.failed,
+            metadata={"source_path": str(source), "checksum": "stale"},
+        )
+        db = MagicMock()
+        db.all.return_value = [failed]
+
+        docs = ingest_folder(
+            tmp_path,
+            db=db,
+            create_collection=False,
+            extract_text=False,
+            auto_embed=False,
+        )
+
+        assert len(docs) == 1
+        db.save_many.assert_called_once()
+
+    @patch("fichero.bookmarks.create_bookmark", return_value=None)
+    def test_link_file_changing_during_ingest_becomes_failed_stub(
+        self, _mock_bookmark, tmp_path
+    ):
+        from fichero.importers.ingest import ingest_folder
+        from fichero.models import Status
+
+        source = tmp_path / "changing.txt"
+        source.write_text("changing", encoding="utf-8")
+        db = MagicMock()
+        db.all.return_value = []
+
+        with patch(
+            "fichero.importers.ingest._file_checksum",
+            side_effect=["before", "after"],
+        ):
+            docs = ingest_folder(
+                tmp_path,
+                db=db,
+                create_collection=False,
+                extract_text=False,
+                auto_embed=False,
+            )
+
+        assert docs == []
+        stub = db.save.call_args.args[0]
+        assert stub.status == Status.failed
+        assert stub.metadata["source_path"] == str(source)
+        assert "File changed while being ingested" in stub.metadata["ingest_error"]
+
     def test_large_folder_ingests_every_file_once(self, tmp_path, monkeypatch):
         """The bounded-memory serial path must neither drop nor repeat files."""
         from fichero.importers.ingest import ingest_folder

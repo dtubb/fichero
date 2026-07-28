@@ -1115,6 +1115,8 @@ def ingest_folder(
     library_path = package_path or getattr(db, "path", None)
     try:
         for existing in db.all(Document):
+            if existing.status == Status.failed:
+                continue
             source_path = (
                 (existing.metadata or {}).get("source_path")
                 or existing.path
@@ -1227,6 +1229,9 @@ def ingest_folder(
                     db=db,
                     package_path=package_path,
                 )
+                actual_checksum = (doc.metadata or {}).get("checksum")
+                if isinstance(actual_checksum, str) and actual_checksum != checksum:
+                    raise RuntimeError(f"File changed while being ingested: {file_path}")
                 pending_links.append((doc, source_key, checksum))
             else:
                 with db.transaction():
@@ -1241,6 +1246,15 @@ def ingest_folder(
                         db=db,
                         package_path=package_path,
                     )
+                    actual_checksum = (doc.metadata or {}).get("checksum")
+                    if (
+                        mode == IngestMode.LINK
+                        and isinstance(actual_checksum, str)
+                        and actual_checksum != checksum
+                    ):
+                        raise RuntimeError(
+                            f"File changed while being ingested: {file_path}"
+                        )
 
                 documents.append(doc)
                 actual_checksum = (doc.metadata or {}).get("checksum")
@@ -1266,7 +1280,10 @@ def ingest_folder(
                     file_type=detect_file_type(file_path),
                     parent_id=subfolder_id,
                     status=Status.failed,
-                    metadata={"ingest_error": str(e)},
+                    metadata={
+                        "ingest_error": str(e),
+                        "source_path": str(file_path),
+                    },
                 )
                 with db.transaction():
                     db.save(stub)
