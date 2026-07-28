@@ -36,6 +36,13 @@ echo "ℹ️  Not covered by this gate: fichero-engine/tests/perf (~50 min) — 
 # 3. GET contract walk (every list endpoint serializes against its response_model).
 run "contract walk" "$PYTEST" fichero-engine/tests/integration/test_contract_endpoint_walk.py -q
 
+# 3b. Live transport round trips (#4176). UDS, HTTPS and in-process ASGI each
+#     bind a real listener; nothing else in the gate does. Before this, all
+#     three worked only by luck — test_bind_host.py asserts argument
+#     construction and never opens a socket. ~25s.
+run "transport round trips" "$PYTEST" \
+  fichero-engine/tests/integration/test_transport_round_trips.py -q
+
 # 4. Backend start-smoke: boot the engine, confirm it serves /health, tear down.
 echo "── backend start-smoke ──"
 SMOKE_PORT=8799
