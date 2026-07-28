@@ -192,6 +192,24 @@ class ChatResponse(BaseModel):
     )  # populated only by the FICHERO_CHAT_TOOLS agent loop; else empty
 
 
+class ProviderModelInfo(BaseModel):
+    """Per-model capability for one configured model (#4187).
+
+    ``supports_vision`` is NOT ``"vision" in capabilities``. Capability
+    enforcement (``_model_has_capability`` in ``fichero.llm``) is TRI-STATE:
+    a model with NO saved capabilities returns ``None``, meaning "unknown —
+    fall back to the provider's capability", and only an explicit mismatch
+    rejects the run. Collapsing that to a membership test would hide every
+    model whose capabilities were never populated — which is most of them on
+    an existing install — so the fallback is resolved HERE, server-side, and
+    clients consume the resulting bool.
+    """
+
+    model_id: str
+    capabilities: list[str] = []
+    supports_vision: bool = False
+
+
 class ProviderInfo(BaseModel):
     """Information about an LLM provider."""
 
@@ -200,6 +218,9 @@ class ProviderInfo(BaseModel):
     models: list[str]
     available: bool  # Whether API key is configured
     supports_vision: bool = False  # Whether provider supports vision/image input
+    # Per-model capability, so a vision node's picker can exclude text-only
+    # models (#4187). `models` stays the plain id list for existing clients.
+    model_details: list[ProviderModelInfo] = []
 
 
 class ChatProviderListResponse(BaseModel):
@@ -1234,6 +1255,25 @@ async def list_providers(
         # Get vision support from catalog
         supports_vision = catalog_info.supports_vision if catalog_info else False
 
+        capabilities_by_model = {
+            m.model_id: [str(cap).strip().lower() for cap in (m.capabilities or [])]
+            for m in models
+        }
+        model_details = []
+        for model_id in model_ids:
+            # A synthesized catalog default (no configured row) has no saved
+            # capabilities, so it inherits the provider's vision support.
+            capabilities = capabilities_by_model.get(model_id, [])
+            model_details.append(
+                ProviderModelInfo(
+                    model_id=model_id,
+                    capabilities=capabilities,
+                    supports_vision=(
+                        "vision" in capabilities if capabilities else supports_vision
+                    ),
+                )
+            )
+
         result.append(
             ProviderInfo(
                 id=provider_type,
@@ -1241,6 +1281,7 @@ async def list_providers(
                 models=model_ids,
                 available=available,
                 supports_vision=supports_vision,
+                model_details=model_details,
             )
         )
 
