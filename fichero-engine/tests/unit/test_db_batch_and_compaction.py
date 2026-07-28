@@ -142,6 +142,25 @@ def test_ensure_table_cache_skips_reconcile_until_invalidated(temp_db, monkeypat
     assert calls > first_calls
 
 
+def test_transaction_runs_only_the_matching_completion_hooks(temp_db):
+    committed: list[str] = []
+    rolled_back: list[str] = []
+
+    with temp_db.transaction():
+        temp_db.add_after_commit_hook(lambda: committed.append("commit"))
+        temp_db.add_after_rollback_hook(lambda: rolled_back.append("wrong"))
+        temp_db.save(_doc(1))
+
+    with pytest.raises(RuntimeError, match="abort"):
+        with temp_db.transaction():
+            temp_db.add_after_commit_hook(lambda: committed.append("wrong"))
+            temp_db.add_after_rollback_hook(lambda: rolled_back.append("rollback"))
+            raise RuntimeError("abort")
+
+    assert committed == ["commit"]
+    assert rolled_back == ["rollback"]
+
+
 # ---------------------------------------------------------------------------
 # embed_many
 # ---------------------------------------------------------------------------

@@ -291,6 +291,14 @@ def ingest_file(
             if package_path is None
             else _copy_to_library(path, package_path)
         )
+        if save and db is not None and db.in_transaction:
+            def remove_rolled_back_copy() -> None:
+                try:
+                    dest.unlink(missing_ok=True)
+                except OSError as exc:
+                    logger.warning("Could not remove rolled-back copy %s: %s", dest, exc)
+
+            db.add_after_rollback_hook(remove_rolled_back_copy)
         # Store the path RELATIVE to the library package root (e.g.
         # "files/nc/<id>_<name>.jpg") whenever the bytes land inside the
         # package. An absolute path bakes in the package's current name, so it

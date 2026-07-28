@@ -555,6 +555,27 @@ class TestIngestFile:
         assert doc.metadata["checksum"]
         assert doc.metadata["_iffy_sidecar"] is True
 
+    @patch("fichero.importers.ingest._copy_to_library")
+    def test_copy_rollback_removes_unreferenced_library_bytes(
+        self, mock_copy, db, tmp_path
+    ):
+        from fichero.importers.ingest import ingest_file, IngestMode
+
+        source = tmp_path / "source.jpg"
+        source.write_bytes(b"source")
+        destination = tmp_path / "stored.jpg"
+        destination.write_bytes(b"copied")
+        mock_copy.return_value = destination
+
+        with patch(
+            "fichero.importers.ingest._extract_file_metadata",
+            side_effect=ValueError("unsafe image"),
+        ), pytest.raises(ValueError, match="unsafe image"):
+            with db.transaction():
+                ingest_file(source, mode=IngestMode.COPY, db=db)
+
+        assert not destination.exists()
+
     @patch("fichero.db.db")
     @patch("fichero.bookmarks.create_bookmark")
     def test_extracts_metadata(self, mock_bookmark, mock_db, tmp_path):

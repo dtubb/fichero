@@ -976,6 +976,16 @@ class Database(DatabaseEmbeddingMixin):
             return
         hook()
 
+    def add_after_rollback_hook(self, hook: Callable[[], None]) -> None:
+        """Run ``hook`` only if the current outer transaction rolls back."""
+        if not self.in_transaction:
+            raise RuntimeError("after-rollback hooks require an active transaction")
+        hooks = getattr(self._tx_state, "after_rollback_hooks", None)
+        if hooks is None:
+            hooks = []
+            self._tx_state.after_rollback_hooks = hooks
+        hooks.append(hook)
+
     def _ensure_transaction_started(self) -> None:
         if not self.in_transaction or getattr(self._tx_state, "started", False):
             return
@@ -997,6 +1007,7 @@ class Database(DatabaseEmbeddingMixin):
         if outermost:
             self._tx_state.started = False
             self._tx_state.after_commit_hooks = []
+            self._tx_state.after_rollback_hooks = []
 
         hooks: list[Callable[[], None]] = []
         started = False
@@ -1012,12 +1023,15 @@ class Database(DatabaseEmbeddingMixin):
             if outermost and started:
                 with self._lock:
                     self.conn.execute("ROLLBACK")
+            if outermost:
+                hooks = list(getattr(self._tx_state, "after_rollback_hooks", []))
             raise
         finally:
             depth = getattr(self._tx_state, "depth", 1) - 1
             self._tx_state.depth = max(0, depth)
             if outermost:
                 self._tx_state.after_commit_hooks = []
+                self._tx_state.after_rollback_hooks = []
                 self._tx_state.started = False
                 if started:
                     self._transaction_gate.release()
