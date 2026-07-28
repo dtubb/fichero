@@ -91,11 +91,24 @@ extension DocumentStore: ObservableDomainStore {
     /// belongs to a surface we're showing, insert it. Untouched rows keep
     /// referential identity so SwiftUI's Table/List re-renders only the one row
     /// that changed (no whole-list flash — see `refreshPendingStatusesOnly`).
-    private func spliceDocument(_ doc: Document) {
-        // Sidebar tree (every document lives here).
+    /// Internal, not private: the delivery invariant below (a child of a LOADED
+    /// parent must reach `childrenCache` and must NOT reach `collections`) is
+    /// load-bearing and was undefended, so the tests drive this directly.
+    func spliceDocument(_ doc: Document) {
+        // ROOTS ONLY — `loadCollections()` assigns `getRoots()`
+        // (`/api/documents/roots`), so a nested document does not belong here.
+        // The append used to be unguarded, unlike the two blocks below, and an
+        // import of N files appended all N to a roots list until the next
+        // `loadCollections()` silently reset it (#4203).
+        //
+        // Careful: that same append was ALSO how imported children reached the
+        // sidebar, because `SidebarItemBuilder` files anything with a parentId
+        // under its parent. Dropping it without the `childrenCache` insert
+        // below would have "fixed" the pollution by breaking live delivery —
+        // and no test would have noticed.
         if let index = collections.firstIndex(where: { $0.id == doc.id }) {
             if collections[index] != doc { collections[index] = doc }
-        } else {
+        } else if doc.parentId == nil {
             collections.append(doc)
         }
 
@@ -106,7 +119,10 @@ extension DocumentStore: ObservableDomainStore {
             currentDocuments.append(doc)
         }
 
-        // Children cache (only the parent that already holds it).
+        // Children cache (only a parent already loaded — i.e. a folder the user
+        // has open). This is the live-delivery path during an import: rows
+        // appear under the folder being imported into, without a refresh.
+        // A closed folder stays unfetched; expanding it loads its children.
         if let parentId = doc.parentId, var kids = childrenCache[parentId] {
             if let index = kids.firstIndex(where: { $0.id == doc.id }) {
                 if kids[index] != doc {
