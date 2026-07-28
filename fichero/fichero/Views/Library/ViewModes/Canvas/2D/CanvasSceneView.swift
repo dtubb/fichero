@@ -186,15 +186,16 @@ struct CanvasSceneView: View {
     }
 
     private func draggedWorld(start: SIMD3<Float>, translation: CGSize, viewHeight: CGFloat, id: String) -> SIMD3<Double> {
-        let delta = Canvas2DProjection.sceneDelta(
-            screenTranslation: translation,
-            orthoScale: renderer.orthoScale,
-            viewHeight: viewHeight
-        )
         // Preserve the row's existing z (#3090): a 2D move never touches z, so a
         // z the 3D renderer set survives a 2D save — one row, two projections.
         let existingZ = layoutStore?.layout(for: scopeKey).first { $0.itemId == id }?.z ?? 0
-        return Canvas2DProjection.worldPosition(start + delta, preservingZ: existingZ)
+        return Canvas2DProjection.draggedWorldPosition(
+            startScene: start,
+            screenTranslation: translation,
+            orthoScale: renderer.orthoScale,
+            viewHeight: viewHeight,
+            preservingZ: existingZ
+        )
     }
 
     /// Background drag: shift-held → rubber-band marquee multi-select; otherwise
@@ -203,11 +204,8 @@ struct CanvasSceneView: View {
         DragGesture(minimumDistance: 2)
             .onChanged { value in
                 if shiftHeld {
-                    marqueeRect = CGRect(
-                        x: min(value.startLocation.x, value.location.x),
-                        y: min(value.startLocation.y, value.location.y),
-                        width: abs(value.location.x - value.startLocation.x),
-                        height: abs(value.location.y - value.startLocation.y)
+                    marqueeRect = Canvas2DProjection.marqueeRect(
+                        from: value.startLocation, to: value.location
                     )
                 } else {
                     let delta = CGSize(
@@ -217,11 +215,13 @@ struct CanvasSceneView: View {
                     panBaseline = value.translation
                     // ponytail: shares Canvas2DProjection.worldPerPoint with drag +
                     // marquee — the ONE calibration knob to tune against the built app.
-                    let delta3 = Canvas2DProjection.sceneDelta(
-                        screenTranslation: delta, orthoScale: renderer.orthoScale, viewHeight: size.height
+                    renderer.panCamera(
+                        worldDelta: Canvas2DProjection.cameraPanDelta(
+                            screenTranslation: delta,
+                            orthoScale: renderer.orthoScale,
+                            viewHeight: size.height
+                        )
                     )
-                    // Move content WITH the finger: pan the camera the opposite way.
-                    renderer.panCamera(worldDelta: SIMD2<Float>(-delta3.x, -delta3.y))
                 }
             }
             .onEnded { _ in
@@ -238,7 +238,9 @@ struct CanvasSceneView: View {
         MagnificationGesture()
             .onChanged { value in
                 if zoomBaseline == 0 { zoomBaseline = renderer.orthoScale }
-                renderer.setOrthoScale(zoomBaseline / Float(max(value, 0.01)))
+                renderer.setOrthoScale(
+                    Canvas2DProjection.orthoScale(zoomBaseline: zoomBaseline, magnification: value)
+                )
             }
             .onEnded { _ in zoomBaseline = 0 }
     }

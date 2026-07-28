@@ -49,6 +49,62 @@ enum Canvas2DProjection {
         return SIMD3<Float>(Float(screenTranslation.width) * wpp, Float(-screenTranslation.height) * wpp, 0)
     }
 
+    // MARK: - Gesture semantics (shared by every 2D renderer host)
+
+    // The SwiftUI gesture PLUMBING cannot be shared: the RealityKit host picks
+    // its drag/tap subject with `.targetedToAnyEntity()`, while a SceneKit host
+    // must hit-test through `placeableId(at:)`. What CAN be shared — and what
+    // would silently drift if each host kept its own copy — is the MEANING:
+    // how a screen translation becomes a world position, which way the camera
+    // moves relative to the finger, and how a magnification becomes an ortho
+    // scale. Those live here, pure and tested, so two hosts cannot disagree
+    // about them. (#4192 S1)
+
+    /// A card's world position mid-drag: its scene-space start plus the screen
+    /// translation, with the layout row's existing z preserved (#3090) — a 2D
+    /// move never touches z, so a z the 3D renderer set survives a 2D save.
+    static func draggedWorldPosition(
+        startScene: SIMD3<Float>,
+        screenTranslation: CGSize,
+        orthoScale: Float,
+        viewHeight: CGFloat,
+        preservingZ worldZ: Double
+    ) -> SIMD3<Double> {
+        let delta = sceneDelta(
+            screenTranslation: screenTranslation, orthoScale: orthoScale, viewHeight: viewHeight
+        )
+        return worldPosition(startScene + delta, preservingZ: worldZ)
+    }
+
+    /// The camera's world delta for a background pan. Negated so the content
+    /// moves WITH the finger: dragging right pans the camera left.
+    static func cameraPanDelta(
+        screenTranslation: CGSize, orthoScale: Float, viewHeight: CGFloat
+    ) -> SIMD2<Float> {
+        let delta = sceneDelta(
+            screenTranslation: screenTranslation, orthoScale: orthoScale, viewHeight: viewHeight
+        )
+        return SIMD2<Float>(-delta.x, -delta.y)
+    }
+
+    /// The rubber-band rect between a drag's start and current point, in view
+    /// space. Normalized so dragging up/left gives the same rect as down/right.
+    static func marqueeRect(from start: CGPoint, to current: CGPoint) -> CGRect {
+        CGRect(
+            x: min(start.x, current.x),
+            y: min(start.y, current.y),
+            width: abs(current.x - start.x),
+            height: abs(current.y - start.y)
+        )
+    }
+
+    /// Pinch → ortho scale: magnify > 1 means zoom IN, which is a SMALLER ortho
+    /// scale. Clamped away from zero so a degenerate magnification can't divide
+    /// the camera into infinity.
+    static func orthoScale(zoomBaseline: Float, magnification: CGFloat) -> Float {
+        zoomBaseline / Float(max(magnification, 0.01))
+    }
+
     /// Project a scene-plane point to a screen point, given the camera's plane
     /// position and ortho scale — the inverse used for marquee hit-testing.
     /// (0,0) scene under a centered camera maps to the view centre.
