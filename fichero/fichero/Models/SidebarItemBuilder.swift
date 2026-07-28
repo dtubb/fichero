@@ -31,10 +31,16 @@ enum SidebarItemBuilder {
         let chatItems = buildChatHierarchy(from: conversations, libraryId: library.id)
         allItems.append(contentsOf: chatItems)
 
-        // Add workflows (already WorkflowSidebarItems in WorkflowStore)
-        let workflows = library.workflowStore.workflows
-        let workflowItems = buildWorkflowHierarchy(from: workflows, libraryId: library.id)
-        allItems.append(contentsOf: workflowItems)
+        // Workflows are deliberately NOT appended here (#4186). The engine
+        // mirrors every workflow into the document tree (`_save_workflow_
+        // document`: presets under the locked "Default Workflows" container,
+        // user workflows as normal nodes), so the mirror doc rows above ARE
+        // the sidebar representation — correctly routed as regular library
+        // nodes. The old client-built virtual hierarchy (grouping
+        // workflow.folder_path via buildWorkflowHierarchy) DUPLICATED them
+        // as unlocked folders at the tree root whose click hijacked the
+        // window into the workflow surface. The workflow SURFACE (content
+        // column) reads WorkflowStore directly and is unaffected.
 
         sidebarBuilderLogger.info("⏱ SidebarItemBuilder.build exit — \(allItems.count) total items")
         return allItems

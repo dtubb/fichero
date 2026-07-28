@@ -170,6 +170,11 @@ extension SidebarView {
         // every library's DB (each library is self-contained) but the sidebar
         // only surfaces it under the Global library so it isn't duplicated
         // across every individual library (#4060).
+        //
+        // Since #4186 this bucket is EMPTY: SidebarItemBuilder no longer
+        // builds the client-side virtual workflow hierarchy — workflows
+        // reach the tree as engine-mirrored document nodes instead. The
+        // append stays as the one-line reversal point.
         if FeatureManager.shared.isWorkflowsEnabled && libraryId == LibraryManager.globalLibraryId {
             items.append(contentsOf: buckets.workflowItems)
         }
