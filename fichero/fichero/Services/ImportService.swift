@@ -148,7 +148,9 @@ class ImportService {
         return imported
     }
 
-    /// Import a single file (synchronous - returns document immediately)
+    /// Import a single file (synchronous - returns document immediately).
+    /// `POST /api/ingest/file` for link/move; `POST /api/documents/import`
+    /// for copy, which uploads the bytes instead of pointing at a path.
     private func importFile(
         _ url: URL,
         mode: IngestMode,
@@ -240,7 +242,8 @@ class ImportService {
 
     // MARK: - Async Folder Import
 
-    /// Start a folder import task (returns immediately with task ID)
+    /// `POST /api/ingest/folder` — start a folder import task (returns
+    /// immediately with a task id; poll the status endpoint for progress).
     func startFolderImport(
         _ url: URL,
         mode: IngestMode = .link,
@@ -299,7 +302,7 @@ class ImportService {
         }
     }
 
-    /// Get the status of an ingest task
+    /// `GET /api/ingest/status/{task_id}` — poll a folder import's progress.
     func getIngestStatus(_ taskId: String) async throws -> IngestTaskStatus {
         let response = try await client.api.getIngestStatusApiIngestStatusTaskIdGet(
             path: .init(taskId: taskId)
