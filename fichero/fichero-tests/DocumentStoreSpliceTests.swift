@@ -9,7 +9,7 @@ import Testing
 // The trap: that same append was ALSO how imported children reached the sidebar,
 // since `SidebarItemBuilder` files anything with a parentId under its parent. So
 // the obvious fix — guard on `parentId == nil` and stop — drops the pollution by
-// breaking the live delivery Daniel asked for, and gates green, because nothing
+// breaking the live delivery the requirement was, and gates green, because nothing
 // asserted delivery. These tests assert BOTH halves so that can't happen again.
 @MainActor
 @Suite("DocumentStore.spliceDocument — roots stay roots, children still arrive (#4203)")

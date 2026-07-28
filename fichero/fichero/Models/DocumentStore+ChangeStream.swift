@@ -72,6 +72,11 @@ extension DocumentStore: ObservableDomainStore {
     private func flushPendingPatches() async {
         let ids = pendingPatchIds
         pendingPatchIds.removeAll()
+        // Collect the whole batch, then splice ONCE (#4235). Splicing inside
+        // this loop published a change per document, so a 500-file import
+        // rebuilt the sidebar 500 times over a list that was itself growing.
+        var fetched: [Document] = []
+        fetched.reserveCapacity(ids.count)
         for id in ids {
             let fresh: Document
             do {
@@ -82,9 +87,9 @@ extension DocumentStore: ObservableDomainStore {
                 )
                 continue
             }
-            let patched = applyStatusOverrides([fresh]).first ?? fresh
-            spliceDocument(patched)
+            fetched.append(applyStatusOverrides([fresh]).first ?? fresh)
         }
+        spliceDocuments(fetched)
     }
 
     /// Replace `doc` in place wherever it already appears; if it's new and
@@ -95,6 +100,54 @@ extension DocumentStore: ObservableDomainStore {
     /// parent must reach `childrenCache` and must NOT reach `collections`) is
     /// load-bearing and was undefended, so the tests drive this directly.
     func spliceDocument(_ doc: Document) {
+        spliceDocuments([doc])
+    }
+
+    /// Splice a whole batch with ONE write to each published container (#4235).
+    ///
+    /// `spliceDocument` per document meant a 500-file import performed 500
+    /// separate mutations of `collections`, and every one of them invalidates
+    /// the sidebar — which then rebuilds the entire hierarchy from a list that
+    /// is itself growing. That is O(N²) work AND O(N²) allocation during the
+    /// exact window the user is watching, which is what made a fast import feel
+    /// like a hung app.
+    ///
+    /// Batching does not change WHAT lands, only how often observers are told.
+    /// The per-document rules are unchanged and still live in one place.
+    func spliceDocuments(_ docs: [Document]) {
+        guard !docs.isEmpty else { return }
+
+        var nextCollections = collections
+        var nextCurrent = currentDocuments
+        var nextChildren = childrenCache
+        let selectedId = selectedCollection?.id
+
+        for doc in docs {
+            Self.splice(
+                doc,
+                collections: &nextCollections,
+                currentDocuments: &nextCurrent,
+                childrenCache: &nextChildren,
+                selectedCollectionId: selectedId
+            )
+        }
+
+        // One assignment each — untouched rows keep referential identity, so
+        // SwiftUI still re-renders only the rows that actually changed.
+        if nextCollections != collections { collections = nextCollections }
+        if nextCurrent != currentDocuments { currentDocuments = nextCurrent }
+        if nextChildren != childrenCache { childrenCache = nextChildren }
+    }
+
+    /// The per-document splice rules, over plain values so a batch can apply
+    /// them without touching published state until it is done.
+    private static func splice(
+        _ doc: Document,
+        collections: inout [Document],
+        currentDocuments: inout [Document],
+        childrenCache: inout [String: [Document]],
+        selectedCollectionId: String?
+    ) {
         // ROOTS ONLY — `loadCollections()` assigns `getRoots()`
         // (`/api/documents/roots`), so a nested document does not belong here.
         // The append used to be unguarded, unlike the two blocks below, and an
@@ -128,7 +181,7 @@ extension DocumentStore: ObservableDomainStore {
         // Grid for the selected collection.
         if let index = currentDocuments.firstIndex(where: { $0.id == doc.id }) {
             if currentDocuments[index] != doc { currentDocuments[index] = doc }
-        } else if let selected = selectedCollection, doc.parentId == selected.id {
+        } else if let selectedCollectionId, doc.parentId == selectedCollectionId {
             currentDocuments.append(doc)
         }
 
