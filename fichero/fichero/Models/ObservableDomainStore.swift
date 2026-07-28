@@ -16,29 +16,68 @@ import Observation
 final class ReloadDebouncer {
     private var pending: Task<Void, Never>?
     private let delay: Duration
+    private let maxWait: Duration
+    /// When the current uninterrupted burst began; nil between bursts.
+    private var burstStart: ContinuousClock.Instant?
 
     /// `delay` defaults to the 300ms window the hand-written stores used (#1973,
     /// tuned up from 150ms in commit 2809d9d2 to coalesce extraction bursts).
-    init(delay: Duration = .milliseconds(300)) {
+    ///
+    /// `maxWait` caps how long a burst can postpone the action. A pure trailing
+    /// debounce is STARVED by an event stream that never pauses: an import
+    /// committing 400-900 files/sec emits `document.created` every 1-2ms, so
+    /// every event cancelled the pending flush and the sidebar populated only
+    /// once the import finished — the user-visible complaint in #4203.
+    init(delay: Duration = .milliseconds(300), maxWait: Duration = .seconds(1)) {
         self.delay = delay
+        self.maxWait = maxWait
     }
 
     /// Cancel any in-flight trailing action and schedule a fresh one. Only the
-    /// last call in a burst survives to run `action`.
+    /// last call in a burst survives to run `action` — unless the burst has run
+    /// longer than `maxWait`, which forces a flush so a continuous stream makes
+    /// visible progress instead of waiting for silence that never comes.
     func schedule(_ action: @escaping @Sendable () async -> Void) {
-        let delay = self.delay
+        let now = ContinuousClock.now
+        let start = burstStart ?? now
+        burstStart = start
+        let wait = Self.wait(delay: delay, maxWait: maxWait, sinceBurstStart: now - start)
+
         pending?.cancel()
-        pending = Task {
-            try? await Task.sleep(for: delay)
+        pending = Task { [weak self] in
+            try? await Task.sleep(for: wait)
             guard !Task.isCancelled else { return }
+            // The burst ends when its action actually runs, so the next event
+            // starts a fresh window rather than flushing immediately forever.
+            self?.burstStart = nil
             await action()
         }
+    }
+
+    /// How long the next trailing action should wait: the usual `delay`, minus
+    /// nothing while the burst is young, but shortened — to zero — as the burst
+    /// approaches `maxWait`.
+    ///
+    /// Pure, so tests assert the rule directly instead of sleeping —
+    /// sleep-based debounce tests are flaky by construction.
+    ///
+    /// `nonisolated` is LOAD-BEARING: this class is `@MainActor`, and a static
+    /// on it inherits that isolation, so a Swift Testing suite (cooperative
+    /// thread, not main) cannot call it. Same hazard as the #4201 View statics,
+    /// with one important difference — an EXPLICIT `@MainActor` makes the
+    /// off-main call a COMPILE error, while a `View`'s implicit isolation
+    /// compiles and SIGTRAPs at runtime. The loud failure is the good one.
+    nonisolated static func wait(delay: Duration, maxWait: Duration, sinceBurstStart elapsed: Duration) -> Duration {
+        let remaining = maxWait - elapsed
+        if remaining <= .zero { return .zero }
+        return min(delay, remaining)
     }
 
     /// Drop any pending trailing action (teardown / explicit stop).
     func cancel() {
         pending?.cancel()
         pending = nil
+        burstStart = nil
     }
 }
 
