@@ -34,22 +34,37 @@ class TestTheTwoVerbFieldsGenuinelyDiffer:
         assert canonical_verb("entered into") is None
 
 
-class TestDedupToleratesTheDivergence:
-    """The reason the divergence has not caused a visible bug."""
+class TestSeparatorFoldingIsLoadBearingDoNotDelete:
+    """DO NOT DELETE AS REDUNDANT — this is a CONTRACT, not a restatement.
 
-    def test_dash_slug_matches_the_display_form(self):
+    Nothing in the code says `_normalized_match_key` must fold "-" and "_" to
+    spaces. It happens to, and that accident is the ONLY reason three divergent
+    extractor shapes have never produced a visible bug: slug_verb writes
+    "served-as", canonical_verb writes "served_as", predicate_verb keeps
+    "served as", and all three must collapse to one dedup key.
+
+    If a future normalizer cleanup stops folding either separator, claims
+    written by different extractors silently stop deduplicating against each
+    other. There is no error, no exception, no log line — the library just
+    starts accumulating duplicate claims. These assertions are the only alarm.
+    """
+
+    def test_dash_slug_must_match_the_display_form(self):
+        """slug_verb's output vs predicate_verb's — the common path."""
         assert _normalized_match_key("entered-into") == _normalized_match_key("entered into")
 
-    def test_underscore_canonical_matches_the_display_form(self):
+    def test_underscore_canonical_must_match_the_display_form(self):
+        """canonical_verb's output vs predicate_verb's — the citation-stance path."""
         assert _normalized_match_key("served_as") == _normalized_match_key("served as")
 
-    def test_all_three_verb_shapes_share_one_key(self):
+    def test_all_three_extractor_shapes_must_collapse_to_one_dedup_key(self):
         keys = {
             _normalized_match_key(form)
             for form in ("served as", "served-as", "served_as")
         }
 
         assert len(keys) == 1, (
-            "claims written by different extractors would stop deduplicating "
-            f"against each other: {keys}"
+            "Separator folding regressed. Claims written by different extractors "
+            "will now silently stop deduplicating against each other — no error "
+            f"is raised, the library just accumulates duplicates. Keys: {keys}"
         )
