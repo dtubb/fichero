@@ -87,4 +87,23 @@ final class MillerColumnModelTests: XCTestCase {
         XCTAssertTrue(nav.contains("func navigableDocument(for id: String) -> Document?"))
         XCTAssertTrue(nav.contains("handleColumnsArrowKey(direction: direction)"))
     }
+
+    func testPreviewColumnReusesThePreviewSurfaceForSingleNonFolderSelection() throws {
+        let base = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views/Library")
+        let columns = try String(
+            contentsOf: base.appendingPathComponent("ViewModes/Columns/LibraryView+ColumnsView.swift"),
+            encoding: .utf8
+        )
+        // The trailing preview column is the EXISTING Preview surface
+        // (EditorView = source viewer) — never a Reader/Inspector variant —
+        // and only for a SINGLE non-folder selection (Finder behavior).
+        XCTAssertTrue(columns.contains("EditorView(document: previewDoc)"))
+        XCTAssertTrue(columns.contains("selection.count == 1"))
+        XCTAssertTrue(columns.contains("doc.docType != .folder"))
+        XCTAssertFalse(columns.contains("InspectorView("))
+        XCTAssertFalse(columns.contains("ReaderView("))
+    }
 }

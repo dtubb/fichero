@@ -42,6 +42,18 @@ extension LibraryView {
         return columnsChildren[path[depth - 1]] ?? []
     }
 
+    /// The trailing preview column's document: a SINGLE selected non-folder,
+    /// wherever it lives in the open columns. Multi-select or a folder
+    /// selection shows no preview column (Finder behavior — folders disclose
+    /// their children instead).
+    var columnsPreviewDocument: Document? {
+        guard selection.count == 1,
+              let id = selection.first,
+              let doc = navigableDocument(for: id),
+              doc.docType != .folder else { return nil }
+        return doc
+    }
+
     /// The active column's documents — what the keyboard navigates over.
     var columnsActiveDocuments: [Document] {
         columnsDocuments(atDepth: MillerColumnModel.clampActiveDepth(
@@ -57,6 +69,18 @@ extension LibraryView {
                     ForEach(0...path.count, id: \.self) { depth in
                         millerColumn(depth: depth, path: path)
                             .frame(width: 240)
+                        Divider()
+                    }
+                    // Finder's trailing preview column: a SINGLE selected
+                    // non-folder shows in the EXISTING Preview surface
+                    // (EditorView = the source viewer — no derived knowledge,
+                    // no editing; Reader/Inspector stay separate surfaces).
+                    // Stable id keeps the mount across doc flips (#788).
+                    if let previewDoc = columnsPreviewDocument {
+                        EditorView(document: previewDoc)
+                            .id("columns.preview")
+                            .frame(width: 320)
+                            .accessibilityIdentifier("libraryColumnPreview")
                         Divider()
                     }
                 }
