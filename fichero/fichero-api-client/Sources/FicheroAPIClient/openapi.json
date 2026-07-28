@@ -53390,6 +53390,14 @@
             "type": "boolean",
             "title": "Supports Vision",
             "default": false
+          },
+          "model_details": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderModelInfo"
+            },
+            "type": "array",
+            "title": "Model Details",
+            "default": []
           }
         },
         "type": "object",
@@ -53423,6 +53431,33 @@
         ],
         "title": "ProviderListResponse",
         "description": "Envelope for a list of user-configured providers."
+      },
+      "ProviderModelInfo": {
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities",
+            "default": []
+          },
+          "supports_vision": {
+            "type": "boolean",
+            "title": "Supports Vision",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_id"
+        ],
+        "title": "ProviderModelInfo",
+        "description": "Per-model capability for one configured model (#4187).\n\n``supports_vision`` is NOT ``\"vision\" in capabilities``. Capability\nenforcement (``_model_has_capability`` in ``fichero.llm``) is TRI-STATE:\na model with NO saved capabilities returns ``None``, meaning \"unknown \u2014\nfall back to the provider's capability\", and only an explicit mismatch\nrejects the run. Collapsing that to a membership test would hide every\nmodel whose capabilities were never populated \u2014 which is most of them on\nan existing install \u2014 so the fallback is resolved HERE, server-side, and\nclients consume the resulting bool."
       },
       "ProviderRefCreate": {
         "properties": {
