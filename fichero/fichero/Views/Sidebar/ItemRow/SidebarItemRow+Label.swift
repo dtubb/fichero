@@ -71,7 +71,10 @@ extension SidebarItemRow {
     /// workflow rows inside them.
     var rowIsLocked: Bool {
         if case .document(let doc) = item.itemType {
-            return doc.isDefaultWorkflowFolder || doc.isWorkflowNode
+            // `item.isDefaultWorkflowFolder`, not the document's id shape: a
+            // legacy folder RE-HOMED under the container keeps its old id, so
+            // only the tree builder's ancestry answer catches it (#4200).
+            return item.isDefaultWorkflowFolder || doc.isWorkflowNode
         }
         return false
     }

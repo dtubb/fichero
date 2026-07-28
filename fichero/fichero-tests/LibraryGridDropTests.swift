@@ -160,7 +160,10 @@ final class SidebarLockedRowBadgeTests: XCTestCase {
             .deletingLastPathComponent()
             .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(source.contains("doc.isDefaultWorkflowFolder || doc.isWorkflowNode"))
+        // Reads the ITEM's ancestry answer, not the document's id shape: a
+        // re-homed legacy folder keeps its old id and would badge nothing
+        // (#4200). Behaviour is unchanged for seeded rows.
+        XCTAssertTrue(source.contains("item.isDefaultWorkflowFolder || doc.isWorkflowNode"))
         XCTAssertTrue(source.contains("Image(systemName: \"lock.fill\")"))
         XCTAssertTrue(source.contains("accessibilityLabel(\"Read-only\")"))
     }

@@ -75,6 +75,17 @@ struct SidebarItem: Identifiable, Hashable {
     let sortOrder: Int      // User-defined order within folder
     let isFolder: Bool      // True for folder items, false for leaf items
 
+    /// Locked "Default Workflows" container or a folder beneath it — the row
+    /// renders a distinct colored icon and a lock badge to signal it is
+    /// system/default and not user-editable (#11).
+    ///
+    /// STORED, not derived from the document: locked-ness is a question about
+    /// the row's ANCESTRY, and only the tree builder holds the sibling set
+    /// needed to answer it (#4200). It is computed once per rebuild, and the
+    /// sidebar rebuilds whenever DocumentStore changes, so it tracks the live
+    /// store without a per-row lookup on every render.
+    var isDefaultWorkflowFolder: Bool = false
+
     enum ItemType: Hashable {
         case document(Document)
         case savedSearch(SavedSearch)
@@ -118,14 +129,6 @@ struct SidebarItem: Identifiable, Hashable {
         case .batch: return .blue
         case .activityRun: return .green
         }
-    }
-
-    /// True for the locked "Default Workflows" container folder or one of its
-    /// system subfolders — the row renders these with a distinct colored icon
-    /// to signal they're system/default and not user-editable (#11).
-    var isDefaultWorkflowFolder: Bool {
-        if case .document(let doc) = itemType { return doc.isDefaultWorkflowFolder }
-        return false
     }
 
     /// Whether this row can actually be reordered by dragging in the sidebar.
@@ -173,8 +176,20 @@ struct SidebarItem: Identifiable, Hashable {
     }
 
     // Convenience initializers
-    static func fromDocument(_ doc: Document, libraryId: UUID, children: [SidebarItem]? = nil) -> SidebarItem {
-        SidebarItem(
+    /// `isDefaultWorkflowFolder` is passed IN rather than read off the
+    /// document: the answer depends on the row's ancestry, which only the
+    /// caller building the tree can resolve (#4200). Callers with no tree
+    /// context get the id-namespace fast path, which still covers every
+    /// engine-SEEDED row.
+    static func fromDocument(
+        _ doc: Document,
+        libraryId: UUID,
+        children: [SidebarItem]? = nil,
+        isDefaultWorkflowFolder: Bool? = nil
+    ) -> SidebarItem {
+        let isLockedSystemFolder = isDefaultWorkflowFolder
+            ?? (doc.docType == .folder && doc.hasDefaultWorkflowContainerID)
+        return SidebarItem(
             id: "doc:\(doc.id)",
             name: doc.pageThumbnailLabel ?? doc.name,
             // Default-workflow container/subfolders are locked, system-seeded
@@ -186,7 +201,7 @@ struct SidebarItem: Identifiable, Hashable {
             // workflows. Otherwise prefer the file-type-specific icon (e.g.
             // "doc.richtext" for PDFs) over the generic docType icon ("doc"
             // for any .file) — makes PDFs visually distinct (#574).
-            icon: doc.isDefaultWorkflowFolder
+            icon: isLockedSystemFolder
                 ? "folder.badge.gearshape"
                 : doc.isWorkflowNode
                     ? ItemCategory.workflow.icon
@@ -199,7 +214,8 @@ struct SidebarItem: Identifiable, Hashable {
             libraryId: libraryId,
             folderPath: doc.parentId ?? "/",  // Documents use parentId for hierarchy
             sortOrder: doc.sortOrder,  // backed by backend /documents/reorder (#572)
-            isFolder: doc.docType == .folder
+            isFolder: doc.docType == .folder,
+            isDefaultWorkflowFolder: isLockedSystemFolder
         )
     }
 

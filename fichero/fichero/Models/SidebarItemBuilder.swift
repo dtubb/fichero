@@ -99,8 +99,25 @@ enum SidebarItemBuilder {
         return false
     }
 
+    /// Ids of every folder that IS the locked "Default Workflows" container or
+    /// sits beneath it (#4200). Resolved once per build over ALL documents —
+    /// not just the sidebar-visible ones, so an ancestor that was filtered out
+    /// still resolves — because the answer is about ancestry, which a single
+    /// row cannot see. A row whose ancestor isn't loaded falls back to the id
+    /// fast path inside `isDefaultWorkflowFolder`.
+    static func lockedSystemFolderIds(in documents: [Document]) -> Set<String> {
+        let documentsById = Dictionary(documents.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return Set(
+            documents
+                .filter { $0.isDefaultWorkflowFolder(resolveParent: { documentsById[$0] }) }
+                .map(\.id)
+        )
+    }
+
     static func buildLibraryHierarchy(from documents: [Document], libraryId: UUID) -> [SidebarItem] {
         let visibleDocs = documents.filter(isSidebarVisible)
+
+        let lockedFolderIds = lockedSystemFolderIds(in: documents)
 
         // Build a map of parentId -> children
         var childrenMap: [String: [Document]] = [:]
@@ -131,7 +148,9 @@ enum SidebarItemBuilder {
                 }
                 .map { buildItem($0) }
             let combined = documentChildren + structureChildren
-            return SidebarItem.fromDocument(doc, libraryId: libraryId, children: combined.isEmpty ? nil : combined)
+            return SidebarItem.fromDocument(doc, libraryId: libraryId,
+                                           children: combined.isEmpty ? nil : combined,
+                                           isDefaultWorkflowFolder: lockedFolderIds.contains(doc.id))
         }
 
         // Build Inbox with custom icon

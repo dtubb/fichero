@@ -454,13 +454,45 @@ extension Document {
     /// `_DEFAULT_WORKFLOWS_CONTAINER_ID` in `fichero-engine/src/fichero/db/__init__.py`.
     static let defaultWorkflowsContainerID = "system-default-workflows"
 
-    /// True for the locked "Default Workflows" container folder or any of its
-    /// system-seeded subfolders. These are read-only, non-editable nodes, so
-    /// the sidebar marks them with a distinct icon (see `SidebarItem.fromDocument`
-    /// and `SidebarItemRow.iconView`).
-    var isDefaultWorkflowFolder: Bool {
-        docType == .folder
-            && (id == Self.defaultWorkflowsContainerID
-                || id.hasPrefix("\(Self.defaultWorkflowsContainerID):"))
+    /// The container itself, or a subfolder the engine SEEDED into its id
+    /// namespace. A fast path only: it says where a row's id came from, not
+    /// where the row currently lives.
+    var hasDefaultWorkflowContainerID: Bool {
+        id == Self.defaultWorkflowsContainerID
+            || id.hasPrefix("\(Self.defaultWorkflowsContainerID):")
+    }
+
+    /// True for the locked "Default Workflows" container folder or ANY folder
+    /// beneath it. These are read-only, non-editable nodes, so the sidebar
+    /// marks them with a distinct icon and a lock badge (see
+    /// `SidebarItem.fromDocument` and `SidebarItemRow.iconView`).
+    ///
+    /// Parentage, not id structure, decides this (#4200). `heal_default_workflow_tree`
+    /// RE-PARENTS legacy preset folders under the container without RE-IDing
+    /// them (b2b9f6899), so a re-homed "Books" keeps its legacy id and the
+    /// namespace test alone misses it — it renders unlocked inside a locked
+    /// container. Encoding hierarchy in identifiers is what broke here; any
+    /// future reparent would break it again.
+    ///
+    /// Only `parentId` is followed, so a document that merely REFERENCES the
+    /// container (alias target, prototype key) is not treated as inside it.
+    /// `resolveParent` returns nil for an ancestor the caller hasn't loaded —
+    /// the row then falls back to the id fast path rather than claiming to
+    /// know it is unlocked.
+    func isDefaultWorkflowFolder(resolveParent: (String) -> Document?) -> Bool {
+        guard docType == .folder else { return false }
+        if hasDefaultWorkflowContainerID { return true }
+
+        // Walk to the root. `visited` guards against a parent cycle: a bad
+        // heal or a hand-edited row must not spin the sidebar build.
+        var visited: Set<String> = [id]
+        var currentParentId = parentId
+        while let ancestorId = currentParentId, visited.insert(ancestorId).inserted {
+            if ancestorId == Self.defaultWorkflowsContainerID { return true }
+            guard let ancestor = resolveParent(ancestorId) else { return false }
+            if ancestor.hasDefaultWorkflowContainerID { return true }
+            currentParentId = ancestor.parentId
+        }
+        return false
     }
 }
