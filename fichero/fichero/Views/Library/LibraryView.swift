@@ -234,7 +234,12 @@ struct LibraryView: View {
     ///
     /// Pure so the invariant is testable without a live engine, the same reason
     /// `BackendConnectionView.connectionFailureTitle` is pure (#3341).
-    static func isAwaitingFirstLoad(hasLoadedSuccessfully: Bool, error: Error?) -> Bool {
+    /// `nonisolated` is LOAD-BEARING: a static on a `View` inherits the type's
+    /// MainActor isolation under the macOS 26 SDK, and the Swift Testing suite
+    /// that calls this runs on a cooperative thread — the off-main call
+    /// SIGTRAPs the whole test process, nondeterministically and misattributed
+    /// to whichever test happened to be running (#4201).
+    nonisolated static func isAwaitingFirstLoad(hasLoadedSuccessfully: Bool, error: Error?) -> Bool {
         !hasLoadedSuccessfully && error == nil
     }
 
@@ -244,7 +249,10 @@ struct LibraryView: View {
     /// outage. Reuses the one `AccessError` classifier instead of re-reading
     /// `URLError` codes here. An already-typed `AccessError` never arrives: the
     /// access-denied branch above claims it first.
-    static func isEngineOutage(_ error: Error?) -> Bool {
+    /// `nonisolated` for the same load-bearing reason as `isAwaitingFirstLoad`
+    /// above — and it must stay that way transitively: everything this reads
+    /// (`AccessError.classify`) has to be callable off-main too (#4201).
+    nonisolated static func isEngineOutage(_ error: Error?) -> Bool {
         guard let error else { return false }
         return AccessError.classify(error) == .engineUnreachable
     }

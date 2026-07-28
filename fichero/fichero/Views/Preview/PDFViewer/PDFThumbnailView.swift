@@ -85,7 +85,13 @@ struct PDFThumbnailView: View {
 
     /// Render a specific page of a PDF at the requested pixel size.
     /// Runs off the main actor — PDFKit can do the render on any thread.
-    static func renderThumbnail(from data: Data, pageIndex: Int = 0, size: CGSize) async -> PlatformImage? {
+    ///
+    /// `nonisolated` is LOAD-BEARING, and was also the only thing making the
+    /// line above TRUE: a static on a `View` inherits the type's MainActor
+    /// isolation under the macOS 26 SDK, so without it this hopped back to the
+    /// main actor, and the Swift Testing suite calling it off-main SIGTRAPped
+    /// the whole test process (#4201).
+    nonisolated static func renderThumbnail(from data: Data, pageIndex: Int = 0, size: CGSize) async -> PlatformImage? {
         await renderThumbnailWithPageCount(
             from: data, pageIndex: pageIndex, size: size
         )?.image
@@ -95,7 +101,9 @@ struct PDFThumbnailView: View {
     /// multi-page badge can render without a second document load.
     /// One \`PDFDocument(data:)\` call serves both — half the cost of
     /// computing them independently. (#946)
-    static func renderThumbnailWithPageCount(
+    /// `nonisolated` transitively with `renderThumbnail`, which awaits it: a
+    /// MainActor callee would drag the caller back on-main (#4201).
+    nonisolated static func renderThumbnailWithPageCount(
         from data: Data, pageIndex: Int = 0, size: CGSize
     ) async -> (image: PlatformImage, pageCount: Int)? {
         await Task.detached(priority: .userInitiated) {
