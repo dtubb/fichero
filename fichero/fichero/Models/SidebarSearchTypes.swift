@@ -106,6 +106,14 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     var isDirectlyRunnable: Bool?
     var createdAt: Date
     var updatedAt: Date
+    /// Derived client-side at load (#4187), not wire data — deliberately NOT
+    /// in CodingKeys. True when any node's tool uses an LLM in the "vision"
+    /// category, mirroring the engine's preflight rule. Used only to FILTER
+    /// the Run Workflow model submenu to vision-capable models; the engine
+    /// remains the enforcement point, so `false` (e.g. after a failed tool
+    /// registry fetch) fails OPEN to an unfiltered menu — never harden this
+    /// into a client-side gate.
+    var hasVisionNodes: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -136,7 +144,8 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         isUntested: Bool = false,
         isDirectlyRunnable: Bool = true,
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        hasVisionNodes: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -151,6 +160,23 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         self.isDirectlyRunnable = isDirectlyRunnable
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.hasVisionNodes = hasVisionNodes
+    }
+
+    /// Engine parity (#4187): a workflow needs a vision-capable model iff any
+    /// node's tool `usesLLM` and sits in the "vision" category — the same
+    /// rule `validate_workflow_llm_preflight` enforces server-side. Unknown
+    /// tools (registry miss) contribute `false`: the filter fails open and
+    /// the engine still rejects a genuinely bad pick.
+    static func requiresVisionModel(
+        nodes: [[String: AnyCodable]],
+        toolRegistry: [String: ToolInfo]
+    ) -> Bool {
+        nodes.contains { node in
+            guard let tool = node["tool"]?.value as? String,
+                  let info = toolRegistry[tool.lowercased()] else { return false }
+            return info.usesLLM && info.category.lowercased() == "vision"
+        }
     }
 
     /// Display name with the trust label appended (never stored in `name`).

@@ -34,17 +34,23 @@ struct RunWorkflowSubmenuItems: View {
 
     @ViewBuilder
     private func workflowEntry(_ workflow: WorkflowSidebarItem) -> some View {
+        // Vision workflows only list vision-capable overrides (#4187), read
+        // from the server-resolved per-model capability — the engine owns the
+        // tri-state fallback and the UI filter is an affordance, not a gate.
         Menu(workflow.name) {
             Button("Default") { action(workflow.id, nil, nil) }
             ForEach(providerCache.providers.filter { $0.available }) { provider in
-                if provider.models.isEmpty {
+                switch provider.runMenuEntry(requiresVision: workflow.hasVisionNodes) {
+                case .providerOnly:
                     Button(provider.name) { action(workflow.id, provider.id, nil) }
-                } else {
+                case .models(let models):
                     Menu(provider.name) {
-                        ForEach(provider.models, id: \.self) { model in
+                        ForEach(models, id: \.self) { model in
                             Button(model) { action(workflow.id, provider.id, model) }
                         }
                     }
+                case nil:
+                    EmptyView()
                 }
             }
         }

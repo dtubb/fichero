@@ -50,7 +50,11 @@ extension WorkflowStore {
                     isUntested: workflow.isUntested,
                     isDirectlyRunnable: workflow.directRunnable ?? true,
                     createdAt: Date(),  // Backend doesn't return these yet
-                    updatedAt: Date()
+                    updatedAt: Date(),
+                    hasVisionNodes: WorkflowSidebarItem.requiresVisionModel(
+                        nodes: workflow.nodes,
+                        toolRegistry: toolRegistry
+                    )
                 )
             }
             isConnected = true

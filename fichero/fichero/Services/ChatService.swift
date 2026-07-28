@@ -120,20 +120,20 @@ class ChatService {
 
     /// Convert generated ProviderInfo to app LLMProvider
     private func convertToLLMProvider(_ provider: Components.Schemas.ProviderInfo) -> LLMProvider {
-        // Infer vision capability from provider ID based on backend catalog
-        // TODO: Regenerate OpenAPI client to include supportsVision from API
-        let visionProviders: Set<String> = [
-            "apple", "ollama", "lmstudio", "huggingface", "openrouter",
-            "openai", "anthropic", "google", "groq", "together",
-            "mistral", "dashscope", "xai", "fireworks", "azure", "bedrock"
-        ]
-
-        return LLMProvider(
+        // Capability comes from the server (#4187) — the engine resolves the
+        // tri-state per-model fallback; never re-derive it client-side.
+        LLMProvider(
             id: provider.id,
             name: provider.name,
             models: provider.models,
             available: provider.available,
-            supportsVision: visionProviders.contains(provider.id)
+            supportsVision: provider.supportsVision ?? false,
+            modelDetails: (provider.modelDetails ?? []).map {
+                LLMProviderModelDetail(
+                    modelId: $0.modelId,
+                    supportsVision: $0.supportsVision ?? false
+                )
+            }
         )
     }
 
