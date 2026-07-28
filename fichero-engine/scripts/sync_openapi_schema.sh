@@ -3,6 +3,20 @@ set -e
 
 # Sync OpenAPI schema from fichero-engine into the Swift package imported by the SwiftUI app.
 # Run from repo root: ./fichero-engine/scripts/sync_openapi_schema.sh
+#
+# INTERPRETER: set FICHERO_PYTHON_BIN to the venv that has the engine
+# editable-installed, or activate it first. Otherwise the fallback chain below
+# may pick a partially-installed env, whose placeholder version silently
+# rewrites info.version across all four committed openapi.json copies (#4199):
+#
+#   FICHERO_PYTHON_BIN=/path/to/.venv/bin/python ./fichero-engine/scripts/sync_openapi_schema.sh
+#
+# A backwards version move now ABORTS the sync before anything is copied.
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  sed -n '4,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  exit 0
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -13,7 +27,12 @@ if [ -n "${FICHERO_PYTHON_BIN:-}" ] && [ -x "${FICHERO_PYTHON_BIN}" ]; then
 elif [ -n "${VIRTUAL_ENV:-}" ] && [ -x "${VIRTUAL_ENV}/bin/python" ]; then
   PYTHON_BIN="${VIRTUAL_ENV}/bin/python"
 elif [ -x "$API_ROOT/.venv/bin/python" ]; then
+  # #4199: this env is routinely a partial install whose placeholder version
+  # poisons info.version. Kept in the chain (it is correct on some machines)
+  # but never silently — the version guard below is the actual gate.
   PYTHON_BIN="$API_ROOT/.venv/bin/python"
+  echo "⚠️  Using fichero-engine/.venv — if the engine is not installed there," >&2
+  echo "   set FICHERO_PYTHON_BIN to the venv holding the editable install." >&2
 elif [ -x "$REPO_ROOT/.venv/bin/python" ]; then
   PYTHON_BIN="$REPO_ROOT/.venv/bin/python"
 else
@@ -21,10 +40,31 @@ else
 fi
 
 cd "$REPO_ROOT"
-PYTHONPATH="$API_ROOT/src" FICHERO_FEATURE_TIER=dev "$PYTHON_BIN" "$API_ROOT/scripts/export_openapi_schema.py"
-PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/generate_openapi_cli.py"
 
 NEW_SCHEMA="$API_ROOT/tests/contracts/openapi.json"
+
+# The export rewrites NEW_SCHEMA in place, so the committed version has to be
+# captured BEFORE it runs — and restored if the guard trips, or the abort
+# would leave behind exactly the corruption it exists to prevent.
+PREV_SCHEMA=""
+if [ -f "$NEW_SCHEMA" ]; then
+  PREV_SCHEMA="$(mktemp -t openapi-prev)"
+  cp "$NEW_SCHEMA" "$PREV_SCHEMA"
+  trap 'rm -f "$PREV_SCHEMA"' EXIT
+fi
+
+PYTHONPATH="$API_ROOT/src" FICHERO_FEATURE_TIER=dev "$PYTHON_BIN" "$API_ROOT/scripts/export_openapi_schema.py"
+
+if [ -n "$PREV_SCHEMA" ]; then
+  if ! "$PYTHON_BIN" "$SCRIPT_DIR/check_openapi_version_regression.py" \
+      --previous "$PREV_SCHEMA" --current "$NEW_SCHEMA"; then
+    cp "$PREV_SCHEMA" "$NEW_SCHEMA"
+    echo "↩︎  Restored the previous schema; nothing was copied downstream." >&2
+    exit 1
+  fi
+fi
+
+PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/generate_openapi_cli.py"
 DEST_SCHEMA="$REPO_ROOT/fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
 DOCS_SCHEMA="$REPO_ROOT/docs/contributor/api-reference/openapi.json"
 
