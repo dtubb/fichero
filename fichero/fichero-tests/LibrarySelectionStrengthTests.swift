@@ -1,7 +1,7 @@
 import XCTest
 
 /// Guardrail for the Mail-style selection treatment (#4191, superseding the
-/// #3875 solid-accent fill). Daniel: selected row = SUBTLE GREY rounded-rect
+/// #3875 solid-accent fill). The user: selected row = SUBTLE GREY rounded-rect
 /// fill with the label/icon tinted accent when the pane is focused — never a
 /// solid accent fill, never white-on-accent text. The focused/unfocused
 /// split survives (HIG: only key-window controls carry color), expressed in
@@ -82,7 +82,7 @@ final class LibrarySelectionStrengthTests: XCTestCase {
     }
 
     func testIconThumbnailsScaleToFitInsideTheFixedWell() throws {
-        // #4197 (Daniel 2026-07-28): the whole page must be visible,
+        // #4197 (the user 2026-07-28): the whole page must be visible,
         // letterboxed — no cropping a landscape page's sides to fill the
         // portrait well. The well itself keeps its fixed size (#4191 uniform
         // tile density); only the image letterboxes inside it.

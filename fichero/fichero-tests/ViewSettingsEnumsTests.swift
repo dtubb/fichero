@@ -69,7 +69,7 @@ final class ViewSettingsEnumsTests: XCTestCase {
     // MARK: - TranscriptLayout (#3805)
 
     /// Diplomatic must be the default: the manuscript's line structure is real data
-    /// and must never be lost silently (Daniel). Reading reflow is opt-in.
+    /// and must never be lost silently (the user). Reading reflow is opt-in.
     func testTranscriptLayoutDefaultsToDiplomatic() {
         XCTAssertEqual(TranscriptLayout.defaultValue, .diplomatic)
     }

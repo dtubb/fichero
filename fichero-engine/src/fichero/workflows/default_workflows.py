@@ -316,7 +316,7 @@ def heal_default_workflow_tree(db: "Database") -> int:
             continue
         # Legacy seeded rows PREDATE the is_system/is_template flags, so
         # gating on the flags alone skipped exactly the mirrors this heal
-        # was written for (Daniel, live 2026-07-27: preset folders stuck at
+        # was written for (the user, live 2026-07-27: preset folders stuck at
         # the tree root forever). A row also counts as seeded when it
         # carries the preset's folder_path — that's what seeding stamps.
         # A user's own same-named workflow (no flags, no preset

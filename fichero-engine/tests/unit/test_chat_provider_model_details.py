@@ -68,7 +68,7 @@ def test_vision_capability_is_reported_per_model(client, app_db):
 
 
 def test_text_only_model_is_not_reported_vision_capable(client, app_db):
-    """The regression Daniel hit: a text-only model offered for a vision node."""
+    """The regression The report described hitting: a text-only model offered for a vision node."""
     provider = _provider(app_db)
     _model(app_db, provider, "apple-intelligence", ["llm"])
 

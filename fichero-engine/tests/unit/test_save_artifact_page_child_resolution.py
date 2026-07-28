@@ -129,7 +129,7 @@ class TestSaveArtifactPageChildResolution:
         misses, the doc genuinely cannot be resolved. save_artifact must FAIL
         LOUD — return None, save NO artifact, and NEVER route to the parent PDF
         via the file_path fallback. No silent orphan, no silent reroute
-        (Daniel's no-silent-fallback rule).
+        (the no-silent-fallback rule).
         """
         parent_pdf = _make_document("parent-pdf-id", path="/lib/scan.pdf")
 
@@ -224,7 +224,7 @@ class TestSaveArtifactDocumentValidation:
     #2513: the document= pass-through (#2430) is validated UP FRONT, outside the
     catch-all try that absorbs DB-write failures. A malformed/partial dict must
     raise its ValidationError LOUD — never be swallowed and reported as a silent
-    None artifact miss (Daniel's no-silent-fallback rule).
+    None artifact miss (the no-silent-fallback rule).
     """
 
     @pytest.mark.asyncio

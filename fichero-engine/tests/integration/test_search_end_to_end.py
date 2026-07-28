@@ -11,7 +11,7 @@ of text documents with known content, embeds them, then exercises:
 - People-scope (people:Asprilla) hits the entity bridge
 - Empty-query returns 400
 
-This is the test Daniel can run after pulling — mirrors the global
+This is the test you can run after pulling — mirrors the global
 library shape on a tiny fixture so we know the *system* works,
 not just the unit-level math.
 """

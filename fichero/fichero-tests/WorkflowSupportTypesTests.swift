@@ -21,7 +21,7 @@ final class WorkflowSupportTypesTests: XCTestCase {
         )
         let data = try JSONEncoder().encode(schema)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        // The key in JSON is "schema" (alias for json_schema). Daniel/
+        // The key in JSON is "schema" (alias for json_schema). The user/
         // backend round-trip depends on this exact spelling.
         XCTAssertNotNil(json?["schema"])
         XCTAssertEqual(json?["description"] as? String, "A test schema")

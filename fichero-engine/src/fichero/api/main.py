@@ -394,7 +394,7 @@ def _repair_known_bad_ai_defaults(app_db) -> None:
             "to apple/apple-intelligence."
         )
 
-    # Legacy vision tiers pointing at apple-intelligence (Daniel, live
+    # Legacy vision tiers pointing at apple-intelligence (the user, live
     # 2026-07-27): app DBs seeded before the vision-tier split hold
     # default_vision*_model = "apple-intelligence", which is TEXT-ONLY by
     # design — every default vision workflow node then fails with "not

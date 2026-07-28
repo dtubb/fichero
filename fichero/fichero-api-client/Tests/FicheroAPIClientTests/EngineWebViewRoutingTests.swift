@@ -18,7 +18,7 @@ import OpenAPIAsyncHTTPClient
 /// These tests exercise the handler's EXACT fetch path (`requestData`) over
 /// each non-HTTP transport, so a regression that reverts the pane to a raw
 /// engine URL fails here. The in-process round-trip boots the real Fichero
-/// engine via PythonKit (the "python-kit option" Daniel asked about) and
+/// engine via PythonKit (the "python-kit option" the user asked about) and
 /// skips when the toolchain isn't discoverable, mirroring
 /// `InMemoryTransportSmokeTests`.
 ///
@@ -74,7 +74,7 @@ final class EngineWebViewRoutingTests: XCTestCase {
 
     /// End-to-end over the in-memory load: drive the handler's EXACT fetch path
     /// — `client.requestData(path:)` — through a `.inMemory` `FicheroClient` and
-    /// assert the engine answers 200. This is the round-trip Daniel asked about
+    /// assert the engine answers 200. This is the round-trip the user asked about
     /// ("has it tested with the in-memory load as well e.g. via the python-kit
     /// option"). `requestData` is the same method `EngineWebViewSchemeHandler`
     /// calls for every `fichero-engine://` navigation + subresource, so a 200

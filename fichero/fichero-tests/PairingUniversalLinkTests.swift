@@ -21,7 +21,7 @@ final class PairingUniversalLinkTests: XCTestCase {
         return PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
-            libraryPath: "/Users/daniel/Library.fichero"
+            libraryPath: "/Users/testuser/Library.fichero"
         )
     }
 
@@ -54,6 +54,6 @@ final class PairingUniversalLinkTests: XCTestCase {
         XCTAssertEqual(fields.remoteURL, "https://machine.tailnet.ts.net:8765")
         XCTAssertEqual(fields.pairCode, "PAIR-ABC1")
         XCTAssertEqual(fields.spkiPin, validSPKIPin)
-        XCTAssertEqual(fields.libraryPath, "/Users/daniel/Library.fichero")
+        XCTAssertEqual(fields.libraryPath, "/Users/testuser/Library.fichero")
     }
 }

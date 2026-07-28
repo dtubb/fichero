@@ -1,7 +1,7 @@
 """
 Untested-flag tests.
 
-Daniel's directive: mark everything UNTESTED except the HTR transcription
+Directive: mark everything UNTESTED except the HTR transcription
 chain, so users can see what is trustworthy.
 
 Two surfaces are covered:

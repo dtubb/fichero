@@ -1,6 +1,6 @@
 """Guard: embedded local models (Apple FM + MLX) stay lean (#2615).
 
-Daniel 2026-06-25: ship BOTH on-device backends — Apple Foundation Models
+Requirement: ship BOTH on-device backends — Apple Foundation Models
 (subprocess to the Swift fm-bridge) and MLX (a separate mlx-lm server spoken
 to over HTTP via langchain-openai) — *without* dragging torch/transformers
 into the shipped engine.

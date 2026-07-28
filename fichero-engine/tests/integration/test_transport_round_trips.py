@@ -1,6 +1,6 @@
 """Live round trips over every transport the engine serves (#4176).
 
-Daniel: *"We need to make sure that things work via socket, via HTTPS, and via
+*"We need to make sure that things work via socket, via HTTPS, and via
 memory. We've been testing via UDS socket, not sure if HTTPS still works or
 memory python kit ever worked."* All three worked when probed by hand on
 2026-07-28 — but NOTHING guarded them. `test_bind_host.py`, the closest thing,

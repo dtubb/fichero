@@ -1483,7 +1483,7 @@ class TestQueryCompilation:
     raw query still runs."""
 
     def test_resolver_executes_unmocked(self, db):
-        # Regression (Daniel, live 2026-07-27): the resolver imported
+        # Regression (reported live): the resolver imported
         # `ModelModel`/`ProviderModel` — chat.py's local ALIASES, not real
         # names in fichero.models — so every live compile raised
         # ImportError while the mocked tests stayed green. Call it for

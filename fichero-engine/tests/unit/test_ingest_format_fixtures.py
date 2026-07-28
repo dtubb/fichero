@@ -1,4 +1,4 @@
-"""Real fixtures for the formats Daniel named but nothing exercised (#4206).
+"""Real fixtures for the formats named but nothing exercised (#4206).
 
 The audit found five formats routed by `detect_file_type` with a plausible
 loader behind them and ZERO fixtures: rtf, .doc, .xls/.xlsx, heic, jp2. Routing

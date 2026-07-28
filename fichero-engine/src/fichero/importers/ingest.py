@@ -1520,7 +1520,7 @@ def _parse_iffy_sidecar(image_path: Path) -> dict[str, Any] | None:
     * ``x.iffy.json``     — STEM only, extension stripped
 
     Only the stem form was looked for before, so the full-name form silently
-    resolved to nothing: 110 files in Daniel's corpus imported without their
+    resolved to nothing: 110 files in the reference corpus imported without their
     title / original_date / repository / identifier / record_url, with no
     warning. Silence is what made it expensive to find.
 

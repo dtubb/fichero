@@ -4,7 +4,7 @@ import Foundation
 import XCTest
 
 /// Tests for the human-label → backend entity_type id mapping used by
-/// the lozenge tap-to-search flow. Daniel: 'when I click on a name, it
+/// the lozenge tap-to-search flow. The user: 'when I click on a name, it
 /// should find other documents with that person's name' — the mapping
 /// is what turns the visible 'People' row label into the backend's
 /// 'people' artifact_type so the scoped query `people:<name>` works.

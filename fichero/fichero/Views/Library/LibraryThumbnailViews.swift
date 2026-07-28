@@ -54,14 +54,14 @@ struct DocumentThumbnailView: View {
                         .font(.system(size: 48 * scale))
                         .foregroundColor(.accentColor)
                 } else if document.fileType == .image {
-                    // Scale-to-FIT (#4197, Daniel 2026-07-28): show the whole
+                    // Scale-to-FIT (#4197, the user 2026-07-28): show the whole
                     // page letterboxed in the well; cropping a landscape
                     // page's sides off beats nothing in an archive. The well
                     // keeps its fixed size — only the image letterboxes.
                     LibraryImageView(documentId: document.id, imageType: .thumbnail)
                         .aspectRatio(contentMode: .fit)
                         // Explicit frame, not maxWidth/maxHeight (#789 class,
-                        // Daniel 2026-07-27): a LANDSCAPE image's intrinsic
+                        // the user 2026-07-27): a LANDSCAPE image's intrinsic
                         // width wins the layout pass and blows the tile past
                         // its portrait 3:4 cell, overlapping neighbours.
                         // Required with .fit too — do not "simplify" it away.

@@ -216,7 +216,7 @@ def test_registry_read_paths_trigger_tool_load() -> None:
 def test_warm_up_runs_after_bind_and_loads_the_stack() -> None:
     """The deferred cost must be paid in the background, not dropped.
 
-    Daniel's design (#3950): "load it once UX is up, but before clicking."
+    The design (#3950): "load it once UX is up, but before clicking."
     Deferring the imports is only half the job — if nothing warms them, the
     first click on Workflows pays the whole bill with a spinner in front of it.
 

@@ -2,7 +2,7 @@
 //  FicheroTests.swift
 //  FicheroTests
 //
-//  Created by Daniel Tubb on 2025-12-25.
+//  Created 2025-12-25.
 //
 
 import Testing

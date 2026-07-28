@@ -19,7 +19,7 @@ import AsyncHTTPClient
 ///  - `.inMemory`         — real engine in-process, `inmemory` marker.
 ///  - **UDS-via-in-memory** — real engine in-process with the `fichero.transport
 ///    = "uds"` marker stamped on the ASGI scope. This is the "test UDS via the
-///    python-kit / in-memory load" case Daniel asked about: it binds NO real
+///    python-kit / in-memory load" case the user asked about: it binds NO real
 ///    socket, yet exercises the engine's UDS-marker loopback-trust path
 ///    in-process. The marker-override wrapper app re-stamps `scope` before the
 ///    engine's auth middleware sees it, exactly as `UDSTransportApp` would on a

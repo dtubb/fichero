@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 /// F5: IdentityStore decodes `GET /api/auth/identity` and exposes who-am-I
-/// correctly across the three auth postures Daniel will hit — bootstrap-owner
+/// correctly across the three auth postures the user will hit — bootstrap-owner
 /// (single-user loopback), a signed-in account user, and unauthenticated.
 @MainActor
 struct IdentityStoreTests {
@@ -47,7 +47,7 @@ struct IdentityStoreTests {
     @Test func accountUserIsAuthenticatedWithDisplayName() {
         let store = makeStore()
         let user = Components.Schemas.AuthIdentityUser(
-            id: "u1", username: "dtubb", displayName: "Daniel Tubb", isOwner: false
+            id: "u1", username: "testowner", displayName: "Test Owner", isOwner: false
         )
         store.setIdentityForTesting(identity(
             multiuser: true, authKind: "session", user: user, isOwnerAccess: false
@@ -55,8 +55,8 @@ struct IdentityStoreTests {
         #expect(store.isAuthenticated)          // a user resolved
         #expect(!store.isOwnerAccess)
         #expect(store.multiuserEnabled)
-        #expect(store.displayName == "Daniel Tubb")
-        #expect(store.user?.username == "dtubb")
+        #expect(store.displayName == "Test Owner")
+        #expect(store.user?.username == "testowner")
     }
 
     // MARK: - Posture 3: unauthenticated (multi-user on, no session)
@@ -96,10 +96,10 @@ struct IdentityStoreTests {
     @Test func decodesAccountUserJSON() throws {
         let json = Data("""
         {"multiuser_enabled": true, "auth_kind": "session", "is_owner_access": false,
-         "user": {"id": "u1", "username": "dtubb", "display_name": "Daniel Tubb", "is_owner": false}}
+         "user": {"id": "u1", "username": "testowner", "display_name": "Test Owner", "is_owner": false}}
         """.utf8)
         let decoded = try JSONDecoder().decode(Components.Schemas.AuthIdentityResponse.self, from: json)
-        #expect(decoded.user?.displayName == "Daniel Tubb")
+        #expect(decoded.user?.displayName == "Test Owner")
         #expect(decoded.user?.isOwner == false)
     }
 

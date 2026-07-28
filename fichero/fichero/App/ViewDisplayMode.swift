@@ -20,7 +20,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     case canvas = "Canvas"
     case space = "Space"
     /// Finder-style Miller column browser (#4160 step 4) — an ADDITIONAL
-    /// mode; `.table` keeps its 3-level outline (Daniel's decision).
+    /// mode; `.table` keeps its 3-level outline (the user's decision).
     case columns = "MillerColumns"
     /// Legacy persisted alias: decode/normalize to `.canvas`, never present as
     /// a live selectable mode (#3199).

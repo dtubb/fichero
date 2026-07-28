@@ -1,6 +1,6 @@
 """Every output-language resolution honours the master language (#4172).
 
-Daniel: SVO statements come out in inconsistent languages. One cause needed no
+Reported: SVO statements come out in inconsistent languages. One cause needed no
 LLM misbehaviour at all — `default_primary_language` is an app setting that
 beats auto-detect, but only ONE of the three tools that resolve an output
 language was passing it. `extractors.py` (SVO/entity extraction) and

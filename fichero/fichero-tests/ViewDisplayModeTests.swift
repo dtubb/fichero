@@ -5,7 +5,7 @@ import XCTest
 /// Coverage for the Canvas & Space view-mode enum (#3081): the settled `.canvas`
 /// / `.space` vocabulary and the deliberate absence of legacy-rawValue migration.
 /// The library data isn't in production use, so the enum starts fresh — old
-/// persisted strings decode to nil rather than being folded (Daniel, 2026-07-05).
+/// persisted strings decode to nil rather than being folded (the user, 2026-07-05).
 final class ViewDisplayModeTests: XCTestCase {
 
     // MARK: - No back-compat migration (clean start, no real data)

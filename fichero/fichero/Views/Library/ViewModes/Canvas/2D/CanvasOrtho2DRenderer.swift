@@ -17,7 +17,7 @@ import SwiftUI
 /// One RealityKit engine (SceneKit is deprecated on macOS 26): the perspective-3D
 /// 'Space' renderer (#3104/#3090) is the SAME contract with a perspective camera.
 ///
-/// #4192's text proposes SceneKit for the 2D map. Daniel corrected that on
+/// #4192's text proposes SceneKit for the 2D map. The user corrected that on
 /// 2026-07-28 — it rested on a misreading of what SceneKit is — so **2D stays
 /// RealityKit and this renderer is where the Tinderbox-style map is built**.
 /// Read the epic's SceneKit wording as superseded, not as work outstanding.

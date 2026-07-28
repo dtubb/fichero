@@ -8,7 +8,7 @@ import XCTest
 /// The virtual hierarchy (grouping workflow.folder_path into `.workflow`-
 /// category folders) DUPLICATED the mirror tree: unlocked "Books"/
 /// "Catalogue"/… folders at the tree root whose click switched the window
-/// into the workflow surface (Daniel's 2026-07-27 report). The engine heal
+/// into the workflow surface (the user's 2026-07-27 report). The engine heal
 /// (b2b9f6899) re-homes the mirror rows, but the virtual folders derive
 /// from workflow.folder_path and would sit at root forever — the client
 /// append is the only place this can be fixed.

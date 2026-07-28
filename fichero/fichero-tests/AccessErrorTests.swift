@@ -155,7 +155,7 @@ struct AccessErrorTests {
     }
 
     @Test func distinctFailuresGetDistinctRecoveries() {
-        // The five primary failure surfaces Daniel hits map to five different
+        // The five primary failure surfaces the user hits map to five different
         // next-actions — no two collapse into the same dead-end.
         #expect(AccessError.unauthenticated.recovery == .signIn)
         #expect(AccessError.staleBootstrapToken.recovery == .restartEngine)

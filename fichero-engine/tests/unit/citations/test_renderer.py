@@ -6,7 +6,7 @@ from fichero.citations import render_apa, render_bibtex, render_chicago, render_
 from fichero.models.knowledge import SourceMetadata
 
 
-# A book — Daniel's own book, used throughout the test corpus.
+# A book — a reference book, used throughout the test corpus.
 TUBB_BOOK = SourceMetadata(
     authors=["Tubb, Daniel"],
     title="Shifting Livelihoods",

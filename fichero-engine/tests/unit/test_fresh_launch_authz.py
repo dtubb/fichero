@@ -1,6 +1,6 @@
 """Regression: a fresh single-user local launch is fully authorized (#2721).
 
-Daniel hit 401 on app-wide routes (registry/providers) and 403 on library
+The report described hitting 401 on app-wide routes (registry/providers) and 403 on library
 routes (documents/workflows/chat/search) at first launch: the per-user ACL
 layer was on by default but a fresh install has no account/role rows, so the
 authorizer denied the Mac owner access to its own library.

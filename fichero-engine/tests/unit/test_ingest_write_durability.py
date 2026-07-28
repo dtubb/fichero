@@ -1,6 +1,6 @@
 """A copy that did not land must FAIL, not be recorded as fine (#4218).
 
-Daniel: *"for writing files, and adding files — are we checking when we close a
+*"for writing files, and adding files — are we checking when we close a
 file to make sure it actually wrote, and checking error messages for adding?
 like what if we add from a slow network drive?"*
 

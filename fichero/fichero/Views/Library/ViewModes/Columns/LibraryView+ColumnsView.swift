@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - Miller Columns (Finder-style column browser, #4160 step 4)
 //
-// An ADDITIONAL view mode beside the table's 3-level outline (Daniel's
+// An ADDITIONAL view mode beside the table's 3-level outline (the user's
 // decision) — not a replacement. Column 0 shows the browsed folder's
 // contents (exactly the list view's document set); each path segment opens
 // the next column with that folder's children, fetched through the EXISTING

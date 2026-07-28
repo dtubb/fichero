@@ -4,7 +4,7 @@
 the sandboxed child (Apple's Entitlement Key Reference), so the engine dies on
 launch and the app renders nothing. `resign_engine_in_archive.sh` refuses to
 sign when the entitlement key set is anything but the two-key pair — one of
-Daniel's three distribution targets, previously with no test at all.
+the three distribution targets, previously with no test at all.
 
 A stranded commit (`0345f4208`, 25 July) carried a test for this and never
 merged. Its assertion was `extractor in RESIGN_ENGINE.read_text()` — it pinned

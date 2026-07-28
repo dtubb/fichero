@@ -22,7 +22,7 @@ final class RemoteClientPairingInviteLinkTests: XCTestCase {
         let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
-            libraryPath: "/Users/daniel/Library.fichero"
+            libraryPath: "/Users/testuser/Library.fichero"
         )
         let linkString = try RemoteClientPairing.inviteLinkString(from: payload)
         let linkURL = try XCTUnwrap(URL(string: linkString), "inviteLinkString must produce a valid URL")
@@ -32,7 +32,7 @@ final class RemoteClientPairingInviteLinkTests: XCTestCase {
         XCTAssertEqual(fields.remoteURL, "https://machine.tailnet.ts.net:8765")
         XCTAssertEqual(fields.pairCode, "PAIR-ABC1")
         XCTAssertEqual(fields.spkiPin, validSPKIPin)
-        XCTAssertEqual(fields.libraryPath, "/Users/daniel/Library.fichero")
+        XCTAssertEqual(fields.libraryPath, "/Users/testuser/Library.fichero")
     }
 
     func testTailnetIPAddressRoundTrips() throws {

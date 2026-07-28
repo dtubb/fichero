@@ -8,7 +8,7 @@ import Testing
 /// the ordered list of document IDs to persist. Keeps the index-math
 /// and kind-gate logic out of the view layer so regressions (e.g. the
 /// "flash-once-then-dies" symptom the old `.onMove` impl had) can be
-/// caught by the test suite before hitting Daniel's build.
+/// caught by the test suite before hitting the user's build.
 // @MainActor: `SidebarView.sidebarUnifiedRowsReorderKind` is implicitly
 // MainActor-isolated (SwiftUI View statics). Calling it from Swift Testing's
 // background executor trips dispatch_assert_queue → SIGTRAP and kills the

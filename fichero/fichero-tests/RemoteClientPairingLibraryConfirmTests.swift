@@ -9,17 +9,17 @@ import XCTest
 // pin its behaviour without needing a live engine.
 final class RemoteClientPairingLibraryConfirmTests: XCTestCase {
     func testConfirmedWhenAdvertisedPathIsAccessible() {
-        let accessible = ["/Users/daniel/Archive/Open.fichero", "/Users/daniel/Other.fichero"]
+        let accessible = ["/Users/testuser/Archive/Open.fichero", "/Users/testuser/Other.fichero"]
         XCTAssertTrue(
             RemoteClientPairing.isLibraryConfirmed(
-                advertised: "/Users/daniel/Archive/Open.fichero",
+                advertised: "/Users/testuser/Archive/Open.fichero",
                 in: accessible
             )
         )
     }
 
     func testForgedPathIsRejected() {
-        let accessible = ["/Users/daniel/Archive/Open.fichero"]
+        let accessible = ["/Users/testuser/Archive/Open.fichero"]
         XCTAssertFalse(
             RemoteClientPairing.isLibraryConfirmed(
                 advertised: "/Users/attacker/Evil.fichero",
@@ -31,7 +31,7 @@ final class RemoteClientPairingLibraryConfirmTests: XCTestCase {
     func testRejectedWhenServerReportsNoAccessibleLibraries() {
         XCTAssertFalse(
             RemoteClientPairing.isLibraryConfirmed(
-                advertised: "/Users/daniel/Archive/Open.fichero",
+                advertised: "/Users/testuser/Archive/Open.fichero",
                 in: []
             )
         )
@@ -40,10 +40,10 @@ final class RemoteClientPairingLibraryConfirmTests: XCTestCase {
     // Trailing-slash / whitespace variance between the QR value and the server's
     // reported path must not read as a forgery.
     func testTrailingSlashAndWhitespaceVarianceStillMatches() {
-        let accessible = ["/Users/daniel/Archive/Open.fichero/"]
+        let accessible = ["/Users/testuser/Archive/Open.fichero/"]
         XCTAssertTrue(
             RemoteClientPairing.isLibraryConfirmed(
-                advertised: "  /Users/daniel/Archive/Open.fichero  ",
+                advertised: "  /Users/testuser/Archive/Open.fichero  ",
                 in: accessible
             )
         )
@@ -53,10 +53,10 @@ final class RemoteClientPairingLibraryConfirmTests: XCTestCase {
     // between the QR value and the server's reported path is the same library,
     // not a forgery — it must still confirm.
     func testCaseDifferenceStillMatchesOnCaseInsensitiveVolume() {
-        let accessible = ["/Users/Daniel/Archive/Open.fichero"]
+        let accessible = ["/Users/the user/Archive/Open.fichero"]
         XCTAssertTrue(
             RemoteClientPairing.isLibraryConfirmed(
-                advertised: "/Users/daniel/Archive/Open.fichero",
+                advertised: "/Users/testuser/Archive/Open.fichero",
                 in: accessible
             )
         )

@@ -6,7 +6,7 @@ This file covers the *other* root cause: a multi-page PDF that reaches a per-pag
 tool with NO page children gets transcribed whole-doc and the combined
 ``--- Page N ---`` blob lands on the PARENT.
 
-Daniel's rule: ONE page at a time, page-level FIRST, never whole-doc onto the
+Rule: ONE page at a time, page-level FIRST, never whole-doc onto the
 parent (docs up to 500 pages). These tests use REAL multi-page PDFs (built with
 fitz) and a REAL temp DuckDB library, and assert GRANULARITY (per-page child
 docs + per-page artifact targets), NOT transcription content — the model call is
@@ -267,7 +267,7 @@ class TestWholePdfGuard:
         """A multi-page PDF with NO page children, processed whole by
         process_vision, must be split on the spot and yield per-page artifacts —
         the parent PDF gets NO transcription artifact (no ``--- Page N ---``
-        blob). This is Daniel's exact symptom (#2430)."""
+        blob). This is the exact symptom (#2430)."""
         from fichero.models import Artifact, Document, DocType, FileType
         from fichero.workflows.tools.vision_base import process_vision
 

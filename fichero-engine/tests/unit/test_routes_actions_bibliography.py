@@ -5,7 +5,7 @@ the route modules register their actions via the ``@action`` decorator at import
 time; each test drives an action through ``registry.invoke`` (the single audited
 write path) and asserts the persisted effect + an ``ActionAudit`` row + the emit.
 
-Per Daniel's "would more tests catch more issues?" bar, every action covers:
+Per the "would more tests catch more issues?" bar, every action covers:
   (a) effect lands + an ActionAudit row written (actor/target_ids/before/after);
   (b) undo reverses it (undoable ones) and a redo is sane;
   (c) param validation rejects bad input (ValidationError);

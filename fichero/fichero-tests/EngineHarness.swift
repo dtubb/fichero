@@ -6,7 +6,7 @@
 //  test library, so app<->engine integration tests run *live* without ever
 //  touching a real library.
 //
-//  Behaviour (what Daniel asked for):
+//  Behaviour (the requirement):
 //   - If an engine is already healthy on 127.0.0.1:8765, reuse it. The library
 //     is selected per-request via the X-Fichero-Library-Path header, so the
 //     running app's own library is never touched — we just point requests at

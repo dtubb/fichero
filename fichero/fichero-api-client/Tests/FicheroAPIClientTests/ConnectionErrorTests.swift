@@ -4,7 +4,7 @@ import OpenAPIRuntime
 @testable import FicheroAPIClient
 
 /// Verifies `ConnectionError.classify` names the actual cause of a transport
-/// failure — Daniel's observability mandate — mapping the common URLError /
+/// failure — the user's observability mandate — mapping the common URLError /
 /// ClientError / cancellation shapes to a small typed `Kind`, and that
 /// `description` reads as a one-line summary carrying the transport + operation.
 final class ConnectionErrorTests: XCTestCase {

@@ -11,7 +11,7 @@ import os
 /// cause under request/response dumps. Neither names *what actually went wrong*
 /// or *which transport it went wrong on*. `ConnectionError` classifies such a
 /// failure into a small, named ``Kind`` and prints a one-line human summary —
-/// Daniel's observability mandate ("classify it and report the actual cause").
+/// the user's observability mandate ("classify it and report the actual cause").
 ///
 /// This type is **additive and observability-focused**: it is meant for
 /// classification-and-logging at the transport seam, NOT to replace the ~20

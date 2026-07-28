@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Import progress (#4203)
 
-/// What a folder import looks like while it runs. Daniel: "I drop a folder and
+/// What a folder import looks like while it runs. The user: "I drop a folder and
 /// there is no interface updating, and I don't know if it's working or how long
 /// it will take."
 ///

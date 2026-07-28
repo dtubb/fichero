@@ -3,7 +3,7 @@ import Observation
 
 /// A pending "an agent / MCP client wants to connect" request (#1847).
 ///
-/// Daniel's decision (2026-07-21): agent & MCP accounts get an **Xcode-style
+/// the user's decision (2026-07-21): agent & MCP accounts get an **Xcode-style
 /// consent prompt** — connecting raises a prompt; approving auto-provisions the
 /// account; "don't ask again" remembers the decision **for the session only**,
 /// so a relaunch re-prompts. This is the value that prompt is raised for.

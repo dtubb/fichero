@@ -12,7 +12,7 @@ final class EngineErrorDetailTests: XCTestCase {
 
     private func data(_ json: String) -> Data { Data(json.utf8) }
 
-    // MARK: - The case Daniel hit
+    // MARK: - The case the user hit
 
     func testStringDetailIsSurfaced() {
         let body = data(#"{"detail": "Workflow validation failed: node 'x' has no input"}"#)

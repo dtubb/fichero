@@ -1,6 +1,6 @@
 """Vision-capability failure messages name the node and suggest a fix (#4187).
 
-Daniel hit a bare "Model apple/apple-intelligence is not marked as
+The report described hitting a bare "Model apple/apple-intelligence is not marked as
 vision-capable" from a run — no clue which node failed or what to pick
 instead. The preflight path (validation.py) already prefixed the node label;
 the build-graph path (builder._resolve_node_llm_config) did not. These tests

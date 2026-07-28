@@ -115,7 +115,7 @@ final class LLMProviderVisionFilterTests: XCTestCase {
     }
 
     func testEmptyDetailsWithVisionProviderKeepsAllModels() {
-        // The Daniel bug from the opposite side: most installs have EMPTY
+        // The the user bug from the opposite side: most installs have EMPTY
         // capability rows. Empty details + vision provider must not hide
         // anything.
         let sut = provider(models: ["a", "b"], supportsVision: true)

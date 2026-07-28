@@ -1638,7 +1638,7 @@ class TestWorkflowFold:
         original_mirror = temp_db.get(Document, preset.id)
         assert original_mirror.attributes["read_only"] is True
 
-    # -- Read-only enforcement (Daniel: "yes, enforce") -----------------
+    # -- Read-only enforcement ("yes, enforce") -----------------
 
     def test_update_is_system_workflow_rejected_403(self, temp_db):
         from fastapi import HTTPException

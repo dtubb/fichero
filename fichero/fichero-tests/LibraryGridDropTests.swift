@@ -151,7 +151,7 @@ final class LibraryContextMenuParityTests: XCTestCase {
     }
 }
 
-/// Default Workflows rows read as locked (Daniel, 2026-07-27): a trailing
+/// Default Workflows rows read as locked (the user, 2026-07-27): a trailing
 /// lock badge on the container, its preset subfolders, and mirrored rows.
 final class SidebarLockedRowBadgeTests: XCTestCase {
     func testLockedRowsShowTrailingLockBadge() throws {

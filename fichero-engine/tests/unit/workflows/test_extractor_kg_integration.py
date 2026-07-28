@@ -95,7 +95,7 @@ class TestPeopleExtractorKG:
     async def test_dual_write_keeps_markdown_artifact(
         self, db, test_package, container_doc, llm_config
     ):
-        """Per Daniel: keep markdown artifact alongside KG rows for debug."""
+        """Per the requirement: keep markdown artifact alongside KG rows for debug."""
         from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")

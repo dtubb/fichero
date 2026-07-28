@@ -2,7 +2,7 @@
 import Foundation
 import Testing
 
-// The derived reads behind #4203's progress UI. Daniel's complaint was that a
+// The derived reads behind #4203's progress UI. The reported problem was that a
 // folder drop shows nothing: no library, no count, no rate, no failures, no way
 // to stop it. These are the rules the UI renders from, tested without a network.
 @Suite("IngestTaskStatus — what the progress UI reads (#4203)")
@@ -31,7 +31,7 @@ struct IngestTaskStatusTests {
         )
     }
 
-    // The walk hasn't finished counting yet. This is the exact moment Daniel
+    // The walk hasn't finished counting yet. This is the exact moment the user
     // sees nothing at all, so the UI must say "Scanning…" rather than "0 of 0".
     @Test("total == 0 is scanning, not an empty import")
     func zeroTotalIsScanning() {

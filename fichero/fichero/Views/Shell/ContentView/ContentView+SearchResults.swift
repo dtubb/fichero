@@ -406,7 +406,7 @@ extension ContentView {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
                     .foregroundStyle(.secondary)
-                // Readable failure (Daniel, live 2026-07-27): one
+                // Readable failure (the user, live 2026-07-27): one
                 // truncated line hid the actual error. Wrap up to
                 // four lines + full text on hover — a failure detail
                 // the user can't read is a silent failure.

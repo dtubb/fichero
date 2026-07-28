@@ -83,7 +83,7 @@ extension FicheroClient {
         do {
             (response, responseBody) = try await next(request, nil, serverURL)
         } catch {
-            // Observability seam (Daniel's mandate): classify + log the ACTUAL
+            // Observability seam (the user's mandate): classify + log the ACTUAL
             // cause of a transport failure instead of leaking a bare
             // `NSURLErrorDomain -1004`, then re-throw the ORIGINAL error so
             // callers' `catch`/control-flow are unchanged.
