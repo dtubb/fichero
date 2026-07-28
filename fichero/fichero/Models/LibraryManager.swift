@@ -1,5 +1,6 @@
 import FicheroAPIClient
 import Observation
+import os
 import OSLog
 import SwiftUI
 
@@ -257,8 +258,39 @@ class LibraryManager {
             return stream
         }()
 
-        // Security-scoped resource tracking
-        private nonisolated(unsafe) var isAccessingSecurityScope: Bool = false
+        /// Whether this library currently holds its security-scoped resource.
+        ///
+        /// Guarded by a lock rather than `nonisolated(unsafe)`, which the
+        /// compiler reports as having NO EFFECT here: it documented intent and
+        /// enforced nothing, while two `nonisolated` methods read-modify-wrote
+        /// it. A lost update there doesn't crash — it silently loses file
+        /// access, or holds a scope forever (#4216).
+        ///
+        /// `deinit` genuinely runs off the main actor at an unpredictable time:
+        /// SwiftUI holds strong references outside `openLibraries` —
+        /// `SidebarView.libraryToShare` is `@State`, and `ShareLibrarySheet`,
+        /// `SidebarSectionHeader`, `LibraryWorkspaceRoot` and
+        /// `LibrarySharingBadge` each take `let library: LibraryReference` — so
+        /// a reference can outlive `closeLibrary` and be released by whichever
+        /// thread drops it last.
+        ///
+        /// The methods therefore stay `nonisolated`. `@MainActor` is NOT the
+        /// alternative: a `deinit` on a `@MainActor` class cannot call an
+        /// isolated method and cannot await, so it fails to compile — and the
+        /// workaround that invites, `Task { @MainActor in … }` inside `deinit`,
+        /// CAPTURES `self` DURING DEALLOCATION, which is a use-after-free and
+        /// far worse than the race it would be fixing. Don't.
+        ///
+        /// Retiring `deinit`'s stop entirely would close the hole instead of
+        /// guarding it (#4219) — blocked today because at least one path
+        /// (#4218) drops a library without stopping its scope, so `deinit` is
+        /// currently load-bearing.
+        private let securityScopeState = OSAllocatedUnfairLock(initialState: false)
+
+        /// Test seam: the flag's value, read through the lock (#4216).
+        nonisolated var isAccessingSecurityScope: Bool {
+            securityScopeState.withLock { $0 }
+        }
 
         /// Where this library's engine lives — local embedded engine vs a named
         /// remote device/host. Drives the sidebar local-vs-remote badge (#2574).
@@ -362,19 +394,29 @@ class LibraryManager {
             }
         }
 
-        /// Start accessing the security-scoped resource
+        /// Start accessing the security-scoped resource.
+        ///
+        /// Check-and-set happen inside ONE `withLock`: as two separate steps a
+        /// concurrent start could double-acquire, and macOS reference-counts
+        /// these — the extra acquire is never released (#4216).
         nonisolated func startAccessingSecurityScope() {
-            guard !isAccessingSecurityScope else { return }
-            if url.startAccessingSecurityScopedResource() {
-                isAccessingSecurityScope = true
+            securityScopeState.withLock { isAccessing in
+                guard !isAccessing else { return }
+                if url.startAccessingSecurityScopedResource() {
+                    isAccessing = true
+                }
             }
         }
 
-        /// Stop accessing the security-scoped resource
+        /// Stop accessing the security-scoped resource. Same atomicity argument
+        /// inverted: two racing stops could each pass the guard and release a
+        /// scope held once, dropping file access the app still needs.
         nonisolated func stopAccessingSecurityScope() {
-            guard isAccessingSecurityScope else { return }
-            url.stopAccessingSecurityScopedResource()
-            isAccessingSecurityScope = false
+            securityScopeState.withLock { isAccessing in
+                guard isAccessing else { return }
+                url.stopAccessingSecurityScopedResource()
+                isAccessing = false
+            }
         }
 
         deinit {
