@@ -649,13 +649,24 @@ private extension SpaceSceneView {
             materials = [SimpleMaterial(color: nodeColor, isMetallic: false)]
             collisionShape = ShapeResource.generateSphere(radius: radius)
         case .source:
+            // True page shape (#4193): area-normalized to the old 3:4 card's
+            // footprint, using the memoized texture aspect when the page has
+            // already loaded (fallback ratio otherwise, so shapes don't jump
+            // mid-load — the async texture task below refines it once).
+            let dims = CanvasCardGeometry.dimensions(
+                area: cardWidth * cardHeight,
+                aspect: node.sourceId.flatMap { CanvasCardGeometry.knownAspect(forSourceId: $0) },
+                fallback: pageAspectRatio
+            )
             mesh = MeshResource.generatePlane(
-                width: cardWidth,
-                height: cardHeight,
-                cornerRadius: min(cardWidth, cardHeight) * 0.07
+                width: dims.width,
+                height: dims.height,
+                cornerRadius: min(dims.width, dims.height) * 0.07
             )
             materials = [UnlitMaterial(color: nodeColor)]
-            collisionShape = ShapeResource.generateBox(size: SIMD3<Float>(cardWidth, cardHeight, cardWidth * 0.12))
+            // Collision tracks the drawn plane, or hit-testing drifts from
+            // what's on screen.
+            collisionShape = ShapeResource.generateBox(size: SIMD3<Float>(dims.width, dims.height, cardWidth * 0.12))
         default:
             let depth: Float = cardWidth * 0.12
             mesh = MeshResource.generateBox(
@@ -684,6 +695,24 @@ private extension SpaceSceneView {
                         forSourceId: sourceId, using: service
                     )
                     entity.model?.materials = [UnlitMaterial(texture: texture)]
+                    // First load of this page: re-cut the plane + collision to
+                    // the texture's true aspect, area-normalized (#4193). The
+                    // memo makes every later synchronous rebuild keep it.
+                    if CanvasCardGeometry.recordAspect(of: texture, forSourceId: sourceId) {
+                        let dims = CanvasCardGeometry.dimensions(
+                            area: cardWidth * cardHeight,
+                            aspect: CanvasCardGeometry.knownAspect(forSourceId: sourceId),
+                            fallback: self.pageAspectRatio
+                        )
+                        entity.model?.mesh = MeshResource.generatePlane(
+                            width: dims.width,
+                            height: dims.height,
+                            cornerRadius: min(dims.width, dims.height) * 0.07
+                        )
+                        entity.components.set(CollisionComponent(shapes: [
+                            ShapeResource.generateBox(size: SIMD3<Float>(dims.width, dims.height, cardWidth * 0.12))
+                        ]))
+                    }
                 } catch {
                     // Keep the colored placeholder when the page image cannot
                     // be loaded — but say WHY in the log (#4160): silence made

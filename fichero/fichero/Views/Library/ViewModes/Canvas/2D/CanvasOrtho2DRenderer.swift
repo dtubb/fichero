@@ -218,7 +218,16 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     private func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
         let size = placeable.size ?? Self.defaultCardSize
-        let width = Float(size.width), height = Float(size.height)
+        // Source cards take their page's true aspect once the texture has
+        // loaded (#4193), area-normalized to the configured card footprint;
+        // the fallback keeps the configured shape until then so cards don't
+        // jump mid-load. makeCard consults the memo so selection reskins
+        // keep the true shape instead of snapping back.
+        let (width, height) = CanvasCardGeometry.dimensions(
+            area: Float(size.width) * Float(size.height),
+            aspect: sourceId(of: placeable).flatMap { CanvasCardGeometry.knownAspect(forSourceId: $0) },
+            fallback: Float(size.width) / Float(size.height)
+        )
         let mesh = MeshResource.generatePlane(width: width, height: height, cornerRadius: min(width, height) * 0.08)
         let entity = ModelEntity(mesh: mesh, materials: [UnlitMaterial(color: baseColor(for: placeable.content))])
         entity.name = placeable.id
@@ -238,6 +247,14 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         return entity
     }
 
+    /// The page-image source id for a source-node placeable, nil otherwise.
+    private func sourceId(of placeable: CanvasPlaceable) -> String? {
+        guard case .node(let node) = placeable.content,
+              node.nodeType == .source,
+              let sourceId = node.sourceId, !sourceId.isEmpty else { return nil }
+        return sourceId
+    }
+
     /// An accent border behind a selected card (slightly larger, drawn behind).
     private func makeSelectionRing(width: Float, height: Float) -> ModelEntity {
         let inset: Float = 0.06
@@ -253,7 +270,16 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         Task { @MainActor in
             do {
                 let texture = try await SpaceTextureCache.shared.texture(forSourceId: sourceId)
-                entity.model?.materials = [UnlitMaterial(texture: texture)]
+                // First load: memoize the true aspect and rebuild the card
+                // once (#4193) — makeCard reads the memo, so the rebuilt card
+                // (mesh, collision, selection ring) takes the page's real
+                // shape and later reskins keep it. The rebuild's own reload
+                // is a cache hit that records no change, so this terminates.
+                if CanvasCardGeometry.recordAspect(of: texture, forSourceId: sourceId) {
+                    reskinCard(entity.name)
+                } else {
+                    entity.model?.materials = [UnlitMaterial(texture: texture)]
+                }
             } catch {
                 log.debug("canvas thumbnail load failed for \(sourceId, privacy: .public)")
             }

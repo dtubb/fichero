@@ -215,7 +215,16 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     private func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
         let size = placeable.size ?? Self.defaultCardSize
-        let width = Float(size.width), height = Float(size.height)
+        // Source cards take their page's true aspect once the texture has
+        // loaded (#4193), area-normalized to the configured card footprint;
+        // the fallback keeps the configured shape until then so cards don't
+        // jump mid-load. makeCard consults the memo so selection reskins and
+        // scene diffs keep the true shape.
+        let (width, height) = CanvasCardGeometry.dimensions(
+            area: Float(size.width) * Float(size.height),
+            aspect: sourceId(of: placeable).flatMap { CanvasCardGeometry.knownAspect(forSourceId: $0) },
+            fallback: Float(size.width) / Float(size.height)
+        )
         let depth: Float = 0.04
         let mesh = MeshResource.generateBox(size: SIMD3<Float>(width, height, depth), cornerRadius: min(width, height) * 0.08)
         let entity = ModelEntity(mesh: mesh, materials: [SimpleMaterial(color: baseColor(for: placeable.content), isMetallic: false)])
@@ -252,11 +261,28 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         Task { @MainActor in
             do {
                 let texture = try await SpaceTextureCache.shared.texture(forSourceId: sourceId)
-                entity.model?.materials = [UnlitMaterial(texture: texture)]
+                // First load: memoize the true aspect and rebuild the card
+                // once (#4193) — makeCard reads the memo, so the rebuilt card
+                // (mesh, collision, selection outline) takes the page's real
+                // shape and later reskins keep it. The rebuild's own reload
+                // is a cache hit that records no change, so this terminates.
+                if CanvasCardGeometry.recordAspect(of: texture, forSourceId: sourceId) {
+                    reskinCard(entity.name)
+                } else {
+                    entity.model?.materials = [UnlitMaterial(texture: texture)]
+                }
             } catch {
                 log.debug("space thumbnail load failed for \(sourceId, privacy: .public)")
             }
         }
+    }
+
+    /// The page-image source id for a source-node placeable, nil otherwise.
+    private func sourceId(of placeable: CanvasPlaceable) -> String? {
+        guard case .node(let node) = placeable.content,
+              node.nodeType == .source,
+              let sourceId = node.sourceId, !sourceId.isEmpty else { return nil }
+        return sourceId
     }
 
     private func baseColor(for content: CanvasContent) -> PlatformColor {
