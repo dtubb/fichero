@@ -81,6 +81,41 @@ final class LibrarySelectionStrengthTests: XCTestCase {
         XCTAssertTrue(source.contains(".frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)"))
     }
 
+    func testIconThumbnailsScaleToFitInsideTheFixedWell() throws {
+        // #4197 (Daniel 2026-07-28): the whole page must be visible,
+        // letterboxed — no cropping a landscape page's sides to fill the
+        // portrait well. The well itself keeps its fixed size (#4191 uniform
+        // tile density); only the image letterboxes inside it.
+        let source = try Self.appSource("Views/Library/LibraryThumbnailViews.swift")
+
+        XCTAssertTrue(
+            source.contains(".aspectRatio(contentMode: .fit)"),
+            "Icon thumbnails must scale-to-fit, not crop-to-fill (#4197)."
+        )
+        XCTAssertFalse(
+            source.contains(".aspectRatio(contentMode: .fill)"),
+            "No image branch may crop-to-fill the well (#4197)."
+        )
+
+        // The explicit well frame must survive the .fit switch: without it a
+        // landscape image's intrinsic width wins the layout pass and blows
+        // past the cell (#789). This assertion is the tripwire for a future
+        // "simplification" that drops the frame because .fit "looks fine".
+        let imageBranches = source.components(
+            separatedBy: "LibraryImageView(documentId: document.id, imageType: .thumbnail)"
+        ).dropFirst()
+        XCTAssertEqual(imageBranches.count, 2, "Expected the two icon image branches.")
+        for branch in imageBranches {
+            // Window covers the branch's modifier chain incl. comments; the
+            // next branch starts well past it.
+            let modifiers = branch.prefix(800)
+            XCTAssertTrue(
+                modifiers.contains(".frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)"),
+                "Each image branch must keep the explicit well frame (#789)."
+            )
+        }
+    }
+
     private static func appSource(_ relativePath: String) throws -> String {
         let baseURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
