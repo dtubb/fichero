@@ -1,15 +1,44 @@
 import FicheroAPIClient
 import SwiftUI
 
+// MARK: - Mail-style selection (#4191)
+
+/// The ONE selection treatment for library list rows, icon tiles, and table
+/// rows, matching Apple Mail's sidebar: the selected item carries a SUBTLE
+/// grey rounded-rect fill in every pane state, and the focused/unfocused
+/// distinction lives in the LABEL — accent-tinted when the pane is focused
+/// (HIG: only key-window controls carry color), secondary otherwise. This
+/// replaces the #3875 solid-accent fill and the #4160 white-on-accent text
+/// inversion that only existed because black-on-accent was illegible.
+/// The sidebar itself is a native `.listStyle(.sidebar)` List, which already
+/// renders this treatment — these tokens bring the custom surfaces in line.
+enum LibrarySelectionStyle {
+    /// AppKit's own unemphasized-selection color, so light/dark mode and
+    /// increased-contrast track the system for free.
+    static var fill: Color {
+        #if os(macOS)
+        Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+        #else
+        Color(.secondarySystemFill)
+        #endif
+    }
+
+    static let cornerRadius: CGFloat = 6
+
+    static func labelTint(focused: Bool) -> Color {
+        focused ? .accentColor : .secondary
+    }
+}
+
 // MARK: - Mail-Style Row (like Apple Mail)
 
 struct MailStyleRow: View {
     let document: Document
     let isSelected: Bool
-    /// Focused selection inverts the text to white-on-accent like Finder/NNW
-    /// (#4160) — label-black on the accent fill was near-illegible. Safe with
-    /// the row's `.equatable()` diffing: focus changes also change the `tint`
-    /// LibrarySelectableRow already compares.
+    /// Mail-style selection (#4191): the focused selection tints the TITLE
+    /// accent over the subtle grey fill — never a white-on-accent inversion.
+    /// Safe with the row's `.equatable()` diffing: focus changes also change
+    /// the `tint` LibrarySelectableRow already compares.
     var isPaneFocused: Bool = false
     /// Inline rename (#4160): the context menu's Rename set state only the
     /// TABLE mode consumed — in list mode it silently did nothing (while
@@ -31,6 +60,11 @@ struct MailStyleRow: View {
     // (Mail-style — the icon was previously 40×50 and crowded the title). (#1459)
     private static let thumbWidth: CGFloat = 28
     private static let thumbHeight: CGFloat = 36
+
+    /// Fixed window for the entity-lozenge block (#4191 density cap) — the
+    /// same ~two-row estimate ArtifactEntitiesView reserves while loading,
+    /// so the row's height is identical before and after artifacts land.
+    static let entityBlockHeight: CGFloat = 40
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -81,10 +115,13 @@ struct MailStyleRow: View {
                     } else {
                         Text(document.pageThumbnailLabel ?? document.name)
                             .font(.headline)
-                            .foregroundStyle(primaryTextColor)
-                            .lineLimit(3)
+                            .foregroundStyle(titleColor)
+                            // Uniform rows (#4191 density cap): the title
+                            // always occupies exactly two lines so every row
+                            // is the same height — scroll position is stable
+                            // and PageUp/Down's row step stays honest.
+                            .lineLimit(2, reservesSpace: true)
                             .truncationMode(.middle)
-                            .fixedSize(horizontal: false, vertical: true)
                             // Middle-truncated titles reveal in full on hover.
                             .help(document.pageThumbnailLabel ?? document.name)
                     }
@@ -92,14 +129,14 @@ struct MailStyleRow: View {
                     if document.isLinked {
                         Image(systemName: "arrow.up.right.square")
                             .font(.caption2)
-                            .foregroundStyle(secondaryTextColor)
+                            .foregroundStyle(.secondary)
                     }
 
                     Spacer()
 
                     Text(document.createdAt, style: .date)
                         .font(.caption)
-                        .foregroundStyle(secondaryTextColor)
+                        .foregroundStyle(.secondary)
                 }
 
                 // Status + Type row. Display only — earlier these were
@@ -114,34 +151,40 @@ struct MailStyleRow: View {
                     if document.docType == .folder {
                         Text("Folder")
                             .font(.caption)
-                            .foregroundStyle(secondaryTextColor)
+                            .foregroundStyle(.secondary)
                     } else if let fileType = document.fileType {
                         Text(fileType.rawValue.capitalized)
                             .font(.caption)
-                            .foregroundStyle(secondaryTextColor)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
-                // Summary/Output preview — bumped to 4 lines so list view
-                // surfaces meaningful body, not just a glimpse.
-                if let content = document.pageContent, !content.isEmpty {
-                    Text(content)
-                        .font(.subheadline)
-                        .foregroundStyle(secondaryTextColor)
-                        .lineLimit(4)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                // Summary/Output preview — ALWAYS two reserved lines
+                // (#4191 density cap): docs without body text keep the same
+                // row height as docs with it, so nothing re-pitches as
+                // content loads and the scroll position never jumps.
+                Text(document.pageContent ?? "")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2, reservesSpace: true)
 
                 // Entity preview rows — surfaces the NER results from
                 // extract_all (people, places, organizations, dates,
                 // events, keywords) so list view shows what the workflow
-                // actually found, not just count + status. Hidden when
-                // no entity-typed artifacts exist for this doc. (#519)
+                // actually found, not just count + status. (#519)
+                // The block is a FIXED-height window (#4191 density cap),
+                // matching the ~two-lozenge-row reservation the loading
+                // state already uses — rows stay one height whether the
+                // doc has zero or twenty entities, before AND after the
+                // async fetch lands. ponytail: rows past the window are
+                // clipped; the Inspector shows the full set.
                 ArtifactEntitiesView(
                     documentId: document.id,
                     style: .multiLine,
                     visibleTypes: visibleEntityTypes
                 )
+                .frame(height: Self.entityBlockHeight, alignment: .topLeading)
+                .clipped()
             }
         }
         .padding(.vertical, 4)
@@ -171,11 +214,13 @@ struct MailStyleRow: View {
         #endif
     }
 
-    /// White-on-accent when this row is the focused selection (the fill is
-    /// accent @0.85); normal semantic colors otherwise.
-    private var invertsText: Bool { isSelected && isPaneFocused }
-    private var primaryTextColor: Color { invertsText ? .white : .primary }
-    private var secondaryTextColor: Color { invertsText ? .white.opacity(0.85) : .secondary }
+    /// Mail-style (#4191): a selected row keeps normal text over the grey
+    /// fill and signals focus through the title's tint — accent when the
+    /// pane is focused, secondary when it isn't. Secondary text stays
+    /// `.secondary` in every state.
+    private var titleColor: Color {
+        isSelected ? LibrarySelectionStyle.labelTint(focused: isPaneFocused) : .primary
+    }
 
     private var statusColor: Color {
         switch document.status {

@@ -101,10 +101,6 @@ struct DocumentThumbnailView: View {
             // otherwise grows to its largest child's intrinsic size.
             .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(isSelected ? effectiveSelectedTint : Color.clear, lineWidth: 2)
-            )
 
             // PDF page children label by page number (prefer extracted
             // page_label once #2080 lands), never their internal id/filename.
@@ -123,7 +119,10 @@ struct DocumentThumbnailView: View {
             } else {
                 Text(document.pageThumbnailLabel ?? document.name)
                     .font(.caption)
-                    .lineLimit(2)
+                    // Fixed two-line label (#4191 density cap): short and
+                    // long names produce identical tile heights, so the grid
+                    // never re-pitches between rows.
+                    .lineLimit(2, reservesSpace: true)
                     .truncationMode(.middle)
                     .multilineTextAlignment(.center)
                     .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
@@ -135,10 +134,11 @@ struct DocumentThumbnailView: View {
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                // #3875: focused tiles get a real Finder-blue highlight (accent
-                // via effectiveSelectedTint), not a barely-there wash; collapses
-                // to gray when the window isn't key / pane isn't focused.
-                .fill(isSelected ? effectiveSelectedTint.opacity(0.2) : Color.clear)
+                // Mail-style selection (#4191): constant subtle grey fill in
+                // every pane state; focus is signalled by the accent label
+                // (effectiveSelectedTint) — replaces the #3875 accent wash
+                // and the selected-well accent stroke.
+                .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
         )
         // VoiceOver reads one coherent tile (#4160), same shape as list rows.
         .accessibilityElement(children: .combine)
@@ -259,22 +259,20 @@ struct EntityThumbnailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(isSelected ? effectiveSelectedTint : Color.clear, lineWidth: 2)
-            )
 
             VStack(spacing: 2) {
                 Text(entity.canonicalName)
                     .font(.caption)
-                    .lineLimit(2)
+                    // Fixed two-line label (#4191 density cap) — see
+                    // DocumentThumbnailView.
+                    .lineLimit(2, reservesSpace: true)
                     .truncationMode(.tail)
                     .multilineTextAlignment(.center)
                 .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
 
                 Text(secondaryText)
                     .font(.caption2)
-                    .lineLimit(2)
+                    .lineLimit(2, reservesSpace: true)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
             }
@@ -283,10 +281,11 @@ struct EntityThumbnailView: View {
         .padding(6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                // #3875: focused tiles get a real Finder-blue highlight (accent
-                // via effectiveSelectedTint), not a barely-there wash; collapses
-                // to gray when the window isn't key / pane isn't focused.
-                .fill(isSelected ? effectiveSelectedTint.opacity(0.2) : Color.clear)
+                // Mail-style selection (#4191): constant subtle grey fill in
+                // every pane state; focus is signalled by the accent label
+                // (effectiveSelectedTint) — replaces the #3875 accent wash
+                // and the selected-well accent stroke.
+                .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
         )
         // VoiceOver: one coherent tile, same shape as document tiles (#4160).
         .accessibilityElement(children: .combine)

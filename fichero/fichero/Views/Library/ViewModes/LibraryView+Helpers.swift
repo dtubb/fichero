@@ -83,7 +83,14 @@ struct LibrarySelectableRow<Identity: Equatable & Sendable, Content: View>: View
         content
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(isSelected ? tint : Color.clear)
+            // Mail-style selection (#4191): the fill is always the subtle
+            // grey rounded rect — focus is signalled by the row's LABEL tint,
+            // not the fill. `tint` still carries the focus-dependent label
+            // color so `==` re-renders selected rows when focus flips.
+            .background(
+                RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
+                    .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
+            )
             .contentShape(Rectangle())
     }
 }

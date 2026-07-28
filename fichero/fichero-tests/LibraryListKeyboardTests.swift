@@ -100,11 +100,41 @@ struct LibraryListModeGuardTests {
         #expect(!source.contains("selection.insert(targetId)"))
     }
 
-    @Test("selected+focused rows invert to white-on-accent")
-    func selectedRowsInvert() throws {
-        let source = try appSource("Views/Library/LibraryViewComponents.swift")
-        #expect(source.contains("isSelected && isPaneFocused"))
-        #expect(source.contains("primaryTextColor"))
+    @Test("selection is Mail-style: grey fill + accent label, no inversion")
+    func selectedRowsUseMailStyle() throws {
+        // #4191 — the #4160 white-on-accent inversion is GONE (it existed
+        // only because black-on-solid-accent was illegible); the shared
+        // treatment is a subtle grey fill with the focus split in the label.
+        let components = try appSource("Views/Library/LibraryViewComponents.swift")
+        #expect(components.contains("enum LibrarySelectionStyle"))
+        #expect(components.contains("unemphasizedSelectedContentBackgroundColor"))
+        #expect(components.contains("LibrarySelectionStyle.labelTint(focused: isPaneFocused)"))
+        #expect(!components.contains("invertsText"))
+        #expect(!components.contains(".white"))
+
+        // The row fill is the constant grey; tint stays in the == comparison
+        // so focus flips still re-render selected rows.
+        let helpers = try appSource("Views/Library/ViewModes/LibraryView+Helpers.swift")
+        #expect(helpers.contains("LibrarySelectionStyle.fill"))
+        let list = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        #expect(list.contains("tint: selectionTint"))
+    }
+
+    @Test("rows and tiles have uniform density: reserved lines + capped lozenges")
+    func rowDensityIsUniform() throws {
+        // #4191 density cap — every list row / icon tile is the SAME height:
+        // title and summary reserve fixed lines, the entity-lozenge block is
+        // a fixed-height window matching its loading reservation, and tile
+        // labels reserve two lines. Stable scroll + honest PageUp/Down.
+        let components = try appSource("Views/Library/LibraryViewComponents.swift")
+        #expect(components.contains(".lineLimit(2, reservesSpace: true)"))
+        #expect(components.contains("static let entityBlockHeight: CGFloat = 40"))
+        #expect(components.contains(".frame(height: Self.entityBlockHeight, alignment: .topLeading)"))
+        #expect(!components.contains(".lineLimit(4)"))
+        #expect(!components.contains(".lineLimit(3)"))
+
+        let tiles = try appSource("Views/Library/LibraryThumbnailViews.swift")
+        #expect(tiles.contains(".lineLimit(2, reservesSpace: true)"))
     }
 
     @Test("list rows support inline rename via the shared editable name")
