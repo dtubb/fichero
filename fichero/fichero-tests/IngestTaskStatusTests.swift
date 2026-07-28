@@ -96,3 +96,82 @@ struct IngestTaskStatusTests {
         #expect(withId.id != withoutId.id)
     }
 }
+
+// The duration text the progress UI renders. Coarse by design: an ETA derived
+// from a rate that swings with file size is an estimate, and rendering it to the
+// second would overstate what we know (#4203).
+@Suite("IngestProgressView.durationText (#4203)")
+struct IngestDurationTextTests {
+
+    @Test("seconds under a minute")
+    func secondsGranularity() {
+        #expect(IngestProgressView.durationText(5) == "5s")
+        #expect(IngestProgressView.durationText(59) == "59s")
+    }
+
+    @Test("minutes up to an hour")
+    func minutesGranularity() {
+        #expect(IngestProgressView.durationText(60) == "1m")
+        #expect(IngestProgressView.durationText(90) == "2m", "rounds to nearest")
+        #expect(IngestProgressView.durationText(3599) == "60m")
+    }
+
+    @Test("hours for a long import")
+    func hoursGranularity() {
+        #expect(IngestProgressView.durationText(3600) == "1.0h")
+        #expect(IngestProgressView.durationText(9000) == "2.5h")
+    }
+
+    // A 100k-file import at a slow rate produces a very large ETA; it must
+    // still render as text rather than overflowing or showing a raw double.
+    @Test("a very long ETA still renders")
+    func longEtaRenders() {
+        let text = IngestProgressView.durationText(500_000)
+        #expect(text.hasSuffix("h"))
+        #expect(text.count < 12)
+    }
+
+    @Test("zero and sub-second collapse to 0s, never a negative")
+    func zeroIsStable() {
+        #expect(IngestProgressView.durationText(0) == "0s")
+        #expect(IngestProgressView.durationText(0.4) == "0s")
+    }
+}
+
+// Republish discipline (#4203). The poll loop writes `activeIngest` twice a
+// second for the whole import; observers must invalidate only when a number
+// actually moved, or every progress surface re-renders 2x/sec for the duration.
+@Suite("IngestTaskStatus equality gates republishing (#4203)")
+struct IngestStatusEqualityTests {
+
+    private func status(processed: Int, rate: Double = 2, failures: [IngestFailure] = []) -> IngestTaskStatus {
+        IngestTaskStatus(
+            taskId: "t1", status: "running", path: "/tmp/f", progress: nil,
+            total: 100, processed: processed, error: nil, documentIds: [],
+            failed: failures.count, failures: failures, filesPerSecond: rate
+        )
+    }
+
+    @Test("two identical polls compare equal, so nothing republishes")
+    func identicalPollsAreEqual() {
+        #expect(status(processed: 10) == status(processed: 10))
+    }
+
+    @Test("a moved count compares unequal, so the UI updates")
+    func movedCountIsUnequal() {
+        #expect(status(processed: 10) != status(processed: 11))
+    }
+
+    // The rate moves even when the count doesn't; the ETA is derived from it, so
+    // it has to count as a change or a stale ETA sticks on screen.
+    @Test("a changed rate alone is still a change")
+    func changedRateIsUnequal() {
+        #expect(status(processed: 10, rate: 2) != status(processed: 10, rate: 5))
+    }
+
+    @Test("a new failure is a change even at the same processed count")
+    func newFailureIsUnequal() {
+        let failure = IngestFailure(path: "/tmp/a.pdf", error: "unreadable", documentId: "d1")
+        #expect(status(processed: 10) != status(processed: 10, failures: [failure]))
+    }
+}

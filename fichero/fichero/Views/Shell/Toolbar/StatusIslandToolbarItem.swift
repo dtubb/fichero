@@ -18,6 +18,8 @@ struct StatusIslandToolbarItem: View {
     @Environment(AppState.self) private var appState
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(ActivityStore.self) private var activityStore
+    /// Optional: the island renders before any library is open (#4203).
+    @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
 
     let isImporting: Bool
     let importProgress: String?
@@ -28,7 +30,20 @@ struct StatusIslandToolbarItem: View {
     var body: some View {
         HStack(spacing: 8) {
             EngineStatusToolbarItem()
-            message
+            // A live folder import replaces the generic message with real
+            // numbers and a Cancel — the island is where the user looks first,
+            // and "importing…" with no count is what #4203 is about.
+            if let library = libraryManager?.importingLibrary,
+               let ingest = library.importService.activeIngest {
+                IngestProgressView(
+                    status: ingest,
+                    libraryName: library.displayName,
+                    isCompact: true,
+                    onCancel: { Task { await library.importService.cancelActiveIngest() } }
+                )
+            } else {
+                message
+            }
             ActivityStatusToolbarItem(
                 isImporting: isImporting,
                 importProgress: importProgress,

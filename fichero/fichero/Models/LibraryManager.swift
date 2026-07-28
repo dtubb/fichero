@@ -466,6 +466,16 @@ class LibraryManager {
     var globalLibrary: LibraryReference? {
         return openLibraries.first(where: { $0.id == Self.globalLibraryId })
     }
+
+    /// The open library currently running a folder import, if any (#4203).
+    ///
+    /// Deliberately not "the selected library": the Activity window and the
+    /// toolbar island are global, and an import running in a library the user
+    /// has since navigated away from is exactly the one they need to see. One
+    /// accessor so both surfaces resolve the same import.
+    var importingLibrary: LibraryReference? {
+        openLibraries.first { $0.importService.activeIngest != nil }
+    }
 }
 
 enum LibraryError: Error {

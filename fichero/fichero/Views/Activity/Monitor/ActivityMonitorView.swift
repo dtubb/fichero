@@ -20,11 +20,18 @@ struct ActivityMonitorView: View {
     /// this process already knows about into the store.
     @Environment(WorkflowExecutionObserver.self) private var observer
     @Environment(APIClient.self) private var apiClient
+    /// Optional: the Activity window can open without a library (previews,
+    /// early launch), and an import row simply doesn't apply then (#4203).
+    @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
 
     @State private var selection: ActivityMonitorRow.ID?
     @State private var logRun: SelectedActivityRun?
     @State private var isActing = false
     @State private var errorMessage: String?
+
+    private var activeImportService: ImportService? {
+        libraryManager?.importingLibrary?.importService
+    }
 
     private var rows: [ActivityMonitorRow] {
         guard let store else { return [] }
@@ -57,6 +64,27 @@ struct ActivityMonitorView: View {
     }
 
     private var monitorContent: some View {
+        VStack(spacing: 0) {
+            // An import is activity too (#4203): a folder drop used to show
+            // nothing anywhere until it finished. It sits ABOVE the workflow
+            // table because it's the transient thing the user is waiting on.
+            if let importService = activeImportService,
+               let ingest = importService.activeIngest {
+                IngestProgressView(
+                    status: ingest,
+                    libraryName: importService.activeIngestLibraryName,
+                    onCancel: { Task { await importService.cancelActiveIngest() } }
+                )
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+                Divider()
+                    .padding(.top, 8)
+            }
+            monitorTableContent
+        }
+    }
+
+    private var monitorTableContent: some View {
         Group {
             if rows.isEmpty {
                 ContentUnavailableView(

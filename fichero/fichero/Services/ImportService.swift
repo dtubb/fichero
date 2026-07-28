@@ -20,7 +20,24 @@ class ImportService {
     var lastError: ImportError?
     var currentTask: IngestTask?
 
+    /// The live folder-import status, republished on every poll — nil when
+    /// nothing is importing. The progress surfaces observe THIS rather than
+    /// polling themselves, so the Activity window and the toolbar island always
+    /// show the same numbers (#4203).
+    var activeIngest: IngestTaskStatus?
+
+    /// Display name of the library the active import is filling. Daniel's first
+    /// question on seeing an import is WHICH library it's going into, and with
+    /// several open the path alone doesn't answer that.
+    var activeIngestLibraryName: String?
+
     private let client: FicheroClient
+
+    /// How many per-file failures the client keeps from a task's failure list.
+    /// The engine's list grows for the life of the import; the UI shows a
+    /// handful and the exact total comes from `failed`, so retaining more would
+    /// cost memory and republish churn for something never rendered (#4203).
+    static let retainedFailureLimit = 50
 
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
@@ -301,7 +318,13 @@ class ImportService {
                 error: status.error,
                 documentIds: status.documentIds ?? [],
                 failed: status.failed ?? 0,
-                failures: (status.failures ?? []).map { entry in
+                // RETAINED failures are capped, not just displayed ones: the
+                // engine accumulates every failure for the life of the task, so
+                // a 100k-file import with a bad drive would hold — and
+                // republish — an unbounded array twice a second. `failed` stays
+                // the exact count; this list is a sample of the first ones,
+                // which is what a user needs to see what KIND of thing failed.
+                failures: (status.failures ?? []).prefix(Self.retainedFailureLimit).map { entry in
                     IngestFailure(
                         path: entry.additionalProperties["path"] ?? "",
                         error: entry.additionalProperties["error"] ?? "Import failed",
@@ -374,6 +397,11 @@ class ImportService {
             }
 
             let status = try await getIngestStatus(task.taskId)
+            // Publish so the progress surfaces see scanning, rate, failures and
+            // cancellation as they happen — but ONLY on a real change. A blind
+            // assignment every 0.5s invalidates every observer for the whole
+            // import even when no number moved.
+            if activeIngest != status { activeIngest = status }
 
             // Update progress
             if let total = status.total, let processed = status.processed {
@@ -394,6 +422,18 @@ class ImportService {
                 let errorMessage = status.error ?? "Unknown error"
                 logger.error("Folder import failed: \(errorMessage)")
                 throw ImportServiceError.taskFailed(errorMessage)
+
+            case "cancelled":
+                // The user asked to stop. Files committed before the stop stay
+                // imported, so this returns them rather than throwing — a
+                // cancelled import is a SHORTER import, not a failed one.
+                logger.info("Folder import cancelled: \(status.documentIds.count) documents kept")
+                return status.documentIds
+
+            case "cancelling":
+                // Cooperative: the file in flight still has to land. Keep
+                // polling until the engine settles on `cancelled`.
+                try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
 
             case "pending", "processing", "running":
                 // Continue polling. "running" is the backend's active status
@@ -420,7 +460,12 @@ class ImportService {
         onProgress: ((Int, Int) -> Void)? = nil
     ) async throws -> [String] {
         isImporting = true
-        defer { isImporting = false }
+        // The status stays visible only while the import runs; a finished
+        // import belongs in the sidebar, not in a progress row nobody dismissed.
+        defer {
+            isImporting = false
+            activeIngest = nil
+        }
 
         return try await importFolderAndWait(
             url,
@@ -434,9 +479,26 @@ class ImportService {
 
     // MARK: - Progress Tracking
 
+    /// Stop the running folder import. The engine finishes the file in flight,
+    /// so the status settles `cancelling` → `cancelled` and the poll loop
+    /// returns whatever was committed before the stop.
+    func cancelActiveIngest() async {
+        guard let taskId = activeIngest?.taskId ?? currentTask?.taskId else { return }
+        do {
+            _ = try await cancelIngest(taskId)
+        } catch {
+            // A cancel that fails must not look like a cancel that worked: the
+            // import keeps running and the button stays available.
+            logger.error("Cancel request failed: \(error.localizedDescription)")
+            lastError = ImportError(url: URL(fileURLWithPath: activeIngest?.path ?? "/"), error: error)
+        }
+    }
+
     /// Clear import progress and errors
     func clearProgress() {
         importProgress = nil
+        activeIngest = nil
+        activeIngestLibraryName = nil
         lastError = nil
         currentTask = nil
     }
@@ -530,7 +592,13 @@ struct IngestFailure: Identifiable, Equatable {
 }
 
 /// Status of an ingest task
-struct IngestTaskStatus {
+///
+/// `Equatable` is load-bearing, not decoration: the poll loop republishes this
+/// twice a second for the whole import, and observers must invalidate only when
+/// a number actually MOVED. Otherwise every progress surface re-renders 2×/sec
+/// for the duration — the no-wholesale-re-render rule, applied to a struct
+/// instead of a list (#4203).
+struct IngestTaskStatus: Equatable {
     let taskId: String
     let status: String
     let path: String
