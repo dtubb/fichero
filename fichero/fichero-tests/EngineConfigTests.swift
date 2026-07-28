@@ -240,13 +240,16 @@ final class EngineConfigTests: XCTestCase {
         XCTAssertEqual(candidates, [localhost])
     }
 
+    // Payload minting takes the ADVERTISED root directly and constructs no
+    // client — it describes where a phone should connect, and sends nothing
+    // (#4224).
     @MainActor
-    func testPairingServiceBuildsQRCodePayloadFromClientBaseURL() {
+    func testPairingServiceBuildsQRCodePayloadFromAdvertisedRoot() {
         let apiRoot = URL(string: "https://192.168.1.42:9443/")!
-        let service = PairingService(apiRoot: apiRoot)
         let code = PairingCodeRecord(code: "ABC123", expiresAt: Date(timeIntervalSince1970: 0))
 
-        let payload = service.buildQRCodePayload(
+        let payload = PairingService.buildQRCodePayload(
+            apiRoot: apiRoot,
             from: code,
             spki: "sha256/abc=",
             libraryPath: "/path/to/lib"

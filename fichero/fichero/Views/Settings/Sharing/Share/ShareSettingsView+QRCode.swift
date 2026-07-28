@@ -16,15 +16,16 @@ extension ShareSettingsView {
         try? validatedHostedRemoteURL(from: publicBaseURL)
     }
 
-    var advertisedPairingService: PairingService? {
-        guard let publicURL = validatedPublicURL else { return nil }
-        return PairingService(apiRoot: publicURL)
-    }
+    /// The advertised engine URL a QR/invite should point a phone at. NOT a
+    /// service: minting a payload sends nothing, so it must not construct a
+    /// client that would follow the app's own transport (#4224).
+    var advertisedPairingRoot: URL? { validatedPublicURL }
 
     var pairingQRPayload: PairingQRCodePayload? {
-        guard let pairingCode, let advertisedPairingService else { return nil }
+        guard let pairingCode, let advertisedPairingRoot else { return nil }
         guard let normalizedPin = try? RemoteCertificatePinning.validatedSPKIPin(spkiPin) else { return nil }
-        return advertisedPairingService.buildQRCodePayload(
+        return PairingService.buildQRCodePayload(
+            apiRoot: advertisedPairingRoot,
             from: pairingCode,
             spki: normalizedPin,
             libraryPath: sharedLibraryPath

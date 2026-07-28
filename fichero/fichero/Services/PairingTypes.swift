@@ -193,14 +193,34 @@ final class PairingService {
         }
     }
 
-    func buildQRCodePayload(
+    /// Build the QR / invite payload for an advertised engine.
+    ///
+    /// STATIC, and deliberately not a method on a configured service: this
+    /// SENDS NOTHING. It describes where a phone should later connect, so its
+    /// `apiRoot` is the externally reachable address — never the loopback
+    /// share_url, and never the app's own transport.
+    ///
+    /// Those are different things IN KIND, and conflating them is a trap
+    /// (#4224). The instance init now follows the app's resolved transport,
+    /// which for a shipping macOS build is a UDS socket. Minting a payload
+    /// through a configured service would therefore bake a socket PATH into a
+    /// QR code — it would scan cleanly, look well-formed, and fail on a phone
+    /// that cannot reach a filesystem socket on someone else's Mac. Nothing
+    /// would error at mint time.
+    ///
+    /// Keeping this free of a client also makes the "one configured path to the
+    /// engine" rule enforceable: with no legitimate `FicheroClient(baseURL:)`
+    /// on the payload path, a guardrail for that construction has no exceptions
+    /// to carve out.
+    static func buildQRCodePayload(
+        apiRoot: URL,
         from code: PairingCodeRecord,
         spki: String = "",
         libraryPath: String? = nil
     ) -> PairingQRCodePayload {
         PairingQRCodePayload(
             version: 1,
-            apiURL: client.baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
+            apiURL: apiRoot.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
             pairCode: code.code,
             expiresAt: code.expiresAt,
             spki: spki,

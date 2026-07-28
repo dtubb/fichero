@@ -108,7 +108,8 @@ extension ShareLibrarySheet {
         guard let pairingCode,
               let reachableURL = try? validatedHostedRemoteURL(from: publicBaseURL),
               let normalizedPin = try? RemoteCertificatePinning.validatedSPKIPin(spkiPin) else { return nil }
-        let payload = PairingService(apiRoot: reachableURL).buildQRCodePayload(
+        let payload = PairingService.buildQRCodePayload(
+            apiRoot: reachableURL,
             from: pairingCode,
             spki: normalizedPin,
             libraryPath: library.url.path

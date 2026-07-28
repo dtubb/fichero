@@ -33,7 +33,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: pairingURL).buildQRCodePayload(
+        let payload = PairingService.buildQRCodePayload(apiRoot: pairingURL, 
             from: code,
             spki: validSPKIPin,
             libraryPath: "/Users/daniel/Archives/Open.fichero"
@@ -60,7 +60,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-2400",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: pairingURL).buildQRCodePayload(
+        let payload = PairingService.buildQRCodePayload(apiRoot: pairingURL, 
             from: code,
             spki: validSPKIPin,
             libraryPath: "/Users/daniel/Archives/Open.fichero"
@@ -75,7 +75,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: validSPKIPin)
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: code, spki: validSPKIPin)
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -96,7 +96,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
             libraryPath: "/Users/daniel/Archive/Open.fichero"
@@ -119,7 +119,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
             libraryPath: "  /Users/daniel/Archive/Open.fichero  "
@@ -139,7 +139,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
             libraryPath: "/Users/daniel/Archive/Open.fichero"
@@ -160,7 +160,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: validSPKIPin)
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: code, spki: validSPKIPin)
 
         XCTAssertThrowsError(try RemoteClientPairing.pairingFields(from: payload)) { error in
             XCTAssertEqual(error as? RemoteClientPairingError, .missingLibraryPath)
@@ -181,7 +181,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: validSPKIPin)
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: code, spki: validSPKIPin)
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -198,7 +198,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: "")
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: code, spki: "")
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

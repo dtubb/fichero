@@ -18,7 +18,7 @@ final class PairingUniversalLinkTests: XCTestCase {
             code: "PAIR-ABC1",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        return PairingService(apiRoot: apiRoot).buildQRCodePayload(
+        return PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
             libraryPath: "/Users/daniel/Library.fichero"

@@ -19,7 +19,7 @@ final class RemoteClientPairingInviteLinkTests: XCTestCase {
             code: "PAIR-ABC1",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
             libraryPath: "/Users/daniel/Library.fichero"
@@ -41,7 +41,7 @@ final class RemoteClientPairingInviteLinkTests: XCTestCase {
             code: "PAIR-XYZ9",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
             libraryPath: "/Volumes/Lib.fichero"
@@ -59,7 +59,7 @@ final class RemoteClientPairingInviteLinkTests: XCTestCase {
             code: "PAIR-SCM1",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: validSPKIPin)
+        let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, from: code, spki: validSPKIPin)
 
         let linkString = try RemoteClientPairing.inviteLinkString(from: payload)
 
