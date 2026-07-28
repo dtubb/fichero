@@ -30,7 +30,14 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
     "Library/ViewModes/Graph/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
     "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
-    "Library/ViewModes/LibraryView+ListView.swift#b8e84a1c0a": "#1912 baseline (ScrollView is required for #4160 keyboard handling; rehashed by thumbnail prefetch, collection unchanged)",
+    "Library/ViewModes/LibraryView+ListView.swift#829700cdee": "#1912 baseline (ScrollView is required for #4160 keyboard handling; rehashed by #4191 Mail-style selection + density cap, collection unchanged)",
+    # Miller columns (#4160 step 4): List is NSTableView-backed and consumes
+    # arrow keys before .onKeyPress — the browser's whole keyboard model
+    # (up/down in the active column, left/right BETWEEN columns, one shared
+    # cursor) runs through body-level key handlers, and a per-column List
+    # would own per-column selection, breaking the single shared set. The
+    # constraint is stated in-file at the collection site.
+    "Library/ViewModes/Columns/LibraryView+ColumnsView.swift#aba65b4662": "#4160 step 4 (same keyboard constraint as the list-mode entry; justified in-file)",
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
     "Chat/Research/ResearchTasksPane+Views.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
     "Chat/Research/ResearchTasksPane+Views.swift#f50acbd404": "#1912 baseline (shifted by store migration)",

@@ -30,6 +30,17 @@ struct IconCellIdentity: Equatable, Sendable {
     var isRenaming: Bool = false
 }
 
+/// Equatable identity for a Miller column row — everything the row renders
+/// from besides selection/tint (which LibrarySelectableRow already
+/// compares): the document, its column, whether it's the disclosed path
+/// segment, and rename state.
+struct ColumnRowIdentity: Equatable, Sendable {
+    let document: Document
+    let depth: Int
+    let isPathSegment: Bool
+    let isRenaming: Bool
+}
+
 /// Chrome-free equatable wrapper for grid tiles. `LibrarySelectableRow` adds
 /// row padding/background the tiles already draw themselves, so this only
 /// contributes the value-diffed skip. `tint` is compared so focus/key

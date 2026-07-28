@@ -115,6 +115,17 @@ extension LibraryView {
         let isActiveColumn = depth == MillerColumnModel.clampActiveDepth(
             columnsActiveDepth, pathCount: path.count
         )
+        // Hand-rolled ScrollView+LazyVStack ON PURPOSE (native-controls
+        // baseline): `List` is NSTableView-backed and consumes arrow keys
+        // before `.onKeyPress` fires, and this browser's entire keyboard
+        // model — ↑/↓ within the ACTIVE column, ←/→ BETWEEN columns via
+        // handleColumnsArrowKey, one shared cursor across all columns —
+        // runs through the body-level key handlers. A per-column List
+        // would also own per-column selection, breaking the single shared
+        // selection set. What List gives free is provided explicitly:
+        // selection (LibrarySelectableRow), a11y (combined elements +
+        // libraryColumnRow identifiers), hover (LibraryRowHoverWash).
+        // Same constraint as list mode's sanctioned entry.
         ScrollView(.vertical) {
             LazyVStack(spacing: 0) {
                 ForEach(docs) { doc in
@@ -261,15 +272,4 @@ extension LibraryView {
             columnsChildren[folderId] = await documentStore.children(of: folderId)
         }
     }
-}
-
-/// Equatable identity for a Miller column row — everything the row renders
-/// from besides selection/tint (which LibrarySelectableRow already
-/// compares): the document, its column, whether it's the disclosed path
-/// segment, and rename state.
-struct ColumnRowIdentity: Equatable, Sendable {
-    let document: Document
-    let depth: Int
-    let isPathSegment: Bool
-    let isRenaming: Bool
 }
