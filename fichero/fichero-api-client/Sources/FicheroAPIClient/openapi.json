@@ -46212,13 +46212,13 @@
             "type": "string",
             "nullable": true,
             "title": "Svo Subject",
-            "description": "Subject of the SVO triple. Alias for subject_canonical with consistent naming. Populated from extract_all output using normalized entity names."
+            "description": "Subject of the SVO triple, as the normalized entity name. Usually equal to subject_canonical, but written independently by each extractor \u2014 do not assume they agree."
           },
           "svo_verb": {
             "type": "string",
             "nullable": true,
             "title": "Svo Verb",
-            "description": "Verb of the SVO triple. Uses slug_verb from kg/_common.py for canonical normalization. Populated from extract_all output with fallback to synthesized values."
+            "description": "SLUG form of the verb \u2014 NOT the display verb in predicate_verb. Most writers store slug_verb(verb) ('entered into' -> 'entered-into'); the citation-stance path stores canonical_verb(...) instead, which uses underscores ('served_as') and is None for verbs outside the ~45-verb controlled vocabulary. So this field holds one of several slug shapes and is a matching key, never display text. Deduplication tolerates the difference: the normalizer folds both '-' and '_' to spaces, so all three forms compare equal (verified #4172)."
           },
           "svo_object": {
             "type": "string",
@@ -56371,13 +56371,13 @@
             "type": "string",
             "nullable": true,
             "title": "Svo Subject",
-            "description": "Subject of the SVO triple. Alias for subject_canonical with consistent naming. Populated from extract_all output using normalized entity names."
+            "description": "Subject of the SVO triple, as the normalized entity name. Usually equal to subject_canonical, but written independently by each extractor \u2014 do not assume they agree."
           },
           "svo_verb": {
             "type": "string",
             "nullable": true,
             "title": "Svo Verb",
-            "description": "Verb of the SVO triple. Uses slug_verb from kg/_common.py for canonical normalization. Populated from extract_all output with fallback to synthesized values."
+            "description": "SLUG form of the verb \u2014 NOT the display verb in predicate_verb. Most writers store slug_verb(verb) ('entered into' -> 'entered-into'); the citation-stance path stores canonical_verb(...) instead, which uses underscores ('served_as') and is None for verbs outside the ~45-verb controlled vocabulary. So this field holds one of several slug shapes and is a matching key, never display text. Deduplication tolerates the difference: the normalizer folds both '-' and '_' to spaces, so all three forms compare equal (verified #4172)."
           },
           "svo_object": {
             "type": "string",
