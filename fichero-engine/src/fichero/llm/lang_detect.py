@@ -167,3 +167,19 @@ def resolve_output_language(
     if primary_language and primary_language.strip():
         return primary_language.strip()
     return detect_language(text, default=default)
+
+
+def configured_primary_language() -> str | None:
+    """The library's master output language, or None when unset (#4172).
+
+    Every tool that resolves an output language must consult this, or the same
+    library produces different languages depending on which extraction path
+    ran — which is what made SVO statements drift with no LLM misbehaviour
+    involved. Two of the three call sites were skipping it.
+
+    Imported lazily: `fichero.db.app` pulls in the app database, and
+    `lang_detect` is imported from tool modules that must stay cheap.
+    """
+    from fichero.db.app import get_app_db
+
+    return get_app_db().get_setting("default_primary_language")

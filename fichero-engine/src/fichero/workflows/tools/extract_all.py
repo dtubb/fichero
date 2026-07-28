@@ -1555,14 +1555,12 @@ async def extract_all(
     if not text:
         return {"text": "", "value": {}, "error": "No text input"}
 
-    from fichero.db.app import get_app_db
-    from fichero.llm.lang_detect import resolve_output_language
-    primary_language = get_app_db().get_setting("default_primary_language")
+    from fichero.llm.lang_detect import configured_primary_language, resolve_output_language
     output_language = resolve_output_language(
         inputs.get("output_language"),
         text,
         default="English",
-        primary_language=primary_language,
+        primary_language=configured_primary_language(),
     )
 
     # Keep the higher-quality twostage path on the three provider families

@@ -1135,9 +1135,12 @@ async def _run_extractor(
     if not text:
         return {"text": "", "value": [], "error": "No text input"}
 
-    from fichero.llm.lang_detect import resolve_output_language
+    from fichero.llm.lang_detect import configured_primary_language, resolve_output_language
     output_language = resolve_output_language(
-        inputs.get("output_language"), text, default="English"
+        inputs.get("output_language"),
+        text,
+        default="English",
+        primary_language=configured_primary_language(),
     )
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
