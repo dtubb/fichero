@@ -155,6 +155,19 @@ extension ImportService {
         pollInterval: TimeInterval = 0.5,
         timeout: TimeInterval = 300
     ) async throws -> [String] {
+        // #4232: clear the published status on EVERY exit — completed, failed,
+        // cancelled or thrown. `importFolder` already defers this, but the
+        // drag-and-drop path (ImportService.swift:98) calls this function
+        // directly, so a finished import left `activeIngest` holding its final
+        // status and the toolbar island spun at "5/5" forever while the Activity
+        // popover — which reads live engine state — correctly said "Nothing
+        // running". Clearing here covers every caller instead of every caller
+        // remembering.
+        defer {
+            activeIngest = nil
+            activeIngestLibraryName = nil
+        }
+
         // Start the import task
         let task = try await startFolderImport(
             url,
