@@ -246,7 +246,7 @@ def main(argv: list[str] | None = None):
     listener_hosts = _listener_hosts(bind_host)
 
     uvicorn_kwargs = dict(
-        app="fichero.api.main:app",
+        app="fichero.api.tcp_transport:app",
         host=bind_host,
         port=8765,
         workers=1,

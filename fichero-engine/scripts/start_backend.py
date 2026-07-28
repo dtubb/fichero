@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> None:
 
     bind_host = resolve_bind_host()
     config: dict[str, object] = {
-        "app": "fichero.api.main:app",
+        "app": "fichero.api.tcp_transport:app",
         "host": bind_host,
         "port": 8765,
         "workers": 1,

@@ -219,7 +219,7 @@ def start(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "fichero.api.main:app",
+                "fichero.api.tcp_transport:app",
                 "--host",
                 bind_host,
                 "--port",

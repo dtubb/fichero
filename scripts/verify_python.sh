@@ -48,7 +48,7 @@ echo "── backend start-smoke ──"
 SMOKE_PORT=8799
 FICHERO_DISABLE_AUTH=1 FICHERO_FEATURE_TIER=dev FICHERO_SKIP_DEFAULT_WORKFLOWS=1 \
   FICHERO_BASE_PATH="$(mktemp -d)" FICHERO_PARENT_PID=$$ \
-  "$UVICORN" fichero.api.main:app --host 127.0.0.1 --port "$SMOKE_PORT" >/dev/null 2>&1 &
+  "$UVICORN" fichero.api.tcp_transport:app --host 127.0.0.1 --port "$SMOKE_PORT" >/dev/null 2>&1 &
 SMOKE_PID=$!
 ok=0
 for _ in $(seq 1 60); do
