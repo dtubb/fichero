@@ -231,39 +231,88 @@ struct MailStyleRow: View {
         }
     }
 
-    @ViewBuilder
     private var rowThumbnail: some View {
-        let size = CGSize(width: Self.thumbWidth, height: Self.thumbHeight)
+        DocumentThumbnail(
+            document: document,
+            width: Self.thumbWidth,
+            height: Self.thumbHeight
+        )
+    }
+}
+
+// MARK: - Document Thumbnail
+
+/// What a document's thumbnail well actually renders.
+///
+/// Deliberately a FILE-SCOPE enum, not a static on `DocumentThumbnail`: under
+/// the macOS 26 SDK any static declared on a `View` inherits the type's
+/// MainActor isolation, and Swift Testing calls such a helper off-main, which
+/// SIGTRAPs the whole test process. Keeping the classifier off the View makes
+/// it testable with no isolation at all. This placement is load-bearing.
+enum DocumentThumbnailKind: Equatable {
+    case folder
+    case textPreview(String)
+    case storageImage
+
+    static func forDocument(_ document: Document) -> DocumentThumbnailKind {
+        if document.docType == .folder { return .folder }
+        if document.fileType == .image { return .storageImage }
+        // Text-preview thumbnail (#625) is only for genuinely text documents
+        // (JSON/plain text) with no page image. A PDF page ALWAYS shows its
+        // rendered page image via the storage endpoint — never a rendering of
+        // its extracted text, even though the page also carries
+        // `pageContent`. (#2052)
+        if document.docType != .page,
+           document.fileType != .pdf,
+           let preview = document.pageContent,
+           !preview.isEmpty {
+            return .textPreview(preview)
+        }
+        return .storageImage
+    }
+
+    /// Whether rendering this well hits the storage thumbnail endpoint — the
+    /// prefetch window filters on it so PDFs and pages (most of an archive)
+    /// are batched too, not just `.image` documents (#4202).
+    var fetchesStorageThumbnail: Bool {
+        self == .storageImage
+    }
+}
+
+/// Shared thumbnail well for Mail-style list rows and the table's name cell
+/// (#4202). Icon tiles keep their own larger tile view.
+struct DocumentThumbnail: View {
+    let document: Document
+    let width: CGFloat
+    let height: CGFloat
+    /// List rows crop-to-fill — their 28×36 well already matches page aspect.
+    /// The denser table well passes `.fit` so the image letterboxes rather
+    /// than cropping, consistent with #4197's scale-to-fit decision.
+    var contentMode: ContentMode = .fill
+    var folderSymbolSize: CGFloat = 20
+
+    var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color(.windowBackgroundColor))
 
-            if document.docType == .folder {
+            switch DocumentThumbnailKind.forDocument(document) {
+            case .folder:
                 Image(systemName: "folder.fill")
-                    .font(.system(size: 20))
+                    .font(.system(size: folderSymbolSize))
                     .foregroundColor(.accentColor)
-            } else if document.fileType == .image {
-                LibraryImageView(documentId: document.id, imageType: .thumbnail)
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
-            } else if document.docType != .page, document.fileType != .pdf, let preview = document.pageContent, !preview.isEmpty {
-                // Text-preview thumbnail (#625) is only for genuinely text
-                // documents (JSON/plain text) with no page image. A PDF page
-                // ALWAYS shows its rendered page image via the storage
-                // endpoint below — never a rendering of its extracted text,
-                // even though the page also carries `pageContent`. (#2052)
+            case .textPreview(let preview):
                 TextPreviewThumbnail(text: preview)
-                    .frame(width: size.width, height: size.height)
+                    .frame(width: width, height: height)
                     .clipped()
-            } else {
+            case .storageImage:
                 LibraryImageView(documentId: document.id, imageType: .thumbnail)
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: size.width, height: size.height)
+                    .aspectRatio(contentMode: contentMode)
+                    .frame(width: width, height: height)
                     .clipped()
             }
         }
-        .frame(width: Self.thumbWidth, height: Self.thumbHeight)
+        .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }

@@ -106,15 +106,20 @@ extension LibraryView {
     @ViewBuilder
     private func nameCell(for doc: Document) -> some View {
         HStack(spacing: 8) {
-            if doc.docType == .folder {
-                Image(systemName: "folder.fill")
-                    .foregroundColor(.accentColor)
-                    .frame(width: 16)
-            } else {
-                Image(systemName: doc.fileType?.icon ?? "doc")
-                    .foregroundColor(.secondary)
-                    .frame(width: 16)
-            }
+            // Finder-style: a real thumbnail where one exists, the SF Symbol
+            // only as the fallback inside the well (#4202). The well is a
+            // FIXED size so every table row keeps the same height and the
+            // image letterboxes instead of cropping (#4197).
+            DocumentThumbnail(
+                document: doc,
+                // Literals, not statics on LibraryView: a static on a `View`
+                // inherits MainActor under the macOS 26 SDK and traps when a
+                // test touches it off-main.
+                width: 20,
+                height: 26,
+                contentMode: .fit,
+                folderSymbolSize: 13
+            )
             EditableDocumentName(
                 document: doc,
                 isRenaming: renamingDocumentId == doc.id,

@@ -135,30 +135,42 @@ extension LibraryView {
         .defaultVisibility(.hidden)
     }
 
+    /// Document row's name cell — split out of `outlineNameCell` to keep that
+    /// function inside the body-length limit.
+    private func documentNameCell(for document: Document) -> some View {
+        // Folder name-cells accept in-app item drops (#4124) — same
+        // per-cell modifier as icon/list modes; Table scopes the
+        // dropDestination (and its highlight) to this cell.
+        tableCellView(for: "name", document: document)
+            // Document rows drag out like list/icon rows (#4160 step 3):
+            // real file copy + RTF via the shared LibraryItemDrag —
+            // previously only CHILD rows were draggable in table mode.
+            .draggable(libraryItemDrag(for: document))
+            .modifier(LibraryFolderCellDrop(
+                isFolder: document.docType == .folder,
+                onDropItems: { items in
+                    moveDraggedItems(items, into: document)
+                }
+            ))
+            .modifier(LibraryRowHoverWash(enabled: !selection.contains(document.id)))
+            // Same look-ahead window list/icon modes use (#4160): now that the
+            // name cell renders a thumbnail, without this the table fetches one
+            // image per row on scroll (#4202).
+            .onAppear {
+                scheduleThumbnailPrefetch(around: document.id)
+            }
+            // VoiceOver/XCUITest parity with list rows and icon tiles.
+            .accessibilityIdentifier("libraryTableRow.\(document.id)")
+            .accessibilityAddTraits(selection.contains(document.id) ? .isSelected : [])
+    }
+
     /// Name-column cell. Documents render the existing name cell; child-group rows
     /// show a count summary ("12 entities"); page/artifact items show their own label.
     @ViewBuilder
     private func outlineNameCell(for node: LibraryOutlineNode) -> some View {
         switch node.kind {
         case .document:
-            // Folder name-cells accept in-app item drops (#4124) — same
-            // per-cell modifier as icon/list modes; Table scopes the
-            // dropDestination (and its highlight) to this cell.
-            tableCellView(for: "name", document: node.document)
-                // Document rows drag out like list/icon rows (#4160 step 3):
-                // real file copy + RTF via the shared LibraryItemDrag —
-                // previously only CHILD rows were draggable in table mode.
-                .draggable(libraryItemDrag(for: node.document))
-                .modifier(LibraryFolderCellDrop(
-                    isFolder: node.document.docType == .folder,
-                    onDropItems: { items in
-                        moveDraggedItems(items, into: node.document)
-                    }
-                ))
-                .modifier(LibraryRowHoverWash(enabled: !selection.contains(node.document.id)))
-                // VoiceOver/XCUITest parity with list rows and icon tiles.
-                .accessibilityIdentifier("libraryTableRow.\(node.document.id)")
-                .accessibilityAddTraits(selection.contains(node.document.id) ? .isSelected : [])
+            documentNameCell(for: node.document)
         case .childGroup(let type):
             Label(type.groupLabel(count: node.count), systemImage: type.systemImage)
                 .font(.subheadline)

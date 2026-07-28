@@ -201,9 +201,15 @@ struct LibraryListModeGuardTests {
         // be maintained here or Return/Space act on the wrong row (G3).
         #expect(table.contains("selectionCursor = nodeId"))
         let columns = try appSource("Views/Library/ViewModes/LibraryView+TableColumns.swift")
-        #expect(columns.contains(".draggable(libraryItemDrag(for: node.document))"))
+        // The document row's modifiers live in `documentNameCell(for:)` since
+        // #4202 split it out of `outlineNameCell` — same modifiers, so the
+        // drag now reads `for: document` rather than `for: node.document`.
+        #expect(columns.contains("func documentNameCell(for document: Document)"))
+        #expect(columns.contains(".draggable(libraryItemDrag(for: document))"))
         #expect(columns.contains("libraryTableRow."))
         #expect(columns.contains("LibraryRowHoverWash"))
+        // Thumbnails without prefetch = one image fetch per row on scroll (#4202).
+        #expect(columns.contains("scheduleThumbnailPrefetch(around: document.id)"))
         // Child outline ids resolve to their parent doc for Return/Space (G2).
         let nav = try appSource("Views/Library/LibraryView+ArrowNavigation.swift")
         #expect(nav.contains("id.firstIndex(of: \":\")"))

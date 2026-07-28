@@ -264,7 +264,8 @@ extension LibraryView {
 
     // Internal (not private): the list view prefetches with the same window
     // from ITS rows' onAppear (#4160) — list rows previously fetched one at a
-    // time on scroll, so every scroll showed skeleton churn.
+    // time on scroll, so every scroll showed skeleton churn. The table's name
+    // cell joins them now that it renders thumbnails too (#4202).
     func scheduleThumbnailPrefetch(around documentId: String) {
         guard !isShowingEntitiesCollection,
               let index = documentIndexById[documentId] else { return }
@@ -273,8 +274,15 @@ extension LibraryView {
         let ahead = max(gridColumnCount * 8, 24)
         let start = max(0, index - behind)
         let end = min(filteredDocuments.count, index + ahead)
+        // Prefetch exactly what a thumbnail well will fetch: folders draw a
+        // symbol and text documents draw their preview, so neither hits
+        // storage — but PDFs and pages do, and the old `.image`-only filter
+        // left them fetching one per row on scroll (#4202).
         let imageIds = filteredDocuments[start..<end]
-            .filter { $0.fileType == .image && $0.docType != .folder && !prefetchedThumbnailIds.contains($0.id) }
+            .filter {
+                DocumentThumbnailKind.forDocument($0).fetchesStorageThumbnail
+                    && !prefetchedThumbnailIds.contains($0.id)
+            }
             .map(\.id)
         guard !imageIds.isEmpty,
               let storageService = scopedLibraryReference?.storageService else { return }
