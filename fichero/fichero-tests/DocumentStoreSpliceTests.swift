@@ -30,17 +30,22 @@ struct DocumentStoreSpliceTests {
         #expect(store.collections.map(\.id) == ["root-1"])
     }
 
-    // The bug: N imported files landing in a roots-only list.
-    @Test("an imported child does NOT pollute the roots list")
+    // The bug this file was written for: N imported files landing in a
+    // roots-only list. It only holds when the parent's children are LOADED —
+    // see `childOfUnloadedParentIsDeliveredViaCollections` for why the
+    // unloaded case deliberately does the opposite.
+    @Test("imported children of a LOADED parent do not pollute the roots list")
     func nestedDocumentStaysOutOfCollections() {
         let store = store()
         store.collections = [doc("folder", name: "Folder")]
+        store.childrenCache["folder"] = []          // the user has this folder open
 
         for index in 0..<50 {
             store.spliceDocument(doc("file-\(index)", parent: "folder"))
         }
 
         #expect(store.collections.map(\.id) == ["folder"], "50 imported files must not become roots")
+        #expect(store.childrenCache["folder"]?.count == 50, "they belong to the open folder")
     }
 
     // The half that a naive fix breaks: an OPEN folder must still fill live.
@@ -56,15 +61,33 @@ struct DocumentStoreSpliceTests {
         #expect(store.collections.map(\.id) == ["folder"], "and must not also pollute roots")
     }
 
-    @Test("a child of a closed folder is not cached — expansion fetches it")
-    func childOfUnloadedParentIsSkipped() {
+    // THIS TEST PREVIOUSLY ASSERTED THE OPPOSITE, AND THE ASSERTION WAS WRONG.
+    // It pinned "a child of a closed folder is skipped", which is what the first
+    // version of the roots guard did — and that silently broke live delivery
+    // into folders the user had not expanded: importing into a collapsed folder
+    // showed nothing at all (fixed in 200e56400).
+    //
+    // The passing test defended the bug. Nothing catches that shape: it passes,
+    // it fails when mutated, and it reads as evidence. The only defence is
+    // asking whether what a test forbids is genuinely undesirable.
+    //
+    // `SidebarItemBuilder` files anything carrying a parentId under its parent,
+    // so with the children cache empty `collections` is the ONLY container that
+    // makes the row visible. The cost — `collections` transiently holding
+    // non-roots until the next `loadCollections()` — is the lesser evil: the
+    // pollution is invisible, a missing row is not.
+    @Test("a child of a CLOSED folder still reaches the sidebar, via collections")
+    func childOfUnloadedParentIsDeliveredViaCollections() {
         let store = store()
         store.collections = [doc("folder", name: "Folder")]
 
         store.spliceDocument(doc("file-1", parent: "folder"))
 
-        #expect(store.childrenCache["folder"] == nil)
-        #expect(store.collections.map(\.id) == ["folder"])
+        #expect(store.childrenCache["folder"] == nil, "the closed folder is still unfetched")
+        #expect(
+            store.collections.map(\.id) == ["folder", "file-1"],
+            "the row must be visible somewhere — collections is the only container left"
+        )
     }
 
     @Test("an existing row is patched in place, not duplicated")
