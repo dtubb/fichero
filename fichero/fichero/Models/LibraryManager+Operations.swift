@@ -68,9 +68,41 @@ extension LibraryManager {
         // Save open libraries for restoration on next launch
         saveOpenLibraryPaths()
 
+        promptForAccessIfUnavailable(url: url, needsSecurityAccess: needsSecurityAccess)
+
         loadAndRegister(library, at: url, displayName: displayName, needsSecurityAccess: needsSecurityAccess)
 
         return library
+    }
+
+    /// Ask for access when the library folder isn't readable, instead of opening
+    /// a library that then silently can't read its files (#4217).
+    ///
+    /// `LibraryReference.startAccessingSecurityScope()` swallows a refused grant
+    /// by design — `if url.startAccessingSecurityScopedResource()` — so a denied
+    /// scope and a granted one look identical here. Nothing downstream checks,
+    /// so the app proceeds, the engine reads nothing, and the user gets an empty
+    /// library with no error to search for.
+    ///
+    /// This is most likely when a library was added in a NON-SANDBOXED build:
+    /// minting a `.withSecurityScope` bookmark requires the sandbox entitlement,
+    /// which Dev and DMG builds don't have, so `mintBookmark` throws and stores
+    /// nothing. Opened later in the App Store build, there is no bookmark to
+    /// restore and none could ever have existed. What that build should DO about
+    /// it (re-mint? refuse?) is a product decision (#4217); prompting instead of
+    /// failing silently is not.
+    private func promptForAccessIfUnavailable(url: URL, needsSecurityAccess: Bool) {
+        #if os(macOS)
+        guard needsSecurityAccess,
+              !FolderAccessManager.shared.hasAccess(to: url.path) else { return }
+
+        libraryManagerLogger.warning(
+            "No access to library folder: \(url.path, privacy: .public) — prompting"
+        )
+        FolderAccessManager.shared.requestFolderAccess(suggestedPath: url.path) { granted in
+            libraryManagerLogger.info("Folder access prompt result: \(granted)")
+        }
+        #endif
     }
 
     /// Kick off the engine load + registry-add for a freshly opened library.
