@@ -170,21 +170,28 @@ struct OntologyBrowser: View {
     // up to three recompiles per entity, twice per entity (date + non-date filter).
     // Patterns are compile-time constants so the `try?` never actually yields nil;
     // optional-chained matching below just avoids a banned force-try.
-    private static let dateNumericRegex = try? NSRegularExpression(
+    // `nonisolated` on the regexes AND the func is LOAD-BEARING: statics on
+    // a View type inherit MainActor under the macOS 26 SDK, and this is
+    // called from a Swift Testing suite that runs on cooperative-pool
+    // threads — an off-main call to a MainActor static SIGTRAPs in
+    // dispatch_assert_queue and kills the whole test process (the #4198
+    // gate crash mechanism; it hadn't fired here only by scheduling luck).
+    // NSRegularExpression is immutable/Sendable, so nonisolated is sound.
+    private nonisolated static let dateNumericRegex = try? NSRegularExpression(
         pattern: #"^\d{3,4}([-/]\d{1,2}){0,2}(\b|$)"#
     )
-    private static let dateMonthEarlyRegex = try? NSRegularExpression(
+    private nonisolated static let dateMonthEarlyRegex = try? NSRegularExpression(
         pattern: #"^(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?)\b"#,
         options: [.caseInsensitive]
     )
-    private static let dateMonthLateRegex = try? NSRegularExpression(
+    private nonisolated static let dateMonthLateRegex = try? NSRegularExpression(
         pattern: #"^(sep(t)?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?)\b"#,
         options: [.caseInsensitive]
     )
 
     /// Date rows are still returned by older KG data as ordinary entities.
     /// Keep them available without mixing them into the named-entity scan.
-    static func isDateEntity(_ entity: Components.Schemas.KnowledgeEntity) -> Bool {
+    nonisolated static func isDateEntity(_ entity: Components.Schemas.KnowledgeEntity) -> Bool {
         if entity.entityType?.rawValue.lowercased() == "date" {
             return true
         }

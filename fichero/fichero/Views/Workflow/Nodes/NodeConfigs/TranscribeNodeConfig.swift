@@ -60,7 +60,12 @@ struct TranscribeLanguageChoice: Identifiable, Hashable {
 }
 
 struct TranscribeNodeConfig: View {
-    static let defaultMaxImageDimension = 2048.0
+    // `nonisolated` is PRECAUTIONARY here (unlike OntologyBrowser's, which
+    // fixed a live trap): an immutable Sendable static is readable off-main
+    // today. Marked for consistency — statics on View types inherit
+    // MainActor under the macOS 26 SDK, and this is read from a Swift
+    // Testing suite that runs on cooperative-pool threads.
+    nonisolated static let defaultMaxImageDimension = 2048.0
 
     @Binding var node: WorkflowNode
 
