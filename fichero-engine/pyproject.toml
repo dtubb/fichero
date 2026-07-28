@@ -241,4 +241,5 @@ markers = [
     "anyio: mark async tests compatible with anyio backends",
     "requires_apple_vision: mark test as needing macOS Vision framework (auto-skipped on non-mac / when fm-bridge probe fails)",
     "requires_apple_intelligence: mark test as needing on-device Apple Intelligence (auto-skipped via fm-bridge --probe)",
+    "slow: mark a test that is slow enough to be worth excluding from a fast gate (`-m 'not slow'`)",
 ]
