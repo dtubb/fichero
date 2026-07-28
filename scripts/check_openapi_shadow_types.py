@@ -102,7 +102,11 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/CheckpointTypes.swift::CheckpointSnapshot": "§6b baseline — struct shadows Components.Schemas.CheckpointSnapshot",
     "Services/ImportServiceTypes.swift::IngestFileRequest": "§6b baseline — struct shadows Components.Schemas.IngestFileRequest",
     "Services/ImportServiceTypes.swift::IngestFolderRequest": "§6b baseline — struct shadows Components.Schemas.IngestFolderRequest",
-    "Services/ImportService.swift::IngestTaskStatus": "§6b baseline — struct shadows Components.Schemas.IngestTaskStatus",
+    # Moved from ImportService.swift by 2d97b89a6 (#4208 file split). The type is
+    # unchanged — only its file is — but this baseline is keyed by path, so the
+    # split reported the old entry stale AND the same type as a new violation.
+    # Path-keyed guardrails must be updated in the commit that moves the file.
+    "Services/ImportService+Conversions.swift::IngestTaskStatus": "§6b baseline — struct shadows Components.Schemas.IngestTaskStatus",
     "Services/IntegrationsServiceTypes.swift::IntegrationItem": "§6b baseline — struct shadows Components.Schemas.IntegrationItem",
     "Services/MCPService.swift::CreateMCPServerRequest": "§6b baseline — struct shadows Components.Schemas.CreateMCPServerRequest",
     "Services/MCPService.swift::MCPServerResponse": "§6b baseline — struct shadows Components.Schemas.MCPServerResponse",
