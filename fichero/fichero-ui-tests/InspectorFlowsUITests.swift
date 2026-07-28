@@ -28,7 +28,7 @@
 //
 //  RUN REQUIREMENT: XCUITest drives the app in a real GUI session — these time
 //  out in a headless/background job. They must run from an interactive macOS
-//  login session (Daniel's desktop / the manager gate), never a detached CI job.
+//  login session (an interactive desktop / the manager gate), never a detached CI job.
 //
 
 import XCTest

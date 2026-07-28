@@ -64,6 +64,23 @@ final class UITestEngineHarness {
 
     private var engineProcess: Process?
     private var tempDir: URL?
+    /// Rolling tail of uvicorn's stderr, so a spawn failure names its cause
+    /// ("ModuleNotFoundError", "address already in use") instead of just an
+    /// exit status. Appended from a readabilityHandler on a background queue.
+    private let stderrLock = NSLock()
+    private var stderrTail = ""
+
+    private func appendStderr(_ chunk: String) {
+        stderrLock.lock()
+        stderrTail = String((stderrTail + chunk).suffix(2000))
+        stderrLock.unlock()
+    }
+
+    private var capturedStderr: String {
+        stderrLock.lock()
+        defer { stderrLock.unlock() }
+        return stderrTail
+    }
 
     // A global handle so an atexit hook guarantees no orphaned uvicorn survives
     // the test process (mirrors EngineHarness's backstop). Plain globals because
@@ -190,7 +207,16 @@ final class UITestEngineHarness {
         env["FICHERO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
         proc.environment = env
         proc.standardOutput = Pipe()
-        proc.standardError = Pipe()
+        let errPipe = Pipe()
+        proc.standardError = errPipe
+        errPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+            } else if let text = String(data: data, encoding: .utf8) {
+                self?.appendStderr(text)
+            }
+        }
         do {
             try proc.run()
         } catch {
@@ -218,11 +244,15 @@ final class UITestEngineHarness {
                 return
             }
             if let proc = engineProcess, !proc.isRunning {
-                throw HarnessError.engineDidNotBind("uvicorn exited early (status \(proc.terminationStatus))")
+                throw HarnessError.engineDidNotBind(
+                    "uvicorn exited early (status \(proc.terminationStatus)); stderr: \(capturedStderr)"
+                )
             }
             Thread.sleep(forTimeInterval: 0.25)
         }
-        throw HarnessError.engineDidNotBind("socket \(path) never accepted a connection within \(Int(timeout))s")
+        throw HarnessError.engineDidNotBind(
+            "socket \(path) never accepted a connection within \(Int(timeout))s; stderr: \(capturedStderr)"
+        )
     }
 
     /// Best-effort AF_UNIX connect probe — true once uvicorn is accepting.
@@ -257,6 +287,13 @@ final class UITestEngineHarness {
     /// A short socket path that fits the AF_UNIX `sun_path` limit. The deep
     /// per-run temp dir would overflow it, so the socket lives directly in
     /// NSTemporaryDirectory under a compact name derived from the run id.
+    ///
+    /// #4194 CAVEAT: this is the XCTRUNNER's temp dir. A SANDBOXED app under
+    /// test gets `connect() errno 1 (Operation not permitted)` dialing it —
+    /// the app logs that loudly while the test only sees "never ready" and
+    /// polls. UDS harness suites are only valid against a non-sandboxed
+    /// build (Dev schemes); the sandboxed MAS config needs a different
+    /// transport or an app-group socket location.
     private static func shortSocketPath(runID: String) -> String {
         let shortID = String(runID.replacingOccurrences(of: "-", with: "").prefix(10))
         let path = (NSTemporaryDirectory() as NSString)

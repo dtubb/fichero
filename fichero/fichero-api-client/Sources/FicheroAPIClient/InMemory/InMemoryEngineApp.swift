@@ -19,9 +19,17 @@ enum InMemoryEngineApp {
 
     /// Dev-default source tree + venv site-packages. Overridden by the matching
     /// environment variables when present; only applied if the path exists so a
-    /// stale hardcoded default never shadows a real env value silently.
-    private static let defaultEngineSrc = "/Users/danieltubb/code/fichero/fichero-engine/src"
-    private static let defaultVenvRoot = "/Users/danieltubb/code/fichero/.venv"
+    /// stale default never shadows a real env value silently.
+    ///
+    /// Derived from `$HOME` rather than hardcoded: these were absolute paths
+    /// under one developer's home directory, so the in-memory engine could only
+    /// ever load on that one machine — silently falling back to "no app" for
+    /// everyone else, since the guard below only applies a default that exists.
+    /// A checkout elsewhere sets `FICHERO_ENGINE_SRC` / `FICHERO_VENV_ROOT`.
+    private static let defaultEngineSrc =
+        NSHomeDirectory() + "/code/fichero/fichero-engine/src"
+    private static let defaultVenvRoot =
+        NSHomeDirectory() + "/code/fichero/.venv"
 
     private static let lock = NSLock()
     private static var cached: ASGIApp?

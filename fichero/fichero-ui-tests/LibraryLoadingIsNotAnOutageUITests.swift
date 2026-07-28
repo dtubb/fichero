@@ -2,7 +2,7 @@
 //  LibraryLoadingIsNotAnOutageUITests.swift
 //  FicheroUITests
 //
-//  #3937 shipped to Daniel: on every cold launch the library's very first frame
+//  #3937 shipped: on every cold launch the library's very first frame
 //  accused a perfectly healthy engine of being down — "Backend Not Connected /
 //  The Fichero backend is not responding. Make sure the server is running on port
 //  8765" — because `DocumentStore.isConnected` starts false and only flips true
@@ -28,6 +28,9 @@ final class LibraryLoadingIsNotAnOutageUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        // #4238: same polling pathology as ColdLaunch — a missing embedded
+        // engine means 120s of full-tree snapshots instead of a failure.
+        try RequiresEngine.requireEmbeddedEngine()
 
         tempHome = FileManager.default.temporaryDirectory
             .appendingPathComponent("fichero-uitest-\(UUID().uuidString)", isDirectory: true)
@@ -53,7 +56,7 @@ final class LibraryLoadingIsNotAnOutageUITests: XCTestCase {
     /// FIRST FRAME: the pane appeared the instant the gate flipped ready and
     /// disappeared as soon as the first load returned. Checking once at the end
     /// would see the settled library and call it green — which is precisely how
-    /// this reached Daniel.
+    /// this reached the user.
     @MainActor
     func testHealthyLaunchNeverClaimsTheEngineIsUnreachable() throws {
         app.launch()

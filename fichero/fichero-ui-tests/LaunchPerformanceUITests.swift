@@ -39,6 +39,9 @@ final class LaunchPerformanceUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        // #4238: each measured iteration spawns the embedded engine; without a
+        // runnable bundle the measurement polls to its deadline instead.
+        try RequiresEngine.requireEmbeddedEngine()
         tempHome = FileManager.default.temporaryDirectory
             .appendingPathComponent("fichero-uitest-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempHome, withIntermediateDirectories: true)

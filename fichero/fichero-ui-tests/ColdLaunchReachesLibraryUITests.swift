@@ -2,7 +2,7 @@
 //  ColdLaunchReachesLibraryUITests.swift
 //  FicheroUITests
 //
-//  The launch test that encodes Daniel's bar: a cold embedded launch reaches the
+//  The launch test that encodes the quality bar: a cold embedded launch reaches the
 //  library on its own, and NEVER offers the user a way to fix it.
 //
 //  The existing embedded smoke test asserts process liveness and that a window
@@ -38,6 +38,13 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
     private let settleWindow: TimeInterval = 15
 
     override func setUpWithError() throws {
+        // #4238: FAIL FAST when this build cannot supply an embedded engine.
+        // Not a skip — a skipped launch test means the shipping launch path
+        // has no coverage. Without this the launch never becomes ready and the
+        // poll loop snapshots the whole accessibility tree ~4x/sec for 120s,
+        // which reached 56 GB and took the machine down.
+        try RequiresEngine.requireEmbeddedEngine()
+
         continueAfterFailure = false
 
         tempHome = FileManager.default.temporaryDirectory
@@ -110,7 +117,7 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
 
         // Phase 2 — the launch is not over when the library appears. Keep watching
         // across the heartbeat: a ready session that flips to .authRejected raises
-        // the gate OVER the library, which is what Daniel actually saw.
+        // the gate OVER the library, which is what the user actually saw.
         let settleDeadline = Date().addingTimeInterval(settleWindow)
         while Date() < settleDeadline {
             assertNoRecoveryUI(phase: "after the library appeared")
