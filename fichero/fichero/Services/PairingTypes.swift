@@ -107,8 +107,17 @@ struct PairedDeviceRecord: Codable, Identifiable {
 final class PairingService {
     private let client: FicheroClient
 
+    /// Uses the transport the app resolved at launch, like every other service.
+    ///
+    /// Constructing a client from a base URL alone silently pinned pairing to
+    /// HTTPS: every Release macOS build runs `.releaseEmbedded`, which dials a
+    /// UDS socket (`EngineConfig+Launch.swift`), so pairing alone dialled
+    /// `https://127.0.0.1:8765` where nothing listens. Sharing hung on
+    /// "Preparing the security certificate" while every other call succeeded —
+    /// and it hung in EVERY shipping build, because Debug resolves to `.https`
+    /// and is the one configuration where the old code worked (#4224).
     init(apiRoot: URL) {
-        self.client = FicheroClient(baseURL: apiRoot)
+        self.client = FicheroClient(baseURL: apiRoot, transportMode: EngineConfig.transportMode)
     }
 
     init(apiRoot: URL, expectedSPKIPin: String) throws {
