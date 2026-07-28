@@ -81,6 +81,24 @@ def _required_llm_capability_for_category(category: str | None) -> str:
 def _resolve_node_llm_config(
     node_def: NodeDef, workflow_llm_config: LLMConfig
 ) -> LLMConfig:
+    """Node-context wrapper around ``_resolve_node_llm_config_inner``.
+
+    Resolution failures surface in the run-validation error list (and in
+    mid-run errors), which previously carried a bare "Model X is not marked
+    as vision-capable" with no clue WHICH node failed (#4187). The preflight
+    path (validation.py) already prefixes the node; this makes the
+    build-graph path agree. Message-only — the validation rule is untouched.
+    """
+    try:
+        return _resolve_node_llm_config_inner(node_def, workflow_llm_config)
+    except ValueError as exc:
+        node_label = node_def.label or node_def.id or node_def.tool
+        raise ValueError(f"Node '{node_label}' ({node_def.tool}): {exc}") from exc
+
+
+def _resolve_node_llm_config_inner(
+    node_def: NodeDef, workflow_llm_config: LLMConfig
+) -> LLMConfig:
     """Resolve the effective LLM config for a node.
 
     Priority order:

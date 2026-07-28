@@ -754,6 +754,44 @@ def _model_has_capability(
     return None
 
 
+def _configured_vision_model_suggestions(limit: int = 3) -> list[str]:
+    """Configured, enabled provider/model pairs that can run a vision node.
+
+    Error-message garnish only (#4187) — never suggest anything the user
+    hasn't actually configured. Mirrors the tri-state rule the payload uses:
+    an explicit "vision" capability counts, and a model with NO saved
+    capabilities inherits its provider's catalog vision support. Best-effort:
+    any lookup failure yields no suggestions, never a second error.
+    """
+    try:
+        from fichero.db.app import get_app_db
+        from fichero.llm.providers import get_provider_info
+
+        suggestions: list[str] = []
+        app_db = get_app_db()
+        for saved_provider in app_db.list_providers():
+            if not getattr(saved_provider, "enabled", False):
+                continue
+            provider_type = saved_provider.provider_type.value
+            provider_info = get_provider_info(provider_type)
+            provider_vision = bool(provider_info and provider_info.supports_vision)
+            for saved_model in app_db.list_models(saved_provider.id):
+                if not getattr(saved_model, "enabled", False):
+                    continue
+                capabilities = [
+                    str(cap).strip().lower()
+                    for cap in (getattr(saved_model, "capabilities", None) or [])
+                ]
+                if ("vision" in capabilities) or (not capabilities and provider_vision):
+                    suggestions.append(f"{provider_type}/{saved_model.model_id}")
+                    if len(suggestions) >= limit:
+                        return suggestions
+        return suggestions
+    except Exception as exc:
+        logger.debug("Vision model suggestion lookup failed: %s", exc)
+        return []
+
+
 def validate_model_capability(
     provider: str,
     model: str,
@@ -778,10 +816,24 @@ def validate_model_capability(
     model_support = _model_has_capability(provider, model, capability)
     if model_support is False:
         label = "text" if capability in {"llm", "text"} else capability
-        raise ValueError(
+        message = (
             f"Model {provider}/{model} is not marked as {label}-capable. "
             f"Choose a {label}-capable model for this workflow node."
         )
+        if capability == "vision":
+            suggestions = _configured_vision_model_suggestions()
+            if suggestions:
+                message += (
+                    " Configured vision-capable models: "
+                    + ", ".join(suggestions)
+                    + "."
+                )
+            else:
+                message += (
+                    " No configured model is marked vision-capable — "
+                    "add one under Settings → AI."
+                )
+        raise ValueError(message)
 
 
 def _profile_role_matches_capability(profile_role: str, capability: str | None) -> bool:
