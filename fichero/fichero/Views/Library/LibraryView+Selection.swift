@@ -37,8 +37,9 @@ extension LibraryView {
     }
 
     private func handleShiftClick(_ doc: Document, anchor: String, commandKeyDown: Bool) {
-        // Shift+click: range select from anchor to clicked item.
-        let docs = filteredDocuments
+        // Shift+click: range select from anchor to clicked item — over the
+        // ACTIVE column's order in columns mode (#4160 step 4).
+        let docs = keyboardNavigationDocuments
         guard let anchorIndex = docs.firstIndex(where: { $0.id == anchor }),
               let clickIndex = docs.firstIndex(where: { $0.id == doc.id }) else {
             return

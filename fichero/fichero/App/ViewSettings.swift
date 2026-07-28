@@ -261,6 +261,9 @@ enum LibraryLayout: String, CaseIterable, Codable {
     case icons = "Icons"
     case list = "List"
     case table = "Table"
+    /// Finder-style Miller column browser (#4160 step 4); the table keeps
+    /// its 3-level outline — this is an additional mode, not a replacement.
+    case columns = "MillerColumns"
     case canvas = "Canvas"
     /// The RealityKit 3D "Space" view (#3088). Mirrors `ViewDisplayMode.space`
     /// so the View-menu ⌘5 ↔ toolbar picker bridge stays bijective — without
@@ -272,6 +275,7 @@ enum LibraryLayout: String, CaseIterable, Codable {
         case .icons: "square.grid.2x2"
         case .list: "list.bullet"
         case .table: "tablecells"
+        case .columns: "rectangle.split.3x1"
         case .canvas: "rectangle.3.group"
         case .space: "cube.transparent"
         }
@@ -285,6 +289,7 @@ enum LibraryLayout: String, CaseIterable, Codable {
         case .icons: .icon
         case .list: .list
         case .table: .table
+        case .columns: .columns
         case .canvas: .canvas
         case .space: .space
         }

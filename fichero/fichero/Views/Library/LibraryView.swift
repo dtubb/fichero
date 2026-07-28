@@ -163,6 +163,15 @@ struct LibraryView: View {
     @State var renamingDocumentId: String?
     @State var editingName: String = ""
 
+    // Miller columns (#4160 step 4): the folder-ID chain below the browsed
+    // root (ids, never Document snapshots — every segment resolves through
+    // the live children cache each render and truncates when one dies), the
+    // active column depth, and the per-folder children cache the column
+    // stack's .task fills through DocumentStore.children(of:).
+    @State var columnsPath: [String] = []
+    @State var columnsActiveDepth: Int = 0
+    @State var columnsChildren: [String: [Document]] = [:]
+
     // Type-to-select state
     @State var typeSelectBuffer: String = ""
     @State var typeSelectTask: Task<Void, Never>?
@@ -270,6 +279,8 @@ struct LibraryView: View {
                 listView
             case .table:
                 tableView
+            case .columns:
+                columnsView
             case .canvas, .workspace:
                 canvasModeView
             case .space:
@@ -864,7 +875,7 @@ extension LibraryView {
     static func usesSpatialProjection(_ mode: ViewDisplayMode) -> Bool {
         switch mode {
         case .canvas, .space, .workspace: return true
-        case .icon, .list, .table: return false
+        case .icon, .list, .table, .columns: return false
         }
     }
 

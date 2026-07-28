@@ -11,10 +11,15 @@ final class ViewSettingsEnumsTests: XCTestCase {
     // MARK: - LibraryLayout
 
     func testLibraryLayoutCasesRawValuesAndIcons() {
-        XCTAssertEqual(LibraryLayout.allCases.count, 5)
+        XCTAssertEqual(LibraryLayout.allCases.count, 6)
         XCTAssertEqual(LibraryLayout.icons.rawValue, "Icons")
         XCTAssertEqual(LibraryLayout.list.rawValue, "List")
         XCTAssertEqual(LibraryLayout.table.rawValue, "Table")
+        // Miller columns (#4160 step 4). Raw value is "MillerColumns", NOT
+        // "Columns" — the table's user-facing label was "Columns" until now,
+        // and a raw value that collides with an old LABEL invites confusion
+        // in persisted-state archaeology even though labels never persist.
+        XCTAssertEqual(LibraryLayout.columns.rawValue, "MillerColumns")
         XCTAssertEqual(LibraryLayout.canvas.rawValue, "Canvas")
         XCTAssertEqual(LibraryLayout.space.rawValue, "Space")
         for layout in LibraryLayout.allCases {

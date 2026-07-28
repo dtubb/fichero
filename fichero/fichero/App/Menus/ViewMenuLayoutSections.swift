@@ -25,7 +25,7 @@ struct LibraryLayoutSection: View {
         if mode == .library && !featureManager.isLibraryAdvancedViewsEnabled {
             return [.icons]
         }
-        return [.icons, .list, .table, .canvas, .space]
+        return [.icons, .list, .table, .columns, .canvas, .space]
     }
 
     var body: some View {
@@ -58,7 +58,7 @@ struct LibraryLayoutSection: View {
                 if availableLayouts.contains(.table) {
                     LibraryLayoutButton(
                         layout: .table,
-                        label: "as Columns",
+                        label: "as Table",
                         icon: "tablecells",
                         shortcut: "3",
                         current: viewSettings.libraryLayout
@@ -76,6 +76,21 @@ struct LibraryLayoutSection: View {
                         current: viewSettings.libraryLayout
                     ) {
                         viewSettings.libraryLayout = .canvas
+                    }
+                }
+
+                // Miller columns (⌘6, #4160 step 4) — APPENDED so ⌘1-5 muscle
+                // memory is untouched; the table reverts to "as Table" now a
+                // real columns mode exists.
+                if availableLayouts.contains(.columns) {
+                    LibraryLayoutButton(
+                        layout: .columns,
+                        label: "as Columns",
+                        icon: "rectangle.split.3x1",
+                        shortcut: "6",
+                        current: viewSettings.libraryLayout
+                    ) {
+                        viewSettings.libraryLayout = .columns
                     }
                 }
 

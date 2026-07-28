@@ -59,7 +59,7 @@ extension LibraryView {
             focusEntityIfPossible(entity)
             return
         }
-        guard let doc = filteredDocuments.first(where: { $0.id == primaryId }) else { return }
+        guard let doc = navigableDocument(for: primaryId) else { return }
         openDocument(doc)
     }
 

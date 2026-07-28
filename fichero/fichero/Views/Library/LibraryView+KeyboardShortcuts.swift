@@ -87,7 +87,7 @@ extension LibraryView {
         }
         guard !isShowingEntitiesCollection,
               let primaryId = orderedPrimarySelectionId,
-              let doc = filteredDocuments.first(where: { $0.id == primaryId }),
+              let doc = navigableDocument(for: primaryId),
               doc.docType != .folder else { return .ignored }
         quickLook(doc)
         return .handled

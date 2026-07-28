@@ -249,6 +249,7 @@ extension ContentView {
         case .icon: .icons
         case .list: .list
         case .table: .table
+        case .columns: .columns
         case .canvas, .space, .workspace: .canvas
         }
 

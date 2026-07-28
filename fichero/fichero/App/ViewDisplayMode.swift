@@ -19,13 +19,16 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     case table = "Table"
     case canvas = "Canvas"
     case space = "Space"
+    /// Finder-style Miller column browser (#4160 step 4) — an ADDITIONAL
+    /// mode; `.table` keeps its 3-level outline (Daniel's decision).
+    case columns = "MillerColumns"
     /// Legacy persisted alias: decode/normalize to `.canvas`, never present as
     /// a live selectable mode (#3199).
     case workspace = "Workspace"
 
     /// User-selectable cases: the coherent live view-mode set (#3081/#3199).
     static var selectableCases: [ViewDisplayMode] {
-        [.icon, .list, .table, .canvas, .space]
+        [.icon, .list, .table, .columns, .canvas, .space]
     }
 
     var id: String { rawValue }
@@ -37,6 +40,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case Self.table.rawValue: .table
         case Self.canvas.rawValue, "Map", "Spatial", Self.workspace.rawValue: .canvas
         case Self.space.rawValue, "RealityKit": .space
+        case Self.columns.rawValue: .columns
         default: nil
         }
     }
@@ -50,6 +54,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .icon: .icons
         case .list: .list
         case .table: .table
+        case .columns: .columns
         case .space: .space
         case .canvas, .workspace: .canvas
         }
@@ -59,7 +64,11 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     /// persistence/XCUITest hooks — only label changes here.
     var label: String {
         switch self {
-        case .table: "Columns"
+        // A REAL Miller-columns mode exists now (#4160 step 4), so the
+        // table reverts to its honest name — two modes named "Columns"
+        // would be actively misleading (supersedes the #1613 rename).
+        case .table: "Table"
+        case .columns: "Columns"
         default: rawValue
         }
     }
@@ -69,6 +78,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .icon: "square.grid.2x2"
         case .list: "list.bullet"
         case .table: "tablecells"
+        case .columns: "rectangle.split.3x1"
         case .canvas: "map"
         case .space: "cube.transparent"
         case .workspace: "square.stack.3d.up"
@@ -79,7 +89,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         switch self {
         case .icon: "Grid of icons"
         case .list: "Linear list"
-        case .table: "Column view"
+        case .table: "Multi-column table"
+        case .columns: "Finder-style column browser"
         case .canvas: "Canvas / node map"
         case .space: "3D space view"
         case .workspace: "Workspace collection view"

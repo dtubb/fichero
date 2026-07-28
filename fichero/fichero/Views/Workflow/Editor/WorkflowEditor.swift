@@ -96,9 +96,10 @@ struct WorkflowEditor: View {
                             snapToGrid: $snapToGrid
                         )
                     }
-                case .canvas, .space, .workspace:
-                    // Canvas/Space/Workspace aren't distinct workflow-editor
-                    // surfaces — they fall back to the workflow canvas (#3081).
+                case .columns, .canvas, .space, .workspace:
+                    // Columns/Canvas/Space/Workspace aren't distinct workflow-
+                    // editor surfaces — they fall back to the workflow canvas
+                    // (#3081; columns is library-only, #4160 step 4).
                     WorkflowCanvasView(
                         workflow: $editingWorkflow,
                         scale: $scale,

@@ -50,11 +50,18 @@ extension LibraryView {
     /// All four arrows navigate within the content area (like Finder).
     /// Tab/Shift+Tab cycle focus between panes.
     func handleArrowKey(direction: ArrowDirection) -> KeyPress.Result {
+        // Miller columns (#4160 step 4): ←/→ move BETWEEN columns; ↑/↓ and
+        // the rest fall through to the shared cursor logic over the ACTIVE
+        // column's ids (keyboardNavigationDocuments).
+        if displayMode == .columns, !isShowingEntitiesCollection {
+            let result = handleColumnsArrowKey(direction: direction)
+            if result == .handled { return result }
+        }
         let ids: [String]
         if isShowingEntitiesCollection {
             ids = filteredEntities.map { entitySelectionId(for: $0) }
         } else {
-            ids = filteredDocuments.map(\.id)
+            ids = keyboardNavigationDocuments.map(\.id)
         }
         guard !ids.isEmpty else { return .ignored }
 
@@ -80,11 +87,27 @@ extension LibraryView {
         }
 
         applySelection(targetIndex: targetIndex, ids: ids)
-        if displayMode == .icon || displayMode == .list || displayMode == .table {
+        if displayMode == .icon || displayMode == .list || displayMode == .table || displayMode == .columns {
             listScrollTarget = ids[targetIndex]
         }
         focusSelectedEntityIfNeeded()
         return .handled
+    }
+
+    /// The ordered documents keyboard actions navigate over — the ACTIVE
+    /// Miller column in columns mode (#4160 step 4), the flat browsed list
+    /// everywhere else. One seam so arrows / Return / Space / shift-ranges
+    /// all agree on the same row order.
+    var keyboardNavigationDocuments: [Document] {
+        displayMode == .columns ? columnsActiveDocuments : filteredDocuments
+    }
+
+    /// Resolve a selectable id to its Document wherever it lives — the
+    /// browsed list, or a deeper Miller column's children cache — so
+    /// Return / Space / Quick Look / delete act on deep-column rows too.
+    func navigableDocument(for id: String) -> Document? {
+        filteredDocuments.first { $0.id == id }
+            ?? columnsChildren.values.lazy.compactMap({ $0.first { $0.id == id } }).first
     }
 
     private func currentSelectionIndex(in ids: [String]) -> Int? {
@@ -104,7 +127,7 @@ extension LibraryView {
         if isShowingEntitiesCollection {
             ids = filteredEntities.map { entitySelectionId(for: $0) }
         } else {
-            ids = filteredDocuments.map(\.id)
+            ids = keyboardNavigationDocuments.map(\.id)
         }
         if let idx = LibraryKeyboardCursor.index(
             cursor: selectionCursor,

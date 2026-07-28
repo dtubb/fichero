@@ -38,20 +38,24 @@ final class ViewDisplayModeTests: XCTestCase {
     // MARK: - Selectable set + labels
 
     func testSelectableCasesAreTheCoherentSet() {
-        // icon/list/table/canvas/space — workspace is offered separately behind
-        // its feature gate, so it is not in the base selectable set (#3081).
-        XCTAssertEqual(ViewDisplayMode.selectableCases, [.icon, .list, .table, .canvas, .space])
+        // icon/list/table/columns/canvas/space — workspace is offered
+        // separately behind its feature gate, so it is not in the base
+        // selectable set (#3081; columns added by #4160 step 4).
+        XCTAssertEqual(ViewDisplayMode.selectableCases, [.icon, .list, .table, .columns, .canvas, .space])
         XCTAssertFalse(ViewDisplayMode.selectableCases.contains(.workspace))
     }
 
     func testAllCasesNoLongerIncludeRetiredAliases() {
         // The dead decode-only aliases are gone from the case list entirely.
-        XCTAssertEqual(ViewDisplayMode.allCases, [.icon, .list, .table, .canvas, .space, .workspace])
+        XCTAssertEqual(ViewDisplayMode.allCases, [.icon, .list, .table, .canvas, .space, .columns, .workspace])
     }
 
     func testLabels() {
         XCTAssertEqual(ViewDisplayMode.canvas.label, "Canvas")
         XCTAssertEqual(ViewDisplayMode.space.label, "Space")
-        XCTAssertEqual(ViewDisplayMode.table.label, "Columns")
+        // #4160 step 4: a REAL Miller-columns mode exists, so the table
+        // reverts to its honest name — two "Columns" would mislead.
+        XCTAssertEqual(ViewDisplayMode.table.label, "Table")
+        XCTAssertEqual(ViewDisplayMode.columns.label, "Columns")
     }
 }
