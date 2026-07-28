@@ -11,6 +11,49 @@ import Foundation
 /// silently resolving to localhost.
 enum EngineConfig {
     static let userDefaultsKey = "fichero.engine.host"
+
+    /// The preference store this config reads and writes.
+    ///
+    /// COMPUTED, with no stored state — deliberately. Tests used
+    /// `UserDefaults.standard`, which in a test host IS the developer's real
+    /// app domain, so a green test run repointed the running app at a
+    /// `.example` host that can never resolve; the user saw a connection
+    /// failure and blamed the engine (#4221).
+    ///
+    /// Computing rather than storing buys three things: a test process cannot
+    /// reach `app.fichero.fichero` with or without a setUp, since the test/prod
+    /// decision is made at each access (snapshot-and-restore in teardown was
+    /// already there and did not help — most runs on a loaded box die by kill);
+    /// there is no global MUTABLE state, so no `nonisolated(unsafe)`, the
+    /// annotation removed in #4216 exactly because it enforces nothing; and
+    /// production is unchanged, as the marker below is absent outside a test
+    /// host.
+    ///
+    /// The test-suite handle is a cached SINGLE instance, not built per access:
+    /// `UserDefaults.didChangeNotification` carries the posting instance as its
+    /// `object`, and NotificationCenter filters `object:` by IDENTITY — a fresh
+    /// instance per access could never match the one a store wrote through, so
+    /// a "no writes happened" test would pass vacuously. `.standard` is already
+    /// a singleton; this makes the test path behave the same way. Immutable
+    /// `let`, so still no `nonisolated(unsafe)` mutable global (#4216).
+    static var defaults: UserDefaults {
+        guard isRunningUnderTests else { return .standard }
+        return testSuiteDefaults
+    }
+
+    /// Suite backing every preference read in a test process.
+    static let testSuiteName = "app.fichero.fichero.tests"
+    private static let testSuiteDefaults =
+        UserDefaults(suiteName: testSuiteName) ?? .standard
+
+    /// True inside an XCTest/Swift Testing host process.
+    static var isRunningUnderTests: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCTestBundlePath"] != nil
+            || environment["XCTestSessionIdentifier"] != nil
+    }
+
     static let multiuserEnabledKey = "fichero.multiuser.enabled"
     static let defaultHostString = "https://127.0.0.1:8765"
     static let engineHostDidChangeNotification = Notification.Name("engineHostDidChange")
@@ -105,7 +148,7 @@ enum EngineConfig {
     ///   (#2465).
     static var connectionCandidates: [URL] {
         orderedConnectionCandidates(
-            savedHostString: UserDefaults.standard.string(forKey: userDefaultsKey),
+            savedHostString: defaults.string(forKey: userDefaultsKey),
             isMacOS: allowsEmbeddedLocalDefault
         )
     }
@@ -168,7 +211,7 @@ enum EngineConfig {
     }
 
     static var multiuserEnabled: Bool {
-        let defaults = UserDefaults.standard
+        let defaults = Self.defaults
         guard defaults.object(forKey: multiuserEnabledKey) != nil else {
             // Default OFF: multi-user is a shared/multi-person feature and the frontend
             // has no login flow yet (#2022 auth is cli-only). Defaulting ON spawns the
@@ -215,7 +258,7 @@ extension EngineConfig {
     }
 
     private static var resolvedHostConfiguration: HostConfiguration {
-        hostConfiguration(from: UserDefaults.standard.string(forKey: userDefaultsKey))
+        hostConfiguration(from: defaults.string(forKey: userDefaultsKey))
     }
 
     private static func normalizedHostString(_ raw: String?) -> String? {

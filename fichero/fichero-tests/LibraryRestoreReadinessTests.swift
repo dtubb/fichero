@@ -24,7 +24,7 @@ final class LibraryRestoreReadinessTests: XCTestCase {
     }
 
     func testSavedLibrariesWaitForBackendReadiness() throws {
-        let defaults = UserDefaults.standard
+        let defaults = EngineConfig.defaults
         let originalPaths = defaults.stringArray(forKey: LibraryManager.openLibraryPathsKey)
         let originalNames = defaults.dictionary(forKey: LibraryManager.libraryDisplayNamesByPathKey)
         defer {

@@ -486,7 +486,7 @@ enum RemoteLibraryRecents {
     }
 
     private static func store() -> [String: [String]] {
-        UserDefaults.standard.dictionary(forKey: storageKey) as? [String: [String]] ?? [:]
+        EngineConfig.defaults.dictionary(forKey: storageKey) as? [String: [String]] ?? [:]
     }
 
     /// Recently opened library paths for `hostString`, most-recent first.
@@ -506,7 +506,7 @@ enum RemoteLibraryRecents {
         list.insert(trimmed, at: 0)
         if list.count > maxPerHost { list = Array(list.prefix(maxPerHost)) }
         all[key] = list
-        UserDefaults.standard.set(all, forKey: storageKey)
+        EngineConfig.defaults.set(all, forKey: storageKey)
     }
 
     /// Forget all recents for `hostString` — the hook for unpairing / removing a
@@ -514,6 +514,6 @@ enum RemoteLibraryRecents {
     static func clear(host hostString: String) {
         var all = store()
         all[hostKey(hostString)] = nil
-        UserDefaults.standard.set(all, forKey: storageKey)
+        EngineConfig.defaults.set(all, forKey: storageKey)
     }
 }

@@ -48,9 +48,9 @@ final class LibraryManagerTests: XCTestCase {
 
     private func restoreEngineHost(_ value: String?) {
         if let value {
-            UserDefaults.standard.set(value, forKey: EngineConfig.userDefaultsKey)
+            EngineConfig.defaults.set(value, forKey: EngineConfig.userDefaultsKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
+            EngineConfig.defaults.removeObject(forKey: EngineConfig.userDefaultsKey)
         }
     }
 
@@ -256,7 +256,7 @@ final class LibraryManagerTests: XCTestCase {
     }
 
     func testSavedLibrariesWaitForBackendReadiness() throws {
-        let defaults = UserDefaults.standard
+        let defaults = EngineConfig.defaults
         let originalPaths = defaults.stringArray(forKey: LibraryManager.openLibraryPathsKey)
         let originalNames = defaults.dictionary(forKey: LibraryManager.libraryDisplayNamesByPathKey)
         defer {
@@ -300,10 +300,10 @@ final class LibraryManagerTests: XCTestCase {
 
     func testCreateNewLibraryUsesConfiguredEngineHost() async throws {
         // Given
-        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        let originalHost = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)
         defer { restoreEngineHost(originalHost) }
         let remoteHost = URL(string: "https://host.tailnet.example")!
-        UserDefaults.standard.set(remoteHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(remoteHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
 
         // When
         let library = libraryManager.createNewLibrary()
@@ -315,17 +315,17 @@ final class LibraryManagerTests: XCTestCase {
 
     func testReconfigureGeneratedClientsForCurrentHostUpdatesOpenLibrary() async throws {
         // Given
-        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        let originalHost = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)
         defer { restoreEngineHost(originalHost) }
         let firstHost = URL(string: "https://first.tailnet.example")!
         let secondHost = URL(string: "https://second.tailnet.example")!
-        UserDefaults.standard.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
 
         let library = libraryManager.createNewLibrary()
         XCTAssertEqual(library.ficheroClient.baseURL, firstHost)
 
         // When
-        UserDefaults.standard.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
         libraryManager.reconfigureGeneratedClientsForCurrentHost()
 
         // Then

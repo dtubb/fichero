@@ -63,7 +63,7 @@ class SidebarState {
 
         // Load persisted expanded items
         let itemsKey = "sidebar.expanded.\(windowId)"
-        if let saved = UserDefaults.standard.array(forKey: itemsKey) as? [String] {
+        if let saved = EngineConfig.defaults.array(forKey: itemsKey) as? [String] {
             self.expandedItems = Set(saved)
         } else {
             self.expandedItems = []
@@ -71,7 +71,7 @@ class SidebarState {
 
         // Load persisted library expansion states (default: all expanded)
         let libKey = "sidebar.libraries.\(windowId)"
-        if let saved = UserDefaults.standard.dictionary(forKey: libKey) as? [String: Bool] {
+        if let saved = EngineConfig.defaults.dictionary(forKey: libKey) as? [String: Bool] {
             self.libraryExpansionStates = saved
         } else {
             self.libraryExpansionStates = [:]
@@ -91,7 +91,7 @@ class SidebarState {
     @discardableResult
     static func purgeRetiredDefaults(
         windowId: String,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = EngineConfig.defaults
     ) -> Bool {
         let key = "sidebar.unified.sections.\(windowId)"
         guard defaults.object(forKey: key) != nil else { return false }
@@ -168,10 +168,10 @@ class SidebarState {
     // MARK: - Private Persistence Methods
 
     private func saveExpandedItems() {
-        UserDefaults.standard.set(Array(expandedItems), forKey: expandedItemsKey)
+        EngineConfig.defaults.set(Array(expandedItems), forKey: expandedItemsKey)
     }
 
     private func saveLibraryExpansionStates() {
-        UserDefaults.standard.set(libraryExpansionStates, forKey: libraryExpansionKey)
+        EngineConfig.defaults.set(libraryExpansionStates, forKey: libraryExpansionKey)
     }
 }

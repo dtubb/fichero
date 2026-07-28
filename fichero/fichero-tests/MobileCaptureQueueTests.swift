@@ -8,29 +8,29 @@ final class MobileCaptureQueueTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        originalEngineHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        originalEngineHost = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)
     }
 
     override func tearDown() {
         if let originalEngineHost {
-            UserDefaults.standard.set(originalEngineHost, forKey: EngineConfig.userDefaultsKey)
+            EngineConfig.defaults.set(originalEngineHost, forKey: EngineConfig.userDefaultsKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
+            EngineConfig.defaults.removeObject(forKey: EngineConfig.userDefaultsKey)
         }
         originalEngineHost = nil
         super.tearDown()
-        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
     }
 
     private func markDevicePairedWithLibrary() {
-        UserDefaults.standard.set(
-            "/Users/daniel/Archive/Open.fichero",
+        EngineConfig.defaults.set(
+            "/Users/testuser/Archive/Open.fichero",
             forKey: RemoteAccessConfig.pairedLibraryPathKey
         )
     }
 
     private func configureRemoteBackend() {
-        UserDefaults.standard.set("https://pairing.example.com", forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set("https://pairing.example.com", forKey: EngineConfig.userDefaultsKey)
     }
 
     func testCatalogFieldsMapToDocumentMetadataAndFallbackTitle() {

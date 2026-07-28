@@ -54,7 +54,7 @@ final class EngineBookmarkPayloadTests: XCTestCase {
         XCTAssertNil(FolderAccessManager.bookmarkPayload(from: [:]))
     }
 
-    /// Unicode paths must survive the JSON encoding — Daniel's real libraries have them.
+    /// Unicode paths must survive the JSON encoding — the user's real libraries have them.
     func testUnicodePathSurvives() throws {
         let path = "/Users/d/Documents/Diario de Marshall — año 1897.fichero"
         let json = try XCTUnwrap(FolderAccessManager.bookmarkPayload(from: [path: Data("X".utf8)]))
@@ -81,7 +81,7 @@ final class EngineBookmarkPayloadTests: XCTestCase {
     /// engineBookmarkPayload() returns JSON here and the assertion fails.
     func testDMGBuildSendsNoBookmarksEvenWhenSomeAreStored() {
         let key = "FolderAccessBookmarks"
-        let defaults = UserDefaults.standard
+        let defaults = EngineConfig.defaults
         let saved = defaults.dictionary(forKey: key)
         defer {
             if let saved { defaults.set(saved, forKey: key) } else { defaults.removeObject(forKey: key) }

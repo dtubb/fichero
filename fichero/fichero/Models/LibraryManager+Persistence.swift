@@ -20,7 +20,7 @@ extension LibraryManager {
         let paths = openLibraries
             .filter { !isTemporaryLibrary($0.url) }
             .map { $0.url.path.nfcNormalized }
-        UserDefaults.standard.set(paths, forKey: Self.openLibraryPathsKey)
+        EngineConfig.defaults.set(paths, forKey: Self.openLibraryPathsKey)
         saveLibraryDisplayNames()
         libraryManagerLogger.info("Saved \(paths.count) library paths to UserDefaults")
     }
@@ -32,7 +32,7 @@ extension LibraryManager {
             openLibraries.map { ($0.url.path.nfcNormalized, $0.displayName) },
             uniquingKeysWith: { _, latest in latest }
         )
-        UserDefaults.standard.set(namesByPath, forKey: Self.libraryDisplayNamesByPathKey)
+        EngineConfig.defaults.set(namesByPath, forKey: Self.libraryDisplayNamesByPathKey)
     }
 
     /// One-time, idempotent migration re-keying stored library paths/names to
@@ -88,7 +88,7 @@ extension LibraryManager {
 
     /// Get custom display names by library path.
     func getSavedLibraryDisplayNames() -> [String: String] {
-        UserDefaults.standard.dictionary(forKey: Self.libraryDisplayNamesByPathKey) as? [String: String] ?? [:]
+        EngineConfig.defaults.dictionary(forKey: Self.libraryDisplayNamesByPathKey) as? [String: String] ?? [:]
     }
 
     /// Get previously open library paths
@@ -96,7 +96,7 @@ extension LibraryManager {
         if let testLibrary = uiTestRestoredLibraryURL() {
             return [testLibrary.path]
         }
-        return UserDefaults.standard.stringArray(forKey: Self.openLibraryPathsKey) ?? []
+        return EngineConfig.defaults.stringArray(forKey: Self.openLibraryPathsKey) ?? []
     }
 
     /// Restore libraries from saved paths
@@ -166,7 +166,7 @@ extension LibraryManager {
 
         // Persist the pruned list so missing paths don't keep failing on every launch.
         if prunedAnyPath {
-            UserDefaults.standard.set(validPaths, forKey: Self.openLibraryPathsKey)
+            EngineConfig.defaults.set(validPaths, forKey: Self.openLibraryPathsKey)
             libraryManagerLogger.info("Pruned \(paths.count - validPaths.count) missing/invalid library paths")
         }
     }

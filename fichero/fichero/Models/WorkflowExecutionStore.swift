@@ -180,7 +180,7 @@ enum WorkflowCompletionNotifier {
     static let enabledDefaultsKey = "notificationsEnabled"
 
     static var isEnabled: Bool {
-        let defaults = UserDefaults.standard
+        let defaults = EngineConfig.defaults
         guard defaults.object(forKey: enabledDefaultsKey) != nil else { return true }
         return defaults.bool(forKey: enabledDefaultsKey)
     }

@@ -61,7 +61,7 @@ enum PairingRestoreDiagnostics {
 
     /// Read the four persisted values back, exactly as the restore chain would.
     static func snapshot() -> PairingRestoreSnapshot {
-        let host = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)?
+        let host = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedHost = (host?.isEmpty == false) ? host : nil
 
@@ -76,7 +76,7 @@ enum PairingRestoreDiagnostics {
             hasToken: token?.isEmpty == false,
             tokenAccessibility: AuthTokenMiddleware.remoteTokenAccessibilityValue(hostString: resolvedHost),
             hasSPKIPin: RemoteCertificatePinning.persistedSPKIPin(hostString: resolvedHost)?.isEmpty == false,
-            libraryPath: UserDefaults.standard.string(forKey: RemoteAccessConfig.pairedLibraryPathKey)
+            libraryPath: EngineConfig.defaults.string(forKey: RemoteAccessConfig.pairedLibraryPathKey)
         )
     }
 

@@ -13,7 +13,7 @@ final class WorkflowCompletionNotifierTests: XCTestCase {
 
     /// Save + restore the real defaults value so the test never leaks state.
     private func withCleanDefault(_ body: () -> Void) {
-        let defaults = UserDefaults.standard
+        let defaults = EngineConfig.defaults
         let saved = defaults.object(forKey: key)
         defer {
             if let saved { defaults.set(saved, forKey: key) } else { defaults.removeObject(forKey: key) }
@@ -33,14 +33,14 @@ final class WorkflowCompletionNotifierTests: XCTestCase {
 
     func testDisabledWhenExplicitlyOff() {
         withCleanDefault {
-            UserDefaults.standard.set(false, forKey: key)
+            EngineConfig.defaults.set(false, forKey: key)
             XCTAssertFalse(WorkflowCompletionNotifier.isEnabled)
         }
     }
 
     func testEnabledWhenExplicitlyOn() {
         withCleanDefault {
-            UserDefaults.standard.set(true, forKey: key)
+            EngineConfig.defaults.set(true, forKey: key)
             XCTAssertTrue(WorkflowCompletionNotifier.isEnabled)
         }
     }

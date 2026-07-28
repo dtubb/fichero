@@ -83,7 +83,7 @@ final class SidebarStateTests: XCTestCase {
         XCTAssertTrue(restored.isExpanded("persisted-item"))
 
         // Cleanup
-        UserDefaults.standard.removeObject(forKey: "sidebar.expanded.\(windowId)")
+        EngineConfig.defaults.removeObject(forKey: "sidebar.expanded.\(windowId)")
     }
 
     func testLibraryExpansionPersists() {
@@ -96,7 +96,7 @@ final class SidebarStateTests: XCTestCase {
         let restored = SidebarState(windowId: windowId)
         XCTAssertFalse(restored.isLibraryExpanded(libId))
 
-        UserDefaults.standard.removeObject(forKey: "sidebar.libraries.\(windowId)")
+        EngineConfig.defaults.removeObject(forKey: "sidebar.libraries.\(windowId)")
     }
 
     func testStaleUnifiedSectionsKeyPurgedOnInit() {
@@ -104,11 +104,11 @@ final class SidebarStateTests: XCTestCase {
         // dictionary from old builds must be removed at init.
         let windowId = freshWindowId()
         let staleKey = "sidebar.unified.sections.\(windowId)"
-        UserDefaults.standard.set(["lib:documents": false], forKey: staleKey)
+        EngineConfig.defaults.set(["lib:documents": false], forKey: staleKey)
 
         _ = SidebarState(windowId: windowId)
 
-        XCTAssertNil(UserDefaults.standard.object(forKey: staleKey))
+        XCTAssertNil(EngineConfig.defaults.object(forKey: staleKey))
     }
 
     // MARK: - Transient state defaults
@@ -210,7 +210,7 @@ final class SidebarStateTests: XCTestCase {
         XCTAssertTrue(state1.isExpanded("only-in-1"))
         XCTAssertFalse(state2.isExpanded("only-in-1"))
 
-        UserDefaults.standard.removeObject(forKey: "sidebar.expanded.\(id1)")
+        EngineConfig.defaults.removeObject(forKey: "sidebar.expanded.\(id1)")
     }
 
     // MARK: - Retired-key purge must not write when nothing to purge (#4104)
@@ -256,7 +256,7 @@ final class SidebarStateTests: XCTestCase {
         var changes = 0
         let observer = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
-            object: UserDefaults.standard,
+            object: EngineConfig.defaults,
             queue: nil
         ) { _ in changes += 1 }
         defer { NotificationCenter.default.removeObserver(observer) }

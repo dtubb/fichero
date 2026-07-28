@@ -206,16 +206,16 @@ enum RemoteClientPairing {
         try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin, hostString: result.apiRoot.absoluteString)
         // Record the token's expiry so renewal can fire before it lapses (#3096).
         DeviceTokenRenewal.storeExpiry(result.expiresAt, host: result.apiRoot.absoluteString)
-        UserDefaults.standard.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
         // Reset the failover endpoint set to just this newly paired endpoint
         // (#3098): a fresh pairing establishes THE paired host, so a previous
         // Mac's endpoints must not linger and be walked during a later failover.
         PairedHostEndpointStore.clear()
         PairedHostEndpointStore.record(result.apiRoot)
         if let libraryPath = normalizedLibraryPath(libraryPath) {
-            UserDefaults.standard.set(libraryPath, forKey: RemoteAccessConfig.pairedLibraryPathKey)
+            EngineConfig.defaults.set(libraryPath, forKey: RemoteAccessConfig.pairedLibraryPathKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
+            EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
         }
     }
 
@@ -304,7 +304,7 @@ enum RemoteClientPairing {
     private static func libraryPathsMatch(_ lhs: String, _ rhs: String) -> Bool {
         // Lexically standardize (drops trailing slash, `.`/`..`), then compare
         // case-insensitively: the default macOS APFS volume is case-insensitive,
-        // so `/Users/Daniel/…` and `/Users/daniel/…` are the same library — a
+        // so `/Users/Alice/…` and `/Users/alice/…` are the same library — a
         // case-sensitive `==` would fail-closed-reject a legitimate pairing. The
         // check stays sound: paths differing only in case ARE the same file on
         // such a volume, so matching them is correct, not a weakening.
@@ -320,8 +320,8 @@ enum RemoteClientPairing {
         AuthTokenMiddleware.clearRemoteToken(hostString: attemptedHost.absoluteString)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: attemptedHost.absoluteString)
         DeviceTokenRenewal.clearExpiry(host: attemptedHost.absoluteString)
-        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
-        UserDefaults.standard.set(previousHost, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        EngineConfig.defaults.set(previousHost, forKey: EngineConfig.userDefaultsKey)
     }
 
     /// Forgets the current pairing so a broken connection is no longer a dead
@@ -338,8 +338,8 @@ enum RemoteClientPairing {
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostString)
         DeviceTokenRenewal.clearExpiry(host: hostString)
         PairedHostEndpointStore.clear()
-        UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        EngineConfig.defaults.removeObject(forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
     }
 
     private static func normalizedLibraryPath(_ path: String?) -> String? {

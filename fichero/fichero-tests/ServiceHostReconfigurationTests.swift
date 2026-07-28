@@ -6,9 +6,9 @@ import Testing
 struct ServiceHostReconfigurationTests {
     private func restoreEngineHost(_ value: String?) {
         if let value {
-            UserDefaults.standard.set(value, forKey: EngineConfig.userDefaultsKey)
+            EngineConfig.defaults.set(value, forKey: EngineConfig.userDefaultsKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
+            EngineConfig.defaults.removeObject(forKey: EngineConfig.userDefaultsKey)
         }
     }
 
@@ -41,17 +41,17 @@ struct ServiceHostReconfigurationTests {
     @Test("IntegrationsService rebinds when the engine host changes")
     @MainActor
     func integrationsServiceRebindsOnHostChangeNotification() async {
-        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        let originalHost = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)
         defer { restoreEngineHost(originalHost) }
 
         let firstHost = URL(string: "https://first.tailnet.example")!
         let secondHost = URL(string: "https://second.tailnet.example")!
-        UserDefaults.standard.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
 
         let service = IntegrationsService()
         #expect(service.client.baseURL == firstHost)
 
-        UserDefaults.standard.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
         NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
         await waitForHostUpdate(secondHost, service: service)
 
@@ -61,17 +61,17 @@ struct ServiceHostReconfigurationTests {
     @Test("ModelComparisonService rebinds when the engine host changes")
     @MainActor
     func modelComparisonServiceRebindsOnHostChangeNotification() async {
-        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
+        let originalHost = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)
         defer { restoreEngineHost(originalHost) }
 
         let firstHost = URL(string: "https://first.tailnet.example")!
         let secondHost = URL(string: "https://second.tailnet.example")!
-        UserDefaults.standard.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
 
         let service = ModelComparisonService()
         #expect(service.client.baseURL == firstHost)
 
-        UserDefaults.standard.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
         NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
         await waitForHostUpdate(secondHost, service: service)
 

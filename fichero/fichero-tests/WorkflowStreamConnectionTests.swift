@@ -10,13 +10,13 @@ final class WorkflowStreamConnectionTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.set(remoteHost, forKey: engineHostKey)
+        EngineConfig.defaults.set(remoteHost, forKey: engineHostKey)
         AuthTokenMiddleware.clearRemoteToken(hostString: remoteHost)
     }
 
     override func tearDown() {
         AuthTokenMiddleware.clearRemoteToken(hostString: remoteHost)
-        UserDefaults.standard.removeObject(forKey: engineHostKey)
+        EngineConfig.defaults.removeObject(forKey: engineHostKey)
         super.tearDown()
     }
 

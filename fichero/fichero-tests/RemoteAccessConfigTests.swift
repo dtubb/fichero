@@ -17,11 +17,11 @@ final class RemoteAccessConfigTests: XCTestCase {
         AuthTokenMiddleware.clearRemoteToken(hostString: attemptedHost.absoluteString)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: previousHost)
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: attemptedHost.absoluteString)
-        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.hostingEnabledKey)
-        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.publicBaseURLKey)
-        UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
-        UserDefaults.standard.removeObject(forKey: EngineConfig.multiuserEnabledKey)
-        UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.hostingEnabledKey)
+        EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.publicBaseURLKey)
+        EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        EngineConfig.defaults.removeObject(forKey: EngineConfig.multiuserEnabledKey)
+        EngineConfig.defaults.removeObject(forKey: EngineConfig.userDefaultsKey)
     }
 
     func testPairingBackendURLUsesAdvertisedRoot() throws {
@@ -36,14 +36,14 @@ final class RemoteAccessConfigTests: XCTestCase {
         let payload = PairingService.buildQRCodePayload(apiRoot: pairingURL, 
             from: code,
             spki: validSPKIPin,
-            libraryPath: "/Users/daniel/Archives/Open.fichero"
+            libraryPath: "/Users/testuser/Archives/Open.fichero"
         )
 
         XCTAssertEqual(payload.apiURL, "https://pairing.example.com")
         XCTAssertEqual(payload.pairCode, "PAIR-1234")
         XCTAssertEqual(payload.spki, validSPKIPin)
         XCTAssertEqual(payload.expiresAt, code.expiresAt)
-        XCTAssertEqual(payload.libraryPath, "/Users/daniel/Archives/Open.fichero")
+        XCTAssertEqual(payload.libraryPath, "/Users/testuser/Archives/Open.fichero")
     }
 
     func testHostedRemoteURLAcceptsTailscaleMagicDNSHost() throws {
@@ -63,7 +63,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         let payload = PairingService.buildQRCodePayload(apiRoot: pairingURL, 
             from: code,
             spki: validSPKIPin,
-            libraryPath: "/Users/daniel/Archives/Open.fichero"
+            libraryPath: "/Users/testuser/Archives/Open.fichero"
         )
 
         XCTAssertEqual(payload.apiURL, "https://studio.tailnet-name.ts.net")
@@ -99,7 +99,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
-            libraryPath: "/Users/daniel/Archive/Open.fichero"
+            libraryPath: "/Users/testuser/Archive/Open.fichero"
         )
 
         let encoder = JSONEncoder()
@@ -110,7 +110,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(pairingFields.remoteURL, "https://pairing.example.com")
         XCTAssertEqual(pairingFields.pairCode, "PAIR-1234")
         XCTAssertEqual(pairingFields.spkiPin, validSPKIPin)
-        XCTAssertEqual(pairingFields.libraryPath, "/Users/daniel/Archive/Open.fichero")
+        XCTAssertEqual(pairingFields.libraryPath, "/Users/testuser/Archive/Open.fichero")
     }
 
     func testRemoteClientPairingFieldsAcceptDecodedPayload() throws {
@@ -122,7 +122,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
-            libraryPath: "  /Users/daniel/Archive/Open.fichero  "
+            libraryPath: "  /Users/testuser/Archive/Open.fichero  "
         )
 
         let pairingFields = try RemoteClientPairing.pairingFields(from: payload)
@@ -130,7 +130,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(pairingFields.remoteURL, "https://pairing.example.com")
         XCTAssertEqual(pairingFields.pairCode, "PAIR-1234")
         XCTAssertEqual(pairingFields.spkiPin, validSPKIPin)
-        XCTAssertEqual(pairingFields.libraryPath, "/Users/daniel/Archive/Open.fichero")
+        XCTAssertEqual(pairingFields.libraryPath, "/Users/testuser/Archive/Open.fichero")
     }
 
     func testRemoteClientPairingFieldsAcceptInviteLink() throws {
@@ -142,7 +142,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         let payload = PairingService.buildQRCodePayload(apiRoot: apiRoot, 
             from: code,
             spki: validSPKIPin,
-            libraryPath: "/Users/daniel/Archive/Open.fichero"
+            libraryPath: "/Users/testuser/Archive/Open.fichero"
         )
         let invite = try RemoteClientPairing.inviteLinkString(from: payload)
 
@@ -151,7 +151,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(pairingFields.remoteURL, "https://pairing.example.com")
         XCTAssertEqual(pairingFields.pairCode, "PAIR-1234")
         XCTAssertEqual(pairingFields.spkiPin, validSPKIPin)
-        XCTAssertEqual(pairingFields.libraryPath, "/Users/daniel/Archive/Open.fichero")
+        XCTAssertEqual(pairingFields.libraryPath, "/Users/testuser/Archive/Open.fichero")
     }
 
     func testRemoteClientPairingFieldsRejectMissingLibraryPath() throws {
@@ -220,11 +220,11 @@ final class RemoteAccessConfigTests: XCTestCase {
         try RemoteClientPairing.persistPairedHost(
             result,
             expectedSPKIPin: validSPKIPin,
-            libraryPath: "  /Users/daniel/Archive/Open.fichero  "
+            libraryPath: "  /Users/testuser/Archive/Open.fichero  "
         )
 
-        XCTAssertEqual(UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey), attemptedHost.absoluteString)
-        XCTAssertEqual(RemoteAccessConfig.pairedLibraryPath, "/Users/daniel/Archive/Open.fichero")
+        XCTAssertEqual(EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey), attemptedHost.absoluteString)
+        XCTAssertEqual(RemoteAccessConfig.pairedLibraryPath, "/Users/testuser/Archive/Open.fichero")
         XCTAssertEqual(AuthTokenMiddleware.readRemoteTokenForHost(attemptedHost.absoluteString), "device-token")
         XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: attemptedHost.absoluteString), validSPKIPin)
         // Pairing records the token expiry for renewal scheduling (#3096).
@@ -246,12 +246,12 @@ final class RemoteAccessConfigTests: XCTestCase {
             Data("attempted-spki".utf8).base64EncodedString(),
             hostString: attemptedHost.absoluteString
         )
-        UserDefaults.standard.set(attemptedHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
-        UserDefaults.standard.set("/Users/daniel/Archive/Open.fichero", forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        EngineConfig.defaults.set(attemptedHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set("/Users/testuser/Archive/Open.fichero", forKey: RemoteAccessConfig.pairedLibraryPathKey)
 
         RemoteClientPairing.rollbackFailedHostSwitch(previousHost: previousHost, attemptedHost: attemptedHost)
 
-        XCTAssertEqual(UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey), previousHost)
+        XCTAssertEqual(EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey), previousHost)
         XCTAssertEqual(RemoteAccessConfig.pairedLibraryPath, "")
         XCTAssertEqual(AuthTokenMiddleware.readRemoteTokenForHost(previousHost), "previous-token")
         XCTAssertEqual(RemoteCertificatePinning.persistedSPKIPin(hostString: previousHost), validSPKIPin)
@@ -263,8 +263,8 @@ final class RemoteAccessConfigTests: XCTestCase {
     /// so `iosLaunchPhase` returns `.setupNeeded` again and the app can route back
     /// to the QR / pairing screen instead of retrying a dead host forever.
     func testForgetPairingClearsPairedStateSoLaunchReturnsToSetup() throws {
-        UserDefaults.standard.set(attemptedHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
-        UserDefaults.standard.set("/Users/daniel/Archive/Open.fichero", forKey: RemoteAccessConfig.pairedLibraryPathKey)
+        EngineConfig.defaults.set(attemptedHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set("/Users/testuser/Archive/Open.fichero", forKey: RemoteAccessConfig.pairedLibraryPathKey)
         let hostKey = EngineConfig.hostString
         try AuthTokenMiddleware.persistRemoteToken("device-token", hostString: hostKey)
         try RemoteCertificatePinning.persistSPKIPin(validSPKIPin, hostString: hostKey)
@@ -281,7 +281,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         // Every value pairing wrote is gone, so the launch decision falls back to
         // first-run pairing regardless of reachability — the dead end is escapable.
         XCTAssertFalse(RemoteAccessConfig.hasPairedLibraryPath)
-        XCTAssertNil(UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey))
+        XCTAssertNil(EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey))
         XCTAssertNil(AuthTokenMiddleware.readRemoteTokenForHost(hostKey))
         XCTAssertNil(RemoteCertificatePinning.persistedSPKIPin(hostString: hostKey))
         XCTAssertEqual(
@@ -399,8 +399,8 @@ final class RemoteAccessConfigTests: XCTestCase {
     }
 
     func testRemoteAccessLaunchEnvironmentDisablesMultiuserWhenToggledOff() {
-        UserDefaults.standard.set(false, forKey: EngineConfig.multiuserEnabledKey)
-        defer { UserDefaults.standard.removeObject(forKey: EngineConfig.multiuserEnabledKey) }
+        EngineConfig.defaults.set(false, forKey: EngineConfig.multiuserEnabledKey)
+        defer { EngineConfig.defaults.removeObject(forKey: EngineConfig.multiuserEnabledKey) }
 
         let material = RemoteAccessTLSMaterial(
             bindHost: "pairing.example.com",

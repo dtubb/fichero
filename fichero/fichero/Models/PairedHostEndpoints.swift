@@ -130,7 +130,7 @@ enum PairedHostEndpointStore {
 
     /// Raw stored endpoint URL strings, in failover priority order.
     static func stored() -> [String] {
-        UserDefaults.standard.stringArray(forKey: storageKey) ?? []
+        EngineConfig.defaults.stringArray(forKey: storageKey) ?? []
     }
 
     /// The failover endpoints as `BackendHost`s, each carrying its own persisted
@@ -155,13 +155,13 @@ enum PairedHostEndpointStore {
         guard !BackendHost(url: url).isLocal else { return }
         var list = stored().filter { $0 != url.absoluteString }
         list.append(url.absoluteString)
-        UserDefaults.standard.set(prioritized(list), forKey: storageKey)
+        EngineConfig.defaults.set(prioritized(list), forKey: storageKey)
     }
 
     /// Forget every endpoint — call when unpairing or switching to a different
     /// paired host so failover never walks a stale host's addresses.
     static func clear() {
-        UserDefaults.standard.removeObject(forKey: storageKey)
+        EngineConfig.defaults.removeObject(forKey: storageKey)
     }
 
     /// Stable sort by rank: LAN endpoints (IP / `.local`) ahead of tailnet

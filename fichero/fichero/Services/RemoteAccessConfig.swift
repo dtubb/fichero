@@ -3,21 +3,26 @@ import FicheroAPIClient
 import Foundation
 
 enum RemoteAccessConfig {
+    /// Reads and writes go through this seam so tests can point the type at a
+    /// throwaway suite instead of the developer's real app domain — see the
+    /// note on `EngineConfig.defaults` (#4221). Production never assigns it.
+    static var defaults: UserDefaults { EngineConfig.defaults }
+
     static let hostingEnabledKey = "fichero.remote_access.enabled"
     static let bonjourEnabledKey = "fichero.remote_access.bonjour_enabled"
     static let publicBaseURLKey = "fichero.remote_access.public_base_url"
     static let pairedLibraryPathKey = "fichero.remote_access.paired_library_path"
 
     static var hostingEnabled: Bool {
-        UserDefaults.standard.bool(forKey: hostingEnabledKey)
+        defaults.bool(forKey: hostingEnabledKey)
     }
 
     static var bonjourEnabled: Bool {
-        UserDefaults.standard.bool(forKey: bonjourEnabledKey)
+        defaults.bool(forKey: bonjourEnabledKey)
     }
 
     static var publicBaseURLString: String {
-        let stored = UserDefaults.standard.string(forKey: publicBaseURLKey) ?? ""
+        let stored = defaults.string(forKey: publicBaseURLKey) ?? ""
         return stored.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -37,7 +42,7 @@ enum RemoteAccessConfig {
     }
 
     static var pairedLibraryPath: String {
-        (UserDefaults.standard.string(forKey: pairedLibraryPathKey) ?? "")
+        (defaults.string(forKey: pairedLibraryPathKey) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

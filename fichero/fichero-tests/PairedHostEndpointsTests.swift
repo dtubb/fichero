@@ -123,11 +123,11 @@ final class PairedHostEndpointsTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: storeKey)
+        EngineConfig.defaults.removeObject(forKey: storeKey)
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: storeKey)
+        EngineConfig.defaults.removeObject(forKey: storeKey)
         super.tearDown()
     }
 

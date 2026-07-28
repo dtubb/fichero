@@ -5,47 +5,40 @@ import XCTest
 @testable import Fichero
 
 final class EngineConfigTests: XCTestCase {
-    private var originalRemoteEnabled: Bool?
-    private var originalHost: String?, originalPublicBaseURL: String?
 
+    // Writes go to a throwaway suite, never the developer's real app domain
+    // (#4221). The previous snapshot-and-restore is gone deliberately: it only
+    // worked when teardown ran, and a killed process skips teardown.
     override func setUp() {
         super.setUp()
-        originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
-        originalRemoteEnabled = UserDefaults.standard.object(forKey: RemoteAccessConfig.hostingEnabledKey) as? Bool
-        originalPublicBaseURL = UserDefaults.standard.string(forKey: RemoteAccessConfig.publicBaseURLKey)
-        restoreEngineHost(nil)
-        restoreRemoteAccessState(enabled: nil, publicBaseURL: nil)
+        TestDefaults.reset()
     }
 
     override func tearDown() {
-        restoreEngineHost(originalHost)
-        restoreRemoteAccessState(enabled: originalRemoteEnabled, publicBaseURL: originalPublicBaseURL)
         RemoteCertificatePinning.clearAdvertisedSPKIPin(hostString: "https://fichero.local:9443")
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: "https://fichero.local:9443")
-        originalHost = nil
-        originalRemoteEnabled = nil
-        originalPublicBaseURL = nil
+        TestDefaults.uninstall()
         super.tearDown()
     }
 
     private func restoreEngineHost(_ value: String?) {
         if let value {
-            UserDefaults.standard.set(value, forKey: EngineConfig.userDefaultsKey)
+            EngineConfig.defaults.set(value, forKey: EngineConfig.userDefaultsKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: EngineConfig.userDefaultsKey)
+            EngineConfig.defaults.removeObject(forKey: EngineConfig.userDefaultsKey)
         }
     }
 
     private func restoreRemoteAccessState(enabled: Bool?, publicBaseURL: String?) {
         if let enabled {
-            UserDefaults.standard.set(enabled, forKey: RemoteAccessConfig.hostingEnabledKey)
+            EngineConfig.defaults.set(enabled, forKey: RemoteAccessConfig.hostingEnabledKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.hostingEnabledKey)
+            EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.hostingEnabledKey)
         }
         if let publicBaseURL {
-            UserDefaults.standard.set(publicBaseURL, forKey: RemoteAccessConfig.publicBaseURLKey)
+            EngineConfig.defaults.set(publicBaseURL, forKey: RemoteAccessConfig.publicBaseURLKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: RemoteAccessConfig.publicBaseURLKey)
+            EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.publicBaseURLKey)
         }
     }
 
@@ -69,7 +62,7 @@ final class EngineConfigTests: XCTestCase {
     }
 
     func testBlankHostUsesCurrentPlatformDefaultPolicy() {
-        UserDefaults.standard.set("   ", forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set("   ", forKey: EngineConfig.userDefaultsKey)
 
         #if os(macOS)
         XCTAssertEqual(EngineConfig.hostConfiguration(from: nil), .embeddedLocal)
@@ -93,7 +86,7 @@ final class EngineConfigTests: XCTestCase {
     func testValidRemoteHostIsPreserved() {
         let remoteHost = "https://host.tailnet.example/"
         let expectedURL = URL(string: "https://host.tailnet.example")!
-        UserDefaults.standard.set(remoteHost, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(remoteHost, forKey: EngineConfig.userDefaultsKey)
 
         XCTAssertEqual(EngineConfig.hostConfiguration(from: remoteHost), .configured(expectedURL))
         XCTAssertEqual(EngineConfig.hostString, expectedURL.absoluteString)
@@ -105,7 +98,7 @@ final class EngineConfigTests: XCTestCase {
 
     func testMalformedNonEmptyHostDoesNotBecomeLocalhost() {
         let malformedHost = "https://remote host/"
-        UserDefaults.standard.set(malformedHost, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(malformedHost, forKey: EngineConfig.userDefaultsKey)
 
         XCTAssertEqual(EngineConfig.hostConfiguration(from: malformedHost), .invalid("https://remote host"))
         XCTAssertEqual(
@@ -126,7 +119,7 @@ final class EngineConfigTests: XCTestCase {
     func testExplicitHTTPSLocalhostStillUsesExternalBackendConnection() {
         let customLocalHost = "https://127.0.0.1:8765"
         let expectedURL = URL(string: customLocalHost)!
-        UserDefaults.standard.set(customLocalHost, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.defaults.set(customLocalHost, forKey: EngineConfig.userDefaultsKey)
 
         XCTAssertEqual(EngineConfig.hostConfiguration(from: customLocalHost), .configured(expectedURL))
         XCTAssertEqual(EngineConfig.host, expectedURL)
@@ -164,7 +157,7 @@ final class EngineConfigTests: XCTestCase {
 
     func testHostedBackendSPKIPinFallsBackToPersistedPin() throws {
         let hostedURL = "https://fichero.local:9443"
-        UserDefaults.standard.set(hostedURL, forKey: RemoteAccessConfig.publicBaseURLKey)
+        EngineConfig.defaults.set(hostedURL, forKey: RemoteAccessConfig.publicBaseURLKey)
         let fallbackPin = Data(repeating: 0xAB, count: 32).base64EncodedString()
         try RemoteCertificatePinning.persistSPKIPin("sha256/\(fallbackPin)", hostString: hostedURL)
 
@@ -173,16 +166,16 @@ final class EngineConfigTests: XCTestCase {
     }
 
     func testHostedRemoteAccessURLDoesNotOverrideActiveEngineHost() {
-        let originalHost = UserDefaults.standard.string(forKey: EngineConfig.userDefaultsKey)
-        let originalRemoteEnabled = UserDefaults.standard.object(forKey: RemoteAccessConfig.hostingEnabledKey) as? Bool
-        let originalPublicBaseURL = UserDefaults.standard.string(forKey: RemoteAccessConfig.publicBaseURLKey)
+        let originalHost = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)
+        let originalRemoteEnabled = EngineConfig.defaults.object(forKey: RemoteAccessConfig.hostingEnabledKey) as? Bool
+        let originalPublicBaseURL = EngineConfig.defaults.string(forKey: RemoteAccessConfig.publicBaseURLKey)
         defer {
             restoreEngineHost(originalHost)
             restoreRemoteAccessState(enabled: originalRemoteEnabled, publicBaseURL: originalPublicBaseURL)
         }
 
-        UserDefaults.standard.set(true, forKey: RemoteAccessConfig.hostingEnabledKey)
-        UserDefaults.standard.set("https://192.168.1.42:9443", forKey: RemoteAccessConfig.publicBaseURLKey)
+        EngineConfig.defaults.set(true, forKey: RemoteAccessConfig.hostingEnabledKey)
+        EngineConfig.defaults.set("https://192.168.1.42:9443", forKey: RemoteAccessConfig.publicBaseURLKey)
 
         XCTAssertEqual(EngineConfig.host.absoluteString, EngineConfig.defaultHostString)
         XCTAssertEqual(EngineConfig.apiBaseURL.absoluteString, EngineConfig.defaultHostString + "/api")
