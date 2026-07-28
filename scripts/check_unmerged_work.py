@@ -20,6 +20,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BASE_REF = "origin/main"
+# Resolved once per run by _comparison_ref(); ~600 lane branches otherwise
+# means ~600 merge-base subprocesses.
+_COMPARISON_REF: str | None = None
 WORKTREE_ROOTS = (
     Path.home() / "code" / "fichero-worktrees",
     ROOT / ".claude" / "worktrees",
@@ -59,11 +62,63 @@ def _ensure_base_ref() -> str | None:
     return f"Missing comparison ref {BASE_REF}. Run `git fetch origin main` and retry."
 
 
+def _comparison_ref() -> str:
+    """What counts as "already landed".
+
+    ``origin/main`` alone is too strict for this workflow: day-to-day work
+    accumulates on the long-lived integration branch and reaches main only
+    at release. Measuring against main therefore reports every
+    integration-only commit as unmerged — the check's job is "is this work
+    LOST", and work sitting on the integration branch is not lost.
+
+    So when HEAD already contains ``origin/main`` (i.e. HEAD is main or a
+    branch built on it), compare against HEAD, which is a superset. Only
+    when HEAD has diverged from main do we fall back to main itself.
+    """
+    global _COMPARISON_REF
+    if _COMPARISON_REF is None:
+        contains = _git(["merge-base", "--is-ancestor", BASE_REF, "HEAD"], check=False)
+        _COMPARISON_REF = "HEAD" if contains.returncode == 0 else BASE_REF
+    return _COMPARISON_REF
+
+
 def _ahead_commits(ref: str, cwd: Path = ROOT) -> tuple[str, ...]:
-    result = _git(["log", "--oneline", f"{BASE_REF}..{ref}"], cwd=cwd, check=False)
+    """Commits on ``ref`` whose CONTENT is not already in ``BASE_REF``.
+
+    Uses ``git cherry`` (patch-id equivalence), not ``log BASE..ref``
+    (SHA ancestry). This repo squash-merges and rebases, so ancestry
+    reports work as unmerged when the change is already applied: a spot
+    check of three flagged commits found all three present in HEAD
+    (e.g. the `import FicheroAPIClient` fix, and PlistBuddy entitlement
+    parsing). A guardrail that is permanently and wrongly red trains
+    everyone to ignore it, which is worse than not having it.
+
+    ``git cherry`` prefixes each commit with ``+`` (no equivalent
+    upstream) or ``-`` (equivalent patch already upstream); only ``+``
+    lines are genuinely unmerged.
+
+    Residual limitation, stated rather than hidden: patch-ids match
+    1:1 rewrites (cherry-pick, rebase, single-commit squash) but NOT a
+    many-commits-into-one squash, where no individual patch-id equals
+    the combined diff. Those can still appear as false positives and
+    need a content check by hand.
+    """
+    # `-v` carries the subject inline, so this stays ONE git call per ref;
+    # resolving subjects with a `log -1` per commit made the whole sweep
+    # time out across the several hundred lane branches.
+    result = _git(["cherry", "-v", _comparison_ref(), ref], cwd=cwd, check=False)
     if result.returncode != 0:
         return ()
-    return tuple(line for line in result.stdout.splitlines() if line.strip())
+    unmerged: list[str] = []
+    for line in result.stdout.splitlines():
+        if not line.startswith("+"):
+            continue
+        entry = line[1:].strip()
+        if not entry:
+            continue
+        sha, _, subject = entry.partition(" ")
+        unmerged.append(f"{sha[:9]} {subject}".strip())
+    return tuple(unmerged)
 
 
 def _is_under(path: Path, root: Path) -> bool:
@@ -128,7 +183,7 @@ def _local_branch_findings() -> list[Finding]:
 def _print_finding(finding: Finding, list_all: bool) -> None:
     location = f" at {finding.path}" if finding.path else ""
     print(f"- {finding.kind}: {finding.name}{location}")
-    print(f"  commits not in {BASE_REF}: {len(finding.commits)}")
+    print(f"  commits not in {_comparison_ref()}: {len(finding.commits)}")
     limit = len(finding.commits) if list_all else min(5, len(finding.commits))
     for commit in finding.commits[:limit]:
         print(f"    {commit}")
@@ -159,7 +214,7 @@ def main(argv: list[str]) -> int:
     findings = worktrees + branches
 
     print("Unmerged worker work check")
-    print(f"Base: {BASE_REF}")
+    print(f"Base: {_comparison_ref()} (content comparison, squash-aware)")
     print("Worktree roots:")
     for root in WORKTREE_ROOTS:
         print(f"  {root}")
