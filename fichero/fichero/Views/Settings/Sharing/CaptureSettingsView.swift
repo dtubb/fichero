@@ -10,6 +10,17 @@ struct CapturePolicy: Codable {
     var workflowName: String = ""
 }
 
+/// Which picker `CaptureUserManageView` is presenting, if any.
+///
+/// File scope, not nested in the view: a type declared inside a `View`
+/// inherits its MainActor isolation, and nothing here needs it (#4201).
+private enum CapturePicker: String, Identifiable {
+    case library
+    case workflow
+
+    var id: String { rawValue }
+}
+
 // MARK: - Capture Settings (overview)
 
 /// Mac decides capture policy: which user maps to which library + workflow.
@@ -143,8 +154,12 @@ struct CaptureUserManageView: View {
     let onBack: () -> Void
 
     @State private var availableWorkflows: [WorkflowSidebarItem] = []
-    @State private var showingLibraryPicker = false
-    @State private var showingWorkflowPicker = false
+    /// ONE picker at a time — the two are mutually exclusive by construction
+    /// (the workflow row is disabled until a library is chosen), so a single
+    /// `.sheet(item:)` presents both. Two `.sheet` modifiers on one node is the
+    /// duplicate-registration shape that crashed the app at launch when
+    /// `.searchable` registered twice (#3163). (#4201)
+    @State private var activePicker: CapturePicker?
 
     var body: some View {
         Form {
@@ -171,8 +186,12 @@ struct CaptureUserManageView: View {
             }
         }
         .task(id: policy.libraryId) { await loadWorkflows() }
-        .sheet(isPresented: $showingLibraryPicker) { libraryPickerSheet }
-        .sheet(isPresented: $showingWorkflowPicker) { workflowPickerSheet }
+        .sheet(item: $activePicker) { picker in
+            switch picker {
+            case .library: libraryPickerSheet
+            case .workflow: workflowPickerSheet
+            }
+        }
     }
 
     private var libraryRow: some View {
@@ -181,7 +200,7 @@ struct CaptureUserManageView: View {
                 Text(policy.libraryName.isEmpty ? "None" : policy.libraryName)
                     .foregroundStyle(policy.libraryName.isEmpty ? .secondary : .primary)
                 Spacer()
-                Button("Change") { showingLibraryPicker = true }
+                Button("Change") { activePicker = .library }
                     .buttonStyle(.borderless)
             }
         }
@@ -193,7 +212,7 @@ struct CaptureUserManageView: View {
                 Text(policy.workflowName.isEmpty ? "None" : policy.workflowName)
                     .foregroundStyle(policy.workflowName.isEmpty ? .secondary : .primary)
                 Spacer()
-                Button("Change") { showingWorkflowPicker = true }
+                Button("Change") { activePicker = .workflow }
                     .buttonStyle(.borderless)
                     .disabled(policy.libraryId.isEmpty)
             }
@@ -209,7 +228,7 @@ struct CaptureUserManageView: View {
                         policy.libraryName = lib.displayName
                         policy.workflowId = ""
                         policy.workflowName = ""
-                        showingLibraryPicker = false
+                        activePicker = nil
                     } label: {
                         HStack {
                             Text(lib.displayName)
@@ -226,7 +245,7 @@ struct CaptureUserManageView: View {
             .navigationTitle("Choose Library")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showingLibraryPicker = false }
+                    Button("Cancel") { activePicker = nil }
                 }
             }
         }
@@ -248,7 +267,7 @@ struct CaptureUserManageView: View {
                             Button {
                                 policy.workflowId = workflow.id
                                 policy.workflowName = workflow.name
-                                showingWorkflowPicker = false
+                                activePicker = nil
                             } label: {
                                 HStack {
                                     Text(workflow.name)
@@ -267,7 +286,7 @@ struct CaptureUserManageView: View {
             .navigationTitle("Choose Workflow")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showingWorkflowPicker = false }
+                    Button("Cancel") { activePicker = nil }
                 }
             }
         }

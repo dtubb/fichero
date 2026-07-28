@@ -40,7 +40,23 @@ struct ActivityMonitorView: View {
         return store.execution(forThreadId: String(parts[1]))
     }
 
+    // The alert sits on its OWN node, outside the sheet's: stacking two
+    // presentation modifiers on one node is the duplicate-registration shape
+    // that crashed the app at launch when `.searchable` registered twice
+    // (#3163). Same rendering, one presentation per node. (#4201)
     var body: some View {
+        monitorContent
+            .alert("Action Failed", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                if let errorMessage { Text(errorMessage) }
+            }
+    }
+
+    private var monitorContent: some View {
         Group {
             if rows.isEmpty {
                 ContentUnavailableView(
@@ -54,14 +70,6 @@ struct ActivityMonitorView: View {
         }
         .toolbar { monitorToolbar }
         .sheet(item: $logRun) { run in logSheet(run) }
-        .alert("Action Failed", isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
-            Button("OK") { errorMessage = nil }
-        } message: {
-            if let errorMessage { Text(errorMessage) }
-        }
         .task { await populate() }
     }
 
