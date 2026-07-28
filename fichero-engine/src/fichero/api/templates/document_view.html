@@ -594,6 +594,11 @@ function inferGeoContext() {
     };
 }
 
+// SVO ordering is duplicated here because this runs in the browser and cannot
+// import the canonical Python helper. The single source of truth is
+// `order_statement_parts` in fichero/knowledge/_common.py — a VSO (Arabic) or
+// SOV renderer must change BOTH, and a Python-only test cannot catch a miss
+// here (#4172).
 function claimSummary(claim) {
     if (claim.subject_canonical && claim.predicate_verb && claim.object_phrase) {
         return `${claim.subject_canonical} ${claim.predicate_verb} ${claim.object_phrase}`;

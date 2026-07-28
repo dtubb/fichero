@@ -680,6 +680,11 @@ class MigrationRunner:
                     claim.subject_canonical or new_meta.get("subject") or ""
                 ).strip()
                 if subject and predicate:
+                    # Deliberately NOT routed through
+                    # knowledge._common.render_statement (#4172): a migration
+                    # must keep producing byte-identical output forever, so it
+                    # cannot follow a helper whose ordering is meant to change
+                    # for VSO/SOV languages. Frozen on purpose.
                     new_text = f"{subject} {predicate}."
                 else:
                     new_text = subject or predicate

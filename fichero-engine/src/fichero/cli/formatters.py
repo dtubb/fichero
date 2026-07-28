@@ -257,7 +257,10 @@ def render_claim(claim: dict | Any, *, as_json: bool = False) -> str:
     obj = _truncate(str(claim.get("object_phrase", "(missing)")), 25)
     doc_id = claim.get("source_document_id", "(missing)")
 
-    return f"{subject} → {predicate} → {obj} (from: {doc_id})"
+    from fichero.knowledge._common import render_statement
+
+    triple = render_statement(subject, predicate, obj, separator=" → ")
+    return f"{triple} (from: {doc_id})"
 
 
 def render_document(doc: dict | Any, *, as_json: bool = False) -> str:

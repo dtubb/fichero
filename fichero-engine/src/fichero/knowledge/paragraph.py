@@ -11,6 +11,7 @@ from typing import Sequence
 
 from pydantic import BaseModel, Field
 
+from fichero.knowledge._common import order_statement_parts, render_statement
 from fichero.models.knowledge import KnowledgeClaim
 
 _SUPERSCRIPT_TRANSLATION = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
@@ -115,14 +116,12 @@ def _claim_sentence(claim: KnowledgeClaim) -> str:
     subject = _claim_subject(claim)
     verb = _claim_verb(claim)
     obj = _claim_object(claim)
-    if verb and obj:
-        if subject:
-            return _sentence_end(f"{subject} {verb} {obj}")
-        return _sentence_end(f"{verb} {obj}")
-    if subject and verb:
-        return _sentence_end(f"{subject} {verb}")
-    if subject and obj:
-        return _sentence_end(f"{subject} {obj}")
+    # Two or more roles present makes a sentence; a lone role does not, so it
+    # falls through to the claim's own text below. The previous four explicit
+    # branches (S V O / V O / S V / S O) are exactly that rule (#4172).
+    parts = order_statement_parts(subject, verb, obj)
+    if len(parts) >= 2:
+        return _sentence_end(" ".join(parts))
 
     text = _collapse_whitespace(claim.text)
     if text:
@@ -309,7 +308,9 @@ def render_paragraph_claims(
             subject = _claim_subject(group[0]) or ""
             verb = _claim_verb(group[0]) or ""
             objects = [_claim_object(claim) or "" for claim in group]
-            sentence = f"{subject} {verb} {_combine_phrases(objects)}"
+            # Same ordering helper as the single-claim path, with the merged
+            # object phrase standing in for one object (#4172).
+            sentence = render_statement(subject, verb, _combine_phrases(objects))
         else:
             sentence = _claim_sentence(group[0])
 

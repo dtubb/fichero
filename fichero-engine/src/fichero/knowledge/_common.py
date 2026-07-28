@@ -35,6 +35,38 @@ if TYPE_CHECKING:  # pragma: no cover
     from fichero.models.knowledge import KnowledgeClaim
 
 
+#: Surface order of the three claim roles. Storage is ROLE-keyed
+#: (``subject_canonical`` / ``predicate_verb`` / ``object_phrase``) and encodes
+#: no word order, so supporting a VSO language (Arabic) or an SOV one is a
+#: RENDERING change — this tuple — and NOT a data migration (#4172).
+STATEMENT_ROLE_ORDER: tuple[str, str, str] = ("subject", "verb", "object")
+
+
+def order_statement_parts(
+    subject: str | None, verb: str | None, obj: str | None
+) -> list[str]:
+    """The three roles in surface order, dropping the ones that are absent.
+
+    Every renderer must go through here. The order was previously hardcoded as
+    an f-string in four places, so a future VSO/SOV renderer would have had to
+    find all four — and one of them is JavaScript in a Jinja template, where a
+    missed site fails silently rather than loudly (#4172).
+    """
+    by_role = {"subject": subject, "verb": verb, "object": obj}
+    return [value for role in STATEMENT_ROLE_ORDER if (value := by_role[role])]
+
+
+def render_statement(
+    subject: str | None,
+    verb: str | None,
+    obj: str | None,
+    *,
+    separator: str = " ",
+) -> str:
+    """Join the present roles in surface order."""
+    return separator.join(order_statement_parts(subject, verb, obj))
+
+
 def enum_value(x: Any) -> str:
     """Return ``x.value`` when ``x`` is an enum, else ``str(x)``.
 
