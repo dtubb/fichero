@@ -29,6 +29,10 @@ run "ruff" "$RUFF" check fichero-engine/src/
 run "backend unit" "$PYTEST" fichero-engine/tests/unit/ \
   --ignore=fichero-engine/tests/unit/_archived -q -k "not embedding"
 
+# Say what this gate does NOT cover, so the exclusion can't quietly become
+# invisible coverage loss (#4174). tests/perf is ~73% of a whole-tree run.
+echo "ℹ️  Not covered by this gate: fichero-engine/tests/perf (~50 min) — run scripts/verify_perf.sh"
+
 # 3. GET contract walk (every list endpoint serializes against its response_model).
 run "contract walk" "$PYTEST" fichero-engine/tests/integration/test_contract_endpoint_walk.py -q
 

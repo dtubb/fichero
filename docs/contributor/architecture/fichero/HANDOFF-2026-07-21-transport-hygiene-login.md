@@ -21,8 +21,9 @@ BUILD SUCCEEDED earlier this session):
   (see `2026-07-20-startup-transport-ux-fabel-review.md`), NOT yet implemented.
 - `library_discovery.py` DELETED (dead home-crawl); recents-registry is the list source.
 - #4039 FIXED: `fichero-engine/tests/unit/conftest.py` attaches auth middleware at conftest LOAD →
-  verify-all reliable again (~8056 pass). Run the suite ALONE, `--ignore=tests/perf` (a perf test hangs
-  in db_embeddings), `--timeout=75 --timeout-method=thread`, `FICHERO_MULTIUSER=0`,
+  verify-all reliable again (~8056 pass). Run the suite ALONE, targeting `tests/unit/` (the gates
+  never include `tests/perf`; run that deliberately via `scripts/verify_perf.sh` — see #4174),
+  `--timeout=75 --timeout-method=thread`, `FICHERO_MULTIUSER=0`,
   `PYTHONPATH=<worktree>/fichero-engine/src`, engine venv `/Users/danieltubb/code/fichero/.venv`.
 
 ## KNOWN OPEN: FicheroClient "Cannot find InMemoryASGIClientTransport in scope" (Xcode)

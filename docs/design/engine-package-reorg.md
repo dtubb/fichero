@@ -256,9 +256,10 @@ dir has an `__init__.py`.
 
 ## 5. Safe move sequence (low → high blast; one domain per PR)
 
-Each stage = **one PR/commit**, gated by the **full engine pytest suite**
-(reliable once #4039's shared-app poison + perf hang are addressed —
-use `--ignore=tests/perf` meanwhile) **plus all `scripts/check_*.py`** run under
+Each stage = **one PR/commit**, gated by the **engine pytest suite**
+(`tests/unit/` + `tests/contracts/`, which is what every gate script already
+covers — `tests/perf` is deliberately excluded, run it via
+`scripts/verify_perf.sh`; see #4174) **plus all `scripts/check_*.py`** run under
 the engine venv with the worktree on `PYTHONPATH`.
 
 | # | stage | domain | max blast | why here |
@@ -297,8 +298,9 @@ Interleave-able independent tracks (separate PRs, any time after stage 1):
    re-export for god-nodes.
 4. Repoint any guardrail from §4 that names the moved path, in the same PR.
 5. `pip install -e fichero-engine` if a new package dir was created.
-6. Gate: full engine pytest (`--ignore=tests/perf` until #4039) + all
-   `scripts/check_*.py` under the engine venv. Push only if 0 failed.
+6. Gate: engine pytest `tests/unit/` + `tests/contracts/` (NOT `tests/perf` —
+   `scripts/verify_perf.sh` runs that on its own) + all `scripts/check_*.py`
+   under the engine venv. Push only if 0 failed.
 
 **Stage 1 — mcp/ (FIRST):**
 - `git mv` these into the existing `mcp/`: `mcp_server.py mcp_simple.py mcp_full.py

@@ -28,6 +28,29 @@ bash fichero-engine/scripts/start_backend.sh   # server (serves HTTPS; app pins 
 swiftlint lint fichero/fichero/
 ```
 
+**Which tests the gates actually run — and what they deliberately skip.** Every
+gate (`verify_python.sh`, `verify_all.sh --standard`, `build-and-validate.sh`)
+covers `fichero-engine/tests/unit/` plus, in `verify_all`, `tests/contracts/`.
+**`fichero-engine/tests/perf/` is run by NOTHING automatically** — that is
+deliberate, not an oversight:
+
+```bash
+scripts/verify_perf.sh          # the perf suite, on purpose (~50 min)
+```
+
+Do NOT reach for the whole-tree `pytest fichero-engine/tests` form. It silently
+pulls in the perf suite and takes ~70 minutes: measured 2026-07-28, a full-tree
+run was 4219s of which **two perf tests were 3089s — 73% of the entire suite**
+(`test_list_entities_full_scale` 1612s, `test_list_entities_doc_scoped_scale`
+1477s). Everything outside `tests/perf/` finishes in under 12s per test. Those
+two are SLOW, not hung — under `-q` they print nothing for ~25 minutes each and
+have been mistaken for a hang (#4039); `verify_perf.sh` streams their output so
+you can see progress.
+
+Because a perf run and an Xcode build together have pushed this machine past
+the load where the OS starts killing processes, check `pgrep -f xcodebuild`
+before starting either the perf suite or a whole-tree pytest run.
+
 **Working in a git worktree?** A worktree has no `.venv` of its own. Activate the one from
 your main checkout, but keep `PYTHONPATH=fichero-engine/src` **relative to the worktree**
 — the venv is an editable install pointing at the main checkout, so without it you lint
@@ -410,7 +433,7 @@ that must never be public goes outside `docs/` entirely — not merely out of `n
 | `fichero/fichero/` | Swift/SwiftUI frontend (Xcode project: `fichero/fichero.xcodeproj`) |
 | `fichero/fichero-api-client/` | Generated Swift OpenAPI client package |
 | `fichero-engine/src/fichero/` | Python FastAPI backend |
-| `fichero-engine/tests/` | Python tests (`unit/`, `integration/`, `contracts/`) |
+| `fichero-engine/tests/` | Python tests (`unit/`, `integration/`, `contracts/`, and `perf/` — gated separately via `scripts/verify_perf.sh`) |
 
 ---
 

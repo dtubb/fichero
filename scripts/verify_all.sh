@@ -339,6 +339,11 @@ run_standard() {
   # new endpoint added without a SwiftUI caller / docs / allowlist entry.
   run_check "backend pytest contract tests" env PYTHONPATH=fichero-engine/src \
     "${PYTEST_CMD[@]}" -rf fichero-engine/tests/contracts/
+
+  # State the exclusion out loud: a gate that silently stops covering a quarter
+  # of the suite is how coverage rots (#4174). tests/perf has never been in any
+  # gate, so this documents reality rather than changing it.
+  echo "ℹ️  Not covered: fichero-engine/tests/perf (~50 min, 73% of a whole-tree run) — scripts/verify_perf.sh"
 }
 
 run_platform_checks() {
