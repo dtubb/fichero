@@ -531,6 +531,9 @@ class TestIngestFile:
 
         dest = tmp_path / "library" / "test_copy.jpg"
         dest.parent.mkdir(parents=True)
+        # A real copy leaves a file behind; metadata extraction now requires it
+        # to exist rather than swallowing the absence (#4218).
+        dest.write_bytes(file.read_bytes())
         mock_copy.return_value = dest
 
         doc = ingest_file(file, mode=IngestMode.COPY)
@@ -1048,7 +1051,9 @@ class TestCopyToLibrary:
         source.write_bytes(b"test data")
 
         mock_settings.base_path = tmp_path
-        mock_clone.return_value = True
+        # A successful clone creates the destination; returning True without
+        # one models something that cannot happen (#4218).
+        mock_clone.side_effect = lambda src, dst: (dst.write_bytes(src.read_bytes()), True)[1]
 
         _copy_to_library(source)
 
@@ -1066,6 +1071,7 @@ class TestCopyToLibrary:
 
         mock_settings.base_path = tmp_path
         mock_clone.return_value = False
+        mock_copy2.side_effect = lambda src, dst: dst.write_bytes(src.read_bytes())
 
         _copy_to_library(source)
 
@@ -1081,7 +1087,7 @@ class TestCopyToLibrary:
         source.write_bytes(b"test data")
 
         mock_settings.base_path = tmp_path
-        mock_clone.return_value = True
+        mock_clone.side_effect = lambda src, dst: (dst.write_bytes(src.read_bytes()), True)[1]
 
         dest = _copy_to_library(source)
 
@@ -2177,6 +2183,9 @@ class TestIngestModeMetadata:
         file.write_bytes(b"x")
         dest = tmp_path / "library" / "test_copy.jpg"
         dest.parent.mkdir(parents=True)
+        # A real copy leaves a file behind; metadata extraction now requires it
+        # to exist rather than swallowing the absence (#4218).
+        dest.write_bytes(file.read_bytes())
         mock_copy.return_value = dest
 
         doc = ingest_file(file, mode=IngestMode.COPY)

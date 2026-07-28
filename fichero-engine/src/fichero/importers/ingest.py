@@ -703,12 +703,47 @@ def _copy_to_library(source: Path, package_path: Path | None = None) -> Path:
     # Try APFS clone first (macOS only, instant, no disk space until modified)
     if _try_apfs_clone(source, dest):
         logger.debug("APFS clone: %s", source.name)
+        _verify_copied(source, dest)
         return dest
 
     # Fallback to regular copy
     shutil.copy2(source, dest)
     logger.debug("Copied: %s", source.name)
+    _verify_copied(source, dest)
     return dest
+
+
+def _verify_copied(source: Path, dest: Path) -> None:
+    """Confirm the copy actually landed, by size (#4218).
+
+    Nothing checked this before: `shutil.copy2` returning without raising was
+    treated as proof, and `clonefile` returning 0 likewise. Neither is. On a
+    slow or dropping network volume a copy can end short without raising, and
+    the consequence is worse than a bad checksum — the checksum is computed
+    from the DESTINATION, so a truncated copy is hashed as-is and recorded as
+    authoritative. The record is internally consistent and silently wrong;
+    there is no notion of a correct checksum to disagree with.
+
+    Raising here is what makes the failure REACHABLE: the folder walk already
+    catches it, marks the document `Status.failed` with an `ingest_error`, and
+    the #4203 retry picks it up. That machinery existed and this class of
+    failure never got to it.
+
+    Size, deliberately NOT a checksum comparison: re-reading both files would
+    double read I/O on the path just taken to 926 files/sec, to catch what a
+    size check already catches nearly always. Do not "upgrade" this to a hash.
+    """
+    try:
+        source_size = source.stat().st_size
+        dest_size = dest.stat().st_size
+    except OSError as exc:
+        raise OSError(f"copy verification failed for {source.name}: {exc}") from exc
+
+    if source_size != dest_size:
+        raise OSError(
+            f"copy of {source.name} is incomplete: source {source_size} bytes, "
+            f"destination {dest_size} bytes"
+        )
 
 
 def _try_apfs_clone(source: Path, dest: Path) -> bool:
@@ -736,17 +771,23 @@ def _extract_file_metadata(
 
     Updates doc.metadata in place.
     """
-    try:
-        stat = path.stat()
-        doc.metadata["file_size"] = stat.st_size
+    # The file being absent or unreadable is NOT a metadata problem, and must
+    # not be swallowed (#4218). Previously the broad `except` below caught it,
+    # logged a warning and returned normally, so the document was saved with
+    # `Status.pending`, no checksum and no error metadata — a database row
+    # pointing at a file that is not there, indistinguishable from a healthy
+    # import. Raising routes it to the same failed-stub + retry path as any
+    # other ingest error.
+    stat = path.stat()
+    doc.metadata["file_size"] = stat.st_size
+    doc.metadata["checksum"] = _file_checksum(path)
 
-        # MIME type
+    # Everything below is genuinely best-effort: a corrupt EXIF block or an
+    # unparseable header should not fail an import whose bytes are fine.
+    try:
         mime_type, _ = mimetypes.guess_type(str(path))
         if mime_type:
             doc.metadata["mime_type"] = mime_type
-
-        # Checksum (for deduplication)
-        doc.metadata["checksum"] = _file_checksum(path)
 
         # Image dimensions (if applicable)
         if doc.file_type == FileType.image:
