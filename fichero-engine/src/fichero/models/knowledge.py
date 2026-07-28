@@ -1642,20 +1642,31 @@ class KnowledgeClaim(BaseModel):
         ),
     )
     # --- SVO-style claim text fields (#730) ---
-    # Additional SVO fields alongside the existing subject_canonical/predicate_verb/object_phrase
-    # to provide consistent field names for metadata extraction and API consumers
+    # NOT aliases of subject_canonical/predicate_verb/object_phrase, despite
+    # what this block used to claim (corrected #4172). These are the
+    # NORMALISED/KEY forms; the fields above are the DISPLAY forms. The verb
+    # diverges in particular, so a language or rendering fix that touches one
+    # pair and not the other will silently half-apply.
     svo_subject: str | None = Field(
         default=None,
         description=(
-            "Subject of the SVO triple. Alias for subject_canonical with consistent naming. "
-            "Populated from extract_all output using normalized entity names."
+            "Subject of the SVO triple, as the normalized entity name. Usually "
+            "equal to subject_canonical, but written independently by each "
+            "extractor — do not assume they agree."
         ),
     )
     svo_verb: str | None = Field(
         default=None,
         description=(
-            "Verb of the SVO triple. Uses slug_verb from kg/_common.py for canonical normalization. "
-            "Populated from extract_all output with fallback to synthesized values."
+            "SLUG form of the verb — NOT the display verb in predicate_verb. "
+            "Most writers store slug_verb(verb) ('entered into' -> "
+            "'entered-into'); the citation-stance path stores "
+            "canonical_verb(...) instead, which uses underscores ('served_as') "
+            "and is None for verbs outside the ~45-verb controlled vocabulary. "
+            "So this field holds one of several slug shapes and is a matching "
+            "key, never display text. Deduplication tolerates the difference: "
+            "the normalizer folds both '-' and '_' to spaces, so all three "
+            "forms compare equal (verified #4172)."
         ),
     )
     svo_object: str | None = Field(
