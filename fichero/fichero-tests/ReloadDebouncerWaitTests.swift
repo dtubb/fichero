@@ -90,3 +90,52 @@ struct ReloadDebouncerWaitTests {
         #expect(wait == .zero)
     }
 }
+
+// MARK: - Overdue flushes must not be rescheduled (#4203 follow-up)
+
+/// The maxWait ceiling was computed correctly and then thrown away: `schedule`
+/// cancelled the pending task on every event, and `Task.sleep` suspends even
+/// for `.zero`, so under an import's 1-2ms event spacing the next event always
+/// cancelled the flush before it resumed. Rows appeared only when the stream
+/// stopped — the exact starvation maxWait exists to prevent, surviving the fix
+/// and looking like batching.
+///
+/// These pin the rule the scheduler now consults. `wait(...)` alone could not
+/// catch it: that function was always right; the bug was in what `schedule`
+/// did with its answer.
+@Suite("ReloadDebouncer overdue-flush rule")
+struct ReloadDebouncerOverdueFlushTests {
+
+    @Test("an overdue burst with a flush pending yields — the pending flush must run")
+    func overdueWithPendingYields() {
+        #expect(ReloadDebouncer.yieldsToPendingFlush(wait: .zero, hasPending: true))
+    }
+
+    @Test("an overdue burst with NO flush pending schedules one — otherwise nothing ever flushes")
+    func overdueWithoutPendingSchedules() {
+        #expect(!ReloadDebouncer.yieldsToPendingFlush(wait: .zero, hasPending: false))
+    }
+
+    @Test("a young burst always reschedules, which is what makes it a debounce")
+    func youngBurstReschedules() {
+        #expect(!ReloadDebouncer.yieldsToPendingFlush(wait: .milliseconds(300), hasPending: true))
+        #expect(!ReloadDebouncer.yieldsToPendingFlush(wait: .milliseconds(1), hasPending: true))
+    }
+
+    @Test("the rule composes with wait(): a burst past maxWait yields to its pending flush")
+    func composesWithWait() {
+        // 1.5s into a burst with a 1s ceiling: overdue.
+        let overdue = ReloadDebouncer.wait(
+            delay: .milliseconds(300), maxWait: .seconds(1), sinceBurstStart: .milliseconds(1500)
+        )
+        #expect(overdue == .zero)
+        #expect(ReloadDebouncer.yieldsToPendingFlush(wait: overdue, hasPending: true))
+
+        // 100ms in: still inside the window, still debouncing.
+        let young = ReloadDebouncer.wait(
+            delay: .milliseconds(300), maxWait: .seconds(1), sinceBurstStart: .milliseconds(100)
+        )
+        #expect(young == .milliseconds(300))
+        #expect(!ReloadDebouncer.yieldsToPendingFlush(wait: young, hasPending: true))
+    }
+}

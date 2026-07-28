@@ -43,6 +43,15 @@ final class ReloadDebouncer {
         burstStart = start
         let wait = Self.wait(delay: delay, maxWait: maxWait, sinceBurstStart: now - start)
 
+        // Once the burst is past `maxWait` a flush is OVERDUE, and the pending
+        // task must be left alone to run. Cancelling and rescheduling it — even
+        // with a zero wait — reintroduces the exact starvation this class exists
+        // to prevent: `Task.sleep` suspends even for `.zero`, so at the 1-2ms
+        // event spacing of an import the next event always cancels the task
+        // before it resumes, and the flush never happens until the stream stops.
+        // That shipped in the first version of this fix and looked like batching.
+        if Self.yieldsToPendingFlush(wait: wait, hasPending: pending != nil) { return }
+
         pending?.cancel()
         pending = Task { [weak self] in
             try? await Task.sleep(for: wait)
@@ -67,6 +76,22 @@ final class ReloadDebouncer {
     /// with one important difference — an EXPLICIT `@MainActor` makes the
     /// off-main call a COMPILE error, while a `View`'s implicit isolation
     /// compiles and SIGTRAPs at runtime. The loud failure is the good one.
+    /// Whether `schedule` must LEAVE the pending flush alone instead of
+    /// cancelling and rescheduling it.
+    ///
+    /// True once the burst is overdue (`wait == .zero`) and a flush is already
+    /// pending. This is the rule whose absence made the maxWait ceiling
+    /// decorative: `Task.sleep` suspends even for `.zero`, so under a 1-2ms
+    /// event stream every rescheduled task was cancelled before it resumed and
+    /// the flush only ran once the stream stopped — indistinguishable from the
+    /// starvation bug maxWait was added to fix.
+    ///
+    /// Pure and `nonisolated` for the same reasons as `wait(delay:maxWait:_:)`:
+    /// testable without sleeping, and callable from a Swift Testing suite.
+    nonisolated static func yieldsToPendingFlush(wait: Duration, hasPending: Bool) -> Bool {
+        wait == .zero && hasPending
+    }
+
     nonisolated static func wait(delay: Duration, maxWait: Duration, sinceBurstStart elapsed: Duration) -> Duration {
         let remaining = maxWait - elapsed
         if remaining <= .zero { return .zero }
