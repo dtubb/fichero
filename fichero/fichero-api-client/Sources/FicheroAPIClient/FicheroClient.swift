@@ -64,7 +64,11 @@ public final class FicheroClient: ObservableObject {
     /// real-network transport. #4024: without this, an injected session was lost the
     /// instant a wrapper (e.g. APIClient) touched the library path, escaping requests to
     /// the real network (the MCP/Schedules/Chain DNS failures).
-    private let configuredSession: URLSession?
+    /// `internal` (not `private`) so `FicheroClientTests` can assert the
+    /// pinning seam: a client built with `expectedSPKIPin` must hold the
+    /// explicitly-pinned session (the KG pane's old availability gate was
+    /// removed on the strength of this enforcement living HERE).
+    let configuredSession: URLSession?
 
     /// Which transport this instance dials with (per-instance, default `.https`).
     /// Retained so `rebuildClient()` selects the same transport on every

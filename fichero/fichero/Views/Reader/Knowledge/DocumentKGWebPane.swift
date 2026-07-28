@@ -78,15 +78,13 @@ struct DocumentKGWebPane: NSViewRepresentable {
         config.setURLSchemeHandler(StorageResourceSchemeHandler(), forURLScheme: StorageResourceURL.scheme)
         let controller = config.userContentController
         controller.add(context.coordinator, name: "ficheroBridge")
-        if DocumentKGPaneRoute.supportsAuthenticatedWebView() {
-            controller.addUserScript(
-                WKUserScript(
-                    source: context.coordinator.bootstrapScript(forceRefresh: true),
-                    injectionTime: .atDocumentStart,
-                    forMainFrameOnly: true
-                )
+        controller.addUserScript(
+            WKUserScript(
+                source: context.coordinator.bootstrapScript(forceRefresh: true),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
             )
-        }
+        )
         // Inject live macOS system colors at document end so they override the
         // template's default :root palette (same specificity, later wins).
         controller.addUserScript(
@@ -192,15 +190,13 @@ struct DocumentKGWebPane: UIViewRepresentable {
         config.setURLSchemeHandler(StorageResourceSchemeHandler(), forURLScheme: StorageResourceURL.scheme)
         let controller = config.userContentController
         controller.add(context.coordinator, name: "ficheroBridge")
-        if DocumentKGPaneRoute.supportsAuthenticatedWebView() {
-            controller.addUserScript(
-                WKUserScript(
-                    source: context.coordinator.bootstrapScript(forceRefresh: true),
-                    injectionTime: .atDocumentStart,
-                    forMainFrameOnly: true
-                )
+        controller.addUserScript(
+            WKUserScript(
+                source: context.coordinator.bootstrapScript(forceRefresh: true),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
             )
-        }
+        )
         // Live semantic theme on iOS too (#3683): inject the system colors/fonts/
         // base size at document end so the reader matches the app in light + dark.
         controller.addUserScript(

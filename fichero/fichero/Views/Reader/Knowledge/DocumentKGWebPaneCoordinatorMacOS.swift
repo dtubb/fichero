@@ -49,14 +49,19 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             documentId: parent.documentId,
             libraryPath: parent.libraryPath
         ) else {
-            webView.loadHTMLString(DocumentKGPaneRoute.unavailableHTML(), baseURL: nil)
+            // Only reachable when the document id can't form a URL — the
+            // remote-host availability gate is retired (loads route through
+            // FicheroClient, which applies auth + pinning itself).
+            webView.loadHTMLString(
+                DocumentKGPaneRoute.loadFailureHTML(detail: "The document's address could not be constructed."),
+                baseURL: nil
+            )
             return
         }
         webView.load(request)
     }
 
     func injectContext(into webView: WKWebView) {
-        guard DocumentKGPaneRoute.supportsAuthenticatedWebView() else { return }
         webView.evaluateJavaScript(bootstrapScript())
     }
 
@@ -151,24 +156,27 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
 
     /// A genuine fetch failure (e.g. a pinned remote host the client can't reach,
     /// or the engine returning non-2xx) fails the `fichero-engine://` provisional
-    /// navigation. Fall back to the static "unavailable" page rather than leaving
+    /// navigation. Fall back to the static failure page rather than leaving
     /// WebKit's default error surface. Only fires for `fichero-engine://` loads so
-    /// the `about:blank` unavailable page itself can't re-trigger a loop.
+    /// the `about:blank` failure page itself can't re-trigger a loop.
     func webView(
         _ webView: WKWebView,
         didFailProvisionalNavigation navigation: WKNavigation!,
         withError error: any Error
     ) {
-        loadUnavailableIfEngineLoad(webView, error: error)
+        loadFailurePageIfEngineLoad(webView, error: error)
     }
 
-    private func loadUnavailableIfEngineLoad(_ webView: WKWebView, error: any Error) {
+    private func loadFailurePageIfEngineLoad(_ webView: WKWebView, error: any Error) {
         if error.isCancellationError { return }
         // Scheme-handler failures lack a failing URL, while transport failures include one.
-        // Limit fallback to engine-origin loads so the standalone unavailable page cannot loop.
+        // Limit fallback to engine-origin loads so the standalone failure page cannot loop.
         let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLErrorKey] as? URL
         guard failingURL == nil || failingURL?.scheme == EngineWebViewURL.scheme else { return }
-        webView.loadHTMLString(DocumentKGPaneRoute.unavailableHTML(), baseURL: nil)
+        webView.loadHTMLString(
+            DocumentKGPaneRoute.loadFailureHTML(detail: error.localizedDescription),
+            baseURL: nil
+        )
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

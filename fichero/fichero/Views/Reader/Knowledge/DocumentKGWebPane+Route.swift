@@ -33,18 +33,15 @@ extension DocumentKGPaneRoute {
         return libraryManager.globalLibrary?.ficheroClient
     }
 
-    static func supportsAuthenticatedWebView() -> Bool {
-        let host = EngineConfig.host
-        if !RemoteCertificatePinning.shouldEnforcePinning(for: host) {
-            return true
-        }
-        return RemoteCertificatePinning.persistedSPKIPin(hostString: host.absoluteString) != nil
-    }
-
+    /// No availability gate (2026-07-27, approved): the pane once refused
+    /// remote hosts via `supportsAuthenticatedWebView()` on cert-pinning
+    /// grounds, but every load now funnels through
+    /// `EngineWebViewSchemeHandler` → `FicheroClient.requestData`, whose
+    /// middleware applies auth AND SPKI pinning itself (#4066 coverage:
+    /// EngineWebViewSchemeHandlerRoutingTests / EngineWebViewRoutingTests
+    /// prove UDS + in-memory routing). The gate had become a dead switch
+    /// that only blanked the KG pane over remote/UDS transports.
     static func request(documentId: String, libraryPath: String) -> URLRequest? {
-        guard supportsAuthenticatedWebView() else {
-            return nil
-        }
         let url: URL?
         if documentId == globalKGDocumentID {
             url = URL(string: "\(baseURL)/view/kg/global")
@@ -60,8 +57,17 @@ extension DocumentKGPaneRoute {
         return URLRequest(url: url)
     }
 
-    static func unavailableHTML() -> String {
-        """
+    /// Honest failure page for a navigation that actually FAILED (network
+    /// drop, engine down) — shown by the coordinators' didFail handlers.
+    /// This replaces the retired remote-host "unavailable" copy: the pane
+    /// is never gated any more, so the only thing this page may claim is
+    /// that a load failed, with the engine's own error detail.
+    static func loadFailureHTML(detail: String) -> String {
+        let escaped = detail
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+        return """
         <!doctype html>
         <html lang="en">
         <head>
@@ -86,9 +92,9 @@ extension DocumentKGPaneRoute {
         </head>
         <body>
           <main>
-            <h1>Knowledge graph web pane is unavailable for remote hosts.</h1>
-            <p>Authenticated KG pages use WKWebView, which does not participate in Fichero's pinned remote transport.</p>
-            <p>Reconnect to the embedded local engine to use this pane.</p>
+            <h1>The knowledge graph page failed to load.</h1>
+            <p>\(escaped)</p>
+            <p>Check that the engine is running, then reopen this pane to retry.</p>
           </main>
         </body>
         </html>

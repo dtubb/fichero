@@ -4,16 +4,17 @@ import XCTest
 
 @testable import Fichero
 
-/// Regression coverage for #2538: after the engine moved to a self-signed
-/// pinned HTTPS loopback cert, the KG / document-reader WKWebView pane
-/// (`DocumentKGWebPane`) stopped rendering because
-/// `supportsAuthenticatedWebView()` gated itself off whenever pinning was
-/// enforced. The pane now validates the pinned cert in its navigation
-/// delegate, so it must load over the shared pinned HTTPS transport instead.
+/// Contract coverage for the KG pane's routing after the availability gate
+/// was retired (approved 2026-07-27; lineage #2538 → #4066). Every load
+/// routes through the custom `fichero-engine://` scheme, whose handler
+/// re-issues requests via `FicheroClient.requestData` — the layer that
+/// applies auth AND SPKI pinning (transport proof: the #4066 tests
+/// `EngineWebViewSchemeHandlerRoutingTests` / `EngineWebViewRoutingTests`
+/// cover UDS + in-memory routing). The pane therefore never refuses a host
+/// itself, and no persisted pin is required for the ROUTE to form.
 final class DocumentKGPaneRouteTests: XCTestCase {
     private var host: URL!
     private var hostString: String!
-    private let pin = Data("kg-pane-loopback-spki".utf8).base64EncodedString()
 
     override func setUp() {
         super.setUp()
@@ -29,13 +30,62 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         super.tearDown()
     }
 
-    /// With a persisted SPKI pin, the pane must report itself available even
-    /// though pinning is enforced — the delegate validates the cert. Before the
-    /// fix this returned `false` (it was `!shouldEnforcePinning(...)`), which
-    /// is exactly why the KG + reader surfaces came up empty.
-    func testWebViewAvailableWhenLoopbackPinned() throws {
-        try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
-        XCTAssertTrue(DocumentKGPaneRoute.supportsAuthenticatedWebView())
+    /// The pane never gates on host or persisted pin: with NO pin stored the
+    /// request must still form. (The old `supportsAuthenticatedWebView()`
+    /// returned nil here for pinned remote hosts — a dead switch once the
+    /// scheme handler owned auth/pinning — which blanked the KG pane over
+    /// remote/UDS transports.)
+    func testRequestFormsWithNoPersistedPin() throws {
+        let request = try XCTUnwrap(
+            DocumentKGPaneRoute.request(
+                documentId: DocumentKGPaneRoute.globalKGDocumentID,
+                libraryPath: "/tmp/library"
+            )
+        )
+        XCTAssertEqual(request.url?.scheme, EngineWebViewURL.scheme)
+    }
+
+    /// The gate and its remote-host "unavailable" page are gone from the pane
+    /// sources; the only fallback left is the honest LOAD-FAILURE page. The
+    /// security property did not disappear — it moved: FicheroClient's
+    /// transport applies SPKI pinning for every request the scheme handler
+    /// re-issues, so assert the pinning hook still lives there.
+    func testAvailabilityGateIsRetiredAndPinningLivesInTheClient() throws {
+        let fixtureBase = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let paneSources = try [
+            "fichero/Views/Reader/Knowledge/DocumentKGWebPane+Route.swift",
+            "fichero/Views/Reader/Knowledge/DocumentKGWebPane.swift",
+            "fichero/Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift",
+            "fichero/Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift"
+        ]
+        .map { try String(contentsOf: fixtureBase.appendingPathComponent($0), encoding: .utf8) }
+        .joined(separator: "\n")
+
+        XCTAssertFalse(paneSources.contains("func supportsAuthenticatedWebView"))
+        XCTAssertFalse(paneSources.contains("unavailableHTML"))
+        XCTAssertTrue(paneSources.contains("loadFailureHTML(detail:"))
+
+        let client = try String(
+            contentsOf: fixtureBase.appendingPathComponent(
+                "fichero-api-client/Sources/FicheroAPIClient/FicheroClient.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(
+            client.contains("RemoteCertificatePinning"),
+            "SPKI pinning must keep living in the client transport the scheme handler uses"
+        )
+    }
+
+    /// The failure page shows the engine's real error and can't be used to
+    /// inject markup through an attacker-influenced error string.
+    func testLoadFailureHTMLEscapesDetail() {
+        let html = DocumentKGPaneRoute.loadFailureHTML(detail: "boom <script>alert(1)</script> & more")
+        XCTAssertTrue(html.contains("boom &lt;script&gt;alert(1)&lt;/script&gt; &amp; more"))
+        XCTAssertFalse(html.contains("<script>alert(1)</script>"))
+        XCTAssertTrue(html.contains("failed to load"))
     }
 
     /// The global-KG request now loads over the custom `fichero-engine://engine`
@@ -45,8 +95,6 @@ final class DocumentKGPaneRouteTests: XCTestCase {
     /// the per-library header are delegated to `requestData`'s middleware, so no
     /// header is hand-stamped on this request.
     func testGlobalKGRequestUsesEngineSchemeAndDelegatesAuth() throws {
-        try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
-
         let request = try XCTUnwrap(
             DocumentKGPaneRoute.request(
                 documentId: DocumentKGPaneRoute.globalKGDocumentID,
@@ -70,8 +118,6 @@ final class DocumentKGPaneRouteTests: XCTestCase {
     /// #2648), the KG request itself carries no per-library header regardless of
     /// the path's characters.
     func testNonASCIILibraryPathStillBuildsEngineRequest() throws {
-        try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
-
         let request = try XCTUnwrap(
             DocumentKGPaneRoute.request(
                 documentId: DocumentKGPaneRoute.globalKGDocumentID,
@@ -86,8 +132,6 @@ final class DocumentKGPaneRouteTests: XCTestCase {
     /// A per-document reader request likewise loads over the `fichero-engine://`
     /// origin, with the document id percent-encoded into the path.
     func testDocumentReaderRequestUsesEngineScheme() throws {
-        try RemoteCertificatePinning.persistSPKIPin(pin, hostString: hostString)
-
         let request = try XCTUnwrap(
             DocumentKGPaneRoute.request(documentId: "doc-123", libraryPath: "/tmp/library")
         )

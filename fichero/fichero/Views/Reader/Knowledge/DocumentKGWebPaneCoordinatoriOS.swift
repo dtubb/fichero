@@ -47,14 +47,19 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
             documentId: parent.documentId,
             libraryPath: parent.libraryPath
         ) else {
-            webView.loadHTMLString(DocumentKGPaneRoute.unavailableHTML(), baseURL: nil)
+            // Only reachable when the document id can't form a URL — the
+            // remote-host availability gate is retired (loads route through
+            // FicheroClient, which applies auth + pinning itself).
+            webView.loadHTMLString(
+                DocumentKGPaneRoute.loadFailureHTML(detail: "The document's address could not be constructed."),
+                baseURL: nil
+            )
             return
         }
         webView.load(request)
     }
 
     func injectContext(into webView: WKWebView) {
-        guard DocumentKGPaneRoute.supportsAuthenticatedWebView() else { return }
         webView.evaluateJavaScript(bootstrapScript())
     }
 
@@ -174,8 +179,8 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
 
     /// A genuine fetch failure (pinned remote unreachable, engine non-2xx) fails
     /// the `fichero-engine://` provisional navigation. Fall back to the static
-    /// "unavailable" page. Only fires for engine loads (or the key-less handler
-    /// errors) so the `about:blank` unavailable page can't re-trigger a loop.
+    /// failure page. Only fires for engine loads (or the key-less handler
+    /// errors) so the `about:blank` failure page can't re-trigger a loop.
     func webView(
         _ webView: WKWebView,
         didFailProvisionalNavigation navigation: WKNavigation!,
@@ -184,7 +189,10 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         if error.isCancellationError { return }
         let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLStringErrorKey] as? String
         guard failingURL == nil || failingURL?.hasPrefix(EngineWebViewURL.scheme) == true else { return }
-        webView.loadHTMLString(DocumentKGPaneRoute.unavailableHTML(), baseURL: nil)
+        webView.loadHTMLString(
+            DocumentKGPaneRoute.loadFailureHTML(detail: error.localizedDescription),
+            baseURL: nil
+        )
     }
 
     /// Validate the engine's TLS certificate against Fichero's persisted

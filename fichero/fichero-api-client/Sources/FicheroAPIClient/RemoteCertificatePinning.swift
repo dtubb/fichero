@@ -507,7 +507,10 @@ private enum ExpectedPin {
 }
 
 #if canImport(Security)
-private final class ExplicitPinnedSessionDelegate: NSObject, URLSessionDelegate {
+// `internal` (not `private`) so tests can positively assert that a session
+// built via `pinnedSession(expectedSPKIPin:)` carries THIS delegate — the
+// enforcement point for explicit SPKI pins on remote hosts.
+internal final class ExplicitPinnedSessionDelegate: NSObject, URLSessionDelegate {
     private let expectedSPKIPin: String
 
     init(expectedSPKIPin: String) {
