@@ -26,6 +26,15 @@ class ProviderAPIService {
         client.currentLibraryPath ?? ""
     }
 
+    /// Settings mutations change the provider/model set the Run Workflow
+    /// context submenus offer (#4189). The engine has no `provider`
+    /// change-stream domain and every provider/model/key mutation in the app
+    /// funnels through this service, so a successful mutation HERE is the
+    /// cache's invalidation signal — the next menu mount refetches once.
+    private func invalidateRunWorkflowProviderMenus() {
+        WorkflowRunProviderCache.shared.invalidate()
+    }
+
     // MARK: - Catalog (read-only provider info) - Global
 
     /// List all available provider types from the catalog
@@ -91,6 +100,7 @@ class ProviderAPIService {
 
         switch response {
         case .ok(let okResponse):
+            invalidateRunWorkflowProviderMenus()
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -139,6 +149,7 @@ class ProviderAPIService {
 
         switch response {
         case .ok(let okResponse):
+            invalidateRunWorkflowProviderMenus()
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -156,6 +167,7 @@ class ProviderAPIService {
 
         switch response {
         case .ok:
+            invalidateRunWorkflowProviderMenus()
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -178,6 +190,7 @@ class ProviderAPIService {
 
         switch response {
         case .ok:
+            invalidateRunWorkflowProviderMenus()
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -195,6 +208,7 @@ class ProviderAPIService {
 
         switch response {
         case .ok:
+            invalidateRunWorkflowProviderMenus()
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -323,6 +337,7 @@ extension ProviderAPIService {
 
         switch response {
         case .ok(let okResponse):
+            invalidateRunWorkflowProviderMenus()
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -340,6 +355,7 @@ extension ProviderAPIService {
 
         switch response {
         case .ok:
+            invalidateRunWorkflowProviderMenus()
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -392,6 +408,7 @@ extension ProviderAPIService {
 
         switch response {
         case .ok(let okResponse):
+            invalidateRunWorkflowProviderMenus()
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -419,6 +436,7 @@ extension ProviderAPIService {
 
         switch response {
         case .ok(let okResponse):
+            invalidateRunWorkflowProviderMenus()
             return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -436,6 +454,7 @@ extension ProviderAPIService {
 
         switch response {
         case .ok:
+            invalidateRunWorkflowProviderMenus()
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
