@@ -85,14 +85,12 @@ KNOWN_EXTENSIONS: list[tuple[str, str, str]] = [
         "Inspector entity row adds rename + curation badge + description — "
         "affordance-extended wrapper, not a duplicate (#1935).",
     ),
-    # Related-claims inspector: renders EntityServiceGenerated.SimilarClaim,
-    # a distinct type from KnowledgeClaim; ClaimSummaryCard can't be used (#1935).
-    (
-        "DocumentInspectorInfoTab+RelatedClaims.swift",
-        "row(for claim",
-        "Renders SimilarClaim (EntityServiceGenerated), a different type than "
-        "KnowledgeClaim. Canonical ClaimSummaryCard is incompatible (#1935).",
-    ),
+    # NOTE: the RelatedClaims entry ("row(for claim") was removed 2026-07-28 as
+    # DEAD (#4174 audit). Its fragment contained "(" and a space, which cannot
+    # occur in a captured Swift identifier, so it never matched. The symbol it
+    # aimed at — `private func row(for claim: EntityService.SimilarClaim)` — is
+    # captured as the name `row`, which carries a renderer marker but no domain
+    # marker, so `_is_renderer_name` never flags it and no exemption is needed.
     # Inspector citations tab: renders raw DocumentCitation (no direction field).
     # CitationListView.CitationRow uses CitationItem (DocumentCitation + direction).
     (
@@ -171,12 +169,35 @@ def _is_renderer_name(name: str) -> bool:
     return any(d in low for d in DOMAIN_MARKERS) and any(r in low for r in RENDERER_MARKERS)
 
 
+def _matching_entry(rel_path: str, symbol: str) -> int | None:
+    """Index of the first KNOWN_EXTENSIONS entry covering this symbol, else None."""
+    for index, (file_frag, sym_frag, _reason) in enumerate(KNOWN_EXTENSIONS):
+        if file_frag in rel_path and sym_frag.lower() in symbol.lower():
+            return index
+    return None
+
+
 def _is_known_extension(rel_path: str, symbol: str) -> str | None:
     """Return the justification string if this is a known extension, else None."""
-    for file_frag, sym_frag, reason in KNOWN_EXTENSIONS:
-        if file_frag in rel_path and sym_frag.lower() in symbol.lower():
-            return reason
-    return None
+    index = _matching_entry(rel_path, symbol)
+    return KNOWN_EXTENSIONS[index][2] if index is not None else None
+
+
+def entry_matches() -> list[list[str]]:
+    """Per-KNOWN_EXTENSIONS-entry list of the symbols it covered.
+
+    Entries are matched by SUBSTRING, not exact key, so an entry that covers
+    nothing is not merely untidy — it is a standing wildcard that will grant
+    cover to any future symbol whose name happens to contain the fragment.
+    Reporting both the empty entries and the over-broad ones is what keeps the
+    baseline shrinking instead of silently widening (#4201 sweep).
+    """
+    matches: list[list[str]] = [[] for _ in KNOWN_EXTENSIONS]
+    for finding in scan():
+        index = _matching_entry(finding["file"], finding["symbol"])
+        if index is not None:
+            matches[index].append(f"{finding['file']}::{finding['symbol']}")
+    return matches
 
 
 def scan() -> list[dict]:
@@ -240,6 +261,27 @@ def main(argv: list[str]) -> int:
                 tag = f["kind"]
                 print(f"  [NEW {tag}] {f['file']}::{f['symbol']}")
             print()
+
+    matches = entry_matches()
+    stale = [i for i, hits in enumerate(matches) if not hits]
+    broad = [i for i, hits in enumerate(matches) if len(hits) > 1]
+
+    if stale:
+        print(f"  {len(stale)} KNOWN_EXTENSIONS entr(ies) match nothing; remove them:")
+        for index in stale:
+            file_frag, sym_frag, _ = KNOWN_EXTENSIONS[index]
+            print(f"      [{index}] {file_frag} :: {sym_frag}")
+        print(
+            "  (These are not inert: matching is by SUBSTRING, so a dead entry\n"
+            "   silently exempts any future symbol containing that fragment.)\n"
+        )
+
+    if broad:
+        print(f"  {len(broad)} KNOWN_EXTENSIONS entr(ies) cover MORE THAN ONE symbol:")
+        for index in broad:
+            file_frag, sym_frag, _ = KNOWN_EXTENSIONS[index]
+            print(f"      [{index}] {file_frag} :: {sym_frag} -> {', '.join(matches[index])}")
+        print("  (Narrow the fragment if the extra matches were not intended.)\n")
 
     if new_violations:
         print(
