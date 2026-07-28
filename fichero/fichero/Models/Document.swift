@@ -157,6 +157,7 @@ struct LibraryItemDrag: Codable, Transferable {
             return SentTransferredFile(try await SidebarDragID.exportSourceFile(for: drag))
         }
         .exportingCondition { $0.exportsSourceFile }
+        .suggestedFileName(\.name)
         ProxyRepresentation(exporting: \.text)
         FileRepresentation(exportedContentType: .plainText) { item in
             let url = FileManager.default.temporaryDirectory

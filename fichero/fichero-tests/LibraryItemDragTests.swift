@@ -9,6 +9,17 @@ final class LibraryItemDragTests: XCTestCase {
         XCTAssertEqual(item.exportText, "Annotation: Important")
     }
 
+    func testExternalFileDragsSuggestTheDocumentName() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+        for path in ["Models/Document.swift", "Views/Sidebar/ItemRow/SidebarItemRow.swift"] {
+            let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+            XCTAssertTrue(source.contains(".suggestedFileName(\\.name)"), path)
+        }
+    }
+
     func testLibrarySurfacesUseCommonDragPayload() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

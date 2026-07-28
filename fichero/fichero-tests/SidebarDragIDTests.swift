@@ -40,6 +40,7 @@ struct SidebarDragIDTests {
         #expect(drag.id == "doc:d1")
         #expect(drag.documentId == "d1")
         #expect(drag.libraryId == libraryId)
+        #expect(drag.name == "Ledger.pdf")
         #expect(drag.exportsFile)
         #expect(drag.exportsText)
         #expect(drag.transcript == "transcript text")

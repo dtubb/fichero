@@ -112,6 +112,7 @@ struct SidebarDragID: Transferable {
             SentTransferredFile(try await Self.exportSourceFile(for: item))
         }
         .exportingCondition { $0.exportsFile }
+        .suggestedFileName(\.name)
         DataRepresentation(exportedContentType: .rtf) { item in
             try Self.transcriptRTFData(item.transcript)
         }
