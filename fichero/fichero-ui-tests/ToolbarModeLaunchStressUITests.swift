@@ -2,129 +2,69 @@
 //  ToolbarModeLaunchStressUITests.swift
 //  FicheroUITests
 //
-//  Launch-STRESS + toolbar-mode regression guard for the #3163 duplicate
-//  `.searchable` NSToolbar launch crash.
+//  Toolbar-mode regression guard for the #3163 duplicate `.searchable`
+//  NSToolbar crash.
 //
 //  The crash: two `.searchable` modifiers reach one window's NSToolbar →
 //  `NSToolbar already contains an item with identifier com.apple.SwiftUI.search.
 //  Duplicate items not allowed.` ContentView owns a GLOBAL toolbar `.searchable`
 //  (ToolbarSearchableModifier, #3037); the Workflows/Chains/Actions mode views
 //  ALSO applied their own bare `.searchable`, and in a secondary split-pane copy
-//  the two collide → crash at launch. Intermittent (render-timing dependent),
-//  so a single launch rarely reproduces it — hence the LAUNCH STRESS.
+//  the two collide → crash. Intermittent (render-timing dependent), so the test
+//  cycles the toolbar rebuild many times.
 //
-//  Why LibrarySmokeUITests never caught it: it launches with plain `--uitesting`
-//  which skips the embedded engine + real-library restore, so `isBackendRunning`
-//  stays false, the workspace (ContentView) never mounts, and the mode views'
-//  toolbars are never built. It also only exercises flow 1 (launch) — it never
-//  navigates INTO the Workflows/Chains modes where the duplicate `.searchable`
-//  lived. This test fixes both gaps:
-//    - it drives into the Workflows sidebar mode (⌃⌘4) whose split panes register
-//      the colliding toolbar search, and toggles the Chains tab (the crash log
-//      showed Chains active), and
-//    - it needs the workspace actually mounted, so it must run against a
-//      reachable engine (the gated CI/manual run provides one; a seeded library
-//      can be pointed at via FICHERO_UITEST_LIBRARY). Under `--uitesting` the
-//      inert-host adoption connects to an external engine if one is up.
-//
-//  Expected: RED on the pre-fix bare `.searchable`, GREEN on the gated
-//  conditionalSearchable fix. Per the toolbar-crash memory, only a launch-stress
-//  run WITH the engine + a real-enough library proves this — compile-only and
-//  the `--uitesting` smoke test structurally cannot.
+//  Session conversion (#4246): this suite previously paid THREE embedded-engine
+//  launches (eight under the stress flag) for a crash that lives entirely in the
+//  UI layer — the collision fires during the NSToolbar REBUILD a sidebar-mode
+//  switch triggers, not during process launch. The workspace merely has to be
+//  mounted (a connected engine), which the shared session already provides. So:
+//  one shared launch, and the stress budget goes into mode-switch CYCLES, each
+//  of which rebuilds the toolbar exactly like the launch-time rebuild did. The
+//  multi-launch bought only first-frame timing variance, at the cost of three
+//  engine boots — if a regression ever reproduces exclusively on a fresh
+//  launch's first toolbar build, the embedded launch suites (ColdLaunch et al.)
+//  are the place for it, not a multi-launch loop here.
 //
 
 import XCTest
 
-// @MainActor on the CLASS: XCUIApplication and friends are main-actor in the
-// macOS 26 SDK, and XCTest runs actor-isolated test classes on their actor -
-// this isolates setUp/tearDown/tests together with no per-call bridging.
 @MainActor
-final class ToolbarModeLaunchStressUITests: XCTestCase {
-    /// The crash is render-timing dependent. Three launches keep the normal
-    /// embedded-engine gate practical while still rebuilding the toolbar more
-    /// than once; CI can request the longer eight-launch stress pass.
-    private var launchCount: Int {
-        ProcessInfo.processInfo.environment["FICHERO_RUN_LAUNCH_STRESS"] == "1" ? 8 : 3
+final class ToolbarModeLaunchStressUITests: FicheroUISessionTests {
+    /// The crash is render-timing dependent, so cycle the rebuild repeatedly.
+    /// Mode switches are cheap against the shared session (~seconds), so the
+    /// default budget is higher than the old 3-launch pass; CI can request the
+    /// longer stress pass with FICHERO_RUN_LAUNCH_STRESS=1.
+    private var cycleCount: Int {
+        ProcessInfo.processInfo.environment["FICHERO_RUN_LAUNCH_STRESS"] == "1" ? 24 : 6
     }
 
-    private var tempHome: URL!
-
-    override func setUp() async throws {
-        continueAfterFailure = false
-        tempHome = FileManager.default.temporaryDirectory
-            .appendingPathComponent("fichero-toolbar-stress-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempHome, withIntermediateDirectories: true)
-    }
-
-    override func tearDown() async throws {
-        if let tempHome { try? FileManager.default.removeItem(at: tempHome) }
-    }
-
-    @MainActor private func makeApp() -> XCUIApplication {
-        let app = XCUIApplication()
-        // This is the embedded-engine variant of the isolated UI-test launch:
-        // it exercises the real workspace and its toolbars, without touching
-        // the developer's app-support directory or a separately running engine.
-        app.launchArguments = ["--uitesting", "--uitesting-embedded"]
-        var env = [
-            "FICHERO_UITEST_HOME": tempHome.path,
-            "FICHERO_UITEST_RESTORE_LIBRARY": "1",
-            "FICHERO_ALL_FEATURES": "1"
-        ]
-        // Optional seeded `.fichero` so the workspace opens straight to content
-        // (mirrors the #1242 reading-surface flows). Absent, the empty global
-        // library still mounts the workspace + sidebar modes.
-        if let seed = ProcessInfo.processInfo.environment["FICHERO_UITEST_LIBRARY"],
-           !seed.isEmpty {
-            env["FICHERO_UITEST_LIBRARY"] = seed
-        }
-        app.launchEnvironment = env
-        return app
-    }
-
-    /// Launch the app `launchCount` times; each launch, drive into the Workflows
-    /// sidebar mode (its split panes build the `.searchable` toolbar items that
-    /// duplicated ContentView's global one), toggle the Chains tab, and flip back
-    /// to Library — each mode switch rebuilds the toolbar, another place the
-    /// duplicate surfaced. Assert the app never leaves the foreground; a
+    /// Drive into the Workflows sidebar mode (its split panes register the
+    /// toolbar `.searchable` that collided with ContentView's global one),
+    /// toggle the Chains tab (the crash log showed Chains active), and flip
+    /// back to Library — each mode switch rebuilds the toolbar, which is where
+    /// the duplicate surfaced. Assert the app never leaves the foreground; a
     /// duplicate-identifier NSToolbar crash drops it out of `.runningForeground`.
     @MainActor
-    func testLaunchStressWorkflowChainsToolbarNoCrash() throws {
-        for iteration in 1...launchCount {
-            let app = makeApp()
-            app.launch()
+    func testModeCycleWorkflowChainsToolbarNoCrash() throws {
+        waitForLibraryReady()
 
-            XCTAssertTrue(
-                app.wait(for: .runningForeground, timeout: 30),
-                "Launch \(iteration): app never reached the foreground — likely crashed on launch."
-            )
-            // Let the bundled engine reach readiness and mount the restored
-            // test library before rebuilding the mode-specific toolbar.
-            Thread.sleep(forTimeInterval: 10)
-            assertStillForeground(app, iteration: iteration, step: "while the embedded engine becomes ready")
-
-            // Enter Workflows mode (⌃⌘4). Its split panes register the toolbar
-            // `.searchable` that collided with ContentView's global one (#3163).
+        for iteration in 1...cycleCount {
+            // Enter Workflows mode (⌃⌘4) — builds the colliding toolbar items.
             app.typeKey("4", modifierFlags: [.control, .command])
-            assertStillForeground(app, iteration: iteration, step: "after ⌃⌘4 Workflows")
+            assertStillForeground(iteration: iteration, step: "after ⌃⌘4 Workflows")
 
-            // Toggle to the Chains tab (the crash log showed Chains active).
-            // Best effort — the mode switch alone already builds the collision,
-            // so a missing segment doesn't fail the test.
+            // Toggle to the Chains tab. Best effort — the mode switch alone
+            // already builds the collision, so a missing segment doesn't fail
+            // the test.
             let chainsTab = app.buttons["Chains"].firstMatch
             if chainsTab.waitForExistence(timeout: 5) {
                 chainsTab.click()
-                assertStillForeground(app, iteration: iteration, step: "after Chains tab")
+                assertStillForeground(iteration: iteration, step: "after Chains tab")
             }
 
-            // Flip back to Library (⌃⌘1) and to Workflows (⌃⌘4) once more — each
-            // switch re-runs the toolbar rebuild the crash rode in on.
+            // Back to Library (⌃⌘1) — another toolbar rebuild.
             app.typeKey("1", modifierFlags: [.control, .command])
-            assertStillForeground(app, iteration: iteration, step: "after ⌃⌘1 Library")
-            app.typeKey("4", modifierFlags: [.control, .command])
-            assertStillForeground(app, iteration: iteration, step: "after second ⌃⌘4 Workflows")
-
-            app.terminate()
+            assertStillForeground(iteration: iteration, step: "after ⌃⌘1 Library")
         }
     }
 
@@ -133,17 +73,13 @@ final class ToolbarModeLaunchStressUITests: XCTestCase {
     /// to complete + any NSException to surface, then assert the app is still
     /// foregrounded (a crash flips it to `.notRunning`).
     @MainActor
-    private func assertStillForeground(
-        _ app: XCUIApplication,
-        iteration: Int,
-        step: String
-    ) {
+    private func assertStillForeground(iteration: Int, step: String) {
         // Deliberate settle window for the async toolbar rebuild + crash-if-any.
         Thread.sleep(forTimeInterval: 1.5)
         XCTAssertEqual(
             app.state,
             .runningForeground,
-            "Launch \(iteration): app left the foreground \(step) — a duplicate "
+            "Cycle \(iteration): app left the foreground \(step) — a duplicate "
             + ".searchable NSToolbar crash (#3163)."
         )
     }

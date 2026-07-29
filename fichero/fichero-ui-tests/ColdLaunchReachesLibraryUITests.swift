@@ -59,6 +59,11 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
         app.launchArguments = ["--uitesting", "--uitesting-embedded"]
         app.launchEnvironment = [
             "FICHERO_UITEST_HOME": tempHome.path,
+            // Folded from LibrarySmokeUITests' former embedded test (#4246):
+            // the same launch also exercises the deferred saved-library
+            // restore-after-readiness ordering, asserted below via the
+            // readiness identifier rather than that test's blind 10s sleep.
+            "FICHERO_UITEST_RESTORE_LIBRARY": "1",
             "FICHERO_ALL_FEATURES": "1"
         ]
     }
@@ -90,6 +95,10 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
         XCTAssertTrue(
             app.wait(for: .runningForeground, timeout: 30),
             "App did not reach the foreground — likely crashed on launch."
+        )
+        XCTAssertTrue(
+            app.windows.firstMatch.waitForExistence(timeout: 15),
+            "No window appeared after the embedded engine launch."
         )
 
         // Query by identifier across ANY element type: `library.content.ready`
