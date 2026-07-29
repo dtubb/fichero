@@ -7,7 +7,7 @@ import XCTest
 /// no sidebar item, no selection. Saving is the explicit "Save Search" action.
 final class ToolbarSearchRoutingTests: XCTestCase {
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")

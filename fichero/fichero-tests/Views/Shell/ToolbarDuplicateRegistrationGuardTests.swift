@@ -31,7 +31,7 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
     /// App-target source root: fichero/fichero (this file lives in
     /// fichero/fichero-tests, a sibling of the app folder).
     private static var appSourceRoot: URL {
-        URL(fileURLWithPath: #filePath)
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()   // fichero-tests
             .deletingLastPathComponent()   // fichero (project dir)
             .appendingPathComponent("fichero")

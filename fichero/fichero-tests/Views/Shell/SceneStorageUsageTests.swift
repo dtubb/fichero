@@ -19,7 +19,7 @@ final class SceneStorageUsageTests: XCTestCase {
     }
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let baseURL = URL(fileURLWithPath: #filePath)
+        let baseURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("../fichero")
         return try String(contentsOf: baseURL.appendingPathComponent(relativePath), encoding: .utf8)

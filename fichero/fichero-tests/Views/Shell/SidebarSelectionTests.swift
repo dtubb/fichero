@@ -341,7 +341,7 @@ struct SidebarSelectionTests {
 }
 
 private func appSource(_ relativePath: String) throws -> String {
-    let url = URL(fileURLWithPath: #filePath)
+    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .appendingPathComponent("fichero")
