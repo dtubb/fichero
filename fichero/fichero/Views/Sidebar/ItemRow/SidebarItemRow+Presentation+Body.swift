@@ -158,19 +158,28 @@ extension SidebarItemRow {
     @ViewBuilder
     private var bodyContent: some View {
         if isExpandable {
-            // #571 (restored): highlight, drop target, and context menu sit on
-            // the OUTER DisclosureGroup so the chevron/indent strip is part of
-            // the row's drop and right-click surface — a refactor before the
-            // #1703 file split had moved them inside the label, leaving that
-            // strip dead. The label here is bare `fullWidthLabel` (NOT
-            // folderLabel/leafLabel) so the modifiers aren't doubled. Child
-            // rows attach their own handlers, which win within their bounds.
+            // #571 (restored): drop target and context menu sit on the OUTER
+            // DisclosureGroup so the chevron/indent strip is part of the row's
+            // drop and right-click surface — a refactor before the #1703 file
+            // split had moved them inside the label, leaving that strip dead.
+            // The label here is bare `fullWidthLabel` (NOT folderLabel/
+            // leafLabel) so the modifiers aren't doubled. Child rows attach
+            // their own handlers, which win within their bounds.
+            //
+            // The HIGHLIGHT is the exception (#4229): on the group it painted
+            // the group's whole frame — which, expanded, is the folder PLUS its
+            // entire child subtree, an accent wash indistinguishable from a
+            // mass selection. It lives on the LABEL so only the actual target
+            // row lights up (Finder behavior); the group keeps the wider drop
+            // surface.
             DisclosureGroup(isExpanded: isExpanded) {
                 disclosureContent
             } label: {
                 fullWidthLabel
+                    .sidebarDropHighlight(
+                        isDropTargeted, stronger: isFolder, operation: targetedDropOperation
+                    )
             }
-            .sidebarDropHighlight(isDropTargeted, stronger: isFolder, operation: targetedDropOperation)
             .onDrop(
                 of: Self.dropTypes,
                 isTargeted: $isDropTargeted

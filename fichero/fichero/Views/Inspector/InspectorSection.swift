@@ -11,11 +11,14 @@ import SwiftUI
 /// chrome — share one source of truth for the 10→4 fold instead of duplicating
 /// it. Image **Edits** is deliberately absent: it leaves the inspector for the
 /// Reader canvas toolbar.
+/// Declaration order IS the display order (`allCases` drives the tab bar):
+/// Source (Content), Notes, Knowledge, Artifacts — the human reading layer
+/// before the machine outputs; Artifacts LAST (#4278).
 enum InspectorSection: String, CaseIterable, Identifiable {
     case source = "Source"
-    case artifacts = "Artifacts"
-    case knowledge = "Knowledge"
     case notes = "Notes"
+    case knowledge = "Knowledge"
+    case artifacts = "Artifacts"
 
     var id: String { rawValue }
 

@@ -353,22 +353,17 @@ struct SidebarItemRow: View {
         guard case .document(let doc) = item.itemType, let store = documentStore else {
             return false
         }
-        let live = store.currentDocuments.first(where: { $0.id == doc.id })
-            ?? store.collections.first(where: { $0.id == doc.id })
-            ?? doc
-        if live.status == .processing { return true }
-        // Check both visible documents and cached children so the folder spinner
-        // works whether the folder is open in the grid or expanded in the sidebar.
-        if doc.docType == .folder {
-            if store.currentDocuments.contains(where: {
-                $0.parentId == doc.id && $0.status == .processing
-            }) {
-                return true
-            }
-            if let kids = store.childrenCache[doc.id],
-               kids.contains(where: { $0.status == .processing }) {
-                return true
-            }
+        // #4295: busy is derived from the RUNNING EXECUTION'S TARGETS
+        // (status overrides + every live container, including the sidebar's
+        // childrenCache), never from selection-scoped state — the old lookup
+        // stopped at currentDocuments/collections, so a page row's spinner
+        // only rendered while its parent was the selected collection.
+        if store.isDocumentBusy(doc.id) { return true }
+        if doc.status == .processing { return true }
+        // Folder rows aggregate their direct children so processing activity
+        // is visible even when the folder isn't open anywhere.
+        if doc.docType == .folder, store.folderHasBusyChild(doc.id) {
+            return true
         }
         return false
     }

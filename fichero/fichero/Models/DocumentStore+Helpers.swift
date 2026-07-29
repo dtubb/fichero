@@ -310,6 +310,41 @@ extension DocumentStore {
         }
     }
 
+    /// A row is busy because a RUNNING execution targets it (#4295) — never
+    /// because of what is selected. The old row derivation only consulted
+    /// `currentDocuments` (the SELECTED collection's children) and roots, so a
+    /// page row's spinner appeared while its parent was selected and vanished
+    /// on deselect. This checks the run's own target record
+    /// (`workflowStatusOverrides` — written per target id by
+    /// `updateProcessingStatus`, independent of any container) plus every
+    /// live container including `childrenCache`, where sidebar child rows
+    /// actually live.
+    func isDocumentBusy(_ documentId: String) -> Bool {
+        if workflowStatusOverrides[documentId] == .processing { return true }
+        if currentDocuments.first(where: { $0.id == documentId })?.status == .processing { return true }
+        if collections.first(where: { $0.id == documentId })?.status == .processing { return true }
+        for kids in childrenCache.values
+        where kids.contains(where: { $0.id == documentId && $0.status == .processing }) {
+            return true
+        }
+        return false
+    }
+
+    /// Aggregate busy state for a folder row (#4295): any direct child busy —
+    /// by live status in the grid or the sidebar cache, or by being a running
+    /// execution's target (override) even when its container copy is stale.
+    func folderHasBusyChild(_ folderId: String) -> Bool {
+        if currentDocuments.contains(where: { $0.parentId == folderId && $0.status == .processing }) {
+            return true
+        }
+        if let kids = childrenCache[folderId] {
+            return kids.contains {
+                $0.status == .processing || workflowStatusOverrides[$0.id] == .processing
+            }
+        }
+        return false
+    }
+
     /// Apply workflowStatusOverrides to a freshly-loaded array so the UI sees
     /// the in-flight / failed state survive reloads. Called by every load
     /// path that populates currentDocuments / collections / childrenCache.

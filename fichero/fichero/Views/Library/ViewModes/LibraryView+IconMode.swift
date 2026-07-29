@@ -4,9 +4,20 @@ import SwiftUI
 // MARK: - Icons View (Grid)
 
 extension LibraryView {
+    /// Grid-slot bounds for one icon tile (#4281). The tile's real footprint
+    /// is `DocumentThumbnailView.wellWidth * scale` (100pt at scale 1) — the
+    /// old hardcoded 120…150 slot was up to 1.5 tiles wide, so default-size
+    /// tiles sat in visibly double-width cells. The slot now hugs the tile
+    /// (+8pt breathing room, +16pt stretch allowance) so one tile = one
+    /// column at every scale. Pure so the view-settings tests pin it.
+    nonisolated static func iconGridItemBounds(scale: Double) -> (min: CGFloat, max: CGFloat) {
+        let tile = DocumentThumbnailView.wellWidth * CGFloat(scale)
+        let minimum = max(70, tile + 8)
+        return (min: minimum, max: minimum + 16)
+    }
+
     var iconsView: some View {
-        let itemMin = CGFloat(max(60, 120 * iconViewScale))
-        let itemMax = CGFloat(max(80, 150 * iconViewScale))
+        let (itemMin, itemMax) = Self.iconGridItemBounds(scale: iconViewScale)
         return GeometryReader { geometry in
             // Clamp pinch max so a single thumbnail never exceeds the visible
             // grid width. In the wide content grid this lets us zoom way in;

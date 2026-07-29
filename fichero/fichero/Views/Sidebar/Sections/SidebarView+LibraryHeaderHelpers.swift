@@ -50,7 +50,10 @@ extension SidebarView {
     }
 
     /// Drop handler for the library disclosure-group header row.
-    /// Imports dropped files into the library Inbox (or root if no Inbox exists).
+    /// Folders import at the library ROOT (they are sidebar-visible there and
+    /// that is where the user dropped them, #4274); plain files route to Inbox
+    /// (bare files at root are invisible in the sidebar). An import failure
+    /// surfaces on the sidebar's drop-error banner, never only in the log.
     @discardableResult
     func handleLibraryHeaderDrop(_ urls: [URL], library: LibraryManager.LibraryReference) -> Bool {
         let fileURLs = urls.filter { $0.isFileURL }
@@ -61,15 +64,27 @@ extension SidebarView {
             inboxId = col.id
             break
         }
+        let batches = libraryRootImportBatches(
+            urls: fileURLs, inboxId: inboxId, isDirectory: libraryDropURLIsDirectory
+        )
         Task {
+            sidebarState.dropErrorMessage = nil
             do {
-                _ = try await library.importService.importFiles(fileURLs, mode: .link, parentId: inboxId)
+                for batch in batches {
+                    _ = try await library.importService.importFiles(
+                        batch.urls, mode: .link, parentId: batch.parentId
+                    )
+                }
                 await library.documentStore.refresh()
                 try? await Task.sleep(for: .milliseconds(500))
                 await library.documentStore.refresh()
             } catch {
                 Logger(subsystem: "app.fichero.fichero", category: "LibraryHeaderDrop")
                     .error("Library root drop failed: \(error.localizedDescription)")
+                // A drop that fails must SAY so (#4274 'silently no-ops'):
+                // reuse the sidebar's drop-error banner the move paths use.
+                sidebarState.dropErrorMessage =
+                    "Import failed: \(error.localizedDescription)"
             }
         }
         return true
