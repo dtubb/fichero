@@ -3,7 +3,7 @@ import XCTest
 
 final class WorkflowContextMenuTargetsTests: XCTestCase {
     private var sidebarPresentationURL: URL {
-        URL(fileURLWithPath: #filePath)
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
@@ -34,14 +34,14 @@ final class WorkflowContextMenuTargetsTests: XCTestCase {
     }
 
     private var sidebarWorkflowURL: URL {
-        URL(fileURLWithPath: #filePath)
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Workflow.swift")
     }
 
     private var libraryContextMenuURL: URL {
-        URL(fileURLWithPath: #filePath)
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero/Views/Library/LibraryView+ContextMenu.swift")

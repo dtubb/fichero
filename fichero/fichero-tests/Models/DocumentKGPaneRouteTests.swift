@@ -51,7 +51,7 @@ final class DocumentKGPaneRouteTests: XCTestCase {
     /// transport applies SPKI pinning for every request the scheme handler
     /// re-issues, so assert the pinning hook still lives there.
     func testAvailabilityGateIsRetiredAndPinningLivesInTheClient() throws {
-        let fixtureBase = URL(fileURLWithPath: #filePath)
+        let fixtureBase = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let paneSources = try [
@@ -197,7 +197,7 @@ final class DocumentKGPaneRouteTests: XCTestCase {
     }
 
     func testReaderPaneCachesBootstrapScriptBetweenUpdates() throws {
-        let fixtureBase = URL(fileURLWithPath: #filePath)
+        let fixtureBase = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")

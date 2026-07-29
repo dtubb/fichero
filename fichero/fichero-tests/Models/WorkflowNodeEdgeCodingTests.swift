@@ -8,7 +8,7 @@ import XCTest
 final class WorkflowNodeEdgeCodingTests: XCTestCase {
 
     func testServiceRestoresDefaultsForBothPortDirections() throws {
-        let sourceURL = URL(fileURLWithPath: #filePath)
+        let sourceURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("../fichero/Services/WorkflowService.swift")
         let source = try String(contentsOf: sourceURL, encoding: .utf8)

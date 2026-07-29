@@ -125,7 +125,7 @@ struct SidebarDragIDTests {
     @Test("plain-text markdown flavor is exported for editors")
     func plainTextFlavorExists() throws {
         let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
+            contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow.swift"),
@@ -137,7 +137,7 @@ struct SidebarDragIDTests {
     @Test("in-process id flavor survives for the move pipeline")
     func ownProcessIdFlavorSurvives() throws {
         let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
+            contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow.swift"),

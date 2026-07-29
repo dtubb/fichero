@@ -173,7 +173,7 @@ final class FeatureTierBadgeGlyphTests: XCTestCase {
 
     func testBadgedLabelUsesGlyphNotBrackets() throws {
         let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
+            contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .appendingPathComponent("fichero/App/Menus/ViewMenuCommands.swift"),

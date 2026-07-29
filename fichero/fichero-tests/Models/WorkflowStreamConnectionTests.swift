@@ -21,7 +21,7 @@ final class WorkflowStreamConnectionTests: XCTestCase {
     }
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
@@ -30,7 +30,7 @@ final class WorkflowStreamConnectionTests: XCTestCase {
     }
 
     private static func generatedOpenAPIPaths() throws -> Set<String> {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero-api-client")
