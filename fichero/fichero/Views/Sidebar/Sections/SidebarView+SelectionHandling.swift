@@ -21,6 +21,12 @@ extension SidebarView {
         }
         lastHandledSelectionDestination = destination
         handleSelectionDestination(destination)
+        // The routed `sidebarMode`/`viewMode` are written: the click is
+        // committed and the content column is now the thing we are waiting on
+        // (#4228). Handing straight from one interval to the next means the two
+        // bars in Instruments abut, so a gap between them is a real gap.
+        InteractionProfile.end(.selectionCommit)
+        InteractionProfile.begin(.selectionToContent, detail: destination.serializedID)
     }
 
     private func handleSelectionDestination(_ destination: SidebarDestination) {

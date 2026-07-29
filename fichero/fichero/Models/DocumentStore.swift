@@ -279,6 +279,12 @@ final class DocumentStore {
     /// Load children of a document.
     func loadChildren(of document: Document) async {
         isLoadingChildren = true
+        // The async half of a sidebar click (#4228/#4235). Paired with the
+        // synchronous `selectionCommit` bar, this is what tells a slow click
+        // caused by main-thread work apart from one caused by the engine —
+        // the distinction both of those issues asked for and could not make.
+        InteractionProfile.begin(.contentDataLoad, detail: document.id)
+        defer { InteractionProfile.end(.contentDataLoad, detail: document.id) }
 
         let libraryPath = self.api.currentLibraryPath ?? "nil"
         logger.info("loadChildren called for document: \(document.id), library path: \(libraryPath)")

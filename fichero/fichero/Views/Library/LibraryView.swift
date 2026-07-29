@@ -435,6 +435,10 @@ struct LibraryView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 liveUpdatesPausedInset
             }
+            // Closes the sidebar-click interval opened in `handleSelectionChange`
+            // (#4228). See `InteractionProfile.Phase.selectionToContent` for what
+            // this end point does and does not measure.
+            .task(id: folderId) { InteractionProfile.end(.selectionToContent, detail: folderId ?? "nil") }
             // Xcode-navigator-style quick filter, pinned to the BOTTOM of the
             // library list pane. Narrows the rows currently shown client-side
             // (binds `searchText`, which drives `filteredDocuments`) — distinct
