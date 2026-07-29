@@ -15,8 +15,9 @@ Transports:
   * UDS   — subprocess uvicorn over fichero.api.uds_transport:app (reuses the
             round-trips module's fixture: own base path, auth enforced).
   * HTTPS — subprocess uvicorn with loopback TLS (same reuse).
-  * in-memory ASGI — fichero.api.main:app driven in-process, the Python twin
-            of the Swift `.inMemory` PythonKit transport. The Swift side of
+  * in-memory ASGI — the FastAPI app object driven in-process (no listener,
+            no socket), the Python twin of the Swift `.inMemory` PythonKit
+            transport. The Swift side of
             that claim (InMemoryEngineApp + InMemoryTransportSmokeTests /
             TransportMatrixRoundTripTests) runs under `swift test` via
             `scripts/gate transport`.
@@ -58,7 +59,7 @@ def _write_fixtures(root: Path) -> tuple[Path, Path]:
     return txt, png
 
 
-def _round_trip(client: httpx.Client, headers: dict[str, str], label: str) -> None:
+def _round_trip(client: httpx.Client, headers: dict[str, str], label: str) -> dict[str, str]:
     """The one shared round-trip every transport must carry.
 
     `headers` carries auth (subprocess engines enforce it; the in-process app
@@ -115,6 +116,7 @@ def _round_trip(client: httpx.Client, headers: dict[str, str], label: str) -> No
     assert thumb.status_code == 200, f"[{label}] thumbnail: {thumb.text[:200]}"
     assert thumb.headers.get("content-type", "").startswith("image/"), thumb.headers
     assert len(thumb.content) > 0, f"[{label}] thumbnail body is empty"
+    return docs
 
 
 @pytest.mark.parametrize("fixture_name", ["uds_engine", "https_engine"])
@@ -122,7 +124,9 @@ def test_full_round_trip_over_socket_transports(fixture_name, request):
     engine = request.getfixturevalue(fixture_name)
     label = "uds" if fixture_name == "uds_engine" else "https"
     with httpx.Client(timeout=60, **engine.client_kwargs) as client:
-        _round_trip(client, engine.auth_header, label)
+        docs = _round_trip(client, engine.auth_header, label)
+    # Two distinct documents made the trip (text for search, image for thumbnail).
+    assert docs[".txt"] != docs[".png"]
 
 
 def test_full_round_trip_in_memory_asgi():
@@ -139,4 +143,6 @@ def test_full_round_trip_in_memory_asgi():
     # TestClient: the sync httpx.Client face over an in-process ASGI app —
     # lets the in-memory leg share the exact _round_trip the socket legs run.
     with TestClient(app) as client:
-        _round_trip(client, {}, "inmemory")
+        docs = _round_trip(client, {}, "inmemory")
+    # Two distinct documents made the trip (text for search, image for thumbnail).
+    assert docs[".txt"] != docs[".png"]
