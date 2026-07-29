@@ -53,7 +53,7 @@ final class RemoteClientPairingLibraryConfirmTests: XCTestCase {
     // between the QR value and the server's reported path is the same library,
     // not a forgery — it must still confirm.
     func testCaseDifferenceStillMatchesOnCaseInsensitiveVolume() {
-        let accessible = ["/Users/the user/Archive/Open.fichero"]
+        let accessible = ["/Users/TestUser/Archive/Open.fichero"]
         XCTAssertTrue(
             RemoteClientPairing.isLibraryConfirmed(
                 advertised: "/Users/testuser/Archive/Open.fichero",
