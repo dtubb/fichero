@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
@@ -66,8 +67,17 @@ class TestIngestPipelineIntegration:
             (test_folder / "file1.jpg").write_bytes(b"fake image data")
             (test_folder / "file2.png").write_bytes(b"fake image data")
 
+            # The fake clone must MATERIALIZE the destination: the pipeline now
+            # verifies the copied bytes (write durability), so a mock that
+            # returns True without producing a file is correctly rejected.
+            def fake_clone(source, dest):
+                shutil.copy2(source, dest)
+                return True
+
             with patch("fichero.bookmarks.create_bookmark", return_value=b"bookmark_data"):
-                with patch("fichero.importers.ingest._try_apfs_clone", return_value=True) as mock_clone:
+                with patch(
+                    "fichero.importers.ingest._try_apfs_clone", side_effect=fake_clone
+                ) as mock_clone:
                     docs = ingest_folder(
                         test_folder,
                         mode=IngestMode.COPY,
