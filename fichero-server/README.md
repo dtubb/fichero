@@ -20,12 +20,16 @@ This file keeps only what is specific to the engine: its layout and how it works
 | `src/fichero_server/workflows/` | LangGraph workflow engine, tool registry, graph builder |
 | `src/fichero_server/kg/` | Knowledge graph: entities, claims, aggregation, curation |
 | `src/fichero_server/loaders/` | Text extraction (PDF, DOCX, images, …) |
-| `src/fichero_server/cli/` | Typed CLI mirroring the engine's HTTP surface (`openapi_surface_generated.py`) |
-| `src/fichero_server/db.py` | DuckDB + LanceDB storage |
-| `src/fichero_server/models.py` | Pydantic models |
-| `src/engine/` | Briefcase entry point wrapper for the bundled backend app |
+| `src/fichero_server/db/` | DuckDB + LanceDB storage |
+| `src/fichero_server/models/` | Pydantic models |
+| `src/fichero_server/__main__.py` | Briefcase entry point for the bundled `Fichero Server.app` |
 | `tests/` | `unit/`, `integration/`, `contracts/` |
-| `pyproject.toml` | Package + Briefcase config; console scripts (`fichero`, `fichero-mcp`) |
+| `pyproject.toml` | Package + Briefcase config (app key `fichero_server`) |
+
+The CLI and MCP server are separate peer packages — `fichero-cli/` (console
+script `fichero`) and `fichero-mcp/` (`fichero-mcp`, `fichero-mcp-simple`) —
+each a thin client over this server's HTTP surface with its own README and
+tests.
 
 ## Install
 
@@ -37,7 +41,7 @@ form, from the repo root:
 brew install python@3.12
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -e 'fichero-server[dev]'
+pip install -e 'fichero-server[dev]' -e ./fichero-cli -e ./fichero-mcp
 pip install pytest ruff
 ```
 
@@ -111,8 +115,10 @@ workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
 
 ## MCP server
 
-`fichero-mcp` exposes engine capabilities to MCP-aware agents
-(`src/fichero_server/mcp_server.py`; `fichero-mcp-simple` is a minimal variant).
+The MCP server lives in the peer package `fichero-mcp/` (`fichero_mcp`), which
+exposes engine capabilities to MCP-aware agents over the same HTTP surface
+(`fichero-mcp` full, `fichero-mcp-simple` minimal). The `src/fichero_server/mcp/`
+module here is the server-side integration seam, not the MCP entry point.
 
 ## Keep the Swift client in sync
 
@@ -144,7 +150,7 @@ Briefcase *bundles into the shipped app* — `python_version = "3.12"` in `pypro
 ### macOS only — iOS and iPadOS cannot embed the engine
 
 The bundle is built with [Briefcase](https://briefcase.readthedocs.io/), and
-`pyproject.toml` declares exactly one platform: `[tool.briefcase.app.engine.macOS]`
+`pyproject.toml` declares exactly one platform: `[tool.briefcase.app.fichero_server.macOS]`
 (arm64, `min_os_version = "15.0"`, Python 3.12). There is no iOS table, and there
 will not be one: the engine's native wheel stack — LanceDB above all, plus the
 Apple Vision PyObjC bindings — publishes no iOS wheels. A Python interpreter can be
