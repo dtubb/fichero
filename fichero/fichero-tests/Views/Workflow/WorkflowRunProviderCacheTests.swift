@@ -78,7 +78,7 @@ final class WorkflowRunProviderCacheTests: XCTestCase {
     // MARK: - Regression: every mutation path invalidates
 
     func testEveryProviderMutationEndpointInvalidatesTheRunMenus() throws {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero/Services/ProviderAPIService.swift")

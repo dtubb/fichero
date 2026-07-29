@@ -633,7 +633,7 @@ struct ClaimFocusStateInjectionContractTests {
 
     /// App source root: `.../fichero/fichero/` (sibling of `fichero-tests`).
     private static func appSourceRoot() -> URL {
-        URL(fileURLWithPath: #filePath)
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()   // fichero-tests
             .deletingLastPathComponent()   // fichero (project container)
             .appendingPathComponent("fichero")

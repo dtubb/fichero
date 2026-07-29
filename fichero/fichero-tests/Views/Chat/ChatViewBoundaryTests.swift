@@ -56,7 +56,7 @@ final class ChatViewBoundaryTests: XCTestCase {
     }
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("../fichero/\(relativePath)")
         return try String(contentsOf: url, encoding: .utf8)
