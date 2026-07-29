@@ -51,7 +51,7 @@ def test_coverage_predicate_matches_term():
 
 
 def test_collect_gaps_excludes_covered_symbols(tmp_path):
-    source_file = tmp_path / "fichero-server" / "src" / "fichero" / "core" / "sample.py"
+    source_file = tmp_path / "fichero-server" / "src" / "fichero_server" / "core" / "sample.py"
     source_file.parent.mkdir(parents=True)
     source_file.write_text(
         """

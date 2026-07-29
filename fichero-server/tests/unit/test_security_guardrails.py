@@ -8,7 +8,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-SRC_ROOT = Path(__file__).resolve().parents[2] / "src" / "fichero"
+SRC_ROOT = Path(__file__).resolve().parents[2] / "src" / "fichero_server"
 LOGGER_METHODS = {"debug", "info", "warning", "error", "exception", "critical", "log"}
 SECRET_WORDS = ("api_key", "token", "password", "secret")
 PERSISTENCE_PATH_ALLOWLIST = frozenset(

@@ -1,0 +1,42 @@
+# =============================================================================
+# fichero-mcp — MCP server exposing a running Fichero server's tools
+# =============================================================================
+# Split out of the server package in #4227. A thin wrapper over FicheroClient:
+# every MCP tool is one HTTP call against a running fichero-server. Ships two
+# ways: as this standalone product, and inside the Mac app bundle (Briefcase
+# sources in fichero-server/pyproject.toml include this package).
+#
+# The MCP *client* manager the server uses for workflow tools is NOT here —
+# it stays server-side as fichero_server.mcp.manager.
+#
+# Install editable from the repo root:
+#
+#   pip install -e ./fichero-server -e ./fichero-cli -e ./fichero-mcp
+# =============================================================================
+
+[project]
+name = "fichero-mcp"
+version = "2026.7.24"
+description = "MCP server for Fichero — exposes document, search, and knowledge tools to AI clients over MCP."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp",
+    "pydantic",
+    # FicheroClient (shared HTTP client) lives in the CLI product for now;
+    # a dedicated shared client-connection library is the next phase.
+    "fichero-cli",
+    # Response models come from the server package.
+    "fichero-server",
+]
+
+[project.scripts]
+fichero-mcp = "fichero_mcp.server:main"
+fichero-mcp-simple = "fichero_mcp.simple:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

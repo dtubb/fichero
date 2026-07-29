@@ -160,7 +160,7 @@ else
   ./fichero-server/scripts/sync_openapi_schema.sh
   if ! git diff --quiet; then
     git add docs/contributor/api-reference/openapi.json \
-      fichero-server/src/fichero_server/cli/openapi_surface_generated.py \
+      fichero-cli/src/fichero_cli/openapi_surface_generated.py \
       fichero-server/tests/contracts/endpoints.json \
       fichero-server/tests/contracts/openapi.json \
       fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json

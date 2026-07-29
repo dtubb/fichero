@@ -78,7 +78,7 @@ class TestCORSSecurity:
 class TestMCPAuthorization:
     """Test MCP server authorization controls.
 
-    The MCP server is a thin wrapper over ``fichero_server.cli.FicheroClient``; it
+    The MCP server is a thin wrapper over ``fichero_cli.FicheroClient``; it
     authenticates with an ``Authorization: Bearer <token>`` header, the same
     scheme the engine and SwiftUI app use. The token is discovered from
     ``FICHERO_API_KEY`` or the engine's key file.
@@ -86,7 +86,7 @@ class TestMCPAuthorization:
 
     def test_mcp_sends_bearer_token(self):
         """HIGH-2: MCP client should authenticate with a Bearer token."""
-        from fichero_server.mcp import server as mcp_server
+        from fichero_mcp import server as mcp_server
 
         with patch.dict(os.environ, {"FICHERO_API_KEY": "test-api-key-12345"}):
             client = mcp_server._client()
@@ -100,7 +100,7 @@ class TestMCPAuthorization:
 
     def test_mcp_reads_api_key_from_environment(self):
         """HIGH-2: MCP client should read the token from the environment."""
-        from fichero_server.mcp import server as mcp_server
+        from fichero_mcp import server as mcp_server
 
         with patch.dict(os.environ, {"FICHERO_API_KEY": "env-api-key"}):
             client = mcp_server._client()
@@ -114,8 +114,8 @@ class TestMCPAuthorization:
 
     def test_mcp_warns_without_token(self, tmp_path):
         """HIGH-2: MCP server should warn at startup when no token is configured."""
-        from fichero_server.mcp import server as mcp_server
-        from fichero_server.cli import client as client_module
+        from fichero_mcp import server as mcp_server
+        from fichero_cli import client as client_module
 
         with patch.dict(os.environ, {}, clear=True):
             with patch.object(client_module, "_TOKEN_PATH", tmp_path / "absent"):

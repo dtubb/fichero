@@ -6,7 +6,7 @@
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 2
-export PYTHONPATH="fichero-server/src"
+export PYTHONPATH="fichero-server/src:fichero-cli/src:fichero-mcp/src"
 PY=".venv/bin/python"
 PYTEST=".venv/bin/pytest"
 RUFF=".venv/bin/ruff"
@@ -59,7 +59,7 @@ kill "$SMOKE_PID" 2>/dev/null; wait "$SMOKE_PID" 2>/dev/null
 if [ "$ok" = 1 ]; then echo "✅ backend start-smoke"; else echo "❌ backend start-smoke"; fail=1; fi
 
 # 5. CLI smoke: the CLI imports and its entrypoint runs.
-run "cli import" "$PY" -c "import fichero_server.cli"
+run "cli import" "$PY" -c "import fichero_cli"
 run "cli --help" "$PY" -m fichero --help
 
 # 6. Live CLI<->engine contract test.
@@ -70,7 +70,7 @@ run "cli contract" "$PYTEST" fichero-server/tests/integration/test_cli_engine_co
 #    and diffs against the committed files; restores the working tree on mismatch so the
 #    gate never leaves dirty files behind.
 echo "── openapi freshness ──"
-PYTHONPATH=fichero-server/src FICHERO_FEATURE_TIER=dev "$PY" \
+PYTHONPATH=fichero-server/src:fichero-cli/src:fichero-mcp/src FICHERO_FEATURE_TIER=dev "$PY" \
   fichero-server/scripts/export_openapi_schema.py >/dev/null 2>&1
 if ! git diff --quiet -- fichero-server/tests/contracts/openapi.json \
                           fichero-server/tests/contracts/endpoints.json; then

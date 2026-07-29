@@ -1,6 +1,6 @@
 """Coverage for document/workflow MCP tool declarations."""
 
-from fichero_server.mcp.document_tools import TOOLS
+from fichero_mcp.document_tools import TOOLS
 
 
 def test_document_mcp_tools_expose_required_inputs():

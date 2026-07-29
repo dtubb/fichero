@@ -1,6 +1,6 @@
 """Coverage for research-agent MCP tool declarations."""
 
-from fichero_server.mcp.research_tools import TOOLS
+from fichero_mcp.research_tools import TOOLS
 
 
 def test_research_mcp_create_tools_declare_parent_requirements():

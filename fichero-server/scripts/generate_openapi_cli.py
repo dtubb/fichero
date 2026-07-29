@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 OPENAPI = ROOT / "fichero-server" / "tests" / "contracts" / "openapi.json"
-OUTPUT = ROOT / "fichero-server" / "src" / "fichero" / "cli" / "openapi_surface_generated.py"
+OUTPUT = ROOT / "fichero-cli" / "src" / "fichero_cli" / "openapi_surface_generated.py"
 
 RESOURCE_NAME_OVERRIDES = {
     "activity": "activity-api",
@@ -433,7 +433,7 @@ def _generate_module(operations: list[Operation]) -> str:
         "",
         "import typer",
         "",
-        "from fichero_server.cli import FicheroClient",
+        "from fichero_cli import FicheroClient",
         "",
         "",
         "def _coerce_json_field(value: Any, schema: dict[str, Any]) -> Any:",

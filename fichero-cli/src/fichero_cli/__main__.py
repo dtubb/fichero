@@ -2,7 +2,7 @@
 
 Every command is one or two HTTP calls through FicheroClient; there is no
 backend logic here. Run ``fichero --help`` for the command tree. The console
-entry point ``fichero = "fichero_server.__main__:main"`` is declared in pyproject.toml.
+entry point ``fichero = "fichero_cli.__main__:main"`` is declared in pyproject.toml.
 """
 
 from __future__ import annotations
@@ -19,10 +19,10 @@ from typing import Any, Callable, Optional
 
 import typer
 
-from fichero_server.cli import FicheroClient, FicheroError
-from fichero_server.cli import client as client_module
-from fichero_server.cli.openapi_surface_generated import register_generated_openapi_commands
-from fichero_server.cli.formatters import render
+from fichero_cli import FicheroClient, FicheroError
+from fichero_cli import client as client_module
+from fichero_cli.openapi_surface_generated import register_generated_openapi_commands
+from fichero_cli.formatters import render
 app = typer.Typer(
     help="Fichero CLI — a thin HTTP client for the Fichero backend.",
     no_args_is_help=True,
@@ -1543,7 +1543,7 @@ def artifacts_list(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    from fichero_server.cli.formatters import render_artifact
+    from fichero_cli.formatters import render_artifact
 
     if isinstance(artifacts, list):
         for artifact in artifacts:
@@ -1674,7 +1674,7 @@ def search(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    from fichero_server.cli.formatters import render_claim
+    from fichero_cli.formatters import render_claim
 
     payload = data.model_dump(mode="json") if hasattr(data, "model_dump") else data
 
@@ -1807,7 +1807,7 @@ def docs_list(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    from fichero_server.cli.formatters import render_document
+    from fichero_cli.formatters import render_document
 
     if isinstance(documents, list):
         for doc in documents:
@@ -2889,7 +2889,7 @@ def claim_list(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    from fichero_server.cli.formatters import render_claim
+    from fichero_cli.formatters import render_claim
 
     if isinstance(claims, list):
         for claim in claims:
@@ -3022,7 +3022,7 @@ def entity_get(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    from fichero_server.cli.formatters import render_entity
+    from fichero_cli.formatters import render_entity
 
     typer.echo(render_entity(entity))
 
@@ -3106,7 +3106,7 @@ def entity_top(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    from fichero_server.cli.formatters import render_top_entity
+    from fichero_cli.formatters import render_top_entity
 
     if isinstance(entities, list):
         for entity in entities:
@@ -3358,7 +3358,7 @@ def claim_at_page(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    from fichero_server.cli.formatters import render_claim
+    from fichero_cli.formatters import render_claim
 
     if isinstance(claims, list):
         for claim in claims:
@@ -3390,7 +3390,7 @@ def claim_at_doc(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    from fichero_server.cli.formatters import render_claim
+    from fichero_cli.formatters import render_claim
 
     if isinstance(claims, list):
         for claim in claims:
@@ -3434,7 +3434,7 @@ def claim_at_folder(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    from fichero_server.cli.formatters import render_claim
+    from fichero_cli.formatters import render_claim
 
     if isinstance(claims, list):
         for claim in claims:
@@ -3744,7 +3744,7 @@ app.add_typer(engine_app, name="engine")
 @engine_app.command("status")
 def engine_status() -> None:
     """Show engine status (running or stopped with uptime)."""
-    from fichero_server.cli.engine_manager import status
+    from fichero_cli.engine_manager import status
 
     status()
 
@@ -3774,7 +3774,7 @@ def engine_start(
     Launches a detached uvicorn process and polls the port until responsive.
     If the engine is already running, prints its PID and exits.
     """
-    from fichero_server.cli.engine_manager import start
+    from fichero_cli.engine_manager import start
 
     start(port=port, workers=workers, host=host)
 
@@ -3786,7 +3786,7 @@ def engine_stop() -> None:
     Attempts graceful shutdown via HTTP first, then SIGTERM, finally SIGKILL
     if the process does not respond.
     """
-    from fichero_server.cli.engine_manager import stop
+    from fichero_cli.engine_manager import stop
 
     stop()
 
@@ -3815,7 +3815,7 @@ def engine_restart(
 
     Useful for reloading configuration or recovering from a hung state.
     """
-    from fichero_server.cli.engine_manager import restart
+    from fichero_cli.engine_manager import restart
 
     restart(port=port, workers=workers, host=host)
 

@@ -44,7 +44,7 @@ class HttpManifestClient:
     def __init__(
         self, api_base: str, token: str, library_path: str, timeout: int = 120
     ) -> None:
-        from fichero_server.cli.client import FicheroClient
+        from fichero_cli.client import FicheroClient
 
         self._client = FicheroClient(
             base_url=api_base.removesuffix("/api"),
@@ -65,7 +65,7 @@ def resolve_http_token(
     api_base: str | None = None,
 ) -> str:
     if token_file == DEFAULT_TOKEN_FILE:
-        from fichero_server.cli.client import _read_token
+        from fichero_cli.client import _read_token
 
         token = _read_token(base_url=api_base.removesuffix("/api") if api_base else None)
         if token:

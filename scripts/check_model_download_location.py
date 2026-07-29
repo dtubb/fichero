@@ -51,7 +51,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero"
+ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero_server"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 # The canonical shared models folder, as defined in fichero/db/paths.py.

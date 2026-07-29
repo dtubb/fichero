@@ -124,7 +124,7 @@ extension AppState {
 
                 The backend stopped responding mid-session. Restart it with:
 
-                PYTHONPATH=src python -m fichero.api
+                PYTHONPATH=src python -m fichero_server.api
                 """)
         case .configuredRemote, .iosCompanion, .inert:
             return .surfaceDiagnosis(

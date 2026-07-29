@@ -41,7 +41,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "fichero-server" / "src" / "fichero"
+SRC = ROOT / "fichero-server" / "src" / "fichero_server"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 WRITE_MARKERS = (

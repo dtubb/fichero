@@ -43,6 +43,12 @@ console_app = true  # Headless app (no window, runs in background)
 sources = [
     "src/fichero_server",          # Main backend code
     "src/server",  # Briefcase entry point
+    # #4227: the CLI and MCP server are separate products now, but both still
+    # ship inside the embedded bundle (the MCP server is an in-app
+    # distribution requirement; the CLI's FicheroClient is imported lazily by
+    # the importer HTTP paths).
+    "../fichero-cli/src/fichero_cli",
+    "../fichero-mcp/src/fichero_mcp",
 ]
 requires = [
     # Core — 0.0.1 release surface (keep slim for bundle size)
@@ -238,10 +244,9 @@ dev = [
     "openapi-python-client",
 ]
 
-[project.scripts]
-fichero = "fichero_server.__main__:main"
-fichero-mcp = "fichero_server.mcp.server:main"
-fichero-mcp-simple = "fichero_server.mcp.simple:main"
+# #4227: console entry points moved with their code — `fichero` is declared by
+# fichero-cli/pyproject.toml, `fichero-mcp`/`fichero-mcp-simple` by
+# fichero-mcp/pyproject.toml. The server package ships no CLI.
 
 [tool.pytest.ini_options]
 markers = [

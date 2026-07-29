@@ -25,8 +25,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = ROOT / "fichero" / "fichero" / "Models"
-ROUTES_DIR = ROOT / "fichero-server" / "src" / "fichero" / "api" / "routes"
-API_DIR = ROOT / "fichero-server" / "src" / "fichero" / "api"
+ROUTES_DIR = ROOT / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
+API_DIR = ROOT / "fichero-server" / "src" / "fichero_server" / "api"
 
 METHODS = {"post", "put", "patch", "delete"}
 ALLOW_COMMENT_RE = re.compile(
@@ -443,7 +443,7 @@ def scan(
     routes_dir: Path | None = None,
 ) -> list[Row]:
     base_root = root or ROOT
-    route_root = routes_dir or base_root / "fichero-server" / "src" / "fichero" / "api" / "routes"
+    route_root = routes_dir or base_root / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     observed_domains = _observed_domains(root=base_root, models_dir=models_dir)
     rows: list[Row] = []
 
@@ -495,8 +495,8 @@ def scan_non_route_saves(
     # Keep the default scan on API-adjacent helpers. Whole-engine scanning also
     # catches batch import/workflow writers whose route/action owners broadcast
     # at coarser boundaries and produces too much noise for this guardrail.
-    api_root = api_dir or base_root / "fichero-server" / "src" / "fichero" / "api"
-    route_root = routes_dir or base_root / "fichero-server" / "src" / "fichero" / "api" / "routes"
+    api_root = api_dir or base_root / "fichero-server" / "src" / "fichero_server" / "api"
+    route_root = routes_dir or base_root / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     rows: list[SaveRow] = []
 
     for path in sorted(api_root.rglob("*.py")):

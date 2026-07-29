@@ -83,7 +83,7 @@ class FakeClient:
 def _attach_helpers(fake: FakeClient) -> None:
     """Bind the real scoped-KG helper methods onto FakeClient so the
     test exercises the actual implementation, not a re-write."""
-    from fichero_server.cli.client import FicheroClient
+    from fichero_cli.client import FicheroClient
 
     for name in (
         "entities_at_doc",

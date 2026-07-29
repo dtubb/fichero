@@ -48,12 +48,12 @@ jobs:
 
       - name: Feature-tier freshness
         env:
-          PYTHONPATH: fichero-server/src
+          PYTHONPATH: fichero-server/src:fichero-cli/src:fichero-mcp/src
         run: python scripts/check_features_freshness.py
 
       - name: pytest (unit, skip ML/embedding)
         env:
-          PYTHONPATH: fichero-server/src
+          PYTHONPATH: fichero-server/src:fichero-cli/src:fichero-mcp/src
           FICHERO_FEATURE_TIER: dev
         run: |
           pytest fichero-server/tests/unit/ \
@@ -85,7 +85,7 @@ jobs:
 
       - name: Regenerate openapi.json
         env:
-          PYTHONPATH: fichero-server/src
+          PYTHONPATH: fichero-server/src:fichero-cli/src:fichero-mcp/src
           FICHERO_FEATURE_TIER: dev
         run: bash fichero-server/scripts/sync_openapi_schema.sh
 
@@ -133,5 +133,5 @@ jobs:
 
       - name: Feature-tier freshness
         env:
-          PYTHONPATH: fichero-server/src
+          PYTHONPATH: fichero-server/src:fichero-cli/src:fichero-mcp/src
         run: python scripts/check_features_freshness.py

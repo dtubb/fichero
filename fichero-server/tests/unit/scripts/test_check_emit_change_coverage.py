@@ -79,7 +79,7 @@ class NoteStore {
 
 
 def test_mutating_route_with_emit_change_is_not_a_gap(tmp_path):
-    routes_dir = tmp_path / "fichero-server" / "src" / "fichero" / "api" / "routes"
+    routes_dir = tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     route_file = routes_dir / "notes.py"
     _write_route(route_file, "post", "emit_change()\n    return {'ok': True}")
 
@@ -103,7 +103,7 @@ class NoteStore {
 
 
 def test_mutating_route_without_emit_change_is_gap(tmp_path):
-    routes_dir = tmp_path / "fichero-server" / "src" / "fichero" / "api" / "routes"
+    routes_dir = tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     route_file = routes_dir / "notes.py"
     _write_route(route_file, "post", "return {'ok': True}")
 
@@ -127,7 +127,7 @@ class NoteStore {
 
 
 def test_non_route_observable_save_without_emit_change_is_gap(tmp_path):
-    service_file = tmp_path / "fichero-server" / "src" / "fichero" / "api" / "services" / "artifacts.py"
+    service_file = tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "services" / "artifacts.py"
     _write_api_module(
         service_file,
         """    artifact = Artifact(document_id="doc-1", artifact_type="ocr", content="text")
@@ -144,7 +144,7 @@ def test_non_route_observable_save_without_emit_change_is_gap(tmp_path):
 
 
 def test_non_route_observable_save_with_nearby_emit_change_passes(tmp_path):
-    service_file = tmp_path / "fichero-server" / "src" / "fichero" / "api" / "services" / "artifacts.py"
+    service_file = tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "services" / "artifacts.py"
     _write_api_module(
         service_file,
         """    artifact = Artifact(document_id="doc-1", artifact_type="ocr", content="text")
@@ -161,7 +161,7 @@ def test_non_route_observable_save_with_nearby_emit_change_passes(tmp_path):
 
 
 def test_non_route_observable_save_with_allow_comment_passes(tmp_path):
-    service_file = tmp_path / "fichero-server" / "src" / "fichero" / "api" / "services" / "artifacts.py"
+    service_file = tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "services" / "artifacts.py"
     _write_api_module(
         service_file,
         """    artifact = Artifact(document_id="doc-1", artifact_type="ocr", content="text")
@@ -177,7 +177,7 @@ def test_non_route_observable_save_with_allow_comment_passes(tmp_path):
 
 
 def test_non_route_equivalent_save_of_direct_observable_model_is_gap(tmp_path):
-    service_file = tmp_path / "fichero-server" / "src" / "fichero" / "api" / "services" / "artifacts.py"
+    service_file = tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "services" / "artifacts.py"
     _write_api_module(
         service_file,
         """    writer.save(Artifact(document_id="doc-1", artifact_type="ocr", content="text"))
@@ -192,7 +192,7 @@ def test_non_route_equivalent_save_of_direct_observable_model_is_gap(tmp_path):
 
 
 def test_route_handlers_remain_covered_by_route_logic(tmp_path):
-    routes_dir = tmp_path / "fichero-server" / "src" / "fichero" / "api" / "routes"
+    routes_dir = tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     route_file = routes_dir / "artifacts.py"
     _write_route(
         route_file,
@@ -213,7 +213,7 @@ def test_route_handlers_remain_covered_by_route_logic(tmp_path):
 
 
 def test_new_observable_domain_route_is_derived_from_model_mapping(tmp_path, monkeypatch):
-    routes_dir = tmp_path / "fichero-server" / "src" / "fichero" / "api" / "routes"
+    routes_dir = tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     route_file = routes_dir / "widgets.py"
     _write_route(route_file, "post", "emit_change()\n    return {'ok': True}")
     _write_store(tmp_path, "widget", "WidgetStore")
@@ -231,7 +231,7 @@ def test_new_observable_domain_route_is_derived_from_model_mapping(tmp_path, mon
 
 
 def test_exempt_route_is_not_reported_as_gap(tmp_path, monkeypatch):
-    routes_dir = tmp_path / "fichero-server" / "src" / "fichero" / "api" / "routes"
+    routes_dir = tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     route_file = routes_dir / "notes.py"
     _write_route(route_file, "post", "return {'ok': True}")
 

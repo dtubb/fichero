@@ -8,8 +8,21 @@ import asyncio
 import faulthandler
 import inspect
 import os
+import sys
+from pathlib import Path
+
 import pytest
 from unittest.mock import MagicMock
+
+# #4227 split fichero-cli/ and fichero-mcp/ out of the server package. Their
+# tests still live in this tree, and every gate sets only
+# PYTHONPATH=fichero-server/src — add the sibling products' src dirs here so
+# one seam (this conftest) covers all pytest invocations.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+for _sibling in ("fichero-cli/src", "fichero-mcp/src"):
+    _sibling_path = str(_REPO_ROOT / _sibling)
+    if _sibling_path not in sys.path:
+        sys.path.insert(0, _sibling_path)
 
 from fastapi.testclient import TestClient
 
@@ -209,7 +222,7 @@ def _apple_intelligence_available() -> bool:
     # Mirror the binary lookup in fichero_server.llm._apple_intelligence_chat.
     repo_root = Path(__file__).resolve().parents[2]
     candidates = [
-        repo_root / "fichero-server" / "src" / "fichero"
+        repo_root / "fichero-server" / "src" / "fichero_server"
         / "resources" / "bin" / "fm-bridge",
         repo_root / "fichero-server" / "bin" / "fm-bridge" / "fm-bridge",
     ]

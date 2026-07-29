@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PY_MODELS = ROOT / "fichero-server" / "src" / "fichero" / "models" / "__init__.py"
+PY_MODELS = ROOT / "fichero-server" / "src" / "fichero_server" / "models" / "__init__.py"
 DECODER = ROOT / "fichero" / "fichero" / "Services" / "DocumentService.swift"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 

@@ -20,7 +20,7 @@ import pytest
 
 from fichero_server.llm import lang_detect
 
-ENGINE_SRC = Path(__file__).resolve().parents[2] / "src" / "fichero"
+ENGINE_SRC = Path(__file__).resolve().parents[2] / "src" / "fichero_server"
 
 
 def _resolve_calls(path: Path) -> list[ast.Call]:

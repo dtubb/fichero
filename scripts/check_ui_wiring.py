@@ -43,7 +43,7 @@ SURFACES = {
         "allowlist": CONTRACTS / "ui_wiring_allowlist_swiftui.json",
     },
     "cli": {
-        "dir": ROOT / "fichero-server" / "src" / "fichero" / "cli",
+        "dir": ROOT / "fichero-cli" / "src" / "fichero_cli",
         "glob": "*.py",
         "exclude": ("generated", "__pycache__"),       # generated CLI client
         "allowlist": CONTRACTS / "ui_wiring_allowlist_cli.json",

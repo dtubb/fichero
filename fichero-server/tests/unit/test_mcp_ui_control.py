@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from fichero_server.mcp import ui_control
+from fichero_mcp import ui_control
 
 
 class RecordingRunner:

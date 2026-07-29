@@ -1,6 +1,6 @@
 """Coverage for knowledge-graph MCP tool declarations."""
 
-from fichero_server.mcp.kg_tools import TOOLS
+from fichero_mcp.kg_tools import TOOLS
 
 
 def test_kg_mcp_tools_require_identifiers_for_mutations():

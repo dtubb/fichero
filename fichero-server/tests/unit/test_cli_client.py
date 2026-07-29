@@ -1,4 +1,4 @@
-"""Unit tests for fichero_server.cli.client.FicheroClient.
+"""Unit tests for fichero_cli.client.FicheroClient.
 
 The HTTP layer is mocked with httpx.MockTransport — no live backend required.
 """
@@ -11,8 +11,8 @@ from urllib.parse import quote
 import httpx
 import pytest
 
-from fichero_server.cli import DEFAULT_BASE_URL, FicheroClient, FicheroError
-from fichero_server.cli import client as client_module
+from fichero_cli import DEFAULT_BASE_URL, FicheroClient, FicheroError
+from fichero_cli import client as client_module
 
 
 def _client(handler, **kwargs) -> FicheroClient:

@@ -18,7 +18,7 @@ from fichero_server import __main__ as cli
 from fichero_server.security import accounts
 from fichero_server.security import authz
 from fichero_server.db.app import AppDatabase
-from fichero_server.cli import client as client_module
+from fichero_cli import client as client_module
 
 os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")

@@ -107,7 +107,7 @@ def test_main_returns_nonzero_and_prints_offender_location(
     monkeypatch, capsys, tmp_path
 ):
     root = tmp_path
-    routes_dir = root / "fichero-server" / "src" / "fichero" / "api" / "routes"
+    routes_dir = root / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     routes_dir.mkdir(parents=True)
     route = routes_dir / "things.py"
     route.write_text(

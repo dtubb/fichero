@@ -112,7 +112,7 @@ final class TransportRoutingMatrixTests: XCTestCase {
     /// to `"uds"` before the engine's auth middleware sees the scope. This is
     /// the "UDS via the python-kit load" transport: no socket is bound, but the
     /// engine exercises the exact UDS-marker loopback-trust path. The wrapper
-    /// mirrors `fichero.api.uds_transport.UDSTransportApp` on a real socket.
+    /// mirrors `fichero_server.api.uds_transport.UDSTransportApp` on a real socket.
     private func udsMarkerInMemoryTransport() -> any ClientTransport {
         let code = #"""
         from fichero_server.api.main import app as _real

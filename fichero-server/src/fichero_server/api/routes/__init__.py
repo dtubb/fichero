@@ -18,7 +18,7 @@
 # nothing:
 #   - `fichero_server.api.change_stream` (the db path) lives under fichero_server.api, NOT
 #     under fichero_server.api.routes, so it no longer drags main in — cycle stays fixed.
-#   - `fichero_server.cli.client` imports route modules directly for their response
+#   - `fichero_cli.client` imports route modules directly for their response
 #     types; it now gets main first, as it always silently did.
 #   - When main itself imports a route, this re-entry is a no-op: main is
 #     already in sys.modules and a plain `import` binds the partial module

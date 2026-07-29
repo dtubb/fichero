@@ -6,7 +6,7 @@ import pytest
 
 from fichero_server.security import accounts
 from fichero_server.security import authz
-from fichero_server.mcp import server as mcp_server
+from fichero_mcp import server as mcp_server
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models.knowledge import KnowledgeClaim
 from fichero_server.models import ActionAudit, DocType, Document

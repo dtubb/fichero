@@ -11,7 +11,7 @@ import os
 import subprocess
 import types
 
-from fichero_server.cli import engine_manager as em
+from fichero_cli import engine_manager as em
 
 
 # ---------------------------------------------------------------------------

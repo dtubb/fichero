@@ -36,7 +36,7 @@ from pathlib import Path
 import pytest
 
 # fichero-server/src/fichero_server
-SRC_ROOT = Path(__file__).resolve().parents[2] / "src" / "fichero"
+SRC_ROOT = Path(__file__).resolve().parents[2] / "src" / "fichero_server"
 
 
 # ===========================================================================

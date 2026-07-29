@@ -81,13 +81,13 @@ logger = logging.getLogger(__name__)
 def _resolve_engine_version() -> str:
     """Best-effort engine version for the health/About surface.
 
-    The Python project is named ``fichero``, but Briefcase bundles the engine as
-    the ``engine`` app and ships only ``server-<ver>.dist-info`` — so looking up
-    ``fichero`` alone made the shipped app report ``dev``. Try both distribution
-    names (dev/editable installs carry ``fichero``; the Briefcase bundle carries
-    ``engine``) before falling back to ``dev``.
+    The Python project is named ``fichero-server``, but Briefcase bundles it as
+    the ``server`` app and ships only ``server-<ver>.dist-info`` — so looking up
+    one name alone made the shipped app report ``dev``. Try each distribution
+    name (dev/editable installs carry ``fichero-server``, legacy venvs ``fichero``;
+    the Briefcase bundle carries ``server``) before falling back to ``dev``.
     """
-    for dist_name in ("fichero", "engine"):
+    for dist_name in ("fichero-server", "server", "fichero", "engine"):
         try:
             return package_version(dist_name)
         except PackageNotFoundError:

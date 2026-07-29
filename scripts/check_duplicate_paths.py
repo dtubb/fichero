@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero"
+ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero_server"
 ALLOWLIST = ROOT / "fichero-server" / "tests" / "contracts" / "duplicate_paths_allowlist.json"
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}

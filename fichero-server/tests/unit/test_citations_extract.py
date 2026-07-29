@@ -6,7 +6,7 @@ import httpx
 from typer.testing import CliRunner
 
 from fichero_server import __main__ as cli
-from fichero_server.cli import FicheroClient
+from fichero_cli import FicheroClient
 from fichero_server.db import db_manager
 from fichero_server.models.knowledge import (
     EntityResolutionRule,

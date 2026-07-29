@@ -1,4 +1,4 @@
-"""Unit tests for fichero_server.cli.formatters (#1982 — python/cli coverage).
+"""Unit tests for fichero_cli.formatters (#1982 — python/cli coverage).
 
 The render_* helpers are pure functions over dicts / Pydantic models — no HTTP,
 no backend. They drive every `fichero` CLI line, so their human + --json output
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from fichero_server.cli.formatters import (
+from fichero_cli.formatters import (
     render,
     render_claim,
     render_document,

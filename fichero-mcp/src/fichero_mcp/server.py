@@ -1,9 +1,9 @@
 """Fichero MCP server — exposes the CLI's HTTP operations as MCP tools.
 
-This is a thin wrapper over :class:`fichero_server.cli.FicheroClient`: every tool is
+This is a thin wrapper over :class:`fichero_cli.FicheroClient`: every tool is
 one client call. There is no backend logic and no second HTTP layer here — the
 client owns auth, the library-path header, and error handling. A
-:class:`~fichero_server.cli.FicheroError` raised by the client propagates out of the
+:class:`~fichero_cli.FicheroError` raised by the client propagates out of the
 tool; FastMCP turns it into an error tool result rather than letting it pass
 silently.
 
@@ -15,9 +15,9 @@ Two tool families (#1269 — "MCP access to the app"):
 
 Usage::
 
-    python -m fichero_server.mcp.server [--api-url URL] [--library-path PATH]
+    python -m fichero_mcp.server [--api-url URL] [--library-path PATH]
 
-The console entry point ``fichero-mcp = "fichero_server.mcp.server:main"`` is declared
+The console entry point ``fichero-mcp = "fichero_mcp.server:main"`` is declared
 in pyproject.toml. Configuration falls back to the environment
 (``FICHERO_API_URL``, ``FICHERO_LIBRARY_PATH``, ``FICHERO_API_KEY``) — the same
 variables the CLI honours.
@@ -31,7 +31,7 @@ from typing import Any, Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from fichero_server.cli import FicheroClient
+from fichero_cli import FicheroClient
 from fichero_server.models.knowledge import Note, NoteKind
 
 logger = logging.getLogger(__name__)

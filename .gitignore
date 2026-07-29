@@ -36,7 +36,7 @@ fichero-server/.itest-base/
 build/
 dist/
 logs/
-fichero-server/src/fichero_server/cli/generated/
+fichero-cli/src/fichero_cli/generated/
 
 # MkDocs site (build output + local docs venv)
 _site_build/

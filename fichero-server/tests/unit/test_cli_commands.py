@@ -12,9 +12,9 @@ import pytest
 from typer.testing import CliRunner
 
 from fichero_server import __main__ as cli
-from fichero_server.cli import FicheroError
-from fichero_server.cli import client as client_module
-from fichero_server.cli.formatters import render
+from fichero_cli import FicheroError
+from fichero_cli import client as client_module
+from fichero_cli.formatters import render
 from fichero_server.api.routes.activity import ActivityResponse
 from fichero_server.api.routes.artifacts import ArtifactResponse
 from fichero_server.api.routes.document_inspector import DocumentInspectorResponse
@@ -1546,7 +1546,7 @@ def test_render_nested_dict():
 
 
 def test_render_top_entity():
-    from fichero_server.cli.formatters import render_top_entity
+    from fichero_cli.formatters import render_top_entity
     from fichero_server.api.routes.entities import TopEntityRow
 
     # Test with all fields
@@ -1903,7 +1903,7 @@ def test_library_list_empty():
             return LibraryRegistryResponse(libraries=[], count=0)
 
     # Monkey-patch for this test
-    import fichero_server.__main__ as cli_module
+    import fichero_cli.__main__ as cli_module
 
     old_client_class = cli_module.FicheroClient
     try:

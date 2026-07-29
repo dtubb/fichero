@@ -14,7 +14,7 @@ from pathlib import Path
 
 from fichero_server.models import DocType
 
-_SRC = Path(__file__).resolve().parents[2] / "src" / "fichero"
+_SRC = Path(__file__).resolve().parents[2] / "src" / "fichero_server"
 # `DocType.<name>` where <name> is a plain identifier (skip method-y calls).
 _REF = re.compile(r"\bDocType\.([A-Za-z_][A-Za-z0-9_]*)")
 # Enum dunders / helpers that legitimately appear as DocType.<x>.

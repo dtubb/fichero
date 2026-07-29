@@ -13,7 +13,7 @@
 //    1. Seeds a disposable `.fichero` library with the SAME Python seeder the
 //       contract walker uses (entities + claims included), then
 //    2. Spawns the engine on a Unix-domain socket (no TCP, no TLS) — the exact
-//       `fichero.api.uds_transport:app --uds …` fast-loop start_backend.sh uses.
+//       `fichero_server.api.uds_transport:app --uds …` fast-loop start_backend.sh uses.
 //
 //  The app is pointed at that socket with `FICHERO_FORCE_UDS_PATH` (see
 //  EngineConfig+Launch.swift). UDS sidesteps the cross-process TLS-pin dance
@@ -196,7 +196,7 @@ final class UITestEngineHarness {
         // Mirrors start_backend.sh's UDS fast loop exactly.
         proc.arguments = [
             "-m", "uvicorn",
-            "fichero.api.uds_transport:app",
+            "fichero_server.api.uds_transport:app",
             "--uds", socketPath,
             "--ws", "websockets-sansio"
         ]

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import httpx
 
-from fichero_server.cli import client as cli_client
+from fichero_cli import client as cli_client
 from fichero_server.importers import http_client
 
 

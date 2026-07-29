@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fichero_server.mcp import full as mcp_full
+from fichero_mcp import full as mcp_full
 
 
 def _tool_names() -> set[str]:

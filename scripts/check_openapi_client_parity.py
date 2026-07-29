@@ -26,7 +26,7 @@ CANONICAL_OPENAPI = ROOT / "fichero-server" / "tests" / "contracts" / "openapi.j
 SWIFT_OPENAPI_INPUTS = (
     ROOT / "fichero" / "fichero-api-client" / "Sources" / "FicheroAPIClient" / "openapi.json",
 )
-CLI_SURFACE = ROOT / "fichero-server" / "src" / "fichero" / "cli" / "openapi_surface_generated.py"
+CLI_SURFACE = ROOT / "fichero-cli" / "src" / "fichero_cli" / "openapi_surface_generated.py"
 KNOWN_GAPS = load_known_gaps(Path(__file__).with_name("check_openapi_client_parity_known_gaps.json"))
 
 

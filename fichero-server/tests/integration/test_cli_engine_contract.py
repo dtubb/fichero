@@ -19,7 +19,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from fichero_server.cli import FicheroClient
+from fichero_cli import FicheroClient
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 VENV_UVICORN = REPO_ROOT / ".venv" / "bin" / "uvicorn"

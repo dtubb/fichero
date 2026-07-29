@@ -15,7 +15,7 @@ from fichero_server.security.bind_host import (
     resolve_bind_host,
     resolve_lan_bind_host,
 )
-from fichero_server.cli import engine_manager
+from fichero_cli import engine_manager
 from fichero_server.security.remote_access_tls import prepare_remote_access_tls
 
 

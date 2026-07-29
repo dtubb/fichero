@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional
 
 import typer
 
-from fichero_server.cli import FicheroClient
+from fichero_cli import FicheroClient
 
 
 def _coerce_json_field(value: Any, schema: dict[str, Any]) -> Any:

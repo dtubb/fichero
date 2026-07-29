@@ -12,7 +12,7 @@ import types
 
 import pytest
 
-from fichero_server.cli import engine_manager
+from fichero_cli import engine_manager
 
 
 def _captured_start(monkeypatch, workers: int) -> list[str]:

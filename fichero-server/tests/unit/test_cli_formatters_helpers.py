@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from fichero_server.cli import formatters as fmt
+from fichero_cli import formatters as fmt
 
 
 # ---------------------------------------------------------------------------

@@ -10,8 +10,8 @@ from typer.testing import CliRunner
 from fichero_server import __main__ as cli
 from fichero_server.security import accounts
 from fichero_server.db.app import AppDatabase
-from fichero_server.cli import FicheroError
-from fichero_server.cli import client as client_module
+from fichero_cli import FicheroError
+from fichero_cli import client as client_module
 
 runner = CliRunner()
 

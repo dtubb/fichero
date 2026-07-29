@@ -53,7 +53,7 @@ if [ ! -x "$RUFF_BIN" ]; then
 fi
 
 if [ -x "$RUFF_BIN" ]; then
-  if PYTHONPATH="$ROOT_DIR/fichero-server/src" "$RUFF_BIN" check fichero-server/src/ 2>&1; then
+  if PYTHONPATH="$ROOT_DIR/fichero-server/src:$ROOT_DIR/fichero-cli/src:$ROOT_DIR/fichero-mcp/src" "$RUFF_BIN" check fichero-server/src/ fichero-cli/src/ fichero-mcp/src/ 2>&1; then
     ok "Ruff clean"
   else
     fail "Ruff violations found"
@@ -70,7 +70,7 @@ if [ ! -x "$PYTHON_BIN" ]; then
 fi
 
 if [ -x "$PYTHON_BIN" ]; then
-  if PYTHONPATH="$ROOT_DIR/fichero-server/src" "$PYTHON_BIN" -m pytest \
+  if PYTHONPATH="$ROOT_DIR/fichero-server/src:$ROOT_DIR/fichero-cli/src:$ROOT_DIR/fichero-mcp/src" "$PYTHON_BIN" -m pytest \
     fichero-server/tests/unit/ \
     --ignore=fichero-server/tests/unit/_archived \
     -q 2>&1; then

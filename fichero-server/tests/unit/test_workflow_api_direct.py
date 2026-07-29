@@ -14,7 +14,7 @@ def test_workflow_routes_directly():
 
     try:
         # Load the workflow routes module directly without going through the full API import chain
-        workflow_routes_path = SRC_DIR / "fichero" / "api" / "routes" / "workflows.py"
+        workflow_routes_path = SRC_DIR / "fichero_server" / "api" / "routes" / "workflows.py"
 
         spec = importlib.util.spec_from_file_location("workflows", workflow_routes_path)
         workflows_module = importlib.util.module_from_spec(spec)

@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PY_ROOT = ROOT / "fichero-server" / "src" / "fichero"
+PY_ROOT = ROOT / "fichero-server" / "src" / "fichero_server"
 SWIFT_ROOT = ROOT / "fichero" / "fichero"
 PY_TEST_ROOT = ROOT / "fichero-server" / "tests"
 CLI_ROOT = ROOT / "fichero" / "fichero-cli"
@@ -127,7 +127,7 @@ def _scan_python_symbols(
     paths: list[Path] | None = None,
 ) -> list[SymbolEntry]:
     base_root = root or ROOT
-    source_root = py_root or base_root / "fichero-server" / "src" / "fichero"
+    source_root = py_root or base_root / "fichero-server" / "src" / "fichero_server"
     entries: list[SymbolEntry] = []
     for path in paths if paths is not None else sorted(source_root.rglob("*.py")):
         if path.name.startswith("_"):

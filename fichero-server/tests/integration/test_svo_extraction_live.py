@@ -27,7 +27,7 @@ from fichero_server.workflows.tools.extractors import (
 def _fm_bridge_available() -> bool:
     candidates = [
         Path(__file__).resolve().parents[2] / "bin" / "fm-bridge" / "fm-bridge",
-        Path(__file__).resolve().parents[2] / "src" / "fichero" / "resources" / "bin" / "fm-bridge",
+        Path(__file__).resolve().parents[2] / "src" / "fichero_server" / "resources" / "bin" / "fm-bridge",
     ]
     for p in candidates:
         if p.exists() and os.access(p, os.X_OK):

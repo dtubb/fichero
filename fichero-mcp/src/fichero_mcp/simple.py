@@ -15,7 +15,7 @@ from typing import Any, Optional
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
-from fichero_server.cli import FicheroClient
+from fichero_cli import FicheroClient
 from fichero_server.models.knowledge import NoteKind
 
 mcp = FastMCP("fichero-simple")

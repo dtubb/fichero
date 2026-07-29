@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PY_SOURCE = ROOT / "fichero-server" / "src" / "fichero" / "api" / "change_stream.py"
+PY_SOURCE = ROOT / "fichero-server" / "src" / "fichero_server" / "api" / "change_stream.py"
 SWIFT_SOURCE = ROOT / "fichero" / "fichero" / "Services" / "LibraryChangeStream.swift"
 RULE_DOC = "#4211"
 

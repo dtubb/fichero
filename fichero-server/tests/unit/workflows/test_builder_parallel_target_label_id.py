@@ -29,7 +29,7 @@ from fichero_server.workflows.types import WorkflowDef, NodeDef, EdgeDef
 def _load_preset(name: str) -> WorkflowDef:
     preset_dir = (
         pathlib.Path(__file__).parents[3]
-        / "src" / "fichero" / "resources" / "default_workflows"
+        / "src" / "fichero_server" / "resources" / "default_workflows"
     )
     data = json.loads((preset_dir / name).read_text())
     return WorkflowDef(**data)

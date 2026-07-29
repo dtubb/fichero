@@ -6,20 +6,29 @@ import sys
 from pathlib import Path
 
 
-def test_python_module_help_imports_cleanly():
-    root = Path(__file__).resolve().parents[2]
+def _cli_env(root: Path) -> dict[str, str]:
+    # #4227: the CLI lives in the sibling fichero-cli/ product; the server
+    # models it imports stay in this tree, so the subprocess needs both.
     src = root / "src"
+    cli_src = root.parent / "fichero-cli" / "src"
     env = os.environ.copy()
     existing = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = f"{src}:{existing}" if existing else str(src)
+    parts = [str(cli_src), str(src)] + ([existing] if existing else [])
+    env["PYTHONPATH"] = ":".join(parts)
+    return env
+
+
+def test_python_module_help_imports_cleanly():
+    root = Path(__file__).resolve().parents[2]
+    env = _cli_env(root)
 
     result = subprocess.run(
-        [sys.executable, "-m", "fichero", "--help"],
+        [sys.executable, "-m", "fichero_cli", "--help"],
         cwd=root,
         env=env,
         capture_output=True,
         text=True,
-        # `-m fichero --help` cold-imports the whole app (FastAPI/langchain/duckdb/…);
+        # `-m fichero_cli --help` cold-imports the whole app (FastAPI/langchain/duckdb/…);
         # it runs ~4-6s solo but can spike under a fully-parallel suite. 30s was flaky
         # under load; 120s stays load-safe while still catching a genuine import hang.
         timeout=120,
@@ -34,13 +43,10 @@ def test_python_module_help_imports_cleanly():
 
 def test_python_module_entity_help_imports_cleanly():
     root = Path(__file__).resolve().parents[2]
-    src = root / "src"
-    env = os.environ.copy()
-    existing = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = f"{src}:{existing}" if existing else str(src)
+    env = _cli_env(root)
 
     result = subprocess.run(
-        [sys.executable, "-m", "fichero", "entity", "--help"],
+        [sys.executable, "-m", "fichero_cli", "entity", "--help"],
         cwd=root,
         env=env,
         capture_output=True,

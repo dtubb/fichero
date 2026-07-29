@@ -1,6 +1,6 @@
 """MCP server surface contract (#4250): tools list + one live call per tool.
 
-Drives the SHIPPED ``fichero-mcp`` FastMCP server (fichero_server.mcp.server) against
+Drives the SHIPPED ``fichero-mcp`` FastMCP server (fichero_mcp.server) against
 a spawned engine + seeded disposable library. Two guarantees:
 
 1. The advertised tool surface is exactly the committed list below — a tool
@@ -52,7 +52,7 @@ EXPECTED_TOOLS = {
 @pytest.fixture()
 def mcp_server(cli_live_engine):  # noqa: F811
     """The shipped FastMCP instance, pointed at the live seeded engine."""
-    from fichero_server.mcp import server
+    from fichero_mcp import server
 
     old = dict(server._CONFIG)
     server._CONFIG["base_url"] = cli_live_engine["base_url"]

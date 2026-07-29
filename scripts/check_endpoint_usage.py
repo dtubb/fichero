@@ -23,13 +23,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 
 OPENAPI_CANDIDATES = (
-    ROOT / "fichero-server" / "src" / "fichero" / "api" / "openapi.json",
+    ROOT / "fichero-server" / "src" / "fichero_server" / "api" / "openapi.json",
     ROOT / "fichero" / "fichero-api-client" / "Sources" / "FicheroAPIClient" / "openapi.json",
     ROOT / "fichero-server" / "tests" / "contracts" / "openapi.json",
     ROOT / "fichero" / "fichero-api-client" / "Sources" / "openapi.json",
 )
 SWIFT_DIR = ROOT / "fichero" / "fichero"
-CLI_DIR = ROOT / "fichero-server" / "src" / "fichero" / "cli"
+CLI_DIR = ROOT / "fichero-cli" / "src" / "fichero_cli"
 HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "trace"}
 
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is

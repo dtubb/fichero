@@ -268,7 +268,7 @@ def main():
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
 
-    python_file = project_root / "src" / "fichero" / "workflows" / "types.py"
+    python_file = project_root / "src" / "fichero_server" / "workflows" / "types.py"
     swift_model_files = [
         project_root.parent / "fichero" / "fichero" / "Models" / "WorkflowTypes.swift",
         project_root.parent / "fichero" / "fichero" / "Models" / "WorkflowSupportTypes.swift",

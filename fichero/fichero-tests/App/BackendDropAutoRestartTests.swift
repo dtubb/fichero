@@ -5,7 +5,7 @@
 //  #4064: when the supervised (embedded) backend stops mid-session the app
 //  auto-restarts it via the existing spawn supervisor (bounded retries + backoff)
 //  and only surfaces a Retry/Quit modal once those run out. The release/embedded
-//  build NEVER shows the `PYTHONPATH=src python -m fichero.api` dev command —
+//  build NEVER shows the `PYTHONPATH=src python -m fichero_server.api` dev command —
 //  that hint is gated to `.debugExternal` (the dev runs the engine by hand).
 //
 
