@@ -15,6 +15,23 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 2
 
+# The one aggregated gate: guardrails + engine + Swift unit (split phases) +
+# hermetic UI + transport matrix + coverage, one summary table, exit 0 =
+# releasable. `verify_all.sh --standard|--fast` remain the tier entrypoints.
+if [[ "${1:-}" == "--gate-all" ]]; then
+  exec scripts/gate verify-all
+fi
+
+# #4251: every verify run goes THROUGH the gate harness — one global lock, the
+# memory watchdog, and per-run timeouts — so a verify can never stack on top
+# of another build/test run. GATE_LOCK_HELD marks a process already under the
+# gate (including `gate verify-all` legs); FICHERO_GATE=1 or
+# VERIFY_ALL_NO_GATE=1 bypass explicitly (debugging only).
+if [[ -z "${GATE_LOCK_HELD:-}" && -z "${FICHERO_GATE:-}" \
+      && -z "${VERIFY_ALL_NO_GATE:-}" && -x scripts/gate ]]; then
+  exec scripts/gate wrap -- "$0" "$@"
+fi
+
 tier="fast"
 run_macos=0
 run_ios=0
@@ -31,6 +48,12 @@ Tiers:
   --standard  fast + backend pytest unit tests
   --full      standard + requested platform legs; defaults to both when no
               platform flags are given
+  --gate-all  delegate to `scripts/gate verify-all`: guardrails + engine +
+              Swift unit (split phases) + hermetic UI + transport matrix +
+              coverage, serialized + watchdogged, one summary table (#4251)
+
+Every invocation is automatically wrapped in `scripts/gate` (global lock +
+memory watchdog); set VERIFY_ALL_NO_GATE=1 to bypass for debugging.
 
 Platforms:
   --macos     run only the macOS Xcode build/test leg
