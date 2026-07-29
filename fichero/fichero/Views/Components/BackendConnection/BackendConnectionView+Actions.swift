@@ -60,7 +60,7 @@ extension BackendConnectionView {
             messageIndex = 0
             Task { await onRetry?() }
         } label: {
-            Label("Use the Existing Engine", systemImage: "link")
+            Label("Use the Existing Server", systemImage: "link")
         }
         .disabled(backendService.isStarting)
     }
@@ -77,7 +77,7 @@ extension BackendConnectionView {
                 messageIndex = 0
                 Task { await onRetry?() }
             } label: {
-                Label("Stop It & Start Fichero's Engine", systemImage: "stop.circle")
+                Label("Stop It & Start Fichero's Server", systemImage: "stop.circle")
             }
             .buttonStyle(.borderedProminent)
             .disabled(backendService.isStarting)

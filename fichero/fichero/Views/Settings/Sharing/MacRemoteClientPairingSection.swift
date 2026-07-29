@@ -172,7 +172,7 @@ struct MacRemoteClientPairingSection: View {
 /// pairing fields no longer need to live in regular Settings. Holding Option
 /// surfaces this explicit flow to connect *this* Mac to another Fichero host.
 /// It reuses `MacRemoteClientPairingSection` rather than duplicating the
-/// pairing UI; dismissing ("Use Local Engine") keeps the already-running
+/// pairing UI; dismissing ("Use Local Server") keeps the already-running
 /// embedded engine. Co-located with the section it presents (the app target
 /// uses explicit file references, so a standalone file would need a project
 /// edit for no behavioural gain).
@@ -207,7 +207,7 @@ struct RemoteConnectionChooserSheet: View {
 
             HStack {
                 Spacer()
-                Button("Use Local Engine") { dismiss() }
+                Button("Use Local Server") { dismiss() }
                     .keyboardShortcut(.cancelAction)
             }
             .padding()

@@ -25,7 +25,7 @@ from fichero_server.db.embeddings import (
     DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL,
     SUPPORTED_EMBEDDING_SPACES,
 )
-from fichero_server.db.paths import engine_state_dir
+from fichero_server.db.paths import server_state_dir
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class ModelType(str, Enum):
 
 
 # Stable storage location (not ~/.cache which gets auto-cleaned by macOS)
-MODELS_BASE = engine_state_dir() / "models"
+MODELS_BASE = server_state_dir() / "models"
 
 
 # =============================================================================

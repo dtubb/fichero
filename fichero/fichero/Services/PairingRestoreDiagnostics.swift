@@ -21,7 +21,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Pairing
 ///
 /// That last one is not hypothetical here: the token's Keychain ACCOUNT is derived from
 /// the saved host (`AuthTokenMiddleware.remoteTokenKeychainAccount` falls back to reading
-/// `fichero.engine.host` from UserDefaults). So the token's lookup key DEPENDS on the
+/// `fichero.server.host` (with a `fichero.engine.host` legacy fallback) from UserDefaults). So the token's lookup key DEPENDS on the
 /// host — lose the host and a perfectly good token becomes unfindable. The four values
 /// are not independent, and this snapshot is what tells us so.
 struct PairingRestoreSnapshot: Equatable {
@@ -61,7 +61,8 @@ enum PairingRestoreDiagnostics {
 
     /// Read the four persisted values back, exactly as the restore chain would.
     static func snapshot() -> PairingRestoreSnapshot {
-        let host = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)?
+        let host = (EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)
+            ?? EngineConfig.defaults.string(forKey: EngineConfig.legacyUserDefaultsKey))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedHost = (host?.isEmpty == false) ? host : nil
 

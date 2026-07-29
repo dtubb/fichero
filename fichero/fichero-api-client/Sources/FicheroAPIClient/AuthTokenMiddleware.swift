@@ -20,7 +20,17 @@ import Security
 /// authenticated call would 401 forever. Disk read is ~43 bytes; cost is
 /// negligible compared to the network round-trip.
 public struct AuthTokenMiddleware: ClientMiddleware {
-    private static let engineHostUserDefaultsKey = "fichero.engine.host"
+    private static let engineHostUserDefaultsKey = "fichero.server.host"
+    /// Pre-rename key (#4227). This middleware can run in processes that never
+    /// execute the app's one-time key migration, so reads fall back to it.
+    private static let legacyEngineHostUserDefaultsKey = "fichero.engine.host"
+
+    /// The persisted host string under the canonical key, falling back to the
+    /// pre-rename key for installs that have not been migrated.
+    private static func storedHostString() -> String? {
+        UserDefaults.standard.string(forKey: engineHostUserDefaultsKey)
+            ?? UserDefaults.standard.string(forKey: legacyEngineHostUserDefaultsKey)
+    }
     private static let defaultHostString = "https://127.0.0.1:8765"
     private static let bootstrapTokenFileName = ".api-key"
     private static let remoteTokenFilePrefix = ".remote-api-key-"
@@ -118,7 +128,7 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     /// remote device/session token. Public so callers building a per-library
     /// backend host can derive its token kind (#2866).
     public static func prefersLocalhostEngineToken(hostString: String? = nil) -> Bool {
-        guard let stored = hostString ?? UserDefaults.standard.string(forKey: engineHostUserDefaultsKey) else {
+        guard let stored = hostString ?? Self.storedHostString() else {
             return true
         }
         let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -184,7 +194,7 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     }
 
     static func remoteTokenFileName(hostString: String? = nil) -> String {
-        let stored = hostString ?? UserDefaults.standard.string(forKey: engineHostUserDefaultsKey)
+        let stored = hostString ?? Self.storedHostString()
         let trimmed = (stored ?? defaultHostString)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -203,7 +213,7 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     }
 
     public static func normalizedRemoteHostString(hostString: String? = nil) -> String {
-        let stored = hostString ?? UserDefaults.standard.string(forKey: engineHostUserDefaultsKey)
+        let stored = hostString ?? Self.storedHostString()
         let trimmed = (stored ?? defaultHostString).trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard var components = URLComponents(string: trimmed) else {

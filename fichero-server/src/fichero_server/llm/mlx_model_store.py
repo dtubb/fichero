@@ -10,7 +10,7 @@ import shutil
 from typing import Any
 
 from fichero_server.llm.mlx_runtime import get_mlx_runtime
-from fichero_server.db.paths import engine_state_dir
+from fichero_server.db.paths import server_state_dir
 from fichero_server.llm.providers import ProviderType
 
 
@@ -328,7 +328,7 @@ _STORE: MLXModelStore | None = None
 
 
 def mlx_model_store_dir(home: Path | None = None) -> Path:
-    return (engine_state_dir(home) / "models" / "mlx").expanduser()
+    return (server_state_dir(home) / "models" / "mlx").expanduser()
 
 
 def get_mlx_model_store() -> MLXModelStore:

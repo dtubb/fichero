@@ -84,7 +84,7 @@ extension AppState {
         case .deviceAccessExpired:
             return "This device's access has expired. Re-pair it with the engine and try again."
         case .engineUnreachable:
-            return "The Fichero engine isn't reachable. Start or restart it, then try again."
+            return "The Fichero server isn't reachable. Start or restart it, then try again."
         case .forbidden(_, let message):
             return message ?? "This app doesn't have access to the running engine."
         case .transport(let description):

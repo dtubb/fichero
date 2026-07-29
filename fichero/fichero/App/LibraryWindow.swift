@@ -176,7 +176,7 @@ struct LibraryWindow: View {
                 #endif
             }
         } message: {
-            Text("The Fichero engine stopped and couldn't restart automatically. Retry to try again, or quit.")
+            Text("The Fichero server stopped and couldn't restart automatically. Retry to try again, or quit.")
         }
     }
 

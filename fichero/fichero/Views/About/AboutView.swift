@@ -27,7 +27,7 @@ enum AboutInfo {
 
     static func engineVersionLine(_ version: String?) -> String? {
         guard displayValue(version) != "—" else { return nil }
-        return "Engine \(displayValue(version))"
+        return "Server \(displayValue(version))"
     }
 
     static func copyrightLine(bundleValue: String?, fallback: String) -> String {

@@ -18,7 +18,7 @@ _LEGACY_APP_SUPPORT_DIRS = (
 GLOBAL_LIBRARY_PACKAGE_NAME = "global.fichero"
 
 
-def engine_state_dir(home: Path | None = None) -> Path:
+def server_state_dir(home: Path | None = None) -> Path:
     base_home = home or Path.home()
     return base_home / "Library" / "Application Support" / "Fichero"
 
@@ -36,11 +36,11 @@ def is_global_library_package(package_path: Path | str) -> bool:
     return Path(package_path).name == GLOBAL_LIBRARY_PACKAGE_NAME
 
 
-def migrate_legacy_engine_state(home: Path | None = None) -> int:
+def migrate_legacy_server_state(home: Path | None = None) -> int:
     """Move legacy engine state trees into the canonical Fichero directory."""
     base_home = home or Path.home()
     app_support = base_home / "Library" / "Application Support"
-    target = engine_state_dir(base_home)
+    target = server_state_dir(base_home)
     target.mkdir(parents=True, exist_ok=True)
 
     migrated_entries = 0

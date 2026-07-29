@@ -50,7 +50,7 @@ def _is_truthy(value: str | None) -> bool:
 
 
 def _safe_instance_name(raw_name: str) -> str:
-    name = raw_name.strip() or "Fichero Engine"
+    name = raw_name.strip() or "Fichero Server"
     return name.replace(".", "-")
 
 
@@ -62,7 +62,7 @@ def _safe_host_label(raw_name: str) -> str:
 
 def _default_service_name() -> str:
     hostname = socket.gethostname().strip() or "Mac"
-    return f"Fichero Engine on {_safe_instance_name(hostname)}"
+    return f"Fichero Server on {_safe_instance_name(hostname)}"
 
 
 def build_bonjour_config(

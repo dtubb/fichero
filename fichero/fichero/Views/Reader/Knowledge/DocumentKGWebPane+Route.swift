@@ -4,7 +4,7 @@ import Foundation
 extension DocumentKGPaneRoute {
     static let globalKGDocumentID = "__kg_global__"
 
-    /// The KG page loads over the custom `fichero-engine://engine` origin, NOT a
+    /// The KG page loads over the custom `fichero-server://engine` origin, NOT a
     /// raw `https://…:8765` URL. `EngineWebViewSchemeHandler` intercepts every
     /// navigation + relative subresource and fetches it through the transport-
     /// agnostic `FicheroClient`, so the whole page works over `.https`, `.uds`,

@@ -81,7 +81,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
         "engine's pinned HTTPS cert like every other call site (#2601)."
     ),
     "Views/Reader/Knowledge/DocumentKGWebPane+Route.swift#94530504ad": (
-        "NOT a transport bypass: this URLRequest loads a `fichero-engine://` "
+        "NOT a transport bypass: this URLRequest loads a `fichero-server://` "
         "custom-scheme URL into WKWebView, which `EngineWebViewSchemeHandler` "
         "intercepts and re-issues through `FicheroClient.requestData` (the shared "
         "transport + auth/library middleware). WKWebView needs a URL/URLRequest to "

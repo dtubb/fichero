@@ -6,7 +6,7 @@ import OpenAPIAsyncHTTPClient
 
 /// Transport-routing coverage for the KG web pane (#4066).
 ///
-/// `EngineWebViewSchemeHandler` funnels every `fichero-engine://` navigation +
+/// `EngineWebViewSchemeHandler` funnels every `fichero-server://` navigation +
 /// relative subresource through `FicheroClient.requestData(...)` — the SAME
 /// transport-agnostic fetch path the generated `Client` uses. Because
 /// `requestData` dials the client's `ClientTransport`, the pane works over
@@ -77,7 +77,7 @@ final class EngineWebViewRoutingTests: XCTestCase {
     /// assert the engine answers 200. This is the round-trip the user asked about
     /// ("has it tested with the in-memory load as well e.g. via the python-kit
     /// option"). `requestData` is the same method `EngineWebViewSchemeHandler`
-    /// calls for every `fichero-engine://` navigation + subresource, so a 200
+    /// calls for every `fichero-server://` navigation + subresource, so a 200
     /// here proves the KG pane reaches the engine over the in-memory transport
     /// with no socket and no HTTP listener. Also pins the transport TYPE so a
     /// regression that swaps `.inMemory` back to URLSession fails loudly.

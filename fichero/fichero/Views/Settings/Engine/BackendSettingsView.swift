@@ -120,7 +120,7 @@ private struct AdvancedConnectionSection: View {
     var body: some View {
         Section {
             DisclosureGroup("Advanced") {
-                TextField("Engine URL", text: $engineHost)
+                TextField("Server URL", text: $engineHost)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
 
@@ -142,7 +142,7 @@ private struct AdvancedConnectionSection: View {
                 }
                 .disabled(hostIsInvalid)
 
-                Text("Leave blank only when this Mac should use its embedded local engine.")
+                Text("Leave blank only when this Mac should use its embedded local server.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

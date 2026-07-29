@@ -38,7 +38,7 @@ private struct SettingsGroupContainer<Section: SettingsGroupSection, Content: Vi
 }
 
 private enum EngineGroupSection: String, CaseIterable, SettingsGroupSection {
-    case engine = "Engine"
+    case engine = "Server"
     case backend = "Backend"
     var id: String { rawValue }
     var label: String { rawValue }

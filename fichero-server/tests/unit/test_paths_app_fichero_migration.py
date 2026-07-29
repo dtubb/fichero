@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fichero_server.db.paths import engine_state_dir, migrate_legacy_engine_state
+from fichero_server.db.paths import server_state_dir, migrate_legacy_server_state
 
 
 def test_app_fichero_bundle_dir_migrates_into_canonical(tmp_path: Path) -> None:
@@ -19,13 +19,13 @@ def test_app_fichero_bundle_dir_migrates_into_canonical(tmp_path: Path) -> None:
     legacy.mkdir(parents=True)
     (legacy / "fichero.duckdb").write_text("x")
 
-    moved = migrate_legacy_engine_state(home=home)
+    moved = migrate_legacy_server_state(home=home)
 
-    canonical = engine_state_dir(home) / "global.fichero" / "fichero.duckdb"
+    canonical = server_state_dir(home) / "global.fichero" / "fichero.duckdb"
     assert moved >= 1
     assert canonical.exists(), "global.fichero should now live under Fichero/"
 
 
 def test_canonical_dir_is_application_support_fichero(tmp_path: Path) -> None:
-    d = engine_state_dir(home=tmp_path)
+    d = server_state_dir(home=tmp_path)
     assert d.parts[-2:] == ("Application Support", "Fichero")

@@ -5,17 +5,17 @@ Rule (one canonical models folder):
 
     > Every locally-downloaded model (FastEmbed/HuggingFace embeddings, Whisper,
     > spaCy, hf_hub/snapshot downloads) must land in the ONE shared models
-    > folder — `engine_state_dir() / "models"` — not in a per-library, scattered,
+    > folder — `server_state_dir() / "models"` — not in a per-library, scattered,
     > or auto-cleaned (`~/.cache`) location, and not under a stale bundle id.
 
 The canonical shared folder is defined in `fichero/db/paths.py`:
 
-    engine_state_dir() / "models"   →   ~/Library/Application Support/Fichero/models
+    server_state_dir() / "models"   →   ~/Library/Application Support/Fichero/models
 
 This guardrail performs static analysis over the backend source (it does NOT
 download anything). It enforces two things:
 
-  (A) Every `MODELS_BASE = …` definition must DERIVE from `engine_state_dir()`
+  (A) Every `MODELS_BASE = …` definition must DERIVE from `server_state_dir()`
       (so all callers resolve to the same shared folder). A hardcoded path —
       e.g. a literal `~/Library/Application Support/com.fichero.fichero/models`
       — is a divergence: it points models at a DIFFERENT folder than the rest of
@@ -24,7 +24,7 @@ download anything). It enforces two things:
   (B) Every model-download PATH DECISION — an assignment to `cache_dir`,
       `download_root`, `local_dir`, `model_cache_dir`, or `models_dir`, and any
       `snapshot_download(...)` / `hf_hub_download(...)` call — must reference a
-      canonical path token (`MODELS_BASE`, `engine_state_dir`, or one of the
+      canonical path token (`MODELS_BASE`, `server_state_dir`, or one of the
       `*_path` attributes that hang off it). A literal/absolute/`.cache` path is
       a violation.
 
@@ -32,7 +32,7 @@ KNOWN_VIOLATIONS is the current divergence backlog, keyed by content hash (never
 a line number). It PASSES today and FAILS when a NEW download escapes the shared
 folder. The single current divergence — `audio_base.py`'s `MODELS_BASE` pointing
 at the legacy `com.fichero.fichero` bundle dir instead of
-`engine_state_dir()/"models"` — is baselined and noted below.
+`server_state_dir()/"models"` — is baselined and noted below.
 
 Usage:
     scripts/check_model_download_location.py
@@ -55,12 +55,12 @@ ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 # The canonical shared models folder, as defined in fichero/db/paths.py.
-CANONICAL_MODELS_DIR_EXPR = 'engine_state_dir() / "models"'
+CANONICAL_MODELS_DIR_EXPR = 'server_state_dir() / "models"'
 
 # Tokens that prove a path derives from the shared models folder.
 CANONICAL_TOKENS = (
     "MODELS_BASE",
-    "engine_state_dir",
+    "server_state_dir",
     "whisper_path",
     "embeddings_path",
     "spacy_path",
@@ -83,7 +83,7 @@ _PATH_EXPR_RE = re.compile(
 )
 
 # Current divergence backlog (content-hash keyed). Empty: every model-download
-# path now derives from engine_state_dir()/"models" — audio_base.py Whisper was
+# path now derives from server_state_dir()/"models" — audio_base.py Whisper was
 # the last divergence (legacy bundle dir), fixed in #2269.
 KNOWN_VIOLATIONS: dict[str, str] = {}
 
@@ -117,12 +117,12 @@ def scan(engine_src: Path = ENGINE_SRC) -> dict[str, str]:
             continue
         rel = path.relative_to(engine_src).as_posix()
 
-        # (A) MODELS_BASE definitions must derive from engine_state_dir().
+        # (A) MODELS_BASE definitions must derive from server_state_dir().
         for m in _MODELS_BASE_RE.finditer(source):
             window = _models_base_window(source, m.start())
-            if "engine_state_dir" not in window:
+            if "server_state_dir" not in window:
                 found[_key(rel, window)] = (
-                    f"MODELS_BASE does not derive from engine_state_dir(): {window}"
+                    f"MODELS_BASE does not derive from server_state_dir(): {window}"
                 )
 
         # (B) Per-line download path decisions.

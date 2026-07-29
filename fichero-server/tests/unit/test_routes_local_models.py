@@ -42,11 +42,11 @@ def _make_model_entry(
 
 
 class TestListLocalModels:
-    def test_models_base_uses_shared_engine_state_dir(self):
+    def test_models_base_uses_shared_server_state_dir(self):
         from fichero_server.llm.local_models import MODELS_BASE
-        from fichero_server.db.paths import engine_state_dir
+        from fichero_server.db.paths import server_state_dir
 
-        assert MODELS_BASE == engine_state_dir() / "models"
+        assert MODELS_BASE == server_state_dir() / "models"
         assert "com.fichero.fichero" not in str(MODELS_BASE)
 
     def test_returns_all_models(self, client):

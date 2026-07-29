@@ -120,7 +120,7 @@ extension AppState {
                 PYTHONPATH=src python -m fichero.api
                 """
         case .releaseEmbedded, .configuredRemote, .iosCompanion, .inert:
-            return "Cannot connect to the Fichero engine. The engine didn't come up; try restarting the app."
+            return "Cannot connect to the Fichero server. The server didn't come up; try restarting the app."
         }
     }
 }

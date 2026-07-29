@@ -10,7 +10,8 @@ extension BackendConnectionView {
     /// Falls back to the system server icon if the engine icon isn't found.
     var engineIconImage: PlatformImage {
         if let resourcePath = Bundle.main.resourcePath {
-            let iconPath = "\(resourcePath)/Fichero Server.app/Contents/Resources/engine.icns"
+            // Briefcase names the icon after the app name — `server` since #4227.
+            let iconPath = "\(resourcePath)/Fichero Server.app/Contents/Resources/server.icns"
             if let image = PlatformImage(contentsOfFile: iconPath) {
                 return image
             }

@@ -73,7 +73,7 @@ extension BackendConnectionView {
     /// Pure phase → failure-title mapping (#3341). Extracted so the invariant
     /// "never claim the engine is NOT RUNNING when we only failed to CONNECT" is
     /// unit-testable. When the engine is reachable-but-unusable (unreachable /
-    /// unclassified failure), the copy says "Can't Connect to Engine" — the
+    /// unclassified failure), the copy says "Can't Connect to Server" — the
     /// engine may well be running (wrong port / transient / socket); the screen's
     /// Retry + Show Log let the user act, and the detail carries the real reason.
     static func connectionFailureTitle(
@@ -84,18 +84,18 @@ extension BackendConnectionView {
     ) -> String {
         switch accessError {
         case .staleBootstrapToken:
-            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Refresh Its Engine Token" : "Engine Token Mismatch"
+            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Refresh Its Server Token" : "Server Token Mismatch"
         case .tlsPinFailure:
-            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Verify Its Engine" : "Certificate Mismatch"
+            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Verify Its Server" : "Certificate Mismatch"
         case .deviceAccessExpired:
             return "Device Access Expired"
         case .forbidden:
-            return "No Access to Engine"
+            return "No Access to Server"
         case .transport:
             return "Connection Failed"
         case .engineUnreachable:
             // Couldn't reach the engine — NOT the same as "not running" (#3341).
-            return usesExternalBackendConnection ? "Backend Not Reachable" : "Can't Connect to Engine"
+            return usesExternalBackendConnection ? "Backend Not Reachable" : "Can't Connect to Server"
         case .unauthenticated, .none:
             break
         }
@@ -103,11 +103,11 @@ extension BackendConnectionView {
             // Health-200-but-auth-broken: the specific state that used to blank
             // the window with silent 401s (#2864). Connected to a user-managed
             // engine, but the saved sign-in is stale → remote auth recovery.
-            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Authenticate to Its Engine" : "Can't Authenticate to Engine"
+            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Authenticate to Its Server" : "Can't Authenticate to Server"
         }
         // Unclassified failure (e.g. `.failed`): we know we couldn't connect, not
         // that the engine is stopped — so never assert "Engine Not Running" (#3341).
-        return usesExternalBackendConnection ? "Backend Not Reachable" : "Can't Connect to Engine"
+        return usesExternalBackendConnection ? "Backend Not Reachable" : "Can't Connect to Server"
     }
 
     /// Prefer the specific diagnosis (port occupied by PID / auth rejected /
@@ -126,8 +126,8 @@ extension BackendConnectionView {
         usesAppManagedEmbeddedEngine: Bool = false
     ) -> String {
         if usesAppManagedEmbeddedEngine { return "" }
-        if !usesExternalBackendConnection { return "Start External Engine" }
-        if case .staleBootstrapToken? = accessError { return "Retry After Restarting Engine" }
+        if !usesExternalBackendConnection { return "Start External Server" }
+        if case .staleBootstrapToken? = accessError { return "Retry After Restarting Server" }
         return "Retry Connection"
     }
 
@@ -140,6 +140,6 @@ extension BackendConnectionView {
     }
 
     var secondaryStatusText: String {
-        usesExternalBackendConnection ? "Connect to a running Fichero engine to continue." : "This can take a moment."
+        usesExternalBackendConnection ? "Connect to a running Fichero server to continue." : "This can take a moment."
     }
 }

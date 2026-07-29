@@ -13,7 +13,7 @@ from typing import Callable
 import uuid
 import venv
 
-from fichero_server.db.paths import engine_state_dir
+from fichero_server.db.paths import server_state_dir
 
 MLX_LM_VERSION = "0.31.3"
 _RUNTIME_DIRNAME = "mlx-runtime"
@@ -178,7 +178,7 @@ def mlx_runtime_dir(home: Path | None = None) -> Path:
     override = os.environ.get("FICHERO_MLX_RUNTIME_DIR")
     if override:
         return Path(override).expanduser()
-    return engine_state_dir(home) / _RUNTIME_DIRNAME
+    return server_state_dir(home) / _RUNTIME_DIRNAME
 
 
 def get_mlx_runtime() -> MLXRuntime:

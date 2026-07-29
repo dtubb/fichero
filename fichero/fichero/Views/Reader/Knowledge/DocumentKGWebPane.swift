@@ -65,7 +65,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
     func makeNSView(context: Context) -> GuardedWKWebView {
         let config = WKWebViewConfiguration()
-        // The whole KG page loads over the custom `fichero-engine://` origin so
+        // The whole KG page loads over the custom `fichero-server://` origin so
         // `EngineWebViewSchemeHandler` funnels every navigation + relative
         // subresource through the transport-agnostic `FicheroClient` — making the
         // pane work over `.uds`/in-memory, not just HTTPS (a raw `https://…:8765`
@@ -181,7 +181,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
 
     func makeUIView(context: Context) -> GuardedWKWebView {
         let config = WKWebViewConfiguration()
-        // See the macOS pane: the whole KG page loads over `fichero-engine://` so
+        // See the macOS pane: the whole KG page loads over `fichero-server://` so
         // `EngineWebViewSchemeHandler` routes it through the transport-agnostic
         // `FicheroClient`, and `fichero-res://` storage assets resolve the same way.
         if let client = DocumentKGPaneRoute.webViewClient(libraryPath: libraryPath, libraryManager: libraryManager) {

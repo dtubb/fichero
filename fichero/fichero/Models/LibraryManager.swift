@@ -447,7 +447,7 @@ class LibraryManager {
 
     /// Load or create the Global library
     /// Global library is stored at ~/Library/Application Support/Fichero/global.fichero
-    /// (the single canonical data dir, matching the engine's paths.engine_state_dir;
+    /// (the single canonical data dir, matching the engine's paths.server_state_dir;
     /// the legacy app.fichero.fichero/ location is migrated by the engine — #1526).
     private func loadGlobalLibrary() {
         // Under XCUITest the harness redirects Application Support to a

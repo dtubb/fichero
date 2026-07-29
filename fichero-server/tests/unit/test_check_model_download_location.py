@@ -27,7 +27,7 @@ def _write(tmp_path: Path, name: str, content: str) -> Path:
 # ---------------------------------------------------------------------------
 
 def test_canonical_models_base_not_flagged(tmp_path):
-    _write(tmp_path, "ok.py", 'MODELS_BASE = engine_state_dir() / "models"\n')
+    _write(tmp_path, "ok.py", 'MODELS_BASE = server_state_dir() / "models"\n')
     assert not scan(tmp_path)
 
 
@@ -38,7 +38,7 @@ def test_hardcoded_models_base_flagged(tmp_path):
         ")\n"
     ))
     found = scan(tmp_path)
-    assert found, "hardcoded MODELS_BASE not deriving from engine_state_dir() must be flagged"
+    assert found, "hardcoded MODELS_BASE not deriving from server_state_dir() must be flagged"
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ def test_repo_has_no_new_divergent_downloads():
     new = set(found) - known
     assert not new, (
         "New model download escaping the shared folder (derive from "
-        "engine_state_dir()/'models', or add to KNOWN_VIOLATIONS):\n"
+        "server_state_dir()/'models', or add to KNOWN_VIOLATIONS):\n"
         + "\n".join(f"  {k}: {found[k]}" for k in sorted(new))
     )
 

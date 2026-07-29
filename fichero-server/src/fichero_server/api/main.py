@@ -52,7 +52,7 @@ from fichero_server.models import (
     HealthResponse,
     LibraryStatsResponse,
 )
-from fichero_server.db.paths import migrate_legacy_engine_state
+from fichero_server.db.paths import migrate_legacy_server_state
 from fichero_server.security.remote_backend import build_remote_backend_status
 # The ingest allow-list lives in fichero_server.security.path_security so the SERVING
 # side can consult the same authority (#4230). Kept under the historical
@@ -687,7 +687,7 @@ async def lifespan(app: FastAPI):
         )
         for warning in remote_backend_status.warnings:
             logger.warning("Remote backend setup: %s", warning)
-    migrated_entries = migrate_legacy_engine_state()
+    migrated_entries = migrate_legacy_server_state()
     if migrated_entries:
         logger.info(
             "Migrated %d legacy engine-state entries into canonical path",

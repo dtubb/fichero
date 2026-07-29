@@ -8,7 +8,7 @@ import XCTest
 /// UDS-only or socket-less engine.
 ///
 /// `EngineWebViewSchemeHandler` is the `WKURLSchemeHandler` that intercepts
-/// every `fichero-engine://` navigation + relative subresource. Its ONLY network
+/// every `fichero-server://` navigation + relative subresource. Its ONLY network
 /// path is `client.requestData(...)` — the transport-agnostic fetch that rides
 /// whatever `ClientTransport` the client dials. These source-inspection tests
 /// pin that contract: a regression that reverts the handler to a raw engine
@@ -62,7 +62,7 @@ final class EngineWebViewSchemeHandlerRoutingTests: XCTestCase {
         )
     }
 
-    /// The handler MUST map `fichero-engine://` URLs to engine paths via
+    /// The handler MUST map `fichero-server://` URLs to engine paths via
     /// `EngineWebViewURL.enginePath(from:)` — the pure mapper covered by
     /// `EngineWebViewURLTests`. A regression that drops this breaks relative
     /// subresource routing (`/api/...`, `/view/static/...`).
@@ -70,7 +70,7 @@ final class EngineWebViewSchemeHandlerRoutingTests: XCTestCase {
         let source = try Self.source("Services/StorageResource/EngineWebViewSchemeHandler.swift")
         XCTAssertTrue(
             source.contains("EngineWebViewURL.enginePath(from:"),
-            "The handler must map the fichero-engine:// URL to an engine path before requestData"
+            "The handler must map the fichero-server:// URL to an engine path before requestData"
         )
     }
 
@@ -116,7 +116,7 @@ final class EngineWebViewSchemeHandlerRoutingTests: XCTestCase {
         )
         XCTAssertTrue(
             source.contains("forURLScheme: EngineWebViewURL.scheme"),
-            "macOS pane must register the handler for the fichero-engine scheme"
+            "macOS pane must register the handler for the fichero-server scheme"
         )
     }
 
@@ -160,7 +160,7 @@ final class EngineWebViewSchemeHandlerRoutingTests: XCTestCase {
     /// The generic `FicheroWebView` (research browser) loads arbitrary URLs and
     /// only registers the `fichero-res://` storage scheme (transport-agnostic).
     /// It must NOT dial the engine `/view/...` pages, so it doesn't need the
-    /// `fichero-engine://` handler — pinning that it stays out keeps the sweep
+    /// `fichero-server://` handler — pinning that it stays out keeps the sweep
     /// honest.
     func testFicheroWebViewDoesNotLoadEnginePagesRequiringEngineScheme() throws {
         let source = try Self.source("Views/Components/FicheroWebView.swift")
@@ -173,7 +173,7 @@ final class EngineWebViewSchemeHandlerRoutingTests: XCTestCase {
             "FicheroWebView is a generic browser; it must not register the engine-page handler"
         )
         XCTAssertFalse(
-            source.contains("fichero-engine://"),
+            source.contains("fichero-server://"),
             "FicheroWebView must not target the engine-page scheme"
         )
     }

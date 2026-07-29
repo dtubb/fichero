@@ -34,7 +34,7 @@ struct SettingsSectionInfo {
             return SettingsSectionInfo(title: "Integrations", symbol: "puzzlepiece.extension", tint: .gray)
         case .engine, .backend:
             return SettingsSectionInfo(
-                title: "Engine", symbol: "square.grid.3x1.below.line.grid.1x2", tint: .gray
+                title: "Server", symbol: "square.grid.3x1.below.line.grid.1x2", tint: .gray
             )
         case .connect, .users, .capture:
             return SettingsSectionInfo(title: "Sharing", symbol: "person.2.badge.gearshape", tint: .blue)

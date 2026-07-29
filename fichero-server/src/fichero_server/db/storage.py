@@ -49,7 +49,7 @@ from fichero_server.security.path_security import (
     resolve_under_allowed_roots,
 )
 from fichero_server.core.perf import perf_span
-from fichero_server.db.paths import engine_state_dir
+from fichero_server.db.paths import server_state_dir
 
 # PIL is bound lazily (#3985): storage is on the engine boot path, but only the
 # thumbnail/display render helpers need Pillow, and only when they run. Eagerly
@@ -136,7 +136,7 @@ class StorageSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="FICHERO_")
 
     # Base path - can be overridden for testing
-    base_path: Path = engine_state_dir()
+    base_path: Path = server_state_dir()
 
     # Thumbnail settings
     thumb_width: int = THUMBNAIL_MAX_DIMENSION

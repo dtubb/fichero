@@ -1,6 +1,6 @@
 import Foundation
 
-/// Pure builder/parser + MIME inference for the app's custom `fichero-engine://`
+/// Pure builder/parser + MIME inference for the app's custom `fichero-server://`
 /// scheme, the WebKit sibling of `fichero-res://`.
 ///
 /// The KG reader pane renders a *whole page* the engine serves at
@@ -10,11 +10,11 @@ import Foundation
 /// `ClientTransport` is `.uds` (AF_UNIX socket) or in-memory: WKWebView can only
 /// dial an HTTP host, so the main-frame load fails with `-1004`.
 ///
-/// Routing the page through a `fichero-engine://engine/…` URL instead lets a
+/// Routing the page through a `fichero-server://engine/…` URL instead lets a
 /// `WKURLSchemeHandler` intercept every navigation and subresource and fetch it
 /// via `FicheroClient.requestData(...)` — so the page travels whatever transport
 /// the client dials, exactly like `fichero-res://` storage images. Because the
-/// page's relative fetches resolve against the `fichero-engine://engine` origin,
+/// page's relative fetches resolve against the `fichero-server://engine` origin,
 /// they route through the same handler with no per-request wiring.
 ///
 /// This type is deliberately pure (no networking, no app types, no WebKit) so
@@ -23,14 +23,14 @@ import Foundation
 public enum EngineWebViewURL {
     /// The custom URL scheme. Non-network so `WKURLSchemeHandler` may intercept
     /// it (WebKit forbids handlers for built-in http/https).
-    public static let scheme = "fichero-engine"
+    public static let scheme = "fichero-server"
 
     /// A fixed host component so the page has a well-defined same-origin base
-    /// (`fichero-engine://engine`); relative subresource fetches resolve against
+    /// (`fichero-server://engine`); relative subresource fetches resolve against
     /// it and re-enter the handler.
     public static let host = "engine"
 
-    /// Build `fichero-engine://engine<path>` for an engine path such as
+    /// Build `fichero-server://engine<path>` for an engine path such as
     /// `/view/document/<id>`. `path` must begin with `/` and already be
     /// percent-encoded by the caller (document ids are content hashes, but the
     /// caller encodes defensively). Returns `nil` only if the result isn't a
@@ -39,7 +39,7 @@ public enum EngineWebViewURL {
         URL(string: "\(scheme)://\(host)\(path)")
     }
 
-    /// Map a `fichero-engine://engine/…` URL back to the engine request path
+    /// Map a `fichero-server://engine/…` URL back to the engine request path
     /// (`/view/document/<id>`, `/api/kg/graph`, `/view/static/app.js`, …).
     /// Returns `nil` for any URL of a foreign scheme or with an empty path —
     /// callers treat `nil` as "not mine", never as a silent success.
@@ -50,7 +50,7 @@ public enum EngineWebViewURL {
         return path
     }
 
-    /// The query items carried by a `fichero-engine://` URL, forwarded verbatim
+    /// The query items carried by a `fichero-server://` URL, forwarded verbatim
     /// to the engine request (e.g. `?doc=…&mode=…`). Empty when there are none.
     public static func queryItems(from url: URL) -> [URLQueryItem] {
         URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []

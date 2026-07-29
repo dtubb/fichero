@@ -6,7 +6,7 @@ import XCTest
 final class WorkflowStreamConnectionTests: XCTestCase {
     private let remoteHost = "https://streaming.tailnet.example:8765"
     private let remoteToken = "stream-device-token"
-    private let engineHostKey = "fichero.engine.host"
+    private let engineHostKey = EngineConfig.userDefaultsKey
 
     override func setUp() {
         super.setUp()

@@ -8,11 +8,11 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "EngineW
 /// `WKURLSchemeHandler` that funnels a KG reader-pane page load through the
 /// transport-agnostic `FicheroClient` instead of a raw `https://…:8765` URL.
 ///
-/// The KG pane renders a whole engine page (`fichero-engine://engine/view/…`)
+/// The KG pane renders a whole engine page (`fichero-server://engine/view/…`)
 /// plus its relative subresources (`/api/…` data, `/view/…` static assets).
 /// WKWebView can only dial an HTTP host, so over a `.uds` (AF_UNIX socket) or
 /// in-memory transport the main-frame load fails with `-1004`. This handler
-/// intercepts every `fichero-engine://` navigation and subresource, maps it to
+/// intercepts every `fichero-server://` navigation and subresource, maps it to
 /// an engine path, and fetches it with `FicheroClient.requestData(...)` —
 /// buffered — so the bytes travel whatever `ClientTransport` the client dials.
 /// Auth (`AuthTokenMiddleware`) and library scoping (`LibraryPathMiddleware`)
@@ -102,7 +102,7 @@ final class EngineWebViewSchemeHandler: NSObject, WKURLSchemeHandler {
                 // One OSLogMessage literal: `Logger` takes a literal, so `+`-joining
                 // two interpolated fragments does not type-check.
                 logger.error(
-                    "fichero-engine load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                    "fichero-server load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)"
                 )
                 guard self.tasks[key] != nil else { return }
                 urlSchemeTask.didFailWithError(error)
@@ -145,7 +145,7 @@ enum EngineWebViewError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .malformedURL(let url):
-            return "Malformed fichero-engine URL: \(url?.absoluteString ?? "nil")"
+            return "Malformed fichero-server URL: \(url?.absoluteString ?? "nil")"
         case .httpStatus(let status, let path):
             return "Engine returned HTTP \(status) for \(path)"
         case .responseTooLarge(let actualBytes, let limitBytes):

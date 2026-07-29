@@ -16,7 +16,7 @@ import stat
 import threading
 from typing import Any
 
-from fichero_server.db.paths import engine_state_dir
+from fichero_server.db.paths import server_state_dir
 from fichero_server.db.storage import settings
 from fichero_server.models import ActionAudit
 
@@ -99,7 +99,7 @@ def _use_keychain_for_audit_secret() -> bool:
     if threading.current_thread() is not threading.main_thread():
         return False
     try:
-        return settings.base_path.resolve() == engine_state_dir().resolve()
+        return settings.base_path.resolve() == server_state_dir().resolve()
     except OSError:
         return False
 
