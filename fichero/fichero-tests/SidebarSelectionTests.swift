@@ -330,8 +330,11 @@ struct SidebarSelectionTests {
         // stays stamped as handled, reconcileRestoredSelection() never
         // re-drives it and the restored row never routes to its detail view.
         let handlingSource = try appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
+        // The lookup moved from a findItemById tree walk to the O(1)
+        // cachedItem(id:) index (#4228 perf lane); the un-stamp contract after
+        // a failed resolution is what this test pins, not the lookup mechanism.
         let defaultCase = try #require(
-            handlingSource.range(of: "let item = findItemById(destination.serializedID, in: allCachedItems)")
+            handlingSource.range(of: "let item = cachedItem(id: destination.serializedID)")
         )
         let afterLookup = handlingSource[defaultCase.upperBound...]
         #expect(afterLookup.contains("lastHandledSelectionDestination = nil"))
