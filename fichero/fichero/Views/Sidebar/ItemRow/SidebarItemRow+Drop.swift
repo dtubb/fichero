@@ -57,6 +57,14 @@ extension SidebarItemRow {
 
         guard !providers.isEmpty else { return false }
 
+        // The drop is committed — end the hover feedback NOW (#4229). If the
+        // row rebuilds mid-drag (tree reload) SwiftUI can drop the trailing
+        // isTargeted=false, leaving the accent wash stuck on — which reads as
+        // a persistent selection. The drop must never write actual selection
+        // state; it doesn't (see SidebarSelectionState writes), and this keeps
+        // the visual from imitating one.
+        isDropTargeted = false
+
         let route = classifySidebarDropProviders(
             providers.map {
                 SidebarDropProviderCapabilities(
