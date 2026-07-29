@@ -10,7 +10,7 @@ final class LibraryItemDragTests: XCTestCase {
     }
 
     func testExternalFileDragsSuggestTheDocumentName() throws {
-        let root = URL(fileURLWithPath: #filePath)
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
@@ -21,7 +21,7 @@ final class LibraryItemDragTests: XCTestCase {
     }
 
     func testLibrarySurfacesUseCommonDragPayload() throws {
-        let root = URL(fileURLWithPath: #filePath)
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")

@@ -6,7 +6,7 @@ import XCTest
 /// VIEWED folder and every cell highlighted at once.
 final class LibraryGridDropTests: XCTestCase {
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
@@ -51,7 +51,7 @@ final class LibraryGridDropTests: XCTestCase {
 /// scale-change notification — by then PDFKit had already re-fit mid-gesture.
 final class PDFFirstPinchTests: XCTestCase {
     func testPinchDisablesAutoScalesAtGestureStart() throws {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero/Views/Preview/PDFViewer/PDFPageView.swift")
@@ -66,7 +66,7 @@ final class PDFFirstPinchTests: XCTestCase {
 /// as in the sidebar row menu.
 final class LibraryContextMenuParityTests: XCTestCase {
     func testGridMenuGainsSidebarParityActions() throws {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero/Views/Library/LibraryView+ContextMenu.swift")
@@ -86,7 +86,7 @@ final class LibraryContextMenuParityTests: XCTestCase {
     /// actions on the sidebar row, presented per-row so the clicked row's OWN
     /// library services back the sheet (sidebar rows span libraries).
     func testSidebarRowGainsGridPickerActions() throws {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
@@ -95,7 +95,7 @@ final class LibraryContextMenuParityTests: XCTestCase {
         XCTAssertTrue(source.contains("Label(\"Add to Workspace…\""))
         XCTAssertTrue(source.contains("Label(\"Export…\""))
 
-        let bodyURL = URL(fileURLWithPath: #filePath)
+        let bodyURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift")
@@ -111,7 +111,7 @@ final class LibraryContextMenuParityTests: XCTestCase {
     /// DocumentExporter → SidebarItemRow.exportSourceFile — the storage-service
     /// path drag-out uses. One implementation, no divergent naming/auth.
     func testExportSharesTheDragOutPath() throws {
-        let root = URL(fileURLWithPath: #filePath)
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
@@ -132,7 +132,7 @@ final class LibraryContextMenuParityTests: XCTestCase {
     /// both context menus render RunWorkflowSubmenuItems, and neither keeps
     /// a private copy of the grouping logic.
     func testRunWorkflowSubmenuIsShared() throws {
-        let root = URL(fileURLWithPath: #filePath)
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
@@ -155,7 +155,7 @@ final class LibraryContextMenuParityTests: XCTestCase {
 /// lock badge on the container, its preset subfolders, and mirrored rows.
 final class SidebarLockedRowBadgeTests: XCTestCase {
     func testLockedRowsShowTrailingLockBadge() throws {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")

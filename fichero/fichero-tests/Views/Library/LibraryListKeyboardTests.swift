@@ -51,7 +51,7 @@ struct LibraryKeyboardCursorTests {
 /// `ShellLayoutGuardTests` — deterministic, no running app.
 struct LibraryListModeGuardTests {
     private func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
