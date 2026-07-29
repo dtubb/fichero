@@ -9,7 +9,10 @@
 #   gate build                       build-for-testing (FicheroTests), -jobs capped
 #   gate unit [--area X|--filter P]  Swift unit tests: build phase THEN
 #                                    test-without-building (never stacked)
-#   gate engine [--area X|paths...]  backend pytest (default: unit + contracts)
+#   gate engine [--area X|paths...]  backend pytest (default: unit + integration
+#                                    + contracts; NEVER tests/perf — see gate perf)
+#   gate perf [paths...]             backend perf/scale suite (tests/perf, ~35-40
+#                                    min) — required for releases + nightly (#4271)
 #   gate ui <testplan>               hosted UI suite via a test plan
 #   gate embedded                    embedded-launch UX check
 #   gate transport                   transport matrix (UDS/HTTPS/in-memory) #4245
@@ -74,8 +77,8 @@ SWIFT_TESTS_DIR="fichero/fichero-tests"
 area_table() {
   cat <<'EOF'
 sidebar   | Sidebar,DocumentStore            |
-ingest    | ImportService                    | fichero-server/tests/unit/test_ingest*.py fichero-server/tests/unit/test_dataless*.py
-search    | Search                           | fichero-server/tests/unit/test_search*.py
+ingest    | ImportService                    | fichero-server/tests/unit/importers/
+search    | Search                           | fichero-server/tests/unit/search/
 inspector | Inspector                        |
 transport | Transport,Connection             | fichero-server/tests/integration/test_transport_matrix.py fichero-server/tests/integration/test_transport_round_trips.py
 EOF
@@ -421,10 +424,25 @@ cmd_engine() {
   elif [[ ${#paths[@]} -gt 0 ]]; then
     args=("${paths[@]}")
   else
+    # Everyday leg: unit + integration + contracts. tests/perf is EXCLUDED by
+    # construction (explicit paths, not the tree root) — the two scale tests
+    # alone are ~50 min and belong to `gate perf` (#4271).
     args=(fichero-server/tests/unit/ --ignore=fichero-server/tests/unit/_archived
+          fichero-server/tests/integration/
           fichero-server/tests/contracts/)
   fi
   run_gated "engine-pytest" "${GATE_TIMEOUT_ENGINE:-2700}" \
+    env PYTHONPATH=fichero-server/src "$py" -m pytest -rf "${args[@]}"
+}
+
+cmd_perf() {
+  # The deliberate scale suite (seed 100-image libraries, thousands of
+  # entities, budget assertions). ~35-40 min; SLOW, not hung — two tests print
+  # nothing for ~25 min each under -q (#4039), so stream with -rf and no -q.
+  local py; py="$(find_python)"
+  local args=("$@")
+  [[ ${#args[@]} -gt 0 ]] || args=(fichero-server/tests/perf/)
+  run_gated "perf-pytest" "${GATE_TIMEOUT_PERF:-5400}" \
     env PYTHONPATH=fichero-server/src "$py" -m pytest -rf "${args[@]}"
 }
 
@@ -493,6 +511,9 @@ cmd_verify_all() {
   run_leg "guardrails"  run_gated "guardrails" "${GATE_TIMEOUT_GUARDRAILS:-1800}" \
     env FICHERO_GATE=1 bash scripts/verify_all.sh --fast
   run_leg "engine"        cmd_engine
+  # perf stays REQUIRED in verify-all (release gate); only the everyday
+  # `gate engine` leg dropped it (#4271).
+  run_leg "perf"          cmd_perf
   run_leg "swift-unit"    cmd_unit
   run_leg "ui-hermetic"   cmd_ui fichero
   run_leg "transport"     cmd_transport
@@ -533,7 +554,7 @@ cmd_self_test() {
   out="$("$0" areas sidebar 2>&1)"; local rc=$?
   [[ $rc -eq 0 && "$out" == *"-only-testing:FicheroTests/Sidebar"* ]]; check "area sidebar resolves to -only-testing filters" $?
   out="$("$0" areas ingest 2>&1)"
-  [[ "$out" == *"engine: fichero-server/tests/unit/test_ingest"* ]]; check "area ingest resolves engine paths" $?
+  [[ "$out" == *"engine: fichero-server/tests/unit/importers/"* ]]; check "area ingest resolves engine paths" $?
   "$0" areas no-such-area >/dev/null 2>&1; [[ $? -ne 0 ]]; check "unknown area is a hard error" $?
 
   # 2. Dry-run command assembly: unit --area sidebar must show the capped
@@ -546,6 +567,15 @@ cmd_self_test() {
   check "unit: XCTest phase is its own bounded invocation (Swift Testing off)" $?
   [[ "$out" == *"TEST_RUNNER_FICHERO_HERMETIC_ENGINE=1"* ]]
   check "unit: hermetic-engine env reaches the test host (#4246)" $?
+
+  # 2b. Perf split (#4271): `engine` must exclude tests/perf; `perf` must run it.
+  out="$(GATE_DRYRUN=1 "$0" engine 2>&1)"
+  [[ "$out" != *"tests/perf"* && "$out" == *"fichero-server/tests/unit/"* \
+     && "$out" == *"fichero-server/tests/integration/"* ]]
+  check "engine leg = unit+integration+contracts, NO tests/perf (dry-run)" $?
+  out="$(GATE_DRYRUN=1 "$0" perf 2>&1)"
+  [[ "$out" == *"[perf-pytest]"* && "$out" == *"fichero-server/tests/perf/"* ]]
+  check "perf leg runs tests/perf as its own bounded invocation (dry-run)" $?
 
   # 3. Lock contention: hold the lock with a trivial sleep, then a --no-wait
   #    caller must fail fast with 75, and a waiting caller must queue+succeed.
@@ -641,6 +671,7 @@ case "$SUBCMD" in
   build)      cmd_build "$@" ;;
   unit)       cmd_unit "$@" ;;
   engine)     cmd_engine "$@" ;;
+  perf)       cmd_perf "$@" ;;
   ui)         cmd_ui "$@" ;;
   embedded)   cmd_embedded "$@" ;;
   transport)  cmd_transport "$@" ;;

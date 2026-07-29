@@ -70,7 +70,7 @@ ALLOWLIST_REASONS: dict[str, str] = {
     "fichero-server/tests/integration/test_cli_generated_multiuser_auth_writes.py": (
         "multiuser auth-write coverage against a raw engine; unrelated surface"
     ),
-    "fichero-server/tests/unit/test_bind_host.py": (
+    "fichero-server/tests/unit/security/test_bind_host.py": (
         "NEGATIVE assertion — `cmd[-1] != \"fichero_server.api.main:app\"` checks the "
         "UDS launch does not serve the TCP app, so it must name the string it "
         "excludes. It is not a launcher."

@@ -35,7 +35,7 @@ _REPO_ROOT_MARKERS = ("fichero-server", ".git")
 
 _EXTRA_TEST_TARGETS = {
     "fichero-server/src/fichero_server/api/routes/mcp_tools.py": (
-        "fichero-server/tests/unit/test_mcp_knowledge_adapters.py",
+        "fichero-server/tests/unit/api/test_mcp_knowledge_adapters.py",
     ),
 }
 
