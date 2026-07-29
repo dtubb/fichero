@@ -161,7 +161,14 @@ class TestIngestPipelineIntegration:
             (test_folder / "file2.png").write_bytes(b"fake data 2")
 
             with patch("fichero.bookmarks.create_bookmark", return_value=b"bookmark_data"):
-                with patch("fichero.importers.ingest._try_apfs_clone", return_value=True) as mock_clone:
+                # The fake clone must materialize the destination: the pipeline
+                # verifies copied bytes, so return_value=True alone is rejected.
+                def _fake_clone(source, dest):
+                    import shutil as _sh
+                    _sh.copy2(source, dest)
+                    return True
+
+                with patch("fichero.importers.ingest._try_apfs_clone", side_effect=_fake_clone) as mock_clone:
                     docs = ingest_folder(
                         test_folder,
                         mode=IngestMode.COPY,
