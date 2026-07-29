@@ -180,8 +180,21 @@ enum SidebarItemBuilder {
             result.append(buildInboxItem(inbox))
         }
 
-        // Add other root documents
-        result.append(contentsOf: rootDocuments.map { buildItem($0) })
+        // Add other root documents, in the SAME order the backend serves them
+        // (#4237). `sidebarDocuments` is `collections + childrenCache.values`,
+        // so root order was pure arrival order: `/documents/roots` sorts by
+        // `(sort_order, lower(name))` (`_ordered_by_sort_order`), but a live
+        // `spliceDocuments` APPENDS a new root to the tail, and dictionary
+        // iteration over `childrenCache` is unstable. So the row a user clicked
+        // could sit at a different index moments later, once the next
+        // `loadCollections()` restored backend order — selection is held by id
+        // and stayed put, but the row it highlights MOVED, which reads exactly
+        // as "the selection jumped up one".
+        //
+        // `childOrder` is the same key the backend sorts by (sortOrder, then
+        // sequence, then case-insensitive name), so sorting here makes the tree
+        // order a function of the documents rather than of when they arrived.
+        result.append(contentsOf: rootDocuments.sorted(by: childOrder).map { buildItem($0) })
 
         return result
     }
