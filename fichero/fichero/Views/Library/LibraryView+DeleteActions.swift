@@ -72,6 +72,20 @@ extension LibraryView {
             + "to delete the whole document."
     }
 
+    /// Finder-semantics delete targets: the acted-on item alone, or the whole
+    /// visible selection when the item is part of it. Shared by the context
+    /// menu and the iOS swipe action (#2501) so both resolve identically —
+    /// see `promptDelete(for:)`. nonisolated: pure, testable off-main (#4201).
+    nonisolated static func deleteTargets(
+        for document: Document,
+        selection: Set<String>,
+        visibleDocuments: [Document]
+    ) -> [Document] {
+        selection.contains(document.id)
+            ? visibleDocuments.filter { selection.contains($0.id) }
+            : [document]
+    }
+
     /// Perform the actual deletion after confirmation
     func performDeleteSelected() async {
         guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
