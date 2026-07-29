@@ -6,6 +6,66 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.07.26</title>
+            <pubDate>Sun, 26 Jul 2026 23:42:28 -0300</pubDate>
+            <sparkle:version>2026072601</sparkle:version>
+            <sparkle:shortVersionString>2026.07.26</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h3>Dev build</h3>
+<p>Internal TestFlight + DMG dev prerelease cut from green <code>integration</code>.</p>
+<h3>New</h3>
+<p><strong>Instant launch.</strong> The window mounts real content on the first frame:
+saved libraries materialize before the scene graph builds, and nothing
+waits for the engine health probe anymore — data streams in as the
+engine connects (#4036). Warm first frame dropped from ~1.9s to ~1.4s,
+and it shows your library shell instead of a spinner.</p>
+<p><strong>Xcode-style status island.</strong> Engine state, background activity, and
+errors now live in one center toolbar island beside the title — a
+message area ("Starting engine…", import progress, running workflows,
+errors in red) flanked by the engine button (connection details +
+Retry) and the activity button (task list). The full-window
+"Connecting to backend…" takeover and the login-wall flash at launch
+are gone; a broken connection is visible chrome, never a blocked app.</p>
+<p><strong>Finder-grade sidebar.</strong> The full drag grammar landed: insertion-line
+drops, Option-drag copies (through the audited <code>document.duplicate</code>
+deep-copy action), Finder-style aliases (badge, target resolution,
+Make Alias), Duplicate parity for workflows, saved searches, and
+conversations, multi-item drop feedback, count-aware Delete, and
+right-arrow handing keyboard focus from a leaf row to the content
+pane. Every library gets its own header row, and the pinned bottom
+navigation rows are retired. Document-scoped chat is back on Mac as a
+context-menu command on the document ("Add to Chat").</p>
+<h3>Fixed</h3>
+<ul>
+<li><strong>100% CPU at idle</strong> — a per-frame UserDefaults write spun the
+  AttributeGraph; the app idles at 0% again.</li>
+<li><strong>Default Workflows tree</strong> — presets seed into the global library
+  only, subfolder ids route correctly (no embedded slashes), legacy
+  preset folders that lingered at the sidebar's top level re-home
+  under the locked "Default Workflows" container on next open, the
+  container's read-only lock is enforced on document actions, and
+  re-seeding no longer resurrects soft-deleted workflow mirrors.</li>
+<li><strong>One path, not four</strong> — the location breadcrumb renders only in the
+  toolbar; the duplicate in-window path bars are gone and the bottom
+  status bar is Finder-style (what's selected, not where it is).</li>
+<li><strong>Cycle-creating document moves are rejected</strong> by the engine.</li>
+<li>Restored-selection reconcile + launch invalidation storm fixed.</li>
+</ul>
+<h3>Under The Hood</h3>
+<p>The macOS verify leg is genuinely green: a MainActor-isolation crash
+that killed the test host mid-run, three stale contracts hidden from
+failure greps, and a sub-millisecond Date flake are fixed. New engine
+tests cover the Default Workflows tree heal.</p>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.07.26/Fichero.dmg"
+                length="526768845"
+                type="application/octet-stream"
+                sparkle:edSignature="P3gTXrGeUCNdFd72rTlQAvK02UXXtgzxzWbBODd3YaX/YQ9/T5AL9tpYsCuTz907opeVVFJjFwW1OZbifRk7CA=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.07.23</title>
             <pubDate>Thu, 23 Jul 2026 22:05:36 -0300</pubDate>
             <sparkle:version>2026072301</sparkle:version>
