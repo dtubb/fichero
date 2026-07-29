@@ -64,23 +64,32 @@ final class UITestEngineHarness {
 
     private var engineProcess: Process?
     private var tempDir: URL?
+
     /// Rolling tail of uvicorn's stderr, so a spawn failure names its cause
     /// ("ModuleNotFoundError", "address already in use") instead of just an
-    /// exit status. Appended from a readabilityHandler on a background queue.
-    private let stderrLock = NSLock()
-    private var stderrTail = ""
+    /// exit status. A lock-guarded box rather than harness state because the
+    /// readabilityHandler is `@Sendable` and runs on a background queue —
+    /// capturing the (non-Sendable) harness there is a Swift 6 error.
+    private final class StderrBuffer: @unchecked Sendable {
+        private let lock = NSLock()
+        private var tail = ""
 
-    private func appendStderr(_ chunk: String) {
-        stderrLock.lock()
-        stderrTail = String((stderrTail + chunk).suffix(2000))
-        stderrLock.unlock()
+        func append(_ chunk: String) {
+            lock.lock()
+            tail = String((tail + chunk).suffix(2000))
+            lock.unlock()
+        }
+
+        var text: String {
+            lock.lock()
+            defer { lock.unlock() }
+            return tail
+        }
     }
 
-    private var capturedStderr: String {
-        stderrLock.lock()
-        defer { stderrLock.unlock() }
-        return stderrTail
-    }
+    private let stderrBuffer = StderrBuffer()
+
+    private var capturedStderr: String { stderrBuffer.text }
 
     // A global handle so an atexit hook guarantees no orphaned uvicorn survives
     // the test process (mirrors EngineHarness's backstop). Plain globals because
@@ -209,12 +218,12 @@ final class UITestEngineHarness {
         proc.standardOutput = Pipe()
         let errPipe = Pipe()
         proc.standardError = errPipe
-        errPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        errPipe.fileHandleForReading.readabilityHandler = { [stderrBuffer] handle in
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
             } else if let text = String(data: data, encoding: .utf8) {
-                self?.appendStderr(text)
+                stderrBuffer.append(text)
             }
         }
         do {
