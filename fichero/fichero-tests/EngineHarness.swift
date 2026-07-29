@@ -68,7 +68,24 @@ enum EngineHarness {
     /// Cached so the (expensive) spawn happens once per test process.
     private static var cached: LiveEngine?
 
-    private static let baseURL = URL(string: "https://127.0.0.1:8765")!
+    /// #4246: hermetic mode. Gate-run tests must never depend on (or reuse) a
+    /// developer engine that happens to be up on :8765 — that reuse is why
+    /// runs behaved differently depending on what was left running. When
+    /// FICHERO_HERMETIC_ENGINE=1 (scripts/gate sets it via the TEST_RUNNER_
+    /// prefix), the harness always spawns its own engine on a dedicated port
+    /// and tears it down (atexit + the FICHERO_PARENT_PID self-terminate
+    /// watchdog), leaving nothing running afterwards.
+    private static var isHermetic: Bool {
+        ProcessInfo.processInfo.environment["FICHERO_HERMETIC_ENGINE"] == "1"
+    }
+
+    private static let baseURL: URL = {
+        guard ProcessInfo.processInfo.environment["FICHERO_HERMETIC_ENGINE"] == "1" else {
+            return URL(string: "https://127.0.0.1:8765")!
+        }
+        let port = ProcessInfo.processInfo.environment["FICHERO_HERMETIC_ENGINE_PORT"] ?? "8799"
+        return URL(string: "https://127.0.0.1:\(port)")!
+    }()
 
     /// Returns a live engine pointed at a freshly seeded test library.
     /// Reuses a running engine if present, else spawns one. Throws if neither
@@ -95,9 +112,17 @@ enum EngineHarness {
 
         let (expected, ids) = try seedLibrary(at: libURL, repo: repo)
 
-        // Reuse a running engine if healthy; else spawn one.
+        // Hermetic (#4246): always self-provision; a listener already on the
+        // hermetic port is an orphan from a crashed run, and reusing it would
+        // reintroduce exactly the run-to-run variability this mode removes.
+        // Non-hermetic (Xcode ⌘U on a dev box): reuse a healthy engine, else spawn.
         var spawned = false
-        if await isHealthy(baseURL) == false {
+        if isHermetic, await isHealthy(baseURL) {
+            throw HarnessError.engineUnavailable(
+                "hermetic mode: something already listens on \(baseURL) — "
+                + "kill the orphaned engine (pkill -f 'uvicorn fichero') and re-run")
+        }
+        if isHermetic || (await isHealthy(baseURL) == false) {
             try spawnEngine(repo: repo, libraryPath: libURL.path)
             spawned = true
             guard await waitForHealth(baseURL, timeout: 30) else {
@@ -188,7 +213,7 @@ enum EngineHarness {
         proc.executableURL = uvicorn
         proc.arguments = [
             "fichero.api.main:app",
-            "--port", "8765",
+            "--port", baseURL.port.map(String.init) ?? "8765",
             "--ssl-certfile", tlsMaterial.certificatePath,
             "--ssl-keyfile", tlsMaterial.keyPath
         ]
@@ -250,7 +275,7 @@ enum EngineHarness {
             "-c",
             """
             from fichero.remote_access_tls import material_manifest_json, prepare_remote_access_tls
-            print(material_manifest_json(prepare_remote_access_tls("https://127.0.0.1:8765", allow_loopback=True)))
+            print(material_manifest_json(prepare_remote_access_tls("\(baseURL.absoluteString)", allow_loopback=True)))
             """
         ]
         var env = ProcessInfo.processInfo.environment
