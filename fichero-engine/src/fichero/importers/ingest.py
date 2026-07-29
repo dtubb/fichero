@@ -46,6 +46,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 from uuid import uuid4
 
+from fichero.importers.dataless import require_local_bytes
 from fichero.models import Document, DocType, FileType, Status
 
 if TYPE_CHECKING:
@@ -257,6 +258,14 @@ def ingest_file(
 
     if not path.is_file():
         raise ValueError(f"Not a file: {path}")
+
+    # A cloud placeholder passes every check above — it "exists", and stat
+    # reports the full logical size — but its bytes are not on this machine
+    # (#4233). Refuse HERE so the failure is attributable to this one file and
+    # lands in its ingest error, instead of surfacing later as a document that
+    # will never render. LINK mode copies nothing, so nothing else would catch
+    # it at all.
+    require_local_bytes(path)
 
     if save and db is None:
         db = _resolve_default_db()

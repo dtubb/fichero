@@ -20,6 +20,7 @@ from fichero.api.auth import actor_from_request
 from fichero.actions.registry import ActionContext, registry
 from fichero.security import authz
 from fichero.db import Database
+from fichero.importers.derivatives import queue_derivatives
 from fichero.models import Document, Status
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,15 @@ _MAX_TERMINAL_TASKS = 100
 
 def _validate_ingest_path(raw_path: str) -> None:
     if not _is_allowed_local_path(raw_path):
-        raise HTTPException(status_code=403, detail="Ingest path is not in an allowed location")
+        # Name the path: "not in an allowed location" alone sends the user
+        # looking at permissions when the answer is which directory it is in
+        # (#4230). This is the ONLY gate — a path that passes here is servable,
+        # because ingest and serving now consult the same authority.
+        logger.warning("Refusing ingest of a path outside every allowed root: %s", raw_path)
+        raise HTTPException(
+            status_code=403,
+            detail=f"Ingest path is not in an allowed location: {raw_path}",
+        )
 
 
 def _require_ingest_owner(request: Request, library_path: str) -> None:
@@ -187,6 +196,10 @@ def import_file_impl(
             package_path=package_path,
         )
         logger.info(f"Ingested file: {path.name} -> {doc.id}")
+        # Thumbnails happen AFTER the row lands, on their own bounded pool
+        # (#4225). Import stays fast; the row gains its thumbnail in place via
+        # the document.updated the derivative stage emits.
+        queue_derivatives([doc], library_path=package_path, db=db)
         return doc
     except HTTPException:
         raise
@@ -231,7 +244,7 @@ def import_folder_impl(
     mode = IngestMode(request.mode) if request.mode else (
         IngestMode.COPY if request.copy_mode else IngestMode.LINK
     )
-    return do_ingest(
+    docs = do_ingest(
         path,
         mode=mode,
         parent_id=request.parent_id,
@@ -244,6 +257,10 @@ def import_folder_impl(
         db=db,
         package_path=package_path,
     )
+    # Queued after the whole folder lands rather than per file: the queue is
+    # bounded (#4225) and the ingest loop must not block on it.
+    queue_derivatives(docs, library_path=package_path, db=db)
+    return docs
 
 
 # Routes

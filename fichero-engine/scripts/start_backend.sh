@@ -41,8 +41,11 @@ for arg in "$@"; do
       echo
       echo "Default starts uvicorn without reload so the real app DuckDB is opened"
       echo "by one process only. Use --reload only with an isolated/test database."
-      echo "--uds serves the engine on a Unix-domain socket (dev fast loop);"
-      echo "pair with a Debug app launched with FICHERO_FORCE_UDS_PATH set."
+      echo "--uds serves the engine on a Unix-domain socket (dev fast loop)."
+      echo "  Dialled ONLY by the Release-embedded app, or a Debug scheme that"
+      echo "  sets FICHERO_FORCE_UDS_PATH to the same socket path."
+      echo "  'Fichero (Dev Local)' is debugExternal and expects"
+      echo "  https://127.0.0.1:8765 — it will NOT reach a --uds engine (#4222)."
       exit 0
       ;;
   esac
@@ -224,7 +227,17 @@ if [ "$UDS_MODE" = true ]; then
   if [ "$RELOAD" = true ]; then
     RELOAD_ARGS=(--reload --reload-dir "$API_ROOT/src")
   fi
+  # This branch execs uvicorn directly, so it never reaches start_backend.py's
+  # banner. Print the same three facts here — what bound, where, and what a
+  # client must be set to — because the app's "Failed to connect" cannot say
+  # which transport it tried (#4222).
   echo "Starting Fichero engine on unix:$FICHERO_UDS_PATH (reload=$RELOAD, no TCP, no TLS)"
+  PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -c '
+import sys
+from fichero.api.transport_diagnostics import describe_transport, transport_banner
+path = sys.argv[1]
+print(transport_banner(describe_transport(uds_path=path), uds_path=path))
+' "$FICHERO_UDS_PATH"
   exec env PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn \
     fichero.api.uds_transport:app --uds "$FICHERO_UDS_PATH" \
     --ws websockets-sansio "${RELOAD_ARGS[@]}"

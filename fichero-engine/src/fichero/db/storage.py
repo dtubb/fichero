@@ -45,6 +45,7 @@ from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from fichero.security.path_security import (
     allowed_source_roots,
+    resolve_document_source_path,
     resolve_under_allowed_roots,
 )
 from fichero.core.perf import perf_span
@@ -69,6 +70,42 @@ def _load_pil() -> None:
     except ImportError:
         return
     Image, ImageOps = _Image, _ImageOps
+    _register_heif()
+
+
+def _register_heif() -> bool:
+    """Teach Pillow to open HEIC/HEIF. Returns whether it is now supported.
+
+    HEIC is the iPhone camera default, so without this an imported photo
+    becomes a record with no thumbnail and NO error — Pillow raises
+    UnidentifiedImageError deep in the render and the user concludes the app
+    is broken (#4214). pillow-heif is declared in pyproject, but the import is
+    still guarded: a partial install must degrade to "HEIC unsupported", not
+    take every other format's thumbnail down with it.
+    """
+    try:
+        import pillow_heif
+    except ImportError:
+        logger.info("pillow-heif is not installed — HEIC/HEIF images cannot be decoded")
+        return False
+    try:
+        pillow_heif.register_heif_opener()
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("pillow-heif failed to register its Pillow opener: %s", exc)
+        return False
+    return True
+
+
+def heif_supported() -> bool:
+    """Whether this engine can decode HEIC/HEIF right now.
+
+    A capability, answered honestly, so a caller can say "HEIC is unsupported
+    on this install" instead of silently producing a blank record.
+    """
+    _load_pil()
+    if Image is None:
+        return False
+    return "HEIF" in getattr(Image, "OPEN", {})
 
 if TYPE_CHECKING:
     from fichero.db import Database
@@ -387,9 +424,31 @@ def resolve_source(
     allowed_roots = allowed_source_roots(library_root, storage_base=settings.base_path)
 
     def confined_existing(candidate: Path) -> Path | None:
+        """Confine a candidate to the library/storage/derived roots."""
         if not candidate.exists():
             return None
         return resolve_under_allowed_roots(candidate, allowed_roots)
+
+    def linked_existing(candidate: Path) -> Path | None:
+        """Confine an ABSOLUTE path this engine recorded at ingest (#4230).
+
+        LINK mode — the default — records the ORIGINAL path, so the library
+        package roots alone reject every linked source and the caller reports
+        "No source found" for a file sitting where the user left it.
+        ``resolve_document_source_path`` also admits the roots INGEST accepts:
+        the grant is "this document was imported", and it is handed only paths
+        the engine itself wrote, never a path from a request.
+
+        Used ONLY for absolute recorded paths and bookmark resolutions. A
+        package-RELATIVE path keeps the narrow ``confined_existing`` above,
+        because "inside the package" is what relative means — widening it
+        would let ``../outside.txt`` and an escaping symlink out.
+        """
+        if not candidate.exists():
+            return None
+        return resolve_document_source_path(
+            candidate, library_root, storage_base=settings.base_path
+        )
 
     def library_confined_existing(candidate: Path) -> Path | None:
         if library_root is None or not candidate.exists():
@@ -434,7 +493,7 @@ def resolve_source(
             from fichero.bookmarks import resolve_bookmark
 
             if bookmarks_available() and (path := resolve_bookmark(bookmark_data)):
-                if confined := confined_existing(path):
+                if confined := linked_existing(path):
                     return confined
         except ImportError:
             pass  # bookmarks module not available
@@ -455,7 +514,7 @@ def resolve_source(
                 if confined := confined_existing(candidate):
                     return confined
             elif p.is_absolute():
-                if confined := confined_existing(p):
+                if confined := linked_existing(p):
                     return confined
 
     # Check metadata fields
@@ -468,7 +527,10 @@ def resolve_source(
                     continue
                 if not p.is_absolute() and library_root is not None:
                     p = Path(library_root).expanduser() / p
-                if confined := confined_existing(p):
+                    resolver = confined_existing
+                else:
+                    resolver = linked_existing
+                if confined := resolver(p):
                     return confined
 
     # Library-relative fallback: the library was renamed/moved, so the stored

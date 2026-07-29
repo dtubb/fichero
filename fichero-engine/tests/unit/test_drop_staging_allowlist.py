@@ -23,9 +23,9 @@ from unittest.mock import patch
 
 import pytest
 
-from fichero.api.main import (
-    _is_allowed_local_path,
-    _is_sandbox_container_drop_staging,
+from fichero.api.main import _is_allowed_local_path
+from fichero.security.path_security import (
+    is_sandbox_container_drop_staging as _is_sandbox_container_drop_staging,
 )
 
 HOME = Path("/Users/tester")
@@ -133,7 +133,11 @@ class TestWiredIntoTheRealCheck:
 
     def test_the_allow_list_consults_the_drop_helper(self):
         with patch.object(Path, "home", staticmethod(lambda: HOME)):
-            with patch("fichero.api.main._is_sandbox_container_drop_staging") as helper:
+            # The authority moved to fichero.security.path_security (#4230);
+            # fichero.api.main re-exports it under the old private name.
+            with patch(
+                "fichero.security.path_security.is_sandbox_container_drop_staging"
+            ) as helper:
                 helper.return_value = False
                 _is_allowed_local_path(str(DROP / "scan.jpg"))
 

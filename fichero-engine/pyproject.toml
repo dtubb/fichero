@@ -97,6 +97,10 @@ requires = [
     # Document Processing
     "PyMuPDF",
     "Pillow>=12.2.0",
+    # HEIC/HEIF decoding (#4214). Not optional: HEIC is the iPhone camera
+    # default, and without it an imported photo becomes a record with no
+    # thumbnail and no error — the wrong-but-silent shape.
+    "pillow-heif>=1.1.0",
 ]
 
 [tool.briefcase.app.engine.macOS]
@@ -200,6 +204,10 @@ dependencies = [
     # "opencv-python-headless",
     "PyMuPDF",
     "Pillow>=12.2.0",
+    # HEIC/HEIF decoding (#4214). Not optional: HEIC is the iPhone camera
+    # default, and without it an imported photo becomes a record with no
+    # thumbnail and no error — the wrong-but-silent shape.
+    "pillow-heif>=1.1.0",
 ]
 
 [project.optional-dependencies]

@@ -19,6 +19,7 @@ from fichero.security.remote_access_tls import (
     uvicorn_ssl_kwargs_from_env,
 )
 from fichero.security.bind_host import resolve_bind_host
+from fichero.api.transport_diagnostics import log_transport_banner
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,10 @@ def main(argv: list[str] | None = None) -> None:
         uds_sock.bind(uds_path)
         uds_sock.listen(socket.SOMAXCONN)
         uds_sock.setblocking(False)
-        logger.info("Starting Fichero backend on unix:%s (no TCP port, no TLS)", uds_path)
+        # Name the transport AND who dials it: a UDS engine is unreachable from
+        # Fichero (Dev Local), and the app's generic "Failed to connect" cannot
+        # tell you that (#4222).
+        log_transport_banner(uds_path=uds_path)
         server = uvicorn.Server(
             uvicorn.Config(app=uds_app, workers=1, log_level="info")
         )
@@ -162,7 +166,7 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit("FICHERO_LAN_HOST is not supported with --reload.")
 
     scheme = "https" if "ssl_certfile" in config else "http"
-    logger.info("Starting Fichero backend on %s://%s:%d", scheme, bind_host, config["port"])
+    log_transport_banner(host=bind_host, port=int(config["port"]), tls=scheme == "https")
     if len(listener_hosts) > 1:
         logger.info("LAN TLS listener enabled on %s://%s:%d", scheme, listener_hosts[1], config["port"])
     logger.info("Hot-reload: %s", config["reload"])

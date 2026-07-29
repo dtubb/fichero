@@ -56,6 +56,19 @@ _RTF_HEX_RUN_RE = re.compile(r"(?:\\'[0-9a-fA-F]{2})+")
 _RTF_UNICODE_RE = re.compile(r"\\u(-?\d+)\?")
 
 
+def _looks_like_text(text: str, *, min_printable_ratio: float = 0.9) -> bool:
+    """Whether a converter's output is prose rather than echoed binary.
+
+    macOS ``textutil`` treats input it cannot parse as plain text and echoes
+    the raw bytes, so a corrupt .doc "succeeds" with a screenful of NULs
+    (#4215). Accepting that would substitute garbage for a real failure.
+    """
+    if not text or "\x00" in text:
+        return False
+    printable = sum(1 for ch in text if ch.isprintable() or ch in "\n\r\t")
+    return printable / len(text) >= min_printable_ratio
+
+
 def _decode_rtf_hex_byte(m: "re.Match[str]") -> str:
     """Decode a single RTF \'XX byte via cp1252 (Windows-1252 / Latin-1 superset)."""
     try:
@@ -315,8 +328,89 @@ class DocumentLoader(MediaLoader):
             )
 
         except Exception as e:
+            # Legacy binary Word is the one format where the primary extractor
+            # rejects files the platform itself reads (#4215). Try textutil
+            # before giving up; anything else raises exactly as before.
+            if suffix == ".doc":
+                fallback = self._load_with_textutil(path, primary_error=e)
+                if fallback is not None:
+                    return fallback
             logger.error(f"Failed to extract document {path}: {e}")
             raise
+
+    def _load_with_textutil(
+        self, path: Path, *, primary_error: Exception
+    ) -> MediaContent | None:
+        """macOS fallback for legacy OLE2 .doc, or None if it cannot help.
+
+        kreuzberg rejects VALID pre-2007 .doc files with "Malformed MiniFAT
+        (mini sector 0 pointed to twice)" — verified on a file macOS
+        ``textutil`` both WROTE and reads back correctly, so the file is valid
+        enough for the platform's own tooling and the objection is a
+        strictness difference in the OLE container reader, not corruption.
+
+        ``textutil`` ships with macOS: no new dependency, and it is the same
+        component that produced the file. Non-macOS engines simply keep the
+        original error — .doc is exactly what older archival material tends to
+        be, so being able to read it on the platform Fichero targets is worth
+        more than uniformity.
+        """
+        import subprocess
+
+        textutil = Path("/usr/bin/textutil")
+        if not textutil.exists():
+            return None
+        try:
+            completed = subprocess.run(
+                [str(textutil), "-convert", "txt", "-stdout", str(path)],
+                capture_output=True,
+                timeout=60,
+                check=True,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            # Loud: the primary extractor already failed, so a silent second
+            # failure would leave an empty extraction with no explanation.
+            logger.warning(
+                "textutil could not read legacy .doc %s (%s); original error: %s",
+                path,
+                exc,
+                primary_error,
+            )
+            return None
+
+        text = completed.stdout.decode("utf-8", errors="replace").strip()
+        if not text or not _looks_like_text(text):
+            # textutil treats input it cannot parse as PLAIN TEXT and happily
+            # echoes the raw bytes back, so a genuinely corrupt .doc "succeeds"
+            # with a screenful of NULs. Accepting that would be exactly the
+            # silent substitution this fallback exists to avoid: keep the
+            # primary error instead.
+            logger.warning(
+                "textutil returned no usable text for %s; original error: %s",
+                path,
+                primary_error,
+            )
+            return None
+
+        logger.info(
+            "Extracted legacy .doc %s via textutil after kreuzberg failed: %s",
+            path.name,
+            primary_error,
+        )
+        return MediaContent(
+            source=str(path),
+            text=text,
+            images=[],
+            metadata={
+                "original_format": "doc",
+                "filename": path.name,
+                "extractor": "textutil",
+                "extractor_fallback_reason": str(primary_error),
+                "size_bytes": path.stat().st_size,
+            },
+            mime_type=self._get_mime_type(".doc"),
+            needs_vlm=False,
+        )
 
     def _get_mime_type(self, suffix: str) -> str:
         """Get MIME type for document format."""
