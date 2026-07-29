@@ -1033,7 +1033,7 @@ def test_engine_version_resolver_covers_every_briefcase_app_name():
 
     from fichero_server.api import main as api_main
 
-    pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    pyproject = Path(__file__).resolve().parents[3] / "pyproject.toml"
     data = tomllib.loads(pyproject.read_text())
     app_names = list(data["tool"]["briefcase"]["app"].keys())
     assert app_names, "expected at least one [tool.briefcase.app.*]"

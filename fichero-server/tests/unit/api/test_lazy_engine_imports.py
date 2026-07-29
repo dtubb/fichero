@@ -28,7 +28,7 @@ import pytest
 
 # src/ root — derived from this file so it can never test the stale tree the
 # venv is editable-installed against.
-_SRC = str(Path(__file__).resolve().parents[2] / "src")
+_SRC = str(Path(__file__).resolve().parents[3] / "src")
 
 # Heavy dependencies that must NOT be imported just to serve the app.
 # Each costs seconds of import time and none is needed to bind a socket.

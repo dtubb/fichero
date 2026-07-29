@@ -6,7 +6,7 @@ import sys
 import importlib.util
 from pathlib import Path
 
-SRC_DIR = Path(__file__).resolve().parents[2] / "src"
+SRC_DIR = Path(__file__).resolve().parents[3] / "src"
 
 def test_workflow_routes_directly():
     """Test workflow routes by loading the module directly."""

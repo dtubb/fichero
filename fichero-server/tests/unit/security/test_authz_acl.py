@@ -796,7 +796,7 @@ def test_acl_enforcement_stays_at_shared_choke_points():
     # fichero-server/, where a repo-root-relative path raised FileNotFoundError
     # and turned this ACL check red for a reason that has nothing to do with
     # ACLs. A security test that fails for a false reason gets ignored.
-    root = Path(__file__).resolve().parents[2] / "src" / "fichero_server"
+    root = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
     registry_source = (root / "actions" / "registry.py").read_text(encoding="utf-8")
     api_source = (root / "api" / "main.py").read_text(encoding="utf-8")
 

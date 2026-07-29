@@ -23,7 +23,7 @@ from fichero_server.api.transport_diagnostics import (
     transport_banner,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 START_BACKEND_SH = REPO_ROOT / "fichero-server" / "scripts" / "start_backend.sh"
 
 

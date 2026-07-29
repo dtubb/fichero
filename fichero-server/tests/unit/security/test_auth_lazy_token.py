@@ -423,7 +423,7 @@ def test_cli_help_does_not_open_app_duckdb(tmp_path):
     asserts a clean exit, and asserts no app.duckdb appeared — proving help
     never reached the backend DB even though it imports route response models.
     """
-    src = Path(__file__).resolve().parents[2] / "src"
+    src = Path(__file__).resolve().parents[3] / "src"
     base = tmp_path / "fichero-base"
     base.mkdir()
 

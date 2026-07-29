@@ -21,7 +21,7 @@ from fichero_server.workflows.types import (
 
 
 # Path to contract fixtures
-CONTRACTS_DIR = Path(__file__).parent.parent / "contracts"
+CONTRACTS_DIR = Path(__file__).parent.parent.parent / "contracts"
 FIXTURES_DIR = CONTRACTS_DIR / "fixtures"
 SCHEMAS_DIR = CONTRACTS_DIR / "schemas"
 

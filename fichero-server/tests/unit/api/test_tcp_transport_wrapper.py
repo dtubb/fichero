@@ -132,7 +132,7 @@ class TestTheGuardrailCoversTheEntryPoints:
         import importlib.util
         from pathlib import Path
 
-        root = Path(__file__).resolve().parents[3]
+        root = Path(__file__).resolve().parents[4]
         spec = importlib.util.spec_from_file_location(
             "_tcp_wrapper_check", root / "scripts" / "check_tcp_transport_wrapper.py"
         )
@@ -147,7 +147,7 @@ class TestTheGuardrailCoversTheEntryPoints:
         import importlib.util
         from pathlib import Path
 
-        root = Path(__file__).resolve().parents[3]
+        root = Path(__file__).resolve().parents[4]
         spec = importlib.util.spec_from_file_location(
             "_tcp_wrapper_check2", root / "scripts" / "check_tcp_transport_wrapper.py"
         )

@@ -25,7 +25,7 @@ import sys
 
 
 def _load_exporter():
-    script_path = Path(__file__).resolve().parents[2] / "scripts" / "export_openapi_schema.py"
+    script_path = Path(__file__).resolve().parents[3] / "scripts" / "export_openapi_schema.py"
     spec = importlib.util.spec_from_file_location("export_openapi_schema", script_path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -35,8 +35,8 @@ def _load_exporter():
 
 def test_openapi_export_uses_temp_base_path(tmp_path: Path) -> None:
     """Schema export should succeed without the user's app.duckdb."""
-    script_path = Path(__file__).resolve().parents[2] / "scripts" / "export_openapi_schema.py"
-    src_path = Path(__file__).resolve().parents[2] / "src"
+    script_path = Path(__file__).resolve().parents[3] / "scripts" / "export_openapi_schema.py"
+    src_path = Path(__file__).resolve().parents[3] / "src"
     code = (
         "import importlib.util; "
         f"spec = importlib.util.spec_from_file_location('export_openapi_schema', {str(script_path)!r}); "
