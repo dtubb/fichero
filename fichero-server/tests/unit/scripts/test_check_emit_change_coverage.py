@@ -33,7 +33,7 @@ def post_note():
 
 
 def _write_store(root: Path, domain: str, name: str = "TestStore") -> None:
-    models_dir = root / "fichero_server" / "fichero_server" / "Models"
+    models_dir = root / "fichero" / "fichero" / "Models"
     models_dir.mkdir(parents=True, exist_ok=True)
     (models_dir / f"{name}.swift").write_text(
         f"""
@@ -61,7 +61,7 @@ def persist(db):
 
 
 def test_observed_domains_from_store_file(tmp_path):
-    models_dir = tmp_path / "fichero_server" / "fichero_server" / "Models"
+    models_dir = tmp_path / "fichero" / "fichero" / "Models"
     models_dir.mkdir(parents=True)
     (models_dir / "NoteStore.swift").write_text(
         """
@@ -83,7 +83,7 @@ def test_mutating_route_with_emit_change_is_not_a_gap(tmp_path):
     route_file = routes_dir / "notes.py"
     _write_route(route_file, "post", "emit_change()\n    return {'ok': True}")
 
-    models_dir = tmp_path / "fichero_server" / "fichero_server" / "Models"
+    models_dir = tmp_path / "fichero" / "fichero" / "Models"
     models_dir.mkdir(parents=True)
     (models_dir / "NoteStore.swift").write_text(
         """
@@ -107,7 +107,7 @@ def test_mutating_route_without_emit_change_is_gap(tmp_path):
     route_file = routes_dir / "notes.py"
     _write_route(route_file, "post", "return {'ok': True}")
 
-    models_dir = tmp_path / "fichero_server" / "fichero_server" / "Models"
+    models_dir = tmp_path / "fichero" / "fichero" / "Models"
     models_dir.mkdir(parents=True)
     (models_dir / "NoteStore.swift").write_text(
         """
@@ -235,7 +235,7 @@ def test_exempt_route_is_not_reported_as_gap(tmp_path, monkeypatch):
     route_file = routes_dir / "notes.py"
     _write_route(route_file, "post", "return {'ok': True}")
 
-    models_dir = tmp_path / "fichero_server" / "fichero_server" / "Models"
+    models_dir = tmp_path / "fichero" / "fichero" / "Models"
     models_dir.mkdir(parents=True)
     (models_dir / "NoteStore.swift").write_text(
         """

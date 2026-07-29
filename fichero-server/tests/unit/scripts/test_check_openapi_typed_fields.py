@@ -139,7 +139,7 @@ def test_main_returns_nonzero_and_prints_offender_location(monkeypatch, capsys, 
         ),
         encoding="utf-8",
     )
-    service = tmp_path / "fichero_server" / "fichero_server" / "Services" / "ConversationServiceGenerated.swift"
+    service = tmp_path / "fichero" / "fichero" / "Services" / "ConversationServiceGenerated.swift"
     service.parent.mkdir(parents=True)
     service.write_text(
         """
