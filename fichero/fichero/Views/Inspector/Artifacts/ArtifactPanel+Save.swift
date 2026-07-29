@@ -11,10 +11,29 @@ extension ArtifactPanel {
         // remote update): only the former changes the encoded form away from
         // the last seeded/saved watermark. Without this, seeding draftText in
         // `.task(id:)` would trip `onChange` and trigger a spurious save.
-        guard ArtifactRichTextCodec.encodeAttributed(draftText) != lastSavedEncoded else { return }
+        guard !watermarks.isClean(encoded: ArtifactRichTextCodec.encodeAttributed(draftText)) else { return }
+        // A fresh user edit resets the failed-save retry budget (#4285).
+        saveRetryAttempts = 0
         autoSaveTask?.cancel()
         autoSaveTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(800))
+            if Task.isCancelled { return }
+            await performSave()
+        }
+    }
+
+    /// Bounded auto-retry after a FAILED save (#4285): the draft is still
+    /// dirty (watermarks were rolled back), so re-running `performSave`
+    /// re-attempts the identical content. Capped at `maxSaveRetries`; beyond
+    /// that the error stays visible and the next edit / blur / flush retries.
+    static let maxSaveRetries = 3
+
+    func scheduleFailedSaveRetry() {
+        guard saveRetryAttempts < Self.maxSaveRetries else { return }
+        saveRetryAttempts += 1
+        autoSaveTask?.cancel()
+        autoSaveTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
             if Task.isCancelled { return }
             await performSave()
         }
@@ -32,22 +51,34 @@ extension ArtifactPanel {
     /// of hitting the old `!isSaving` early-return and silently dropping the
     /// trailing keystrokes (#2536). The coalescing mechanics live in
     /// `CoalescingSaveRunner` so the race is unit-testable.
-    private func performSave() async {
+    func performSave() async {
         guard let onSave else { return }
         await saver.run {
             let encoded = ArtifactRichTextCodec.encodeAttributed(draftText)
             // Nothing changed since the last seed/save — skip the PUT so the
             // coalescing loop terminates once the draft is clean.
-            guard encoded != lastSavedEncoded else { return }
+            guard !watermarks.isClean(encoded: encoded) else { return }
             // Advance BOTH watermarks before the round-trip: `lastSavedEncoded`
             // so a later onChange doesn't re-fire, and `lastLoadedRaw` so the
             // engine echoing the saved content back through `rawArtifactContent`
             // short-circuits the `.task(id:)` reseed instead of resetting the
             // cursor (#2478). Self-echo suppression in DocumentStore handles the
             // page-content path; this covers artifacts too.
-            lastSavedEncoded = encoded
-            lastLoadedRaw = encoded
-            await onSave(encoded)
+            let prior = watermarks.beginSave(encoded: encoded)
+            if let errorMessage = await onSave(encoded) {
+                // FAILED save (#4285/#4286): the server never accepted the
+                // content, so no echo is coming — roll BOTH watermarks back so
+                // the draft reads as DIRTY again. That makes every later path
+                // (auto-save onChange, blur flush, store-driven flush, and the
+                // bounded retry below) re-attempt the same content instead of
+                // treating it as saved and discarding it on the next reseed.
+                watermarks.rollBack(to: prior)
+                saveError = errorMessage
+                scheduleFailedSaveRetry()
+            } else {
+                saveError = nil
+                saveRetryAttempts = 0
+            }
         }
     }
 

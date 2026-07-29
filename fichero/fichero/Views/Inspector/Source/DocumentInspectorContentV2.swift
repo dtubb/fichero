@@ -289,7 +289,11 @@ struct DocumentInspectorContentV2: View {
         }
     }
 
-    private func saveArtifact(_ artifact: Artifact, content: String) async {
+    /// Returns nil on success, or the user-facing error message on failure —
+    /// the panel uses a non-nil return to keep its draft dirty and retry
+    /// (#4285: a failed save must never silently discard the edit).
+    @discardableResult
+    private func saveArtifact(_ artifact: Artifact, content: String) async -> String? {
         do {
             let updated = try await artifactStore.update(
                 id: artifact.id,
@@ -303,18 +307,26 @@ struct DocumentInspectorContentV2: View {
                 in: artifactStore.items
             )
             actionError = nil
+            return nil
         } catch {
-            actionError = "Couldn't save: \(error.localizedDescription)"
+            let message = "Couldn't save: \(error.localizedDescription)"
+            actionError = message
+            return message
         }
     }
 
-    private func savePageContent(_ content: String) async {
-        actionError = await persistPageContent(
+    /// Returns nil on success, or the user-facing error message on failure
+    /// (same contract as `saveArtifact` — see #4285).
+    @discardableResult
+    private func savePageContent(_ content: String) async -> String? {
+        let message = await persistPageContent(
             document: liveDocument,
             content: content,
             documentService: documentService,
             documentStore: documentStore
         ).map { "Couldn't save: \($0)" }
+        actionError = message
+        return message
     }
 
     private func refreshVisibleDocument() async {

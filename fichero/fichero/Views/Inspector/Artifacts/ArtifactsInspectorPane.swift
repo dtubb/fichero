@@ -242,7 +242,10 @@ struct ArtifactsInspectorPane: View {
     // refresh through the store (the change-stream usually beats us to it; the
     // explicit reload keeps the UI snappy if an event is delayed).
 
-    private func saveArtifact(_ artifact: Artifact, content: String) async {
+    /// Returns nil on success, or the user-facing error message — the panel
+    /// keeps the draft dirty and retries on a non-nil return (#4285).
+    @discardableResult
+    private func saveArtifact(_ artifact: Artifact, content: String) async -> String? {
         do {
             _ = try await artifactService.updateArtifact(
                 id: artifact.id,
@@ -251,8 +254,11 @@ struct ArtifactsInspectorPane: View {
             )
             actionError = nil
             await store.reload()
+            return nil
         } catch {
-            actionError = "Couldn't save: \(error.localizedDescription)"
+            let message = "Couldn't save: \(error.localizedDescription)"
+            actionError = message
+            return message
         }
     }
 

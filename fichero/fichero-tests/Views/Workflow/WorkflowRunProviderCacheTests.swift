@@ -95,4 +95,31 @@ final class WorkflowRunProviderCacheTests: XCTestCase {
         )
         XCTAssertTrue(source.contains("WorkflowRunProviderCache.shared.invalidate()"))
     }
+
+    // MARK: - #4276: out-of-app provider changes arrive via the change stream
+
+    /// A provider added from ANOTHER window / device / the CLI never goes
+    /// through this app's ProviderAPIService — the engine broadcasts
+    /// `provider.*` on every library's change stream and WorkflowStore (an
+    /// already-registered consumer) must drop the run-menu cache on it, and
+    /// on resync (reconnect may have missed provider events).
+    func testWorkflowStoreDropsRunMenuCacheOnProviderEvents() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Models/WorkflowStore.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+
+        XCTAssertTrue(
+            source.contains("\"provider\""),
+            "WorkflowStore must subscribe to the provider change domain (#4276)"
+        )
+        let invalidations = source.components(
+            separatedBy: "WorkflowRunProviderCache.shared.invalidate()"
+        ).count - 1
+        XCTAssertEqual(
+            invalidations, 2,
+            "WorkflowStore must invalidate the run-menu cache on provider events AND on resync (#4276)"
+        )
+    }
 }

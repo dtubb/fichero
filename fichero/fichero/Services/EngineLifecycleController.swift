@@ -290,6 +290,10 @@ final class EngineLifecycleController {
         logger.info("Port 8765 held by PID \(pid.map(String.init) ?? "unknown") — portConflict phase")
         appState.engine.markPortConflict(pid: pid)
         backendService.status = .failed
+        // #4296: keep probing so the alarm LOWERS by itself once the port is
+        // usable again — a failure phase must never require a manual Retry
+        // while the backend is demonstrably answering.
+        appState.startBackendHeartbeat()
     }
 
     /// An adopted squatter that answers health but rejects our token is
@@ -301,6 +305,9 @@ final class EngineLifecycleController {
                 "The engine already on port 8765 rejected this app's credentials."
             )
             backendService.status = .failed
+            // #4296: a later passing probe (token fixed / correct engine came
+            // up) must clear this by itself — start the recovery poller.
+            appState.startBackendHeartbeat()
         } else {
             logger.error("Failed to start backend: \(error.localizedDescription)")
             showBackendError(error)
@@ -317,6 +324,14 @@ final class EngineLifecycleController {
         appState.engine.markFailed(error.localizedDescription)
         backendService.status = .failed
         backendService.errorMessage = error.localizedDescription
+        // #4296: the stuck-alarm bug. A transient start failure parked the
+        // session in `.failed` with NO poller running — the engine could come
+        // up moments later (auto-restart, adopted external engine), the app
+        // would happily serve data, and the status island wore the connection
+        // error until a manual Retry. The heartbeat's ready-probe is the one
+        // path that LOWERS the alarm (`markReady` on a passing probe), so
+        // every failure phase must leave it running. Idempotent by its guard.
+        appState.startBackendHeartbeat()
     }
 }
 #endif

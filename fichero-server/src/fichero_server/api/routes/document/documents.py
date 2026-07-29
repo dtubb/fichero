@@ -75,9 +75,47 @@ def _emit_document_change_spec(ctx: "ActionContext", spec: "ChangeSpec") -> None
     )
 
 
+# Bounded retry for DuckDB's optimistic-concurrency write conflicts (#4285/
+# #4286): a content-pane save racing a workflow's document writes used to
+# escape as an unclassified 500 — the client rendered it as "Unexpected
+# response from the server" and the pasted edit was silently lost. The
+# action-registry transaction rolls back cleanly on conflict, so replaying the
+# whole invoke is safe; after the retries are exhausted the caller gets a
+# typed 409 that names the operation and tells the client to retry.
+_WRITE_CONFLICT_RETRIES = 3
+_WRITE_CONFLICT_BACKOFF_SECONDS = 0.05
+
+
 async def _run_document_write(func: Any, *args: Any, **kwargs: Any) -> Any:
-    """Run synchronous document DB mutations off the FastAPI event loop."""
-    return await asyncio.to_thread(func, *args, **kwargs)
+    """Run synchronous document DB mutations off the FastAPI event loop.
+
+    Retries transient DuckDB transaction conflicts (concurrent writer — e.g.
+    a workflow saving artifacts while the user saves page content) and maps a
+    persistent conflict to HTTP 409 instead of an unclassified 500.
+    """
+    import duckdb
+
+    last_exc: Exception | None = None
+    for attempt in range(_WRITE_CONFLICT_RETRIES):
+        try:
+            return await asyncio.to_thread(func, *args, **kwargs)
+        except duckdb.TransactionException as exc:
+            last_exc = exc
+            logger.warning(
+                "document write hit a transaction conflict (attempt %d/%d): %s",
+                attempt + 1,
+                _WRITE_CONFLICT_RETRIES,
+                exc,
+            )
+            await asyncio.sleep(_WRITE_CONFLICT_BACKOFF_SECONDS * (2**attempt))
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            "The document write conflicted with another writer (a workflow or "
+            f"another window) and was rolled back after {_WRITE_CONFLICT_RETRIES} "
+            f"attempts — nothing was saved; retry the save. ({last_exc})"
+        ),
+    )
 
 
 # Request/Response models

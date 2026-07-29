@@ -56,13 +56,28 @@ final class WorkflowStore: ChangeEventConsumer {
 
     // MARK: - ChangeEventConsumer
 
-    nonisolated var changeDomains: Set<String> { ["workflow"] }
+    /// `provider` rides along with `workflow` (#4276): providers are app-wide
+    /// and the engine broadcasts `provider.*` to every library's stream when
+    /// one is added/keyed/modeled from ANY surface (this window, another
+    /// window, another device, the CLI). The store is already a registered
+    /// consumer, so it is the natural place to drop the provider-derived
+    /// Run Workflow submenu cache.
+    nonisolated var changeDomains: Set<String> { ["workflow", "provider"] }
 
     func apply(_ event: ChangeEvent) {
+        if event.domain == "provider" {
+            // The next Run Workflow menu mount refetches the provider list —
+            // a freshly added provider appears without a restart (#4276).
+            WorkflowRunProviderCache.shared.invalidate()
+            return
+        }
         changeToken &+= 1
     }
 
     func resync() async {
+        // Reconnect: provider mutations may have been missed while the SSE
+        // connection was down — drop the cache alongside the reload (#4276).
+        WorkflowRunProviderCache.shared.invalidate()
         await loadWorkflows()
     }
 }
