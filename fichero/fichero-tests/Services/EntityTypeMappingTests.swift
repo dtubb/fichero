@@ -14,7 +14,7 @@ import XCTest
 final class EntityTypeMappingTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
@@ -23,7 +23,7 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     private static func repoSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()

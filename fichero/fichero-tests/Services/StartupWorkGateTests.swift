@@ -14,7 +14,7 @@ import Testing
 /// 1 GB engine — the exact thing #3968 shows the UI harness cannot reliably do.
 struct StartupWorkGateTests {
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
