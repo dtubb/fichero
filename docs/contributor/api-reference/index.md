@@ -14,7 +14,7 @@ hide:
 
 The Fichero engine is a FastAPI application that exposes an OpenAPI 3 schema.
 The interactive reference below is rendered from the committed schema
-(`openapi.json`, copied from `fichero-engine/tests/contracts/openapi.json`).
+(`openapi.json`, copied from `fichero-server/tests/contracts/openapi.json`).
 
 That committed schema is the real backend surface used to generate the Swift
 client and document the engine routes. In the current contract it includes route
@@ -36,7 +36,7 @@ mind-palace routes, renamed to `/api/canvas`), and more.
 
 The node-model fold shipped backend storage changes this session, but the API
 surface is still route-based. The paths below are the committed public
-contract in `fichero-engine/tests/contracts/openapi.json`.
+contract in `fichero-server/tests/contracts/openapi.json`.
 
 ### `/api/bookmarks`
 
@@ -250,7 +250,7 @@ non-image batch ids return `404`.
 !!! note
     This is a static render of the committed contract schema. For live,
     interactive docs against a running engine, start it locally with
-    `bash fichero-engine/scripts/start_backend.sh` and open
+    `bash fichero-server/scripts/start_backend.sh` and open
     `https://127.0.0.1:8765/docs` (Swagger UI) or `/redoc`.
 
 ## Sandbox (Mac App Store)

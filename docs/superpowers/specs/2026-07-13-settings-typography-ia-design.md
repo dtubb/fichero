@@ -51,7 +51,7 @@ Not a green field. Each piece extends existing mechanisms.
 
 ### 0.3 Reader typography + theme — engine template + Swift injection
 
-- **Template**: `fichero-engine/src/fichero/api/templates/document_view.html`
+- **Template**: `fichero-server/src/fichero_server/api/templates/document_view.html`
   (the only `.html` template). Uses CSS custom properties — `--bg --panel
   --text --muted --line --accent --font-system --font-mono` — with a
   `@media (prefers-color-scheme: dark)` block of sensible defaults. **Font

@@ -15,7 +15,7 @@ narrows it to the docs lane.
 - root doc files: `README.md`, `CONSTITUTION.md`, `CONTRIBUTING.md`, `USER.md`,
   `AGENTS.md`, `CLAUDE.md`, `RELEASE_NOTES.md`
 - `agents/**` — skills and prompts
-- per-subtree docs: `fichero-engine/README.md`, `fichero-engine/AGENTS.md`
+- per-subtree docs: `fichero-server/README.md`, `fichero-server/AGENTS.md`
 - `mkdocs.yml` (nav + extensions)
 
 **Never** edit Swift or Python source, `scripts/`, or `project.pbxproj`. If a doc

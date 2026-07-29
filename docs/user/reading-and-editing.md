@@ -63,7 +63,7 @@ The full row of inspector tabs is described in [The Interface: A Tour of the Win
 
 ## Annotations
 
-The `Annotations` tab is backed by fichero-engine and supports real work, not just display.
+The `Annotations` tab is backed by fichero-server and supports real work, not just display.
 
 You can:
 

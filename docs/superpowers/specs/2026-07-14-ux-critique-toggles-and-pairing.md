@@ -255,7 +255,7 @@ Litmus test for anything new: *"Would a historian using Fichero for her archive 
 - **Which gate is false on Daniel's machine right now** (#3769's open forensic question). Static reading can't tell whether his current state is sharing-off, URL-invalid, or the #3342 loopback rebind cascade (whose symptom list — "no pairing QR" — matches exactly). #3342 is open and `status:in-progress`; I'd check it first.
 - Whether the `fichero` URL scheme is registered in the macOS target's Info.plist (`CFBundleURLTypes`) — I verified handler code only (§3.5).
 - Runtime behavior of any flow — no builds/launches were run (build lock owned elsewhere; per brief).
-- Whether `FICHERO_ENABLE_BONJOUR`'s engine-side advertisement includes the TXT `public_url` the iOS discovery reads — the Swift side consumes it (`FicheroApp_iOS.swift:975-982`); the engine-side emitter is in fichero-engine, which I did not audit.
+- Whether `FICHERO_ENABLE_BONJOUR`'s engine-side advertisement includes the TXT `public_url` the iOS discovery reads — the Swift side consumes it (`FicheroApp_iOS.swift:975-982`); the engine-side emitter is in fichero-server, which I did not audit.
 
 ### Sources
 

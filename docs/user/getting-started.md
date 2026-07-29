@@ -84,11 +84,11 @@ A few behaviors matter early:
 
 ## What Happens Before The App Is Ready
 
-The macOS app normally talks to an embedded `fichero-engine` server. If the
+The macOS app normally talks to an embedded `fichero-server` server. If the
 engine is still starting, Fichero shows `Connecting to backend...`. If it
 cannot connect, the window switches to a connection error state with `Retry`
 and `Quit`.
 
 That is normal, not a separate offline mode: the app is a native interface over
-`fichero-engine`, whether that engine is running locally or, in advanced setups,
+`fichero-server`, whether that engine is running locally or, in advanced setups,
 through a configured remote connection.

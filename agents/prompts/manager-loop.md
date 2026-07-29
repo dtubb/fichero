@@ -31,7 +31,7 @@ cadence:
   dropping them; a real code conflict on a test = the authoring worker reconciles it.
 - **Gate from the repo ROOT** (some contract tests read source via root-relative
   paths): `bash scripts/verify_all.sh --standard|--full`, or the PYTHONPATH-forced
-  backend gate (`PYTHONPATH=<integrate>/fichero-engine/src pytest … from the root`).
+  backend gate (`PYTHONPATH=<integrate>/fichero-server/src pytest … from the root`).
   Manager may run `verify_all.sh --full` / `xcodebuild test` serially; workers never.
 - Green → PR-merge to main, close issues, reset the worker's worktree to new main
   (CHECK it has 0 uncommitted + 0 unmerged first — resetting over fresh commits

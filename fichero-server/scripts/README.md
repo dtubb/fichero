@@ -1,4 +1,4 @@
-# fichero-engine scripts
+# fichero-server scripts
 
 Repository automation scripts for the Fichero Python backend.
 
@@ -43,7 +43,7 @@ the supported day-to-day flow:
 
 ## When to run sync
 
-Run `./fichero-engine/scripts/sync_openapi_schema.sh` after modifying:
-- Any route in `src/fichero/api/routes/`
-- Any Pydantic model in `src/fichero/models.py` or related model files
+Run `./fichero-server/scripts/sync_openapi_schema.sh` after modifying:
+- Any route in `src/fichero_server/api/routes/`
+- Any Pydantic model in `src/fichero_server/models.py` or related model files
 - Request/response schemas

@@ -45,7 +45,7 @@ Running the backend suite from a **worktree** without an explicit `PYTHONPATH` g
 the *stale* tree — a green run that means nothing, or a red one that isn't yours.
 
 ```bash
-PYTHONPATH=$PWD/fichero-engine/src ~/code/fichero/.venv/bin/pytest fichero-engine/tests/unit -q
+PYTHONPATH=$PWD/fichero-server/src ~/code/fichero/.venv/bin/pytest fichero-server/tests/unit -q
 ```
 
 Write-suites that are flag-gated need their `FICHERO_RUN_*` env var set, or they

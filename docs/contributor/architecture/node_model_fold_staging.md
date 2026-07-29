@@ -86,7 +86,7 @@ All work targets the **Node Model & Endpoint Unification** milestone.
 ## Verification (when implementation starts, post-TestFlight)
 
 - Per fold: ruff + targeted pytest on the migrated subsystem's tests (e.g. `test_routes_savedsearch_actions.py` for Fold-A) + the full suite if a god-node (`Database`, `Document`, `KnowledgeEntity`) is touched (per the targeted-gate-misses-guardrails rule).
-- Contracts: if `openapi.json` changes (it will for endpoint renames/removals), regen via `fichero-engine/scripts/sync_openapi_schema.sh` + run `contracts/` walker + Swift compile-only build (NEVER `xcodebuild test` on Daniel's desktop).
+- Contracts: if `openapi.json` changes (it will for endpoint renames/removals), regen via `fichero-server/scripts/sync_openapi_schema.sh` + run `contracts/` walker + Swift compile-only build (NEVER `xcodebuild test` on Daniel's desktop).
 - Audit/undo invariant: every migrated `_action_*` must still flow through `registry.invoke` (action layer #1848) so ActionAudit + emit stay intact.
 - Docs: update this doc's fold table rows to "done" as each slice ships; keep claims grounded in code (per the docs-grounded-in-code rule).
 

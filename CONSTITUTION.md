@@ -22,7 +22,7 @@ The codebase has these core capabilities:
 6. **Chat and model tools.** The backend exposes chat and provider routes, and
    the app includes chat and model-management surfaces.
 7. **Multiple clients.** The same engine is consumed by the macOS app, the
-   `python -m fichero` CLI, and `fichero-mcp`.
+   `python -m fichero_cli` CLI, and `fichero-mcp`.
 
 ## How It Works
 
@@ -37,18 +37,18 @@ SwiftUI app    fichero CLI    MCP server
                    |
                    v
             FastAPI engine
-        (fichero-engine/src/fichero)
+        (fichero-server/src/fichero_server)
            | DuckDB + LanceDB
            | workflows
            | knowledge graph
            | provider integrations
 ```
 
-- **`fichero-engine/`** owns ingest, storage, workflows, search, knowledge
+- **`fichero-server/`** owns ingest, storage, workflows, search, knowledge
   graph, and model/provider orchestration.
 - **`fichero/`** is the native Apple client. On macOS it prefers the embedded
   local engine; non-macOS targets currently connect to an external backend.
-- **`python -m fichero`** is a typed CLI over the same HTTP surface.
+- **`python -m fichero_cli`** is a typed CLI over the same HTTP surface.
 - **`fichero-mcp`** exposes that same surface to MCP-aware tools and agents.
 - **OpenAPI** is the contract between engine and clients. Generated client code
   is derived from the backend schema, not edited by hand.

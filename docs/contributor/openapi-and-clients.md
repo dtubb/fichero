@@ -21,9 +21,9 @@ Fichero's API contract flows in one direction:
 
 In this repo, the important files are:
 
-- backend app entry: `fichero-engine/src/fichero/api/main.py`
-- backend contract snapshot: `fichero-engine/tests/contracts/openapi.json`
-- sync script: `fichero-engine/scripts/sync_openapi_schema.sh`
+- backend app entry: `fichero-server/src/fichero_server/api/main.py`
+- backend contract snapshot: `fichero-server/tests/contracts/openapi.json`
+- sync script: `fichero-server/scripts/sync_openapi_schema.sh`
 - generated Swift package: `fichero/fichero-api-client/`
 
 ## What Is Generated and What Is Hand-Written
@@ -65,7 +65,7 @@ Run the sync script whenever you change:
 Use:
 
 ```bash
-./fichero-engine/scripts/sync_openapi_schema.sh
+./fichero-server/scripts/sync_openapi_schema.sh
 ```
 
 If you skip that step after an API change, the Swift app will drift from the backend contract and usually fail to build or behave incorrectly.

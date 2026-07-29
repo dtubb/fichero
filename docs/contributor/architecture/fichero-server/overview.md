@@ -1,4 +1,4 @@
-<!-- Verified against fichero-engine/src (2026-07-18): api/main.py, workflows/, loaders/, engine/. -->
+<!-- Verified against fichero-server/src (2026-07-18): api/main.py, workflows/, loaders/, engine/. -->
 
 # Backend Overview
 
@@ -24,7 +24,7 @@ Swift UI App → HTTPS/REST (127.0.0.1:8765, loopback, cert-pinned) → FastAPI
 ## Package Layout
 
 ```
-fichero-engine/src/
+fichero-server/src/
 ├── fichero/   # Main library — API, database, AI, workflows
 └── engine/    # Briefcase entry-point wrapper (app lifecycle only)
 ```
@@ -176,21 +176,21 @@ tools, e.g. `workflows/tools/audio_base.py`.)
 
 ```bash
 # Start server
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-server/src .venv/bin/uvicorn fichero_server.api.main:app --port 8765
 
 # Start with dev-tier routes
-FICHERO_FEATURE_TIER=dev PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+FICHERO_FEATURE_TIER=dev PYTHONPATH=fichero-server/src .venv/bin/uvicorn fichero_server.api.main:app --port 8765
 
 # Tests
-PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
+PYTHONPATH=fichero-server/src .venv/bin/pytest fichero-server/tests/unit/ --ignore=fichero-server/tests/unit/_archived
 
 # Lint
-ruff check fichero-engine/src/
+ruff check fichero-server/src/
 
 # Sync OpenAPI schema to Swift client (after any API change)
-./fichero-engine/scripts/sync_openapi_schema.sh
+./fichero-server/scripts/sync_openapi_schema.sh
 ```
 
 ## Related Contract Docs
 
-- `docs/contributor/architecture/fichero-engine/capture_sessions_resumable_upload_contract.md` — mobile/offline capture session and resumable-upload contract slice (`#2352`)
+- `docs/contributor/architecture/fichero-server/capture_sessions_resumable_upload_contract.md` — mobile/offline capture session and resumable-upload contract slice (`#2352`)

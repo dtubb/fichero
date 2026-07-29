@@ -28,7 +28,7 @@ Actions are named `<domain>.<verb>`: `entity.merge`, `import.file`, `claim.delet
 In the relevant domain module, decorate a function with `@action`:
 
 ```python
-from fichero.actions import action, ActionContext
+from fichero_server.actions import action, ActionContext
 
 @action("document.tag", params={"doc_id": str, "tag": str}, undoable=True)
 async def tag_document(db, params: dict, ctx: ActionContext):
@@ -65,7 +65,7 @@ async def _(db, before: dict, after: dict, ctx: ActionContext):
 ### 3. Call it from a route handler
 
 ```python
-from fichero.actions import registry
+from fichero_server.actions import registry
 
 @router.post("/documents/{doc_id}/tags")
 async def add_tag(doc_id: str, tag: str, request: Request, db=Depends(get_db)):

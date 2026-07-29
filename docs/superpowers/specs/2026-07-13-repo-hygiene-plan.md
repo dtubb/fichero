@@ -10,16 +10,16 @@ Every factual claim below was verified against the working tree at `main` (83cc2
 
 ## 1. Verified current state
 
-### 1.1 Backend (`fichero-engine/src/fichero/`)
+### 1.1 Backend (`fichero-server/src/fichero_server/`)
 
 - **77 top-level `.py` modules**, of which **10 are already 1-line shims** from prior reorg stages (`iiif_import.py`, `ingest.py`, `knowledge_models.py`, `hermeneutics_models.py`, `manifest_import.py`, `slipbox_import.py`, `source_archive_import.py`, `tinderbox_link_import.py`, `cloud_link_import.py`, `sergio_import.py`). The importer shims use the identity-preserving pattern — e.g. `iiif_import.py:1`:
-  `from fichero.importers.iiif_import import *; import sys; sys.modules[__name__] = sys.modules["fichero.importers.iiif_import"]`
+  `from fichero_server.importers.iiif_import import *; import sys; sys.modules[__name__] = sys.modules["fichero_server.importers.iiif_import"]`
   So ~67 real loose modules remain.
 - **17 subpackages already exist**: `actions/ api/ bibliography/ books/ citations/ cli/ execution/ importers/ integrations/ kg/ knowledge/ loaders/ mcp/ resources/ retrieval/ search/ workflows/`.
-- **`kg/` is an entire shim package**: `kg/graph.py:1` is `from fichero.knowledge.graph import *  # noqa` — every module in `kg/` mirrors a real module in `knowledge/`. Two names for one package, live today.
+- **`kg/` is an entire shim package**: `kg/graph.py:1` is `from fichero_server.knowledge.graph import *  # noqa` — every module in `kg/` mirrors a real module in `knowledge/`. Two names for one package, live today.
 - **`api/routes/`**: 86 route modules flat (87 `.py` incl. `__init__.py`) + one subpackage (`workflow_execution/`). Routers are registered in one import block at `api/main.py:1301` and mounted via `_CORE_ROUTE_SPECS` at `api/main.py:1388`, each with an explicit prefix + OpenAPI tag — the tag list is effectively the domain map already (66 distinct tags).
-- **The #2569 claim "routes are imported almost only by `include_router` in `api/main.py`" is FALSE as stated.** **157 files outside `routes/`** import `fichero.api.routes.*` (measured by grep over `src` + `tests`, `__pycache__` excluded). Heaviest: `workflow_execution` (77 refs), `activity` (42), `providers` (32), `chat` (26), `entities` (23), `documents` (19). Why: **Pydantic request/response schemas live inside route modules** and are imported by `cli/client.py:33-61`, `models.py:57-59`, `llm.py:3615`, `workflows/tools/merge_dedup_only.py:43-44`, `execution/runner.py:28`, and dozens of tests. Routes are still the right *first* move — but only because the shim pattern absorbs those 157 import sites, not because they don't exist. §4.2 and §8 account for this.
-- **Inverted dependency worth fixing:** `execution/runner.py:28` imports `fichero.api.routes.workflow_execution.schemas` — core execution depends on the API layer (issue #2594's target).
+- **The #2569 claim "routes are imported almost only by `include_router` in `api/main.py`" is FALSE as stated.** **157 files outside `routes/`** import `fichero_server.api.routes.*` (measured by grep over `src` + `tests`, `__pycache__` excluded). Heaviest: `workflow_execution` (77 refs), `activity` (42), `providers` (32), `chat` (26), `entities` (23), `documents` (19). Why: **Pydantic request/response schemas live inside route modules** and are imported by `cli/client.py:33-61`, `models.py:57-59`, `llm.py:3615`, `workflows/tools/merge_dedup_only.py:43-44`, `execution/runner.py:28`, and dozens of tests. Routes are still the right *first* move — but only because the shim pattern absorbs those 157 import sites, not because they don't exist. §4.2 and §8 account for this.
+- **Inverted dependency worth fixing:** `execution/runner.py:28` imports `fichero_server.api.routes.workflow_execution.schemas` — core execution depends on the API layer (issue #2594's target).
 - **Oversized files (god-nodes):** `cli/openapi_surface_generated.py` 14,021 ln (generated — exempt), `db.py` 4,574, `llm.py` 4,055, `__main__.py` 3,836, `api/routes/documents.py` 2,832, `workflows/tools/extractors.py` 2,802, `api/routes/search.py` 2,288, `models.py` 2,286, `app_db.py` 1,996.
 
 ### 1.2 Frontend (`fichero/fichero/`)
@@ -48,7 +48,7 @@ The mechanics (verified, §1.3): a move flips a baselined guardrail red twice �
 1. **Move-only commits.** A commit that moves files contains: `git mv` + import/reference updates + the mechanical baseline path rewrite + doc path updates. **Zero content changes** to the moved code. Content changes (splitting a big file, renaming a type) are always separate commits. This makes `git diff -M --stat` show ~100% renames and the review trivial.
 2. **Baseline-diff harness (build once, in H0).** A small script — `scripts/baseline_move_check.sh <old-prefix> <new-prefix>` — that (a) runs every `check_*.py --list`/`--json` in a **clean second worktree at the pre-move commit**, (b) runs them post-move, (c) normalizes paths (`sed s|new|old|`) and diffs. **Empty diff = the guardrail output changed only by path.** Attach the diff (or its emptiness) to the PR body. This converts "trust me" into evidence.
 3. **One subpackage per commit**, one domain per PR. Never two lanes touching overlapping surface (lanes-disjoint rule) — and **nobody else touches `project.pbxproj` during a Swift move batch**.
-4. **Full suite after each batch, not `-k` filters** — targeted gates skip the architecture guardrails (known failure mode). Backend runs with `PYTHONPATH=<worktree>/fichero-engine/src` and the relevant `FICHERO_RUN_*` flags; Swift gates run via the Xcode MCP build (never raw xcodebuild), serialized.
+4. **Full suite after each batch, not `-k` filters** — targeted gates skip the architecture guardrails (known failure mode). Backend runs with `PYTHONPATH=<worktree>/fichero-server/src` and the relevant `FICHERO_RUN_*` flags; Swift gates run via the Xcode MCP build (never raw xcodebuild), serialized.
 5. **Content-hash-keyed guardrails** (`check_shell_chrome.py` keys path+hash) confirm content-identity for free: after a pure move, only the path half of the key changes. If a hash changes in a move commit, the commit is not move-only — reject it.
 6. **Order baselined-file moves late within each domain batch** where possible: moving un-baselined files first shrinks the baseline churn per commit and keeps each baseline rewrite small enough to eyeball.
 
@@ -82,7 +82,7 @@ If the spike fails, the frontend reorg still proceeds — each move batch just i
 
 ## 4. Target structure — backend (literal)
 
-### 4.1 `src/fichero/` — loose modules → subpackages
+### 4.1 `src/fichero_server/` — loose modules → subpackages
 
 New subpackages in **bold**; existing ones absorb where natural. Mapping table (every non-shim loose module accounted for):
 
@@ -139,7 +139,7 @@ api/routes/
 
 \* `notes` could equally be its own `routes/notes/` (it's a first-class UI surface) — Q6. Inside `kg/`, drop the now-redundant `kg_` filename prefix (`kg/search.py` not `kg/kg_search.py`) **only in the final shim-deletion pass**, not during the move.
 
-**Shim strategy (what makes this safe despite 157 outside importers):** each move leaves a module at the old path using the proven `sys.modules` identity shim (`iiif_import.py:1` pattern), so `from fichero.api.routes.kg_search import KGSearchResponse` keeps working and even `isinstance`/monkeypatching in tests stay correct. Old paths are rewritten consumer-by-consumer in later mechanical commits; shims are deleted in H9. A follow-up (not this plan's scope) should extract Pydantic schemas from route modules into `schemas.py` per subpackage — that's what actually ends the coupling.
+**Shim strategy (what makes this safe despite 157 outside importers):** each move leaves a module at the old path using the proven `sys.modules` identity shim (`iiif_import.py:1` pattern), so `from fichero_server.api.routes.kg_search import KGSearchResponse` keeps working and even `isinstance`/monkeypatching in tests stay correct. Old paths are rewritten consumer-by-consumer in later mechanical commits; shims are deleted in H9. A follow-up (not this plan's scope) should extract Pydantic schemas from route modules into `schemas.py` per subpackage — that's what actually ends the coupling.
 
 ---
 
@@ -252,12 +252,12 @@ Must change in the same PRs as the moves (`check_docs_paths.py` enforces this):
 - `AGENTS.md` — §Key Paths (:353), §Working in Xcode (:134 — retire add-swift-file.rb instructions post-conversion), §Docs Placement (:317), §Code Navigation (:273); add pointer to the new vocabulary doc.
 - `docs/contributor/design/swiftui-app-reorg.md` — **stale on two counts** (RealityKit/3D "removed" vs live `Views/Space/SpaceSceneView.swift`; Library file counts). Update to match code or mark superseded-by this plan. Docs describe what is BUILT.
 - `docs/contributor/architecture/fichero/key_files.md`, `overview.md`, `observable_data_layer.md` — path references to Views/Models/Services.
-- `docs/contributor/architecture/fichero-engine/key_files.md`, `overview.md`, `KG_ENDPOINTS.md` — route paths and module names.
+- `docs/contributor/architecture/fichero-server/key_files.md`, `overview.md`, `KG_ENDPOINTS.md` — route paths and module names.
 - `docs/contributor/architecture-overview.md`, `ui-map.md`, `swiftui-development-standards.md`, `backend-development-standards.md`, `setup-and-contributing.md`, `openapi-and-clients.md`.
 - **New:** `docs/contributor/architecture/vocabulary.md` (§6 table) and a short "where does a new file go" section in `CONTRIBUTING.md` — the literal acceptance test, written down.
 - `mkdocs.yml` nav + `scripts/check_docs_paths_allowlist.json` as paths move.
 - Guardrails-as-docs: `scripts/check_folder_organization.py` (`MIXED_CONCERN_DIRS`/`SUGGESTED_SUBFOLDERS` updated to the §5 targets), `scripts/check_xcode_registration.py` (retire/rewrite post-conversion).
-- `README.md`, `fichero/README.md`, `fichero-engine/README.md` (#2556).
+- `README.md`, `fichero/README.md`, `fichero-server/README.md` (#2556).
 
 ---
 
@@ -298,7 +298,7 @@ Rough shape: ~25-30 PRs over the two milestones. H1/H2 can run parallel to H0 (d
 
 Each is genuinely yours to decide; my recommendation first.
 
-- **Q1 — #2577 top-level layout.** Promote `fichero-cli` / `fichero-mcp` / `web` to top-level now? **Recommendation: no — defer.** Neither `web/` nor `fichero-mcp/` exists as a top-level component today (verified). Keep the two-component monorepo (`fichero/`, `fichero-engine/`), document the *future* component map in README, and promote a component only when it gains an independent build/release. Promoting empty dirs before open-sourcing adds confusion, not clarity.
+- **Q1 — #2577 top-level layout.** Promote `fichero-cli` / `fichero-mcp` / `web` to top-level now? **Recommendation: no — defer.** Neither `web/` nor `fichero-mcp/` exists as a top-level component today (verified). Keep the two-component monorepo (`fichero/`, `fichero-server/`), document the *future* component map in README, and promote a component only when it gains an independent build/release. Promoting empty dirs before open-sourcing adds confusion, not clarity.
 - **Q2 — pbxproj synchronized-group conversion.** Approve as prerequisite H0? **Recommendation: yes**, spike-first, with the §3 checklist and the add-swift-file.rb fallback if the spike fails.
 - **Q3 — V1 folder vs collection.** **Recommendation: `folder`** everywhere (wire + docType already say it; Finder-like).
 - **Q4 — Canvas/Spatial/Space.** Is the RealityKit 3D view (`Views/Space/`) a live product surface (contradicting swiftui-app-reorg.md's "removed")? If live: is the pair of words **canvas (2D) / space (3D)**? **Recommendation: canvas/space if 3D is staying**; either way, `Views/Spatial/` (old naming generation) folds into `Views/Canvas/`, and the backend `mind-palace` paths rename to `canvas` in H8. Also: does `PDFPageView` belong to Preview (source) or Reader?
@@ -315,7 +315,7 @@ Each is genuinely yours to decide; my recommendation first.
 
 | Q | Decision | Note |
 |---|---|---|
-| **Q1 / #2577** | **Top-level = CLIENTS + engine.** `cli/`, `mcp/`, `web/`, `fichero/` (SwiftUI) are clients; `fichero-engine/` is the backend. **`cli` and `mcp` work but are in the wrong place** and should be promoted. **Caveat Daniel raised:** there is also an *internal* MCP and an *internal* CLI — so the split is not clean, and `mcp` is "light" for that reason. **`web/` is far more work and is NOT happening any time soon** — do not create an empty `web/` dir. | OVERRIDES the planner's "defer everything". Promote `cli` + `mcp` only; resolve the internal-vs-external question first (see #2576, #2562). |
+| **Q1 / #2577** | **Top-level = CLIENTS + engine.** `cli/`, `mcp/`, `web/`, `fichero/` (SwiftUI) are clients; `fichero-server/` is the backend. **`cli` and `mcp` work but are in the wrong place** and should be promoted. **Caveat Daniel raised:** there is also an *internal* MCP and an *internal* CLI — so the split is not clean, and `mcp` is "light" for that reason. **`web/` is far more work and is NOT happening any time soon** — do not create an empty `web/` dir. | OVERRIDES the planner's "defer everything". Promote `cli` + `mcp` only; resolve the internal-vs-external question first (see #2576, #2562). |
 | **Q4** | **`canvas` (2D) and `space` (3D) — both are LIVE.** The `swiftui-app-reorg.md` claim that 3D was removed is WRONG and must be corrected. **Delete the old code, and incorporate Canvas + Space into ONE system** — today `Views/Canvas/`, `Views/Space/`, `Views/Spatial/` and top-level `CanvasScene/` are four folders for one domain, in two naming generations. Daniel: *"right now it's not working well."* **Check the Library view first — this was already partly done there; get it right, don't re-invent.** | Confirms 3D is live. Old `Spatial*` naming generation is the dead code to remove. |
 | **Q7** | **Drop the `*ServiceGenerated.swift` suffix.** Rename to `*Service.swift`; truly generated code lives only in `fichero-api-client/`. | As recommended. The suffix misleads (AGENTS.md:375 warns about it). |
 | **V1** | **`collection` everywhere — NOT `folder`.** | **OVERRIDES the planner's `folder` recommendation.** The backend renames toward `collection` (routes, docType, URLs), not the frontend toward `folder`. Larger churn than the recommended direction — sequence it as its own batch with the move protocol. |

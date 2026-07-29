@@ -33,7 +33,7 @@ outside the App Store. If that happens:
 
 You only need to do this once. After that, Fichero should open normally.
 
-When Fichero starts, fichero-engine launches automatically in the background. You may see "Connecting to backend…" briefly in the title bar while it starts. This is normal, and it takes a few seconds the first time.
+When Fichero starts, fichero-server launches automatically in the background. You may see "Connecting to backend…" briefly in the title bar while it starts. This is normal, and it takes a few seconds the first time.
 
 No separate Python installation is required. The engine is embedded in the app.
 

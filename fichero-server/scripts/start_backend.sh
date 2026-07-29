@@ -135,13 +135,18 @@ PY
     export FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-0}"
   fi
   if command -v defaults >/dev/null 2>&1; then
-    EXISTING_ENGINE_HOST="$(defaults read app.fichero.fichero fichero.engine.host 2>/dev/null || true)"
-    if [[ "$EXISTING_ENGINE_HOST" == http://127.* ]] ||
-       [[ "$EXISTING_ENGINE_HOST" == http://localhost:* ]] ||
-       [[ "$EXISTING_ENGINE_HOST" == "http://[::1]"* ]] ||
-       [[ "$EXISTING_ENGINE_HOST" == "http://[0:0:0:0:0:0:0:1]"* ]]; then
-      defaults delete app.fichero.fichero fichero.engine.host 2>/dev/null || true
-    fi
+    # #4227: the canonical key is fichero.server.host; the app still falls back
+    # to the pre-rename fichero.engine.host, so scrub BOTH (deleting only one
+    # would let the fallback resurrect the stale plain-HTTP host).
+    for HOST_KEY in fichero.server.host fichero.engine.host; do
+      EXISTING_ENGINE_HOST="$(defaults read app.fichero.fichero "$HOST_KEY" 2>/dev/null || true)"
+      if [[ "$EXISTING_ENGINE_HOST" == http://127.* ]] ||
+         [[ "$EXISTING_ENGINE_HOST" == http://localhost:* ]] ||
+         [[ "$EXISTING_ENGINE_HOST" == "http://[::1]"* ]] ||
+         [[ "$EXISTING_ENGINE_HOST" == "http://[0:0:0:0:0:0:0:1]"* ]]; then
+        defaults delete app.fichero.fichero "$HOST_KEY" 2>/dev/null || true
+      fi
+    done
     # PHASE 1 (#2603): clear every stored SPKI pin key before writing fresh
     # ones. A regenerated cert must not leave stale advertised vs client
     # pins behind for any previously used bind URL.

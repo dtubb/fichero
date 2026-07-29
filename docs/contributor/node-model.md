@@ -27,9 +27,9 @@ an alias node with `node_kind="alias"` and `prototype_key="bookmark"`.
 ## Prototype definitions and inheritance
 
 Prototype resolution is implemented in
-`fichero-engine/src/fichero/models/node_prototypes.py`, and the built-in prototype
+`fichero-server/src/fichero_server/models/node_prototypes.py`, and the built-in prototype
 definitions are seeded from `_BUILTIN_DOCUMENT_PROTOTYPE_SEEDS` in
-`fichero-engine/src/fichero/db/`. The current shipped behavior is attribute
+`fichero-server/src/fichero_server/db/`. The current shipped behavior is attribute
 inheritance, not a full behavior system.
 
 - A prototype definition is a `ClassificationValue` row with
@@ -54,7 +54,7 @@ attributes, and invalid chains fail loudly.
 Prototype assignment is also shipped as part of the documents API:
 
 - `PUT /api/documents/{doc_id}/prototype` in
-  `fichero-engine/src/fichero/api/routes/documents.py` validates the requested
+  `fichero-server/src/fichero_server/api/routes/documents.py` validates the requested
   key against seeded/user-defined `ClassificationValue` rows.
 - The same route can apply a prototype to descendants, and can restrict that
   assignment to descendant page nodes within a page range.
@@ -62,7 +62,7 @@ Prototype assignment is also shipped as part of the documents API:
 ## Aliases
 
 Alias nodes are implemented in
-`fichero-engine/src/fichero/models/node_aliases.py`.
+`fichero-server/src/fichero_server/models/node_aliases.py`.
 
 - An alias is a `Document` with `node_kind == "alias"` and a non-empty
   `alias_target_id`.
@@ -77,7 +77,7 @@ This is the shared foundation the bookmark fold now reuses.
 
 Saved searches are now folded into document nodes in the database layer.
 
-The relevant implementation is in `fichero-engine/src/fichero/db/`:
+The relevant implementation is in `fichero-server/src/fichero_server/db/`:
 
 - `_save_saved_search_document` mirrors a `SavedSearch` into a same-id
   `Document`.
@@ -99,7 +99,7 @@ surface; it changed the storage representation under it.
 
 Mind-palace rooms now have a node-backed representation in the database layer.
 
-The relevant implementation is split between `fichero-engine/src/fichero/db/`
+The relevant implementation is split between `fichero-server/src/fichero_server/db/`
 and the now-removed mind-palace room routes:
 
 - `Database.save(...)` special-cases `SpatialRoom` and mirrors it through
@@ -134,7 +134,7 @@ through a room-only storage path.
 
 Research workspaces are also folded into `Document` rows in the database layer.
 
-The relevant implementation is in `fichero-engine/src/fichero/db/`:
+The relevant implementation is in `fichero-server/src/fichero_server/db/`:
 
 - `Database.save(...)` special-cases `ResearchProject` and mirrors it through
   `_save_research_workspace_document`.
@@ -185,15 +185,15 @@ What the shipped code does today:
 
 Important boundary:
 
-- `BackgroundTask` in `fichero-engine/src/fichero/workflows/task_types.py` and
-  `fichero-engine/src/fichero/workflows/tasks.py` is workflow/task-run
+- `BackgroundTask` in `fichero-server/src/fichero_server/workflows/task_types.py` and
+  `fichero-server/src/fichero_server/workflows/tasks.py` is workflow/task-run
   infrastructure. It is not part of the research node-model fold and should not
   be described as a plan/task/step node.
 
 ## Bookmarks as alias-backed nodes
 
 Bookmark nodes ship as backend routes in
-`fichero-engine/src/fichero/api/routes/bookmarks.py`.
+`fichero-server/src/fichero_server/api/routes/bookmarks.py`.
 
 - `POST /api/bookmarks` creates a bookmark by calling `make_alias(...)` and then
   setting `prototype_key="bookmark"`.
@@ -264,7 +264,7 @@ Folded into the node model now:
   updates or removes the folded node, so filing is represented through normal
   document containment.
 - P5 folder and room prototypes: built-in prototype seeds now include `folder`
-  and `room`, and `fichero-engine/src/fichero/models/node_prototypes.py`
+  and `room`, and `fichero-server/src/fichero_server/models/node_prototypes.py`
   resolves inherited attributes through the parent chain rather than
   hard-coding per-type behavior.
 - F5 slice 1 room-node bridge: `Database.save(SpatialRoom)` mirrors each room
@@ -275,17 +275,17 @@ Folded into the node model now:
 Intentionally not folded:
 
 - `BackgroundTask` in
-  `fichero-engine/src/fichero/workflows/task_types.py` and
-  `fichero-engine/src/fichero/workflows/tasks.py` is task-queue
+  `fichero-server/src/fichero_server/workflows/task_types.py` and
+  `fichero-server/src/fichero_server/workflows/tasks.py` is task-queue
   infrastructure, not a node-model task type.
-- The workflow runner in `fichero-engine/src/fichero/execution/runner.py` and
+- The workflow runner in `fichero-server/src/fichero_server/execution/runner.py` and
   the workflow execution routes remain execution infrastructure, not document
   nodes.
-- The action registry in `fichero-engine/src/fichero/actions/registry.py`
+- The action registry in `fichero-server/src/fichero_server/actions/registry.py`
   remains the audited write path for mutations; it is not a node fold.
-- Provider configuration in `fichero-engine/src/fichero/llm/providers.py`
+- Provider configuration in `fichero-server/src/fichero_server/llm/providers.py`
   remains backend/provider infrastructure, not document content.
-- Authorization and ACL enforcement in `fichero-engine/src/fichero/security/authz.py`
+- Authorization and ACL enforcement in `fichero-server/src/fichero_server/security/authz.py`
   remain access-control infrastructure, not part of the node hierarchy.
 
 Still in progress or pending:
@@ -295,5 +295,5 @@ Still in progress or pending:
   chat-scope folding should still be described as in progress until more code
   lands.
 - F5 retirement of the `/api/mind-palace/rooms*` endpoints is still pending.
-  Those routes have been REMOVED; `fichero-engine/tests/unit/test_mind_palace_route_guard.py` asserts they stay removed
+  Those routes have been REMOVED; `fichero-server/tests/unit/test_mind_palace_route_guard.py` asserts they stay removed
   and currently depend on the room <-> room-node bridge for behavior parity.

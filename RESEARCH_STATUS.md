@@ -2,7 +2,7 @@
 
 Lane: frontend (SwiftUI) agentic surface consolidation. Worktree
 `~/code/fichero-worktrees/research`, branch `lane/research-agent-ux`.
-Do NOT push (manager gates). Do NOT touch `fichero-engine/` or the sidebar tree.
+Do NOT push (manager gates). Do NOT touch `fichero-server/` or the sidebar tree.
 
 ## Done
 - **Phase 1 — plan reconstructed + consolidated.** Authoritative source =

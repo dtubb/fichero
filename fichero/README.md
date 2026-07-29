@@ -60,7 +60,7 @@ in [CONTRIBUTING.md](../CONTRIBUTING.md). This section assumes it is done.
 Open `fichero/fichero.xcodeproj` in Xcode and run the `Fichero` scheme.
 
 - **Debug (⌘R)** expects an engine you started yourself:
-  `bash fichero-engine/scripts/start_backend.sh` (external, `:8765`).
+  `bash fichero-server/scripts/start_backend.sh` (external, `:8765`).
 - **Release** embeds the engine (Briefcase) and spawns it on launch.
 
 Command-line build (from repo root). `-skipPackagePluginValidation` is required — the

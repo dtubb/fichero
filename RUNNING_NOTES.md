@@ -417,7 +417,7 @@ lightweight checks; otherwise needs the named owner.
 1. **Cycle guard on document.move** (audit gap #1)
    - Outcome: raw API/client bug can no longer orphan a subtree (move into
      self/descendant currently succeeds; orphan cleanup then DELETES it).
-   - Layer: `fichero-engine/src/fichero/api/routes/document/documents.py`
+   - Layer: `fichero-server/src/fichero_server/api/routes/document/documents.py`
      `move_document_impl` (:1831) + `tests/unit/test_document_actions.py`.
    - Prereq: none. ~15 lines, no contract change.
    - Acceptance: move(doc→self) → 400; move(folder→own descendant) → 400;

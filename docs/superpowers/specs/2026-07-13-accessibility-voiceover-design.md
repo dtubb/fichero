@@ -86,7 +86,7 @@ label naming the *document*, not "image".
   with Dynamic Type instead of fighting it.
 - **The Reader HTML sets `lang="en"`** and both generated SVGs carry
   `role="img"` + a real `aria-label`
-  (`fichero-engine/src/fichero/api/templates/document_view.html:897,1127`).
+  (`fichero-server/src/fichero_server/api/templates/document_view.html:897,1127`).
 
 ---
 
@@ -134,7 +134,7 @@ is the load-bearing finding for these two issues.
 
 - Paragraph-by-paragraph navigation should come from the **HTML structure**: real
   `<p>` elements and heading levels in
-  `fichero-engine/src/fichero/api/templates/document_view.html` (and the Swift-built
+  `fichero-server/src/fichero_server/api/templates/document_view.html` (and the Swift-built
   HTML in `Views/Reader/Knowledge/DocumentKGWebPane.swift:62`). VoiceOver's *existing* web
   rotor then navigates by paragraph/heading for free. A SwiftUI
   `.accessibilityRotor` cannot see into a WKWebView and is the wrong tool here.

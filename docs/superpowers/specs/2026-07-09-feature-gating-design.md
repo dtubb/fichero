@@ -44,7 +44,7 @@ New `features.yaml` at repo root. One entry per feature:
    - `enum FeatureTier: Int, Comparable { case dev = 1, alpha = 2, beta = 3, release = 4 }`
    - `enum FeatureKey: String { case research, knowledgeGraph, workflows, chat, agents, ... }`
    - `struct FeatureTiers` with `static let map: [FeatureKey: FeatureTier]` + per-feature UX label.
-2. `fichero-engine/src/fichero/api/feature_tiers_generated.py`
+2. `fichero-server/src/fichero_server/api/feature_tiers_generated.py`
    - route-prefix → tier map; `main.py` builds cumulative route-spec lists:
      `_RELEASE ⊆ _BETA ⊆ _ALPHA ⊆ _DEV` (each adds the next tier's routes).
 3. `docs/user/features.md` — the matrix, sorted by tier, regenerated.
@@ -142,7 +142,7 @@ each now carrying `FICHERO_EMBED_ENGINE` alongside `FICHERO_FEATURE_TIER`;
    `codex -m gpt-5.4 --dangerously-bypass-approvals-and-sandbox`. Builds A, B, C, F + tests.
    Disjoint files from deferred pure-Python lanes (#3185/#3186/#3193). Commits authored as Codex.
 3. **Manager gates in `~/code/fichero-worktrees/integrate`** — backend pytest with
-   `PYTHONPATH=<integrate>/fichero-engine/src`; Swift compile-only + swiftlint; fix codex
+   `PYTHONPATH=<integrate>/fichero-server/src`; Swift compile-only + swiftlint; fix codex
    compile errors; add `FeatureTiers.generated.swift` to the Fichero target's Sources build
    phase (pbxproj membership — worker writes file to disk, manager adds membership);
    build-prove serially. Green → `git push origin HEAD:main` + `gh issue close`.
@@ -152,13 +152,13 @@ each now carrying `FICHERO_EMBED_ENGINE` alongside `FICHERO_FEATURE_TIER`;
 | owner    | files                                                                                |
 |----------|--------------------------------------------------------------------------------------|
 | manager  | `project.pbxproj`, `*.xcscheme`, `Info.plist`                                         |
-| worker   | `features.yaml` (new), `scripts/gen_feature_tiers.py` (new), `scripts/promote_feature.py` (new, optional), `fichero/fichero/Models/FeatureTiers.generated.swift` (new, generated — **manager adds to target**), `fichero/fichero/Models/FeatureManager.swift` (extend), `fichero-engine/src/fichero/api/main.py` (extend tier fns), `fichero-engine/src/fichero/api/feature_tiers_generated.py` (new, generated), `docs/user/features.md` (regenerate), `docs/contributor/feature-tiers.md` (new), `fichero-engine/tests/unit/test_feature_tier_routing.py` (extend), `fichero/fichero/Services/EmbeddedBackendService.swift` (extend env passthrough), `.github/workflows/ci.yml` + `scripts/verify_python.sh` (freshness gate) |
+| worker   | `features.yaml` (new), `scripts/gen_feature_tiers.py` (new), `scripts/promote_feature.py` (new, optional), `fichero/fichero/Models/FeatureTiers.generated.swift` (new, generated — **manager adds to target**), `fichero/fichero/Models/FeatureManager.swift` (extend), `fichero-server/src/fichero_server/api/main.py` (extend tier fns), `fichero-server/src/fichero_server/api/feature_tiers_generated.py` (new, generated), `docs/user/features.md` (regenerate), `docs/contributor/feature-tiers.md` (new), `fichero-server/tests/unit/test_feature_tier_routing.py` (extend), `fichero/fichero/Services/EmbeddedBackendService.swift` (extend env passthrough), `.github/workflows/ci.yml` + `scripts/verify_python.sh` (freshness gate) |
 
 ## Gate criteria (worker lane, before push)
 
 - `python scripts/gen_feature_tiers.py` runs clean; regenerated outputs match committed.
 - Freshness gate exits 0 after regen; exits 1 if `features.yaml` changed without regen.
-- Backend: `PYTHONPATH=<integrate>/fichero-engine/src pytest fichero-engine/tests/unit/test_feature_tier_routing.py` green; extend it to cover all 4 tiers + cumulative route sets + unknown-tier→release.
+- Backend: `PYTHONPATH=<integrate>/fichero-server/src pytest fichero-server/tests/unit/test_feature_tier_routing.py` green; extend it to cover all 4 tiers + cumulative route sets + unknown-tier→release.
 - `test_integration_security.py::TestFeatureTierSecurity` still green (dev routes 404 in release; now also alpha/beta routes 404 in release+beta respectively).
 - Swift: `swiftlint` clean; `FeatureTiers.generated.swift` compiles; `FeatureManager` changes compile.
 - No `xcodebuild test` on Daniel's machine — compile-only gate only.

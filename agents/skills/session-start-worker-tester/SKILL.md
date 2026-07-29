@@ -10,7 +10,7 @@ contract. This file narrows it to the test lane.
 
 ## Lane — files you own
 
-- `fichero-engine/tests/**`
+- `fichero-server/tests/**`
 - Swift test targets (`fichero/ficheroTests/**`, `RunAllTests`)
 - `scripts/check_*.py` and their `*_known_gaps.json` ratchets
 
@@ -40,7 +40,7 @@ A pytest run from a worktree without an explicit `PYTHONPATH` gates the **stale*
 tree — a green run that means nothing, or a red one that is not yours.
 
 ```bash
-PYTHONPATH=$PWD/fichero-engine/src ~/code/fichero/.venv/bin/pytest fichero-engine/tests/unit -q
+PYTHONPATH=$PWD/fichero-server/src ~/code/fichero/.venv/bin/pytest fichero-server/tests/unit -q
 ```
 
 Flag-gated write-suites silently skip unless their `FICHERO_RUN_*` env var is set.

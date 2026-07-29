@@ -13,7 +13,7 @@ Operational rules for agents live in [`AGENTS.md`](../AGENTS.md); the product no
 star in [`CONSTITUTION.md`](../CONSTITUTION.md).
 
 The repository-level `README.md`, `fichero/README.md`, and
-`fichero-engine/README.md` describe the application, SwiftUI client, and Python
+`fichero-server/README.md` describe the application, SwiftUI client, and Python
 engine. This directory contains the published user and contributor guides; the
 `scripts/` directory contains the development, verification, release, and
 worktree helpers described by those guides.

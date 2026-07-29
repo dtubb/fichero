@@ -34,33 +34,33 @@ Tests that assert "the code says what the code says" (mocking both sides of the 
 | iOS manual-entry path exists ("Enter Link Manually") | `FicheroApp_iOS.swift:399,703` |
 | Pair persists four values: token→Keychain, SPKI pin, host→UserDefaults, library path→UserDefaults (+ token expiry for renewal) | `RemoteClientPairing.persistPairedHost`, `fichero/fichero/Services/RemoteClientPairing.swift:166-186` |
 | **Keychain write sets NO `kSecAttrAccessible`** (candidate cause of #3772) | grep of `fichero/fichero-api-client/Sources/FicheroAPIClient/AuthTokenMiddleware.swift` — zero hits |
-| Device-token auth is fail-closed: unknown/revoked/expired token or inactive user → error string → 401 | `fichero-engine/src/fichero/api/auth.py:435-456` (`_authenticate_device_token`) |
-| Last-owner guarantee: sole owner cannot revoke own role; a second owner can remove the first | `fichero-engine/src/fichero/authz.py:128-142` |
-| Invite TTL is a single global 15-minute constant; no channel concept; **no redemption notification exists** | `fichero-engine/src/fichero/api/routes/auth_accounts.py:31` (`INVITE_TTL`), endpoints at `:463-609` (mint/list/redeem/revoke only) |
+| Device-token auth is fail-closed: unknown/revoked/expired token or inactive user → error string → 401 | `fichero-server/src/fichero_server/api/auth.py:435-456` (`_authenticate_device_token`) |
+| Last-owner guarantee: sole owner cannot revoke own role; a second owner can remove the first | `fichero-server/src/fichero_server/authz.py:128-142` |
+| Invite TTL is a single global 15-minute constant; no channel concept; **no redemption notification exists** | `fichero-server/src/fichero_server/api/routes/auth_accounts.py:31` (`INVITE_TTL`), endpoints at `:463-609` (mint/list/redeem/revoke only) |
 | `PairingBlocker` (#3769 fix) exists with 7 cases, each carrying its own headline/detail/action — but it is **`private`**, hence currently untestable | `fichero/fichero/Views/Settings/Sharing/PairingCardView.swift:374-438` |
 | The Backend settings pane's existence hangs on a feature flag that **defaults to `false`** and is flipped only by `resetToV001()` | `fichero/fichero/Models/FeatureManager.swift:84-85,209,334` |
 | Reader fix (#3765) landed: the Page tab now renders the real multi-page WebKit transcript | `fichero/fichero/Views/Reader/Page/ReadingPaneView.swift:372-387` (`surfaceView(tab: .transcript)`) |
-| Transcript HTML is built **client-side by JS in the engine's template** — `<div class="transcript">` wrapping `<article class="transcript-page" data-page=…>` | `fichero-engine/src/fichero/api/templates/document_view.html:649-663` (`renderTranscript`) |
+| Transcript HTML is built **client-side by JS in the engine's template** — `<div class="transcript">` wrapping `<article class="transcript-page" data-page=…>` | `fichero-server/src/fichero_server/api/templates/document_view.html:649-663` (`renderTranscript`) |
 | Swift injects JS that queries the selector `.transcript [data-page]` for scroll↔page sync | `fichero/fichero/Views/Reader/Knowledge/DocumentKGWebPane.swift:339,412-416` |
-| Multi-page concatenation lives in the engine | `fichero-engine/src/fichero/api/routes/views.py:37-49` (`_transcript_for_document`) |
+| Multi-page concatenation lives in the engine | `fichero-server/src/fichero_server/api/routes/views.py:37-49` (`_transcript_for_document`) |
 
 ### 1.2 Run infrastructure facts that constrain this plan
 
 - **CI is Ubuntu-only**: Python lint + unit tests (ML skipped) + OpenAPI/feature-tier drift (`.github/workflows/ci.yml:22-27,54-63`). **No Swift test runs anywhere automatically.** Swift tests run only when the manager runs `RunAllTests` via the Xcode MCP.
 - The Swift unit-test bundle uses `TEST_HOST = Fichero.app` (stated in `URLSchemeRegistrationTests.swift` header) — running it **launches the app GUI**. Standing rule: never on Daniel's active desktop; manager-gated, or a future macOS CI leg (§8 Q6).
-- Backend pytest needs `PYTHONPATH=fichero-engine/src` from the worktree being tested (`AGENTS.md:24,158`); the shared venv is editable-installed elsewhere.
+- Backend pytest needs `PYTHONPATH=fichero-server/src` from the worktree being tested (`AGENTS.md:24,158`); the shared venv is editable-installed elsewhere.
 - Only one xcodebuild at a time on this machine; iOS builds happen in a worktree (memory: iOS build gate).
 
 ---
 
 ## 2. Where the existing suites are blind
 
-### 2.1 Engine suite (`fichero-engine/tests/`) — strong on policy, blind at the transport and the client
+### 2.1 Engine suite (`fichero-server/tests/`) — strong on policy, blind at the transport and the client
 
 **Run on 2026-07-14** from the integrate worktree:
 
 ```
-PYTHONPATH=…/integrate/fichero-engine/src pytest tests/unit/test_invites.py \
+PYTHONPATH=…/integrate/fichero-server/src pytest tests/unit/test_invites.py \
   tests/unit/test_pairing_self_service.py tests/unit/test_device_auth_boundary.py \
   tests/integration/test_device_pairing_e2e.py -q
 → 18 passed in 48.53s
@@ -150,7 +150,7 @@ Legend: layer P / PL / S / R / X / E / M per §3. "Breaks like" = what a red run
 | # | Behaviour | Layer | File (new unless noted) | Asserts | Breaks like | Catches #2399-class? |
 |---|---|---|---|---|---|---|
 | T-A1 | **Full round trip**: owner mints pair code → production QR/link payload built (`RemoteAccessConfig` builder) → production decoder parses it → `RemoteClientPairing` exchanges it at the live engine → `persistPairedHost` → a client built **from the persisted values only** calls `/api/health` + lists documents, 200 | X | `fichero/fichero-tests/PairingRoundTripContractTests.swift` | every seam at once: payload format, scheme, engine route, pin canonicalisation, persistence, authenticated call | payload/format drift between Swift and `pairing.py`; route rename; pin normalisation change; persistence key drift | **YES — this is the test #2399 never had.** If any link in the chain is dead, it's red |
-| T-A2 | Same round trip at the transport level: real uvicorn + real TLS from `remote_access_tls.py`, mint→redeem→authed call over a real HTTPS socket, pin computed from the served cert | PL | `fichero-engine/tests/live/test_pairing_live_server.py` | server actually starts, binds loopback only, serves the advertised cert; redeem works over real TLS; **wrong pin → handshake refused**; no token → 401 | startup wiring, middleware order, TLS material generation — everything `TestClient` fakes | YES for the server half — a server that never starts or serves the wrong cert is exactly "dead on arrival" |
+| T-A2 | Same round trip at the transport level: real uvicorn + real TLS from `remote_access_tls.py`, mint→redeem→authed call over a real HTTPS socket, pin computed from the served cert | PL | `fichero-server/tests/live/test_pairing_live_server.py` | server actually starts, binds loopback only, serves the advertised cert; redeem works over real TLS; **wrong pin → handshake refused**; no token → 401 | startup wiring, middleware order, TLS material generation — everything `TestClient` fakes | YES for the server half — a server that never starts or serves the wrong cert is exactly "dead on arrival" |
 | T-A3 | Device appears in `/api/pairing/devices` after redeem; revoke from that list kills the token immediately | P (mostly exists: `test_pairing_self_service.py:42`) + X (assert via T-A1 harness) | existing + T-A1 file | list/revoke round trip from the client's perspective | revocation UI acting on a stale/different store | Partially — the X leg adds the client's view |
 
 ### B. URL scheme round trip (behaviour 2)

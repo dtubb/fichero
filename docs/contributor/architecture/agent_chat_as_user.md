@@ -14,55 +14,55 @@ In the target design, chat can do anything the app can do, but only by going thr
 
 ### 1. Accounts, sessions, and roles already exist
 
-- App-wide user accounts already exist as `AccountUser` rows with `id`, `username`, `display_name`, `is_owner`, and `active` in `fichero-engine/src/fichero/models.py:1001-1013`.
-- App-wide sessions already exist as `AccountSession` rows in `fichero-engine/src/fichero/models.py:1015-1027`.
-- Per-library roles already exist as `LibraryRole` rows in `fichero-engine/src/fichero/models.py:1045-1055`.
-- Per-target ACL overrides already exist as `LibraryAclOverride` rows in `fichero-engine/src/fichero/models.py:1058-1069`.
-- The shipped role vocabulary is `owner`, `editor`, and `viewer` in `fichero-engine/src/fichero/authz.py:23-30`, and the macOS UI surfaces the same three roles in `fichero/fichero/Views/Settings/Sharing/UsersSettingsView.swift:343-385`.
-- Account/session routes already exist behind multi-user mode: login/logout/me in `fichero-engine/src/fichero/api/routes/auth_accounts.py:243-300`, create/list/update users in `fichero-engine/src/fichero/api/routes/auth_accounts.py:303-380`.
+- App-wide user accounts already exist as `AccountUser` rows with `id`, `username`, `display_name`, `is_owner`, and `active` in `fichero-server/src/fichero_server/models.py:1001-1013`.
+- App-wide sessions already exist as `AccountSession` rows in `fichero-server/src/fichero_server/models.py:1015-1027`.
+- Per-library roles already exist as `LibraryRole` rows in `fichero-server/src/fichero_server/models.py:1045-1055`.
+- Per-target ACL overrides already exist as `LibraryAclOverride` rows in `fichero-server/src/fichero_server/models.py:1058-1069`.
+- The shipped role vocabulary is `owner`, `editor`, and `viewer` in `fichero-server/src/fichero_server/authz.py:23-30`, and the macOS UI surfaces the same three roles in `fichero/fichero/Views/Settings/Sharing/UsersSettingsView.swift:343-385`.
+- Account/session routes already exist behind multi-user mode: login/logout/me in `fichero-server/src/fichero_server/api/routes/auth_accounts.py:243-300`, create/list/update users in `fichero-server/src/fichero_server/api/routes/auth_accounts.py:303-380`.
 
 ### 2. The audited mutation choke point already exists
 
-- `ActionRegistry.invoke(...)` is already the central audited write path in `fichero-engine/src/fichero/actions/registry.py:156-210`.
+- `ActionRegistry.invoke(...)` is already the central audited write path in `fichero-server/src/fichero_server/actions/registry.py:156-210`.
 - That method already:
   - validates typed params (`registry.py:175-176`)
   - runs authz write checks (`registry.py:178-185`)
   - executes the domain action (`registry.py:186`)
   - writes an `ActionAudit` row (`registry.py:188-200`)
   - emits a change event (`registry.py:202-236`)
-- The action context already carries `actor`, `run_id`, `origin_window`, and `library_path` in `fichero-engine/src/fichero/actions/registry.py:39-52`.
+- The action context already carries `actor`, `run_id`, `origin_window`, and `library_path` in `fichero-server/src/fichero_server/actions/registry.py:39-52`.
 - Generic HTTP access to the same registry already exists:
-  - `POST /api/actions/invoke` in `fichero-engine/src/fichero/api/routes/actions_registry.py:103-124`
-  - `GET /api/actions/registry` in `fichero-engine/src/fichero/api/routes/actions_registry.py:127-143`
-  - `GET /api/actions/audit` in `fichero-engine/src/fichero/api/routes/actions_registry.py:164-191`
+  - `POST /api/actions/invoke` in `fichero-server/src/fichero_server/api/routes/actions_registry.py:103-124`
+  - `GET /api/actions/registry` in `fichero-server/src/fichero_server/api/routes/actions_registry.py:127-143`
+  - `GET /api/actions/audit` in `fichero-server/src/fichero_server/api/routes/actions_registry.py:164-191`
 
 This is the core foundation for "the model is a user": if the model acts through `registry.invoke(...)`, the actor is explicit and the write is auditable.
 
 ### 3. Chat-tool plumbing exists, but the live chat route is not agentic yet
 
-- `fichero-engine/src/fichero/actions/chat_tools.py:1-31` already defines the intended chat-tool bridge from registered actions to model-callable tools.
-- `action_tools(...)` generates one tool definition per registered action in `fichero-engine/src/fichero/actions/chat_tools.py:91-123`.
-- `dispatch_tool_call(...)` already routes a model tool call back through `registry.invoke(...)` in `fichero-engine/src/fichero/actions/chat_tools.py:153-194`.
-- The module is explicit that the live chat endpoint is **not** yet wired to that loop in `fichero-engine/src/fichero/actions/chat_tools.py:25-30` and `197-224`.
-- The shipped `POST /api/chat` handler is still single-shot RAG: it retrieves context and then calls `llm.invoke(messages)` directly in `fichero-engine/src/fichero/api/routes/chat.py:356-415`.
+- `fichero-server/src/fichero_server/actions/chat_tools.py:1-31` already defines the intended chat-tool bridge from registered actions to model-callable tools.
+- `action_tools(...)` generates one tool definition per registered action in `fichero-server/src/fichero_server/actions/chat_tools.py:91-123`.
+- `dispatch_tool_call(...)` already routes a model tool call back through `registry.invoke(...)` in `fichero-server/src/fichero_server/actions/chat_tools.py:153-194`.
+- The module is explicit that the live chat endpoint is **not** yet wired to that loop in `fichero-server/src/fichero_server/actions/chat_tools.py:25-30` and `197-224`.
+- The shipped `POST /api/chat` handler is still single-shot RAG: it retrieves context and then calls `llm.invoke(messages)` directly in `fichero-server/src/fichero_server/api/routes/chat.py:356-415`.
 
 So the audit/tool foundation exists, but "chat can act" is still a planned wiring step, not a shipped chat behavior.
 
 ### 4. An MCP surface already exists
 
-- Fichero already ships an MCP server in `fichero-engine/src/fichero/mcp_server.py:1-29`.
-- That server exposes CLI-backed tools through FastMCP in `fichero-engine/src/fichero/mcp_server.py:37-73` and throughout the rest of the file.
-- The MCP server is intentionally a thin wrapper over `FicheroClient`, not a second backend logic layer, in `fichero-engine/src/fichero/mcp_server.py:1-8` and `53-64`.
-- App-managed MCP server configuration already exists as `MCPServer` rows in `fichero-engine/src/fichero/models.py:1251-1284`.
-- The backend already exposes MCP server management routes in `fichero-engine/src/fichero/api/routes/mcp_servers.py:22-257`.
-- Those routes already require authentication globally and require owner access for loading tools into the workflow registry in `fichero-engine/src/fichero/api/routes/mcp_servers.py:22` and `221-258`.
-- Workflow-facing MCP tool loading already exists in `fichero-engine/src/fichero/workflows/tools/mcp.py:24-50` and `110-183`.
+- Fichero already ships an MCP server in `fichero-server/src/fichero_server/mcp_server.py:1-29`.
+- That server exposes CLI-backed tools through FastMCP in `fichero-server/src/fichero_server/mcp_server.py:37-73` and throughout the rest of the file.
+- The MCP server is intentionally a thin wrapper over `FicheroClient`, not a second backend logic layer, in `fichero-server/src/fichero_server/mcp_server.py:1-8` and `53-64`.
+- App-managed MCP server configuration already exists as `MCPServer` rows in `fichero-server/src/fichero_server/models.py:1251-1284`.
+- The backend already exposes MCP server management routes in `fichero-server/src/fichero_server/api/routes/mcp_servers.py:22-257`.
+- Those routes already require authentication globally and require owner access for loading tools into the workflow registry in `fichero-server/src/fichero_server/api/routes/mcp_servers.py:22` and `221-258`.
+- Workflow-facing MCP tool loading already exists in `fichero-server/src/fichero_server/workflows/tools/mcp.py:24-50` and `110-183`.
 
 ### 5. Important current limitation: MCP write paths are not uniformly audited yet
 
 - The target design here wants all model writes to flow through `registry.invoke(...)`.
 - Some MCP-adjacent mutation paths already fit that direction via the action registry and `chat_tools.py`.
-- But the dedicated MCP REST adapter routes in `fichero-engine/src/fichero/api/routes/mcp_tools.py` still perform direct persistence for at least some writes, for example entity upsert via `db.save(existing)` / `db.save(entity)` in `mcp_tools.py:215-259`.
+- But the dedicated MCP REST adapter routes in `fichero-server/src/fichero_server/api/routes/mcp_tools.py` still perform direct persistence for at least some writes, for example entity upsert via `db.save(existing)` / `db.save(entity)` in `mcp_tools.py:215-259`.
 
 That means the repo already has the pieces needed for audited model-user writes, but the MCP surface is not yet fully normalized onto the action registry.
 
@@ -112,7 +112,7 @@ Planned rule:
 
 The existing role model is already strong enough to be the first authority boundary:
 
-- `viewer` can read but not write, because `authz._allowed(..., write=True)` denies writes for viewers in `fichero-engine/src/fichero/authz.py:217-220` and `240-251`.
+- `viewer` can read but not write, because `authz._allowed(..., write=True)` denies writes for viewers in `fichero-server/src/fichero_server/authz.py:217-220` and `240-251`.
 - `editor` and `owner` can write at the base role layer in the same code path.
 - Per-target ACL overrides already exist as a second layer for content subtree access in `authz.py:127-150` and `255-267`.
 

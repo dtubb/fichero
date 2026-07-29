@@ -86,7 +86,7 @@ security find-identity -v -p codesigning
 ```bash
 
 # Build backend with Briefcase
-./fichero-engine/scripts/build_backend_bundle.sh
+./fichero-server/scripts/build_backend_bundle.sh
 ```
 
 **What this does:**
@@ -106,7 +106,7 @@ open fichero/fichero.xcodeproj
 
 **What happens during Xcode build:**
 1. Compiles Swift code
-2. Runs build script: `fichero-engine/scripts/xcode_copy_backend.sh`
+2. Runs build script: `fichero-server/scripts/xcode_copy_backend.sh`
 3. Copies `macOS/FicheroBackend.app` → `Fichero.app/Contents/Resources/`
 4. Results in single `Fichero.app` with backend embedded
 
@@ -129,7 +129,7 @@ open fichero/fichero.xcodeproj
 
 ```bash
 # Terminal 1: Start backend with hot-reload
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --reload --port 8765
+PYTHONPATH=fichero-server/src .venv/bin/uvicorn fichero_server.api.main:app --reload --port 8765
 
 # Terminal 2: Run Swift app from Xcode
 open fichero/fichero.xcodeproj
@@ -151,7 +151,7 @@ open fichero/fichero.xcodeproj
 
 ```bash
 # 1. Build backend
-./fichero-engine/scripts/build_backend_bundle.sh
+./fichero-server/scripts/build_backend_bundle.sh
 
 # 2. Archive Swift app in Xcode
 # Product → Archive
@@ -225,7 +225,7 @@ let response = await apiClient.listWorkflows()
 [tool.briefcase.app.fichero-backend]
 formal_name = "Fichero Backend"
 console_app = true  # ← No window, background service
-sources = ["src/fichero", "src/fichero_backend"]
+sources = ["src/fichero_server", "src/fichero_backend"]
 requires = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
@@ -233,12 +233,12 @@ requires = [
 ]
 ```
 
-### fichero-engine/src/fichero_backend/__main__.py
+### fichero-server/src/fichero_backend/__main__.py
 
 ```python
 def main():
     uvicorn.run(
-        "fichero.api.main:app",
+        "fichero_server.api.main:app",
         host="127.0.0.1",
         port=8765,
         reload=False,  # ← NO hot-reload in production
@@ -249,7 +249,7 @@ def main():
 
 ```bash
 # Add to: Target → Build Phases → Run Script
-${PROJECT_DIR}/../fichero-engine/scripts/xcode_copy_backend.sh
+${PROJECT_DIR}/../fichero-server/scripts/xcode_copy_backend.sh
 ```
 
 ---
@@ -264,7 +264,7 @@ ${PROJECT_DIR}/../fichero-engine/scripts/xcode_copy_backend.sh
 
 **Fix:** Build backend first
 ```bash
-./fichero-engine/scripts/build_backend_bundle.sh
+./fichero-server/scripts/build_backend_bundle.sh
 ```
 
 ### "Backend failed to start"
@@ -297,7 +297,7 @@ When you modify Python backend code:
 
 ```bash
 # 1. Rebuild backend bundle
-./fichero-engine/scripts/build_backend_bundle.sh
+./fichero-server/scripts/build_backend_bundle.sh
 
 # 2. Rebuild Swift app in Xcode (⌘B)
 # Build script will copy new backend bundle automatically
@@ -319,10 +319,10 @@ Created files for nested app bundling:
 
 ```
 ✅ pyproject.toml                              (backend app config)
-✅ fichero-engine/src/fichero_backend/__init__.py             (backend module)
-✅ fichero-engine/src/fichero_backend/__main__.py             (backend entry point)
+✅ fichero-server/src/fichero_backend/__init__.py             (backend module)
+✅ fichero-server/src/fichero_backend/__main__.py             (backend entry point)
 ✅ scripts/build_backend_bundle.sh             (Briefcase build script)
-✅ fichero-engine/scripts/xcode_copy_backend.sh   (Xcode build script)
+✅ fichero-server/scripts/xcode_copy_backend.sh   (Xcode build script)
 ✅ fichero/fichero/Services/EmbeddedBackendService.swift  (Swift launcher)
 ✅ docs/contributor/bundling-backend.md                    (this file)
 ```
@@ -333,13 +333,13 @@ Created files for nested app bundling:
 
 1. **Test backend build:**
    ```bash
-   ./fichero-engine/scripts/build_backend_bundle.sh
+   ./fichero-server/scripts/build_backend_bundle.sh
    ```
 
 2. **Add Xcode build script:**
    - Open fichero/fichero.xcodeproj
    - Target → Build Phases → + → New Run Script Phase
-   - Add: `${PROJECT_DIR}/../fichero-engine/scripts/xcode_copy_backend.sh`
+   - Add: `${PROJECT_DIR}/../fichero-server/scripts/xcode_copy_backend.sh`
 
 3. **Update FicheroApp.swift:**
    - Add `@StateObject var backendService = EmbeddedBackendService()`

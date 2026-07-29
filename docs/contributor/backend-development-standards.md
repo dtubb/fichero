@@ -74,7 +74,7 @@ pytest tests/unit/
 pytest tests/integration/
 
 # Run with coverage
-pytest --cov=src/fichero tests/
+pytest --cov=src/fichero_server tests/
 ```
 
 ## Mutations
@@ -105,23 +105,23 @@ The current shipped pattern is:
 
 Grounded code paths on `main`:
 
-- `fichero-engine/src/fichero/api/routes/claim/claims.py`
+- `fichero-server/src/fichero_server/api/routes/claim/claims.py`
   `create_claim(...)`, `patch_claim(...)`, and `delete_claim(...)` all resolve
   an `ActionContext` and then call `registry.invoke(...)`
 - the corresponding `claim.create`, `claim.patch`, and `claim.delete` actions in
   the same file return `ChangeSpec` payloads that carry audit snapshots and the
   claim/entity ids needed for observer updates
-- `fichero-engine/src/fichero/api/routes/documents.py`
+- `fichero-server/src/fichero_server/api/routes/documents.py`
   `create_document(...)`, `delete_document(...)`, and `move_document(...)` route
   through `registry.invoke(...)`; their actions return `ChangeSpec` with
   document ids and undo payloads
-- `fichero-engine/src/fichero/api/routes/notes.py`
+- `fichero-server/src/fichero_server/api/routes/notes.py`
   `create_note(...)` now routes through `registry.invoke(...)`, and
   `note.create` returns a `ChangeSpec` scoped to the note's linked documents
-- `fichero-engine/src/fichero/api/routes/entities.py`
+- `fichero-server/src/fichero_server/api/routes/entities.py`
   create flows now use `registry.invoke(...)` via `entity.create`; the action
   returns `ChangeSpec` with the created entity id
-- `fichero-engine/src/fichero/actions/registry.py`
+- `fichero-server/src/fichero_server/actions/registry.py`
   `ActionRegistry.invoke(...)` writes the `ActionAudit` row and then calls
   `_emit(...)`, which dispatches `emit_change(...)`
 
@@ -135,13 +135,13 @@ direct-write route:
 
 - for a document-style mutation, use the `document.create` /
   `document.move` route+action pair in
-  `fichero-engine/src/fichero/api/routes/documents.py`
+  `fichero-server/src/fichero_server/api/routes/documents.py`
 - for a claim mutation, use the `claim.create` / `claim.patch` /
   `claim.delete` route+action pairs in
-  `fichero-engine/src/fichero/api/routes/claim/claims.py`
+  `fichero-server/src/fichero_server/api/routes/claim/claims.py`
 - for a folded note or entity create, use `note.create` in
-  `fichero-engine/src/fichero/api/routes/notes.py` and `entity.create` in
-  `fichero-engine/src/fichero/api/routes/entities.py`
+  `fichero-server/src/fichero_server/api/routes/notes.py` and `entity.create` in
+  `fichero-server/src/fichero_server/api/routes/entities.py`
 
 The #2789 sweep is largely complete, but not every legacy mutation route in
 those modules has been converted yet. Treat the `registry.invoke(...)` paths as
@@ -157,13 +157,13 @@ call the async route functions directly, which means FastAPI never resolves
 
 Grounded examples:
 
-- `fichero-engine/tests/unit/test_canonical_knowledge_routes.py` calls
+- `fichero-server/tests/unit/test_canonical_knowledge_routes.py` calls
   `await upsert_entity(request, db)` directly
 - the same file calls `await create_claim(request, db)` and
   `await patch_claim(claim.id, patch_request, db)` directly
 
-That is why `fichero-engine/src/fichero/api/routes/claim/claims.py` and
-`fichero-engine/src/fichero/api/routes/entities.py` now use
+That is why `fichero-server/src/fichero_server/api/routes/claim/claims.py` and
+`fichero-server/src/fichero_server/api/routes/entities.py` now use
 `_resolve_action_ctx(...)` and tolerate unresolved `Depends(...)` sentinels for
 `ctx`, `actor`, and library-path inputs. If you make a route audited, keep it
 callable both via HTTP and via direct unit-test invocation. Do not assume the
@@ -178,7 +178,7 @@ Grounded guardrails:
 
 - `scripts/check_duplicate_paths.py` scans for duplicate HTTP handlers and
   duplicate KG write concerns such as `kg_write:KnowledgeEntity`
-- `fichero-engine/tests/unit/test_check_duplicate_paths.py` fails if an
+- `fichero-server/tests/unit/test_check_duplicate_paths.py` fails if an
   unallowlisted duplicate remains
 
 Before landing a second writer or route, either:
@@ -194,10 +194,10 @@ Do not leave two parallel write paths for the same mutation concern by accident.
 These follow-ups are still live on `main` and should be documented as open work,
 not treated as solved:
 
-- **Mind-palace room routes are REMOVED**, and `fichero-engine/tests/unit/test_mind_palace_route_guard.py` asserts they stay removed
+- **Mind-palace room routes are REMOVED**, and `fichero-server/tests/unit/test_mind_palace_route_guard.py` asserts they stay removed
   still carries strict `xfail` coverage showing create/update/delete bypass
   `registry.invoke(...)` and `emit_change(...)` (`#2820`, in progress)
-- **Request-model tightening**: `fichero-engine/tests/unit/test_fold_endpoints_validation.py`
+- **Request-model tightening**: `fichero-server/tests/unit/test_fold_endpoints_validation.py`
   still carries strict `xfail` coverage for request models that accept extra
   fields or other lax input; many of the current request models have not yet
   been tightened to `extra="forbid"` (`#2822`)
@@ -236,7 +236,7 @@ Two backends, one Python API:
 
 Workflow and tool code should not construct provider clients directly.
 
-The current shipped path is centralized in `fichero-engine/src/fichero/llm/`:
+The current shipped path is centralized in `fichero-server/src/fichero_server/llm/`:
 
 - workflow/tool callers use `chat_workflow(...)` as the workflow-facing shim
 - `chat_workflow(...)` dispatches into the shared `chat(...)`,
@@ -249,9 +249,9 @@ LLM helpers, not in individual workflow tools.
 
 The shipped agent tools show the pattern directly:
 
-- `fichero-engine/src/fichero/workflows/tools/agent.py` imports
+- `fichero-server/src/fichero_server/workflows/tools/agent.py` imports
   `chat_workflow` and uses it for both plain chat and tool-calling turns
-- `fichero-engine/src/fichero/workflows/tools/multi_agent.py` also uses
+- `fichero-server/src/fichero_server/workflows/tools/multi_agent.py` also uses
   `chat_workflow` for supervisor decisions, worker synthesis, and final
   aggregation
 
@@ -276,7 +276,7 @@ module. Each tool owns its extraction shape; sharing creates coupling
 when one tool's needs evolve.
 
 ```python
-# fichero-engine/src/fichero/workflows/tools/my_tool.py
+# fichero-server/src/fichero_server/workflows/tools/my_tool.py
 from pydantic import BaseModel, Field
 
 class _Person(BaseModel):
@@ -337,7 +337,7 @@ async def my_tool(inputs, state, llm_config):
 
 ### Tests
 
-- Mock `fichero.workflows.tools.<tool>.chat_structured_with_fallback`
+- Mock `fichero_server.workflows.tools.<tool>.chat_structured_with_fallback`
   with an `AsyncMock(return_value=YourSchema(...))`. The mock returns
   a typed Pydantic instance — no JSON-string fixtures.
 - Cover the LLM-failure path: `AsyncMock(side_effect=RuntimeError(...))`.
@@ -356,7 +356,7 @@ async def my_tool(inputs, state, llm_config):
 
 ## LLM Stack Architecture (post-#872)
 
-The LLM call surface in `fichero-engine/src/fichero/llm/` was overhauled
+The LLM call surface in `fichero-server/src/fichero_server/llm/` was overhauled
 in commits `d04dae26..da0a6a67` (master plan #872). Five contracts you
 should know before touching it:
 
@@ -454,7 +454,7 @@ Workflow runners and any code path that wants per-call token attribution
 wraps execution in:
 
 ```python
-from fichero.llm import collect_usage
+from fichero_server.llm import collect_usage
 
 with collect_usage() as bucket:
     result = await tool_fn(inputs)

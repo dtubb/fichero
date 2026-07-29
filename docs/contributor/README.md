@@ -2,7 +2,7 @@
 
 # Fichero Developer Docs
 
-This section explains how the current Fichero codebase works for contributors. It is grounded in the live SwiftUI client under `fichero/fichero/`, the FastAPI engine under `fichero-engine/src/fichero/`, and the architecture notes already present in `docs/contributor/architecture/`.
+This section explains how the current Fichero codebase works for contributors. It is grounded in the live SwiftUI client under `fichero/fichero/`, the FastAPI engine under `fichero-server/src/fichero_server/`, and the architecture notes already present in `docs/contributor/architecture/`.
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ This section explains how the current Fichero codebase works for contributors. I
 
 ## Read This First
 
-Fichero is not a single-process desktop app. The default macOS path is a native SwiftUI app over a local `fichero-engine` server (Python, FastAPI), while other Apple clients connect to an explicitly configured remote engine host.
+Fichero is not a single-process desktop app. The default macOS path is a native SwiftUI app over a local `fichero-server` server (Python, FastAPI), while other Apple clients connect to an explicitly configured remote engine host.
 
 The shortest accurate picture is:
 
@@ -47,6 +47,6 @@ For audited cross-surface mutations, the starting point is the action registry. 
 
 - Operational manual for coding agents: [../../AGENTS.md](../../AGENTS.md)
 - Operational rules: [../../AGENTS.md](../../AGENTS.md)
-- Backend overview: [../architecture/fichero-engine/overview.md](architecture/fichero-engine/overview.md)
+- Backend overview: [../architecture/fichero-server/overview.md](architecture/fichero-server/overview.md)
 - SwiftUI overview: [../architecture/fichero/overview.md](architecture/fichero/overview.md)
 - API client contract notes: [../architecture/fichero/api_client.md](architecture/fichero/api_client.md)

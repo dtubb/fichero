@@ -75,7 +75,7 @@ UDS, so the Swift client needs a UDS-capable HTTP transport (custom
   `firstRunSheetArmed`). Rendering the real UI on `.starting` means the toolbar
   lays out before `.ready`; the settle-beat guard must be preserved/extended.
 
-### S2 — UDS transport (`fichero-engine` + `fichero/…/Services`)
+### S2 — UDS transport (`fichero-server` + `fichero/…/Services`)
 - **Engine (Python)**: uvicorn binds a UDS by default
   (`--uds $XDG_RUNTIME/…/fichero-<lib>.sock`, 0600, user-owned). `remote_access`
   additionally binds loopback TCP + TLS (or `tailscale serve`) **only when the
@@ -92,7 +92,7 @@ UDS, so the Swift client needs a UDS-capable HTTP transport (custom
 - **Failure-model payoff**: removes `portConflict` from `EngineSession.Phase`,
   simplifying S1's error UX (design the failure UX once, post-S2).
 
-### S3 — Full-path profiling + speedup (`fichero-engine`, then app)
+### S3 — Full-path profiling + speedup (`fichero-server`, then app)
 - **Engine**: spawn-to-first-response timer + `py-spy`/`cProfile` on the real
   startup path (not just import). Defer the remaining eager heavy imports
   (`langchain_core` ~87ms, `apscheduler` ~85ms, the 2 eager tool modules) to
@@ -102,10 +102,10 @@ UDS, so the Swift client needs a UDS-capable HTTP transport (custom
 
 ## Parallel execution & lane isolation
 
-- **Lane E (engine transport, S2)**: `fichero-engine` uvicorn/remote_access/spawn.
+- **Lane E (engine transport, S2)**: `fichero-server` uvicorn/remote_access/spawn.
 - **Lane C (Swift client transport, S2)**: `fichero/…/Services` client + lifecycle.
 - **Lane U (frontend UX, S1)**: `fichero/…/Views` gate + toolbar.
-- **Lane P (profiling+imports, S3)**: `fichero-engine` imports (disjoint files
+- **Lane P (profiling+imports, S3)**: `fichero-server` imports (disjoint files
   from Lane E — imports vs bind), + app-profiling checklist for Daniel.
 
 Lanes E/P both touch the engine but different concerns (bind vs imports) — keep
@@ -186,7 +186,7 @@ until App-Group + #3340.
 
 The critic's "[CRITICAL] MAS blocked / needs App Group" is WRONG. The embedded
 engine is launched as a real subprocess (`Process().run()`, engine at
-`Contents/Helpers/Fichero Engine.app`) and `FicheroEngineAppStore.entitlements`
+`Contents/Helpers/Fichero Server.app`) and `FicheroEngineAppStore.entitlements`
 uses `com.apple.security.inherit` — the child inherits the parent's sandbox and
 therefore runs in the **same sandbox container** as the main app. So the UDS
 socket in the shared container is reachable by both processes with **NO App
@@ -386,13 +386,13 @@ cryptography, numpy (the *embeddable core*) have NO PyPI iOS wheels either — t
 come from BeeWare's iOS wheel INDEX (not PyPI), which covers those three but NOT
 duckdb/lancedb/onnxruntime/pymupdf. Pillow now ships official iOS wheels (PEP 730).
 
-**Hard boot blocker:** `api/main.py:68 → from fichero.db import Database` →
+**Hard boot blocker:** `api/main.py:68 → from fichero_server.db import Database` →
 `db.py:57 → import duckdb` (top-level, unguarded). The FastAPI app CANNOT import
 without duckdb. PyMuPDF/fastembed are lazy (prunable); **duckdb is a top-level
 hard requirement**. So a reduced bundle won't even boot until that import is made
 lazy.
 
-**Partial-engine map:** DuckDB is the spine of BOTH library data (`fichero.db`)
+**Partial-engine map:** DuckDB is the spine of BOTH library data (`fichero_server.db`)
 AND app state (`fichero.app_db`). 76 of 88 route modules touch DuckDB. Only ~10
 duckdb-free routes (provider keys/models, orchestration, integrations, sandbox,
 batch, research config) — the control plane, nothing persisted. So a partial iOS
@@ -410,7 +410,7 @@ numpy pins).
 ### Verdict + the real unlock
 iOS is effectively **remote-only near-term.** A useful iOS in-process engine needs
 TWO changes, neither built (both left as documented future work, NOT done now):
-1. make `fichero.db`'s `import duckdb` lazy/optional so the app boots without it;
+1. make `fichero_server.db`'s `import duckdb` lazy/optional so the app boots without it;
 2. an in-memory / iOS persistence path — realistically **duckdb → sqlite** (LARGE:
    rewrite the data layer + FTS; the biggest cost and the true unlock), plus
    fastembed→CoreML (medium), pymupdf→PDFKit (medium), lance→sqlite-vec (medium-large).
@@ -422,7 +422,7 @@ expresses it; the cost is a data-layer swap, tracked not taken.
 ## PythonKit-Mac IN-PROCESS ASGI PROBE — VIABLE for unary, SSE cannot stream (2026-07-20)
 
 Headless SwiftPM probe (throwaway, nothing added to repo). Swift → libpython →
-imported the REAL `fichero.api.main` app → drove it with `httpx.ASGITransport` →
+imported the REAL `fichero_server.api.main` app → drove it with `httpx.ASGITransport` →
 **200 with real health JSON, no subprocess, no socket.** Proven end-to-end.
 
 - Cold import of the app in-process: **2.08s** (matches pure-Python ~2s — confirms

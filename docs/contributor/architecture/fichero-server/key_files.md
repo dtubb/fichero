@@ -6,11 +6,11 @@
 
 | File | Purpose |
 |---|---|
-| `src/fichero/api/main.py` | FastAPI app — route registration, feature-tier resolver, lifespan |
+| `src/fichero_server/api/main.py` | FastAPI app — route registration, feature-tier resolver, lifespan |
 | `src/fichero_backend/__main__.py` | Briefcase bundle entry point — env detection, hot-reload, port checks |
-| `src/fichero/__init__.py` | Package version |
+| `src/fichero_server/__init__.py` | Package version |
 
-## API Routes (`src/fichero/api/routes/`)
+## API Routes (`src/fichero_server/api/routes/`)
 
 ### Core (always registered)
 - `activity.py` — Workflow execution event stream (SSE)
@@ -83,7 +83,7 @@
 | `graph_reasoning.py` | NetworkX graph analysis (centrality, communities, clustering) |
 | `orchestration_policy.py` | Workflow orchestration rules |
 
-## Workflow System (`src/fichero/workflows/`)
+## Workflow System (`src/fichero_server/workflows/`)
 
 | File | Purpose |
 |---|---|
@@ -104,7 +104,7 @@
 | `action_store.py` | Action persistence |
 | `model_comparison.py` | Multi-model response comparison |
 
-## Loaders (`src/fichero/loaders/`)
+## Loaders (`src/fichero_server/loaders/`)
 
 | File | Purpose |
 |---|---|
@@ -116,7 +116,7 @@
 | `iiif_loader.py` | IIIF manifest fetching |
 | `base.py` | Base loader interface |
 
-## Integrations (`src/fichero/integrations/`)
+## Integrations (`src/fichero_server/integrations/`)
 
 | File | Purpose |
 |---|---|

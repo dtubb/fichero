@@ -1,6 +1,6 @@
 # Feature Tiers
 
-Fichero's contributor-facing feature tier system has one source of truth: [`features.yaml`](../../features.yaml). `python scripts/gen_feature_tiers.py` regenerates three derived artifacts from it: the Swift tier map in [`fichero/fichero/Models/FeatureTiers.generated.swift`](../../fichero/fichero/Models/FeatureTiers.generated.swift), the backend route-tier data in [`fichero-engine/src/fichero/api/feature_tiers_generated.py`](../../fichero-engine/src/fichero/api/feature_tiers_generated.py), and the public matrix in [`docs/user/features.md`](../user/features.md).
+Fichero's contributor-facing feature tier system has one source of truth: [`features.yaml`](../../features.yaml). `python scripts/gen_feature_tiers.py` regenerates three derived artifacts from it: the Swift tier map in [`fichero/fichero/Models/FeatureTiers.generated.swift`](../../fichero/fichero/Models/FeatureTiers.generated.swift), the backend route-tier data in [`fichero-server/src/fichero_server/api/feature_tiers_generated.py`](../../fichero-server/src/fichero_server/api/feature_tiers_generated.py), and the public matrix in [`docs/user/features.md`](../user/features.md).
 
 ## Tiers
 
@@ -13,14 +13,14 @@ Fichero's contributor-facing feature tier system has one source of truth: [`feat
 | 3 | `beta` | Tester-facing candidate. |
 | 4 | `release` | Publicly shipped. |
 
-The generated backend route sets implement a maturity floor: a build tier `T` exposes features and routes whose maturity rank is greater than or equal to `T`. [`CUMULATIVE_ROUTE_PREFIXES`](../../fichero-engine/src/fichero/api/feature_tiers_generated.py:190) shows that rule directly:
+The generated backend route sets implement a maturity floor: a build tier `T` exposes features and routes whose maturity rank is greater than or equal to `T`. [`CUMULATIVE_ROUTE_PREFIXES`](../../fichero-server/src/fichero_server/api/feature_tiers_generated.py:190) shows that rule directly:
 
 - `release` includes `release` routes only.
 - `beta` includes `beta` and `release` routes.
 - `alpha` includes `alpha`, `beta`, and `release` routes.
 - `dev` includes every tier.
 
-On the app side, the baked tier key is [`FicheroFeatureTier`](../../fichero/fichero/Info.plist:20) and the environment override name is `FICHERO_FEATURE_TIER`. The backend resolves `FICHERO_FEATURE_TIER` in [`resolve_feature_tier()`](../../fichero-engine/src/fichero/api/main.py:1554) with valid values `release`, `beta`, `alpha`, and `dev`, defaulting to `release` on missing or unknown input. In this branch, [`FeatureManager.swift`](../../fichero/fichero/Models/FeatureManager.swift:23) reads `activeBuildTier` from the baked `FicheroFeatureTier` Info.plist key, then `FICHERO_FEATURE_TIER`, then defaults to `.dev`. `isVisible(_:)` enforces the maturity floor with `FeatureTiers.map[key]!.tier.rank >= activeBuildTier.rank`, and each `isXEnabled` property gates its stored flag behind `isVisible(key) && (allFeaturesEnabled || flag)`, so `allFeaturesEnabled` still cannot surface features below the active build tier. [`isDevFeatureTier`](../../fichero/fichero/Models/FeatureManager.swift:170) is now deprecated shorthand for `activeBuildTier == .dev`.
+On the app side, the baked tier key is [`FicheroFeatureTier`](../../fichero/fichero/Info.plist:20) and the environment override name is `FICHERO_FEATURE_TIER`. The backend resolves `FICHERO_FEATURE_TIER` in [`resolve_feature_tier()`](../../fichero-server/src/fichero_server/api/main.py:1554) with valid values `release`, `beta`, `alpha`, and `dev`, defaulting to `release` on missing or unknown input. In this branch, [`FeatureManager.swift`](../../fichero/fichero/Models/FeatureManager.swift:23) reads `activeBuildTier` from the baked `FicheroFeatureTier` Info.plist key, then `FICHERO_FEATURE_TIER`, then defaults to `.dev`. `isVisible(_:)` enforces the maturity floor with `FeatureTiers.map[key]!.tier.rank >= activeBuildTier.rank`, and each `isXEnabled` property gates its stored flag behind `isVisible(key) && (allFeaturesEnabled || flag)`, so `allFeaturesEnabled` still cannot surface features below the active build tier. [`isDevFeatureTier`](../../fichero/fichero/Models/FeatureManager.swift:170) is now deprecated shorthand for `activeBuildTier == .dev`.
 
 ## Promotion
 

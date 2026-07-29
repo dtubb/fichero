@@ -1,4 +1,4 @@
-# fichero-engine — Python / FastAPI backend
+# fichero-server — Python / FastAPI backend
 
 The engine is where all the logic lives. The SwiftUI app, the `fichero` CLI, and
 the MCP server are thin clients over its HTTP surface. It ingests documents,
@@ -15,14 +15,14 @@ This file keeps only what is specific to the engine: its layout and how it works
 
 | Path | What |
 |---|---|
-| `src/fichero/` | The package: API, workflows, KG, ingest, storage, providers, CLI |
-| `src/fichero/api/` | FastAPI app (`api/main.py` → `app`) and ~90 route modules under `api/routes/` |
-| `src/fichero/workflows/` | LangGraph workflow engine, tool registry, graph builder |
-| `src/fichero/kg/` | Knowledge graph: entities, claims, aggregation, curation |
-| `src/fichero/loaders/` | Text extraction (PDF, DOCX, images, …) |
-| `src/fichero/cli/` | Typed CLI mirroring the engine's HTTP surface (`openapi_surface_generated.py`) |
-| `src/fichero/db.py` | DuckDB + LanceDB storage |
-| `src/fichero/models.py` | Pydantic models |
+| `src/fichero_server/` | The package: API, workflows, KG, ingest, storage, providers, CLI |
+| `src/fichero_server/api/` | FastAPI app (`api/main.py` → `app`) and ~90 route modules under `api/routes/` |
+| `src/fichero_server/workflows/` | LangGraph workflow engine, tool registry, graph builder |
+| `src/fichero_server/kg/` | Knowledge graph: entities, claims, aggregation, curation |
+| `src/fichero_server/loaders/` | Text extraction (PDF, DOCX, images, …) |
+| `src/fichero_server/cli/` | Typed CLI mirroring the engine's HTTP surface (`openapi_surface_generated.py`) |
+| `src/fichero_server/db.py` | DuckDB + LanceDB storage |
+| `src/fichero_server/models.py` | Pydantic models |
 | `src/engine/` | Briefcase entry point wrapper for the bundled backend app |
 | `tests/` | `unit/`, `integration/`, `contracts/` |
 | `pyproject.toml` | Package + Briefcase config; console scripts (`fichero`, `fichero-mcp`) |
@@ -37,7 +37,7 @@ form, from the repo root:
 brew install python@3.12
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -e 'fichero-engine[dev]'
+pip install -e 'fichero-server[dev]'
 pip install pytest ruff
 ```
 
@@ -52,23 +52,23 @@ runtime dependency.
 The package then runs from source on `PYTHONPATH`. From the repo root:
 
 ```bash
-PYTHONPATH=fichero-engine/src .venv/bin/python -c "import fichero"
+PYTHONPATH=fichero-server/src .venv/bin/python -c "import fichero_server"
 ```
 
-`PYTHONPATH=fichero-engine/src` is required for every Python command.
+`PYTHONPATH=fichero-server/src` is required for every Python command.
 
 ## Run
 
 **The engine must serve HTTPS.** The SwiftUI app pins `https://127.0.0.1:8765`
 fail-closed, so a plain-HTTP server is unreachable. Use the supported launcher —
 it prepares loopback TLS material, persists the SPKI pin, and runs uvicorn with
-`--ssl-*` (and scopes `--reload` to `fichero-engine/src`):
+`--ssl-*` (and scopes `--reload` to `fichero-server/src`):
 
 ```bash
-bash fichero-engine/scripts/start_backend.sh
+bash fichero-server/scripts/start_backend.sh
 ```
 
-> Do **not** run a bare `uvicorn fichero.api.main:app --port 8765` for the app —
+> Do **not** run a bare `uvicorn fichero_server.api.main:app --port 8765` for the app —
 > it serves HTTP and the pinned client cannot connect.
 
 For remote / off-network access, the engine still binds loopback only and is
@@ -78,8 +78,8 @@ fronted by `tailscale serve` (never funnel) — see
 ## Test and lint
 
 The exact `pytest` and `ruff` commands (and who runs the full suite) live in the root
-[AGENTS.md](../AGENTS.md). The short form: focused `pytest fichero-engine/tests/unit/`
-and `ruff check fichero-engine/src/`, both with `PYTHONPATH=fichero-engine/src`.
+[AGENTS.md](../AGENTS.md). The short form: focused `pytest fichero-server/tests/unit/`
+and `ruff check fichero-server/src/`, both with `PYTHONPATH=fichero-server/src`.
 
 ## Contributing
 
@@ -112,7 +112,7 @@ workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
 ## MCP server
 
 `fichero-mcp` exposes engine capabilities to MCP-aware agents
-(`src/fichero/mcp_server.py`; `fichero-mcp-simple` is a minimal variant).
+(`src/fichero_server/mcp_server.py`; `fichero-mcp-simple` is a minimal variant).
 
 ## Keep the Swift client in sync
 
@@ -120,7 +120,7 @@ When routes or schemas change, regenerate and copy the OpenAPI schema into the
 Swift package the app consumes:
 
 ```bash
-./fichero-engine/scripts/sync_openapi_schema.sh
+./fichero-server/scripts/sync_openapi_schema.sh
 ```
 
 ## Bundle the backend app
@@ -130,15 +130,15 @@ Briefcase is a **build tool**, not a runtime dependency. `build_backend_bundle.s
 dedicated venv, and prints this if it finds neither:
 
 ```bash
-python3.13 -m venv fichero-engine/.briefcase-venv
-fichero-engine/.briefcase-venv/bin/pip install briefcase
+python3.13 -m venv fichero-server/.briefcase-venv
+fichero-server/.briefcase-venv/bin/pip install briefcase
 ```
 
 (That 3.13 is the interpreter that *runs* Briefcase. It is unrelated to the 3.12 that
 Briefcase *bundles into the shipped app* — `python_version = "3.12"` in `pyproject.toml`.)
 
 ```bash
-./fichero-engine/scripts/build_backend_bundle.sh
+./fichero-server/scripts/build_backend_bundle.sh
 ```
 
 ### macOS only — iOS and iPadOS cannot embed the engine
@@ -154,8 +154,8 @@ So the engine ships two ways:
 
 | Target | How it reaches the engine |
 |---|---|
-| **macOS (Release)** | Embedded. The app bundles `Fichero Engine.app` and spawns it. |
-| **macOS (Debug)** | External. Run `fichero-engine/scripts/start_backend.sh` on `:8765`. |
+| **macOS (Release)** | Embedded. The app bundles `Fichero Server.app` and spawns it. |
+| **macOS (Debug)** | External. Run `fichero-server/scripts/start_backend.sh` on `:8765`. |
 | **iOS / iPadOS** | **Remote only.** No local engine, ever. The app connects to an engine on another machine (paired host, or `tailscale serve`). |
 
 `EngineConfig.swift` encodes this: on macOS it probes the local engine first and
@@ -170,7 +170,7 @@ in-process is a bug. iOS/iPadOS see the engine solely over HTTPS.
 ## Clean local generated artifacts
 
 ```bash
-./fichero-engine/scripts/clean_local_artifacts.sh
+./fichero-server/scripts/clean_local_artifacts.sh
 ```
 
 ## OCR vs HTR model guidance

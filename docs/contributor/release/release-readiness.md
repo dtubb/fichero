@@ -44,7 +44,7 @@ Audited against the repo on **2026-06-27**. Version in `project.pbxproj`:
    individually** (`--options runtime --timestamp`), then re-seals every bundle
    innermost-first. **Do NOT replace with `codesign --deep`** — `--deep` skips
    the 800+ loose `.so`/`.dylib` Python extensions inside the embedded
-   `Fichero Engine.app`, and Apple rejects them as ad-hoc (#2662).
+   `Fichero Server.app`, and Apple rejects them as ad-hoc (#2662).
 2. Spot-check (engine binary, a `_duckdb…so`, `Sparkle.framework`): expect
    `Developer ID` authority, `flags=0x10000(runtime)`, a timestamp.
 3. `scripts/notarize.sh build/releases/Fichero.dmg` → `status: Accepted` →

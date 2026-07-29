@@ -12,7 +12,7 @@ local models; it does not assume the whole feature is unbuilt.
 
 ### LLM call path
 
-- `src/fichero/llm.py` is the real model call path.
+- `src/fichero_server/llm.py` is the real model call path.
 - LangChain is the primary routing path for networked and OpenAI-compatible
   providers.
 - LiteLLM is metadata-only here: model catalog, pricing, and capability lookup.
@@ -20,7 +20,7 @@ local models; it does not assume the whole feature is unbuilt.
 
 ### Apple Foundation Models backend
 
-- Provider type `apple` is registered in `src/fichero/providers.py` as a local,
+- Provider type `apple` is registered in `src/fichero_server/providers.py` as a local,
   built-in provider with no API key.
 - The actual Apple call path is not LangChain today. `llm.py` routes
   `provider=="apple"` to the Swift `fm-bridge` subprocess because the public
@@ -48,9 +48,9 @@ local models; it does not assume the whole feature is unbuilt.
 ### Packaging and build hooks
 
 - `pyproject.toml` already declares `resources/bin/*` as package data.
-- `fichero-engine/scripts/build_backend_bundle.sh` compiles `bin/fm-bridge/FmBridge.swift` into
-  `src/fichero/resources/bin/fm-bridge` before Briefcase packaging.
-- `fichero-engine/scripts/bundle_python_backend.sh` stages the same bridge into the packaged
+- `fichero-server/scripts/build_backend_bundle.sh` compiles `bin/fm-bridge/FmBridge.swift` into
+  `src/fichero_server/resources/bin/fm-bridge` before Briefcase packaging.
+- `fichero-server/scripts/bundle_python_backend.sh` stages the same bridge into the packaged
   site-packages path for the Python bundle flow.
 
 ## Target architecture

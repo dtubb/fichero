@@ -1,7 +1,7 @@
 # Engine package reorg — staged plan (de-risks #2566)
 
 **Status:** PLAN ONLY. No files are moved and no code is changed by this document.
-**Scope:** `fichero-engine/src/fichero/` — reorganize the ~77 loose top-level
+**Scope:** `fichero-server/src/fichero_server/` — reorganize the ~77 loose top-level
 `*.py` modules into domain subpackages, staged and shim-protected so the
 hundreds of import sites never break at once.
 **Related:** #2569 (api/routes grouping) and #2594 (execution subsystem
@@ -15,21 +15,21 @@ Three facts discovered while surveying the tree change the risk calculus:
 
 1. **The pattern is already proven in-repo.** The entire `importers/` domain has
    *already* been moved into `fichero/importers/`. Example —
-   `fichero-engine/src/fichero/importers/ingest.py` is the canonical implementation
+   `fichero-server/src/fichero_server/importers/ingest.py` is the canonical implementation
    path for ingest now. The old top-level compatibility shim has since been removed,
    so new documentation and imports should name the package path directly.
 
 2. **A second, weaker shim style is also present — do not copy it.**
    `knowledge_models.py` (blast **291**) and `hermeneutics_models.py` (blast 17)
    have already been moved into `knowledge/` but were shimmed with a bare
-   `from fichero.knowledge.knowledge_models import *  # noqa` — **no `sys.modules`
+   `from fichero_server.knowledge.knowledge_models import *  # noqa` — **no `sys.modules`
    aliasing**. That re-exports public names but leaves `fichero.knowledge_models`
    a *distinct* module object (identity/`isinstance`/submodule access can diverge).
    Standardize every new shim on the stronger `importers` pattern; optionally
    upgrade these two weak shims while in the area.
 
 3. **Packaging is auto-discovery — no package list to maintain.**
-   `fichero-engine/pyproject.toml` uses `[tool.setuptools.packages.find]` with
+   `fichero-server/pyproject.toml` uses `[tool.setuptools.packages.find]` with
    `where = ["src"]`. New subpackages are picked up automatically **provided each
    has an `__init__.py`**. One operational caveat: an **editable install must be
    re-run** (`pip install -e .`) after adding a brand-new subpackage dir, or the
@@ -45,8 +45,8 @@ Three facts discovered while surveying the tree change the risk calculus:
 ## 1. Domain map
 
 Blast = number of files (engine `src` + `tests`) that import the module, counting
-absolute (`from fichero.X`), relative (`from .X`, `from . import X`), and
-`from fichero import X` forms. The Swift app (`fichero/`) contains no Python
+absolute (`from fichero_server.X`), relative (`from .X`, `from . import X`), and
+`from fichero_server import X` forms. The Swift app (`fichero/`) contains no Python
 imports of these modules, so engine-internal counts are the whole story.
 
 Target packages: **`db/`** (persistence + paths), **`models/`** (pydantic domain
@@ -196,30 +196,30 @@ For every moved module, leave the old top-level path as a one-line
 **module-aliasing shim** (the proven `importers` pattern):
 
 ```python
-# fichero-engine/src/fichero/db.py  (after db.py → db/core.py)
-from fichero.db.core import *; import sys; sys.modules[__name__] = sys.modules["fichero.db.core"]  # noqa
+# fichero-server/src/fichero_server/db.py  (after db.py → db/core.py)
+from fichero_server.db.core import *; import sys; sys.modules[__name__] = sys.modules["fichero_server.db.core"]  # noqa
 ```
 
 Why this exact form and not a bare `import *`:
 - `from … import *` alone re-exports only `__all__`/public names and creates a
   **separate** module object. Identity checks, `isinstance` against classes
-  imported the "old" way, and `fichero.db.SOMESUBMODULE` access can silently
+  imported the "old" way, and `fichero_server.db.SOMESUBMODULE` access can silently
   diverge — the failure mode seen with the weak `knowledge_models` shim.
 - `sys.modules[__name__] = sys.modules["<newpath>"]` makes the old name a true
-  alias: `fichero.db is fichero.db.core` → **one object, zero divergence.**
+  alias: `fichero_server.db is fichero_server.db.core` → **one object, zero divergence.**
 
 **Package `__init__.py` for god-nodes.** When `db.py` becomes the package
 `db/` with `db/core.py`, the shim above lives at the *old* file location
 `fichero/db.py` — but that path is now shadowed by the new `db/` directory
 (you can't have both `db.py` and `db/`). Resolution: put the re-export in
-**`db/__init__.py`** instead, so `from fichero.db import Database` resolves via
+**`db/__init__.py`** instead, so `from fichero_server.db import Database` resolves via
 the package:
 
 ```python
-# fichero-engine/src/fichero/db/__init__.py
-from fichero.db.core import *  # noqa
+# fichero-server/src/fichero_server/db/__init__.py
+from fichero_server.db.core import *  # noqa
 # optionally, explicit public surface:
-from fichero.db.core import Database, connect, ...  # noqa
+from fichero_server.db.core import Database, connect, ...  # noqa
 ```
 
 For a *non*-god-node moved into an existing package (e.g. `providers.py` →
@@ -248,7 +248,7 @@ Path-keyed Python guardrails that will break or go stale on these moves:
 of the Swift-side `check_*.py`.
 
 **Packaging guardrail:** none explicit, but after creating each **new** package
-dir, run `pip install -e fichero-engine` in the test venv so setuptools
+dir, run `pip install -e fichero-server` in the test venv so setuptools
 auto-discovery (`packages.find`, `where=["src"]`) registers it. Confirm every new
 dir has an `__init__.py`.
 
@@ -285,11 +285,11 @@ Interleave-able independent tracks (separate PRs, any time after stage 1):
 ## 6. Per-domain recipe (template + specifics)
 
 **Generic recipe per stage:**
-1. `git mv fichero-engine/src/fichero/<mod>.py fichero-engine/src/fichero/<pkg>/<leaf>.py`
-   (and `touch fichero-engine/src/fichero/<pkg>/__init__.py` if the package is new).
+1. `git mv fichero-server/src/fichero_server/<mod>.py fichero-server/src/fichero_server/<pkg>/<leaf>.py`
+   (and `touch fichero-server/src/fichero_server/<pkg>/__init__.py` if the package is new).
 2. Rewrite in-tree references (engine `src` + `tests`):
    ```bash
-   grep -rlE "fichero\.<mod>\b" fichero-engine/src fichero-engine/tests \
+   grep -rlE "fichero\.<mod>\b" fichero-server/src fichero-server/tests \
      | xargs sed -i '' -E 's/fichero\.<mod>\b/fichero.<pkg>.<leaf>/g'
    ```
    (Optional — the shim means you *can* defer rewrites; but rewriting now keeps
@@ -297,7 +297,7 @@ Interleave-able independent tracks (separate PRs, any time after stage 1):
 3. Add the aliasing shim at the old path (§3), OR the package-`__init__`
    re-export for god-nodes.
 4. Repoint any guardrail from §4 that names the moved path, in the same PR.
-5. `pip install -e fichero-engine` if a new package dir was created.
+5. `pip install -e fichero-server` if a new package dir was created.
 6. Gate: engine pytest `tests/unit/` + `tests/contracts/` (NOT `tests/perf` —
    `scripts/verify_perf.sh` runs that on its own) + all `scripts/check_*.py`
    under the engine venv. Push only if 0 failed.

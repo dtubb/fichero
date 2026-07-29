@@ -14,4 +14,4 @@ Use this after backend pairing changes or before a release candidate.
 8. Confirm non-HTTPS remote pairing, a missing/mismatched SPKI configuration, and non-loopback bootstrap-token use are all rejected fail-closed.
 
 Reference: the automated backend gate for this flow lives in
-`fichero-engine/tests/integration/test_device_pairing_e2e.py`.
+`fichero-server/tests/integration/test_device_pairing_e2e.py`.

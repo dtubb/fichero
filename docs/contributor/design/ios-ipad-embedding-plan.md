@@ -10,11 +10,11 @@ Date: 2026-07-06
 
 The shipped backend is a Briefcase-packaged macOS app, not an iOS target.
 
-- `fichero-engine/pyproject.toml` defines one Briefcase app, `tool.briefcase.app.engine`, with a `[tool.briefcase.app.engine.macOS]` section and no iOS briefcase target.
+- `fichero-server/pyproject.toml` defines one Briefcase app, `tool.briefcase.app.engine`, with a `[tool.briefcase.app.engine.macOS]` section and no iOS briefcase target.
 - The current bundle assumes a nested macOS backend app (`docs/contributor/bundling-backend.md`).
 - The frontend currently pins iOS/iPadOS as a remote-client surface, not an embedded-engine surface:
   - `fichero/fichero/Services/EngineConfig.swift`: “iOS/iPadOS never runs a local engine.”
-  - `fichero-engine/tests/unit/test_check_ios_remote_client_target.py` guards that posture.
+  - `fichero-server/tests/unit/test_check_ios_remote_client_target.py` guards that posture.
 
 So the starting point is not “port the existing embedded backend to iPad.” The starting point is “decide whether an iPad should embed any subset of this engine at all.”
 
@@ -22,7 +22,7 @@ So the starting point is not “port the existing embedded backend to iPad.” T
 
 ### 2.1 Core bundle deps declared today
 
-`fichero-engine/pyproject.toml` ships these in the core Briefcase engine:
+`fichero-server/pyproject.toml` ships these in the core Briefcase engine:
 
 - Core/server: `fastapi`, `uvicorn[standard]`, `websockets`, `python-multipart`, `python-dotenv`, `aiofiles`, `aiohttp`, `httpx`, `defusedxml`, `cryptography`, `zeroconf`
 - Data: `pydantic`, `pydantic-settings`, `duckdb`, `lancedb`, `pylance`
@@ -38,7 +38,7 @@ The same file explicitly keeps these out of the default bundle as optional heavy
 
 ### 2.2 Additional imports present in source
 
-The source tree imports more than the core manifest, mostly behind optional or platform-specific paths. The significant ones I verified in `fichero-engine/src/` are:
+The source tree imports more than the core manifest, mostly behind optional or platform-specific paths. The significant ones I verified in `fichero-server/src/` are:
 
 - macOS-only Apple bridges: `Quartz`, `Vision`, `Foundation`, `Speech`, `rubicon.objc`
 - optional ML / extraction: `cv2`, `numpy`, `rawpy`, `rembg`, `pykeen`, `torch`, `transformers`, `spacy`, `rdflib`, `whisper`, `docling`, `libxmp`, `cld3`
@@ -156,7 +156,7 @@ This ties directly to the follow-up platform-shim work the user referenced (`#20
 The engine already thinks in per-library terms:
 
 - `db_manager.py` manages per-library database instances.
-- authz is per-library (`fichero-engine/src/fichero/security/authz.py`).
+- authz is per-library (`fichero-server/src/fichero_server/security/authz.py`).
 - change/activity streams are per-library.
 - the Swift app already carries per-library/remote library concepts (`LibraryManager`, `LibraryReference`, `LibraryLocationDescriptor`).
 

@@ -5,14 +5,14 @@
 Fichero is a two-part system:
 
 - `fichero/`: native macOS SwiftUI app (UI/client)
-- `fichero-engine/`: Python FastAPI backend (API/workflows/storage/AI)
+- `fichero-server/`: Python FastAPI backend (API/workflows/storage/AI)
 
 ## Runtime model
 
 ```text
 fichero (SwiftUI app)
     -> HTTPS (127.0.0.1:8765, loopback-only, cert-pinned)
-fichero-engine (FastAPI)
+fichero-server (FastAPI)
     -> DuckDB + LanceDB
     -> workflow engine + tools
     -> LLM providers
@@ -33,7 +33,7 @@ library paths only under the allowlisted user-data roots:
 - any roots listed in `FICHERO_LIBRARY_ALLOWED_ROOTS` (os.pathsep-separated),
   plus folders the app has granted via a security-scoped bookmark
 
-(The authoritative list is `_is_allowed_library_path` in `fichero-engine/src/fichero/api/main.py`.)
+(The authoritative list is `_is_allowed_library_path` in `fichero-server/src/fichero_server/api/main.py`.)
 
 The `.fichero` suffix is still required. When Desktop/Documents are synced to
 iCloud, macOS may expose `~/Documents` as a symlink into Mobile Documents; the
@@ -48,7 +48,7 @@ than deleting databases.
 ## Canonical architecture docs
 
 - Audited mutation path / action registry: `docs/contributor/architecture/action_layer.md`
-- API/backend architecture: `docs/contributor/architecture/fichero-engine/overview.md`
+- API/backend architecture: `docs/contributor/architecture/fichero-server/overview.md`
 - AI infrastructure and model policy: `docs/contributor/architecture/ai_infrastructure.md`
 - Image editing backend strategy: `docs/contributor/architecture/image_editing_backend_strategy.md`
 - Pi in-app agent harness: `docs/contributor/architecture/pi_agent_harness.md`
@@ -61,6 +61,6 @@ than deleting databases.
 
 ```bash
 # repo root
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-server/src .venv/bin/uvicorn fichero_server.api.main:app --port 8765
 open fichero/fichero.xcodeproj
 ```

@@ -111,10 +111,10 @@ see §2.
   and `requestGraphReveal(entityId:)` (bumps `graphRevealRequestToken`, watched
   by `ContentView` to switch into Knowledge Graph mode).
 - **Gap (this is the crux of requirement 4):** this whole mechanism is Swift-only.
-  `fichero-engine/src/fichero/mcp/document_tools.py` exposes `fichero_get_document`
+  `fichero-mcp/src/fichero_mcp/document_tools.py` exposes `fichero_get_document`
   with only a `document_id` param — no page, no bbox, no "reveal"/"navigate" tool at
   all. There is no engine endpoint, no OpenAPI schema, and no audited action
-  (`fichero-engine/src/fichero/actions/registry.py`, EPIC #1848) for "resolve/reveal
+  (`fichero-server/src/fichero_server/actions/registry.py`, EPIC #1848) for "resolve/reveal
   a location." An in-app Agent (model-as-user) or an external MCP client today has
   **no way** to point at "page 12, this bbox, in the Preview" — only a human clicking
   a citation can do that, through a NotificationCenter round-trip that never leaves
@@ -171,7 +171,7 @@ see §2.
 
 ### 0.6 The reversible node model / audited action layer
 
-- `fichero-engine/src/fichero/actions/registry.py` — the single audited write path
+- `fichero-server/src/fichero_server/actions/registry.py` — the single audited write path
   (EPIC #1848 keystone #2013): `ActionContext`, `ActionResult`, `ChangeSpec`. Every
   mutation goes through `invoke()`: validate → `execute()` → mandatory audit row →
   best-effort `emit_change`. A pure-read "resolve/reveal a location" is NOT a mutation

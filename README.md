@@ -9,7 +9,7 @@ Fichero lets you use AI tools to transcribe, extract metadata, make catalogue en
 AI and machine language tools are incredibly powerful, and Fichero's aim here is to make them more navigable and transparent for people.
 
 
-Under the hood, Fichero is an app written in SwiftUI and Python. It is both a native Mac, iOS, and iPad app. It is powered by Fichero Engine, which is written in Python. The engine uses many of the same Python tools that many AI applications, websites, and services rely on: DuckDB, LanceDB, LangChain, LangGraph. 
+Under the hood, Fichero is an app written in SwiftUI and Python. It is both a native Mac, iOS, and iPad app. It is powered by Fichero Server, which is written in Python. The engine uses many of the same Python tools that many AI applications, websites, and services rely on: DuckDB, LanceDB, LangChain, LangGraph. 
 
 Fichero is model-agnostic. It works with open-source models as well as
 commercial providers, you only need to get yourself an API key. If you have a powerful enough computer you can run models locally. It can connect to Apple Intelligence and Apple Foundation models, to run AI models locally. It can also connect to local providers (e.g., MLX, Ollama, and LM Studio), as well as commercial ones (OpenRouter, Claude, Codex, Gemini, and others.)

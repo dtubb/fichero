@@ -123,7 +123,7 @@ Tests: `nil` → omitted; empty/whitespace → omitted; a real version → `"Eng
 
 Already filed and correct as written. **Blocked by the in-flight release** — it
 rewrites the exact machinery the release stamps (`project.pbxproj`,
-`fichero-engine/pyproject.toml`, `scripts/set-release-version.sh`,
+`fichero-server/pyproject.toml`, `scripts/set-release-version.sh`,
 `RELEASE_NOTES.md`). Not touching any of those files in this milestone.
 
 Refinements to fold in when it is green-lit:

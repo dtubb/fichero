@@ -1,4 +1,4 @@
-<!-- Verified against fichero-engine/src/fichero/actions/registry.py, db.py, api/routes/* (2026-07-18). -->
+<!-- Verified against fichero-server/src/fichero_server/actions/registry.py, db.py, api/routes/* (2026-07-18). -->
 
 # Action Layer — Current Architecture
 
@@ -8,7 +8,7 @@ describes what is on `main` today and marks remaining rollout work as planned.
 ## What exists now
 
 Fichero has a shipped backend action registry in
-`fichero-engine/src/fichero/actions/registry.py`. The registry is the canonical
+`fichero-server/src/fichero_server/actions/registry.py`. The registry is the canonical
 audited mutation path for routes that have been folded onto it.
 
 The core pieces are built:
@@ -67,7 +67,7 @@ observer updates.
 ## Eager schema reconciliation on the write path
 
 The other part of the current write-path hardening lives in
-`fichero-engine/src/fichero/db/`.
+`fichero-server/src/fichero_server/db/`.
 
 `Database.save(...)`, `save_many(...)`, `delete(...)`, and the main query/count
 helpers call `_ensure_table(...)` before using a model's table. `_ensure_table`
