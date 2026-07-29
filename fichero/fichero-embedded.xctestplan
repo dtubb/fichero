@@ -17,9 +17,7 @@
         "ColdLaunchReachesLibraryUITests\/testColdEmbeddedLaunchReachesLibraryWithoutEverOfferingRecovery()",
         "LaunchPerformanceUITests\/testColdLaunchPerformance()",
         "LibraryLoadingIsNotAnOutageUITests\/testHealthyLaunchNeverClaimsTheEngineIsUnreachable()",
-        "LibrarySmokeUITests\/testLaunchShowsLibraryWindowWithoutCrashing()",
-        "LibrarySmokeUITests\/testEmbeddedEngineLaunchRestoresLibraryAfterReadiness()",
-        "ToolbarModeLaunchStressUITests\/testLaunchStressWorkflowChainsToolbarNoCrash()"
+        "LibrarySmokeUITests\/testLaunchShowsLibraryWindowWithoutCrashing()"
       ],
       "target" : {
         "containerPath" : "container:fichero.xcodeproj",

@@ -72,40 +72,12 @@ final class LibrarySmokeUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground, "App left the foreground after launch.")
     }
 
-    /// Runs only in an embedded macOS scheme. It exercises the real startup
-    /// ordering with one saved library, while keeping all data under the test
-    /// support directory.
-    @MainActor
-    func testEmbeddedEngineLaunchRestoresLibraryAfterReadiness() throws {
-        let embeddedApp = XCUIApplication()
-        embeddedApp.launchArguments = ["--uitesting", "--uitesting-embedded"]
-        embeddedApp.launchEnvironment = [
-            "FICHERO_UITEST_HOME": tempHome.path,
-            "FICHERO_UITEST_RESTORE_LIBRARY": "1",
-            "FICHERO_ALL_FEATURES": "1"
-        ]
-
-        embeddedApp.launch()
-
-        XCTAssertTrue(
-            embeddedApp.wait(for: .runningForeground, timeout: 45),
-            "Embedded engine launch did not reach the foreground."
-        )
-        XCTAssertTrue(
-            embeddedApp.windows.firstMatch.waitForExistence(timeout: 15),
-            "No window appeared after embedded engine launch."
-        )
-        // Give the bundled engine time to bind and the deferred saved-library
-        // restore time to run. The unit test covers the ordering predicate;
-        // this exercises the real app process and engine bundle together.
-        Thread.sleep(forTimeInterval: 10)
-        XCTAssertEqual(
-            embeddedApp.state,
-            .runningForeground,
-            "App left the foreground while restoring a saved library after engine readiness."
-        )
-        embeddedApp.terminate()
-    }
+    // The former testEmbeddedEngineLaunchRestoresLibraryAfterReadiness was
+    // folded into ColdLaunchReachesLibraryUITests (#4246): that test already
+    // performs the one embedded launch, waits on the readiness identifier
+    // instead of a blind 10s sleep, and now also restores a saved library and
+    // asserts the window exists. This class keeps only the no-engine liveness
+    // smoke above.
 
     // Flow 5 — the in-content view-mode icon rail was removed (#2032):
     // presentation lives in the View menu (LibraryLayoutSection, ⌘1–4), not in

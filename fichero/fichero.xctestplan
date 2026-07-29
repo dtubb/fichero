@@ -16,11 +16,9 @@
       },
       "skippedTests": [
         "ColdLaunchReachesLibraryUITests",
-        "InspectorFlowsUITests",
         "LaunchPerformanceUITests",
         "LibraryLoadingIsNotAnOutageUITests",
-        "LibrarySmokeUITests",
-        "ToolbarModeLaunchStressUITests"
+        "LibrarySmokeUITests"
       ]
     },
     {

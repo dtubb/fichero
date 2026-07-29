@@ -6,13 +6,11 @@
 //  open the inspector, and assert live data loads — so the connection/inspector
 //  regressions we just fixed are caught automatically instead of by hand.
 //
-//  These are the data-dependent flows LibrarySmokeUITests explicitly deferred
-//  ("select a document + open the inspector … need a seeded backend"). Each test
-//  provisions its OWN hermetic backend via `UITestEngineHarness`: a disposable
-//  `.fichero` library seeded (by the shared Python seeder) with a document that
-//  HAS knowledge-graph entities, served by an engine on a private Unix-domain
-//  socket. The app is pointed at that socket with `FICHERO_FORCE_UDS_PATH`, so
-//  nothing here touches the developer's real library or a shared dev backend.
+//  Runs on the shared UI session (#4246): FicheroUISessionTests provisions ONE
+//  seeded UDS engine + ONE app launch for the whole run; these tests drive that
+//  instance. The seeded library contains a document with knowledge-graph
+//  entities (the shared Python seeder), and the session launches with that
+//  document opened into the detail pane, so both flows start from their subject.
 //
 //  Regressions guarded:
 //   - EntityService transport fix — a document's inspector entity list LOADS
@@ -21,9 +19,9 @@
 //   - KG WKWebView-over-UDS bypass — the reader's KG web pane renders real
 //     content instead of the "unavailable" / URLError -1004 fallback. The
 //     engine-side bridge for full-page KG navigation over UDS is NOT landed yet
-//     (see DocumentKGWebPane.makeNSView's comment + the report), so that
-//     assertion is wrapped in `XCTExpectFailure`: it documents the pending fix
-//     and keeps the suite green until the bridge lands. See
+//     (see DocumentKGWebPane.makeNSView's comment), so that assertion is
+//     wrapped in `XCTExpectFailure`: it documents the pending fix and keeps the
+//     suite green until the bridge lands. See
 //     `testDocumentKGWebPaneRendersNotUnavailable_pendingKGBridge`.
 //
 //  RUN REQUIREMENT: XCUITest drives the app in a real GUI session — these time
@@ -33,107 +31,31 @@
 
 import XCTest
 
-// @MainActor on the CLASS: XCUIApplication and friends are main-actor in the
-// macOS 26 SDK, and XCTest runs actor-isolated test classes on their actor -
-// this isolates setUp/tearDown/tests together with no per-call bridging.
 @MainActor
-final class InspectorFlowsUITests: XCTestCase {
-    // ONE seeded engine for the whole class, not one per test: both tests are
-    // READ-ONLY against the fixture, so the per-test respawn bought nothing
-    // but an extra seeder run + uvicorn spawn per test. Spawned lazily in the
-    // first setUp (class-level setUp cannot throw an XCTSkip), torn down in
-    // the class tearDown; the harness's atexit/parent-PID backstops cover a
-    // crashed run. `nonisolated(unsafe)`: statics on a @MainActor class are
-    // otherwise actor-isolated, and the nonisolated class tearDown must reach
-    // them; all access happens on XCTest's serial test execution, never
-    // concurrently.
-    nonisolated(unsafe) private static var sharedHarness: UITestEngineHarness?
-    nonisolated(unsafe) private static var sharedSeeded: UITestEngineHarness.SeededLibrary?
-    nonisolated(unsafe) private static var provisioningError: Error?
-
-    private var seeded: UITestEngineHarness.SeededLibrary!
-    private var app: XCUIApplication!
-
-    /// The seeded document that carries entities (person + place + org via two
-    /// claims) — the meaningful "entities load" fixture. Its id is fixed by the
-    /// seeder (seed_test_library.py: DOC_LETTER_ID) and referenced by name.
-    private var letterDocumentId: String { seeded.ids["doc_letter"] ?? "test-doc-letter" }
-
-    /// Generous ceiling: the engine's cold import (~2s) plus the app reaching the
-    /// library over UDS. The waits below end the instant the target appears, so a
-    /// healthy run never pays the whole budget.
-    private let readyTimeout: TimeInterval = 120
+final class InspectorFlowsUITests: FicheroUISessionTests {
 
     override func setUp() async throws {
-        continueAfterFailure = false
-
-        if Self.sharedHarness == nil, Self.provisioningError == nil {
-            let harness = UITestEngineHarness()
-            do {
-                Self.sharedSeeded = try harness.start()
-                Self.sharedHarness = harness
-            } catch {
-                Self.provisioningError = error
-            }
-        }
-        if let error = Self.provisioningError {
-            // No venv / seeder / repo on this machine — skip rather than red. The
-            // harness is self-describing about what it couldn't find.
-            throw XCTSkip("Could not provision the UI-test engine: \(error)")
-        }
-        seeded = Self.sharedSeeded
+        try await super.setUp()
 
         // Sanity: the fixture is only meaningful if it actually holds entities.
         XCTAssertGreaterThan(
             seeded.expected["entities"] ?? 0, 0,
             "Seeded library has no entities — the entities-load assertion would be vacuous."
         )
-
-        app = XCUIApplication()
-        app.launchArguments = ["--uitesting"]
-        app.launchEnvironment = [
-            // Inert host + UDS override → the app dials OUR seeded engine over the
-            // private socket (no TCP, no TLS, no token). See EngineConfig+Launch.
-            "FICHERO_FORCE_UDS_PATH": seeded.socketPath,
-            // Disposable Application Support + the seeded library to open, plus the
-            // specific document to open straight into the detail/inspector.
-            "FICHERO_UITEST_HOME": seeded.appHomePath,
-            "FICHERO_UITEST_LIBRARY": seeded.libraryPath,
-            "FICHERO_UITEST_OPEN_DOCUMENT": letterDocumentId,
-            // Unlock the knowledge inspector/reader surfaces (gated off by default).
-            "FICHERO_ALL_FEATURES": "1"
-        ]
-    }
-
-    override func tearDown() async throws {
-        app?.terminate()
-    }
-
-    override nonisolated class func tearDown() {
-        sharedHarness?.stop()
-        sharedHarness = nil
-        sharedSeeded = nil
-        provisioningError = nil
-        super.tearDown()
     }
 
     // MARK: - Entities load (regression guard for the EntityService transport fix)
 
-    /// Open the seeded document → open the inspector's Knowledge ▸ Entities facet
-    /// → assert the entity list is NON-EMPTY. This is the exact flow that surfaced
-    /// the live "0 entities" bug; it must PASS on the current fixed build.
+    /// Open the seeded document's inspector Knowledge ▸ Entities facet and
+    /// assert the entity list is NON-EMPTY. This is the exact flow that
+    /// surfaced the live "0 entities" bug; it must PASS on the current build.
     @MainActor
     func testDocumentInspectorLoadsSeededEntities() throws {
-        app.launch()
-        XCTAssertTrue(
-            app.wait(for: .runningForeground, timeout: 30),
-            "App did not reach the foreground — likely crashed on launch."
-        )
         waitForLibraryReady()
 
-        // The launch hook (FICHERO_UITEST_OPEN_DOCUMENT) opens the letter into the
-        // detail pane; the inspector sidebar is shown by default. Select the
-        // Knowledge section, then its Entities facet.
+        // The session launch hook (FICHERO_UITEST_OPEN_DOCUMENT) opened the
+        // letter into the detail pane; the inspector sidebar is shown by
+        // default. Select the Knowledge section, then its Entities facet.
         let knowledgeSection = app.buttons["inspectorSection-Knowledge"]
         XCTAssertTrue(
             knowledgeSection.waitForExistence(timeout: readyTimeout),
@@ -185,11 +107,6 @@ final class InspectorFlowsUITests: XCTestCase {
     /// the wrapper and let this become a normal passing guard.
     @MainActor
     func testDocumentKGWebPaneRendersNotUnavailable_pendingKGBridge() throws {
-        app.launch()
-        XCTAssertTrue(
-            app.wait(for: .runningForeground, timeout: 30),
-            "App did not reach the foreground — likely crashed on launch."
-        )
         waitForLibraryReady()
 
         // Into the reader's Knowledge tab, then its Graph sub-mode (a WebKit view).
@@ -234,20 +151,5 @@ final class InspectorFlowsUITests: XCTestCase {
                 "KG web pane showed the 'unavailable' fallback instead of real content over UDS."
             )
         }
-    }
-
-    // MARK: - Helpers
-
-    /// Block until the library content is ready (the same oracle the cold-launch
-    /// test uses). `library.content.ready` sits on a container, so query ANY type.
-    @MainActor
-    private func waitForLibraryReady() {
-        let ready = app.descendants(matching: .any)
-            .matching(identifier: "library.content.ready").firstMatch
-        XCTAssertTrue(
-            ready.waitForExistence(timeout: readyTimeout),
-            "Library never reached `library.content.ready` within \(Int(readyTimeout))s — "
-            + "the app never connected to the seeded UDS engine."
-        )
     }
 }
