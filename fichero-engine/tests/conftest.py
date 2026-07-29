@@ -397,3 +397,69 @@ def mock_db(monkeypatch):
     mock = MagicMock()
     monkeypatch.setattr(db_manager, "get_database", lambda _path: mock)
     return mock
+
+
+# =============================================================================
+# fichero.api.main pollution guard (#4243)
+# =============================================================================
+# Several suites `importlib.reload(fichero.api.main)` with auth env flipped to
+# test postures. When a restore path is missing (posture_parity), or restores
+# under the WRONG env (device_pairing_e2e reloads "back" while monkeypatch's
+# FICHERO_MULTIUSER=1 is still set), the process keeps an app whose middleware
+# differs from the suite default — and every later TestClient 401s. 26 tests
+# failed order-dependently in the full run; all green standalone.
+#
+# This guard notices the drift after each module and rebuilds the module under
+# the suite-default env, turning silent cross-suite pollution into a bounded,
+# local repair. Middleware COUNT is the signal because it is what breaks auth;
+# a same-count reload is harmless churn and left alone.
+
+_API_MAIN_BASELINE_MW: list[int] = []
+_API_MAIN_AUTH_ENV = (
+    "FICHERO_MULTIUSER",
+    "FICHERO_TLS_SPKI_HASH",
+    "FICHERO_TAILNET_URL",
+)
+
+
+def _restore_api_main_defaults() -> None:
+    """Reload fichero.api.main under the suite-default auth env."""
+    import importlib
+    import sys
+
+    module = sys.modules.get("fichero.api.main")
+    if module is None:
+        return
+    saved = {k: os.environ.get(k) for k in ("FICHERO_DISABLE_AUTH", *_API_MAIN_AUTH_ENV)}
+    os.environ["FICHERO_DISABLE_AUTH"] = "1"
+    for key in _API_MAIN_AUTH_ENV:
+        os.environ.pop(key, None)
+    try:
+        importlib.reload(module)
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _api_main_pollution_guard():
+    yield
+    import sys
+
+    module = sys.modules.get("fichero.api.main")
+    app = getattr(module, "app", None) if module else None
+    if app is None:
+        return
+    count = len(getattr(app, "user_middleware", []))
+    if not _API_MAIN_BASELINE_MW:
+        # Lazy baseline: the first module to touch api.main under the suite
+        # default env defines "healthy". ponytail: if that first module were
+        # itself a polluter the baseline would be wrong — today's first is
+        # integration/test_action_library (clean, mw=3).
+        _API_MAIN_BASELINE_MW.append(count)
+        return
+    if count != _API_MAIN_BASELINE_MW[0]:
+        _restore_api_main_defaults()
