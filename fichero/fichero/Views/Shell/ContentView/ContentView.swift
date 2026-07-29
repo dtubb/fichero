@@ -31,7 +31,11 @@ struct ContentView: View {
     static let defaultPreferredCompactColumn: NavigationSplitViewColumn = .detail
     static let sidebarMinWidth: Double = 160
     static let inspectorMinWidth: Double = 220
-    static let inspectorMaxWidth: Double = 420
+    /// Mac-native rule (#4287): the SPLITTER owns width within sane bounds and
+    /// inner content fills what it's given. 420 was an artificial ceiling that
+    /// forced text to wrap on wide windows; this cap exists only to stop a
+    /// drag from swallowing the whole window.
+    static let inspectorMaxWidth: Double = 800
     static let contentMinWidth: Double = 520
     static let contentMaxWidth: Double = 2200
     /// Minimum width of the widescreen content-list pane. Clamped to the

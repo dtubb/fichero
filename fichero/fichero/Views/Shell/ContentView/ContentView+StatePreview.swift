@@ -4,6 +4,15 @@ import SwiftUI
 
 extension ContentView {
 
+    /// Restore-time clamp for the persisted inspector width: the exact bounds
+    /// the splitter enforces (`inspectorMinWidth...inspectorMaxWidth`), so a
+    /// user-dragged width survives relaunch instead of being squeezed by a
+    /// divergent hardcoded cap (#4287). Pure and `nonisolated` so tests pin it
+    /// off-main (View statics inherit MainActor under the macOS 26 SDK).
+    nonisolated static func restoredInspectorWidth(_ raw: Double) -> Double {
+        min(max(raw, inspectorMinWidth), inspectorMaxWidth)
+    }
+
     /// Extracted from the view's `.onAppear` closure to keep `ContentView.body`
     /// within the Swift type-checker's complexity budget (the inline closure
     /// pushed the whole body over the "unable to type-check in reasonable time"
@@ -16,8 +25,9 @@ extension ContentView {
         }
         // Clamp to a sane range. SceneStorage can hold stale/corrupted values
         // from previous sessions (e.g., values written during layout animations).
-        // 400 is a generous practical maximum for an inspector panel.
-        inspectorWidth = min(max(inspectorWidth, ContentView.inspectorMinWidth), 400)
+        // Clamps to the SAME bounds the splitter enforces (#4287) — a stray
+        // hardcoded 400 here silently shrank a user's wider pane every launch.
+        inspectorWidth = Self.restoredInspectorWidth(inspectorWidth)
         contentWidth = min(
             max(contentWidth, ContentView.contentMinWidth),
             ContentView.contentMaxWidth
