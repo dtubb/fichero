@@ -802,8 +802,13 @@ class TestGetLangchainLlm:
 
         from unittest.mock import AsyncMock
         fake_model = MagicMock()
-        fake_model.invoke.return_value = MagicMock(content="Hello from stub")
-        fake_model.ainvoke = AsyncMock(return_value=MagicMock(content="Hello from stub"))
+        # The default agent loop (#2067) binds tools and inspects tool_calls on
+        # the response — make bind_tools return the same stub and give the
+        # response an empty tool_calls list so the loop terminates.
+        stub_response = MagicMock(content="Hello from stub", tool_calls=[])
+        fake_model.invoke.return_value = stub_response
+        fake_model.ainvoke = AsyncMock(return_value=stub_response)
+        fake_model.bind_tools.return_value = fake_model
 
         monkeypatch.setattr(
             "fichero_server.api.routes.chat.get_langchain_model",

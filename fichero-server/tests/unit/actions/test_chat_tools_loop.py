@@ -121,13 +121,15 @@ def _stub_llm(monkeypatch, llm):
 
 
 # ---------------------------------------------------------------------------
-# Flag OFF — single-shot RAG unchanged
+# Kill switch OFF — single-shot RAG unchanged
 # ---------------------------------------------------------------------------
 
 
-def test_flag_off_single_shot_has_no_tool_calls(client, monkeypatch):
-    monkeypatch.delenv("FICHERO_CHAT_TOOLS", raising=False)
-    _stub_llm(monkeypatch, _ScriptedToolLLM([_resp(content="plain answer")]))
+def test_kill_switch_forces_single_shot_with_no_tool_calls(client, monkeypatch):
+    """FICHERO_CHAT_TOOLS=0 restores the single-shot RAG path (#2067)."""
+    monkeypatch.setenv("FICHERO_CHAT_TOOLS", "0")
+    llm = _ScriptedToolLLM([_resp(content="plain answer")])
+    _stub_llm(monkeypatch, llm)
 
     r = client.post("/api/chat", json={"message": "hello"})
 
@@ -135,6 +137,77 @@ def test_flag_off_single_shot_has_no_tool_calls(client, monkeypatch):
     data = r.json()
     assert data["message"] == "plain answer"
     assert data["tool_calls"] == []
+    # Single-shot means the tools were never even bound.
+    assert llm.bound_tools is None
+
+
+# ---------------------------------------------------------------------------
+# Default (no env var) — the agent loop IS the chat path (#2067)
+# ---------------------------------------------------------------------------
+
+
+def test_default_runs_agent_loop_and_dispatches_read_tool(
+    client, db, monkeypatch, demo_actions
+):
+    """With no flag set, the audited read-only agent loop is the default."""
+    monkeypatch.delenv("FICHERO_CHAT_TOOLS", raising=False)
+    llm = _ScriptedToolLLM(
+        [
+            _resp(tool_calls=[{"name": "demo_read", "args": {"value": "hi"}, "id": "c1"}]),
+            _resp(content="grounded by a tool"),
+        ]
+    )
+    _stub_llm(monkeypatch, llm)
+
+    r = client.post("/api/chat", json={"message": "look something up"})
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["message"] == "grounded by a tool"
+    assert len(data["tool_calls"]) == 1
+    call = data["tool_calls"][0]
+    assert call["action_name"] == "demo.read"
+    assert call["status"] == "ok"
+    assert call["audit_id"]
+    assert db.get(ActionAudit, call["audit_id"]) is not None
+
+
+def test_default_model_without_bind_tools_falls_back_to_single_shot(
+    client, monkeypatch
+):
+    """A model/provider with no tool support degrades to single-shot, not 500."""
+    monkeypatch.delenv("FICHERO_CHAT_TOOLS", raising=False)
+
+    class _NoToolsLLM:
+        # No bind_tools attribute at all — binding raises AttributeError.
+        async def ainvoke(self, messages):
+            return _resp(content="plain single-shot answer")
+
+    _stub_llm(monkeypatch, _NoToolsLLM())
+
+    r = client.post("/api/chat", json={"message": "hello"})
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["message"] == "plain single-shot answer"
+    assert data["tool_calls"] == []
+
+
+def test_default_llm_error_still_raises_never_silent(client, monkeypatch):
+    """An LLM failure inside the default loop surfaces as an error, not a fake answer."""
+    monkeypatch.delenv("FICHERO_CHAT_TOOLS", raising=False)
+
+    class _BrokenLLM:
+        def bind_tools(self, tools):
+            return self
+
+        async def ainvoke(self, messages):
+            raise RuntimeError("provider exploded")
+
+    _stub_llm(monkeypatch, _BrokenLLM())
+
+    with pytest.raises(RuntimeError, match="provider exploded"):
+        client.post("/api/chat", json={"message": "hello"})
 
 
 # ---------------------------------------------------------------------------

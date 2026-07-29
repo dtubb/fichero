@@ -559,25 +559,34 @@ def _build_history_messages(
 
 
 # ---------------------------------------------------------------------------
-# Chat-tools agent loop (#1847 / #3) — DEFAULT-OFF, READS-ONLY
+# Chat-tools agent loop (#1847 / #3 / #2067) — DEFAULT-ON, READS-ONLY
 # ---------------------------------------------------------------------------
 #
-# Wires the fully-built-but-unwired `fichero_server.actions.chat_tools` generator +
-# dispatcher into the live chat handler. Gated behind FICHERO_CHAT_TOOLS so the
-# single-shot RAG path is byte-for-byte unchanged when the flag is off. This
-# slice only exposes and dispatches actions flagged `read_only=True`; a mutating
-# tool call is refused (recorded, never invoked) pending a write-policy review
-# (EPIC #1848).
+# Wires the `fichero_server.actions.chat_tools` generator + dispatcher into the
+# live chat handler. The loop is the DEFAULT chat path (#2067 — the Research
+# surface chats with the library through audited tools); FICHERO_CHAT_TOOLS=0
+# is the kill switch back to the single-shot RAG path. This slice only exposes
+# and dispatches actions flagged `read_only=True`; a mutating tool call is
+# refused (recorded, never invoked) pending a write-policy review (EPIC #1848).
+# A model/provider that cannot bind tools degrades gracefully to single-shot
+# inside `_run_chat_tools_loop` rather than failing the turn.
 
-_CHAT_TOOLS_TRUTHY = {"1", "true", "yes", "on"}
+_CHAT_TOOLS_FALSY = {"0", "false", "no", "off"}
 
 # Bound the agent loop so a misbehaving model cannot spin forever.
 MAX_CHAT_TOOL_ITERATIONS = 4
 
 
 def _chat_tools_enabled() -> bool:
-    """Whether the read-only chat-tools agent loop is enabled (default off)."""
-    return os.environ.get("FICHERO_CHAT_TOOLS", "").strip().lower() in _CHAT_TOOLS_TRUTHY
+    """Whether the read-only chat-tools agent loop is enabled (default ON).
+
+    ``FICHERO_CHAT_TOOLS=0`` (or false/no/off) disables the loop and restores
+    the single-shot RAG path unchanged.
+    """
+    return (
+        os.environ.get("FICHERO_CHAT_TOOLS", "").strip().lower()
+        not in _CHAT_TOOLS_FALSY
+    )
 
 
 async def _run_chat_tools_loop(
@@ -611,7 +620,19 @@ async def _run_chat_tools_loop(
     from fichero_server.actions.registry import ActionNotFoundError  # noqa: PLC0415
 
     tools = action_tools(read_only=True)
-    bound = llm.bind_tools(tools) if tools else llm
+    try:
+        bound = llm.bind_tools(tools) if tools else llm
+    except (AttributeError, NotImplementedError, ValueError) as exc:
+        # Now that the loop is the default (#2067), a model/provider without
+        # tool-calling support must degrade to the single-shot RAG answer, not
+        # fail the whole turn. The degradation is visible: tool_calls is [].
+        logger.warning(
+            "chat tools unavailable for this model (%s); falling back to "
+            "single-shot RAG",
+            exc,
+        )
+        response = await llm.ainvoke(list(messages))
+        return getattr(response, "content", ""), []
 
     convo = list(messages)
     tool_calls: list[ToolCall] = []
