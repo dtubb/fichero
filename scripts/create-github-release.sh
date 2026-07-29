@@ -62,8 +62,8 @@ if [ "$DRY_RUN" = false ]; then
     exit 1
   fi
 
-  if [ ! -d "$APP_PATH" ]; then
-    echo "error: Release app not found at $APP_PATH" >&2
+  if [ ! -d "$APP_PATH" ] && [ ! -d "$STAGED_APP_PATH" ]; then
+    echo "error: Release app not found at $APP_PATH or $STAGED_APP_PATH" >&2
     exit 1
   fi
 
