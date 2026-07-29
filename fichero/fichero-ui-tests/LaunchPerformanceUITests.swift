@@ -27,6 +27,10 @@
 
 import XCTest
 
+// @MainActor on the CLASS: XCUIApplication and friends are main-actor in the
+// macOS 26 SDK, and XCTest runs actor-isolated test classes on their actor -
+// this isolates setUp/tearDown/tests together with no per-call bridging.
+@MainActor
 final class LaunchPerformanceUITests: XCTestCase {
     /// Must match `LaunchProfile.signposter`'s subsystem.
     private static let subsystem = "app.fichero.fichero"
@@ -37,7 +41,7 @@ final class LaunchPerformanceUITests: XCTestCase {
 
     private var tempHome: URL!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
         // #4238: each measured iteration spawns the embedded engine; without a
         // runnable bundle the measurement polls to its deadline instead.
@@ -47,10 +51,11 @@ final class LaunchPerformanceUITests: XCTestCase {
         try FileManager.default.createDirectory(at: tempHome, withIntermediateDirectories: true)
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         if let tempHome { try? FileManager.default.removeItem(at: tempHome) }
     }
 
+    @MainActor
     private func makeApp() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--uitesting-embedded"]

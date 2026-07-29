@@ -16,6 +16,10 @@
 
 import XCTest
 
+// @MainActor on the CLASS: XCUIApplication and friends are main-actor in the
+// macOS 26 SDK, and XCTest runs actor-isolated test classes on their actor -
+// this isolates setUp/tearDown/tests together with no per-call bridging.
+@MainActor
 final class ColdLaunchReachesLibraryUITests: XCTestCase {
     private var app: XCUIApplication!
     private var tempHome: URL!
@@ -37,7 +41,7 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
     /// heartbeat ticks.
     private let settleWindow: TimeInterval = 15
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         // #4238: FAIL FAST when this build cannot supply an embedded engine.
         // Not a skip — a skipped launch test means the shipping launch path
         // has no coverage. Without this the launch never becomes ready and the
@@ -59,7 +63,7 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
         ]
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         app?.terminate()
         if let tempHome { try? FileManager.default.removeItem(at: tempHome) }
     }

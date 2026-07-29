@@ -35,6 +35,10 @@
 
 import XCTest
 
+// @MainActor on the CLASS: XCUIApplication and friends are main-actor in the
+// macOS 26 SDK, and XCTest runs actor-isolated test classes on their actor -
+// this isolates setUp/tearDown/tests together with no per-call bridging.
+@MainActor
 final class ToolbarModeLaunchStressUITests: XCTestCase {
     /// The crash is render-timing dependent. Three launches keep the normal
     /// embedded-engine gate practical while still rebuilding the toolbar more
@@ -45,14 +49,14 @@ final class ToolbarModeLaunchStressUITests: XCTestCase {
 
     private var tempHome: URL!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
         tempHome = FileManager.default.temporaryDirectory
             .appendingPathComponent("fichero-toolbar-stress-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempHome, withIntermediateDirectories: true)
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         if let tempHome { try? FileManager.default.removeItem(at: tempHome) }
     }
 
@@ -128,6 +132,7 @@ final class ToolbarModeLaunchStressUITests: XCTestCase {
     /// toolbar rebuild triggered by the mode switch, so give the rebuild a beat
     /// to complete + any NSException to surface, then assert the app is still
     /// foregrounded (a crash flips it to `.notRunning`).
+    @MainActor
     private func assertStillForeground(
         _ app: XCUIApplication,
         iteration: Int,

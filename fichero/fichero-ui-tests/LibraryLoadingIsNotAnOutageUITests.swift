@@ -20,13 +20,17 @@
 
 import XCTest
 
+// @MainActor on the CLASS: XCUIApplication and friends are main-actor in the
+// macOS 26 SDK, and XCTest runs actor-isolated test classes on their actor -
+// this isolates setUp/tearDown/tests together with no per-call bridging.
+@MainActor
 final class LibraryLoadingIsNotAnOutageUITests: XCTestCase {
     private var app: XCUIApplication!
     private var tempHome: URL!
 
     private let launchDeadline: TimeInterval = 120
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
         // #4238: same polling pathology as ColdLaunch — a missing embedded
         // engine means 120s of full-tree snapshots instead of a failure.
@@ -44,7 +48,7 @@ final class LibraryLoadingIsNotAnOutageUITests: XCTestCase {
         ]
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         app?.terminate()
         if let tempHome { try? FileManager.default.removeItem(at: tempHome) }
     }

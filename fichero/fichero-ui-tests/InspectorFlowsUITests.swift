@@ -33,6 +33,10 @@
 
 import XCTest
 
+// @MainActor on the CLASS: XCUIApplication and friends are main-actor in the
+// macOS 26 SDK, and XCTest runs actor-isolated test classes on their actor -
+// this isolates setUp/tearDown/tests together with no per-call bridging.
+@MainActor
 final class InspectorFlowsUITests: XCTestCase {
     private var harness: UITestEngineHarness!
     private var seeded: UITestEngineHarness.SeededLibrary!
@@ -48,7 +52,7 @@ final class InspectorFlowsUITests: XCTestCase {
     /// healthy run never pays the whole budget.
     private let readyTimeout: TimeInterval = 120
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
 
         harness = UITestEngineHarness()
@@ -82,7 +86,7 @@ final class InspectorFlowsUITests: XCTestCase {
         ]
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         app?.terminate()
         harness?.stop()
     }
