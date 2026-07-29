@@ -60,8 +60,18 @@ private func findContractsDirectory() -> URL {
     starts.append(URL(fileURLWithPath: fileManager.currentDirectoryPath))
 
     for start in starts {
-        var current = start
-        while true {
+        var current = start.standardizedFileURL
+        // Bounded walk-up. The old `while true` relied on
+        // `parent.path == current.path` to stop at the root — but for
+        // directory-flavored URLs (Bundle.bundleURL exactly), Foundation's
+        // deletingLastPathComponent does NOT converge at "/": it keeps
+        // yielding non-equal parents forever. When the build products live
+        // OUTSIDE the repo (isolated SYMROOT, clean DerivedData) no candidate
+        // ever matched, the loop never exited, and each iteration allocated
+        // ever-longer path strings — 13.6 GB of CFStrings before the host was
+        // killed (#4264). Root check + depth cap make termination
+        // unconditional.
+        for _ in 0..<64 {
             let candidate = current
                 .appendingPathComponent("fichero-engine")
                 .appendingPathComponent("tests")
@@ -70,7 +80,8 @@ private func findContractsDirectory() -> URL {
                 return candidate
             }
 
-            let parent = current.deletingLastPathComponent()
+            if current.path == "/" { break }
+            let parent = current.deletingLastPathComponent().standardizedFileURL
             if parent.path == current.path { break }
             current = parent
         }
