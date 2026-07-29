@@ -92,6 +92,46 @@ struct CanvasResolveTests {
         )
         #expect(state.placeables.first?.size == CGSize(width: 120, height: 80))
     }
+
+    // MARK: - Selection is the LIBRARY selection (#4192)
+
+    /// The canvas used to hold its own `spatialSelectedNodeId` that nothing
+    /// read back, so a row selected in List was not selected after switching to
+    /// Canvas, and a card clicked on the Canvas never reached the inspector.
+    /// `LibraryView.canvasSelectedNodeId` translates between the two, and what
+    /// lands in the scene must be a placeable that actually exists.
+    @Test("a library selection resolves to a placeable in the scene")
+    func librarySelectionAddressesARealPlaceable() {
+        var state = CanvasSceneState.resolve(
+            nodes: [
+                node(SpatialLibraryProjector.nodeId(forDocument: "doc-1")),
+                node(SpatialLibraryProjector.nodeId(forDocument: "doc-2"))
+            ],
+            connections: [], links: [], layoutRows: [], items: []
+        )
+        let nodeId = LibraryView.canvasNodeId(forSelection: ["doc-2"])
+        state.selection = nodeId.map { [$0] } ?? []
+
+        #expect(state.selection == ["doc:doc-2"])
+        #expect(state.placeables.contains { $0.id == "doc:doc-2" })
+    }
+
+    /// The full round trip: click a card, get the same document back.
+    @Test("selecting a card round-trips to the same document id")
+    func selectionRoundTrips() {
+        let nodeId = LibraryView.canvasNodeId(forSelection: ["doc-7"])
+        #expect(LibraryView.librarySelection(forCanvasNodeId: nodeId) == ["doc-7"])
+    }
+
+    /// `resolve` never invents a selection — it stays controller-owned and is
+    /// applied by the caller.
+    @Test("resolve leaves selection empty for the caller to apply")
+    func resolveOwnsNoSelection() {
+        let state = CanvasSceneState.resolve(
+            nodes: [node("doc:doc-1")], connections: [], links: [], layoutRows: [], items: []
+        )
+        #expect(state.selection.isEmpty)
+    }
 }
 
 // MARK: - Diff

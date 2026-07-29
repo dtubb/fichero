@@ -134,7 +134,8 @@ struct LibraryView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     @State var entities: [Components.Schemas.KnowledgeEntity] = []
-    @State private var spatialSelectedNodeId: String?
+    // Canvas/spatial selection is NOT separate state: it is `selection`,
+    // translated through `canvasSelectedNodeId` (#4192).
     @State private var cachedLibraryProjection = SpatialLibraryProjection(nodes: [], links: [])
 
     @State var isLoadingEntities = false
@@ -282,7 +283,15 @@ struct LibraryView: View {
         } else if let activeErrorMessage {
             errorState(message: activeErrorMessage)
         } else if isCollectionEmpty {
-            emptyState
+            // "Empty folder" and "contents not here yet" looked identical, so a
+            // folder click or a drop showed "No Documents" and then relaid out
+            // when the data landed (#4235). Show what is already in flight.
+            let placeholder = emptyCollectionPlaceholder
+            if placeholder == .empty {
+                emptyState
+            } else {
+                contentPlaceholderState(placeholder)
+            }
         } else {
             switch displayMode {
             case .icon:
@@ -319,7 +328,7 @@ struct LibraryView: View {
             CanvasSpaceView(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: $spatialSelectedNodeId,
+                selectedNodeId: canvasSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
@@ -330,7 +339,7 @@ struct LibraryView: View {
             SpaceSceneView(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: $spatialSelectedNodeId,
+                selectedNodeId: canvasSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
@@ -354,7 +363,7 @@ struct LibraryView: View {
             CanvasSceneView(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: $spatialSelectedNodeId,
+                selectedNodeId: canvasSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
@@ -365,7 +374,7 @@ struct LibraryView: View {
             Spatial2DCanvas(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: $spatialSelectedNodeId,
+                selectedNodeId: canvasSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
