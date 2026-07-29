@@ -305,9 +305,18 @@ final class UITestEngineHarness {
     /// transport or an app-group socket location.
     private static func shortSocketPath(runID: String) -> String {
         let shortID = String(runID.replacingOccurrences(of: "-", with: "").prefix(10))
-        let path = (NSTemporaryDirectory() as NSString)
-            .appendingPathComponent("fut-\(shortID).sock")
-        return path
+        // The app under test is SANDBOXED — including Dev Local (verified on
+        // the built product's entitlements, 2026-07-29). A sandboxed app can
+        // only connect to an AF_UNIX socket inside its OWN container; the
+        // runner's NSTemporaryDirectory is the RUNNER's container, which is
+        // how every session suite failed with connect EPERM (#4194). Bind
+        // where the dev run-loop already proved the app can reach: the app
+        // container's tmp. Still under the sun_path ~104-byte limit (~88).
+        let containerTmp = (realHome as NSString).appendingPathComponent(
+            "Library/Containers/app.fichero.fichero/Data/tmp")
+        try? FileManager.default.createDirectory(
+            atPath: containerTmp, withIntermediateDirectories: true)
+        return (containerTmp as NSString).appendingPathComponent("fut-\(shortID).sock")
     }
 
     // MARK: - Repo root
