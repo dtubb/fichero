@@ -60,7 +60,7 @@ def _shipped_lists() -> dict[str, list[str]]:
     """
     data = _pyproject()
     # #4227 renamed the briefcase app key engine -> server.
-    briefcase = data["tool"]["briefcase"]["app"]["server"]
+    briefcase = data["tool"]["briefcase"]["app"]["fichero_server"]
     return {
         "briefcase.requires": briefcase.get("requires", []),
         "project.dependencies": data["project"]["dependencies"],
