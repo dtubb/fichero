@@ -21,22 +21,22 @@ __pycache__/
 .ruff_cache/
 .venv/
 .venv-deps/
-fichero-engine/.venv/
+fichero-server/.venv/
 venv/
 .ipynb_checkpoints/
-fichero-engine/.briefcase/
-fichero-engine/.briefcase-venv/
-fichero-engine/.pytest_cache/
-fichero-engine/.mypy_cache/
+fichero-server/.briefcase/
+fichero-server/.briefcase-venv/
+fichero-server/.pytest_cache/
+fichero-server/.mypy_cache/
 # Disposable base path for the Swift integration-test harness (EngineHarness)
-fichero-engine/.itest-base/
+fichero-server/.itest-base/
 
 # Build / generated
 .build/
 build/
 dist/
 logs/
-fichero-engine/src/fichero/cli/generated/
+fichero-cli/src/fichero_cli/generated/
 
 # MkDocs site (build output + local docs venv)
 _site_build/
@@ -112,9 +112,9 @@ STATE.md
 MEMORY.md
 
 # engine runtime/build artifacts
-fichero-engine/logs/
-fichero-engine/dist/
-fichero-engine/build/
+fichero-server/logs/
+fichero-server/dist/
+fichero-server/build/
 
 # internal agent scratch (local only)
 agent-work/

@@ -13,7 +13,7 @@ import Foundation
 /// Anything already exported in the environment wins (env-overridable).
 enum InMemoryEngineApp {
     /// Dotted module path of the engine's ASGI application object.
-    private static let engineModule = "fichero.api.main"
+    private static let engineModule = "fichero_server.api.main"
     /// Module-level attribute holding the FastAPI instance (`app = FastAPI(...)`).
     private static let engineAttribute = "app"
 
@@ -27,7 +27,7 @@ enum InMemoryEngineApp {
     /// everyone else, since the guard below only applies a default that exists.
     /// A checkout elsewhere sets `FICHERO_ENGINE_SRC` / `FICHERO_VENV_ROOT`.
     private static let defaultEngineSrc =
-        NSHomeDirectory() + "/code/fichero/fichero-engine/src"
+        NSHomeDirectory() + "/code/fichero/fichero-server/src"
     private static let defaultVenvRoot =
         NSHomeDirectory() + "/code/fichero/.venv"
 

@@ -272,7 +272,7 @@ sense" observation, verified.
 The engine capability is intact; the client orphaned it.**
 
 Evidence, engine side (capability intact):
-- `fichero-engine/src/fichero/api/routes/views.py:37-49`
+- `fichero-server/src/fichero_server/api/routes/views.py:37-49`
   (`_transcript_for_document`): for a parent document it **concatenates the
   `page_content` of ALL child pages, in sequence order**, into one transcript
   string — this is the render-10,000-files-in-one-scroll capability.

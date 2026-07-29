@@ -19,7 +19,7 @@ extend it with a small platform strategy layer:
    foreground/background mask generation.
 
 That split preserves the existing contract in
-[`fichero-engine/src/fichero/api/routes/image_editing.py`](../../../fichero-engine/src/fichero/api/routes/image_editing.py)
+[`fichero-server/src/fichero_server/api/routes/image_editing.py`](../../../fichero-server/src/fichero_server/api/routes/image_editing.py)
 while giving us a future native fast path on Apple without forcing a rewrite of
 the current route or workflow tools.
 
@@ -38,15 +38,15 @@ image transforms, PyMuPDF for PDF page rasterization, and optional OpenCV /
 default for correctness and cross-platform behavior.
 
 The workflow layer already exposes batch-friendly image tools under
-[`fichero-engine/src/fichero/workflows/tools/`](../../../fichero-engine/src/fichero/workflows/tools/):
+[`fichero-server/src/fichero_server/workflows/tools/`](../../../fichero-server/src/fichero_server/workflows/tools/):
 
-- [`prepare_images.py`](../../../fichero-engine/src/fichero/workflows/tools/prepare_images.py)
-- [`rotate_images.py`](../../../fichero-engine/src/fichero/workflows/tools/rotate_images.py)
-- [`enhance_images.py`](../../../fichero-engine/src/fichero/workflows/tools/enhance_images.py)
-- [`fuzzy_clean_images.py`](../../../fichero-engine/src/fichero/workflows/tools/fuzzy_clean_images.py)
-- [`remove_background_images.py`](../../../fichero-engine/src/fichero/workflows/tools/remove_background_images.py)
-- [`segment_images.py`](../../../fichero-engine/src/fichero/workflows/tools/segment_images.py)
-- [`split_images.py`](../../../fichero-engine/src/fichero/workflows/tools/split_images.py)
+- [`prepare_images.py`](../../../fichero-server/src/fichero_server/workflows/tools/prepare_images.py)
+- [`rotate_images.py`](../../../fichero-server/src/fichero_server/workflows/tools/rotate_images.py)
+- [`enhance_images.py`](../../../fichero-server/src/fichero_server/workflows/tools/enhance_images.py)
+- [`fuzzy_clean_images.py`](../../../fichero-server/src/fichero_server/workflows/tools/fuzzy_clean_images.py)
+- [`remove_background_images.py`](../../../fichero-server/src/fichero_server/workflows/tools/remove_background_images.py)
+- [`segment_images.py`](../../../fichero-server/src/fichero_server/workflows/tools/segment_images.py)
+- [`split_images.py`](../../../fichero-server/src/fichero_server/workflows/tools/split_images.py)
 
 Those tools already model the shape we want at scale: per-file processing,
 batch support, and append-only image edit metadata. The scaling work should
@@ -191,7 +191,7 @@ If a field is not declared on the Pydantic model, it is easy to lose it later.
 
 ### Current route implication
 
-[`image_editing.py`](../../../fichero-engine/src/fichero/api/routes/image_editing.py)
+[`image_editing.py`](../../../fichero-server/src/fichero_server/api/routes/image_editing.py)
 still stores edit operations as raw dictionaries inside `ImageEditChain`.
 That is acceptable for the current implementation, but the architecture should
 converge on a typed `ImageEditOperation` model if the edit surface grows or if

@@ -30,7 +30,7 @@ Every claim below is cited to a real symbol.
 
 ### 1.1 Engine — the query path
 
-Router mounted at `/api/search` (`fichero-engine/src/fichero/api/main.py:1476`). Explain router mounted separately (`main.py:1538`, `api/routes/search/explain.py:25`).
+Router mounted at `/api/search` (`fichero-server/src/fichero_server/api/main.py:1476`). Explain router mounted separately (`main.py:1538`, `api/routes/search/explain.py:25`).
 
 - **`POST /api/search`** → `api/routes/search/core.py:798 enhanced_search`. (Note: there is no `/api/search/enhanced` path — only the *function* is named that.) An empty query short-circuits to `db.recent_content_document_rows`, i.e. a "recent" browse mode.
 - Execution: `core.py:538 _run_content_search_sync` → `db/__init__.py:3944 Database.search`.
@@ -154,7 +154,7 @@ Recommendation: create milestone **"Historical Text"** and move all 14. Mileston
 
 | # | Title | Verdict |
 |---|---|---|
-| 481 | [Release Gate] 0.0.3 — Wire: Search v1 | **CLOSE-AS-WRONG** — 0.0.x gate scheme is retired (releases are now dated, per the dated-releases policy). Its commands reference `fichero-api/src` and `fichero-swiftui/`, directories that no longer exist (now `fichero-engine/` and `fichero/`). The functionality it gates (type → results → click → open) works today. |
+| 481 | [Release Gate] 0.0.3 — Wire: Search v1 | **CLOSE-AS-WRONG** — 0.0.x gate scheme is retired (releases are now dated, per the dated-releases policy). Its commands reference `fichero-api/src` and `fichero-swiftui/`, directories that no longer exist (now `fichero-server/` and `fichero/`). The functionality it gates (type → results → click → open) works today. |
 | 482 | [Release Gate] 0.0.4 — Wire: Search v2 (Filters + Layouts) | **CLOSE-AS-WRONG** — same stale scheme. Its actual content (filters panel wired up) is better tracked by #3245/#3255 and the new filters issue below. |
 | 483 | [Release Gate] 0.0.5 — Wire: Search v3 (Semantic Map + Saved) | **CLOSE-AS-WRONG** — same. "Saved" half is now *contra*-intent; map half survives as #878. |
 

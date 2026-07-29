@@ -43,7 +43,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
-CONTRACT_OPENAPI = ROOT / "fichero-engine" / "tests" / "contracts" / "openapi.json"
+CONTRACT_OPENAPI = ROOT / "fichero-server" / "tests" / "contracts" / "openapi.json"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)

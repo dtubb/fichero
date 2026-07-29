@@ -4,7 +4,7 @@
 
 The Fichero ingest module maps **56 file extensions** to a `FileType`, based on
 the file extension. The authoritative list is `_FILE_TYPE_MAP` in
-`fichero-engine/src/fichero/importers/ingest.py`; the groups below reflect it.
+`fichero-server/src/fichero_server/importers/ingest.py`; the groups below reflect it.
 
 ## File Type Categories
 

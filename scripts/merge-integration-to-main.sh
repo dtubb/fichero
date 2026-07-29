@@ -25,10 +25,10 @@
 
 REGENERATED_FILES=(
   "docs/contributor/api-reference/openapi.json"
-  "fichero-engine/tests/contracts/openapi.json"
+  "fichero-server/tests/contracts/openapi.json"
   "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
   "RELEASE_NOTES.md"
-  "fichero-engine/pyproject.toml"
+  "fichero-server/pyproject.toml"
   "fichero/fichero.xcodeproj/project.pbxproj"
 )
 
@@ -157,12 +157,12 @@ else
   git merge --ff-only "$SOURCE_BRANCH"
   echo
   echo "── Sync generated OpenAPI contracts ──"
-  ./fichero-engine/scripts/sync_openapi_schema.sh
+  ./fichero-server/scripts/sync_openapi_schema.sh
   if ! git diff --quiet; then
     git add docs/contributor/api-reference/openapi.json \
-      fichero-engine/src/fichero/cli/openapi_surface_generated.py \
-      fichero-engine/tests/contracts/endpoints.json \
-      fichero-engine/tests/contracts/openapi.json \
+      fichero-cli/src/fichero_cli/openapi_surface_generated.py \
+      fichero-server/tests/contracts/endpoints.json \
+      fichero-server/tests/contracts/openapi.json \
       fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json
     git commit --author='Claude (GPT-5.6 Terra) <noreply@anthropic.com>' \
       -m 'chore(openapi): sync generated contracts' \

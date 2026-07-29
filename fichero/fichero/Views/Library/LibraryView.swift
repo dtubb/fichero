@@ -636,14 +636,14 @@ extension LibraryView {
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
 
-            Text("Can't Reach the Engine")
+            Text("Can't Reach the Server")
                 .font(.title2)
                 .fontWeight(.semibold)
                 // #3937's assertion target: this claims an outage, so a UI test
                 // has to be able to catch it claiming one on a healthy engine.
                 .accessibilityIdentifier("library.outage")
 
-            Text("Fichero can't reach its engine right now, so this library can't load. Try again in a moment.")
+            Text("Fichero can't reach its server right now, so this library can't load. Try again in a moment.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

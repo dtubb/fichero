@@ -36,7 +36,10 @@ public enum RemoteCertificatePinningError: LocalizedError, Equatable {
 
 // swiftlint:disable:next type_body_length
 public enum RemoteCertificatePinning {
-    public static let engineHostUserDefaultsKey = "fichero.engine.host"
+    public static let engineHostUserDefaultsKey = "fichero.server.host"
+    /// Pre-rename host key (#4227: engine -> server); kept for callers that
+    /// need to read a not-yet-migrated install.
+    public static let legacyEngineHostUserDefaultsKey = "fichero.engine.host"
     public static let legacyAdvertisedSPKIPinUserDefaultsKey = "fichero.remote_access.advertised_spki_pin"
     private static let advertisedSPKIPinUserDefaultsKeyPrefix = "fichero.remote_access.advertised_spki_pin|"
     private static let clientSPKIPinUserDefaultsKeyPrefix = "fichero.remote_access.client_spki_pin|"

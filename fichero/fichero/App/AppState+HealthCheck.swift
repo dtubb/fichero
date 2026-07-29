@@ -104,7 +104,7 @@ extension AppState {
     /// Pure: the `cannotConnectToHost` diagnosis for the active provisioning
     /// strategy (#4064). The release/embedded build must NEVER show a manual
     /// CLI — it spawns its own engine — so only `.debugExternal` (the dev
-    /// runs the engine by hand) keeps the `PYTHONPATH=src python -m fichero.api`
+    /// runs the engine by hand) keeps the `PYTHONPATH=src python -m fichero_server.api`
     /// hint. Pure so the release-vs-debug gating is unit-testable without an
     /// engine / AppKit.
     static func cannotConnectDiagnosis(
@@ -117,10 +117,10 @@ extension AppState {
 
                 Please start the API first:
 
-                PYTHONPATH=src python -m fichero.api
+                PYTHONPATH=src python -m fichero_server.api
                 """
         case .releaseEmbedded, .configuredRemote, .iosCompanion, .inert:
-            return "Cannot connect to the Fichero engine. The engine didn't come up; try restarting the app."
+            return "Cannot connect to the Fichero server. The server didn't come up; try restarting the app."
         }
     }
 }

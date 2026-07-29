@@ -23,7 +23,7 @@
 //
 //  Note on `.inMemory`: the plan called for driving the engine's ASGI app
 //  in-process via `FicheroClient(transportMode: .inMemory)`. That boots CPython
-//  (libpython + `fichero.api.main` import via PythonKit) and needs a real
+//  (libpython + `fichero_server.api.main` import via PythonKit) and needs a real
 //  provisioned library DB for these read endpoints to return anything but a
 //  library-not-found error — indistinguishable from a transport error and not
 //  available in a headless unit test. Per the plan's documented fallback, we

@@ -27,7 +27,7 @@ scripts/release-all.sh
 `--skip-backend` is **internal plumbing, not a flag you pass**: `release-all.sh`
 rebuilds the Briefcase engine once at the top, then hands `--skip-backend` to the
 DMG sub-script so it reuses that engine instead of rebuilding it a second time.
-The engine is always embedded (Xcode's Embed phase copies `Fichero Engine.app`
+The engine is always embedded (Xcode's Embed phase copies `Fichero Server.app`
 into the app). The top-level parser does not accept `--skip-backend` — passing it
 exits with `unknown argument`.
 
@@ -159,8 +159,8 @@ Do not replace this with `codesign --deep`; Apple previously rejected the loose
 Spot-check before notarizing:
 
 ```bash
-STAGE="build/releases/dmg-stage/Fichero.app/Contents/Resources/Fichero Engine.app"
-codesign -dv --verbose=4 "$STAGE/Contents/MacOS/Fichero Engine" 2>&1 | grep -E 'Authority|flags|Timestamp'
+STAGE="build/releases/dmg-stage/Fichero.app/Contents/Resources/Fichero Server.app"
+codesign -dv --verbose=4 "$STAGE/Contents/MacOS/Fichero Server" 2>&1 | grep -E 'Authority|flags|Timestamp'
 codesign -dv --verbose=4 "$STAGE/Contents/Resources/app_packages/_duckdb.cpython-312-darwin.so" 2>&1 | grep -E 'Authority|flags|Timestamp'
 codesign -dv --verbose=4 "build/releases/dmg-stage/Fichero.app/Contents/Frameworks/Sparkle.framework" 2>&1 | grep -E 'Authority|flags|Timestamp'
 ```

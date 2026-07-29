@@ -227,7 +227,7 @@ extension FocusedValues {
 ```bash
 # 1. Start Python backend (REQUIRED)
 cd "$(git rev-parse --show-toplevel)"
-PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+PYTHONPATH=fichero-server/src .venv/bin/uvicorn fichero_server.api.main:app --port 8765
 
 # 2. Open Xcode project
 open Fichero/Fichero.xcodeproj

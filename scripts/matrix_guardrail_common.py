@@ -7,9 +7,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 OPENAPI_CANDIDATES = (
-    ROOT / "fichero-engine" / "openapi.json",
+    ROOT / "fichero-server" / "openapi.json",
     ROOT / "fichero" / "fichero-api-client" / "openapi.json",
-    ROOT / "fichero-engine" / "tests" / "contracts" / "openapi.json",
+    ROOT / "fichero-server" / "tests" / "contracts" / "openapi.json",
     ROOT / "fichero" / "fichero-api-client" / "Sources" / "FicheroAPIClient" / "openapi.json",
     ROOT / "fichero" / "fichero-api-client" / "Sources" / "openapi.json",
 )

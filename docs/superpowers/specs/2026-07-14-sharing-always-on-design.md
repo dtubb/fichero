@@ -43,10 +43,10 @@ Since the milestone opened this morning, four commits already implement pieces o
 
 | Commit | What it did | Issue |
 |---|---|---|
-| `c2a5c8d81` | `test_unpaired_remote_request_is_denied_with_empty_device_set` — the P0 proof that an empty device set denies remote requests (`fichero-engine/tests/unit/test_api_auth.py:63`) | #3779 |
+| `c2a5c8d81` | `test_unpaired_remote_request_is_denied_with_empty_device_set` — the P0 proof that an empty device set denies remote requests (`fichero-server/tests/unit/test_api_auth.py:63`) | #3779 |
 | `1132b4b47` | Deleted the "Certificate SPKI pin" **text field** (the input, not the protection) | #3776 part 1 |
 | `170a6e681` | `pairingStatusMessage` → typed `PairingBlocker` enum: each blocker carries its own headline + fix button (`engineNotRunning → [Start Engine]`, `sharingNotStarted → [Start Sharing]`, `pinNotDerived → [Prepare Certificate]`, `addressMissing` — honest no-button) | #3776/#3769 |
-| `3b8d49b85` | `test_multiuser_denies_unresolved_direct_action_actor` — locks the deny boundary this design must now *move through deliberately* (`fichero-engine/tests/unit/test_multiuser.py:52-56`) | #263 |
+| `3b8d49b85` | `test_multiuser_denies_unresolved_direct_action_actor` — locks the deny boundary this design must now *move through deliberately* (`fichero-server/tests/unit/test_multiuser.py:52-56`) | #263 |
 
 So: **#3779's engine-side verification is DONE and test-locked.** The pairing card's blank-space disease has its first fix. What remains is the structural work: the actor problem (§3–§5), the one-action share (§7), the switch deletion (§8), and the UI consolidation (#3776 rest, #3777).
 
@@ -56,7 +56,7 @@ Established and verified — this section is the foundation everything else stan
 
 ### 2.1 The engine is structurally fail-closed for remote callers
 
-The auth middleware (`fichero-engine/src/fichero/api/auth.py:617-728`) admits exactly four credential shapes:
+The auth middleware (`fichero-server/src/fichero_server/api/auth.py:617-728`) admits exactly four credential shapes:
 
 1. **Session token** (multi-user only): hash-matched against the sessions table (`auth.py:411-432`).
 2. **Device token**: hash-matched against the devices table — `app_db.get_device_by_token_hash(token_hash)`; with an **empty device set no row can match** → `(None, None, "missing or invalid Authorization header")` → 401 (`auth.py:437-441`). The deny is the *absence of a credential*, not a flag being false. Proved by `test_unpaired_remote_request_is_denied_with_empty_device_set` (`tests/unit/test_api_auth.py:63`).
@@ -67,30 +67,30 @@ The auth middleware (`fichero-engine/src/fichero/api/auth.py:617-728`) admits ex
 
 ### 2.2 Transport is separately fail-closed
 
-- The engine binds `127.0.0.1` by default; non-loopback bind requires the explicit risk-acknowledgement env (`FICHERO_ALLOW_NON_LOOPBACK_BIND=I_UNDERSTAND_SHARED_SECRET_RISK`, `fichero-engine/src/fichero/bind_host.py:16-20,47-56`).
-- Remote pairing refuses non-HTTPS and refuses to run without a configured SPKI pin (`fichero-engine/src/fichero/api/routes/pairing.py:357-369`); direct loopback pairing is exempt (`:359-360`) — the local Mac pairing its own phone over the QR channel.
-- Bonjour is advertisement only, "not authorization" by design (`fichero-engine/src/fichero/discovery.py:3-5`).
+- The engine binds `127.0.0.1` by default; non-loopback bind requires the explicit risk-acknowledgement env (`FICHERO_ALLOW_NON_LOOPBACK_BIND=I_UNDERSTAND_SHARED_SECRET_RISK`, `fichero-server/src/fichero_server/bind_host.py:16-20,47-56`).
+- Remote pairing refuses non-HTTPS and refuses to run without a configured SPKI pin (`fichero-server/src/fichero_server/api/routes/pairing.py:357-369`); direct loopback pairing is exempt (`:359-360`) — the local Mac pairing its own phone over the QR channel.
+- Bonjour is advertisement only, "not authorization" by design (`fichero-server/src/fichero_server/discovery.py:3-5`).
 
 ### 2.3 But "always on" is contradicted by three switch layers
 
-1. **Engine gate:** `multiuser_enabled()` defaults **off**; turns on only via `FICHERO_MULTIUSER` env or the persisted `multiuser.enabled` app-db setting (`fichero-engine/src/fichero/multiuser.py:15-39`). No engine code writes that setting (grep: zero `set_setting(MULTIUSER_SETTING_KEY…)` sites) — in practice the env var, derived at launch, is the gate.
-2. **Launcher switches:** `fichero-engine/scripts/start_backend.sh:43-65` reads macOS `defaults` (`fichero.remote_access.enabled`, `fichero.multiuser.enabled`, …); `:114-121` makes `FICHERO_MULTIUSER` **default to 1 only when a public URL is configured**, else 0 — multi-user is coupled to hosting.
+1. **Engine gate:** `multiuser_enabled()` defaults **off**; turns on only via `FICHERO_MULTIUSER` env or the persisted `multiuser.enabled` app-db setting (`fichero-server/src/fichero_server/multiuser.py:15-39`). No engine code writes that setting (grep: zero `set_setting(MULTIUSER_SETTING_KEY…)` sites) — in practice the env var, derived at launch, is the gate.
+2. **Launcher switches:** `fichero-server/scripts/start_backend.sh:43-65` reads macOS `defaults` (`fichero.remote_access.enabled`, `fichero.multiuser.enabled`, …); `:114-121` makes `FICHERO_MULTIUSER` **default to 1 only when a public URL is configured**, else 0 — multi-user is coupled to hosting.
 3. **App switches:** the Mac app passes `FICHERO_MULTIUSER: EngineConfig.multiuserEnabled ? "1" : "0"` at embedded launch (`fichero/Services/EngineConfig.swift:580`), and `multiuserEnabled` defaults **false** with an explicit comment saying why: *"Defaulting ON spawns the backend with FICHERO_MULTIUSER=1, whose fail-closed ACL choke-point then 401/403s the app's own requests so no library loads"* (`EngineConfig.swift:178-186`).
 
 That comment is the whole story: **multi-user always-on is blocked by the actor problem**, not by any security need for a toggle. Solve §3 and every one of these switches becomes deletable.
 
 ## 3. The central problem: multi-user always-on vs direct actions
 
-With `FICHERO_MULTIUSER=1`, every authorization check runs `authz._allowed()` (`fichero-engine/src/fichero/authz.py:235-253`):
+With `FICHERO_MULTIUSER=1`, every authorization check runs `authz._allowed()` (`fichero-server/src/fichero_server/authz.py:235-253`):
 
 ```
 resolve_user(user) is None            → deny        (authz.py:245-248)
 no LibraryRole row for (user, lib)    → deny        (authz.py:251-253)
 ```
 
-`resolve_user` returns `None` for `None`, empty strings, the literal `"system"`, and any string that is not a user id/username in the accounts table (`authz.py:56-75`). So any `ActionContext` whose `actor` is `"system"`, `"workflow"`, `"ui"`, etc. is **denied at the registry choke point** (`fichero-engine/src/fichero/actions/registry.py:186-190`) — proved by `test_multiuser_denies_unresolved_direct_action_actor` (`tests/unit/test_multiuser.py:52-56`).
+`resolve_user` returns `None` for `None`, empty strings, the literal `"system"`, and any string that is not a user id/username in the accounts table (`authz.py:56-75`). So any `ActionContext` whose `actor` is `"system"`, `"workflow"`, `"ui"`, etc. is **denied at the registry choke point** (`fichero-server/src/fichero_server/actions/registry.py:186-190`) — proved by `test_multiuser_denies_unresolved_direct_action_actor` (`tests/unit/test_multiuser.py:52-56`).
 
-There is exactly one escape valve: `ActionContext.is_bootstrap` (`registry.py:55,186`) — contexts built by the `action_context` FastAPI dependency carry the middleware's `bootstrap_auth` flag (`auth.py:534-547`), and the read/write route guards return early for bootstrap (`fichero-engine/src/fichero/api/main.py:1149-1150,1180-1181`). So the local Mac app mostly *works* under multi-user — but it works **anonymously**: in the multi-user branch the bootstrap path sets `request.state.user = None` (`auth.py:676`), `actor_from_request` degrades to `"system"` (`auth.py:474-489`), and every audit row loses attribution (`registry.py:198-207`). Meanwhile everything that does **not** ride an HTTP request with the bootstrap flag — workflows, internal fallbacks, future agents — is dead.
+There is exactly one escape valve: `ActionContext.is_bootstrap` (`registry.py:55,186`) — contexts built by the `action_context` FastAPI dependency carry the middleware's `bootstrap_auth` flag (`auth.py:534-547`), and the read/write route guards return early for bootstrap (`fichero-server/src/fichero_server/api/main.py:1149-1150,1180-1181`). So the local Mac app mostly *works* under multi-user — but it works **anonymously**: in the multi-user branch the bootstrap path sets `request.state.user = None` (`auth.py:676`), `actor_from_request` degrades to `"system"` (`auth.py:474-489`), and every audit row loses attribution (`registry.py:198-207`). Meanwhile everything that does **not** ride an HTTP request with the bootstrap flag — workflows, internal fallbacks, future agents — is dead.
 
 The fix is not to weaken the deny. The deny is correct. The fix is to make **every direct action resolve a real user** — which is also exactly Daniel's #1847 direction (an AI model is a real user account with a role, acting via audited tools).
 
@@ -103,15 +103,15 @@ Every path that reaches the authz choke points, what actor it carries today, wha
 | 1 | **Mac app / local UI** — loopback + bootstrap secret | `request.state.user = None` → actor `"system"`; `is_bootstrap=True` (`auth.py:676,534-547`) | Works via bootstrap bypass, but **audits say "system"**; `ensure_owner_role(None,…)` no-ops so new libraries get **no owner row** | **The owner account.** Reuse `_resolve_single_user_owner()` (`auth.py:550-581`) in the multi-user bootstrap branch too — see §5 |
 | 2 | **Remote device, session token** | Real `AccountUser` (`auth.py:692-697`) | Works | Unchanged |
 | 3 | **Remote device, device token** | Real `AccountUser` via `device.user_id` (`auth.py:707-726`, `models.py:1103-1115`) | Works | Unchanged |
-| 4 | **CLI** (`fichero` command) | Bearer = the per-launch bootstrap shared secret (`fichero-engine/src/fichero/cli/client.py:5,282`) → same as row 1 | Same as row 1 (loopback-only, anonymous) | **The owner account** — the CLI is the owner at their own keyboard. Falls out of the row-1 fix automatically. If CLI-as-another-user is ever wanted, that's a session login (`#2022` notes auth is CLI-only today), not a new mechanism |
+| 4 | **CLI** (`fichero` command) | Bearer = the per-launch bootstrap shared secret (`fichero-cli/src/fichero_cli/client.py:5,282`) → same as row 1 | Same as row 1 (loopback-only, anonymous) | **The owner account** — the CLI is the owner at their own keyboard. Falls out of the row-1 fix automatically. If CLI-as-another-user is ever wanted, that's a session login (`#2022` notes auth is CLI-only today), not a new mechanism |
 | 5 | **Routes with per-route `action_context` dependency** (citations, claims, entities, references, artifacts, sources, bibliography, library_links, actions_registry, library_registry — all build ctx via `Depends(action_context)` / `actor_from_request`) | Whatever the request resolved (rows 1–3) | Follows rows 1–3 | Unchanged mechanism; fixed by row 1 |
-| 6 | **Defensive fallbacks** `ActionContext(actor="system")` when the dependency "isn't an ActionContext" (`fichero-engine/src/fichero/api/routes/claim_links.py:165,218,236`) | `"system"`, `is_bootstrap=False` | **Denied** if ever reached | **Delete the fallbacks.** The dependency always returns an `ActionContext`; a silently-substituted anonymous context is precisely the "silent fallback masks bugs" class (#2430 lesson). Raise instead |
-| 7 | **Workflows** (`fichero-engine/src/fichero/workflows/tools/merge_dedup_only.py:172`, `organize_same_documents.py:90`) | `actor="workflow"` | **Denied** (`resolve_user("workflow") → None`) | **The initiating user**, threaded from the request that started the workflow run; keep `run_id` for the "via workflow" provenance already designed into the audit (`registry.py:47-48,205`). A workflow is never its own principal — someone pressed Run |
-| 8 | **Chat/AI agent tools** (`fichero-engine/src/fichero/actions/chat_tools.py:185-194`) | `actor` is a parameter; the #1847 wiring comment says how it will be connected; **no production caller yet** (grep found none) | Denied unless the passed actor is a real account | **A real user account with a role** — Daniel's #1847 model, verbatim. The AI signs in as itself; its role rows scope what it may touch; audits attribute it honestly (AI-as-instrument requires exactly this) |
+| 6 | **Defensive fallbacks** `ActionContext(actor="system")` when the dependency "isn't an ActionContext" (`fichero-server/src/fichero_server/api/routes/claim_links.py:165,218,236`) | `"system"`, `is_bootstrap=False` | **Denied** if ever reached | **Delete the fallbacks.** The dependency always returns an `ActionContext`; a silently-substituted anonymous context is precisely the "silent fallback masks bugs" class (#2430 lesson). Raise instead |
+| 7 | **Workflows** (`fichero-server/src/fichero_server/workflows/tools/merge_dedup_only.py:172`, `organize_same_documents.py:90`) | `actor="workflow"` | **Denied** (`resolve_user("workflow") → None`) | **The initiating user**, threaded from the request that started the workflow run; keep `run_id` for the "via workflow" provenance already designed into the audit (`registry.py:47-48,205`). A workflow is never its own principal — someone pressed Run |
+| 8 | **Chat/AI agent tools** (`fichero-server/src/fichero_server/actions/chat_tools.py:185-194`) | `actor` is a parameter; the #1847 wiring comment says how it will be connected; **no production caller yet** (grep found none) | Denied unless the passed actor is a real account | **A real user account with a role** — Daniel's #1847 model, verbatim. The AI signs in as itself; its role rows scope what it may touch; audits attribute it honestly (AI-as-instrument requires exactly this) |
 | 9 | **Registry default** `ActionContext.actor = "system"` (`registry.py:51`) | anonymous | Denied wherever defaulted | After rows 6–8 are fixed, make `actor` **required** (no default) so a new caller cannot compile/run anonymously by accident |
 | 10 | **Read guards** `assert_library_read_authorized` / write twin (`api/main.py:1140-1199`) | `request.state.user` | Bootstrap bypasses (`:1149-1150`); users need role rows | Unchanged mechanism; legacy-library role backfill covers the role-row gap (§6) |
-| 11 | **Owner-gated admin routes** (`_require_owner_or_bootstrap`: accounts, providers, provider_keys, settings, mcp_servers, kg curation — `fichero-engine/src/fichero/api/routes/auth_accounts.py:…`) | bootstrap **or** session owner | Works | Unchanged — this helper already implements "local Mac = owner" for admin surfaces |
-| 12 | **Search visibility filters** (`fichero-engine/src/fichero/api/routes/search.py:57,92,108,130`) | bootstrap bypass or per-user `can_read` | Works | Unchanged |
+| 11 | **Owner-gated admin routes** (`_require_owner_or_bootstrap`: accounts, providers, provider_keys, settings, mcp_servers, kg curation — `fichero-server/src/fichero_server/api/routes/auth_accounts.py:…`) | bootstrap **or** session owner | Works | Unchanged — this helper already implements "local Mac = owner" for admin surfaces |
+| 12 | **Search visibility filters** (`fichero-server/src/fichero_server/api/routes/search.py:57,92,108,130`) | bootstrap bypass or per-user `can_read` | Works | Unchanged |
 | 13 | **Pairing routes** (`pairing.py:179-186 _pairing_user`) | single-user: synthesizes/returns an owner account; multi-user: requires session owner or bootstrap | Works | Unchanged in mechanism, but see §5 on the **two competing owner accounts** it can create |
 
 **Summary:** rows 2, 3, 5, 10–13 already behave correctly. The entire "central problem" reduces to: (a) make loopback-bootstrap resolve the owner account under multi-user (rows 1, 4), (b) thread the initiating user through workflows and future agent calls (rows 7, 8), and (c) delete the anonymous fallbacks and the anonymous default (rows 6, 9). No authorization rule changes; only *who the caller is* gets fixed.
@@ -188,7 +188,7 @@ One surface (#3777): **Library Access → Sharing** (ShareSettingsView's pane �
 
 `start_backend.sh` is the **Debug/dev external-engine launcher** (Release embeds and spawns — #3042, `EngineConfig.launchEnvironment` `EngineConfig.swift:573-591`). Today it smuggles product policy in via macOS `defaults`:
 
-| Today (`fichero-engine/scripts/start_backend.sh`) | Replacement |
+| Today (`fichero-server/scripts/start_backend.sh`) | Replacement |
 |---|---|
 | `:49-51` reads `fichero.remote_access.enabled` from defaults; `:69-71` uses it to gate restoring the public URL | **Delete.** Hosting is not a persisted mode; it is the presence of `FICHERO_PUBLIC_BASE_URL` in the launch env, supplied by the app when share-state requires hosting (§9). Dev override: pass the env var explicitly |
 | `:57,60-65` reads `fichero.multiuser.enabled` from defaults into `FICHERO_MULTIUSER` | **Delete** once multi-user is always-on. During transition (§10 step 5), `FICHERO_MULTIUSER` remains honored by `multiuser.py` for tests; at the final step `multiuser_enabled()` returns True unconditionally and the env var becomes a no-op (keep `FICHERO_MULTIUSER=0` working **only** in pytest via the existing conftest until the test suite is migrated — the conftest autouse `FICHERO_MULTIUSER=0` and every gate-dependent test must flip in the same PR as the flip, or the suite goes red en masse) |

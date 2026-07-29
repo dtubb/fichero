@@ -74,10 +74,10 @@ SWIFT_TESTS_DIR="fichero/fichero-tests"
 area_table() {
   cat <<'EOF'
 sidebar   | Sidebar,DocumentStore            |
-ingest    | ImportService                    | fichero-engine/tests/unit/test_ingest*.py fichero-engine/tests/unit/test_dataless*.py
-search    | Search                           | fichero-engine/tests/unit/test_search*.py
+ingest    | ImportService                    | fichero-server/tests/unit/test_ingest*.py fichero-server/tests/unit/test_dataless*.py
+search    | Search                           | fichero-server/tests/unit/test_search*.py
 inspector | Inspector                        |
-transport | Transport,Connection             | fichero-engine/tests/integration/test_transport_matrix.py fichero-engine/tests/integration/test_transport_round_trips.py
+transport | Transport,Connection             | fichero-server/tests/integration/test_transport_matrix.py fichero-server/tests/integration/test_transport_round_trips.py
 EOF
 }
 
@@ -421,11 +421,11 @@ cmd_engine() {
   elif [[ ${#paths[@]} -gt 0 ]]; then
     args=("${paths[@]}")
   else
-    args=(fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
-          fichero-engine/tests/contracts/)
+    args=(fichero-server/tests/unit/ --ignore=fichero-server/tests/unit/_archived
+          fichero-server/tests/contracts/)
   fi
   run_gated "engine-pytest" "${GATE_TIMEOUT_ENGINE:-2700}" \
-    env PYTHONPATH=fichero-engine/src "$py" -m pytest -rf "${args[@]}"
+    env PYTHONPATH=fichero-server/src "$py" -m pytest -rf "${args[@]}"
 }
 
 cmd_ui() {
@@ -452,9 +452,9 @@ cmd_transport() {
   # the acceptance test for the transport nobody was sure worked.
   local py rc=0; py="$(find_python)"
   run_gated "transport-python" "${GATE_TIMEOUT_TRANSPORT:-1800}" \
-    env PYTHONPATH=fichero-engine/src "$py" -m pytest -rf \
-      fichero-engine/tests/integration/test_transport_matrix.py \
-      fichero-engine/tests/integration/test_transport_round_trips.py || rc=$?
+    env PYTHONPATH=fichero-server/src "$py" -m pytest -rf \
+      fichero-server/tests/integration/test_transport_matrix.py \
+      fichero-server/tests/integration/test_transport_round_trips.py || rc=$?
   run_gated "transport-swift-inmemory" "${GATE_TIMEOUT_TRANSPORT:-1800}" \
     swift test --package-path fichero/fichero-api-client \
       --filter 'InMemoryTransportSmokeTests|TransportRoutingMatrixTests|TransportMatrixRoundTripTests' || rc=$?
@@ -533,7 +533,7 @@ cmd_self_test() {
   out="$("$0" areas sidebar 2>&1)"; local rc=$?
   [[ $rc -eq 0 && "$out" == *"-only-testing:FicheroTests/Sidebar"* ]]; check "area sidebar resolves to -only-testing filters" $?
   out="$("$0" areas ingest 2>&1)"
-  [[ "$out" == *"engine: fichero-engine/tests/unit/test_ingest"* ]]; check "area ingest resolves engine paths" $?
+  [[ "$out" == *"engine: fichero-server/tests/unit/test_ingest"* ]]; check "area ingest resolves engine paths" $?
   "$0" areas no-such-area >/dev/null 2>&1; [[ $? -ne 0 ]]; check "unknown area is a hard error" $?
 
   # 2. Dry-run command assembly: unit --area sidebar must show the capped

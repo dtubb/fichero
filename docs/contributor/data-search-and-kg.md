@@ -43,7 +43,7 @@ The current main search route is document-centric.
 - adds entity-artifact bridge behavior for scoped fields such as `people:` and `keywords:`
 - enriches document hits with related KG ids when possible
 
-The query parser in `fichero-engine/src/fichero/search/query_parser.py` currently supports:
+The query parser in `fichero-server/src/fichero_server/search/query_parser.py` currently supports:
 
 - quoted phrases
 - scoped fields for `people`, `places`, `organizations`, `dates`, `events`, and `keywords`

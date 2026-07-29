@@ -15,6 +15,12 @@ struct FicheroAppIOS: App {
     @State private var executionObserver = WorkflowExecutionObserver()
     @State private var captureQueue = MobileCaptureQueueStore()
 
+    init() {
+        // #4227: engine -> server rename; copy the saved host forward before
+        // any store reads the canonical key.
+        EngineConfig.migrateLegacyHostKeyIfNeeded()
+    }
+
     var body: some Scene {
         // `id: "main"` so `openWindow(id: "main")` (new-window / new-tab
         // affordances, WindowOpener) targets a registered scene on iPad instead

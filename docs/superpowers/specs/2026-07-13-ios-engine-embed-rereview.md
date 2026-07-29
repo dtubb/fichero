@@ -155,7 +155,7 @@ against it:
 
 ## Q3. THE DEPENDENCY WALL — per-dependency table
 
-Method: for each entry in `fichero-engine/pyproject.toml` `[tool.briefcase.app.engine].requires`
+Method: for each entry in `fichero-server/pyproject.toml` `[tool.briefcase.app.engine].requires`
 (read today) plus load-bearing transitive deps, the live PyPI "Download files" page was checked for
 `ios_*` wheel tags on **2026-07-13**. "❌ none" = latest release publishes no iOS wheels. Note
 Briefcase cannot fall back to sdists on iOS, so ❌ + no pure wheel = uninstallable without
@@ -307,7 +307,7 @@ subprocess architecture impossible, in-process architecture legal-but-uninstalla
   https://apps.apple.com/us/app/pythonista-3/id1085978097
 
 **Repo files read (2026-07-13):**
-- `fichero-engine/pyproject.toml` (full dependency manifest)
+- `fichero-server/pyproject.toml` (full dependency manifest)
 - `docs/contributor/design/ios-ipad-embedding-plan.md` (2026-07-06 survey; feasibility matrix)
 - `docs/superpowers/specs/2026-07-13-mac-app-store-sandbox-research.md` (sibling macOS report)
 - `fichero/fichero/Services/EngineConfig.swift`, `EmbeddedBackendService.swift`,

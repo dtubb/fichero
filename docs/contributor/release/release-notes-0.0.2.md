@@ -79,7 +79,7 @@ A new `collect_usage()` context manager lets workflow runners (and any
 other consumer) capture every LLM call's usage during a code block:
 
 ```python
-from fichero.llm import collect_usage
+from fichero_server.llm import collect_usage
 
 with collect_usage() as bucket:
     result = await tool_fn(inputs)

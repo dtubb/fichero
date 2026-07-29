@@ -339,6 +339,9 @@ enum RemoteClientPairing {
         DeviceTokenRenewal.clearExpiry(host: hostString)
         PairedHostEndpointStore.clear()
         EngineConfig.defaults.removeObject(forKey: EngineConfig.userDefaultsKey)
+        // #4227: also clear the pre-rename key — the read paths fall back to
+        // it, so leaving it behind would resurrect the forgotten host.
+        EngineConfig.defaults.removeObject(forKey: EngineConfig.legacyUserDefaultsKey)
         EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
     }
 

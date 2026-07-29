@@ -6,8 +6,8 @@
     {
       "layers" : [
         {
-          "image-name" : "fichero-engine-icon.png",
-          "name" : "fichero-engine-icon"
+          "image-name" : "fichero-server-icon.png",
+          "name" : "fichero-server-icon"
         }
       ],
       "shadow" : {

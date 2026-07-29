@@ -22,7 +22,7 @@ On the ACENET host:
 cd ~/code/fichero
 export FICHERO_REMOTE_BACKEND=1
 export FICHERO_REMOTE_BACKEND_BIND_HOST=127.0.0.1
-PYTHONPATH=fichero-engine/src /path/to/.venv/bin/python -m fichero engine start --port 8765
+PYTHONPATH=fichero-server/src /path/to/.venv/bin/python -m fichero_cli engine start --port 8765
 ```
 
 If you want foreground logs instead of the detached engine manager:
@@ -31,7 +31,7 @@ If you want foreground logs instead of the detached engine manager:
 cd ~/code/fichero
 export FICHERO_REMOTE_BACKEND=1
 export FICHERO_REMOTE_BACKEND_BIND_HOST=127.0.0.1
-PYTHONPATH=fichero-engine/src /path/to/.venv/bin/uvicorn fichero.api.main:app \
+PYTHONPATH=fichero-server/src /path/to/.venv/bin/uvicorn fichero_server.api.main:app \
   --host 127.0.0.1 \
   --port 8765
 ```
@@ -107,7 +107,7 @@ For CLI and MCP calls, set the remote `.fichero` package path explicitly:
 export FICHERO_API_URL=http://127.0.0.1:18765
 export FICHERO_API_KEY=<remote-token>
 export FICHERO_LIBRARY_PATH=/remote/project/Library.fichero
-PYTHONPATH=fichero-engine/src /path/to/python -m fichero --json health
+PYTHONPATH=fichero-server/src /path/to/python -m fichero_cli --json health
 ```
 
 For the Mac app, open a library whose path can be resolved by the remote backend
@@ -154,7 +154,7 @@ For CLI validation against an alternate local tunnel port:
 ```bash
 export FICHERO_API_URL=http://127.0.0.1:18765
 export FICHERO_API_KEY=<remote-token>
-PYTHONPATH=fichero-engine/src /path/to/python -m fichero --json health
+PYTHONPATH=fichero-server/src /path/to/python -m fichero_cli --json health
 ```
 
 Expected failure modes:

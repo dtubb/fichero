@@ -51,8 +51,8 @@ struct MacAppStoreSandboxTests {
         // structure at App Store ingestion. Resources stays in the list ONLY as
         // the DMG fallback, so the assertion is about what we PREFER, not a ban.
         let paths = EmbeddedBackendService.engineBundleSubpaths
-        #expect(paths.first == "Contents/Helpers/Fichero Engine.app")
-        #expect(paths.allSatisfy { $0.hasSuffix("/Fichero Engine.app") })
+        #expect(paths.first == "Contents/Helpers/Fichero Server.app")
+        #expect(paths.allSatisfy { $0.hasSuffix("/Fichero Server.app") })
     }
 
     // MARK: - Sandbox-safe port probe (the lsof replacement)

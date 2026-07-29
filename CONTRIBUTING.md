@@ -54,7 +54,7 @@ pull request after review.
 See [AGENTS.md](AGENTS.md) for the operational manual (hard rules, commit
 attribution, docs placement, worker orchestration). For SwiftUI-specific
 guidance see [fichero/AGENTS.md](fichero/AGENTS.md) and for the Python engine see
-[fichero-engine/AGENTS.md](fichero-engine/AGENTS.md). 
+[fichero-server/AGENTS.md](fichero-server/AGENTS.md). 
 
 For the fuller repo
 conventions, see
@@ -88,7 +88,7 @@ git clone https://github.com/dtubb/fichero.git
 cd fichero
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -e 'fichero-engine[dev]'
+pip install -e 'fichero-server[dev]'
 pip install pytest ruff
 ```
 
@@ -96,26 +96,26 @@ The last line is not optional. `pytest` and `ruff` are neither runtime dependenc
 part of the `[dev]` extra, but the lint and test commands in `AGENTS.md` assume both are
 on your `PATH`.
 
-**3. There is no `requirements.txt`.** `fichero-engine/pyproject.toml` is the
+**3. There is no `requirements.txt`.** `fichero-server/pyproject.toml` is the
 dependency manifest: 37 runtime dependencies, plus the optional extras `[dev]` (15),
 `[kg]` (3) and `[image]` (1). The only `requirements-*.txt` in the repo is
 `requirements-docs.txt`, which builds this documentation site and nothing else.
 **Briefcase is a build tool, not a runtime dependency** —
-`fichero-engine/scripts/build_backend_bundle.sh` uses it to package the engine into
+`fichero-server/scripts/build_backend_bundle.sh` uses it to package the engine into
 the shipped app.
 
 **4. Start the engine.** It serves HTTPS on `127.0.0.1:8765`; the app pins that
 fail-closed, so a plain-HTTP engine cannot connect. Never run a bare `uvicorn`.
 
 ```bash
-bash fichero-engine/scripts/start_backend.sh
+bash fichero-server/scripts/start_backend.sh
 ```
 
-Every Python command needs `PYTHONPATH=fichero-engine/src` (with the venv from step 2
+Every Python command needs `PYTHONPATH=fichero-server/src` (with the venv from step 2
 activated, so `python` is the right one):
 
 ```bash
-PYTHONPATH=fichero-engine/src python -c "import fichero"
+PYTHONPATH=fichero-server/src python -c "import fichero_server"
 ```
 
 **5. Run the app.** Open `fichero/fichero.xcodeproj` in Xcode and run.
@@ -127,7 +127,7 @@ iPhone and iPad cannot embed the engine; they connect to one running on a Mac.
 
 ## Architecture
 
-Fichero has two components. A front end and a back end. The front end is written in SwiftUI (the Fichero app), and the back end (the Engine) is a FastAPI server that holds the data and logic. The Fichero Mac, iPhone, and iPad apps share one SwiftUI codebase (and the CLI and MCP server are separate front ends) that connect to the Fichero Engine and display what it returns. The Fichero Engine is packaged using Briefcase and embedded in the Fichero app for release, but it can also run locally as a separate process or be shared on the network (a remote host), so the same clients work whether the engine is embedded, local, or remote.
+Fichero has two components. A front end and a back end. The front end is written in SwiftUI (the Fichero app), and the back end (the Engine) is a FastAPI server that holds the data and logic. The Fichero Mac, iPhone, and iPad apps share one SwiftUI codebase (and the CLI and MCP server are separate front ends) that connect to the Fichero Server and display what it returns. The Fichero Server is packaged using Briefcase and embedded in the Fichero app for release, but it can also run locally as a separate process or be shared on the network (a remote host), so the same clients work whether the engine is embedded, local, or remote.
 
 One engine, many clients:
 
@@ -140,23 +140,23 @@ SwiftUI app    fichero CLI    MCP server
                    |
                    v
             FastAPI engine
-        (fichero-engine/src/fichero)
+        (fichero-server/src/fichero_server)
            | DuckDB + LanceDB
            | workflows
            | knowledge graph
            | provider integrations
 ```
 
-All surfaces sit on top of fichero-engine. They render and accept input; they do not contain logic.
+All surfaces sit on top of fichero-server. They render and accept input; they do not contain logic.
 
 | Surface | Path | Status |
 |---|---|---|
 | SwiftUI app (macOS, iOS, iPad) | `fichero/` (Xcode project: `fichero/fichero.xcodeproj`) | Live |
-| `fichero` CLI | `fichero-engine/src/fichero/cli/` | Live (typed, end-to-end verified) |
-| MCP server | `fichero-engine/src/fichero/mcp/server.py` (`fichero-mcp`) | Live |
+| `fichero` CLI | `fichero-cli/src/fichero_cli/` | Live (typed, end-to-end verified) |
+| MCP server | `fichero-mcp/src/fichero_mcp/server.py` (`fichero-mcp`) | Live |
 
 
-**Use the CLI (against a running fichero-engine):**
+**Use the CLI (against a running fichero-server):**
 ```bash
 fichero --help
 fichero workflow list
@@ -190,6 +190,6 @@ scripts/release-all.sh --help
 
 ## Project Structure
 
-- `fichero-engine/`: the server (FastAPI), workflow runner, KG, ingest ([README](fichero-engine/README.md))
-- `fichero/`: SwiftUI app, Xcode project, and `fichero` CLI under `fichero-engine/src/fichero/cli/`
+- `fichero-server/`: the server (FastAPI), workflow runner, KG, ingest ([README](fichero-server/README.md))
+- `fichero/`: SwiftUI app, Xcode project, and `fichero` CLI under `fichero-cli/src/fichero_cli/`
 - `docs/`: published documentation site and contributor reference

@@ -84,7 +84,7 @@ enum PairingBlocker: Equatable {
     /// user knows), and then the detail says exactly what to do instead.
     var actionTitle: String? {
         switch self {
-        case .engineNotRunning: return "Start Engine"
+        case .engineNotRunning: return "Start Server"
         case .sharingNotStarted: return "Turn On Sharing"
         // No "Prepare Certificate" button: turning sharing on mints the certificate
         // itself, so this is a transient "preparing" state, never a step the user

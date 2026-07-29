@@ -95,7 +95,7 @@ Xcode-style fixed toggleable zones instead. Zone model L→R:
 
 **Engine (from `agent_chat_as_user.md`, memory, #2571 audit) — NOT built:**
 
-- `fichero-engine/.../actions/chat_tools.py` already generates one LLM tool per
+- `fichero-server/.../actions/chat_tools.py` already generates one LLM tool per
   registry action (`action_tools()` / `dispatch_tool_call()`, `actor="chat"`); its
   own note says wiring into `/api/chat` is "a small safe edit." Today `/api/chat`
   is **single-shot RAG** (`llm.invoke(messages)`), no tool loop.

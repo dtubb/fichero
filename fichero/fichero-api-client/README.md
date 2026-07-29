@@ -108,7 +108,7 @@ Benefits:
 When the Python API changes (also runs automatically in `build-release.sh` and CI):
 
 ```bash
-./fichero-engine/scripts/sync_openapi_schema.sh
+./fichero-server/scripts/sync_openapi_schema.sh
 ```
 
 This:

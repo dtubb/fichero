@@ -12,12 +12,12 @@ review, bottom-up:
 
 | Layer | Lives in | Status |
 |---|---|---|
-| Pure unit (config decisions, parsers, builders, splice rules) | `fichero/fichero-tests/` + `fichero-engine/tests/unit/` | built, healthy |
+| Pure unit (config decisions, parsers, builders, splice rules) | `fichero/fichero-tests/` + `fichero-server/tests/unit/` | built, healthy |
 | Store/service + stubbed transport (async state machines) | `fichero/fichero-tests/Services/`, `Transport/` | partial — one ad-hoc `MockTransportURLProtocol`; shared kit **(planned, #4241 step 1)** |
-| Engine pytest (pipelines, derivatives, fixtures) | `fichero-engine/tests/unit/`, `integration/` | built |
+| Engine pytest (pipelines, derivatives, fixtures) | `fichero-server/tests/unit/`, `integration/` | built |
 | App↔engine contract (in-process, no uvicorn/TLS) | `fichero/fichero-tests/Contract/` | built on spawned uvicorn; in-process `InMemoryEngineApp` harness **(planned, #4241 step 2)** |
-| CLI leg (installed `fichero` binary, hermetic) | `fichero-engine/tests/integration/test_cli_installed_roundtrip.py` | built |
-| MCP leg (shipped `fichero-mcp` tool surface) | `fichero-engine/tests/integration/test_mcp_server_contract.py` | built |
+| CLI leg (installed `fichero` binary, hermetic) | `fichero-server/tests/integration/test_cli_installed_roundtrip.py` | built |
+| MCP leg (shipped `fichero-mcp` tool surface) | `fichero-server/tests/integration/test_mcp_server_contract.py` | built |
 | XCUITest (shipping config only, ~8 flows) | `fichero/fichero-ui-tests/` | built |
 
 ## Where a new test goes
@@ -45,10 +45,10 @@ Xcode builds (see `AGENTS.md`).
 
 ```bash
 # Engine — always with PYTHONPATH relative to YOUR worktree
-PYTHONPATH=fichero-engine/src pytest fichero-engine/tests/unit/ -q
-PYTHONPATH=fichero-engine/src pytest fichero-engine/tests/unit/test_ingest_module.py -q   # one area
+PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/ -q
+PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/test_ingest_module.py -q   # one area
 
-# Never `pytest fichero-engine/tests` (pulls the ~50-min perf suite).
+# Never `pytest fichero-server/tests` (pulls the ~50-min perf suite).
 scripts/verify_perf.sh          # perf, deliberately, on its own
 
 # Swift — manager-run via the fichero-tests.xctestplan (FicheroTests target)
@@ -84,11 +84,11 @@ let pdf = try TestFixtures.sampleFile("multipage.pdf")  // fichero-tests
 ```
 
 Seeded libraries all come from ONE builder —
-`fichero-engine/scripts/seed_test_library.py` (via
+`fichero-server/scripts/seed_test_library.py` (via
 `tests/integration/_seedlib.py` in pytest). `--with-files` additionally
 imports real specimens as file-backed documents and two extra canonical
 workflows; the default output is unchanged. Engine-only fixtures (contract
-JSON, paleography) stay under `fichero-engine/tests/fixtures/`.
+JSON, paleography) stay under `fichero-server/tests/fixtures/`.
 
 ## Engine provisioning rules
 
@@ -123,7 +123,7 @@ top-20 least-covered production files, and only moves via a deliberate
 
 ```bash
 # engine
-coverage run -m pytest fichero-engine/tests/unit && coverage json -o agent-work/coverage/engine.json
+coverage run -m pytest fichero-server/tests/unit && coverage json -o agent-work/coverage/engine.json
 # swift (after a plan run with coverage)
 xcrun xccov view --report --json Result.xcresult > agent-work/coverage/swift.json
 python3 scripts/check_coverage_ratchet.py

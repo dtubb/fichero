@@ -106,7 +106,7 @@ final class EntityTypeMappingTests: XCTestCase {
 
     func testClaimsEntitiesAllowlistEntriesWereRemoved() throws {
         let allowlist = try Self.repoSource(
-            "fichero-engine/tests/contracts/ui_wiring_allowlist_swiftui.json"
+            "fichero-server/tests/contracts/ui_wiring_allowlist_swiftui.json"
         )
         // NB: /api/entities/digest is intentionally still allowlisted (WebKit
         // document view consumes it; no native Swift call site — #3765).
@@ -132,7 +132,7 @@ final class EntityTypeMappingTests: XCTestCase {
     /// ArtifactService AND drop these from the allowlist together.
     func testHermeneuticsEndpointsRemainDeferred() throws {
         let allowlist = try Self.repoSource(
-            "fichero-engine/tests/contracts/ui_wiring_allowlist_swiftui.json"
+            "fichero-server/tests/contracts/ui_wiring_allowlist_swiftui.json"
         )
         let deferredPaths = [
             "/api/hermeneutics/circle-state",
@@ -202,7 +202,7 @@ final class EntityTypeMappingTests: XCTestCase {
     /// which would mean the duplicate mount came back.
     func testKnowledgeGraphInterpretationAliasStaysDeleted() throws {
         let allowlist = try Self.repoSource(
-            "fichero-engine/tests/contracts/ui_wiring_allowlist_swiftui.json"
+            "fichero-server/tests/contracts/ui_wiring_allowlist_swiftui.json"
         )
         XCTAssertFalse(
             allowlist.contains("/api/kg/interpretations"),
@@ -235,7 +235,7 @@ final class EntityTypeMappingTests: XCTestCase {
 
     func testKnowledgeGraphAllowlistEntriesWereRemoved() throws {
         let allowlist = try Self.repoSource(
-            "fichero-engine/tests/contracts/ui_wiring_allowlist_swiftui.json"
+            "fichero-server/tests/contracts/ui_wiring_allowlist_swiftui.json"
         )
         let removedPaths = [
             "/api/kg/entities/{entity_id}/bio",

@@ -94,7 +94,7 @@ extension AppState {
                 "Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures — flipping offline (\(reason))"
             )
             engine.markUnreachable(
-                "Lost connection to the Fichero engine. The backend stopped responding mid-session."
+                "Lost connection to the Fichero server. The backend stopped responding mid-session."
             )
         case .surfaceDiagnosis(let message):
             logger.warning(
@@ -120,15 +120,15 @@ extension AppState {
             return .autoRestart
         case .debugExternal:
             return .surfaceDiagnosis("""
-                Lost connection to the Fichero engine.
+                Lost connection to the Fichero server.
 
                 The backend stopped responding mid-session. Restart it with:
 
-                PYTHONPATH=src python -m fichero.api
+                PYTHONPATH=src python -m fichero_server.api
                 """)
         case .configuredRemote, .iosCompanion, .inert:
             return .surfaceDiagnosis(
-                "Lost connection to the Fichero engine. The backend stopped responding mid-session."
+                "Lost connection to the Fichero server. The backend stopped responding mid-session."
             )
         }
     }

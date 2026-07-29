@@ -88,7 +88,7 @@ to make document processing inspectable, repeatable, and tied to the source.
 
 ## How it works
 
-One engine, many clients. The **Fichero Engine** is a Python FastAPI service
+One engine, many clients. The **Fichero Server** is a Python FastAPI service
 (DuckDB, LanceDB, LangChain, LangGraph) that owns ingest, storage, search,
 workflows, and the knowledge graph. The SwiftUI app, the `fichero` CLI, and the
 MCP server are thin clients over its HTTPS surface.

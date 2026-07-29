@@ -350,7 +350,7 @@
 
 **Docs**
 
-- docs: add subtree `AGENTS.md` files for `fichero/` and `fichero-engine/`, then audit and tighten `fichero-engine/scripts/README.md` against the current supported script set ([#2554](https://github.com/dtubb/fichero/issues/2554), [#2552](https://github.com/dtubb/fichero/issues/2552))
+- docs: add subtree `AGENTS.md` files for `fichero/` and `fichero-server/`, then audit and tighten `fichero-server/scripts/README.md` against the current supported script set ([#2554](https://github.com/dtubb/fichero/issues/2554), [#2552](https://github.com/dtubb/fichero/issues/2552))
 
 ## 2026-07-04
 
@@ -624,7 +624,7 @@
 **Build**
 
 - build: ollama-driven RELEASE_NOTES by-day generator (#2572)
-- build: add fichero-engine/LICENSE so Briefcase embed config resolves (#2580)
+- build: add fichero-server/LICENSE so Briefcase embed config resolves (#2580)
 
 **Chore**
 
@@ -3461,7 +3461,7 @@
 - feat(kg): full SVO + provider/model + confidence + language on every claim
 - feat(cli): type 8 client methods against backend Pydantic models (#1084 Wave 1)
 - feat(cli): library bootstrap, --wait that actually waits, artifacts get, recursive import
-- feat(cli): wire fichero.models typing into client.py (loud at the boundary)
+- feat(cli): wire fichero_server.models typing into client.py (loud at the boundary)
 
 **Fixes**
 
@@ -4404,7 +4404,7 @@ The Knowledge Graph layer + Apple Intelligence Catalogue are new in
 - **37+ supported file types** — PDFs, Word, RTF, plain text, images
   (JPEG/PNG/HEIC/RAW), audio (MP3/WAV/M4A), video, archives, code
   files, and more.
-- **Embedded Python backend** (Fichero Engine,
+- **Embedded Python backend** (Fichero Server,
   `com.fichero.fichero.engine`). Auto-launches when the app opens; no
   separate server to install or maintain.
 - **Multi-window, multi-library** — open multiple libraries in
@@ -4443,7 +4443,7 @@ Will land in upcoming Alpha builds:
 
 **Refactors**
 
-- refactor: rename top-level dirs — fichero-api -> fichero-engine, fichero-swiftui -> fichero
+- refactor: rename top-level dirs — fichero-api -> fichero-server, fichero-swiftui -> fichero
 
 **Docs**
 

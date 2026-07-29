@@ -1,0 +1,40 @@
+# =============================================================================
+# fichero-cli — thin command-line client for a running Fichero server
+# =============================================================================
+# Split out of the server package in #4227. Every command is one or two HTTP
+# calls through FicheroClient; there is no backend logic here. It still
+# imports the server's Pydantic response models (and, for now, the
+# engine_manager dev conveniences), so it depends on fichero-server — install
+# both editable from the repo root:
+#
+#   pip install -e ./fichero-server -e ./fichero-cli
+#
+# NOTE (next phase, not this one): the CLI becomes connect-only — the
+# engine_manager's ability to boot its own server process goes away in favor
+# of a serve entry point in fichero-server.
+# =============================================================================
+
+[project]
+name = "fichero-cli"
+version = "2026.7.24"
+description = "Command-line client for the Fichero server."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx",
+    "typer",
+    "pydantic",
+    # Response models + (for now) engine_manager helpers come from the server
+    # package; resolved from the local checkout via editable installs.
+    "fichero-server",
+]
+
+[project.scripts]
+fichero = "fichero_cli.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

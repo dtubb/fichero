@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Iterable
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE_SRC = ROOT / "fichero-engine" / "src" / "fichero"
+ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero_server"
 ROUTES_DIR = ENGINE_SRC / "api" / "routes"
 
 ALLOWLIST: dict[str, str] = {}

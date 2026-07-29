@@ -34,7 +34,7 @@ SWIFT_SOURCES = [
     *sorted((ROOT / "fichero" / "fichero" / "Services").rglob("*Service*.swift")),
     *sorted((ROOT / "fichero" / "fichero" / "Models").glob("*Store*.swift")),
 ]
-CLI_SOURCES = sorted((ROOT / "fichero-engine" / "src" / "fichero" / "cli").rglob("*.py"))
+CLI_SOURCES = sorted((ROOT / "fichero-cli" / "src" / "fichero_cli").rglob("*.py"))
 KNOWN_GAPS = load_known_gaps(
     Path(__file__).with_name("check_endpoint_coverage_matrix_known_gaps.json")
 )

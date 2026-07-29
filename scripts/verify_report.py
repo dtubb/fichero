@@ -211,9 +211,9 @@ def collect_openapi_model_sync() -> list[Violation]:
     result = _run(
         [
             "env",
-            "PYTHONPATH=fichero-engine/src",
+            "PYTHONPATH=fichero-server/src",
             python_bin,
-            "fichero-engine/scripts/validate_model_sync.py",
+            "fichero-server/scripts/validate_model_sync.py",
         ]
     )
     if result.returncode == 0:

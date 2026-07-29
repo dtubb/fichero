@@ -93,7 +93,7 @@ extension EmbeddedBackendService {
     // a binary the reviewer greps. The MAS build manages only the Process handle
     // it owns; see resolvePortConflict().
     #if !FICHERO_APP_STORE
-    /// SIGTERM a "Fichero Engine" subprocess left over from a previous run of
+    /// SIGTERM a "Fichero Server" subprocess left over from a previous run of
     /// **this** app that didn't get a chance to call .stop() (e.g. SIGKILL,
     /// crash, or force-quit). Called off the main actor before spawning a new engine
     /// so the new spawn can bind port 8765 cleanly.
@@ -125,7 +125,7 @@ extension EmbeddedBackendService {
 
         let pgrep = Process()
         pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        pgrep.arguments = ["-f", "Fichero Engine.app/Contents/MacOS"]
+        pgrep.arguments = ["-f", "Fichero Server.app/Contents/MacOS"]
         let pipe = Pipe()
         pgrep.standardOutput = pipe
         pgrep.standardError = FileHandle.nullDevice

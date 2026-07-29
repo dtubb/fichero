@@ -13,7 +13,7 @@
 
 ## 1. Where the raw SVO lives and how it is read (verified trace)
 
-All paths engine-side are under `fichero-engine/src/fichero/` unless noted. Verified against `~/code/fichero` main on 2026-07-14.
+All paths engine-side are under `fichero-server/src/fichero_server/` unless noted. Verified against `~/code/fichero` main on 2026-07-14.
 
 ### 1.1 Extraction (write side)
 
@@ -149,7 +149,7 @@ Each step is independently landable and gate-able. No step modifies or deletes r
 1. **`knowledge/svo_cleanup.py` + tests** (pure stdlib; stages 1, 2a, 3, 4).
    - Constants: `_HYPHEN_SPLIT = re.compile(r"(\w)-\s+(\w)")`; `SCRIBAL_ABBREVIATIONS` (word-boundary, case-insensitive; Daniel's table from #3808); `PERSPECTIVE_VERBS`; `DEDUP_RATIO = 0.86`.
    - `clean_svo_view(entities, claims) -> CleanedGraph` per §2, reusing `_normalized_match_key` / `_normalized_claim_svo_key` (`_entity_writer.py:288,302` — consider lifting them into `knowledge/_common.py` beside `slug_verb`, since `svo_cleanup` must not import from `workflows/`).
-   - Tests: `fichero-engine/tests/unit/knowledge/test_svo_cleanup.py` (§9). **This step alone is Daniel's stages 1–4 and can ship first.**
+   - Tests: `fichero-server/tests/unit/knowledge/test_svo_cleanup.py` (§9). **This step alone is Daniel's stages 1–4 and can ship first.**
 2. **Read-path wiring** — `api/routes/views.py`: compute `CleanedGraph` in `document_view`/`global_kg_view`, pass `cleaned_json` alongside the existing `claims_json`/`entities_json` (raw stays in the payload — it *is* the provenance click-through data). Template: entity groups render cleaned clauses (verb+object only, label once), clause click opens absorbed raw claims, multi-entity claims render on their subject node with lozenges elsewhere.
 3. **Curation seeding (stage 2b)** — a small script or engine command that POSTs the abbreviation-derived `EntityResolutionRule` proposals to `/api/kg/curation-rules/entity-rules/batch` (`kg_curation_rules.py:267`) and, for already-split entities, prepares (prints, does not fire) the `/api/kg/entity-curation/merge` calls for Daniel's confirmation. Per the CLI-only memory, drive via the `fichero` CLI surface, not raw curl.
 4. **`events_reify` tool (stage 5)** — new `workflows/tools/events_reify.py` registered like `extract_svo_only` (`extract_svo_only.py:93-137`); role claims via `save_claim`; `duplicate_of` links; role verbs added to `CANONICAL_VERBS` (`knowledge/_common.py`). Grounding constraints per §5.2. Wire the cleaned view to fold role-linked claims into `event_refs`.

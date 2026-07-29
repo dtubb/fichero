@@ -14,7 +14,7 @@ matter of *surfacing and connecting* existing primitives, not building new ones.
 
 | Capability | Already exists | Where |
 |---|---|---|
-| Workspace container | `Document.is_workspace` + `Document.curated_items` | `fichero-engine/src/fichero/models.py:209` |
+| Workspace container | `Document.is_workspace` + `Document.curated_items` | `fichero-server/src/fichero_server/models.py:209` |
 | Workspace shell UI | `ResearchWorkspaceView` (CHAT\|BROWSER\|TASKS), flagged ON | `fichero/fichero/Views/Chat/Research/` |
 | Project model | `ResearchProject` (+ Plan/Task/Step), `Project`/`ProjectInclusion` | `research_models.py`, `knowledge_models.py:1128` |
 | Notes (Zettelkasten) | `Note` + `NoteKind` (zettel/reference/hub/inbox/fleeting/permanent), backlinks | `knowledge_models.py:1148`, `api/routes/notes.py` |

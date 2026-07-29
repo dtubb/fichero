@@ -159,7 +159,7 @@ struct LibraryWindow: View {
         // embedded build's normal path — the spawn supervisor auto-restarts
         // transparently before this flag ever flips.
         .alert(
-            "Fichero Engine Couldn't Restart",
+            "Fichero Server Couldn't Restart",
             isPresented: Binding(
                 get: { appState.showBackendDropModal },
                 set: { appState.showBackendDropModal = $0 }
@@ -176,7 +176,7 @@ struct LibraryWindow: View {
                 #endif
             }
         } message: {
-            Text("The Fichero engine stopped and couldn't restart automatically. Retry to try again, or quit.")
+            Text("The Fichero server stopped and couldn't restart automatically. Retry to try again, or quit.")
         }
     }
 

@@ -314,7 +314,7 @@ extension LibraryManager {
         //
         // This DELETE is ALSO the app→engine close (#3939): the engine's
         // `remove_known_library` handler calls `db_manager.close_database(path)`
-        // before it removes the registry row (fichero-engine .../library_registry.py,
+        // before it removes the registry row (fichero-server .../library_registry.py,
         // added by #3393 c286b4e8b), so this releases the engine's DB handle/cache
         // — it is not a registry-only removal. There is no separate close endpoint
         // to call, and none should be invented.

@@ -42,7 +42,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PBX="$ROOT/fichero/fichero.xcodeproj/project.pbxproj"
-PY="$ROOT/fichero-engine/pyproject.toml"
+PY="$ROOT/fichero-server/pyproject.toml"
 NOTES="$ROOT/RELEASE_NOTES.md"
 
 # ── arg parsing ──────────────────────────────────────────────────────────────

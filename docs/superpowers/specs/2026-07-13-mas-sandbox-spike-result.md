@@ -19,7 +19,7 @@ The correct order, which this spike used and verified:
 # 1. Sign the ENGINE FIRST, with EXACTLY the two keys.
 codesign --force --deep --sign "$ID" \
   --entitlements child.entitlements \
-  "Fichero.app/Contents/Helpers/Fichero Engine.app"
+  "Fichero.app/Contents/Helpers/Fichero Server.app"
 
 # 2. Sign the OUTER app WITHOUT --deep, so it cannot touch the child.
 codesign --force --sign "$ID" \
@@ -27,7 +27,7 @@ codesign --force --sign "$ID" \
   "Fichero.app"
 
 # 3. VERIFY AFTER SIGNING — assume nothing. Must print exactly two keys.
-codesign -d --entitlements :- "Fichero.app/Contents/Helpers/Fichero Engine.app"
+codesign -d --entitlements :- "Fichero.app/Contents/Helpers/Fichero Server.app"
 #   com.apple.security.app-sandbox
 #   com.apple.security.inherit
 ```
@@ -42,7 +42,7 @@ Tracked as a packaging requirement in **#3749**.
 
 A **sandboxed parent** (`Parent.app`, signed with the same five keys as `FicheroAppStore.entitlements`: `app-sandbox`, `network.client`, `network.server`, `files.user-selected.read-write`, `files.bookmarks.app-scope`) spawns the **real Briefcase engine** via `Foundation.Process` — the same mechanism `EmbeddedBackendService.launchEmbeddedBackend()` uses.
 
-The engine is the genuine article, built with `fichero-engine/scripts/build_backend_bundle.sh`: **1.0 GB, 361 bundled `.so` extensions**, including `_duckdb`, numpy, lance, onnxruntime, PyMuPDF.
+The engine is the genuine article, built with `fichero-server/scripts/build_backend_bundle.sh`: **1.0 GB, 361 bundled `.so` extensions**, including `_duckdb`, numpy, lance, onnxruntime, PyMuPDF.
 
 The engine is signed with **exactly the two keys**, per Apple's rule that any other App Sandbox key aborts the child:
 
@@ -113,7 +113,7 @@ Two independent confirmations, either of which alone would be weak:
 
 1. **The child's `HOME` was container-redirected.** The engine wrote to `~/Library/Containers/app.fichero.spike/Data/...`, not to the real `~`. Only a sandboxed process gets that redirection — and it inherited the *parent's* container, which is exactly what `inherit` means.
 2. **A pre-nesting attempt failed with a sandbox denial.** With the engine sitting in `/tmp`, the sandboxed parent could not even spawn it:
-   `Error Domain=NSCocoaErrorDomain Code=4 "The file "Fichero Engine" doesn't exist"` — the file plainly existed; the sandbox denied the read. Moving the engine **inside the parent bundle** (`Contents/Helpers/`) fixed it.
+   `Error Domain=NSCocoaErrorDomain Code=4 "The file "Fichero Server" doesn't exist"` — the file plainly existed; the sandbox denied the read. Moving the engine **inside the parent bundle** (`Contents/Helpers/`) fixed it.
 
 **No sandbox denials were logged during the successful runs.**
 
@@ -158,4 +158,4 @@ The remaining Option A work is engineering with known shapes — bookmark plumbi
 
 ## Reproducing
 
-Harness lives in `/tmp/f_spike` (throwaway, not committed): `parent.swift` + `parent.entitlements` (5 keys) + `child.entitlements` (exactly 2). Build the engine with `fichero-engine/scripts/build_backend_bundle.sh`, nest it at `Parent.app/Contents/Helpers/`, sign inner-then-outer (no `--deep` on the outer), and run the parent with the engine path and port 8765.
+Harness lives in `/tmp/f_spike` (throwaway, not committed): `parent.swift` + `parent.entitlements` (5 keys) + `child.entitlements` (exactly 2). Build the engine with `fichero-server/scripts/build_backend_bundle.sh`, nest it at `Parent.app/Contents/Helpers/`, sign inner-then-outer (no `--deep` on the outer), and run the parent with the engine path and port 8765.

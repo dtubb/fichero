@@ -28,7 +28,7 @@ private func contractsPath() -> URL {
         var current = start
         while true {
             let candidate = current
-                .appendingPathComponent("fichero-engine")
+                .appendingPathComponent("fichero-server")
                 .appendingPathComponent("tests")
                 .appendingPathComponent("contracts")
             if fileManager.fileExists(atPath: candidate.path) {
@@ -42,7 +42,7 @@ private func contractsPath() -> URL {
     }
 
     return URL(fileURLWithPath: fileManager.currentDirectoryPath)
-        .appendingPathComponent("fichero-engine")
+        .appendingPathComponent("fichero-server")
         .appendingPathComponent("tests")
         .appendingPathComponent("contracts")
 }

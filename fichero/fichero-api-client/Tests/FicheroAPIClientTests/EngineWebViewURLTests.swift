@@ -1,7 +1,7 @@
 import XCTest
 @testable import FicheroAPIClient
 
-/// Headless coverage for the `fichero-engine://` URL mapping + MIME inference —
+/// Headless coverage for the `fichero-server://` URL mapping + MIME inference —
 /// the pure core the KG web-pane `WKURLSchemeHandler` uses to funnel a WKWebView
 /// page load through `FicheroClient.requestData(...)` over any transport. No
 /// networking, no WebKit, no app types.
@@ -11,7 +11,7 @@ final class EngineWebViewURLTests: XCTestCase {
 
     func testMakeProducesSchemeHostAndPath() {
         let url = EngineWebViewURL.make(path: "/view/document/abc123")
-        XCTAssertEqual(url?.scheme, "fichero-engine")
+        XCTAssertEqual(url?.scheme, "fichero-server")
         XCTAssertEqual(url?.host, "engine")
         XCTAssertEqual(url?.path, "/view/document/abc123")
     }
@@ -23,11 +23,11 @@ final class EngineWebViewURLTests: XCTestCase {
 
     func testEnginePathMapsRelativeSubresources() {
         // The page's relative `/api/…` + `/view/static/…` fetches resolve against
-        // the `fichero-engine://engine` origin and must map back to bare engine
+        // the `fichero-server://engine` origin and must map back to bare engine
         // paths.
-        let api = URL(string: "fichero-engine://engine/api/kg/graph/metrics")!
+        let api = URL(string: "fichero-server://engine/api/kg/graph/metrics")!
         XCTAssertEqual(EngineWebViewURL.enginePath(from: api), "/api/kg/graph/metrics")
-        let asset = URL(string: "fichero-engine://engine/view/static/app.js")!
+        let asset = URL(string: "fichero-server://engine/view/static/app.js")!
         XCTAssertEqual(EngineWebViewURL.enginePath(from: asset), "/view/static/app.js")
     }
 
@@ -38,7 +38,7 @@ final class EngineWebViewURLTests: XCTestCase {
     // MARK: - query items
 
     func testQueryItemsForwardedVerbatim() {
-        let url = URL(string: "fichero-engine://engine/api/kg/graph?doc=d1&mode=focus")!
+        let url = URL(string: "fichero-server://engine/api/kg/graph?doc=d1&mode=focus")!
         let items = EngineWebViewURL.queryItems(from: url)
         XCTAssertEqual(items, [URLQueryItem(name: "doc", value: "d1"),
                                URLQueryItem(name: "mode", value: "focus")])

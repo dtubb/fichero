@@ -52,12 +52,12 @@ enum RequiresEngine {
         // Helpers for the sandboxed Mac App Store build (TN2206).
         //
         // Check for the EXECUTABLE, not the bundle. The observed failure was a
-        // hollow bundle: `Fichero Engine.app` present (1.3 GB of Resources) but
+        // hollow bundle: `Fichero Server.app` present (1.3 GB of Resources) but
         // `Contents/MacOS/` empty, so an existence check on the .app passes
         // while exec fails — exactly the vacuous guard this file warns against.
         let candidates = [
-            app.appendingPathComponent("Contents/Resources/Fichero Engine.app"),
-            app.appendingPathComponent("Contents/Helpers/Fichero Engine.app"),
+            app.appendingPathComponent("Contents/Resources/Fichero Server.app"),
+            app.appendingPathComponent("Contents/Helpers/Fichero Server.app"),
         ]
         guard candidates.contains(where: hasExecutable(bundle:)) else {
             XCTFail(
@@ -70,7 +70,7 @@ enum RequiresEngine {
                 This scheme does not bundle an engine. Run this suite from an \
                 embedded scheme (Dev Embedded / Beta Embedded).
 
-                Starting fichero-engine/scripts/start_backend.sh does NOT help: \
+                Starting fichero-server/scripts/start_backend.sh does NOT help: \
                 that is an external HTTPS engine, and the launch argument \
                 selects the embedded one.
 

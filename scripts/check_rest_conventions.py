@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENDPOINTS = ROOT / "fichero-engine" / "tests" / "contracts" / "endpoints.json"
+ENDPOINTS = ROOT / "fichero-server" / "tests" / "contracts" / "endpoints.json"
 
 # Grandfathered offenders (predate this guardrail; changing a live method is
 # a breaking client change). Fix tracked in #4266 — remove entries as fixed.

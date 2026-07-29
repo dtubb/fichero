@@ -12,10 +12,10 @@ import sys
 from pathlib import Path
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "fichero-engine" / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "fichero-server" / "src"))
 
-from fichero.db import Database
-from fichero.db.migrations.runner import migrate_claims_to_multi_source
+from fichero_server.db import Database
+from fichero_server.db.migrations.runner import migrate_claims_to_multi_source
 
 
 def main() -> None:

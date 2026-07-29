@@ -1,2 +1,0 @@
-"""Moved to fichero.api.routes.entity.entities (#2569)."""
-from fichero.api.routes.entity.entities import *; import sys; sys.modules[__name__] = sys.modules["fichero.api.routes.entity.entities"]  # noqa

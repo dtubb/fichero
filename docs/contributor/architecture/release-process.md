@@ -38,11 +38,11 @@ Run before any frontend work begins. The backend must be green before wiring.
 
 ```bash
 # Unit tests
-PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ \
-  --ignore=fichero-engine/tests/unit/_archived -q
+PYTHONPATH=fichero-server/src .venv/bin/pytest fichero-server/tests/unit/ \
+  --ignore=fichero-server/tests/unit/_archived -q
 
 # Lint
-ruff check fichero-engine/src/
+ruff check fichero-server/src/
 ```
 
 **Pass criteria:** All tests pass, lint clean.
@@ -75,7 +75,7 @@ Claude calls the backend API directly via MCP tools to verify the feature's endp
 
 **Pattern per feature:**
 ```
-1. Start backend: PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+1. Start backend: PYTHONPATH=fichero-server/src .venv/bin/uvicorn fichero_server.api.main:app --port 8765
 2. Call each relevant endpoint via Fichero MCP
 3. Verify: correct response shape, correct data, correct error codes for bad input
 4. Verify: feature flag toggle affects endpoint availability

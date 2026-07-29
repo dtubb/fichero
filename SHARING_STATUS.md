@@ -1,7 +1,7 @@
 # Sharing & Pairing lane — Swift-side hardening — STATUS
 
 Worktree: `~/code/fichero-worktrees/sharing`, branch `lane/sharing-ux`. Engine
-(`fichero-engine/`) untouched, per task. Commits authored as `Claude (Opus 4.8)`
+(`fichero-server/`) untouched, per task. Commits authored as `Claude (Opus 4.8)`
 (Daniel confirmed: keep — accurate to the running model). **Not pushed** —
 manager gates/integrates.
 

@@ -155,9 +155,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     }
 
     /// A genuine fetch failure (e.g. a pinned remote host the client can't reach,
-    /// or the engine returning non-2xx) fails the `fichero-engine://` provisional
+    /// or the engine returning non-2xx) fails the `fichero-server://` provisional
     /// navigation. Fall back to the static failure page rather than leaving
-    /// WebKit's default error surface. Only fires for `fichero-engine://` loads so
+    /// WebKit's default error surface. Only fires for `fichero-server://` loads so
     /// the `about:blank` failure page itself can't re-trigger a loop.
     func webView(
         _ webView: WKWebView,

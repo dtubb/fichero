@@ -55,7 +55,7 @@ struct EngineStatusToolbarItem: View {
                         .foregroundStyle(.orange)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Engine status")
+                .accessibilityLabel("Server status")
                 .help("Engine connection problem — click for details and Retry")
             case .setupNeeded, .ready:
                 // `.setupNeeded` never actually reaches this view (the root
@@ -69,7 +69,7 @@ struct EngineStatusToolbarItem: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Engine status")
+                .accessibilityLabel("Server status")
                 .help("Engine connection — click for details")
             }
         }

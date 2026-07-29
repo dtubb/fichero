@@ -83,6 +83,9 @@ struct FicheroApp: App {
     @State private var showRemoteConnectionChooser: Bool
 
     init() {
+        // #4227: engine -> server rename; copy the saved host forward before
+        // any store reads the canonical key.
+        EngineConfig.migrateLegacyHostKeyIfNeeded()
         // #2381: decide the launch connection mode BEFORE any early return so
         // this @State is initialized on every path. A normal launch uses the
         // embedded local engine; holding Option surfaces the remote-host chooser.

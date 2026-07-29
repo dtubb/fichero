@@ -166,7 +166,7 @@
 				520 /* Resources */,
 				A1624FF62F2EE5710019C019 /* CopyFiles */,
 				CC0011223344556677889902 /* SwiftLint */,
-				CC0011223344556677889903 /* Embed Fichero Engine */,
+				CC0011223344556677889903 /* Embed Fichero Server */,
 			);
 			buildRules = (
 			);
@@ -234,7 +234,7 @@
 				FEED00000000000000000253 /* Resources */,
 				FEED00000000000000000254 /* CopyFiles */,
 				FEED00000000000000000255 /* SwiftLint */,
-				FEED00000000000000000256 /* Embed Fichero Engine */,
+				FEED00000000000000000256 /* Embed Fichero Server */,
 				SBX00042F27F36000EC9EE1 /* Strip Sparkle Info.plist Keys */,
 				SBX00052F27F36000EC9EE1 /* Validate App Store Bundle */,
 			);
@@ -353,15 +353,15 @@
 				"",
 			);
 		};
-		CC0011223344556677889903 /* Embed Fichero Engine */ = {
+		CC0011223344556677889903 /* Embed Fichero Server */ = {
 			isa = PBXShellScriptBuildPhase;
 			inputFileListPaths = (
 				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
 			);
 			inputPaths = (
-				"$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app",
+				"$(SRCROOT)/../fichero-server/build/server/macos/app/Fichero Server.app",
 			);
-			name = "Embed Fichero Engine";
+			name = "Embed Fichero Server";
 			outputPaths = (
 				"$(FICHERO_ENGINE_EMBED_OUTPUT_PATH)",
 			);
@@ -408,15 +408,15 @@
 				"",
 				"",
 				"\"${SRCROOT}/../scripts/preflight-embedded-engine.sh\"",
-				"ENGINE_SRC=\"${SRCROOT}/../fichero-engine/build/engine/macos/app/Fichero Engine.app\"",
+				"ENGINE_SRC=\"${SRCROOT}/../fichero-server/build/server/macos/app/Fichero Server.app\"",
 				"",
-				"ENGINE_DST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/Fichero Engine.app\"",
+				"ENGINE_DST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/Fichero Server.app\"",
 				"",
 				"",
 				"",
 				"if [ ! -d \"$ENGINE_SRC\" ]; then",
 				"",
-				"  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-engine/ first\" >&2",
+				"  echo \"error: Fichero Server.app not found at $ENGINE_SRC — run 'briefcase build macOS --app server' in fichero-server/ first\" >&2",
 				"",
 				"  exit 1",
 				"",
@@ -465,16 +465,16 @@
 				"",
 			);
 		};
-		FEED00000000000000000256 /* Embed Fichero Engine */ = {
+		FEED00000000000000000256 /* Embed Fichero Server */ = {
 			isa = PBXShellScriptBuildPhase;
 			inputFileListPaths = (
 				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
 			);
 			inputPaths = (
-				"$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app",
+				"$(SRCROOT)/../fichero-server/build/server/macos/app/Fichero Server.app",
 				"$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements",
 			);
-			name = "Embed Fichero Engine";
+			name = "Embed Fichero Server";
 			outputPaths = (
 				"$(FICHERO_ENGINE_EMBED_OUTPUT_PATH)",
 			);
@@ -515,7 +515,7 @@
 				"# keeps Contents/Resources and is deliberately left alone.",
 				"",
 				"\"${SRCROOT}/../scripts/preflight-embedded-engine.sh\"",
-				"ENGINE_SRC=\"${SRCROOT}/../fichero-engine/build/engine/macos/app/Fichero Engine.app\"",
+				"ENGINE_SRC=\"${SRCROOT}/../fichero-server/build/server/macos/app/Fichero Server.app\"",
 				"ENGINE_ENTITLEMENTS=\"${SRCROOT}/fichero/FicheroEngineAppStore.entitlements\"",
 				"",
 				"# THE APP BUNDLE, AS A REAL PATH. Read this before changing it.",
@@ -540,7 +540,7 @@
 				"  exit 1",
 				"fi",
 				"APP_DST=\"$(cd \"$APP_DST\" && pwd -P)\"",
-				"ENGINE_DST=\"$APP_DST/Contents/Helpers/Fichero Engine.app\"",
+				"ENGINE_DST=\"$APP_DST/Contents/Helpers/Fichero Server.app\"",
 				"",
 				"# Prove the traversal works before trusting anything it says. An app bundle always",
 				"# contains files; if find sees none, it is not traversing, and every check below",
@@ -553,7 +553,7 @@
 				"echo \"  app bundle (resolved): $APP_DST\"",
 				"",
 				"if [ ! -d \"$ENGINE_SRC\" ]; then",
-				"  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-engine/ first\" >&2",
+				"  echo \"error: Fichero Server.app not found at $ENGINE_SRC — run 'briefcase build macOS --app server' in fichero-server/ first\" >&2",
 				"  exit 1",
 				"fi",
 				"",
@@ -625,7 +625,7 @@
 				"# REJECTED UPLOAD, code 90296: this used to key off the PATH, entitling only",
 				"# ENGINE/Contents/MacOS/*. fm-bridge — the Swift CLI the engine spawns for Apple",
 				"# Intelligence, which Briefcase packages at",
-				"# Contents/Resources/app/fichero/resources/bin/fm-bridge — therefore signed PLAIN and",
+				"# Contents/Resources/app/fichero_server/resources/bin/fm-bridge — therefore signed PLAIN and",
 				"# shipped with no com.apple.security.app-sandbox. Every nested executable inside a",
 				"# sandboxed app must be sandboxed; a path rule cannot know which files those are, and",
 				"# the next one Briefcase adds would have been missed the same way. Mach-O type can.",
@@ -1276,7 +1276,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = dev;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1345,7 +1345,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = release;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1421,7 +1421,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = alpha;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1497,7 +1497,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = beta;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1633,7 +1633,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = dev;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1702,7 +1702,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = alpha;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1778,7 +1778,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = beta;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -1854,7 +1854,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
 				FICHERO_FEATURE_TIER = release;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2163,7 +2163,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
 				FICHERO_FEATURE_TIER = dev;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2234,7 +2234,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
 				FICHERO_FEATURE_TIER = alpha;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2312,7 +2312,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
 				FICHERO_FEATURE_TIER = beta;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2390,7 +2390,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
 				FICHERO_FEATURE_TIER = release;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2460,7 +2460,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
 				FICHERO_FEATURE_TIER = dev;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2531,7 +2531,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
 				FICHERO_FEATURE_TIER = alpha;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2609,7 +2609,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = YES;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
 				FICHERO_FEATURE_TIER = beta;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;
@@ -2687,7 +2687,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app";
+				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
 				FICHERO_FEATURE_TIER = release;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = fichero/Info.plist;

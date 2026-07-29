@@ -89,7 +89,7 @@ fi
 # `codesign --deep` recurses into Contents/Frameworks (Sparkle.framework signs
 # fine) but NOT into loose .so/.dylib inside an embedded bundle under
 # Contents/Resources — so Briefcase's 800+ ad-hoc Python extensions in
-# Fichero Engine.app survive --deep and notarization rejects them. Sign every
+# Fichero Server.app survive --deep and notarization rejects them. Sign every
 # Mach-O file individually first (with --timestamp), then re-seal every bundle
 # innermost-first so parent seals capture already-signed children. See #2662.
 echo "[2b/6] Re-sign staged app with Developer ID Application (inside-out + --timestamp)"
@@ -102,7 +102,7 @@ DEV_IDENTITY="${FICHERO_DEV_IDENTITY:-Developer ID Application: DANIEL GAVIN LIV
 # engine entitlements so it survives on a clean Mac (#3163); keep the outer app
 # on its own release entitlements (else this re-sign strips user-selected file
 # access); everything else signs plain-hardened.
-ENGINE_APP="$APP/Contents/Resources/Fichero Engine.app"
+ENGINE_APP="$APP/Contents/Resources/Fichero Server.app"
 ENGINE_ENTITLEMENTS="$ROOT_DIR/fichero/fichero/FicheroEngine.entitlements"
 APP_ENTITLEMENTS="$ROOT_DIR/fichero/fichero/FicheroRelease.entitlements"
 
@@ -167,9 +167,9 @@ echo "  Signed $macho_count Mach-O binaries"
 
 # 2b.3 — re-seal every bundle innermost-first. Sorting bundle paths by length
 # descending guarantees a nested bundle (Downloader.xpc, Updater.app,
-# Fichero Engine.app) is sealed before its parent, so the parent's seal hashes
+# Fichero Server.app) is sealed before its parent, so the parent's seal hashes
 # an already-correct child. Covers Sparkle.framework (+ XPC services + Updater),
-# the embedded Fichero Engine.app, and the outer Fichero.app.
+# the embedded Fichero Server.app, and the outer Fichero.app.
 bundle_list="$(mktemp)"
 find "$APP" -type d \( -name '*.app' -o -name '*.framework' -o -name '*.xpc' \) \
   | awk '{print length, $0}' | sort -rn | cut -d' ' -f2- > "$bundle_list"

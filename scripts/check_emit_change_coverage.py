@@ -25,8 +25,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = ROOT / "fichero" / "fichero" / "Models"
-ROUTES_DIR = ROOT / "fichero-engine" / "src" / "fichero" / "api" / "routes"
-API_DIR = ROOT / "fichero-engine" / "src" / "fichero" / "api"
+ROUTES_DIR = ROOT / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
+API_DIR = ROOT / "fichero-server" / "src" / "fichero_server" / "api"
 
 METHODS = {"post", "put", "patch", "delete"}
 ALLOW_COMMENT_RE = re.compile(
@@ -88,9 +88,9 @@ STRING_RE = re.compile(r'\"([^\"]+)\"')
 
 # Deferred gaps to fix later.
 KNOWN_GAPS: set[str] = {
-    "fichero-engine/src/fichero/api/routes/documents.py::import_file",
-    "fichero-engine/src/fichero/api/routes/documents.py::purge_document",
-    "fichero-engine/src/fichero/api/routes/workflows.py::create_node",
+    "fichero-server/src/fichero_server/api/routes/documents.py::import_file",
+    "fichero-server/src/fichero_server/api/routes/documents.py::purge_document",
+    "fichero-server/src/fichero_server/api/routes/workflows.py::create_node",
 }
 
 # PERMANENTLY EXEMPT: POST handlers in a store-observed domain that mutate NO
@@ -99,13 +99,13 @@ KNOWN_GAPS: set[str] = {
 # only add a route here after confirming it performs no DB write.
 EXEMPT: set[str] = {
     # Compute-only: estimates a cost, returns it; writes nothing.
-    "fichero-engine/src/fichero/api/routes/workflows.py::estimate_workflow_cost",
+    "fichero-server/src/fichero_server/api/routes/workflows.py::estimate_workflow_cost",
     # Read-only: returns a tool's prompt text for preview; writes nothing.
-    "fichero-engine/src/fichero/api/routes/workflows.py::get_tool_prompt",
+    "fichero-server/src/fichero_server/api/routes/workflows.py::get_tool_prompt",
     # Compute-only: generates AI interpretation suggestions; persists nothing.
-    "fichero-engine/src/fichero/api/routes/hermeneutics.py::suggest_interpretations",
+    "fichero-server/src/fichero_server/api/routes/hermeneutics.py::suggest_interpretations",
     # Ephemeral crop returns a transient region preview and never saves an annotation.
-    "fichero-engine/src/fichero/api/routes/annotations.py::crop_ephemeral",
+    "fichero-server/src/fichero_server/api/routes/annotations.py::crop_ephemeral",
 }
 
 
@@ -121,13 +121,13 @@ REQUIRED_TERMINAL_EMITS: tuple[tuple[str, frozenset[str]], ...] = (
     # complete_run_documents marks docs completed and broadcasts document.updated
     # (centralised here so BOTH the main runner and the batch path are covered).
     (
-        "fichero-engine/src/fichero/workflows/completion.py",
+        "fichero-server/src/fichero_server/workflows/completion.py",
         frozenset({"emit_change"}),
     ),
     # kg_persist_finalize rebuilds the graph/embeddings then broadcasts
     # entity.updated / claim.updated / document.updated for the finalized scope.
     (
-        "fichero-engine/src/fichero/workflows/tools/kg_persist_finalize.py",
+        "fichero-server/src/fichero_server/workflows/tools/kg_persist_finalize.py",
         frozenset({"emit_workflow_kg_changes"}),
     ),
 )
@@ -443,7 +443,7 @@ def scan(
     routes_dir: Path | None = None,
 ) -> list[Row]:
     base_root = root or ROOT
-    route_root = routes_dir or base_root / "fichero-engine" / "src" / "fichero" / "api" / "routes"
+    route_root = routes_dir or base_root / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     observed_domains = _observed_domains(root=base_root, models_dir=models_dir)
     rows: list[Row] = []
 
@@ -495,8 +495,8 @@ def scan_non_route_saves(
     # Keep the default scan on API-adjacent helpers. Whole-engine scanning also
     # catches batch import/workflow writers whose route/action owners broadcast
     # at coarser boundaries and produces too much noise for this guardrail.
-    api_root = api_dir or base_root / "fichero-engine" / "src" / "fichero" / "api"
-    route_root = routes_dir or base_root / "fichero-engine" / "src" / "fichero" / "api" / "routes"
+    api_root = api_dir or base_root / "fichero-server" / "src" / "fichero_server" / "api"
+    route_root = routes_dir or base_root / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
     rows: list[SaveRow] = []
 
     for path in sorted(api_root.rglob("*.py")):

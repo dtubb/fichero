@@ -13,7 +13,7 @@ set -euo pipefail
 LIB="${1:-$HOME/Documents/fichero-loop-test.fichero}"
 DOC_ID="${2:-}"
 
-CLI="PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero --json --library $LIB"
+CLI="PYTHONPATH=fichero-server/src .venv/bin/python -m fichero --json --library $LIB"
 
 if [[ -n "$DOC_ID" ]]; then
   echo "=== Entities for $DOC_ID ==="

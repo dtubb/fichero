@@ -17,7 +17,7 @@ the main checkout: `source "$(git rev-parse --git-common-dir)/../.venv/bin/activ
 Never hardcode an absolute path like `~/code/fichero/.venv` in anything you commit; it is
 only true on one machine.
 
-Keep `PYTHONPATH=fichero-engine/src` **relative to this worktree** on every Python
+Keep `PYTHONPATH=fichero-server/src` **relative to this worktree** on every Python
 command. The venv is an editable install pointing at the main checkout; without the
 override you lint the *other* tree and get a green run that means nothing.
 
@@ -61,7 +61,7 @@ is longer than the code, delete the explanation.
 ## Lane discipline — never touch another lane's files
 
 Stay strictly in **{{LANE}}**'s files:
-- `backend` → `fichero-engine/src/**` + engine `tests/**`
+- `backend` → `fichero-server/src/**` + engine `tests/**`
 - `docs` → `docs/**` (NOT `src/` unit tests — those are backend's)
 - `client:swiftui` → `fichero/**` Swift
 - `sharing`/features → authz + sharing routes/membership

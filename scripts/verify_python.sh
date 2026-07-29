@@ -6,7 +6,7 @@
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 2
-export PYTHONPATH="fichero-engine/src"
+export PYTHONPATH="fichero-server/src:fichero-cli/src:fichero-mcp/src"
 PY=".venv/bin/python"
 PYTEST=".venv/bin/pytest"
 RUFF=".venv/bin/ruff"
@@ -21,34 +21,34 @@ run() {  # run "<label>" <cmd...>
 
 # 1. Lint (ruff == "pylint"). Canonical scope is src/ only (per CLAUDE.md); the
 # tests/ and scripts/ trees carry pre-existing lint debt and are out of scope.
-run "ruff" "$RUFF" check fichero-engine/src/
+run "ruff" "$RUFF" check fichero-server/src/
 
 # 2. Backend unit tests (includes the mocked CLI unit tests).
 #    `-k "not embedding"` skips tests that need an unavailable fastembed model
 #    (env limitation, not a code bug). Drop the filter if the model is present.
-run "backend unit" "$PYTEST" fichero-engine/tests/unit/ \
-  --ignore=fichero-engine/tests/unit/_archived -q -k "not embedding"
+run "backend unit" "$PYTEST" fichero-server/tests/unit/ \
+  --ignore=fichero-server/tests/unit/_archived -q -k "not embedding"
 
 # Say what this gate does NOT cover, so the exclusion can't quietly become
 # invisible coverage loss (#4174). tests/perf is ~73% of a whole-tree run.
-echo "ℹ️  Not covered by this gate: fichero-engine/tests/perf (~50 min) — run scripts/verify_perf.sh"
+echo "ℹ️  Not covered by this gate: fichero-server/tests/perf (~50 min) — run scripts/verify_perf.sh"
 
 # 3. GET contract walk (every list endpoint serializes against its response_model).
-run "contract walk" "$PYTEST" fichero-engine/tests/integration/test_contract_endpoint_walk.py -q
+run "contract walk" "$PYTEST" fichero-server/tests/integration/test_contract_endpoint_walk.py -q
 
 # 3b. Live transport round trips (#4176). UDS, HTTPS and in-process ASGI each
 #     bind a real listener; nothing else in the gate does. Before this, all
 #     three worked only by luck — test_bind_host.py asserts argument
 #     construction and never opens a socket. ~25s.
 run "transport round trips" "$PYTEST" \
-  fichero-engine/tests/integration/test_transport_round_trips.py -q
+  fichero-server/tests/integration/test_transport_round_trips.py -q
 
 # 4. Backend start-smoke: boot the engine, confirm it serves /health, tear down.
 echo "── backend start-smoke ──"
 SMOKE_PORT=8799
 FICHERO_DISABLE_AUTH=1 FICHERO_FEATURE_TIER=dev FICHERO_SKIP_DEFAULT_WORKFLOWS=1 \
   FICHERO_BASE_PATH="$(mktemp -d)" FICHERO_PARENT_PID=$$ \
-  "$UVICORN" fichero.api.tcp_transport:app --host 127.0.0.1 --port "$SMOKE_PORT" >/dev/null 2>&1 &
+  "$UVICORN" fichero_server.api.tcp_transport:app --host 127.0.0.1 --port "$SMOKE_PORT" >/dev/null 2>&1 &
 SMOKE_PID=$!
 ok=0
 for _ in $(seq 1 60); do
@@ -59,28 +59,28 @@ kill "$SMOKE_PID" 2>/dev/null; wait "$SMOKE_PID" 2>/dev/null
 if [ "$ok" = 1 ]; then echo "✅ backend start-smoke"; else echo "❌ backend start-smoke"; fail=1; fi
 
 # 5. CLI smoke: the CLI imports and its entrypoint runs.
-run "cli import" "$PY" -c "import fichero.cli"
+run "cli import" "$PY" -c "import fichero_cli"
 run "cli --help" "$PY" -m fichero --help
 
 # 6. Live CLI<->engine contract test.
-run "cli contract" "$PYTEST" fichero-engine/tests/integration/test_cli_engine_contract.py -q
+run "cli contract" "$PYTEST" fichero-server/tests/integration/test_cli_engine_contract.py -q
 
 # 7. OpenAPI freshness — confirm committed schema matches the live backend and that
 #    the Swift client copy is in sync. Re-exports the schema (Python only, no swift build)
 #    and diffs against the committed files; restores the working tree on mismatch so the
 #    gate never leaves dirty files behind.
 echo "── openapi freshness ──"
-PYTHONPATH=fichero-engine/src FICHERO_FEATURE_TIER=dev "$PY" \
-  fichero-engine/scripts/export_openapi_schema.py >/dev/null 2>&1
-if ! git diff --quiet -- fichero-engine/tests/contracts/openapi.json \
-                          fichero-engine/tests/contracts/endpoints.json; then
-  echo "❌ openapi freshness — backend routes changed; run ./fichero-engine/scripts/sync_openapi_schema.sh and commit"
-  git checkout -- fichero-engine/tests/contracts/openapi.json \
-                  fichero-engine/tests/contracts/endpoints.json 2>/dev/null || true
+PYTHONPATH=fichero-server/src:fichero-cli/src:fichero-mcp/src FICHERO_FEATURE_TIER=dev "$PY" \
+  fichero-server/scripts/export_openapi_schema.py >/dev/null 2>&1
+if ! git diff --quiet -- fichero-server/tests/contracts/openapi.json \
+                          fichero-server/tests/contracts/endpoints.json; then
+  echo "❌ openapi freshness — backend routes changed; run ./fichero-server/scripts/sync_openapi_schema.sh and commit"
+  git checkout -- fichero-server/tests/contracts/openapi.json \
+                  fichero-server/tests/contracts/endpoints.json 2>/dev/null || true
   fail=1
-elif ! cmp -s fichero-engine/tests/contracts/openapi.json \
+elif ! cmp -s fichero-server/tests/contracts/openapi.json \
               fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json; then
-  echo "❌ openapi freshness — openapi.json updated but Swift client not synced; run ./fichero-engine/scripts/sync_openapi_schema.sh and commit"
+  echo "❌ openapi freshness — openapi.json updated but Swift client not synced; run ./fichero-server/scripts/sync_openapi_schema.sh and commit"
   fail=1
 else
   echo "✅ openapi freshness"

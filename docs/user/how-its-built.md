@@ -98,7 +98,7 @@ human at the keyboard.
 Two non-negotiable rules close the loop:
 
 - **Never mark work complete without build + test + lint passing.** The exact
-  commands live in `CLAUDE.md` (fichero-engine `pytest` with `PYTHONPATH=fichero-engine/src`,
+  commands live in `CLAUDE.md` (fichero-server `pytest` with `PYTHONPATH=fichero-server/src`,
   `ruff` for Python, `swiftlint` and an Xcode build for Swift).
 - **Never push on top of an unverified commit.** The verification summary is read
   and parsed; work is pushed **only** when the suite is green. A change always

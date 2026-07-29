@@ -67,7 +67,7 @@ struct EngineSettingsView: View {
                 if let restartError {
                     Text(restartError).foregroundStyle(.red).font(.caption)
                 } else {
-                    Text("Fichero's engine indexes, searches, transcribes, and runs workflows for this library.")
+                    Text("Fichero's server indexes, searches, transcribes, and runs workflows for this library.")
                         .font(.caption)
                 }
             }

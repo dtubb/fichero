@@ -6,7 +6,7 @@ import XCTest
 
 /// Contract coverage for the KG pane's routing after the availability gate
 /// was retired (approved 2026-07-27; lineage #2538 → #4066). Every load
-/// routes through the custom `fichero-engine://` scheme, whose handler
+/// routes through the custom `fichero-server://` scheme, whose handler
 /// re-issues requests via `FicheroClient.requestData` — the layer that
 /// applies auth AND SPKI pinning (transport proof: the #4066 tests
 /// `EngineWebViewSchemeHandlerRoutingTests` / `EngineWebViewRoutingTests`
@@ -88,7 +88,7 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertTrue(html.contains("failed to load"))
     }
 
-    /// The global-KG request now loads over the custom `fichero-engine://engine`
+    /// The global-KG request now loads over the custom `fichero-server://engine`
     /// origin, NOT a raw `https://…:8765` URL — `EngineWebViewSchemeHandler`
     /// funnels it through the transport-agnostic `FicheroClient` so it works over
     /// `.uds`/in-memory too (the old raw URL failed `-1004` over a socket). Auth +
@@ -129,7 +129,7 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertNil(request.value(forHTTPHeaderField: "X-Fichero-Library-Path"))
     }
 
-    /// A per-document reader request likewise loads over the `fichero-engine://`
+    /// A per-document reader request likewise loads over the `fichero-server://`
     /// origin, with the document id percent-encoded into the path.
     func testDocumentReaderRequestUsesEngineScheme() throws {
         let request = try XCTUnwrap(

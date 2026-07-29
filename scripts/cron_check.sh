@@ -33,6 +33,6 @@ fi
 
 # 4. Backend Sync Check
 # Check if openapi.json matches current code (conceptually)
-# ./fichero-engine/scripts/sync_openapi_schema.sh --check
+# ./fichero-server/scripts/sync_openapi_schema.sh --check
 
 echo "Cron check complete."

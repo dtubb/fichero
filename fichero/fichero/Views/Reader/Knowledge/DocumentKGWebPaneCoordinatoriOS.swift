@@ -178,7 +178,7 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     }
 
     /// A genuine fetch failure (pinned remote unreachable, engine non-2xx) fails
-    /// the `fichero-engine://` provisional navigation. Fall back to the static
+    /// the `fichero-server://` provisional navigation. Fall back to the static
     /// failure page. Only fires for engine loads (or the key-less handler
     /// errors) so the `about:blank` failure page can't re-trigger a loop.
     func webView(

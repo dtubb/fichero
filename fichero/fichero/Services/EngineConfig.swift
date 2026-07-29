@@ -10,7 +10,25 @@ import Foundation
 /// remote host instead. Malformed non-empty values stay invalid instead of
 /// silently resolving to localhost.
 enum EngineConfig {
-    static let userDefaultsKey = "fichero.engine.host"
+    static let userDefaultsKey = "fichero.server.host"
+
+    /// Pre-rename host key (#4227: engine -> server). Existing installs have
+    /// their configured host stored under this key; `migrateLegacyHostKeyIfNeeded()`
+    /// copies it forward once at launch, and the read paths keep a read-through
+    /// fallback for non-app processes that never run the migration.
+    static let legacyUserDefaultsKey = "fichero.engine.host"
+
+    /// One-time, in-place key migration: if the canonical key has never been
+    /// written but the legacy key holds a value, copy it forward. The legacy
+    /// value is deliberately NOT deleted, so rolling back to a pre-rename build
+    /// still finds the host. Idempotent; call early at app launch.
+    static func migrateLegacyHostKeyIfNeeded() {
+        let store = defaults
+        if store.object(forKey: userDefaultsKey) == nil,
+           let legacy = store.string(forKey: legacyUserDefaultsKey) {
+            store.set(legacy, forKey: userDefaultsKey)
+        }
+    }
 
     /// The preference store this config reads and writes.
     ///
@@ -163,13 +181,14 @@ enum EngineConfig {
     ///   (#2465).
     static var connectionCandidates: [URL] {
         orderedConnectionCandidates(
-            savedHostString: defaults.string(forKey: userDefaultsKey),
+            savedHostString: defaults.string(forKey: userDefaultsKey)
+                ?? defaults.string(forKey: legacyUserDefaultsKey),
             isMacOS: allowsEmbeddedLocalDefault
         )
     }
 
     /// Pure, dependency-injected ordering used by `connectionCandidates`.
-    /// `savedHostString` is the persisted `fichero.engine.host`; `isMacOS`
+    /// `savedHostString` is the persisted `fichero.server.host`; `isMacOS`
     /// selects the platform branch. Exposed (rather than inlined) so the
     /// ordering can be unit-tested without mutating `UserDefaults` or the
     /// build platform.
@@ -273,7 +292,8 @@ extension EngineConfig {
     }
 
     private static var resolvedHostConfiguration: HostConfiguration {
-        hostConfiguration(from: defaults.string(forKey: userDefaultsKey))
+        hostConfiguration(from: defaults.string(forKey: userDefaultsKey)
+            ?? defaults.string(forKey: legacyUserDefaultsKey))
     }
 
     private static func normalizedHostString(_ raw: String?) -> String? {

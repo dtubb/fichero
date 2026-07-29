@@ -53,7 +53,7 @@ if [ ! -x "$RUFF_BIN" ]; then
 fi
 
 if [ -x "$RUFF_BIN" ]; then
-  if PYTHONPATH="$ROOT_DIR/fichero-engine/src" "$RUFF_BIN" check fichero-engine/src/ 2>&1; then
+  if PYTHONPATH="$ROOT_DIR/fichero-server/src:$ROOT_DIR/fichero-cli/src:$ROOT_DIR/fichero-mcp/src" "$RUFF_BIN" check fichero-server/src/ fichero-cli/src/ fichero-mcp/src/ 2>&1; then
     ok "Ruff clean"
   else
     fail "Ruff violations found"
@@ -70,9 +70,9 @@ if [ ! -x "$PYTHON_BIN" ]; then
 fi
 
 if [ -x "$PYTHON_BIN" ]; then
-  if PYTHONPATH="$ROOT_DIR/fichero-engine/src" "$PYTHON_BIN" -m pytest \
-    fichero-engine/tests/unit/ \
-    --ignore=fichero-engine/tests/unit/_archived \
+  if PYTHONPATH="$ROOT_DIR/fichero-server/src:$ROOT_DIR/fichero-cli/src:$ROOT_DIR/fichero-mcp/src" "$PYTHON_BIN" -m pytest \
+    fichero-server/tests/unit/ \
+    --ignore=fichero-server/tests/unit/_archived \
     -q 2>&1; then
     ok "pytest passed"
   else
@@ -84,18 +84,18 @@ fi
 
 # ── 4. Briefcase backend build ──────────────────────────────────────────────
 echo "[4/8] Briefcase backend build"
-cd "$ROOT_DIR/fichero-engine"
+cd "$ROOT_DIR/fichero-server"
 
 if ! command -v briefcase >/dev/null 2>&1; then
   fail "Briefcase not installed (pip install briefcase)"
 else
-  if [ -d "build/engine" ]; then
-    chmod -R u+w build/engine 2>/dev/null || true
-    rm -rf build/engine
+  if [ -d "build/server" ]; then
+    chmod -R u+w build/server 2>/dev/null || true
+    rm -rf build/server
   fi
 
-  if briefcase create macOS --app engine >/dev/null 2>&1; then true; fi
-  if briefcase update macOS --app engine 2>&1 && briefcase build macOS --app engine 2>&1; then
+  if briefcase create macOS --app server >/dev/null 2>&1; then true; fi
+  if briefcase update macOS --app server 2>&1 && briefcase build macOS --app server 2>&1; then
     ok "Briefcase backend built"
   else
     fail "Briefcase backend build failed"

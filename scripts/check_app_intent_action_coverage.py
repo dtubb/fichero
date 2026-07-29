@@ -37,7 +37,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE_DIR = ROOT / "fichero-engine" / "src" / "fichero"
+ENGINE_DIR = ROOT / "fichero-server" / "src" / "fichero_server"
 INTENTS_DIR = ROOT / "fichero" / "fichero" / "Intents"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 

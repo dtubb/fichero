@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-21
 **Status:** DESIGN + AUDIT — grounded against code and issues; no engine source modified (the
-`feature/research-and-hygiene` branch is actively reorganizing `fichero-engine/src/fichero/*`
-security modules into `fichero-engine/src/fichero/security/`, per
+`feature/research-and-hygiene` branch is actively reorganizing `fichero-server/src/fichero_server/*`
+security modules into `fichero-server/src/fichero_server/security/`, per
 `docs/design/engine-package-reorg.md` — that work is out of scope here).
 **Verified against:** worktree checkout of `main`, jCodemunch index `local/fichero-29aa4eed`
 (48,532 symbols, 2,107 files), plus `git log --all` for the reorg branch state, and `gh issue
@@ -24,7 +24,7 @@ audit):
 **Both are still valuable references** — most of their concrete recommendations shipped (see
 milestone #263 below: 15 of 17 issues closed in the week since). But one central recommendation
 was **not adopted**: the 07-14 doc's step 5 ("the flip") proposed making `multiuser_enabled()`
-return `True` unconditionally. Current code does the opposite. `fichero-engine/src/fichero/security/multiuser.py`
+return `True` unconditionally. Current code does the opposite. `fichero-server/src/fichero_server/security/multiuser.py`
 today reads:
 
 ```python
@@ -233,7 +233,7 @@ Bonjour — is automatic machinery behind those two switches, per the 07-14 UX c
 
 **Hard sequencing constraint:** `feature/research-and-hygiene` (#2566) is mid-flight, moving
 `accounts.py`, `multiuser.py`, `bind_host.py`, `remote_access_tls.py`, `security_scoped_access.py`,
-`discovery.py`, `remote_backend.py` (and 5 more) into `fichero-engine/src/fichero/security/`, with
+`discovery.py`, `remote_backend.py` (and 5 more) into `fichero-server/src/fichero_server/security/`, with
 identity-preserving import shims. It changes file *locations*, not behavior (route count verified
 unchanged: 360 before/after). Any engine-side sharing/pairing work that touches these modules
 should land **after** that branch merges to `main`, to avoid rebasing security-module edits across

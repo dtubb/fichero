@@ -107,9 +107,9 @@ The previously remembered “~62” was an earlier snapshot. The current exact-a
 
 ### Non-route exact aliases: 7
 
-- `db/core.py → fichero.db`
-- `llm/core.py → fichero.llm`
-- `models/core.py → fichero.models`
+- `db/core.py → fichero_server.db`
+- `llm/core.py → fichero_server.llm`
+- `models/core.py → fichero_server.models`
 - `knowledge/hermeneutics_models.py → models.hermeneutics`
 - `knowledge/knowledge_models.py → models.knowledge`
 - `workflows/batch.py → execution.batch`

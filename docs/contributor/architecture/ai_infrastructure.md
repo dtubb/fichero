@@ -3,7 +3,7 @@
 # AI Infrastructure — Architecture Review (EPIC #2056)
 
 > Status: **review doc**, written 2026-06-13. Describes what is **BUILT** in
-> `fichero-engine/src/fichero/` today vs what is **PLANNED** under EPIC #2056.
+> `fichero-server/src/fichero_server/` today vs what is **PLANNED** under EPIC #2056.
 > Every "BUILT" claim is grounded in a `file:symbol` reference verified against
 > source. Sections marked **PLANNED** / **GAP** are not yet implemented.
 
@@ -11,7 +11,7 @@
 
 ### 1.1 The model-access choke point — `llm.py` (BUILT)
 
-`fichero-engine/src/fichero/llm/` is the shipped entry layer for LLM calls.
+`fichero-server/src/fichero_server/llm/` is the shipped entry layer for LLM calls.
 The current public call surface is the set of coroutines in `llm.py`; provider
 construction sits underneath them.
 
@@ -50,7 +50,7 @@ Provider selection funnels through:
   `_KEYLESS_OPENAI_COMPATIBLE = {ollama, lmstudio, omlx}`) and OpenRouter quirks
   (`_make_openrouter_http_client`, `_openrouter_strip_parallel_tool_use`).
 
-Provider **metadata** lives separately in `fichero-engine/src/fichero/llm/providers.py`
+Provider **metadata** lives separately in `fichero-server/src/fichero_server/llm/providers.py`
 (`ProviderType`, `PROVIDERS`, `get_provider_info`, `get_cloud_providers`,
 `get_local_providers`, `get_vision_providers`, `get_embedding_providers`). This is
 the static capability registry; `_is_local_or_builtin_provider` (llm.py) reads it
@@ -70,7 +70,7 @@ than "call `get_langchain_model(...)` directly".
 There are **two** embedding entry points that do not share a choke point with
 `llm.py`:
 
-1. **Local / canonical search + KG path** — `fichero-engine/src/fichero/db/embeddings.py`,
+1. **Local / canonical search + KG path** — `fichero-server/src/fichero_server/db/embeddings.py`,
    `DatabaseEmbeddingMixin._embed_text` / `_embed_texts`. Uses **FastEmbed (ONNX)**,
    process-global shared embedder (`_get_shared_embedder`, `_EMBEDDER_CACHE`).
    - Live default model: `DEFAULT_MODEL = "intfloat/multilingual-e5-large"`
@@ -85,7 +85,7 @@ There are **two** embedding entry points that do not share a choke point with
      there is **no explicit pooling pin in Fichero code**. Vectors are L2-normalised
      (`_l2_normalize`) and optionally int8-quantised (`_quantize_int8`).
 
-2. **Cloud path** — `fichero-engine/src/fichero/llm_embeddings.py::embed`, LangChain,
+2. **Cloud path** — `fichero-server/src/fichero_server/llm_embeddings.py::embed`, LangChain,
    **defaults to OpenAI `text-embedding-3-small`**. (No live importers found via
    `find_references` — appears to be a legacy/secondary path, but still callable.)
 
@@ -114,7 +114,7 @@ parameter, not by request-level batching. There is **no use of LangChain
 
 - **MLX (#1814 / #2066):** the OpenAI-compatible local providers `omlx`, `ollama`,
   `lmstudio` are already first-class in `get_langchain_model` (`_KEYLESS_OPENAI_COMPATIBLE`)
-  and `fichero-engine/src/fichero/llm/providers.py`. So a local MLX server speaking the OpenAI API works **today** as a
+  and `fichero-server/src/fichero_server/llm/providers.py`. So a local MLX server speaking the OpenAI API works **today** as a
   configured provider. A *native in-process* `mlx-lm` path is **not built**.
 - **In-app Agent (#2067):** no agent-loop scaffolding found in the engine beyond the
   workflow executor + action registry (#1848). PLANNED.
@@ -199,7 +199,7 @@ the model id on every vector row, and (c) refuse-or-reindex on mismatch. → Iss
 ## 5. Canonical model-access design (target)
 
 Keep `llm.py` as the one text/vision choke point; keep
-`fichero-engine/src/fichero/db/embeddings.py` as the one embedding choke point.
+`fichero-server/src/fichero_server/db/embeddings.py` as the one embedding choke point.
 **Do not introduce a new gateway module.** Add three thin
 layers *in place*:
 
@@ -291,7 +291,7 @@ named in EPIC #2056 is unbuilt.
 1. **Per-page vision** — `vision` (`llm.py:1259`) is called once per page through the
    Send fan-out (`builder.py:_make_parallel_node_function`). Pages of the *same* PDF go
    to the *same* model with the *same* prompt — a textbook `.abatch([msg1..msgN])`.
-2. **Per-chunk embeddings** — `_embed_texts` (`fichero-engine/src/fichero/db/embeddings.py`) already batches at
+2. **Per-chunk embeddings** — `_embed_texts` (`fichero-server/src/fichero_server/db/embeddings.py`) already batches at
    the FastEmbed layer (`self._embedder.embed(formatted)`), so embeddings are fine for
    the local path. The **cloud** path `llm_embeddings.embed` uses `embed_documents`
    (also batched). The gap is purely the LLM/vision side.
@@ -356,6 +356,6 @@ is the iterate-in-place move: wrap the existing choke point, don't add a schedul
 | T7 | **Cost estimation coverage** — `estimate_token_count` (`llm.py:1987`), `estimate_cost` (`llm_models.py`) | Known token counts → expected cost for at least one cloud model; an **unknown** model id does not crash (returns 0 / None, logged) rather than raising mid-run. |
 | T8 | **Usage recording** — `_record_usage` / `collect_usage` (`llm.py:83/105`) | A `chat` call whose mocked response carries `usage_metadata` records input/output/total tokens against `(provider, model, "chat")`; a response **without** `usage_metadata` records nothing and does not crash. |
 | T9 | **Embedding model-id stamping** (PLANNED, gates #2194) | After embedding, every written vector row carries the resolved `embedding_model` id; reading with a *different* configured model raises/refuses rather than cosine-comparing across geometries. Currently **fails** (no stamp) — write it as the failing spec for the fix. |
-| T10 | **Embedding role/pooling formatting** — `format_for_model` (`fichero-engine/src/fichero/db/embeddings.py`) | E5-family inputs get `query:`/`passage:` prefixes per `role`; non-E5 models (bge-m3) get raw text. Pins the documented behavior so a model switch can't silently drop prefixes. |
+| T10 | **Embedding role/pooling formatting** — `format_for_model` (`fichero-server/src/fichero_server/db/embeddings.py`) | E5-family inputs get `query:`/`passage:` prefixes per `role`; non-E5 models (bge-m3) get raw text. Pins the documented behavior so a model switch can't silently drop prefixes. |
 | T11 | **Quota-error classification** — `_is_provider_quota_error` (`llm.py:427`) | A 429/quota exception from a provider is classified as `ProviderQuotaError` (so the fallback chain and `SystemicErrorDetected` pause fire); an unrelated 500 is **not** misclassified. |
 | T12 | **Cloud-embedding default leak** — `llm_embeddings.embed` (`llm_embeddings.py:52`) | Once the local-only perimeter exists: calling `embed` under local-only must refuse, not silently hit OpenAI `text-embedding-3-small`. Failing spec for #2193. |

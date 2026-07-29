@@ -6,7 +6,7 @@ import OpenAPIAsyncHTTPClient
 
 /// Transport-routing coverage for the KG web pane (#4066).
 ///
-/// `EngineWebViewSchemeHandler` funnels every `fichero-engine://` navigation +
+/// `EngineWebViewSchemeHandler` funnels every `fichero-server://` navigation +
 /// relative subresource through `FicheroClient.requestData(...)` — the SAME
 /// transport-agnostic fetch path the generated `Client` uses. Because
 /// `requestData` dials the client's `ClientTransport`, the pane works over
@@ -77,7 +77,7 @@ final class EngineWebViewRoutingTests: XCTestCase {
     /// assert the engine answers 200. This is the round-trip the user asked about
     /// ("has it tested with the in-memory load as well e.g. via the python-kit
     /// option"). `requestData` is the same method `EngineWebViewSchemeHandler`
-    /// calls for every `fichero-engine://` navigation + subresource, so a 200
+    /// calls for every `fichero-server://` navigation + subresource, so a 200
     /// here proves the KG pane reaches the engine over the in-memory transport
     /// with no socket and no HTTP listener. Also pins the transport TYPE so a
     /// regression that swaps `.inMemory` back to URLSession fails loudly.
@@ -115,14 +115,14 @@ final class EngineWebViewRoutingTests: XCTestCase {
 
     private static func configureInProcessEngineEnvOrSkip() throws {
         guard let repo = repoRoot() else {
-            throw XCTSkip("No Fichero checkout with .venv + fichero-engine found; "
+            throw XCTSkip("No Fichero checkout with .venv + fichero-server found; "
                 + "in-process engine unavailable.")
         }
         let fm = FileManager.default
 
-        let engineSrc = repo.appendingPathComponent("fichero-engine/src")
-        guard fm.fileExists(atPath: engineSrc.appendingPathComponent("fichero/api/main.py").path) else {
-            throw XCTSkip("Engine source not found at \(engineSrc.path); cannot import fichero.api.main.")
+        let engineSrc = repo.appendingPathComponent("fichero-server/src")
+        guard fm.fileExists(atPath: engineSrc.appendingPathComponent("fichero_server/api/main.py").path) else {
+            throw XCTSkip("Engine source not found at \(engineSrc.path); cannot import fichero_server.api.main.")
         }
         setenvIfUnset("FICHERO_ENGINE_SRC", engineSrc.path)
 
@@ -178,7 +178,7 @@ final class EngineWebViewRoutingTests: XCTestCase {
         let fm = FileManager.default
         func looksLikeRepo(_ url: URL) -> Bool {
             fm.fileExists(atPath: url.appendingPathComponent(".venv/bin/python").path)
-                && fm.fileExists(atPath: url.appendingPathComponent("fichero-engine/src").path)
+                && fm.fileExists(atPath: url.appendingPathComponent("fichero-server/src").path)
         }
         if let env = ProcessInfo.processInfo.environment["FICHERO_REPO_ROOT"], !env.isEmpty {
             let url = URL(fileURLWithPath: env)

@@ -17,9 +17,9 @@ The commands below are the current repo-standard ones from `AGENTS.md`.
 ### Backend
 
 ```bash
-bash fichero-engine/scripts/start_backend.sh
-PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/
-PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
+bash fichero-server/scripts/start_backend.sh
+PYTHONPATH=fichero-server/src .venv/bin/ruff check fichero-server/src/
+PYTHONPATH=fichero-server/src .venv/bin/pytest fichero-server/tests/unit/ --ignore=fichero-server/tests/unit/_archived
 ```
 
 ### Swift
@@ -31,7 +31,7 @@ swiftlint lint fichero/fichero/
 ### OpenAPI Sync
 
 ```bash
-./fichero-engine/scripts/sync_openapi_schema.sh
+./fichero-server/scripts/sync_openapi_schema.sh
 ```
 
 ## Backend First
@@ -39,7 +39,7 @@ swiftlint lint fichero/fichero/
 The frontend depends on the engine being available. For the default macOS development path:
 
 1. start the backend on port `8765`
-   via `bash fichero-engine/scripts/start_backend.sh`
+   via `bash fichero-server/scripts/start_backend.sh`
 2. open `fichero/fichero.xcodeproj`
 3. build and run the macOS app against that engine
 
@@ -83,7 +83,7 @@ deliberately incremental on current `main`, not "always rerun everything":
   guardrails, `scripts/check_version_date.sh`, and the OpenAPI model-sync
   validator.
 - `--standard` runs everything in `--fast`, then backend unit tests under
-  `fichero-engine/tests/unit/`.
+  `fichero-server/tests/unit/`.
 - `--full` runs `--standard` plus the requested platform legs. If you do not
   pass `--macos` or `--ios`, `--full` defaults to both.
 
@@ -174,7 +174,7 @@ Do not add `ALTER TABLE ADD COLUMN` migration functions for columns that are alr
 
 ### Feature tier
 
-`bash fichero-engine/scripts/start_backend.sh` defaults to `FICHERO_FEATURE_TIER=dev` so local testing shows staged surfaces. Override with `FICHERO_FEATURE_TIER=release` when checking release-tier behavior. If your work is only active under `FICHERO_FEATURE_TIER=dev`, say so in your PR description. Core routes must work in `release` tier.
+`bash fichero-server/scripts/start_backend.sh` defaults to `FICHERO_FEATURE_TIER=dev` so local testing shows staged surfaces. Override with `FICHERO_FEATURE_TIER=release` when checking release-tier behavior. If your work is only active under `FICHERO_FEATURE_TIER=dev`, say so in your PR description. Core routes must work in `release` tier.
 
 ## Expanding the Action Registry
 

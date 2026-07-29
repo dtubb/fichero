@@ -4,14 +4,14 @@
 
 This page describes the current shipped architecture on `main`. It is grounded
 in the SwiftUI app under `fichero/fichero/` and the FastAPI engine under
-`fichero-engine/src/fichero/`.
+`fichero-server/src/fichero_server/`.
 
 ## 1. Top-level runtime model
 
 Fichero is a two-part system:
 
 - `fichero/fichero/`: the Apple client, built in SwiftUI
-- `fichero-engine/src/fichero/`: the Python FastAPI engine
+- `fichero-server/src/fichero_server/`: the Python FastAPI engine
 
 The normal app path is not "Swift reads and writes the library directly." The
 app talks to the engine over the HTTP API and the engine owns persistence,
@@ -48,8 +48,8 @@ Swift wrappers built on top of it.
 
 ## 3. Backend shape
 
-The engine entry point is `fichero.api.main`. Feature behavior is mostly split
-by route module under `fichero-engine/src/fichero/api/routes/`.
+The engine entry point is `fichero_server.api.main`. Feature behavior is mostly split
+by route module under `fichero-server/src/fichero_server/api/routes/`.
 
 Examples:
 
@@ -66,7 +66,7 @@ each route owning its own persistence strategy.
 
 ## 4. Storage: DuckDB + LanceDB
 
-`fichero-engine/src/fichero/db/` is the main storage wrapper.
+`fichero-server/src/fichero_server/db/` is the main storage wrapper.
 
 Current built split:
 
@@ -88,10 +88,10 @@ The workflow engine is LangGraph-backed on current `main`.
 
 Grounded code points:
 
-- `fichero-engine/src/fichero/execution/runner.py` builds and compiles a
+- `fichero-server/src/fichero_server/execution/runner.py` builds and compiles a
   LangGraph `StateGraph`
-- workflow tools live under `fichero-engine/src/fichero/workflows/tools/`
-- tool registration lives in `fichero-engine/src/fichero/workflows/registry.py`
+- workflow tools live under `fichero-server/src/fichero_server/workflows/tools/`
+- tool registration lives in `fichero-server/src/fichero_server/workflows/registry.py`
 - `workflows/tools/agent.py` wraps workflow tools for LangChain/LangGraph agent
   use
 
@@ -103,7 +103,7 @@ So the accurate description is:
 
 ## 6. LLM path
 
-The centralized LLM entry surface is `fichero-engine/src/fichero/llm/`.
+The centralized LLM entry surface is `fichero-server/src/fichero_server/llm/`.
 
 For current workflow/tool code, the important public helpers are:
 

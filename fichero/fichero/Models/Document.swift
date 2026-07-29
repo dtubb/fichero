@@ -451,7 +451,7 @@ extension Document {
 extension Document {
     /// Stable id of the engine's locked "Default Workflows" container folder;
     /// its system subfolders are ids in the `"\(id):…"` namespace. Mirrors
-    /// `_DEFAULT_WORKFLOWS_CONTAINER_ID` in `fichero-engine/src/fichero/db/__init__.py`.
+    /// `_DEFAULT_WORKFLOWS_CONTAINER_ID` in `fichero-server/src/fichero_server/db/__init__.py`.
     static let defaultWorkflowsContainerID = "system-default-workflows"
 
     /// The container itself, or a subfolder the engine SEEDED into its id

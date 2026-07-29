@@ -19,10 +19,12 @@ Activate the virtualenv first (`source .venv/bin/activate`, see `CONTRIBUTING.md
 call the tools on `PATH`. Run everything from the repo root of the tree you are editing.
 
 ```bash
-# Backend — PYTHONPATH=fichero-engine/src on every Python command
-PYTHONPATH=fichero-engine/src ruff check fichero-engine/src/
-PYTHONPATH=fichero-engine/src pytest fichero-engine/tests/unit/
-bash fichero-engine/scripts/start_backend.sh   # server (serves HTTPS; app pins it fail-closed — never bare uvicorn/HTTP, #2538)
+# Backend — PYTHONPATH=fichero-server/src on every Python command. The CLI and
+# MCP products live in sibling trees (#4227); tests reach them via the conftest
+# sys.path seam, but lint them explicitly:
+PYTHONPATH=fichero-server/src:fichero-cli/src:fichero-mcp/src ruff check fichero-server/src/ fichero-cli/src/ fichero-mcp/src/
+PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/
+bash fichero-server/scripts/start_backend.sh   # server (serves HTTPS; app pins it fail-closed — never bare uvicorn/HTTP, #2538)
 
 # Swift — lint your diff; the manager runs the build + test (prefer the Xcode MCP)
 swiftlint lint fichero/fichero/
@@ -30,15 +32,15 @@ swiftlint lint fichero/fichero/
 
 **Which tests the gates actually run — and what they deliberately skip.** Every
 gate (`verify_python.sh`, `verify_all.sh --standard`, `build-and-validate.sh`)
-covers `fichero-engine/tests/unit/` plus, in `verify_all`, `tests/contracts/`.
-**`fichero-engine/tests/perf/` is run by NOTHING automatically** — that is
+covers `fichero-server/tests/unit/` plus, in `verify_all`, `tests/contracts/`.
+**`fichero-server/tests/perf/` is run by NOTHING automatically** — that is
 deliberate, not an oversight:
 
 ```bash
 scripts/verify_perf.sh          # the perf suite, on purpose (~50 min)
 ```
 
-Do NOT reach for the whole-tree `pytest fichero-engine/tests` form. It silently
+Do NOT reach for the whole-tree `pytest fichero-server/tests` form. It silently
 pulls in the perf suite and takes ~70 minutes: measured 2026-07-28, a full-tree
 run was 4219s of which **two perf tests were 3089s — 73% of the entire suite**
 (`test_list_entities_full_scale` 1612s, `test_list_entities_doc_scoped_scale`
@@ -52,12 +54,12 @@ the load where the OS starts killing processes, check `pgrep -f xcodebuild`
 before starting either the perf suite or a whole-tree pytest run.
 
 **Working in a git worktree?** A worktree has no `.venv` of its own. Activate the one from
-your main checkout, but keep `PYTHONPATH=fichero-engine/src` **relative to the worktree**
+your main checkout, but keep `PYTHONPATH=fichero-server/src` **relative to the worktree**
 — the venv is an editable install pointing at the main checkout, so without it you lint
 and test the *other* tree and get a green run that means nothing. Never write an absolute
 path like `~/code/fichero/.venv` into a doc or a script; it is only true on one machine.
 
-- **Backend API changed?** Regenerate the committed client or the Swift build breaks: `./fichero-engine/scripts/sync_openapi_schema.sh` (change API → sync → commit regen).
+- **Backend API changed?** Regenerate the committed client or the Swift build breaks: `./fichero-server/scripts/sync_openapi_schema.sh` (change API → sync → commit regen).
 - **Ship tests with the change.** Every SwiftUI fix or feature lands with new/updated unit tests in the same commit; write the failing test first for a bug. Test the logic (state, predicates, builders, ID parsing) rather than the rendered pixels, and eyeball pixels by running the built app.
 - **Risky diff?** Anything touching auth, file I/O, network, secrets, or keychain → run `/security-review`.
 
@@ -227,7 +229,7 @@ One gate, tiered. Run from the repo root:
 - `--standard` — fast + backend pytest unit tests.
 - `--full` — standard + platform legs (macOS Xcode build/test + the generic iOS Simulator compile gate; `--macos` / `--ios` to select). The manager owns `--full`.
 
-Backend pytest needs `PYTHONPATH=fichero-engine/src`; write-suites need their `FICHERO_RUN_*` flag. Parse the summary — merge only on **0 failed**. The macOS/UI leg needs a live window server (screen unlocked + `caffeinate -d`); a locked screen makes XCUITest time out. The iOS leg is compile-only and device-less: `bash scripts/verify_all.sh --standard --ios` uses `-destination 'generic/platform=iOS Simulator'` and isolated generated DerivedData/output directories (named `verify-all-derived` and `ios-simulator`) under the build output area, so CI/manager gates iOS compilation without booting or naming a simulator.
+Backend pytest needs `PYTHONPATH=fichero-server/src`; write-suites need their `FICHERO_RUN_*` flag. Parse the summary — merge only on **0 failed**. The macOS/UI leg needs a live window server (screen unlocked + `caffeinate -d`); a locked screen makes XCUITest time out. The iOS leg is compile-only and device-less: `bash scripts/verify_all.sh --standard --ios` uses `-destination 'generic/platform=iOS Simulator'` and isolated generated DerivedData/output directories (named `verify-all-derived` and `ios-simulator`) under the build output area, so CI/manager gates iOS compilation without booting or naming a simulator.
 
 ## Releasing
 
@@ -258,7 +260,7 @@ When seed-data shape changes, the shape change and every filter that reads it sh
 
 Before completing a backend route change: does OpenAPI need updating? Do the Swift generated files need regenerating? Do frontend callers need updating? Plan first for architectural, OpenAPI-schema, feature-flag-tier, or database-schema changes; proceed directly on clear-root-cause fixes, tests, and lint/build fixes.
 
-**Engine bug or rendering bug?** The typed `fichero` CLI (`python -m fichero`) mirrors every endpoint reachable from SwiftUI. Reproduce against the CLI first; if it fails the same way, the engine owns it.
+**Engine bug or rendering bug?** The typed `fichero` CLI (`python -m fichero_cli`) mirrors every endpoint reachable from SwiftUI. Reproduce against the CLI first; if it fails the same way, the engine owns it.
 
 ---
 
@@ -288,7 +290,7 @@ and `cost_per_token()`. It never routes a call.
 - **Databases:** `~/Library/Application Support/Fichero/fichero.duckdb` and
   `.../lance/`. Never query them directly — everything goes through `db.py`.
 - **Engine is macOS-only when embedded.** Briefcase declares one platform; iOS and
-  iPadOS always talk to a remote engine. See `fichero-engine/README.md`.
+  iPadOS always talk to a remote engine. See `fichero-server/README.md`.
 
 ---
 
@@ -326,11 +328,11 @@ The ones that cost hours, and that no test catches for you:
   traditional PBX file references, not synchronized groups. Write the file, then
   `ruby scripts/add-swift-file.rb <path>`. Never hand-edit `project.pbxproj`.
   (Test-target files use sync'd groups and just work.)
-- **`PYTHONPATH=fichero-engine/src` on every Python command.** The shared `.venv` is
+- **`PYTHONPATH=fichero-server/src` on every Python command.** The shared `.venv` is
   editable-installed against your MAIN checkout, not this worktree; without it, a
   worktree gates the *stale* tree — a green run that means nothing.
 - **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use
-  `fichero-engine/scripts/start_backend.sh`.
+  `fichero-server/scripts/start_backend.sh`.
 - **Multi-library requests need the `X-Fichero-Library-Path` header** (app-wide
   endpoints — health, providers/catalog, settings — skip it).
 - **A `pytest -k` subset skips the architecture guardrails.** Anything touching a
@@ -442,8 +444,10 @@ that must never be public goes outside `docs/` entirely — not merely out of `n
 | `agents/skills/` | Session-start / manager / worker skills + shared principles |
 | `fichero/fichero/` | Swift/SwiftUI frontend (Xcode project: `fichero/fichero.xcodeproj`) |
 | `fichero/fichero-api-client/` | Generated Swift OpenAPI client package |
-| `fichero-engine/src/fichero/` | Python FastAPI backend |
-| `fichero-engine/tests/` | Python tests (`unit/`, `integration/`, `contracts/`, and `perf/` — gated separately via `scripts/verify_perf.sh`) |
+| `fichero-server/src/fichero_server/` | Python FastAPI backend (the server; was `fichero-engine/src/fichero/`, #4227) |
+| `fichero-cli/src/fichero_cli/` | `fichero` command-line client (thin HTTP client of a running server) |
+| `fichero-mcp/src/fichero_mcp/` | MCP server product (also shipped inside the app bundle) |
+| `fichero-server/tests/` | Python tests for all three products (`unit/`, `integration/`, `contracts/`, and `perf/` — gated separately via `scripts/verify_perf.sh`) |
 
 ---
 
@@ -451,10 +455,10 @@ that must never be public goes outside `docs/` entirely — not merely out of `n
 
 1. Never push directly to `main` — always go through a PR (create it and merge it yourself).
 2. Never skip build, test, lint before marking work complete.
-3. Never modify genuinely auto-generated files: `openapi.json`, anything under `fichero/fichero-api-client/.build/`, anything under `fichero/fichero-api-client/Sources/FicheroAPIClient/` that's produced by the OpenAPI generator. The `openapi.json` files ARE regenerated from the backend (via `fichero-engine/scripts/sync_openapi_schema.sh`) and that regen output should be committed — what's forbidden is hand-editing them.
+3. Never modify genuinely auto-generated files: `openapi.json`, anything under `fichero/fichero-api-client/.build/`, anything under `fichero/fichero-api-client/Sources/FicheroAPIClient/` that's produced by the OpenAPI generator. The `openapi.json` files ARE regenerated from the backend (via `fichero-server/scripts/sync_openapi_schema.sh`) and that regen output should be committed — what's forbidden is hand-editing them.
 4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field that's declared in `openapi.json`. Dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` — see commit 31fc4141 for the pattern and `docs/contributor/architecture/fichero/api_client.md` for context.
 5. Never start coding before a plan exists for non-trivial work.
-6. `PYTHONPATH` must be set to `fichero-engine/src` for all Python commands.
+6. `PYTHONPATH` must be set to `fichero-server/src` for all Python commands.
 7. Never create per-task branches — commit all work to the milestone branch directly.
 8. Never start a milestone more than one ahead of what Daniel is currently testing.
 9. **Schema changes are no-migration in 0.0.x for fresh DBs, but real data needs migrations.** A new column on a Pydantic model is picked up by `_ensure_table` on fresh databases — don't add an `ALTER TABLE ADD COLUMN` for a column already in the model. BUT once a persisted DB (`app.duckdb` or a real library) exists, a new column needs an idempotent `ALTER`+backfill, not `CREATE-IF-NOT-EXISTS`. Structural changes (table renames, data backfills) belong in `db_migrations.py`.

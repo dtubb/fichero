@@ -28,7 +28,7 @@ public enum ASGIAppLoader {
         }
     }
 
-    /// Import `attribute` from `module` (e.g. module: "fichero.api.main", attribute: "app").
+    /// Import `attribute` from `module` (e.g. module: "fichero_server.api.main", attribute: "app").
     public static func importApp(module: String, attribute: String = "app") -> ASGIApp {
         let handle: ASGIApp = PythonWorker.shared.sync {
             let mod = Python.import(module)

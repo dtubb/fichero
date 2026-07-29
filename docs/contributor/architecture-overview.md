@@ -15,7 +15,7 @@
 Fichero is a two-part system:
 
 - `fichero/fichero/`: the native Apple SwiftUI app, with macOS as the primary surface today
-- `fichero-engine/src/fichero/`: the Python FastAPI engine
+- `fichero-server/src/fichero_server/`: the Python FastAPI engine
 
 The Swift app is not the source of truth for data or AI behavior. It is a UI
 layer that talks to the engine over pinned HTTPS. On macOS, the embedded-engine
@@ -51,9 +51,9 @@ The backend owns:
 - workflow execution, tasking, and activity logs
 - provider and model configuration
 
-`fichero.api.main` is the application entry point. `db.py` is the main storage
+`fichero_server.api.main` is the application entry point. `db.py` is the main storage
 abstraction over DuckDB and LanceDB. Business features are exposed through
-route modules under `fichero-engine/src/fichero/api/routes/`.
+route modules under `fichero-server/src/fichero_server/api/routes/`.
 
 ## Route Registration and Feature Tiers
 
@@ -68,7 +68,7 @@ Two practical tiers matter:
 As of the current `api/main.py`, most knowledge-graph, research, action,
 chains, model-comparison, and automation-related surfaces are already in the
 core route list. The remaining dev-tier surface is small; contributors should
-check `get_route_specs_for_tier` in `fichero.api.main` rather than assuming KG
+check `get_route_specs_for_tier` in `fichero_server.api.main` rather than assuming KG
 or research routes are dev-only.
 
 ## One Engine, Many Surfaces
@@ -77,7 +77,7 @@ The desktop app is the main user-facing client, but the engine is shared across 
 
 The same backend is also consumed by:
 
-- the typed `python -m fichero` CLI
+- the typed `python -m fichero_cli` CLI
 - the generated Swift OpenAPI client plus hand-written service wrappers
 - the `fichero.mcp_server` / `fichero-mcp` MCP server entrypoint
 - iOS/iPadOS clients that connect to a configured remote engine host

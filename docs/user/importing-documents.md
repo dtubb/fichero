@@ -34,7 +34,7 @@ The app and engine currently distinguish three practical import behaviors:
 - `Copy`: import a copy into the library-managed storage.
 - `Add Files`: exposed in the UI as a third import command; use it when you want the app to take the file into the library rather than just reference it.
 
-Internally, the import service sends the chosen mode to the fichero-engine ingest endpoints. Imported files can also request text extraction and automatic embedding as part of ingest.
+Internally, the import service sends the chosen mode to the fichero-server ingest endpoints. Imported files can also request text extraction and automatic embedding as part of ingest.
 
 ## Importing Folders
 
@@ -53,7 +53,7 @@ The main content area accepts dropped file URLs. In practice:
 
 - dropping files into the window starts an import
 - dropping onto specific sidebar folders can target that folder
-- Fichero shows import progress and surfaces readable errors from fichero-engine when an import fails
+- Fichero shows import progress and surfaces readable errors from fichero-server when an import fails
 
 For day-to-day use, drag-and-drop is the fastest way to get a pile of scans or PDFs into the library.
 

@@ -13,18 +13,18 @@ BUILD SUCCEEDED earlier this session):
 - UDS (Mac local), HTTPS (iOS/remote/sharing/debug), in-memory/PythonKit (Mac Dev/DMG experiment, all
   `#if os(macOS)` in `.../FicheroAPIClient/InMemory/`).
 - Auth: loopback-owner marker `scope["fichero.transport"] in ("uds","inmemory")` → owner
-  (`fichero-engine/src/fichero/api/auth.py:471`); `AuthTokenMiddleware` recognizes `http+unix` → bootstrap token.
+  (`fichero-server/src/fichero_server/api/auth.py:471`); `AuthTokenMiddleware` recognizes `http+unix` → bootstrap token.
 - Media (`fichero-res://`), reader, thumbnails, workflows, activity all route through the transport via
   `StorageResourceLoader` → generated OpenAPI client (`fichero/fichero/Services/StorageResource/`).
 - #18 startup: `EmbeddedBackendService` auto-restarts a crashed embedded engine (crash-loop guard:
   5 restarts / 60s → `.failed`). Full-window BackendConnectionView → toolbar-status is the S1 design
   (see `2026-07-20-startup-transport-ux-fabel-review.md`), NOT yet implemented.
 - `library_discovery.py` DELETED (dead home-crawl); recents-registry is the list source.
-- #4039 FIXED: `fichero-engine/tests/unit/conftest.py` attaches auth middleware at conftest LOAD →
+- #4039 FIXED: `fichero-server/tests/unit/conftest.py` attaches auth middleware at conftest LOAD →
   verify-all reliable again (~8056 pass). Run the suite ALONE, targeting `tests/unit/` (the gates
   never include `tests/perf`; run that deliberately via `scripts/verify_perf.sh` — see #4174),
   `--timeout=75 --timeout-method=thread`, `FICHERO_MULTIUSER=0`,
-  `PYTHONPATH=<worktree>/fichero-engine/src`, engine venv `/Users/danieltubb/code/fichero/.venv`.
+  `PYTHONPATH=<worktree>/fichero-server/src`, engine venv `/Users/danieltubb/code/fichero/.venv`.
 
 ## KNOWN OPEN: FicheroClient "Cannot find InMemoryASGIClientTransport in scope" (Xcode)
 The code is CORRECT — `.inMemory` (FicheroClient.swift ~L221) is `#if os(macOS)`-guarded and the InMemory
@@ -36,7 +36,7 @@ if the Dev Local build actually fails.
 
 ## Decisions Daniel APPROVED 2026-07-21 (recorded as issue comments)
 - **#2577** internal/external split = Option A: promote only the EXTERNAL HTTPS-client surface of cli/mcp
-  to top-level; internal/embedded stays in `fichero-engine` (grouped by #2566). Unblocks #2576, #2562.
+  to top-level; internal/embedded stays in `fichero-server` (grouped by #2566). Unblocks #2576, #2562.
 - **#2594** leave `runner.py` under `api/routes/workflow_execution/` (moving it regresses the swiftui
   contract walker); core consolidation already landed → closeable.
 - **#3740** (a) YES auto-wire existing inverses (crop/uncrop, split/unsplit, group/ungroup,
@@ -51,8 +51,8 @@ if the Dev Local build actually fails.
 
 ## Engine hygiene reorg — plan + method
 Plan: `docs/design/engine-package-reorg.md`. Method = the proven identity-preserving shim
-(`from fichero.X import *; import sys; sys.modules[__name__] = sys.modules["fichero.X"]`; see
-`fichero-engine/src/fichero/importers/iiif_import.py:1`). Ordered sequence: mcp → media → core → security →
+(`from fichero_server.X import *; import sys; sys.modules[__name__] = sys.modules["fichero.X"]`; see
+`fichero-server/src/fichero_server/importers/iiif_import.py:1`). Ordered sequence: mcp → media → core → security →
 llm → db → models. God-nodes (models.py 505 sites, db.py 337, llm.py 311, knowledge_models 291) STAGED
 with sys.modules shims. models/ = single package (relocate knowledge_models/hermeneutics_models in); 
 migrations → `db/migrations/` dir; pykeen_inference + graph_reasoning → `kg/`; spatial_models = canvas_models.
