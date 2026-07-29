@@ -1,12 +1,42 @@
 from __future__ import annotations
 
 import importlib
+import os
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from fichero.api.auth import attach_auth_middleware, initialize_token
 from fichero.security.multiuser import multiuser_enabled
+
+
+@pytest.fixture(autouse=True)
+def _restore_api_main_after_reload():
+    """Undo `_main_client`'s auth-enabled reload of fichero.api.main (#4243).
+
+    `_main_client` reloads the module with FICHERO_DISABLE_AUTH=0 and, before
+    this fixture, nothing reloaded it back — every later suite in the process
+    then built TestClients against an auth-enforcing app and failed with 401s
+    (26 order-dependent failures in the full run, all green standalone).
+    monkeypatch restores the ENV, but an import-time decision needs the module
+    itself restored.
+    """
+    yield
+    import fichero.api.main as api_main
+
+    # Unconditional, with the env pinned for the reload: teardown ordering vs
+    # monkeypatch is not guaranteed, and the suite-wide default (conftest) is
+    # auth disabled — rebuild the module in that state, whatever this test did.
+    prior = os.environ.get("FICHERO_DISABLE_AUTH")
+    os.environ["FICHERO_DISABLE_AUTH"] = "1"
+    try:
+        importlib.reload(api_main)
+    finally:
+        if prior is None:
+            os.environ.pop("FICHERO_DISABLE_AUTH", None)
+        else:
+            os.environ["FICHERO_DISABLE_AUTH"] = prior
 
 
 def _bearer(token: str) -> dict[str, str]:
