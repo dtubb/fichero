@@ -485,7 +485,8 @@ Pure crud or superseded material is `git rm`-ed, not parked at the root.
 | `fichero-server/src/fichero_server/` | Python FastAPI backend (the server; was `fichero-engine/src/fichero/`, #4227) |
 | `fichero-cli/src/fichero_cli/` | `fichero` command-line client (thin HTTP client of a running server) |
 | `fichero-mcp/src/fichero_mcp/` | MCP server product (also shipped inside the app bundle) |
-| `fichero-server/tests/` | Python tests for all three products (`unit/`, `integration/`, `contracts/`, and `perf/` — gated separately via `scripts/verify_perf.sh`) |
+| `fichero-server/tests/` | The gated Python suite for all three products (`unit/`, `integration/`, `contracts/`, and `perf/` — gated separately via `scripts/verify_perf.sh`) |
+| `fichero-cli/tests/`, `fichero-mcp/tests/` | Each product's own unit tests. Run directly (`pytest fichero-cli/tests`) — their conftest supplies the sibling `src/` paths. **Not yet in `verify_all`/`verify_python`, which name `fichero-server/tests/` explicitly** |
 
 ---
 

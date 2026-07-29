@@ -10,7 +10,7 @@ for the core loop: read library -> run workflow -> query KG -> save notes.
 ## Start Server
 
 ```bash
-python -m fichero_cli.mcp_simple --api-url http://127.0.0.1:8765 --library-path /path/to/Library.fichero
+python -m fichero_mcp.simple --api-url http://127.0.0.1:8765 --library-path /path/to/Library.fichero
 ```
 
 ## Tool Contract
@@ -33,7 +33,7 @@ these schemas in each tool's `inputSchema`.
 
 The shipped MCP story on current `main` has two distinct surfaces:
 
-- `python -m fichero_cli.mcp_simple` and `python -m fichero_cli.mcp_server` are stdio
+- `python -m fichero_mcp.simple` and `python -m fichero_mcp.server` are stdio
   MCP servers that call the typed `FicheroClient`.
 - `fichero-server/src/fichero_server/api/routes/mcp_tools.py` is a separate FastAPI
   REST adapter mounted at `/api/mcp/tools` from `api/main.py`.

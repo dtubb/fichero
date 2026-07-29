@@ -191,5 +191,7 @@ scripts/release-all.sh --help
 ## Project Structure
 
 - `fichero-server/`: the server (FastAPI), workflow runner, KG, ingest ([README](fichero-server/README.md))
-- `fichero/`: SwiftUI app, Xcode project, and `fichero` CLI under `fichero-cli/src/fichero_cli/`
+- `fichero/`: SwiftUI app and Xcode project
+- `fichero-cli/`: the `fichero` command-line client ([README](fichero-cli/README.md))
+- `fichero-mcp/`: the MCP server product ([README](fichero-mcp/README.md))
 - `docs/`: published documentation site and contributor reference

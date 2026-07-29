@@ -17,8 +17,8 @@ manifest is `Pillow>=12.2.0`.
 The previous `websockets<14` / LangGraph cap has been removed. The server now
 launches Uvicorn with the modern sans-IO websocket protocol:
 
-- Briefcase embedded engine: `ws="websockets-sansio"` in `src/engine/__main__.py`
-- CLI detached engine: `--ws websockets-sansio` in `src/fichero_server/cli/engine_manager.py`
+- Briefcase embedded server: `ws="websockets-sansio"` in `fichero-server/src/fichero_server/__main__.py`
+- CLI detached engine: `--ws websockets-sansio` in `fichero-cli/src/fichero_cli/engine_manager.py`
 
 A clean Briefcase create on 2026-06-27 resolved the newer websocket/LangGraph
 line successfully:
@@ -103,8 +103,8 @@ Commands run after the 2026-06-27 changes:
 
 ```bash
 python -c 'import tomllib; tomllib.load(open("fichero-server/pyproject.toml", "rb"))'
-PYTHONPATH=fichero-server/src .venv/bin/ruff check \
-  fichero-server/src/server/__main__.py \
+PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/ruff check \
+  fichero-server/src/fichero_server/__main__.py \
   fichero-cli/src/fichero_cli/engine_manager.py \
   fichero-server/src/fichero_server/knowledge/spacy_ner.py \
   fichero-server/src/fichero_server/api/routes/kg_sparql.py \
