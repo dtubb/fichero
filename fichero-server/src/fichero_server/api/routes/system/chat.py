@@ -155,9 +155,10 @@ class ToolCall(BaseModel):
 
     Field names mirror the Swift ``ToolCall`` product spine
     (``fichero/fichero/Models/ToolCall.swift``) in snake_case so the existing
-    ``ToolCallCard`` UI lights up with zero Swift work. Emitted only when the
-    ``FICHERO_CHAT_TOOLS`` agent loop is enabled; the array is empty for the
-    default single-shot RAG path. This slice is READS-ONLY: a dispatched read
+    ``ToolCallCard`` UI lights up with zero Swift work. The agent loop is the
+    DEFAULT chat path (#2067); the array is empty when the turn needed no tools,
+    when the model cannot bind tools, or when ``FICHERO_CHAT_TOOLS=0`` forces
+    single-shot RAG. This slice is READS-ONLY: a dispatched read
     carries ``is_mutation=False`` + an ``audit_id``; a refused mutating call is
     recorded with ``status='error'`` + ``is_mutation=True`` and never invoked.
     """
@@ -189,7 +190,7 @@ class ChatResponse(BaseModel):
     context_count: int = 0
     tool_calls: list[ToolCall] = Field(
         default_factory=list
-    )  # populated only by the FICHERO_CHAT_TOOLS agent loop; else empty
+    )  # audited calls from the default agent loop; [] when no tools ran (#2067)
 
 
 class ProviderModelInfo(BaseModel):
@@ -559,25 +560,34 @@ def _build_history_messages(
 
 
 # ---------------------------------------------------------------------------
-# Chat-tools agent loop (#1847 / #3) — DEFAULT-OFF, READS-ONLY
+# Chat-tools agent loop (#1847 / #3 / #2067) — DEFAULT-ON, READS-ONLY
 # ---------------------------------------------------------------------------
 #
-# Wires the fully-built-but-unwired `fichero_server.actions.chat_tools` generator +
-# dispatcher into the live chat handler. Gated behind FICHERO_CHAT_TOOLS so the
-# single-shot RAG path is byte-for-byte unchanged when the flag is off. This
-# slice only exposes and dispatches actions flagged `read_only=True`; a mutating
-# tool call is refused (recorded, never invoked) pending a write-policy review
-# (EPIC #1848).
+# Wires the `fichero_server.actions.chat_tools` generator + dispatcher into the
+# live chat handler. The loop is the DEFAULT chat path (#2067 — the Research
+# surface chats with the library through audited tools); FICHERO_CHAT_TOOLS=0
+# is the kill switch back to the single-shot RAG path. This slice only exposes
+# and dispatches actions flagged `read_only=True`; a mutating tool call is
+# refused (recorded, never invoked) pending a write-policy review (EPIC #1848).
+# A model/provider that cannot bind tools degrades gracefully to single-shot
+# inside `_run_chat_tools_loop` rather than failing the turn.
 
-_CHAT_TOOLS_TRUTHY = {"1", "true", "yes", "on"}
+_CHAT_TOOLS_FALSY = {"0", "false", "no", "off"}
 
 # Bound the agent loop so a misbehaving model cannot spin forever.
 MAX_CHAT_TOOL_ITERATIONS = 4
 
 
 def _chat_tools_enabled() -> bool:
-    """Whether the read-only chat-tools agent loop is enabled (default off)."""
-    return os.environ.get("FICHERO_CHAT_TOOLS", "").strip().lower() in _CHAT_TOOLS_TRUTHY
+    """Whether the read-only chat-tools agent loop is enabled (default ON).
+
+    ``FICHERO_CHAT_TOOLS=0`` (or false/no/off) disables the loop and restores
+    the single-shot RAG path unchanged.
+    """
+    return (
+        os.environ.get("FICHERO_CHAT_TOOLS", "").strip().lower()
+        not in _CHAT_TOOLS_FALSY
+    )
 
 
 async def _run_chat_tools_loop(
@@ -611,7 +621,19 @@ async def _run_chat_tools_loop(
     from fichero_server.actions.registry import ActionNotFoundError  # noqa: PLC0415
 
     tools = action_tools(read_only=True)
-    bound = llm.bind_tools(tools) if tools else llm
+    try:
+        bound = llm.bind_tools(tools) if tools else llm
+    except (AttributeError, NotImplementedError, ValueError) as exc:
+        # Now that the loop is the default (#2067), a model/provider without
+        # tool-calling support must degrade to the single-shot RAG answer, not
+        # fail the whole turn. The degradation is visible: tool_calls is [].
+        logger.warning(
+            "chat tools unavailable for this model (%s); falling back to "
+            "single-shot RAG",
+            exc,
+        )
+        response = await llm.ainvoke(list(messages))
+        return getattr(response, "content", ""), []
 
     convo = list(messages)
     tool_calls: list[ToolCall] = []
@@ -915,6 +937,54 @@ async def list_conversations(
     result.sort(key=lambda x: (x["sort_order"], x["updated_at"]), reverse=False)
 
     return ChatConversationListResponse(items=result, count=len(result))
+
+
+class ConversationCreateRequest(BaseModel):
+    """Create an empty conversation without requiring an LLM turn (#4308).
+
+    Before this endpoint a conversation only came into existence as a side
+    effect of a successful ``POST /api/chat`` LLM round-trip — so "New Chat"
+    silently created nothing when no provider was configured or the model
+    errored, and the sidebar showed nothing. Creation is now a plain, audited
+    persistence operation; the first real message continues the returned
+    conversation id.
+    """
+
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    folder_path: str = "/"
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+
+@router.post("/conversations", response_model=ConversationHistory)
+async def create_conversation(
+    request: ConversationCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ConversationHistory:
+    """Create an empty conversation through the audited ``conversation.create``
+    action (#4308) — no LLM required, appears in the sidebar immediately."""
+    result = registry.invoke(
+        db,
+        "conversation.create",
+        {
+            "title": request.title or "New Chat",
+            "folder_path": request.folder_path,
+            "provider": request.provider,
+            "model": request.model,
+        },
+        ctx,
+    )
+    conv = Conversation(**result.result)
+    return ConversationHistory(
+        id=conv.id,
+        title=conv.title,
+        messages=[],
+        created_at=_safe_isoformat(conv.created_at),
+        updated_at=_safe_isoformat(conv.updated_at),
+        folder_path=conv.folder_path,
+        sort_order=conv.sort_order,
+    )
 
 
 @router.post(
@@ -1461,6 +1531,46 @@ def _invert_restore(
             return None
         return ("conversation.delete", {"conversation_id": cid})
     return ("conversation.restore", {"snapshot": before})
+
+
+class ConversationCreateParams(BaseModel):
+    """``conversation.create`` — start an empty conversation, no LLM turn (#4308)."""
+
+    title: str = Field(default="New Chat", min_length=1, max_length=200)
+    folder_path: str = "/"
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+
+@action(
+    "conversation.create",
+    ConversationCreateParams,
+    domains=["conversation"],
+    undoable=True,
+    invert=_invert_create,
+)
+def _action_create_conversation(
+    db: Database, params: ConversationCreateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    conv = Conversation(
+        title=params.title,
+        messages=[],
+        provider=params.provider,
+        model=params.model,
+        document_ids=[],
+        folder_path=params.folder_path,
+        sort_order=0,
+    )
+    db.save(conv)
+    after = _snap_conversation(conv)
+    spec = ChangeSpec(
+        domains=["conversation"],
+        target_ids=[conv.id],
+        before=None,
+        after=after,
+        emit_type="conversation.created",
+    )
+    return after, spec
 
 
 @action(

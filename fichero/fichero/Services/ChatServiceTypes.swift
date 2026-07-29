@@ -14,6 +14,10 @@ struct ChatAPIResponse: Codable {
     let contextCount: Int
     let kgClaimsUsed: Int
     let kgEntitiesUsed: Int
+    /// Audited tool calls the agent loop made during this turn (#1847/#2067).
+    /// Empty on the single-shot RAG path; feeds `ChatMessage.toolCalls` so
+    /// `ToolCallCard` shows which tools ran with what inputs.
+    var toolCalls: [ToolCall] = []
 
     enum CodingKeys: String, CodingKey {
         case message
@@ -24,6 +28,42 @@ struct ChatAPIResponse: Codable {
         case contextCount = "context_count"
         case kgClaimsUsed = "kg_claims_used"
         case kgEntitiesUsed = "kg_entities_used"
+        case toolCalls = "tool_calls"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        message = try container.decode(String.self, forKey: .message)
+        sources = try container.decode([DocumentSourceAPI].self, forKey: .sources)
+        conversationId = try container.decode(String.self, forKey: .conversationId)
+        modelUsed = try container.decodeIfPresent(String.self, forKey: .modelUsed)
+        documentCount = try container.decodeIfPresent(Int.self, forKey: .documentCount) ?? 0
+        contextCount = try container.decodeIfPresent(Int.self, forKey: .contextCount) ?? 0
+        kgClaimsUsed = try container.decodeIfPresent(Int.self, forKey: .kgClaimsUsed) ?? 0
+        kgEntitiesUsed = try container.decodeIfPresent(Int.self, forKey: .kgEntitiesUsed) ?? 0
+        toolCalls = try container.decodeIfPresent([ToolCall].self, forKey: .toolCalls) ?? []
+    }
+
+    init(
+        message: String,
+        sources: [DocumentSourceAPI],
+        conversationId: String,
+        modelUsed: String?,
+        documentCount: Int,
+        contextCount: Int,
+        kgClaimsUsed: Int,
+        kgEntitiesUsed: Int,
+        toolCalls: [ToolCall] = []
+    ) {
+        self.message = message
+        self.sources = sources
+        self.conversationId = conversationId
+        self.modelUsed = modelUsed
+        self.documentCount = documentCount
+        self.contextCount = contextCount
+        self.kgClaimsUsed = kgClaimsUsed
+        self.kgEntitiesUsed = kgEntitiesUsed
+        self.toolCalls = toolCalls
     }
 }
 

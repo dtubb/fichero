@@ -564,6 +564,63 @@ class TestChatWithSources:
 
 
 # ---------------------------------------------------------------------------
+# POST /api/chat/conversations — create WITHOUT an LLM turn (#4308)
+# ---------------------------------------------------------------------------
+
+
+class TestCreateConversation:
+    """Regression tests for #4308: a new chat must persist (and therefore be
+    listable for the sidebar) without any LLM/provider configured at all."""
+
+    def test_create_persists_and_appears_in_list(self, client, db):
+        r = client.post("/api/chat/conversations", json={})
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["title"] == "New Chat"
+        assert data["messages"] == []
+        assert data["folder_path"] == "/"
+
+        # Persisted server-side…
+        assert db.get(Conversation, data["id"]) is not None
+        # …and visible where the sidebar looks (#4308).
+        listed = client.get("/api/chat/conversations").json()
+        assert data["id"] in {item["id"] for item in listed["items"]}
+
+    def test_create_with_title_and_folder(self, client, db):
+        r = client.post(
+            "/api/chat/conversations",
+            json={"title": "Archive dig", "folder_path": "/research/proj-1"},
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["title"] == "Archive dig"
+        assert data["folder_path"] == "/research/proj-1"
+        conv = db.get(Conversation, data["id"])
+        assert conv.folder_path == "/research/proj-1"
+
+    def test_create_is_audited_action(self, client, db):
+        from fichero_server.models import ActionAudit
+
+        r = client.post("/api/chat/conversations", json={"title": "Audited"})
+
+        assert r.status_code == 200
+        conv_id = r.json()["id"]
+        audits = [
+            a
+            for a in db.all(ActionAudit)
+            if a.action_name == "conversation.create"
+            and conv_id in (a.target_ids or [])
+        ]
+        assert len(audits) == 1
+
+    def test_create_rejects_blank_title(self, client):
+        r = client.post("/api/chat/conversations", json={"title": ""})
+        assert r.status_code == 422
+
+
+# ---------------------------------------------------------------------------
 # GET /api/chat/conversations/{id}
 # ---------------------------------------------------------------------------
 
@@ -802,8 +859,13 @@ class TestGetLangchainLlm:
 
         from unittest.mock import AsyncMock
         fake_model = MagicMock()
-        fake_model.invoke.return_value = MagicMock(content="Hello from stub")
-        fake_model.ainvoke = AsyncMock(return_value=MagicMock(content="Hello from stub"))
+        # The default agent loop (#2067) binds tools and inspects tool_calls on
+        # the response — make bind_tools return the same stub and give the
+        # response an empty tool_calls list so the loop terminates.
+        stub_response = MagicMock(content="Hello from stub", tool_calls=[])
+        fake_model.invoke.return_value = stub_response
+        fake_model.ainvoke = AsyncMock(return_value=stub_response)
+        fake_model.bind_tools.return_value = fake_model
 
         monkeypatch.setattr(
             "fichero_server.api.routes.chat.get_langchain_model",

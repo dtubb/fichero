@@ -2392,6 +2392,32 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("create-conversation")
+    def chat_create_conversation_post(
+        ctx: typer.Context,
+        folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Request field: folder_path."),
+        model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
+        provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
+        title: Optional[str] = typer.Option(None, "--title", help="Request field: title."),
+    ) -> None:
+        """Create Conversation (POST /api/chat/conversations)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/chat/conversations"
+            params = None
+            payload = _build_json_payload({
+                "folder_path": folder_path,
+                "model": model,
+                "provider": provider,
+                "title": title,
+            }, {
+                "folder_path": {'type': 'string', 'title': 'Folder Path', 'default': '/', 'x-cli-required': False},
+                "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'x-cli-required': False},
+                "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
+                "title": {'type': 'string', 'maxLength': 200, 'minLength': 1, 'nullable': True, 'title': 'Title', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("reorder-conversations")
     def chat_reorder_conversations_post(
         ctx: typer.Context,

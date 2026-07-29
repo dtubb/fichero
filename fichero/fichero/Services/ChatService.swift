@@ -114,7 +114,27 @@ class ChatService {
             documentCount: response.documentCount ?? 0,
             contextCount: response.contextCount ?? 0,
             kgClaimsUsed: response.kgClaimsUsed ?? 0,
-            kgEntitiesUsed: response.kgEntitiesUsed ?? 0
+            kgEntitiesUsed: response.kgEntitiesUsed ?? 0,
+            toolCalls: (response.toolCalls ?? []).map { convertToToolCall($0) }
+        )
+    }
+
+    /// Convert a generated tool-call record into the app's `ToolCall` spine
+    /// (#1847/#2067) so `ToolCallCard` can show which audited action ran.
+    private func convertToToolCall(_ call: Components.Schemas.ToolCall) -> ToolCall {
+        ToolCall(
+            id: call.id,
+            workspaceId: call.workspaceId,
+            messageId: call.messageId,
+            taskId: call.taskId,
+            actionName: call.actionName,
+            params: call.params.map { container in
+                container.value.mapValues { AnyCodable($0 as Any) }
+            },
+            actor: call.actor,
+            auditId: call.auditId,
+            isMutation: call.isMutation,
+            status: ToolCall.Status(rawValue: call.status ?? "ok") ?? .ok
         )
     }
 

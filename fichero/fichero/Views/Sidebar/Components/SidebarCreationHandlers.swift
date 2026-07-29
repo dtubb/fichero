@@ -16,27 +16,14 @@ extension SidebarView {
 
         Task {
             do {
-                let response = try await globalLibrary.chatService.chat(
-                    message: "Hello",
-                    conversationId: nil,
-                    documentIds: nil
-                )
-
-                // Create conversation directly from response (don't rely on lookup which may have timing issues)
-                let newConv = Conversation(
-                    id: response.conversationId,
-                    title: "New Chat",
-                    messages: [
-                        ChatMessage(role: .user, content: "Hello"),
-                        ChatMessage(role: .assistant, content: response.message)
-                    ],
-                    documentScope: [],
-                    folderPath: "/",
-                    sortOrder: 0
-                )
-
-                // Add to service's conversations array
-                globalLibrary.conversationService.conversations.append(newConv)
+                // #4308: create through the audited `conversation.create`
+                // endpoint — instant and provider-independent. The old path
+                // POSTed a real LLM turn ("Hello"); with no provider/API key
+                // configured it failed silently and the sidebar showed nothing.
+                // createConversation appends to the service's conversations
+                // array itself (one item, in place).
+                let newConv = try await globalLibrary.conversationService
+                    .createConversation()
 
                 // Rebuild caches so sidebar shows the new chat
                 rebuildCaches()
