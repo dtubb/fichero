@@ -261,15 +261,21 @@ resolve_area() {
   prefixes="$(echo "$row" | awk -F'|' '{print $2}' | tr -d ' ')"
   engine_globs="$(echo "$row" | awk -F'|' '{print $3}' | sed 's/^ *//;s/ *$//')"
   AREA_ONLY_TESTING=()
+  AREA_FILES=()
+  # Recursive: the test tree mirrors the app structure (#4247), so prefixes
+  # must match at any depth — a top-level glob resolves to NOTHING and a
+  # vacuously green gate, the exact silent-skip class this harness exists
+  # to kill.
   local prefix file klass
   IFS=',' read -ra _prefixes <<<"$prefixes"
   for prefix in "${_prefixes[@]}"; do
     [[ -n "$prefix" ]] || continue
-    for file in "$SWIFT_TESTS_DIR/$prefix"*.swift; do
-      [[ -e "$file" ]] || continue
+    while IFS= read -r file; do
+      [[ -n "$file" ]] || continue
       klass="$(basename "$file" .swift)"
       AREA_ONLY_TESTING+=("-only-testing:FicheroTests/$klass")
-    done
+      AREA_FILES+=("$file")
+    done < <(find "$SWIFT_TESTS_DIR" -type f -name "${prefix}*.swift" | sort)
   done
   AREA_ENGINE_PATHS=()
   local g p
@@ -315,17 +321,11 @@ unit_candidate_files() {
   if [[ -n "$area" ]]; then
     resolve_area "$area"
     local x
-    for x in ${AREA_ONLY_TESTING[@]+"${AREA_ONLY_TESTING[@]}"}; do
-      echo "$SWIFT_TESTS_DIR/${x#-only-testing:FicheroTests/}.swift"
-    done
+    for x in ${AREA_FILES[@]+"${AREA_FILES[@]}"}; do echo "$x"; done
   elif [[ -n "$filter" ]]; then
-    for file in "$SWIFT_TESTS_DIR/"$filter*.swift; do
-      [[ -e "$file" ]] && echo "$file"
-    done
+    find "$SWIFT_TESTS_DIR" -type f -name "${filter}*.swift" | sort
   else
-    for file in "$SWIFT_TESTS_DIR/"*.swift; do
-      [[ -e "$file" ]] && echo "$file"
-    done
+    find "$SWIFT_TESTS_DIR" -type f -name "*.swift" | sort
   fi
 }
 
