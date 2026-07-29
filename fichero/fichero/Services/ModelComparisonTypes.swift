@@ -215,7 +215,7 @@ struct NodeCompareRequest: Encodable {
 typealias ComparisonResult = Components.Schemas.ComparisonResultResponse
 typealias ModelResult = Components.Schemas.ModelResultResponse
 typealias ComparisonModelInfo = Components.Schemas.ModelInfo
-typealias ComparisonModelsResponse = Components.Schemas.FicheroApiRoutesAiModelComparisonModelListResponse
+typealias ComparisonModelsResponse = Components.Schemas.FicheroServerApiRoutesAiModelComparisonModelListResponse
 typealias ComparisonPreset = Components.Schemas.ComparisonPreset
 typealias PresetsResponse = Components.Schemas.PresetsResponse
 typealias HistoryResponse = Components.Schemas.ComparisonHistoryResponse

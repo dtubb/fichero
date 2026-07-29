@@ -129,7 +129,7 @@ class ChatService {
             taskId: call.taskId,
             actionName: call.actionName,
             params: call.params.map { container in
-                container.value.mapValues { AnyCodable($0 as Any) }
+                container.additionalProperties.value.mapValues { AnyCodable($0 as Any) }
             },
             actor: call.actor,
             auditId: call.auditId,

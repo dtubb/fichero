@@ -227,7 +227,7 @@ final class IntegrationsService {
         prototype: String? = nil
     ) async throws -> ExportResult {
         let metadataPayload = try metadata.map {
-            Components.Schemas.FicheroApiRoutesMcpIntegrationsExportRequest.MetadataPayload(
+            Components.Schemas.FicheroServerApiRoutesMcpIntegrationsExportRequest.MetadataPayload(
                 additionalProperties: try objectContainer(from: $0)
             )
         }

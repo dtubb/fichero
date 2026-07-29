@@ -33,7 +33,7 @@ extension ResearchService {
         description: String = "",
         folderDestinationId: String? = nil
     ) async throws -> ResearchProject {
-        let body = Components.Schemas.FicheroApiRoutesResearchCrudProjectCreateRequest(
+        let body = Components.Schemas.FicheroServerApiRoutesResearchCrudProjectCreateRequest(
             name: name,
             description: description,
             libraryDestinationFolderId: folderDestinationId

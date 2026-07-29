@@ -85,7 +85,7 @@ final class ResearchService {
         }
     }
 
-    func projectStatus(_ status: ResearchProjectStatus?) -> Components.Schemas.FicheroModelsResearchProjectStatus? {
+    func projectStatus(_ status: ResearchProjectStatus?) -> Components.Schemas.FicheroServerModelsResearchProjectStatus? {
         status.flatMap { .init(rawValue: $0.rawValue) }
     }
 

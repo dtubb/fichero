@@ -237,7 +237,7 @@ final class NoteService {
             pageId = nil
             folderId = nil
         }
-        let payload = Components.Schemas.FicheroApiRoutesDocumentNotesNoteCreateRequest(
+        let payload = Components.Schemas.FicheroServerApiRoutesDocumentNotesNoteCreateRequest(
             body: body,
             kind: noteKind(kind),
             linkedEntityIds: linkedEntityIds,

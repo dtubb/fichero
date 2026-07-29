@@ -25,7 +25,7 @@ extension ResearchService {
         noteType: String = "observation",
         tags: [String] = []
     ) async throws -> ResearchNote {
-        let body = Components.Schemas.FicheroApiRoutesResearchNotesNoteCreateRequest(
+        let body = Components.Schemas.FicheroServerApiRoutesResearchNotesNoteCreateRequest(
             projectId: projectId,
             taskId: taskId,
             noteType: researchNoteType(noteType),
