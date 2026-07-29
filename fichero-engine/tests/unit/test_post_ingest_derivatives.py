@@ -155,6 +155,37 @@ class TestTheSplitAndItsBounds:
 
         assert "derivatives" in caplog.text.lower()
 
+    def test_queueing_inside_a_transaction_waits_for_the_commit(
+        self, ingested_image, test_package, db
+    ):
+        """The audited import.file action is ATOMIC.
+
+        Submitting inside the open transaction lets a worker look up a
+        document id that has not been committed yet, find nothing, and drop
+        the thumbnail — a silent loss. The submission must ride the
+        after-commit hook.
+        """
+        with db.transaction():
+            # A real write, because the DB starts its transaction lazily and
+            # only runs after-commit hooks when one actually started — a
+            # read-only `with db.transaction()` discards them.
+            db.save(ingested_image)
+            futures = queue_derivatives(
+                [ingested_image], library_path=test_package, db=db
+            )
+            assert futures == [], "must not submit before the commit"
+
+        wait(futures, timeout=60)
+        assert futures, "the commit must release the queued work"
+        assert db.get(Document, ingested_image.id).status == Status.completed
+
+    def test_the_route_passes_its_db_so_the_hook_is_used(self):
+        import inspect
+
+        from fichero.api.routes.ingest import core
+
+        assert "db=db" in inspect.getsource(core.import_file_impl)
+
     def test_the_ingest_route_queues_the_work(self):
         """The stage must be WIRED — a queue nobody fills is not a pipeline."""
         import inspect

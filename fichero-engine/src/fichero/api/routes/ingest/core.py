@@ -199,7 +199,7 @@ def import_file_impl(
         # Thumbnails happen AFTER the row lands, on their own bounded pool
         # (#4225). Import stays fast; the row gains its thumbnail in place via
         # the document.updated the derivative stage emits.
-        queue_derivatives([doc], library_path=package_path)
+        queue_derivatives([doc], library_path=package_path, db=db)
         return doc
     except HTTPException:
         raise
@@ -259,7 +259,7 @@ def import_folder_impl(
     )
     # Queued after the whole folder lands rather than per file: the queue is
     # bounded (#4225) and the ingest loop must not block on it.
-    queue_derivatives(docs, library_path=package_path)
+    queue_derivatives(docs, library_path=package_path, db=db)
     return docs
 
 

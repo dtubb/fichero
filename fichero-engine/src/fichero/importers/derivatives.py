@@ -67,23 +67,39 @@ def queue_derivatives(
     docs: Iterable[Document],
     *,
     library_path: str | Path,
+    db: "Database | None" = None,
 ) -> list[Future]:
     """Schedule derivative generation for freshly ingested documents.
 
     Returns the futures so a caller (and the tests) can wait; the ingest path
     deliberately does NOT wait.
+
+    Pass ``db`` when the caller might be inside a transaction — the audited
+    ``import.file`` action is atomic, so submitting immediately would let a
+    worker look up a document id that has not been COMMITTED yet, find
+    nothing, and drop the thumbnail on the floor. ``add_after_commit_hook``
+    runs the submission immediately when there is no open transaction, so this
+    is the same call either way; the returned list fills in on commit.
     """
     library = str(library_path)
     if not library:
         logger.warning("Not queueing derivatives: no library path given")
         return []
 
-    executor = _get_executor()
+    queued = [doc.id for doc in docs if needs_derivative(doc)]
     futures: list[Future] = []
-    for doc in docs:
-        if not needs_derivative(doc):
-            continue
-        futures.append(executor.submit(generate_derivative, doc.id, library))
+    if not queued:
+        return futures
+
+    def submit() -> None:
+        executor = _get_executor()
+        for doc_id in queued:
+            futures.append(executor.submit(generate_derivative, doc_id, library))
+
+    if db is not None:
+        db.add_after_commit_hook(submit)
+    else:
+        submit()
     return futures
 
 
