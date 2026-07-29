@@ -23,11 +23,15 @@ import Foundation
 /// down, and it is worth preventing even though it harms only the suite.
 enum TestDefaults {
     /// Empty the test suite. Call from `setUp`.
+    ///
+    /// `removePersistentDomain`, NOT a `dictionaryRepresentation()` loop: the
+    /// dictionary MERGES NSGlobalDomain (~91 keys on a fresh suite), and
+    /// `removeObject` posts `didChangeNotification` even for keys that are
+    /// absent (#4104) — so the loop fired ~91 notifications per setUp at the
+    /// hosted app's AttributeGraph. Removing the persistent domain touches
+    /// only suite-owned keys and posts once.
     static func reset() {
-        let defaults = EngineConfig.defaults
-        for key in defaults.dictionaryRepresentation().keys {
-            defaults.removeObject(forKey: key)
-        }
+        EngineConfig.defaults.removePersistentDomain(forName: EngineConfig.testSuiteName)
     }
 
     /// Kept for symmetry at call sites that clear on the way out as well as in.

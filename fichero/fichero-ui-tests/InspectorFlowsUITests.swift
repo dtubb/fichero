@@ -38,7 +38,19 @@ import XCTest
 // this isolates setUp/tearDown/tests together with no per-call bridging.
 @MainActor
 final class InspectorFlowsUITests: XCTestCase {
-    private var harness: UITestEngineHarness!
+    // ONE seeded engine for the whole class, not one per test: both tests are
+    // READ-ONLY against the fixture, so the per-test respawn bought nothing
+    // but an extra seeder run + uvicorn spawn per test. Spawned lazily in the
+    // first setUp (class-level setUp cannot throw an XCTSkip), torn down in
+    // the class tearDown; the harness's atexit/parent-PID backstops cover a
+    // crashed run. `nonisolated(unsafe)`: statics on a @MainActor class are
+    // otherwise actor-isolated, and the nonisolated class tearDown must reach
+    // them; all access happens on XCTest's serial test execution, never
+    // concurrently.
+    nonisolated(unsafe) private static var sharedHarness: UITestEngineHarness?
+    nonisolated(unsafe) private static var sharedSeeded: UITestEngineHarness.SeededLibrary?
+    nonisolated(unsafe) private static var provisioningError: Error?
+
     private var seeded: UITestEngineHarness.SeededLibrary!
     private var app: XCUIApplication!
 
@@ -55,14 +67,21 @@ final class InspectorFlowsUITests: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
 
-        harness = UITestEngineHarness()
-        do {
-            seeded = try harness.start()
-        } catch {
+        if Self.sharedHarness == nil, Self.provisioningError == nil {
+            let harness = UITestEngineHarness()
+            do {
+                Self.sharedSeeded = try harness.start()
+                Self.sharedHarness = harness
+            } catch {
+                Self.provisioningError = error
+            }
+        }
+        if let error = Self.provisioningError {
             // No venv / seeder / repo on this machine — skip rather than red. The
             // harness is self-describing about what it couldn't find.
             throw XCTSkip("Could not provision the UI-test engine: \(error)")
         }
+        seeded = Self.sharedSeeded
 
         // Sanity: the fixture is only meaningful if it actually holds entities.
         XCTAssertGreaterThan(
@@ -88,7 +107,14 @@ final class InspectorFlowsUITests: XCTestCase {
 
     override func tearDown() async throws {
         app?.terminate()
-        harness?.stop()
+    }
+
+    override nonisolated class func tearDown() {
+        sharedHarness?.stop()
+        sharedHarness = nil
+        sharedSeeded = nil
+        provisioningError = nil
+        super.tearDown()
     }
 
     // MARK: - Entities load (regression guard for the EntityService transport fix)
