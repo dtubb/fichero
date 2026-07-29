@@ -28,16 +28,37 @@ extension ContentView {
     /// push (#2551) — never a folder, so tapping a folder still drills in place.
     /// Falls back to the current selection when no promoted `detailDocument`
     /// exists (the .none/.standard promote policy is regular-width only). Resolves
-    /// from the DISPLAYED `selectedDocuments` first, then `currentDocuments`, so a
-    /// tap resolves even when those two momentarily disagree (#2666).
-    private func compactReaderLeaf() -> Document? {
+    /// from the DISPLAYED documents first, then `currentDocuments`, so a tap
+    /// resolves even when those two momentarily disagree (#2666).
+    /// nonisolated static so the truth table is testable off-main — View statics
+    /// inherit the type's MainActor isolation under the macOS 26 SDK (#4201).
+    nonisolated static func resolveCompactReaderLeaf(
+        detailDocument: Document?,
+        selectedId: String?,
+        displayedDocuments: [Document],
+        fallbackDocuments: [Document]
+    ) -> Document? {
         let candidate = detailDocument
-            ?? browserSelection.first.flatMap { id in
-                selectedDocuments.first(where: { $0.id == id })
-                    ?? documentStore.currentDocuments.first(where: { $0.id == id })
+            ?? selectedId.flatMap { id in
+                displayedDocuments.first(where: { $0.id == id })
+                    ?? fallbackDocuments.first(where: { $0.id == id })
             }
         guard let doc = candidate, doc.docType != .folder else { return nil }
         return doc
+    }
+
+    private func compactReaderLeaf() -> Document? {
+        Self.resolveCompactReaderLeaf(
+            detailDocument: detailDocument,
+            selectedId: browserSelection.first,
+            // The SAME array LibraryView is showing: transient-search hits can
+            // live outside the browsed folder, so resolving only from
+            // `currentDocuments` left search-result taps unresolvable (#2666).
+            displayedDocuments: activeSearchQuery == nil
+                ? selectedDocuments
+                : searchResultDocuments,
+            fallbackDocuments: documentStore.currentDocuments
+        )
     }
 
     /// Push the resolved leaf into `pushedReaderDocument` (#2666). Writing real
@@ -98,6 +119,14 @@ extension ContentView {
                         browserSelection = []
                     }
                 }
+                // Mount-time sync (#2666): the push above is driven by CHANGE
+                // observers only. A selection already in place when this stack
+                // (re)mounts — restored from SceneStorage at launch, or retained
+                // across a mode switch — left a selected row whose tap changed
+                // nothing, so no onChange ever fired and the reader was
+                // unreachable. Syncing on appear makes "stack visible ⇒ pushed
+                // reader reflects the selection" an invariant, not an event.
+                .onAppear { syncPushedReaderDocument() }
         }
     }
 
