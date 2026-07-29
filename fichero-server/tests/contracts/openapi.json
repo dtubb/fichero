@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.7.20b1"
+    "version": "2026.7.24"
   },
   "paths": {
     "/api/health": {
@@ -2787,7 +2787,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__document__notes__NoteCreateRequest"
+                "$ref": "#/components/schemas/fichero_server__api__routes__document__notes__NoteCreateRequest"
               }
             }
           }
@@ -3309,7 +3309,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__system__projects__ProjectCreateRequest"
+                "$ref": "#/components/schemas/fichero_server__api__routes__system__projects__ProjectCreateRequest"
               }
             }
           }
@@ -3349,7 +3349,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__models__knowledge__ProjectStatus",
+              "$ref": "#/components/schemas/fichero_server__models__knowledge__ProjectStatus",
               "nullable": true,
               "title": "Status"
             }
@@ -4212,7 +4212,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero_server__models__DocumentListResponse"
                 }
               }
             }
@@ -4388,7 +4388,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__citation__bibliography__ImportRequest"
+                "$ref": "#/components/schemas/fichero_server__api__routes__citation__bibliography__ImportRequest"
               }
             }
           },
@@ -4400,7 +4400,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__citation__bibliography__ImportResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__citation__bibliography__ImportResponse"
                 }
               }
             }
@@ -4493,7 +4493,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__citation__bibliography__ExportRequest"
+                "$ref": "#/components/schemas/fichero_server__api__routes__citation__bibliography__ExportRequest"
               }
             }
           },
@@ -5246,6 +5246,58 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChatConversationListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Create Conversation",
+        "description": "Create an empty conversation through the audited ``conversation.create``\naction (#4308) \u2014 no LLM required, appears in the sidebar immediately.",
+        "operationId": "create_conversation_api_chat_conversations_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationHistory"
                 }
               }
             }
@@ -7641,7 +7693,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero_server__models__DocumentListResponse"
                 }
               }
             }
@@ -7725,7 +7777,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero_server__models__DocumentListResponse"
                 }
               }
             }
@@ -7747,7 +7799,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero_server__models__DocumentListResponse"
                 }
               }
             }
@@ -7769,7 +7821,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero_server__models__DocumentListResponse"
                 }
               }
             }
@@ -7819,7 +7871,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero_server__models__DocumentListResponse"
                 }
               }
             }
@@ -8363,7 +8415,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero_server__models__DocumentListResponse"
                 }
               }
             }
@@ -8406,7 +8458,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero_server__models__DocumentListResponse"
                 }
               }
             }
@@ -9628,7 +9680,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__citation__references__DeletedResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__citation__references__DeletedResponse"
                 }
               }
             }
@@ -10066,7 +10118,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
+              "$ref": "#/components/schemas/fichero_server__models__knowledge__EntityType",
               "nullable": true,
               "title": "Entity Type"
             }
@@ -10200,7 +10252,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
+              "$ref": "#/components/schemas/fichero_server__models__knowledge__EntityType",
               "nullable": true,
               "title": "Entity Type"
             }
@@ -11183,7 +11235,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/fichero__api__routes__document__folders__EntityType"
+              "$ref": "#/components/schemas/fichero_server__api__routes__document__folders__EntityType"
             }
           },
           {
@@ -11233,7 +11285,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/fichero__api__routes__document__folders__EntityType"
+              "$ref": "#/components/schemas/fichero_server__api__routes__document__folders__EntityType"
             }
           },
           {
@@ -11282,7 +11334,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/fichero__api__routes__document__folders__EntityType"
+              "$ref": "#/components/schemas/fichero_server__api__routes__document__folders__EntityType"
             }
           }
         ],
@@ -11332,7 +11384,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/fichero__api__routes__document__folders__EntityType"
+              "$ref": "#/components/schemas/fichero_server__api__routes__document__folders__EntityType"
             }
           },
           {
@@ -11393,7 +11445,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/fichero__api__routes__document__folders__EntityType"
+              "$ref": "#/components/schemas/fichero_server__api__routes__document__folders__EntityType"
             }
           }
         ],
@@ -14202,7 +14254,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__ai__provider_models__ModelListResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__ai__provider_models__ModelListResponse"
                 }
               }
             }
@@ -14709,7 +14761,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__ai__providers__DeletedResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__ai__providers__DeletedResponse"
                 }
               }
             }
@@ -14844,7 +14896,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__ai__providers__DeletedResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__ai__providers__DeletedResponse"
                 }
               }
             }
@@ -14990,7 +15042,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__ai__providers__DeletedResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__ai__providers__DeletedResponse"
                 }
               }
             }
@@ -15631,7 +15683,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__search__core__DeletedResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__search__core__DeletedResponse"
                 }
               }
             }
@@ -16608,7 +16660,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__ai__model_comparison__ModelListResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__ai__model_comparison__ModelListResponse"
                 }
               }
             }
@@ -17042,7 +17094,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__ai__model_comparison__ToolListResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__ai__model_comparison__ToolListResponse"
                 }
               }
             }
@@ -19781,7 +19833,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__workflow__workflows__ToolListResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__workflow__workflows__ToolListResponse"
                 }
               }
             }
@@ -21934,7 +21986,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__kg__pykeen__DeleteModelResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__kg__pykeen__DeleteModelResponse"
                 }
               }
             }
@@ -22677,7 +22729,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__citation__rendering__CitationResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__citation__rendering__CitationResponse"
                 }
               }
             }
@@ -23704,7 +23756,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
+              "$ref": "#/components/schemas/fichero_server__models__knowledge__EntityType",
               "nullable": true,
               "title": "Entity Type"
             }
@@ -26354,7 +26406,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__research__crud__ProjectCreateRequest"
+                "$ref": "#/components/schemas/fichero_server__api__routes__research__crud__ProjectCreateRequest"
               }
             }
           }
@@ -26394,7 +26446,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/fichero__models__research__ProjectStatus",
+              "$ref": "#/components/schemas/fichero_server__models__research__ProjectStatus",
               "nullable": true,
               "title": "Status"
             }
@@ -27289,7 +27341,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__research__notes__NoteCreateRequest"
+                "$ref": "#/components/schemas/fichero_server__api__routes__research__notes__NoteCreateRequest"
               }
             }
           }
@@ -29062,7 +29114,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__mcp__integrations__ImportRequest"
+                "$ref": "#/components/schemas/fichero_server__api__routes__mcp__integrations__ImportRequest"
               }
             }
           }
@@ -29073,7 +29125,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__mcp__integrations__ImportResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__mcp__integrations__ImportResponse"
                 }
               }
             }
@@ -29116,7 +29168,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/fichero__api__routes__mcp__integrations__ExportRequest"
+                "$ref": "#/components/schemas/fichero_server__api__routes__mcp__integrations__ExportRequest"
               }
             }
           }
@@ -29280,7 +29332,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__mcp__integrations__CitationResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__mcp__integrations__CitationResponse"
                 }
               }
             }
@@ -29313,7 +29365,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__mcp__integrations__DocumentListResponse"
+                  "$ref": "#/components/schemas/fichero_server__api__routes__mcp__integrations__DocumentListResponse"
                 }
               }
             }
@@ -30158,7 +30210,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__models__DeleteModelResponse"
+                  "$ref": "#/components/schemas/fichero_server__models__DeleteModelResponse"
                 }
               }
             }
@@ -39410,6 +39462,35 @@
         "title": "ContradictionListResponse",
         "description": "Standardized envelope for GET /api/kg-claim-analysis/{claim_id}/contradictions."
       },
+      "ConversationCreateRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "nullable": true,
+            "title": "Title"
+          },
+          "folder_path": {
+            "type": "string",
+            "title": "Folder Path",
+            "default": "/"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "title": "ConversationCreateRequest",
+        "description": "Create an empty conversation without requiring an LLM turn (#4308).\n\nBefore this endpoint a conversation only came into existence as a side\neffect of a successful ``POST /api/chat`` LLM round-trip \u2014 so \"New Chat\"\nsilently created nothing when no provider was configured or the model\nerrored, and the sidebar showed nothing. Creation is now a plain, audited\npersistence operation; the first real message continues the returned\nconversation id."
+      },
       "ConversationDeletedResponse": {
         "properties": {
           "status": {
@@ -42540,7 +42621,7 @@
             "title": "Canonical Name"
           },
           "entity_type": {
-            "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
+            "$ref": "#/components/schemas/fichero_server__models__knowledge__EntityType",
             "nullable": true
           },
           "aliases": {
@@ -42644,7 +42725,7 @@
             "title": "Match Canonical Name"
           },
           "match_entity_type": {
-            "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
+            "$ref": "#/components/schemas/fichero_server__models__knowledge__EntityType",
             "nullable": true
           },
           "target_canonical_name": {
@@ -42653,7 +42734,7 @@
             "title": "Target Canonical Name"
           },
           "target_entity_type": {
-            "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
+            "$ref": "#/components/schemas/fichero_server__models__knowledge__EntityType",
             "nullable": true
           },
           "reason": {
@@ -42880,7 +42961,7 @@
             "title": "Canonical Name"
           },
           "entity_type": {
-            "$ref": "#/components/schemas/fichero__models__knowledge__EntityType",
+            "$ref": "#/components/schemas/fichero_server__models__knowledge__EntityType",
             "default": "other"
           },
           "aliases": {
@@ -52959,7 +53040,7 @@
             "title": "Icon"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__models__knowledge__ProjectStatus",
+            "$ref": "#/components/schemas/fichero_server__models__knowledge__ProjectStatus",
             "default": "active"
           },
           "members": {
@@ -53112,7 +53193,7 @@
             "title": "Icon"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__models__knowledge__ProjectStatus",
+            "$ref": "#/components/schemas/fichero_server__models__knowledge__ProjectStatus",
             "nullable": true
           },
           "members": {
@@ -53140,7 +53221,7 @@
             "title": "Description"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__models__research__ProjectStatus",
+            "$ref": "#/components/schemas/fichero_server__models__research__ProjectStatus",
             "nullable": true
           },
           "library_destination_folder_id": {
@@ -55223,7 +55304,7 @@
             "default": ""
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__models__research__ProjectStatus",
+            "$ref": "#/components/schemas/fichero_server__models__research__ProjectStatus",
             "default": "active"
           },
           "created_by": {
@@ -61879,7 +61960,7 @@
         "type": "object",
         "title": "_EmbedEntityRequest"
       },
-      "fichero__api__routes__ai__model_comparison__ModelListResponse": {
+      "fichero_server__api__routes__ai__model_comparison__ModelListResponse": {
         "properties": {
           "models": {
             "items": {
@@ -61895,7 +61976,7 @@
         ],
         "title": "ModelListResponse"
       },
-      "fichero__api__routes__ai__model_comparison__ToolListResponse": {
+      "fichero_server__api__routes__ai__model_comparison__ToolListResponse": {
         "properties": {
           "items": {
             "items": {
@@ -61916,7 +61997,7 @@
         ],
         "title": "ToolListResponse"
       },
-      "fichero__api__routes__ai__provider_models__ModelListResponse": {
+      "fichero_server__api__routes__ai__provider_models__ModelListResponse": {
         "properties": {
           "items": {
             "items": {
@@ -61938,7 +62019,7 @@
         "title": "ModelListResponse",
         "description": "Envelope for a list of discovered models."
       },
-      "fichero__api__routes__ai__providers__DeletedResponse": {
+      "fichero_server__api__routes__ai__providers__DeletedResponse": {
         "properties": {
           "status": {
             "type": "string",
@@ -61951,7 +62032,7 @@
         ],
         "title": "DeletedResponse"
       },
-      "fichero__api__routes__citation__bibliography__ExportRequest": {
+      "fichero_server__api__routes__citation__bibliography__ExportRequest": {
         "properties": {
           "document_ids": {
             "items": {
@@ -61967,7 +62048,7 @@
         ],
         "title": "ExportRequest"
       },
-      "fichero__api__routes__citation__bibliography__ImportRequest": {
+      "fichero_server__api__routes__citation__bibliography__ImportRequest": {
         "properties": {
           "text": {
             "type": "string",
@@ -61986,7 +62067,7 @@
         "title": "ImportRequest",
         "description": "Inline import \u2014 the file content as a string."
       },
-      "fichero__api__routes__citation__bibliography__ImportResponse": {
+      "fichero_server__api__routes__citation__bibliography__ImportResponse": {
         "properties": {
           "count": {
             "type": "integer",
@@ -62008,7 +62089,7 @@
         ],
         "title": "ImportResponse"
       },
-      "fichero__api__routes__citation__references__DeletedResponse": {
+      "fichero_server__api__routes__citation__references__DeletedResponse": {
         "properties": {
           "status": {
             "type": "string",
@@ -62020,7 +62101,7 @@
         "title": "DeletedResponse",
         "description": "Standard delete envelope."
       },
-      "fichero__api__routes__citation__rendering__CitationResponse": {
+      "fichero_server__api__routes__citation__rendering__CitationResponse": {
         "properties": {
           "style": {
             "type": "string",
@@ -62048,7 +62129,7 @@
         ],
         "title": "CitationResponse"
       },
-      "fichero__api__routes__document__folders__EntityType": {
+      "fichero_server__api__routes__document__folders__EntityType": {
         "type": "string",
         "enum": [
           "workflow",
@@ -62058,7 +62139,7 @@
         "title": "EntityType",
         "description": "Type of entity for folder operations."
       },
-      "fichero__api__routes__document__notes__NoteCreateRequest": {
+      "fichero_server__api__routes__document__notes__NoteCreateRequest": {
         "properties": {
           "title": {
             "type": "string",
@@ -62144,7 +62225,7 @@
         "type": "object",
         "title": "NoteCreateRequest"
       },
-      "fichero__api__routes__kg__pykeen__DeleteModelResponse": {
+      "fichero_server__api__routes__kg__pykeen__DeleteModelResponse": {
         "properties": {
           "deleted": {
             "type": "boolean",
@@ -62162,7 +62243,7 @@
         ],
         "title": "DeleteModelResponse"
       },
-      "fichero__api__routes__mcp__integrations__CitationResponse": {
+      "fichero_server__api__routes__mcp__integrations__CitationResponse": {
         "properties": {
           "citation": {
             "type": "string",
@@ -62180,7 +62261,7 @@
         ],
         "title": "CitationResponse"
       },
-      "fichero__api__routes__mcp__integrations__DocumentListResponse": {
+      "fichero_server__api__routes__mcp__integrations__DocumentListResponse": {
         "properties": {
           "documents": {
             "items": {},
@@ -62194,7 +62275,7 @@
         ],
         "title": "DocumentListResponse"
       },
-      "fichero__api__routes__mcp__integrations__ExportRequest": {
+      "fichero_server__api__routes__mcp__integrations__ExportRequest": {
         "properties": {
           "file_path": {
             "type": "string",
@@ -62234,7 +62315,7 @@
         "title": "ExportRequest",
         "description": "Request to export a file to an app."
       },
-      "fichero__api__routes__mcp__integrations__ImportRequest": {
+      "fichero_server__api__routes__mcp__integrations__ImportRequest": {
         "properties": {
           "external_id": {
             "type": "string",
@@ -62253,7 +62334,7 @@
         "title": "ImportRequest",
         "description": "Request to import an item from an app."
       },
-      "fichero__api__routes__mcp__integrations__ImportResponse": {
+      "fichero_server__api__routes__mcp__integrations__ImportResponse": {
         "properties": {
           "success": {
             "type": "boolean",
@@ -62277,7 +62358,7 @@
         "title": "ImportResponse",
         "description": "Response from import operation."
       },
-      "fichero__api__routes__research__crud__ProjectCreateRequest": {
+      "fichero_server__api__routes__research__crud__ProjectCreateRequest": {
         "properties": {
           "name": {
             "type": "string",
@@ -62310,7 +62391,7 @@
         ],
         "title": "ProjectCreateRequest"
       },
-      "fichero__api__routes__research__notes__NoteCreateRequest": {
+      "fichero_server__api__routes__research__notes__NoteCreateRequest": {
         "properties": {
           "project_id": {
             "type": "string",
@@ -62373,7 +62454,7 @@
         ],
         "title": "NoteCreateRequest"
       },
-      "fichero__api__routes__search__core__DeletedResponse": {
+      "fichero_server__api__routes__search__core__DeletedResponse": {
         "properties": {
           "status": {
             "type": "string",
@@ -62386,7 +62467,7 @@
         ],
         "title": "DeletedResponse"
       },
-      "fichero__api__routes__system__projects__ProjectCreateRequest": {
+      "fichero_server__api__routes__system__projects__ProjectCreateRequest": {
         "properties": {
           "name": {
             "type": "string",
@@ -62408,7 +62489,7 @@
             "title": "Icon"
           },
           "status": {
-            "$ref": "#/components/schemas/fichero__models__knowledge__ProjectStatus",
+            "$ref": "#/components/schemas/fichero_server__models__knowledge__ProjectStatus",
             "default": "active"
           },
           "members": {
@@ -62426,7 +62507,7 @@
         ],
         "title": "ProjectCreateRequest"
       },
-      "fichero__api__routes__workflow__workflows__ToolListResponse": {
+      "fichero_server__api__routes__workflow__workflows__ToolListResponse": {
         "properties": {
           "items": {
             "items": {
@@ -62448,7 +62529,7 @@
         "title": "ToolListResponse",
         "description": "All tools by category (standardized {items, count} envelope; items\nare per-category groups)."
       },
-      "fichero__models__DeleteModelResponse": {
+      "fichero_server__models__DeleteModelResponse": {
         "properties": {
           "status": {
             "type": "string",
@@ -62467,7 +62548,7 @@
         "title": "DeleteModelResponse",
         "description": "Result of a model deletion."
       },
-      "fichero__models__DocumentListResponse": {
+      "fichero_server__models__DocumentListResponse": {
         "properties": {
           "items": {
             "items": {
@@ -62489,7 +62570,7 @@
         "title": "DocumentListResponse",
         "description": "Standardized envelope for document list endpoints (GET /api/documents,\n/collections, /roots, /{id}/children, /{id}/ancestors)."
       },
-      "fichero__models__knowledge__EntityType": {
+      "fichero_server__models__knowledge__EntityType": {
         "type": "string",
         "enum": [
           "person",
@@ -62502,7 +62583,7 @@
         ],
         "title": "EntityType"
       },
-      "fichero__models__knowledge__ProjectStatus": {
+      "fichero_server__models__knowledge__ProjectStatus": {
         "type": "string",
         "enum": [
           "active",
@@ -62512,7 +62593,7 @@
         "title": "ProjectStatus",
         "description": "Lifecycle of a research workspace (#918)."
       },
-      "fichero__models__research__ProjectStatus": {
+      "fichero_server__models__research__ProjectStatus": {
         "type": "string",
         "enum": [
           "active",

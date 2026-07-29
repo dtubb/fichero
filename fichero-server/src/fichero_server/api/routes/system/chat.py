@@ -938,6 +938,54 @@ async def list_conversations(
     return ChatConversationListResponse(items=result, count=len(result))
 
 
+class ConversationCreateRequest(BaseModel):
+    """Create an empty conversation without requiring an LLM turn (#4308).
+
+    Before this endpoint a conversation only came into existence as a side
+    effect of a successful ``POST /api/chat`` LLM round-trip — so "New Chat"
+    silently created nothing when no provider was configured or the model
+    errored, and the sidebar showed nothing. Creation is now a plain, audited
+    persistence operation; the first real message continues the returned
+    conversation id.
+    """
+
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    folder_path: str = "/"
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+
+@router.post("/conversations", response_model=ConversationHistory)
+async def create_conversation(
+    request: ConversationCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ConversationHistory:
+    """Create an empty conversation through the audited ``conversation.create``
+    action (#4308) — no LLM required, appears in the sidebar immediately."""
+    result = registry.invoke(
+        db,
+        "conversation.create",
+        {
+            "title": request.title or "New Chat",
+            "folder_path": request.folder_path,
+            "provider": request.provider,
+            "model": request.model,
+        },
+        ctx,
+    )
+    conv = Conversation(**result.result)
+    return ConversationHistory(
+        id=conv.id,
+        title=conv.title,
+        messages=[],
+        created_at=_safe_isoformat(conv.created_at),
+        updated_at=_safe_isoformat(conv.updated_at),
+        folder_path=conv.folder_path,
+        sort_order=conv.sort_order,
+    )
+
+
 @router.post(
     "/conversations/{conversation_id}/workspace", response_model=AgentWorkspace
 )
@@ -1482,6 +1530,46 @@ def _invert_restore(
             return None
         return ("conversation.delete", {"conversation_id": cid})
     return ("conversation.restore", {"snapshot": before})
+
+
+class ConversationCreateParams(BaseModel):
+    """``conversation.create`` — start an empty conversation, no LLM turn (#4308)."""
+
+    title: str = Field(default="New Chat", min_length=1, max_length=200)
+    folder_path: str = "/"
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+
+@action(
+    "conversation.create",
+    ConversationCreateParams,
+    domains=["conversation"],
+    undoable=True,
+    invert=_invert_create,
+)
+def _action_create_conversation(
+    db: Database, params: ConversationCreateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    conv = Conversation(
+        title=params.title,
+        messages=[],
+        provider=params.provider,
+        model=params.model,
+        document_ids=[],
+        folder_path=params.folder_path,
+        sort_order=0,
+    )
+    db.save(conv)
+    after = _snap_conversation(conv)
+    spec = ChangeSpec(
+        domains=["conversation"],
+        target_ids=[conv.id],
+        before=None,
+        after=after,
+        emit_type="conversation.created",
+    )
+    return after, spec
 
 
 @action(
