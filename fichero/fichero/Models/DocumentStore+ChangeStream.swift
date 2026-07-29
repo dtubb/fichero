@@ -121,6 +121,7 @@ extension DocumentStore: ObservableDomainStore {
         var nextCurrent = currentDocuments
         var nextChildren = childrenCache
         let selectedId = selectedCollection?.id
+        var changed = SpliceChanges()
 
         for doc in docs {
             Self.splice(
@@ -128,15 +129,27 @@ extension DocumentStore: ObservableDomainStore {
                 collections: &nextCollections,
                 currentDocuments: &nextCurrent,
                 childrenCache: &nextChildren,
-                selectedCollectionId: selectedId
+                selectedCollectionId: selectedId,
+                changes: &changed
             )
         }
 
-        // One assignment each — untouched rows keep referential identity, so
-        // SwiftUI still re-renders only the rows that actually changed.
-        if nextCollections != collections { collections = nextCollections }
-        if nextCurrent != currentDocuments { currentDocuments = nextCurrent }
-        if nextChildren != childrenCache { childrenCache = nextChildren }
+        // One assignment each, gated on the CHANGED FLAGS the splice rules set
+        // — not on deep `!=` compares: Document is Equatable across ~24 fields
+        // (structure nodes, AnyCodable metadata), so comparing the whole
+        // library per flush would put an O(N) deep-equality walk on the main
+        // actor for exactly the no-op polls this path exists to reject.
+        // Untouched rows keep referential identity either way.
+        if changed.collections { collections = nextCollections }
+        if changed.currentDocuments { currentDocuments = nextCurrent }
+        if changed.childrenCache { childrenCache = nextChildren }
+    }
+
+    /// Which published containers a batch actually mutated.
+    private struct SpliceChanges {
+        var collections = false
+        var currentDocuments = false
+        var childrenCache = false
     }
 
     /// The per-document splice rules, over plain values so a batch can apply
@@ -146,7 +159,8 @@ extension DocumentStore: ObservableDomainStore {
         collections: inout [Document],
         currentDocuments: inout [Document],
         childrenCache: inout [String: [Document]],
-        selectedCollectionId: String?
+        selectedCollectionId: String?,
+        changes: inout SpliceChanges
     ) {
         // ROOTS ONLY — `loadCollections()` assigns `getRoots()`
         // (`/api/documents/roots`), so a nested document does not belong here.
@@ -160,9 +174,13 @@ extension DocumentStore: ObservableDomainStore {
         // below would have "fixed" the pollution by breaking live delivery —
         // and no test would have noticed.
         if let index = collections.firstIndex(where: { $0.id == doc.id }) {
-            if collections[index] != doc { collections[index] = doc }
+            if collections[index] != doc {
+                collections[index] = doc
+                changes.collections = true
+            }
         } else if doc.parentId == nil {
             collections.append(doc)
+            changes.collections = true
         } else if childrenCache[doc.parentId ?? ""] == nil {
             // Parent's children are NOT loaded, so the `childrenCache` block
             // below cannot deliver this row — and `SidebarItemBuilder` files
@@ -176,13 +194,18 @@ extension DocumentStore: ObservableDomainStore {
             // the lesser evil: the pollution is transient and invisible, a
             // missing row is neither.
             collections.append(doc)
+            changes.collections = true
         }
 
         // Grid for the selected collection.
         if let index = currentDocuments.firstIndex(where: { $0.id == doc.id }) {
-            if currentDocuments[index] != doc { currentDocuments[index] = doc }
+            if currentDocuments[index] != doc {
+                currentDocuments[index] = doc
+                changes.currentDocuments = true
+            }
         } else if let selectedCollectionId, doc.parentId == selectedCollectionId {
             currentDocuments.append(doc)
+            changes.currentDocuments = true
         }
 
         // Children cache (only a parent already loaded — i.e. a folder the user
@@ -194,10 +217,12 @@ extension DocumentStore: ObservableDomainStore {
                 if kids[index] != doc {
                     kids[index] = doc
                     childrenCache[parentId] = kids
+                    changes.childrenCache = true
                 }
             } else {
                 kids.append(doc)
                 childrenCache[parentId] = kids
+                changes.childrenCache = true
             }
         }
     }

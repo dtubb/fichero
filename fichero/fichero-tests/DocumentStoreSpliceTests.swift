@@ -125,4 +125,30 @@ struct DocumentStoreSpliceTests {
 
         #expect(store.currentDocuments.map(\.id) == ["file-1"])
     }
+
+    // #4235 batching: a change-stream flush that delivers nothing new must not
+    // publish at all — the whole point of the changed-flags is that a no-op
+    // poll cannot invalidate the sidebar. `withObservationTracking`'s onChange
+    // fires synchronously on the first willSet, so `fired` staying false IS
+    // the assertion that no container was reassigned.
+    @Test("re-splicing identical documents publishes nothing")
+    func noOpBatchDoesNotPublish() {
+        let store = store()
+        let root = doc("root-1")
+        let child = doc("file-1", parent: "root-1")
+        store.spliceDocuments([root])
+        store.childrenCache["root-1"] = [child]
+
+        var fired = false
+        withObservationTracking {
+            _ = store.collections
+            _ = store.currentDocuments
+            _ = store.childrenCache
+        } onChange: {
+            fired = true
+        }
+        store.spliceDocuments([root, child])
+
+        #expect(!fired, "an identical batch reassigned a published container — no-op polls now rebuild the sidebar")
+    }
 }

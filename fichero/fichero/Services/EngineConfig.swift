@@ -51,12 +51,23 @@ enum EngineConfig {
         UserDefaults(suiteName: testSuiteName) ?? .standard
 
     /// True inside an XCTest/Swift Testing host process.
-    static var isRunningUnderTests: Bool {
+    ///
+    /// Cached `let`: the answer cannot change mid-process, and the computed
+    /// form re-materialized the entire environment dictionary on every
+    /// `defaults` access — which sits on the launch path (#4036).
+    ///
+    /// Deliberately NOT keyed on `XCTestSessionIdentifier`: XCUITest injects
+    /// that into the APP UNDER TEST too, which would silently repoint a
+    /// UI-tested app at the throwaway suite — so UI tests would stop
+    /// exercising the real preference path, and stale state would persist in
+    /// the suite across runs. The app-under-test's isolation comes from
+    /// `FICHERO_UITEST_HOME`, not from this seam. The two remaining markers
+    /// are set only for the process that hosts the tests themselves.
+    static let isRunningUnderTests: Bool = {
         let environment = ProcessInfo.processInfo.environment
         return environment["XCTestConfigurationFilePath"] != nil
             || environment["XCTestBundlePath"] != nil
-            || environment["XCTestSessionIdentifier"] != nil
-    }
+    }()
 
     static let multiuserEnabledKey = "fichero.multiuser.enabled"
     static let defaultHostString = "https://127.0.0.1:8765"

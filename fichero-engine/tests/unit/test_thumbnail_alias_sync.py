@@ -17,6 +17,7 @@ Calling it twice is the whole test. Everything else here is the boundary.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -110,19 +111,25 @@ class TestConcurrentCallsDoNotRace:
     def test_many_threads_syncing_the_same_alias(self, tmp_path):
         import threading
 
-        cache = _cache_entry(tmp_path)
+        # TWO distinct cache entries, alternated per iteration: with a single
+        # entry the samefile short-circuit makes every call after the first a
+        # no-op, so the link/replace path — the one that raced — never runs
+        # and the test is vacuous.
+        cache_a = _cache_entry(tmp_path, b"variant-a")
+        cache_b = tmp_path / "cache" / "ab" / "doc__400x400.jpg"
+        cache_b.write_bytes(b"variant-b")
         alias = tmp_path / "thumbs" / "doc.jpg"
         alias.parent.mkdir(parents=True, exist_ok=True)
         errors: list[BaseException] = []
 
-        def worker() -> None:
-            for _ in range(40):
+        def worker(seed: int) -> None:
+            for i in range(40):
                 try:
-                    _sync_alias_to_cache(cache, alias)
+                    _sync_alias_to_cache(cache_a if (i + seed) % 2 else cache_b, alias)
                 except BaseException as exc:  # noqa: BLE001 - recording, not handling
                     errors.append(exc)
 
-        threads = [threading.Thread(target=worker) for _ in range(8)]
+        threads = [threading.Thread(target=worker, args=(n,)) for n in range(8)]
         for t in threads:
             t.start()
         for t in threads:
@@ -130,20 +137,30 @@ class TestConcurrentCallsDoNotRace:
 
         assert not errors, f"concurrent alias sync raised: {errors[:3]}"
         assert alias.exists(), "the alias vanished under concurrent syncs"
+        assert alias.read_bytes() in (b"variant-a", b"variant-b"), (
+            "alias holds neither variant - a torn or skipped update"
+        )
+        leftovers = list(alias.parent.glob("*.sync-*"))
+        assert not leftovers, f"staging files leaked under concurrency: {leftovers}"
 
     def test_the_alias_is_readable_throughout_concurrent_syncs(self, tmp_path):
         """A reader must never observe a missing alias mid-update."""
         import threading
 
-        cache = _cache_entry(tmp_path, b"stable")
+        # Alternate two cache entries so every writer iteration exercises the
+        # real link/replace path (a single entry short-circuits on samefile
+        # and the reader would be watching a no-op loop).
+        cache_a = _cache_entry(tmp_path, b"stable-a")
+        cache_b = tmp_path / "cache" / "ab" / "doc__400x400.jpg"
+        cache_b.write_bytes(b"stable-b")
         alias = tmp_path / "thumbs" / "doc.jpg"
-        _sync_alias_to_cache(cache, alias)
+        _sync_alias_to_cache(cache_a, alias)
         missing: list[str] = []
         stop = threading.Event()
 
         def writer() -> None:
-            for _ in range(60):
-                _sync_alias_to_cache(cache, alias)
+            for i in range(60):
+                _sync_alias_to_cache(cache_a if i % 2 else cache_b, alias)
             stop.set()
 
         def reader() -> None:
@@ -164,6 +181,7 @@ class TestFailureIsNonFatal:
     """A bookkeeping copy must not fail a request whose image is fine."""
 
     def test_a_missing_cache_entry_does_not_raise(self, tmp_path, caplog):
+        caplog.set_level(logging.WARNING, logger="fichero.db.storage")
         alias = tmp_path / "thumbs" / "doc.jpg"
 
         _sync_alias_to_cache(tmp_path / "nope.jpg", alias)  # must not raise
@@ -174,6 +192,7 @@ class TestFailureIsNonFatal:
         )
 
     def test_an_unwritable_destination_does_not_raise(self, tmp_path, caplog):
+        caplog.set_level(logging.WARNING, logger="fichero.db.storage")
         cache = _cache_entry(tmp_path)
         locked = tmp_path / "locked"
         locked.mkdir()

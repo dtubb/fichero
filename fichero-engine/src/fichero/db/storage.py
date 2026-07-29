@@ -278,7 +278,13 @@ def _sync_alias_to_cache(cache_path: Path, alias_path: Path) -> None:
             except OSError:
                 pass  # fall through and rewrite it
 
-        staging = alias_path.with_name(f"{alias_path.name}.sync-{os.getpid()}")
+        # PID alone is not unique here: thumbnails are served from a threadpool,
+        # so two threads in one process would share the staging path — one
+        # thread's cleanup could delete the other's staging between its link
+        # and replace, silently skipping the update.
+        staging = alias_path.with_name(
+            f"{alias_path.name}.sync-{os.getpid()}-{threading.get_ident()}"
+        )
         try:
             try:
                 os.link(cache_path, staging)

@@ -222,7 +222,11 @@ extension AppState {
     /// the RIGHT trust for wherever we landed (#3098).
     private func commitActiveEndpoint(_ host: BackendHost) {
         host.persistPinIfNeeded()
-        UserDefaults.standard.set(host.url.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        // EngineConfig.defaults, NOT .standard: every reader of this key goes
+        // through the #4221 seam, and a .standard write here is the exact
+        // clobber-the-developer's-real-prefs bug the seam exists to prevent
+        // (rollbackFailedHostSwitch's sibling, missed in the first sweep).
+        EngineConfig.defaults.set(host.url.absoluteString, forKey: EngineConfig.userDefaultsKey)
         reconfigureGeneratedClientsForCurrentHost()
         PairedHostEndpointStore.record(host.url)
     }

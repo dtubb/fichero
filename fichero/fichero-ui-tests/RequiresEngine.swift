@@ -96,7 +96,13 @@ enum RequiresEngine {
             return false
         }
         return entries.contains { entry in
-            FileManager.default.isExecutableFile(atPath: macOS.appendingPathComponent(entry).path)
+            let path = macOS.appendingPathComponent(entry).path
+            // isExecutableFile is access(X_OK), which is TRUE for directories
+            // (mode 755) — a folder in MacOS/ must not satisfy the guard.
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
+                && !isDirectory.boolValue
+                && FileManager.default.isExecutableFile(atPath: path)
         }
     }
 
