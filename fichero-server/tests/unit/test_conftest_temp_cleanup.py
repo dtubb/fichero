@@ -125,7 +125,7 @@ class TestCleanupActuallyFiresEndToEnd:
         finalizer deleted, that version stayed green.
         """
         root = Path(__file__).resolve().parents[3]
-        target = root / "fichero-server" / "tests" / "unit" / "test_lang_detect.py"
+        target = root / "fichero-server" / "tests" / "unit" / "llm" / "test_lang_detect.py"
         assert target.is_file(), "the probe target moved; this test is now vacuous"
 
         # The child must mint its OWN base path. Inheriting ours points it at

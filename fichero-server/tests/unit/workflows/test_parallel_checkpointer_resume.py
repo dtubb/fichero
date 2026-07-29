@@ -487,7 +487,7 @@ def _build_catalogue_workflow() -> WorkflowDef:
     which the fakes ignore anyway. Topology + ports are preserved verbatim.
     """
     preset_path = (
-        Path(fichero.__file__).parent
+        Path(fichero_server.__file__).parent
         / "resources"
         / "default_workflows"
         / "catalogue.json"

@@ -188,7 +188,7 @@ def test_build_and_validate_uses_current_paths() -> None:
     assert "fichero/fichero.xcodeproj" in text
     assert "fichero/build/xcode" in text
     assert "build/server" in text
-    assert "briefcase build macOS --app server" in text
+    assert "briefcase build macOS --app fichero_server" in text
     assert "fichero-swiftui" not in text
 
 

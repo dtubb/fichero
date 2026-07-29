@@ -433,7 +433,7 @@ def test_cli_help_does_not_open_app_duckdb(tmp_path):
     env.pop("FICHERO_DISABLE_AUTH", None)
 
     result = subprocess.run(
-        [sys.executable, "-m", "fichero", "--help"],
+        [sys.executable, "-m", "fichero_cli", "--help"],
         env=env,
         capture_output=True,
         text=True,
