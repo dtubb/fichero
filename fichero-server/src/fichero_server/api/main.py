@@ -82,7 +82,7 @@ def _resolve_engine_version() -> str:
     """Best-effort engine version for the health/About surface.
 
     The Python project is named ``fichero``, but Briefcase bundles the engine as
-    the ``engine`` app and ships only ``engine-<ver>.dist-info`` — so looking up
+    the ``engine`` app and ships only ``server-<ver>.dist-info`` — so looking up
     ``fichero`` alone made the shipped app report ``dev``. Try both distribution
     names (dev/editable installs carry ``fichero``; the Briefcase bundle carries
     ``engine``) before falling back to ``dev``.

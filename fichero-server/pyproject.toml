@@ -5,12 +5,12 @@
 # Swift Fichero.app as a nested .app bundle.
 #
 # Development workflow:
-#   - Use `briefcase dev -a engine` for testing bundled backend
+#   - Use `briefcase dev -a server` for testing bundled backend
 #   - Use `uvicorn fichero_server.api.main:app --reload` for hot-reload development
 #
 # Production build:
 #   - Run: ./scripts/build_backend_bundle.sh
-#   - Output: build/engine/macos/app/Fichero Engine.app
+#   - Output: build/server/macos/app/Fichero Server.app
 #   - This .app is copied into Fichero.app/Contents/Resources/ by Xcode
 # =============================================================================
 
@@ -31,18 +31,18 @@ author_email = "dtubb@users.noreply.github.com"
 #
 # Sources:
 #   - src/fichero_server: Main backend code (API, workflows, database, etc.)
-#   - src/engine: Briefcase entry point wrapper
+#   - src/server: Briefcase entry point wrapper
 # =============================================================================
 
-[tool.briefcase.app.engine]
-formal_name = "Fichero Engine"
-description = "Headless engine for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
+[tool.briefcase.app.server]
+formal_name = "Fichero Server"
+description = "Headless server for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 long_description = "FastAPI backend service embedded inside the Fichero Swift app. Provides document processing, AI workflows, and data storage."
-icon = "src/engine/resources/engine"  # Briefcase strips extension, adds platform suffixes
+icon = "src/server/resources/server"  # Briefcase strips extension, adds platform suffixes
 console_app = true  # Headless app (no window, runs in background)
 sources = [
     "src/fichero_server",          # Main backend code
-    "src/engine",  # Briefcase entry point
+    "src/server",  # Briefcase entry point
 ]
 requires = [
     # Core — 0.0.1 release surface (keep slim for bundle size)
@@ -103,7 +103,7 @@ requires = [
     "pillow-heif>=1.1.0",
 ]
 
-[tool.briefcase.app.engine.macOS]
+[tool.briefcase.app.server.macOS]
 universal_build = false  # arm64-only (Apple Silicon)
 min_os_version = "15.0"
 python_version = "3.12"  # Pin to 3.12 — many ML packages lack 3.14 wheels
@@ -147,14 +147,14 @@ fichero = [
 # This section defines the package for pip installation and uvicorn development.
 # Used when running: uvicorn fichero_server.api.main:app --reload
 #
-# IMPORTANT: Keep dependencies in sync with [tool.briefcase.app.engine]
+# IMPORTANT: Keep dependencies in sync with [tool.briefcase.app.server]
 # TOML doesn't support variable inheritance, so both sections must be maintained.
 # =============================================================================
 
 [project]
 name = "fichero-server"
 version = "2026.7.24"
-description = "Headless engine for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
+description = "Headless server for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

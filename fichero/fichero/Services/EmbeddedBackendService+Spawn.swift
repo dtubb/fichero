@@ -25,8 +25,8 @@ extension EmbeddedBackendService {
     /// engine is wherever the build actually put it, and a mismatch surfaces as
     /// the existing backendAppNotFound error rather than a silent wrong guess.
     static let engineBundleSubpaths = [
-        "Contents/Helpers/Fichero Engine.app",
-        "Contents/Resources/Fichero Engine.app"
+        "Contents/Helpers/Fichero Server.app",
+        "Contents/Resources/Fichero Server.app"
     ]
 
     // MARK: - Private Helpers
@@ -36,7 +36,7 @@ extension EmbeddedBackendService {
     func launchEmbeddedBackend() async throws {
         let bundlePath = Bundle.main.bundlePath
         let backendAppPath = try resolveBackendAppPath(bundlePath: bundlePath)
-        let executablePath = "\(backendAppPath)/Contents/MacOS/Fichero Engine"
+        let executablePath = "\(backendAppPath)/Contents/MacOS/Fichero Server"
         logger.info("Embedded engine: \(backendAppPath)")
 
         // Port pre-flight (orphan sweep by the DMG build; a loopback probe under
@@ -118,19 +118,19 @@ extension EmbeddedBackendService {
     /// Contents/Resources for Developer ID/DMG). Throws `.backendAppNotFound`
     /// with the same diagnostic logging the inline check used to do.
     private func resolveBackendAppPath(bundlePath: String) throws -> String {
-        // Bundle is named "Fichero Engine.app" (briefcase formal_name =
-        // "Fichero Engine"), bundle ID app.fichero.fichero.engine.
+        // Bundle is named "Fichero Server.app" (briefcase formal_name =
+        // "Fichero Server"), bundle ID app.fichero.fichero.engine.
         let candidates = Self.engineBundleSubpaths.map { "\(bundlePath)/\($0)" }
         guard let backendAppPath = candidates.first(where: {
-            FileManager.default.fileExists(atPath: "\($0)/Contents/MacOS/Fichero Engine")
+            FileManager.default.fileExists(atPath: "\($0)/Contents/MacOS/Fichero Server")
         }) else {
-            let executablePath = candidates[0] + "/Contents/MacOS/Fichero Engine"
+            let executablePath = candidates[0] + "/Contents/MacOS/Fichero Server"
             logger.error("Backend executable not found at: \(executablePath)")
-            // Debug builds skip the "Embed Fichero Engine" phase (it only runs in
+            // Debug builds skip the "Embed Fichero Server" phase (it only runs in
             // Release), so in a Debug ⌘R the engine is expected to be running
             // externally on :8765. If it isn't, that's this path.
             let message = "Debug: start the engine first — fichero-server/scripts/start_backend.sh. "
-                + "Release: briefcase build macOS --app engine (in fichero-server/), then rebuild."
+                + "Release: briefcase build macOS --app server (in fichero-server/), then rebuild."
             logger.error("\(message, privacy: .public)")
             throw BackendError.backendAppNotFound
         }

@@ -304,7 +304,7 @@ def test_uds_socket_is_unlinked_before_bind() -> None:
     import socket as _socket
     import tempfile
 
-    from engine.__main__ import _bind_uds_socket
+    from server.__main__ import _bind_uds_socket
 
     # A SHORT path: AF_UNIX sun_path is capped at ~104 bytes, so pytest's long
     # tmp_path cannot host a socket. Build a short dir under the system tmp.

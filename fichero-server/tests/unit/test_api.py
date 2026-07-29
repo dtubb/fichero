@@ -985,7 +985,7 @@ class TestCORS:
 
 # --- Engine version resolution (health/About surface) ------------------------
 # Regression guard for the Briefcase packaging mismatch: the project is named
-# "fichero" but the Briefcase bundle ships only engine-<ver>.dist-info, which
+# "fichero" but the Briefcase bundle ships only server-<ver>.dist-info, which
 # made the shipped app's /health report backend_version="dev".
 
 def test_engine_version_falls_back_to_briefcase_dist_name(monkeypatch):

@@ -212,15 +212,15 @@ struct EngineTerminationDecodingTests {
 @Suite("TLS-prep cache key (#4038 stable across rebuilds)")
 struct TLSCacheKeyTests {
 
-    /// Build a throwaway `Fichero Engine.app/Contents/{MacOS/exe, Info.plist}` and
+    /// Build a throwaway `Fichero Server.app/Contents/{MacOS/exe, Info.plist}` and
     /// return the executable path. version==nil writes no Info.plist (fallback path).
     private func makeEngineBundle(version: String?) throws -> (exe: String, root: URL) {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("tlskey-\(UUID().uuidString)", isDirectory: true)
-        let contents = root.appendingPathComponent("Fichero Engine.app/Contents", isDirectory: true)
+        let contents = root.appendingPathComponent("Fichero Server.app/Contents", isDirectory: true)
         let macos = contents.appendingPathComponent("MacOS", isDirectory: true)
         try FileManager.default.createDirectory(at: macos, withIntermediateDirectories: true)
-        let exe = macos.appendingPathComponent("Fichero Engine")
+        let exe = macos.appendingPathComponent("Fichero Server")
         try Data("binary".utf8).write(to: exe)
         if let version {
             let data = try PropertyListSerialization.data(

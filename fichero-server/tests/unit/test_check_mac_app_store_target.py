@@ -77,10 +77,10 @@ def _embed_phase(target_name: str) -> dict:
     )
     embed = None
     for p in target["buildPhases"]:
-        if objects[p].get("name") == "Embed Fichero Engine":
+        if objects[p].get("name") == "Embed Fichero Server":
             embed = objects[p]
             break
-    assert embed is not None, f"no 'Embed Fichero Engine' phase on the {target_name} target"
+    assert embed is not None, f"no 'Embed Fichero Server' phase on the {target_name} target"
     return embed
 
 
@@ -90,7 +90,7 @@ def _embed_phase_script(target_name: str) -> str:
 
 
 def test_embed_phase_asserts_no_get_task_allow() -> None:
-    """The MAS 'Embed Fichero Engine' build phase must reject get-task-allow on
+    """The MAS 'Embed Fichero Server' build phase must reject get-task-allow on
     the signed engine (#3952). The build-time codesign never injects it, but the
     assertion is the backstop that proves the two-key set landed on the bytes."""
     script = _embed_phase_script("Fichero (App Store)")
@@ -119,10 +119,10 @@ def test_embed_phases_are_dependency_aware_not_always_out_of_date() -> None:
     """Both engine embed phases must give Xcode conservative dependencies so
     unchanged builds do not rerun the expensive copy/signing phase (#3991)."""
     input_file_list = "$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
-    staged_engine_input = "$(SRCROOT)/../fichero-server/build/engine/macos/app/Fichero Engine.app"
+    staged_engine_input = "$(SRCROOT)/../fichero-server/build/server/macos/app/Fichero Server.app"
     expected_macos_outputs = {
-        "Fichero": "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app",
-        "Fichero (App Store)": "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app",
+        "Fichero": "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app",
+        "Fichero (App Store)": "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app",
     }
     project = json.loads(
         subprocess.run(
@@ -134,16 +134,16 @@ def test_embed_phases_are_dependency_aware_not_always_out_of_date() -> None:
     for target_name, expected_macos_output in expected_macos_outputs.items():
         phase = _embed_phase(target_name)
         assert str(phase.get("alwaysOutOfDate", "0")) != "1", (
-            f"{target_name} Embed Fichero Engine must not set alwaysOutOfDate=1 (#3991)"
+            f"{target_name} Embed Fichero Server must not set alwaysOutOfDate=1 (#3991)"
         )
         assert input_file_list in set(phase.get("inputFileListPaths", [])), (
-            f"{target_name} Embed Fichero Engine must declare the engine source xcfilelist (#3991)"
+            f"{target_name} Embed Fichero Server must declare the engine source xcfilelist (#3991)"
         )
         assert staged_engine_input in set(phase.get("inputPaths", [])), (
-            f"{target_name} Embed Fichero Engine must declare the staged Briefcase app input (#3991)"
+            f"{target_name} Embed Fichero Server must declare the staged Briefcase app input (#3991)"
         )
         assert set(phase.get("outputPaths", [])) == {"$(FICHERO_ENGINE_EMBED_OUTPUT_PATH)"}, (
-            f"{target_name} Embed Fichero Engine must use the platform-aware output variable (#3991)"
+            f"{target_name} Embed Fichero Server must use the platform-aware output variable (#3991)"
         )
         target = next(
             target for target in project.values()
@@ -182,7 +182,7 @@ def test_engine_embed_input_file_list_tracks_source_and_preflight_files() -> Non
 def test_resign_engine_script_ignores_plistbuddy_root_dictionary(tmp_path: Path) -> None:
     """A real script run treats PlistBuddy's ``Dict {`` as structure, not a key."""
     app = tmp_path / "Fichero.app"
-    (app / "Contents" / "Helpers" / "Fichero Engine.app").mkdir(parents=True)
+    (app / "Contents" / "Helpers" / "Fichero Server.app").mkdir(parents=True)
     entitlements = tmp_path / "FicheroEngineAppStore.entitlements"
     entitlements.write_text("placeholder")
 

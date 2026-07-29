@@ -2,19 +2,19 @@
 # Rebuild the embedded engine bundle IF the engine source is newer than the
 # bundle (or the bundle is missing).
 #
-# WHY: the Xcode "Embed Fichero Engine" build phase only `cp -R`s the pre-built
-# bundle from fichero-server/build/engine/macos/app/ — it does NOT rebuild it.
+# WHY: the Xcode "Embed Fichero Server" build phase only `cp -R`s the pre-built
+# bundle from fichero-server/build/server/macos/app/ — it does NOT rebuild it.
 # So a ⌘R Dev Embedded silently embeds a STALE engine after any engine-source
 # change (the stale-bundle trap: the app connects to an old engine and can miss
 # fixes like the SIGPIPE/auth ones). Wire this as a Run Script phase BEFORE
-# "Embed Fichero Engine" so ⌘R always embeds a fresh engine — while skipping the
+# "Embed Fichero Server" so ⌘R always embeds a fresh engine — while skipping the
 # ~10-min briefcase build when the bundle is already current.
 #
 # Manual use (before a ⌘R): ./scripts/rebuild-engine-if-stale.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUNDLE="$ROOT/fichero-server/build/engine/macos/app/Fichero Engine.app"
+BUNDLE="$ROOT/fichero-server/build/server/macos/app/Fichero Server.app"
 SRC="$ROOT/fichero-server/src"
 STAMP="$BUNDLE/Contents/Info.plist"   # written by build_backend_bundle.sh each build
 

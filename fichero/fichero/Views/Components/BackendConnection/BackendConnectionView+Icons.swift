@@ -6,11 +6,11 @@ import UIKit
 import SwiftUI
 
 extension BackendConnectionView {
-    /// Engine icon resolved from the bundled Fichero Engine.app.
+    /// Engine icon resolved from the bundled Fichero Server.app.
     /// Falls back to the system server icon if the engine icon isn't found.
     var engineIconImage: PlatformImage {
         if let resourcePath = Bundle.main.resourcePath {
-            let iconPath = "\(resourcePath)/Fichero Engine.app/Contents/Resources/engine.icns"
+            let iconPath = "\(resourcePath)/Fichero Server.app/Contents/Resources/engine.icns"
             if let image = PlatformImage(contentsOfFile: iconPath) {
                 return image
             }

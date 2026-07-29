@@ -98,9 +98,9 @@ def main() -> int:
     # update step has run. Without this preflight, a direct Xcode build can ship
     # the newest Swift app with an hours-old engine bundle (#3956).
     for target in (mas, dmg):
-        embed_phase = phase_named(objects, target, "Embed Fichero Engine")
+        embed_phase = phase_named(objects, target, "Embed Fichero Server")
         if embed_phase is None:
-            fail(f"{target['name']} has no 'Embed Fichero Engine' phase")
+            fail(f"{target['name']} has no 'Embed Fichero Server' phase")
             continue
         embed_script = shell_of(embed_phase)
         preflight_at = embed_script.find("preflight-embedded-engine.sh")
@@ -121,7 +121,7 @@ def main() -> int:
 
         if str(embed_phase.get("alwaysOutOfDate", "0")) == "1":
             fail(
-                f"{target['name']} Embed Fichero Engine must not set alwaysOutOfDate=1. "
+                f"{target['name']} Embed Fichero Server must not set alwaysOutOfDate=1. "
                 "Use conservative input/output metadata so Xcode can skip unchanged engine embeds (#3991)."
             )
         input_paths = set(embed_phase.get("inputPaths", []))
@@ -129,17 +129,17 @@ def main() -> int:
         output_paths = set(embed_phase.get("outputPaths", []))
         input_list = "$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
         if input_list not in input_file_lists:
-            fail(f"{target['name']} Embed Fichero Engine must use {input_list!r} as an inputFileListPath")
-        if "$(SRCROOT)/../fichero-server/build/engine/macos/app/Fichero Engine.app" not in input_paths:
-            fail(f"{target['name']} Embed Fichero Engine must list the staged Briefcase app as an inputPath")
+            fail(f"{target['name']} Embed Fichero Server must use {input_list!r} as an inputFileListPath")
+        if "$(SRCROOT)/../fichero-server/build/server/macos/app/Fichero Server.app" not in input_paths:
+            fail(f"{target['name']} Embed Fichero Server must list the staged Briefcase app as an inputPath")
         expected_macos_output = (
-            "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app"
+            "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app"
             if target["name"] == MAS_TARGET
-            else "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Engine.app"
+            else "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app"
         )
         if output_paths != {ENGINE_EMBED_OUTPUT_PATH}:
             fail(
-                f"{target['name']} Embed Fichero Engine must use {ENGINE_EMBED_OUTPUT_PATH!r} as its only "
+                f"{target['name']} Embed Fichero Server must use {ENGINE_EMBED_OUTPUT_PATH!r} as its only "
                 "outputPath so non-macOS builds do not track a macOS app-bundle path"
             )
         for cfg_name, settings in configs(objects, target).items():
@@ -154,7 +154,7 @@ def main() -> int:
                     f"to {expected_macos_output!r}"
                 )
         if target["name"] == MAS_TARGET and "$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements" not in input_paths:
-            fail("the MAS Embed Fichero Engine phase must list FicheroEngineAppStore.entitlements as an input")
+            fail("the MAS Embed Fichero Server phase must list FicheroEngineAppStore.entitlements as an input")
 
     # 1. Sparkle: absent from MAS at the LINK level, present in the DMG.
     # A #if does not help — a linked framework still ships, and the reviewer sees it.
@@ -243,14 +243,14 @@ def main() -> int:
     # 4. The engine embed phase: Helpers (a designated code location), signed with the
     #    two-key entitlements, and never --deep (which re-signs nested code with the
     #    PARENT's entitlements and silently breaks the inherit rule).
-    embed = phase_named(objects, mas, "Embed Fichero Engine")
+    embed = phase_named(objects, mas, "Embed Fichero Server")
     if embed is None:
-        fail(f"{MAS_TARGET} has no 'Embed Fichero Engine' phase — the archive would ship without an engine")
+        fail(f"{MAS_TARGET} has no 'Embed Fichero Server' phase — the archive would ship without an engine")
     else:
         body = shell_of(embed)
-        if "Contents/Helpers/Fichero Engine.app" not in body:
+        if "Contents/Helpers/Fichero Server.app" not in body:
             fail("the MAS engine must be embedded in Contents/Helpers — Resources is not a designated code location")
-        if "Contents/Resources/Fichero Engine.app" in body:
+        if "Contents/Resources/Fichero Server.app" in body:
             fail("the MAS engine must NOT be embedded in Contents/Resources (invalid bundle structure at ingestion)")
         if "FicheroEngineAppStore.entitlements" not in body:
             fail("the MAS embed phase must sign the engine with FicheroEngineAppStore.entitlements")
@@ -379,10 +379,10 @@ def main() -> int:
             )
         # Order matters: validating before the strip would validate the wrong bytes.
         names = [objects[p].get("name") for p in mas["buildPhases"]]
-        if "Embed Fichero Engine" in names and names.index("Validate App Store Bundle") < names.index(
-            "Embed Fichero Engine"
+        if "Embed Fichero Server" in names and names.index("Validate App Store Bundle") < names.index(
+            "Embed Fichero Server"
         ):
-            fail("'Validate App Store Bundle' must run AFTER 'Embed Fichero Engine', not before")
+            fail("'Validate App Store Bundle' must run AFTER 'Embed Fichero Server', not before")
 
     # 5. The scheme must ARCHIVE a configuration that actually embeds the engine.
     #    "Release Local" builds against an EXTERNAL engine — archiving it ships an app

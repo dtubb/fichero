@@ -4,7 +4,7 @@
 <dict>
 	<!--
 	  Entitlements for the embedded Briefcase Python engine, applied when the
-	  release DMG re-signs "Fichero Engine.app" with Developer ID + hardened
+	  release DMG re-signs "Fichero Server.app" with Developer ID + hardened
 	  runtime. Notarization REQUIRES hardened runtime, but hardened runtime
 	  blocks several things embedded CPython needs — without these, the engine
 	  launches fine on the build machine (already-trusted) but is KILLED on a

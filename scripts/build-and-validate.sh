@@ -89,13 +89,13 @@ cd "$ROOT_DIR/fichero-server"
 if ! command -v briefcase >/dev/null 2>&1; then
   fail "Briefcase not installed (pip install briefcase)"
 else
-  if [ -d "build/engine" ]; then
-    chmod -R u+w build/engine 2>/dev/null || true
-    rm -rf build/engine
+  if [ -d "build/server" ]; then
+    chmod -R u+w build/server 2>/dev/null || true
+    rm -rf build/server
   fi
 
-  if briefcase create macOS --app engine >/dev/null 2>&1; then true; fi
-  if briefcase update macOS --app engine 2>&1 && briefcase build macOS --app engine 2>&1; then
+  if briefcase create macOS --app server >/dev/null 2>&1; then true; fi
+  if briefcase update macOS --app server 2>&1 && briefcase build macOS --app server 2>&1; then
     ok "Briefcase backend built"
   else
     fail "Briefcase backend build failed"

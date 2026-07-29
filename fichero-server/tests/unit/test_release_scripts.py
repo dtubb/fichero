@@ -127,9 +127,9 @@ def test_embedded_engine_version_guard_rejects_stale_bundle(tmp_path: Path) -> N
         for line in (REPO_ROOT / "fichero-server" / "pyproject.toml").read_text().splitlines()
         if line.startswith('version = "')
     )
-    app = tmp_path / "Fichero Engine.app"
+    app = tmp_path / "Fichero Server.app"
     contents = app / "Contents"
-    metadata = contents / "Resources" / "app" / f"engine-{expected}.dist-info" / "METADATA"
+    metadata = contents / "Resources" / "app" / f"server-{expected}.dist-info" / "METADATA"
     metadata.parent.mkdir(parents=True)
     metadata.write_text(f"Name: engine\nVersion: {expected}\n")
     plist = contents / "Info.plist"
@@ -187,8 +187,8 @@ def test_build_and_validate_uses_current_paths() -> None:
     text = _script_text(BUILD_AND_VALIDATE)
     assert "fichero/fichero.xcodeproj" in text
     assert "fichero/build/xcode" in text
-    assert "build/engine" in text
-    assert "briefcase build macOS --app engine" in text
+    assert "build/server" in text
+    assert "briefcase build macOS --app server" in text
     assert "fichero-swiftui" not in text
 
 

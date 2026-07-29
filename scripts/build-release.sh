@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Build Fichero.app in Release configuration with embedded engine.
-# Uses briefcase build to produce Fichero Engine.app, then Xcode builds the
-# host app. The Xcode "Embed Fichero Engine" run-script phase copies the
+# Uses briefcase build to produce Fichero Server.app, then Xcode builds the
+# host app. The Xcode "Embed Fichero Server" run-script phase copies the
 # engine into Contents/Resources/ during the Release build.
 #
 # Usage: scripts/build-release.sh [--skip-backend]
@@ -48,7 +48,7 @@ run_or_dry() {
 
 [ "$DRY_RUN" = true ] && echo "[DRY RUN] build-release.sh — printing steps only"
 
-ENGINE_APP="$ENGINE_ROOT/build/engine/macos/app/Fichero Engine.app"
+ENGINE_APP="$ENGINE_ROOT/build/server/macos/app/Fichero Server.app"
 
 # ── 0. Sync OpenAPI schema engine → Swift client ────────────────────────────
 # Re-export the engine's openapi.json and copy it into the Swift package so
@@ -118,12 +118,12 @@ fi
 
 # Check engine is embedded
 if [ "$DRY_RUN" = true ]; then
-  echo "[DRY RUN] would check: $APP_PATH/Contents/Resources/Fichero Engine.app"
-elif [ -d "$APP_PATH/Contents/Resources/Fichero Engine.app" ]; then
-  EMBED_SIZE=$(du -sh "$APP_PATH/Contents/Resources/Fichero Engine.app" | cut -f1)
+  echo "[DRY RUN] would check: $APP_PATH/Contents/Resources/Fichero Server.app"
+elif [ -d "$APP_PATH/Contents/Resources/Fichero Server.app" ]; then
+  EMBED_SIZE=$(du -sh "$APP_PATH/Contents/Resources/Fichero Server.app" | cut -f1)
   echo "  Engine embedded: $EMBED_SIZE"
 else
-  echo "  warning: Fichero Engine.app not in built app Resources"
+  echo "  warning: Fichero Server.app not in built app Resources"
 fi
 
 echo

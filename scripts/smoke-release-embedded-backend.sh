@@ -39,12 +39,12 @@ fi
 kill_fichero() {
   pkill -x Fichero 2>/dev/null || true
   local pids
-  pids="$(pgrep -f 'Fichero Engine.app/Contents/MacOS/Fichero Engine' || true)"
+  pids="$(pgrep -f 'Fichero Server.app/Contents/MacOS/Fichero Server' || true)"
   if [ -n "$pids" ]; then
     kill $pids 2>/dev/null || true
     sleep 2
   fi
-  pids="$(pgrep -f 'Fichero Engine.app/Contents/MacOS/Fichero Engine' || true)"
+  pids="$(pgrep -f 'Fichero Server.app/Contents/MacOS/Fichero Server' || true)"
   if [ -n "$pids" ]; then
     kill -9 $pids 2>/dev/null || true
   fi

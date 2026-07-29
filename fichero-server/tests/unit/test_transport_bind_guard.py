@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from engine import __main__ as backend_main
+from server import __main__ as backend_main
 from fichero_server.security.bind_host import (
     LAN_BIND_HOST_ENV,
     NON_LOOPBACK_BIND_ACK_ENV,

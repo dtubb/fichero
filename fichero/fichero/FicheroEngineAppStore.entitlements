@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Mac App Store entitlements for the embedded Briefcase Python engine
-  ("Fichero Engine.app"), the nested helper inside the MAS app bundle (#3748).
+  ("Fichero Server.app"), the nested helper inside the MAS app bundle (#3748).
 
   Distinct from FicheroEngine.entitlements, which is the DMG / Developer ID
   channel: that file carries four com.apple.security.cs.* keys, which are
@@ -22,7 +22,7 @@
   Two things this file cannot do by itself:
   - CODE_SIGN_INJECT_BASE_ENTITLEMENTS must be NO wherever the helper is signed:
     Xcode's injected get-task-allow is itself an "other key" and breaks inherit.
-    The engine is signed by the "Embed Fichero Engine" phase, which passes this
+    The engine is signed by the "Embed Fichero Server" phase, which passes this
     file explicitly to codesign, so nothing is injected.
 
   (Note for editors: this is an XML comment, so it may not contain a double

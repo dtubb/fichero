@@ -24,14 +24,14 @@ ROOT="$(pwd)"
 SCHEME="Fichero (Dev Embedded)"
 PROJECT="fichero/fichero.xcodeproj"
 DDPATH="fichero/build/dd-verify"
-ENGINE_BUNDLE="fichero-server/build/engine/macos/app/Fichero Engine.app"
+ENGINE_BUNDLE="fichero-server/build/server/macos/app/Fichero Server.app"
 # Default: run every embedded-launch UX test. Narrow with FICHERO_UITEST=<Class>.
 ONLY_TESTING="FicheroUITests"
 if [[ -n "${FICHERO_UITEST:-}" ]]; then
   ONLY_TESTING="FicheroUITests/${FICHERO_UITEST}"
 fi
 
-# 1) Engine bundle. The Xcode "Embed Fichero Engine" phase copies this into the
+# 1) Engine bundle. The Xcode "Embed Fichero Server" phase copies this into the
 #    .app; without it the build errors out. Reuse only when explicitly asked (and
 #    present) -- a stale bundle silently tests the wrong engine.
 if [[ "${FICHERO_REUSE_ENGINE_BUNDLE:-0}" == "1" && -d "$ENGINE_BUNDLE" ]]; then

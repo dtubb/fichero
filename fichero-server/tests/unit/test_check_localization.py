@@ -35,7 +35,7 @@ def test_allows_verbatim_data(tmp_path):
 
 
 def test_allow_comment_escape(tmp_path):
-    body = 'Text(verbatim: "Fichero Engine")  // localization:allow brand name\n'
+    body = 'Text(verbatim: "Fichero Server")  // localization:allow brand name\n'
     assert not scan(_w(tmp_path, body))
 
 

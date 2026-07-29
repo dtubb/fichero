@@ -17,9 +17,9 @@ if ! command -v briefcase >/dev/null 2>&1; then
   pip install briefcase
 fi
 
-if [ -d "build/engine" ]; then
-  chmod -R u+w build/engine 2>/dev/null || true
-  rm -rf build/engine || /bin/rm -rf build/engine
+if [ -d "build/server" ]; then
+  chmod -R u+w build/server 2>/dev/null || true
+  rm -rf build/server || /bin/rm -rf build/server
 fi
 
 if ! command -v swiftc >/dev/null 2>&1; then
@@ -37,9 +37,9 @@ if [ -z "$SIGNING_IDENTITY" ]; then
   exit 1
 fi
 
-briefcase package macOS --app engine --identity "$SIGNING_IDENTITY"
+briefcase package macOS --app server --identity "$SIGNING_IDENTITY"
 
-BACKEND_APP_SOURCE="build/engine/macos/app/Fichero Engine.app"
+BACKEND_APP_SOURCE="build/server/macos/app/Fichero Server.app"
 if [ -d "$BACKEND_APP_SOURCE" ]; then
   echo "✅ Backend bundle ready: $BACKEND_APP_SOURCE"
 else

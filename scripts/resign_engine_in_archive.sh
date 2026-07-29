@@ -76,7 +76,7 @@ fi
 # `find` does not descend into a symlinked starting point (the R2 lesson,
 # validate_mas_bundle.sh).
 APP="$(cd "$APP" && pwd -P)"
-ENGINE_DST="$APP/Contents/Helpers/Fichero Engine.app"
+ENGINE_DST="$APP/Contents/Helpers/Fichero Server.app"
 
 if [ ! -d "$ENGINE_DST" ]; then
   echo "error: no embedded engine at: $ENGINE_DST" >&2

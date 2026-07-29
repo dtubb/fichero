@@ -174,13 +174,13 @@ if [ "$EXEC_COUNT" -eq 0 ]; then
 fi
 
 # ── 3. The engine is a nested helper in a designated code location ─────────────
-if [ -d "$APP/Contents/Resources/Fichero Engine.app" ]; then
+if [ -d "$APP/Contents/Resources/Fichero Server.app" ]; then
   fail "engine is in Contents/Resources — not a designated code location (invalid bundle structure)"
 fi
-if [ -d "$APP/Contents/Helpers/Fichero Engine.app" ]; then
+if [ -d "$APP/Contents/Helpers/Fichero Server.app" ]; then
   echo "  ✓ engine embedded in Contents/Helpers"
 else
-  fail "no engine at Contents/Helpers/Fichero Engine.app — the app would ship with no backend"
+  fail "no engine at Contents/Helpers/Fichero Server.app — the app would ship with no backend"
 fi
 
 # ── 4. Sparkle is absent, in every form (2.4.5(vii)) ──────────────────────────

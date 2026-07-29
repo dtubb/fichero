@@ -71,7 +71,7 @@ def fake_archive(tmp_path):
     real keychain: what is under test is the key-set rule, not signing.
     """
     app = tmp_path / "Fichero.app"
-    (app / "Contents" / "Helpers" / "Fichero Engine.app").mkdir(parents=True)
+    (app / "Contents" / "Helpers" / "Fichero Server.app").mkdir(parents=True)
     entitlements = tmp_path / "engine.entitlements"
     entitlements.write_text("<plist/>", encoding="utf-8")
 

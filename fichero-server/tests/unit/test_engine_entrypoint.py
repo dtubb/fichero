@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from engine import __main__ as backend_main
+from server import __main__ as backend_main
 
 
 def _manifest_json(material: SimpleNamespace) -> str:
