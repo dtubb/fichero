@@ -59058,7 +59058,7 @@
           "actor"
         ],
         "title": "ToolCall",
-        "description": "One audited tool call the chat agent made during a turn (#1847 / #3).\n\nField names mirror the Swift ``ToolCall`` product spine\n(``fichero/fichero/Models/ToolCall.swift``) in snake_case so the existing\n``ToolCallCard`` UI lights up with zero Swift work. Emitted only when the\n``FICHERO_CHAT_TOOLS`` agent loop is enabled; the array is empty for the\ndefault single-shot RAG path. This slice is READS-ONLY: a dispatched read\ncarries ``is_mutation=False`` + an ``audit_id``; a refused mutating call is\nrecorded with ``status='error'`` + ``is_mutation=True`` and never invoked."
+        "description": "One audited tool call the chat agent made during a turn (#1847 / #3).\n\nField names mirror the Swift ``ToolCall`` product spine\n(``fichero/fichero/Models/ToolCall.swift``) in snake_case so the existing\n``ToolCallCard`` UI lights up with zero Swift work. The agent loop is the\nDEFAULT chat path (#2067); the array is empty when the turn needed no tools,\nwhen the model cannot bind tools, or when ``FICHERO_CHAT_TOOLS=0`` forces\nsingle-shot RAG. This slice is READS-ONLY: a dispatched read\ncarries ``is_mutation=False`` + an ``audit_id``; a refused mutating call is\nrecorded with ``status='error'`` + ``is_mutation=True`` and never invoked."
       },
       "ToolCompareRequest": {
         "properties": {

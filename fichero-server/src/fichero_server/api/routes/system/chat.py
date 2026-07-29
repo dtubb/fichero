@@ -155,9 +155,10 @@ class ToolCall(BaseModel):
 
     Field names mirror the Swift ``ToolCall`` product spine
     (``fichero/fichero/Models/ToolCall.swift``) in snake_case so the existing
-    ``ToolCallCard`` UI lights up with zero Swift work. Emitted only when the
-    ``FICHERO_CHAT_TOOLS`` agent loop is enabled; the array is empty for the
-    default single-shot RAG path. This slice is READS-ONLY: a dispatched read
+    ``ToolCallCard`` UI lights up with zero Swift work. The agent loop is the
+    DEFAULT chat path (#2067); the array is empty when the turn needed no tools,
+    when the model cannot bind tools, or when ``FICHERO_CHAT_TOOLS=0`` forces
+    single-shot RAG. This slice is READS-ONLY: a dispatched read
     carries ``is_mutation=False`` + an ``audit_id``; a refused mutating call is
     recorded with ``status='error'`` + ``is_mutation=True`` and never invoked.
     """
@@ -189,7 +190,7 @@ class ChatResponse(BaseModel):
     context_count: int = 0
     tool_calls: list[ToolCall] = Field(
         default_factory=list
-    )  # populated only by the FICHERO_CHAT_TOOLS agent loop; else empty
+    )  # audited calls from the default agent loop; [] when no tools ran (#2067)
 
 
 class ProviderModelInfo(BaseModel):
