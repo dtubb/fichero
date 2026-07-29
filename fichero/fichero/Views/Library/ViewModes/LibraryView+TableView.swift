@@ -234,39 +234,27 @@ extension LibraryView {
     /// `filteredDocuments` ordering stay `Document`-keyed — this binding
     /// translates header clicks into `sortFieldRaw`/`sortAscending`
     /// without forking the persistence machinery.
+    /// The getter only ever emits comparators for key paths a sortable COLUMN
+    /// declares (`outlineColumnComparator`); a sort field with no table column
+    /// (updatedAt / fileType, toolbar-menu only) yields an empty order rather
+    /// than a comparator the AppKit sort-descriptor bridge can't resolve to a
+    /// column — the #4282 crash class. Rows stay correctly ordered either way:
+    /// `recomputeFiltered()` sorts `filteredDocuments` upstream.
+    /// The setter is total: an unrecognised key path is a full no-op, never a
+    /// direction flip without a field.
     internal var outlineSortOrder: Binding<[KeyPathComparator<LibraryOutlineNode>]> {
         Binding(
             get: {
-                let ascending = sortAscending
-                let order: SortOrder = ascending ? .forward : .reverse
-                switch sortField {
-                case .name:
-                    return [.init(\.document.name, order: order)]
-                case .createdAt:
-                    return [.init(\.document.createdAt, order: order)]
-                case .updatedAt:
-                    return [.init(\.document.updatedAt, order: order)]
-                case .fileType:
-                    return [.init(\.document.sortableFileType, order: order)]
-                case .status:
-                    return [.init(\.document.status.rawValue, order: order)]
+                guard let comparator = sortField.outlineColumnComparator(ascending: sortAscending) else {
+                    return []
                 }
+                return [comparator]
             },
             set: { newOrder in
-                guard let first = newOrder.first else { return }
-                let ascending = first.order == .forward
-                if first.keyPath == \LibraryOutlineNode.document.name {
-                    sortFieldRaw = LibrarySortField.name.rawValue
-                } else if first.keyPath == \LibraryOutlineNode.document.createdAt {
-                    sortFieldRaw = LibrarySortField.createdAt.rawValue
-                } else if first.keyPath == \LibraryOutlineNode.document.updatedAt {
-                    sortFieldRaw = LibrarySortField.updatedAt.rawValue
-                } else if first.keyPath == \LibraryOutlineNode.document.sortableFileType {
-                    sortFieldRaw = LibrarySortField.fileType.rawValue
-                } else if first.keyPath == \LibraryOutlineNode.document.status.rawValue {
-                    sortFieldRaw = LibrarySortField.status.rawValue
-                }
-                sortAscending = ascending
+                guard let first = newOrder.first,
+                      let field = LibrarySortField.field(forOutlineKeyPath: first.keyPath) else { return }
+                sortFieldRaw = field.rawValue
+                sortAscending = first.order == .forward
                 saveSortSettings(for: folderId)
             }
         )
