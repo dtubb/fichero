@@ -108,7 +108,7 @@ requires = [
     "pillow-heif>=1.1.0",
 ]
 
-[tool.briefcase.app.server.macOS]
+[tool.briefcase.app.fichero_server.macOS]
 universal_build = false  # arm64-only (Apple Silicon)
 min_os_version = "15.0"
 python_version = "3.12"  # Pin to 3.12 — many ML packages lack 3.14 wheels

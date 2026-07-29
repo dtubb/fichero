@@ -355,7 +355,8 @@ run_standard() {
   # -rf emits a "FAILED <node_id>" line per failure in the short summary so the
   # JSON report can list failing test node IDs (parsed in record_failure).
   run_check "backend pytest unit tests" env PYTHONPATH=fichero-server/src:fichero-cli/src:fichero-mcp/src \
-    "${PYTEST_CMD[@]}" -rf fichero-server/tests/unit/ --ignore=fichero-server/tests/unit/_archived
+    "${PYTEST_CMD[@]}" -rf fichero-server/tests/unit/ fichero-cli/tests/ fichero-mcp/tests/ \
+    --ignore=fichero-server/tests/unit/_archived
 
   # Contract tests (OpenAPI surface, UI-wiring coverage, docs coverage) — these
   # guard against exactly the kind of drift unit-only gating missed (#3163): a

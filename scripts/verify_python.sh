@@ -27,6 +27,7 @@ run "ruff" "$RUFF" check fichero-server/src/
 #    `-k "not embedding"` skips tests that need an unavailable fastembed model
 #    (env limitation, not a code bug). Drop the filter if the model is present.
 run "backend unit" "$PYTEST" fichero-server/tests/unit/ \
+  fichero-cli/tests/ fichero-mcp/tests/ \
   --ignore=fichero-server/tests/unit/_archived -q -k "not embedding"
 
 # Say what this gate does NOT cover, so the exclusion can't quietly become
@@ -60,7 +61,7 @@ if [ "$ok" = 1 ]; then echo "✅ backend start-smoke"; else echo "❌ backend st
 
 # 5. CLI smoke: the CLI imports and its entrypoint runs.
 run "cli import" "$PY" -c "import fichero_cli"
-run "cli --help" "$PY" -m fichero --help
+run "cli --help" "$PY" -m fichero_cli --help
 
 # 6. Live CLI<->engine contract test.
 run "cli contract" "$PYTEST" fichero-server/tests/integration/test_cli_engine_contract.py -q
