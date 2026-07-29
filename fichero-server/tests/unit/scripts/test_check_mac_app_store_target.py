@@ -119,7 +119,7 @@ def test_embed_phases_are_dependency_aware_not_always_out_of_date() -> None:
     """Both engine embed phases must give Xcode conservative dependencies so
     unchanged builds do not rerun the expensive copy/signing phase (#3991)."""
     input_file_list = "$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
-    staged_engine_input = "$(SRCROOT)/../fichero-server/build/server/macos/app/Fichero Server.app"
+    staged_engine_input = "$(SRCROOT)/../fichero-server/build/fichero_server/macos/app/Fichero Server.app"
     expected_macos_outputs = {
         "Fichero": "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app",
         "Fichero (App Store)": "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app",
