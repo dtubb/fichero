@@ -43,7 +43,11 @@ enum EngineConfig {
 
     /// Suite backing every preference read in a test process.
     static let testSuiteName = "app.fichero.fichero.tests"
-    private static let testSuiteDefaults =
+    /// `nonisolated(unsafe)` because `UserDefaults` is not `Sendable`; it IS
+    /// documented thread-safe, and this is an immutable `let` — the annotation
+    /// silences the shared-state diagnostic, it does not reintroduce mutable
+    /// global state (#4216's concern).
+    nonisolated(unsafe) private static let testSuiteDefaults =
         UserDefaults(suiteName: testSuiteName) ?? .standard
 
     /// True inside an XCTest/Swift Testing host process.
