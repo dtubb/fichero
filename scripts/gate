@@ -77,8 +77,8 @@ SWIFT_TESTS_DIR="fichero/fichero-tests"
 area_table() {
   cat <<'EOF'
 sidebar   | Sidebar,DocumentStore            |
-ingest    | ImportService                    | fichero-server/tests/unit/test_ingest*.py fichero-server/tests/unit/test_dataless*.py
-search    | Search                           | fichero-server/tests/unit/test_search*.py
+ingest    | ImportService                    | fichero-server/tests/unit/importers/
+search    | Search                           | fichero-server/tests/unit/search/
 inspector | Inspector                        |
 transport | Transport,Connection             | fichero-server/tests/integration/test_transport_matrix.py fichero-server/tests/integration/test_transport_round_trips.py
 EOF
@@ -554,7 +554,7 @@ cmd_self_test() {
   out="$("$0" areas sidebar 2>&1)"; local rc=$?
   [[ $rc -eq 0 && "$out" == *"-only-testing:FicheroTests/Sidebar"* ]]; check "area sidebar resolves to -only-testing filters" $?
   out="$("$0" areas ingest 2>&1)"
-  [[ "$out" == *"engine: fichero-server/tests/unit/test_ingest"* ]]; check "area ingest resolves engine paths" $?
+  [[ "$out" == *"engine: fichero-server/tests/unit/importers/"* ]]; check "area ingest resolves engine paths" $?
   "$0" areas no-such-area >/dev/null 2>&1; [[ $? -ne 0 ]]; check "unknown area is a hard error" $?
 
   # 2. Dry-run command assembly: unit --area sidebar must show the capped

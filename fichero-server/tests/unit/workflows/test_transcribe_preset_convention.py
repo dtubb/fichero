@@ -26,7 +26,7 @@ import pytest
 _PRESETS_DIR = (
     Path(__file__).resolve().parents[3]
     / "src"
-    / "fichero"
+    / "fichero_server"
     / "resources"
     / "default_workflows"
 )

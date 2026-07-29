@@ -3,7 +3,7 @@ from pathlib import Path
 from fichero_server.verification_targets import plan_backend_verification
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_route_change_maps_to_targeted_tests_only() -> None:

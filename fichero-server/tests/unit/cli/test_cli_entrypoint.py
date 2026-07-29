@@ -19,7 +19,7 @@ def _cli_env(root: Path) -> dict[str, str]:
 
 
 def test_python_module_help_imports_cleanly():
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
     env = _cli_env(root)
 
     result = subprocess.run(
@@ -42,7 +42,7 @@ def test_python_module_help_imports_cleanly():
 
 
 def test_python_module_entity_help_imports_cleanly():
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
     env = _cli_env(root)
 
     result = subprocess.run(

@@ -29,7 +29,7 @@ HTR_TOOLS = {"files", "transcribe", "transcribe_review", "search"}
 _PRESETS_DIR = (
     Path(__file__).resolve().parents[2]
     / "src"
-    / "fichero"
+    / "fichero_server"
     / "resources"
     / "default_workflows"
 )
