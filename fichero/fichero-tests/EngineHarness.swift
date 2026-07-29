@@ -122,7 +122,13 @@ enum EngineHarness {
                 "hermetic mode: something already listens on \(baseURL) — "
                 + "kill the orphaned engine (pkill -f 'uvicorn fichero') and re-run")
         }
-        if isHermetic || (await isHealthy(baseURL) == false) {
+        // Two steps: `||`'s right operand is an autoclosure, which cannot
+        // `await` — hermetic short-circuits the probe anyway.
+        var needsSpawn = isHermetic
+        if !needsSpawn {
+            needsSpawn = await isHealthy(baseURL) == false
+        }
+        if needsSpawn {
             try spawnEngine(repo: repo, libraryPath: libURL.path)
             spawned = true
             guard await waitForHealth(baseURL, timeout: 30) else {
