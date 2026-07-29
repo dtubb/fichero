@@ -2,6 +2,37 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.29
+
+### Dev build
+
+Internal TestFlight + DMG dev prerelease cut from green `integration` — the
+first release gated end-to-end by the new serialized test harness (full unit,
+engine, transport-matrix, and UI-session legs all green).
+
+**Fixed**
+- Sidebar rows no longer jump after the list loads; root ordering is stable.
+- Sidebar clicks are faster: the selection path uses an O(1) index instead of
+  re-walking the whole tree, prefetch batches its cache writes, and disclosure
+  toggles no longer trigger needless preference writes.
+- Folder selection and drops show a loading/importing state immediately
+  instead of a dead interval or a false "No Documents".
+- Import status can no longer stick at "5/5" after an import finishes.
+- Thumbnails: intermittent 500s fixed (alias sync is idempotent and atomic);
+  imported images now get thumbnails via a background derivative stage instead
+  of staying "Pending"; HEIC photos are supported.
+- Legacy .doc files that failed with "Malformed MiniFAT" now extract via a
+  fallback reader.
+- iCloud placeholder files are refused loudly at import instead of importing
+  as empty records.
+- Ingest and serving path rules are unified — anything importable is servable.
+- Canvas (2D/3D) view modes share the library selection with the list views.
+- Engine startup prints a transport diagnostic naming exactly what bound
+  where and what a client must set (ends the socket-path guessing game).
+
+**App icon**
+- New Icon Composer app icon.
+
 ## 2026.07.26
 
 ### Dev build
