@@ -331,6 +331,12 @@ def _missing_exit_nodes(
     return set(exit_node_ids) - set(completed_exit_nodes)
 
 
+# Marker the runner uses to escalate an empty run to status="failed" when the
+# emptiness is caused by every file erroring (#4283) — kept as one constant so
+# the reason string and the status escalation can't drift apart.
+_ALL_FILES_FAILED_MARKER = "every file failed"
+
+
 def _detect_empty_text_output(final_state: dict) -> tuple[bool, str]:
     """Return (is_empty, reason) when a workflow ran files but produced no text.
 
@@ -345,6 +351,7 @@ def _detect_empty_text_output(final_state: dict) -> tuple[bool, str]:
     outputs = final_state.get("outputs", {})
     if not outputs:
         return True, f"Workflow processed {len(files)} file(s) but produced no output"
+    node_errors: list[str] = []
     for node_output in outputs.values():
         if not isinstance(node_output, dict):
             continue
@@ -354,12 +361,27 @@ def _detect_empty_text_output(final_state: dict) -> tuple[bool, str]:
             return False, ""
         if node_output.get("page_records"):
             return False, ""
-        if node_output.get("results"):
-            return False, ""
-    return (
-        True,
-        f"Workflow processed {len(files)} file(s) but produced no text output",
-    )
+        results = node_output.get("results")
+        if results:
+            # #4283: vision tools append a {"file", "error"} result row for
+            # every FAILED file (error isolation) — a results list made
+            # entirely of error rows is a run where nothing happened, not
+            # output. Only an entry without an error counts as real output.
+            if any(
+                not entry.get("error")
+                for entry in results
+                if isinstance(entry, dict)
+            ):
+                return False, ""
+        if node_output.get("error"):
+            node_errors.append(str(node_output["error"]))
+    reason = f"Workflow processed {len(files)} file(s) but produced no text output"
+    if node_errors:
+        # Name the failure so a paleography run where every page failed
+        # (non-vision provider, missing key, open circuit breaker) reads as
+        # WHAT went wrong instead of a silent green "completed" (#4283).
+        reason += f" — {_ALL_FILES_FAILED_MARKER}: {node_errors[0]}"
+    return True, reason
 
 
 # =============================================================================
@@ -1296,6 +1318,11 @@ async def _run_workflow_in_background(
 
         # #2244/#2245: detect runs that processed files but produced no text output
         _empty, _empty_reason = _detect_empty_text_output(final_state or {})
+        # #4283: an every-file-failed run (non-vision provider, missing key,
+        # open circuit breaker…) used to be recorded status="completed" — the
+        # green checkmark for a run that did NOTHING. Record it failed with
+        # the aggregated per-file error so every activity surface shows it.
+        _all_files_failed = _empty and _ALL_FILES_FAILED_MARKER in _empty_reason
         if _empty:
             completion_metadata["empty_output"] = True
             completion_metadata["empty_output_reason"] = _empty_reason
@@ -1371,6 +1398,8 @@ async def _run_workflow_in_background(
             complete_data["empty_output_reason"] = completion_metadata.get(
                 "empty_output_reason", ""
             )
+        if _all_files_failed:
+            complete_data["error"] = _empty_reason
         event_queue.put(
             SSEEvent(
                 event="complete",
@@ -1382,7 +1411,10 @@ async def _run_workflow_in_background(
         progress_timeline["events"] = _workflow_event_timeline(event_queue)
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
-            status="completed",
+            # #4283: every-file-failed runs are FAILURES in the activity
+            # record — never a green "completed" for a run that did nothing.
+            status="failed" if _all_files_failed else "completed",
+            error=_empty_reason if _all_files_failed else None,
             execution_log=execution_log,
             progress_timeline=progress_timeline,
             duration_ms=total_duration_ms,
