@@ -39,6 +39,8 @@ IDENTIFIER = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Models/DocumentStore+ChangeStream.swift": "#4235 — extension file; SpliceChanges is the private changed-flags carrier for spliceDocuments",
+    "Views/Library/LibraryView+FilterAndBatch.swift": "#4235 — extension file; LibraryEmptyPlaceholder classifies empty/loading/importing for LibraryView",
     "Services/EmbeddedBackendService+Readiness.swift": "#1943 — extension file; SpawnWaitStep used by EmbeddedBackendService readiness methods (service split)",
     "Services/EmbeddedBackendService+TLS.swift": "#1943 — extension file; DataBox/CachedTLSPaths used by EmbeddedBackendService TLS methods (service split)",
     "Models/CacheModel.swift": "#1945 — candidate dead file: CacheModel, CacheWrapper",
