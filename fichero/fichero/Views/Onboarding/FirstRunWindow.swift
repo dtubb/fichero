@@ -13,6 +13,14 @@ struct FirstRunWindow: View {
     @State private var selectedLibraryName: String?
     @State private var documentsPermission = false
 
+    /// The PLATFORM's step list (#2807): the Mac runs the full flow; companion
+    /// platforms (iPhone/iPad — no local engine) skip the Mac-only
+    /// Library/Permissions/Cloud steps, so Welcome finishes straight into the
+    /// companion connect flow (`RemoteConnectionSetupView`).
+    private let steps = FirstRunStep.steps(
+        isCompanionPlatform: FirstRunStep.isCompanionPlatform
+    )
+
     var body: some View {
         HStack(spacing: 0) {
             sidebar
@@ -20,8 +28,21 @@ struct FirstRunWindow: View {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        // The fixed two-pane card is a desktop window size; a compact companion
+        // presentation sizes to its sheet instead (#2807).
+        #if os(macOS)
         .frame(width: 760, height: 520)
+        #endif
         .onAppear { surfaceDefaultLibrary() }
+    }
+
+    /// Advance within the platform step list; the LAST step finishes (#2807).
+    private func advance() {
+        if step == steps.last {
+            finish()
+        } else {
+            step = step.next(in: steps)
+        }
     }
 
     /// #2715 — A new user already lands in a working state: the app-managed
@@ -40,7 +61,7 @@ struct FirstRunWindow: View {
                 .font(.title2.weight(.semibold))
                 .padding(.bottom, 12)
 
-            ForEach(FirstRunStep.allCases) { item in
+            ForEach(steps) { item in
                 Button {
                     step = item
                 } label: {
@@ -83,7 +104,7 @@ extension FirstRunWindow {
                             + "Customize it later — or just begin importing scans, PDFs, notes, and graphs.",
                         primaryTitle: "Get Started",
                         primaryIcon: "arrow.right",
-                        primaryAction: { step = .library }
+                        primaryAction: { advance() }
                     ),
                     footer: {
                         HStack(spacing: 8) {
@@ -114,7 +135,7 @@ extension FirstRunWindow {
                             ?? "A local library is ready to use. Create more libraries anytime from the File menu.",
                         primaryTitle: "Continue",
                         primaryIcon: "arrow.right",
-                        primaryAction: { step = .permissions }
+                        primaryAction: { advance() }
                     ),
                     footer: {
                         // #2716 — "Open Existing" lives in File ▸ Open Library (⌘O)
@@ -145,7 +166,7 @@ extension FirstRunWindow {
                         primaryIcon: documentsPermission ? "arrow.right" : "folder.badge.gearshape",
                         primaryAction: {
                             if documentsPermission {
-                                step = .cloud
+                                advance()
                             } else {
                                 requestDocumentsAccess()
                             }
@@ -276,14 +297,10 @@ extension FirstRunWindow {
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Back") { step = step.previous }
-                    .disabled(step == .welcome)
-                Button(step == .cloud ? "Finish" : "Continue") {
-                    if step == .cloud {
-                        finish()
-                    } else {
-                        step = step.next
-                    }
+                Button("Back") { step = step.previous(in: steps) }
+                    .disabled(step == steps.first)
+                Button(step == steps.last ? "Finish" : "Continue") {
+                    advance()
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
