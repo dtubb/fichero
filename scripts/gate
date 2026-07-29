@@ -45,7 +45,8 @@
 #   GATE_WATCH_INTERVAL=s      watchdog sample interval (default 5)
 #   GATE_FAKE_PRESSURE=f       read pressure level from file f (or literal int)
 #   GATE_FAKE_FOOTPRINT_MB=f   read max tree footprint (MB) from file/literal
-#   GATE_FOOTPRINT_MB=n        footprint ceiling in MB (default 4096)
+#   GATE_FOOTPRINT_MB=n        footprint ceiling in MB (default 4096, test phases)
+#   GATE_FOOTPRINT_BUILD_MB=n  build-phase ceiling (default 8192 — compilers peak high)
 #   GATE_TIMEOUT=s             override the per-run timeout
 set -uo pipefail
 
@@ -201,7 +202,11 @@ run_gated() {
     # Footprint ceiling: any single process in the gated tree crossing the
     # ceiling kills the run — pressure can stay nominal while one test host
     # accretes 15GB+ of dirty MALLOC_SMALL (2026-07-29 run 4).
-    local ceiling="${GATE_FOOTPRINT_MB:-4096}" fp
+    # Per-phase override: a clean build's compiler tree legitimately peaks
+    # above the test-phase ceiling even at -jobs 4 (first real run: killed at
+    # 4176MB mid-compile). Callers set GATE_FOOTPRINT_OVERRIDE_MB per phase;
+    # the strict default still guards every test phase.
+    local ceiling="${GATE_FOOTPRINT_OVERRIDE_MB:-${GATE_FOOTPRINT_MB:-4096}}" fp
     fp="$(tree_max_footprint_mb "$pid")"
     case "$fp" in ''|*[!0-9]*) fp=0 ;; esac
     if (( fp > ceiling )); then
@@ -294,6 +299,7 @@ cmd_areas() {
 
 # --------------------------- subcommands ------------------------------------
 xcode_build_for_testing() {
+  GATE_FOOTPRINT_OVERRIDE_MB="${GATE_FOOTPRINT_BUILD_MB:-8192}" \
   run_gated "build-for-testing" "${GATE_TIMEOUT_BUILD:-3600}" \
     xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" \
       -destination 'platform=macOS' -derivedDataPath "$GATE_DERIVED" \
