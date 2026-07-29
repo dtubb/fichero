@@ -30,7 +30,7 @@ App-level authorization still belongs to Fichero:
 On the Mac or lab machine that owns the library, start the engine on loopback:
 
 ```bash
-PYTHONPATH=fichero-server/src .venv/bin/python -m fichero_cli engine start --port 8765
+PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli engine start --port 8765
 ```
 
 The default bind host is `127.0.0.1`. If you set it explicitly, keep it
@@ -38,7 +38,7 @@ loopback-only:
 
 ```bash
 export FICHERO_BIND_HOST=127.0.0.1
-PYTHONPATH=fichero-server/src .venv/bin/python -m fichero_cli engine start --port 8765
+PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli engine start --port 8765
 ```
 
 Current bind behavior is:
@@ -126,7 +126,7 @@ redeeming the one-time pairing link above.
 export FICHERO_API_URL=https://<engine-name>.<tailnet-name>.ts.net
 export FICHERO_API_KEY=<remote-token>
 export FICHERO_LIBRARY_PATH=/path/on/engine/Library.fichero
-PYTHONPATH=fichero-server/src .venv/bin/python -m fichero_cli --json health
+PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli --json health
 ```
 
 The library path is resolved on the engine machine. A path from the client

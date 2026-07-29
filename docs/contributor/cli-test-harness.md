@@ -21,14 +21,14 @@ fichero` against the running engine.
 Start the backend from the repo root:
 
 ```bash
-PYTHONPATH=fichero-server/src ~/.venv/bin/python -m fichero_cli engine start --port 8765
+PYTHONPATH=fichero-server/src:fichero-cli/src ~/.venv/bin/python -m fichero_cli engine start --port 8765
 ```
 
 Then run CLI commands in another shell. Prefer JSON output for bug reports and
 agent comparisons:
 
 ```bash
-PYTHONPATH=fichero-server/src ~/.venv/bin/python -m fichero_cli --json health
+PYTHONPATH=fichero-server/src:fichero-cli/src ~/.venv/bin/python -m fichero_cli --json health
 ```
 
 ## Authentication
@@ -36,9 +36,9 @@ PYTHONPATH=fichero-server/src ~/.venv/bin/python -m fichero_cli --json health
 The CLI now has a real multi-user auth flow:
 
 ```bash
-PYTHONPATH=fichero-server/src .venv/bin/python -m fichero_cli auth login
-PYTHONPATH=fichero-server/src .venv/bin/python -m fichero_cli auth whoami
-PYTHONPATH=fichero-server/src .venv/bin/python -m fichero_cli auth logout
+PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli auth login
+PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli auth whoami
+PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli auth logout
 ```
 
 Credential resolution is:
@@ -61,7 +61,7 @@ Common auth failures:
 For library-scoped endpoints, pass the same library the app is using:
 
 ```bash
-PYTHONPATH=fichero-server/src ~/.venv/bin/python -m fichero_cli \
+PYTHONPATH=fichero-server/src:fichero-cli/src ~/.venv/bin/python -m fichero_cli \
   --library /path/to/Library.fichero \
   --json search "sample query"
 ```
@@ -83,8 +83,8 @@ Example:
 
 ```bash
 bash fichero-server/scripts/start_backend.sh
-PYTHONPATH=fichero-server/src .venv/bin/python -m fichero_cli auth login
-PYTHONPATH=fichero-server/src .venv/bin/python -m fichero_cli import-manifest \
+PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli auth login
+PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli import-manifest \
   --manifest /path/to/manifest.jsonl \
   --library /path/to/Library.fichero
 ```

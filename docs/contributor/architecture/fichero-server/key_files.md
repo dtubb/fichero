@@ -133,7 +133,7 @@
 | `bookmarks.py` | macOS security-scoped bookmark management |
 | `keychain.py` | macOS Keychain credential storage |
 | `mcp_manager.py` | MCP server lifecycle management |
-| `mcp_server.py` | MCP server implementation |
+| (`fichero-mcp/src/fichero_mcp/server.py`) | MCP server product — moved out of this package in #4227 |
 | `logging.py` | Structured logging with request context |
 | `multilingual.py` | Language detection, normalisation, transliteration |
 | `errors.py` | Centralised error types and retry logic |

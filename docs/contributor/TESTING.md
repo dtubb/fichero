@@ -16,6 +16,8 @@ review, bottom-up:
 | Store/service + stubbed transport (async state machines) | `fichero/fichero-tests/Services/`, `Transport/` | partial — one ad-hoc `MockTransportURLProtocol`; shared kit **(planned, #4241 step 1)** |
 | Engine pytest (pipelines, derivatives, fixtures) | `fichero-server/tests/unit/`, `integration/` | built |
 | App↔engine contract (in-process, no uvicorn/TLS) | `fichero/fichero-tests/Contract/` | built on spawned uvicorn; in-process `InMemoryEngineApp` harness **(planned, #4241 step 2)** |
+| CLI unit (dispatch, connection resolution, transport selection) | `fichero-cli/tests/` | built |
+| MCP unit (tool schemas, connection, fail-closed auth) | `fichero-mcp/tests/` | built |
 | CLI leg (installed `fichero` binary, hermetic) | `fichero-server/tests/integration/test_cli_installed_roundtrip.py` | built |
 | MCP leg (shipped `fichero-mcp` tool surface) | `fichero-server/tests/integration/test_mcp_server_contract.py` | built |
 | XCUITest (shipping config only, ~8 flows) | `fichero/fichero-ui-tests/` | built |
@@ -47,6 +49,11 @@ Xcode builds (see `AGENTS.md`).
 # Engine — always with PYTHONPATH relative to YOUR worktree
 PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/ -q
 PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/test_ingest_module.py -q   # one area
+
+# CLI / MCP products — their own test dirs; each conftest puts the sibling
+# src/ trees on sys.path, so no PYTHONPATH is needed for these two.
+pytest fichero-cli/tests -q
+pytest fichero-mcp/tests -q
 
 # Never `pytest fichero-server/tests` (pulls the ~50-min perf suite).
 scripts/verify_perf.sh          # perf, deliberately, on its own

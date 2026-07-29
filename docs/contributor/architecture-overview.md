@@ -79,7 +79,7 @@ The same backend is also consumed by:
 
 - the typed `python -m fichero_cli` CLI
 - the generated Swift OpenAPI client plus hand-written service wrappers
-- the `fichero.mcp_server` / `fichero-mcp` MCP server entrypoint
+- the `fichero_mcp.server` / `fichero-mcp` MCP server entrypoint
 - iOS/iPadOS clients that connect to a configured remote engine host
 
 That is why backend behavior should be explained in terms of routes and models, not in terms of one specific screen.

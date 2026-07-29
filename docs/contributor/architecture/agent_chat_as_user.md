@@ -50,9 +50,9 @@ So the audit/tool foundation exists, but "chat can act" is still a planned wirin
 
 ### 4. An MCP surface already exists
 
-- Fichero already ships an MCP server in `fichero-server/src/fichero_server/mcp_server.py:1-29`.
-- That server exposes CLI-backed tools through FastMCP in `fichero-server/src/fichero_server/mcp_server.py:37-73` and throughout the rest of the file.
-- The MCP server is intentionally a thin wrapper over `FicheroClient`, not a second backend logic layer, in `fichero-server/src/fichero_server/mcp_server.py:1-8` and `53-64`.
+- Fichero already ships an MCP server in `fichero-mcp/src/fichero_mcp/server.py:1-29`.
+- That server exposes CLI-backed tools through FastMCP in `fichero-mcp/src/fichero_mcp/server.py:37-73` and throughout the rest of the file.
+- The MCP server is intentionally a thin wrapper over `FicheroClient`, not a second backend logic layer, in `fichero-mcp/src/fichero_mcp/server.py:1-8` and `53-64`.
 - App-managed MCP server configuration already exists as `MCPServer` rows in `fichero-server/src/fichero_server/models.py:1251-1284`.
 - The backend already exposes MCP server management routes in `fichero-server/src/fichero_server/api/routes/mcp_servers.py:22-257`.
 - Those routes already require authentication globally and require owner access for loading tools into the workflow registry in `fichero-server/src/fichero_server/api/routes/mcp_servers.py:22` and `221-258`.
@@ -179,7 +179,7 @@ Because `ActionContext` already carries `actor` and `run_id` (`actions/registry.
 | Audited mutation path | `registry.invoke(...)`, `ActionAudit`, `emit_change(...)` (`actions/registry.py:156-236`) | complete normalization of all model-write surfaces onto that path |
 | Action registry HTTP surface | `/api/actions/invoke`, `/api/actions/registry`, `/api/actions/audit` (`actions_registry.py:103-191`) | direct chat-loop use in the shipped chat route |
 | Chat-tool bridge | `actions/chat_tools.py` generator + dispatcher (`chat_tools.py:91-194`) | live tool-calling agent loop in `/api/chat` |
-| MCP server/tool infrastructure | `mcp_server.py`, `mcp_servers.py`, workflow MCP loading | per-model MCP tool filtering; registry-backed normalization of mutation tools |
+| MCP server/tool infrastructure | `fichero_mcp/server.py`, `mcp_servers.py`, workflow MCP loading | per-model MCP tool filtering; registry-backed normalization of mutation tools |
 | Settings UI | users/roles UI, MCP server UI | model-user settings pane and per-tool grant/deny UI |
 
 ## What this design deliberately avoids
