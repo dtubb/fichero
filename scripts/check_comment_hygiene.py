@@ -25,7 +25,9 @@ SWIFT_DIR = ROOT / "fichero" / "fichero"
 RULE_DOC = "agents/ROADMAP.md"
 
 KNOWN_VIOLATIONS: dict[str, str] = {
-"fichero/fichero/Services/ChatService.swift#9190295867": "#1916 baseline",
+    # Prose explaining the debounce starvation fix; the words "class"/"for"/
+    # "import" in ordinary sentences trip the code-like regex.
+    "fichero/fichero/Models/ObservableDomainStore.swift#099e95cd6d": "#4223 false positive (prose)",
     "fichero/fichero/Services/ProviderAPIService.swift#4add631a96": "#1916 baseline",
     "fichero/fichero/Views/Library/ViewModes/LibraryView+Helpers.swift#6db3c7cd5e": "#1916 baseline (DocRowIdentity doc block moved here when LibraryView+DisplayModes was split by file_length)",
     "fichero/fichero/Views/Preview/ImageViewer/ZoomableImagePreviewMac+ZoomActions.swift#c7669329ed": "#1916 baseline",

@@ -56,7 +56,7 @@ final class ToolbarModeLaunchStressUITests: XCTestCase {
         if let tempHome { try? FileManager.default.removeItem(at: tempHome) }
     }
 
-    private func makeApp() -> XCUIApplication {
+    @MainActor private func makeApp() -> XCUIApplication {
         let app = XCUIApplication()
         // This is the embedded-engine variant of the isolated UI-test launch:
         // it exercises the real workspace and its toolbars, without touching

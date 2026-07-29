@@ -163,12 +163,17 @@ class TestConcurrentCallsDoNotRace:
 class TestFailureIsNonFatal:
     """A bookkeeping copy must not fail a request whose image is fine."""
 
-    def test_a_missing_cache_entry_does_not_raise(self, tmp_path):
+    def test_a_missing_cache_entry_does_not_raise(self, tmp_path, caplog):
         alias = tmp_path / "thumbs" / "doc.jpg"
 
         _sync_alias_to_cache(tmp_path / "nope.jpg", alias)  # must not raise
 
-    def test_an_unwritable_destination_does_not_raise(self, tmp_path):
+        assert not alias.exists(), "no alias should appear for a missing cache entry"
+        assert any("alias sync failed" in r.getMessage() for r in caplog.records), (
+            "the swallowed failure must still be logged"
+        )
+
+    def test_an_unwritable_destination_does_not_raise(self, tmp_path, caplog):
         cache = _cache_entry(tmp_path)
         locked = tmp_path / "locked"
         locked.mkdir()
@@ -177,6 +182,11 @@ class TestFailureIsNonFatal:
             _sync_alias_to_cache(cache, locked / "doc.jpg")  # must not raise
         finally:
             locked.chmod(0o700)
+
+        assert not (locked / "doc.jpg").exists()
+        assert any("alias sync failed" in r.getMessage() for r in caplog.records), (
+            "the swallowed failure must still be logged"
+        )
 
     def test_no_staging_file_is_left_behind(self, tmp_path):
         """The temp name must never survive a success or a failure."""

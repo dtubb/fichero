@@ -41,6 +41,8 @@ class TestCopyVerification:
 
         _verify_copied(source, dest)  # must not raise
 
+        assert dest.stat().st_size == source.stat().st_size
+
     def test_a_truncated_copy_raises(self, tmp_path):
         """The network-volume case: the copy ends short without erroring."""
         source = tmp_path / "src.bin"
@@ -78,7 +80,9 @@ class TestCopyVerification:
         source.write_bytes(b"")
         dest.write_bytes(b"")
 
-        _verify_copied(source, dest)
+        _verify_copied(source, dest)  # must not raise
+
+        assert dest.stat().st_size == 0 == source.stat().st_size
 
 
 class TestTheCheckIsActuallyWIRED:

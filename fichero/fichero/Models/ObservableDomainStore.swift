@@ -63,19 +63,6 @@ final class ReloadDebouncer {
         }
     }
 
-    /// How long the next trailing action should wait: the usual `delay`, minus
-    /// nothing while the burst is young, but shortened — to zero — as the burst
-    /// approaches `maxWait`.
-    ///
-    /// Pure, so tests assert the rule directly instead of sleeping —
-    /// sleep-based debounce tests are flaky by construction.
-    ///
-    /// `nonisolated` is LOAD-BEARING: this class is `@MainActor`, and a static
-    /// on it inherits that isolation, so a Swift Testing suite (cooperative
-    /// thread, not main) cannot call it. Same hazard as the #4201 View statics,
-    /// with one important difference — an EXPLICIT `@MainActor` makes the
-    /// off-main call a COMPILE error, while a `View`'s implicit isolation
-    /// compiles and SIGTRAPs at runtime. The loud failure is the good one.
     /// Whether `schedule` must LEAVE the pending flush alone instead of
     /// cancelling and rescheduling it.
     ///
@@ -92,6 +79,19 @@ final class ReloadDebouncer {
         wait == .zero && hasPending
     }
 
+    /// How long the next trailing action should wait: the usual `delay`, minus
+    /// nothing while the burst is young, but shortened — to zero — as the burst
+    /// approaches `maxWait`.
+    ///
+    /// Pure, so tests assert the rule directly instead of sleeping —
+    /// sleep-based debounce tests are flaky by construction.
+    ///
+    /// `nonisolated` is LOAD-BEARING: this class is `@MainActor`, and a static
+    /// on it inherits that isolation, so a Swift Testing suite (cooperative
+    /// thread, not main) cannot call it. Same hazard as the #4201 View statics,
+    /// with one important difference — an EXPLICIT `@MainActor` makes the
+    /// off-main call a COMPILE error, while a `View`'s implicit isolation
+    /// compiles and SIGTRAPs at runtime. The loud failure is the good one.
     nonisolated static func wait(delay: Duration, maxWait: Duration, sinceBurstStart elapsed: Duration) -> Duration {
         let remaining = maxWait - elapsed
         if remaining <= .zero { return .zero }
