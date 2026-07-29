@@ -130,7 +130,7 @@ def main() -> int:
         input_list = "$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
         if input_list not in input_file_lists:
             fail(f"{target['name']} Embed Fichero Server must use {input_list!r} as an inputFileListPath")
-        if "$(SRCROOT)/../fichero-server/build/server/macos/app/Fichero Server.app" not in input_paths:
+        if "$(SRCROOT)/../fichero-server/build/fichero_server/macos/app/Fichero Server.app" not in input_paths:
             fail(f"{target['name']} Embed Fichero Server must list the staged Briefcase app as an inputPath")
         expected_macos_output = (
             "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app"

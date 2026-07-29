@@ -359,7 +359,7 @@
 				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
 			);
 			inputPaths = (
-				"$(SRCROOT)/../fichero-server/build/server/macos/app/Fichero Server.app",
+				"$(SRCROOT)/../fichero-server/build/fichero_server/macos/app/Fichero Server.app",
 			);
 			name = "Embed Fichero Server";
 			outputPaths = (
@@ -408,7 +408,7 @@
 				"",
 				"",
 				"\"${SRCROOT}/../scripts/preflight-embedded-engine.sh\"",
-				"ENGINE_SRC=\"${SRCROOT}/../fichero-server/build/server/macos/app/Fichero Server.app\"",
+				"ENGINE_SRC=\"${SRCROOT}/../fichero-server/build/fichero_server/macos/app/Fichero Server.app\"",
 				"",
 				"ENGINE_DST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/Fichero Server.app\"",
 				"",
@@ -471,7 +471,7 @@
 				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
 			);
 			inputPaths = (
-				"$(SRCROOT)/../fichero-server/build/server/macos/app/Fichero Server.app",
+				"$(SRCROOT)/../fichero-server/build/fichero_server/macos/app/Fichero Server.app",
 				"$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements",
 			);
 			name = "Embed Fichero Server";
@@ -515,7 +515,7 @@
 				"# keeps Contents/Resources and is deliberately left alone.",
 				"",
 				"\"${SRCROOT}/../scripts/preflight-embedded-engine.sh\"",
-				"ENGINE_SRC=\"${SRCROOT}/../fichero-server/build/server/macos/app/Fichero Server.app\"",
+				"ENGINE_SRC=\"${SRCROOT}/../fichero-server/build/fichero_server/macos/app/Fichero Server.app\"",
 				"ENGINE_ENTITLEMENTS=\"${SRCROOT}/fichero/FicheroEngineAppStore.entitlements\"",
 				"",
 				"# THE APP BUNDLE, AS A REAL PATH. Read this before changing it.",

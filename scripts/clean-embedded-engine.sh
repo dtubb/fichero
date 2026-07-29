@@ -7,7 +7,7 @@ if [ "${1:-}" = "--check-version" ]; then
   CHECK_VERSION=true
   shift
 fi
-ENGINE_APP="${1:-$ROOT_DIR/fichero-server/build/server/macos/app/Fichero Server.app}"
+ENGINE_APP="${1:-$ROOT_DIR/fichero-server/build/fichero_server/macos/app/Fichero Server.app}"
 SIGN_IDENTITY="${FICHERO_CODESIGN_IDENTITY:-}"
 REQUIRED_AUTHORITY="${FICHERO_REQUIRED_CODESIGN_AUTHORITY:-}"
 PRUNE_PACKAGES=(

@@ -7,7 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-BACKEND_APP_SOURCE="$API_ROOT/build/server/macos/app/Fichero Server.app"
+BACKEND_APP_SOURCE="$API_ROOT/build/fichero_server/macos/app/Fichero Server.app"
 
 if [[ -z "${BUILT_PRODUCTS_DIR:-}" || -z "${PRODUCT_NAME:-}" ]]; then
   echo "❌ BUILT_PRODUCTS_DIR / PRODUCT_NAME not set (must run from Xcode build phase)"

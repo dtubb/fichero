@@ -24,7 +24,7 @@ ROOT="$(pwd)"
 SCHEME="Fichero (Dev Embedded)"
 PROJECT="fichero/fichero.xcodeproj"
 DDPATH="fichero/build/dd-verify"
-ENGINE_BUNDLE="fichero-server/build/server/macos/app/Fichero Server.app"
+ENGINE_BUNDLE="fichero-server/build/fichero_server/macos/app/Fichero Server.app"
 # Default: run every embedded-launch UX test. Narrow with FICHERO_UITEST=<Class>.
 ONLY_TESTING="FicheroUITests"
 if [[ -n "${FICHERO_UITEST:-}" ]]; then

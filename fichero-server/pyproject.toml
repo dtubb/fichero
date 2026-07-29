@@ -10,7 +10,7 @@
 #
 # Production build:
 #   - Run: ./scripts/build_backend_bundle.sh
-#   - Output: build/server/macos/app/Fichero Server.app
+#   - Output: build/fichero_server/macos/app/Fichero Server.app
 #   - This .app is copied into Fichero.app/Contents/Resources/ by Xcode
 # =============================================================================
 
@@ -34,15 +34,14 @@ author_email = "dtubb@users.noreply.github.com"
 #   - src/server: Briefcase entry point wrapper
 # =============================================================================
 
-[tool.briefcase.app.server]
+[tool.briefcase.app.fichero_server]
 formal_name = "Fichero Server"
 description = "Headless server for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 long_description = "FastAPI backend service embedded inside the Fichero Swift app. Provides document processing, AI workflows, and data storage."
-icon = "src/server/resources/server"  # Briefcase strips extension, adds platform suffixes
+icon = "src/fichero_server/resources/server"  # Briefcase strips extension, adds platform suffixes
 console_app = true  # Headless app (no window, runs in background)
 sources = [
-    "src/fichero_server",          # Main backend code
-    "src/server",  # Briefcase entry point
+    "src/fichero_server",  # engine code + Briefcase entry point (__main__)
     # #4227: the CLI and MCP server are separate products now, but both still
     # ship inside the embedded bundle (the MCP server is an in-app
     # distribution requirement; the CLI's FicheroClient is imported lazily by
@@ -153,7 +152,7 @@ fichero = [
 # This section defines the package for pip installation and uvicorn development.
 # Used when running: uvicorn fichero_server.api.main:app --reload
 #
-# IMPORTANT: Keep dependencies in sync with [tool.briefcase.app.server]
+# IMPORTANT: Keep dependencies in sync with [tool.briefcase.app.fichero_server]
 # TOML doesn't support variable inheritance, so both sections must be maintained.
 # =============================================================================
 

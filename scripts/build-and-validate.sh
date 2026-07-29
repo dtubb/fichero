@@ -94,8 +94,8 @@ else
     rm -rf build/server
   fi
 
-  if briefcase create macOS --app server >/dev/null 2>&1; then true; fi
-  if briefcase update macOS --app server 2>&1 && briefcase build macOS --app server 2>&1; then
+  if briefcase create macOS --app fichero_server >/dev/null 2>&1; then true; fi
+  if briefcase update macOS --app fichero_server 2>&1 && briefcase build macOS --app fichero_server 2>&1; then
     ok "Briefcase backend built"
   else
     fail "Briefcase backend build failed"

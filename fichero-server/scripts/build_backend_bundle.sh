@@ -37,9 +37,9 @@ if [ -z "$SIGNING_IDENTITY" ]; then
   exit 1
 fi
 
-briefcase package macOS --app server --identity "$SIGNING_IDENTITY"
+briefcase package macOS --app fichero_server --identity "$SIGNING_IDENTITY"
 
-BACKEND_APP_SOURCE="build/server/macos/app/Fichero Server.app"
+BACKEND_APP_SOURCE="build/fichero_server/macos/app/Fichero Server.app"
 if [ -d "$BACKEND_APP_SOURCE" ]; then
   echo "✅ Backend bundle ready: $BACKEND_APP_SOURCE"
 else

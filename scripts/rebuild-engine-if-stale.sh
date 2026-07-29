@@ -3,7 +3,7 @@
 # bundle (or the bundle is missing).
 #
 # WHY: the Xcode "Embed Fichero Server" build phase only `cp -R`s the pre-built
-# bundle from fichero-server/build/server/macos/app/ — it does NOT rebuild it.
+# bundle from fichero-server/build/fichero_server/macos/app/ — it does NOT rebuild it.
 # So a ⌘R Dev Embedded silently embeds a STALE engine after any engine-source
 # change (the stale-bundle trap: the app connects to an old engine and can miss
 # fixes like the SIGPIPE/auth ones). Wire this as a Run Script phase BEFORE
@@ -14,7 +14,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUNDLE="$ROOT/fichero-server/build/server/macos/app/Fichero Server.app"
+BUNDLE="$ROOT/fichero-server/build/fichero_server/macos/app/Fichero Server.app"
 SRC="$ROOT/fichero-server/src"
 STAMP="$BUNDLE/Contents/Info.plist"   # written by build_backend_bundle.sh each build
 

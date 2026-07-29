@@ -48,7 +48,7 @@ run_or_dry() {
 
 [ "$DRY_RUN" = true ] && echo "[DRY RUN] build-release.sh — printing steps only"
 
-ENGINE_APP="$ENGINE_ROOT/build/server/macos/app/Fichero Server.app"
+ENGINE_APP="$ENGINE_ROOT/build/fichero_server/macos/app/Fichero Server.app"
 
 # ── 0. Sync OpenAPI schema engine → Swift client ────────────────────────────
 # Re-export the engine's openapi.json and copy it into the Swift package so

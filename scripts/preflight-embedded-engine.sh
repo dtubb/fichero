@@ -6,7 +6,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENGINE_DIR="$ROOT_DIR/fichero-server"
-ENGINE_APP="$ENGINE_DIR/build/server/macos/app/Fichero Server.app"
+ENGINE_APP="$ENGINE_DIR/build/fichero_server/macos/app/Fichero Server.app"
 
 case "${1:-}" in
   "") ;;
@@ -96,10 +96,10 @@ if [ -d "$ENGINE_APP" ] && ! "$ROOT_DIR/scripts/clean-embedded-engine.sh" --chec
   # one-off FS race is the kind of babysit this script exists to avoid).
   _rm_ok=0
   for _ in 1 2 3; do
-    if rm -rf "$ENGINE_DIR/build/server/macos/app"; then _rm_ok=1; break; fi
+    if rm -rf "$ENGINE_DIR/build/fichero_server/macos/app"; then _rm_ok=1; break; fi
     [ "$_" = 3 ] || sleep 1
   done
-  [ "$_rm_ok" = 1 ] || { echo "error: could not remove $ENGINE_DIR/build/server/macos/app after 3 tries" >&2; exit 1; }
+  [ "$_rm_ok" = 1 ] || { echo "error: could not remove $ENGINE_DIR/build/fichero_server/macos/app after 3 tries" >&2; exit 1; }
 fi
 (
   cd "$ENGINE_DIR"
@@ -112,11 +112,11 @@ fi
   # architectures in …/libmupdf.dylib". Briefcase's own Python build needs none
   # of these, so clear them.
   for _v in $(env | sed -n 's/^\(SWIFT_[A-Z0-9_]*\)=.*/\1/p'); do unset "$_v"; done
-  if [ ! -d "$ENGINE_DIR/build/server/macos/app" ]; then
-    "$BRIEFCASE" create macOS --app server
+  if [ ! -d "$ENGINE_DIR/build/fichero_server/macos/app" ]; then
+    "$BRIEFCASE" create macOS --app fichero_server
   fi
-  "$BRIEFCASE" update macOS --app server
-  "$BRIEFCASE" build macOS --app server
+  "$BRIEFCASE" update macOS --app fichero_server
+  "$BRIEFCASE" build macOS --app fichero_server
 )
 
 if [ ! -x "$ENGINE_APP/Contents/MacOS/Fichero Server" ]; then
